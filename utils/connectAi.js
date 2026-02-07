@@ -1,10 +1,6 @@
 import {GoogleGenAI} from '@google/genai';
-const keys = {
- main: "AIzaSyDTXLa32vwUm5w81wMz2w67JPjkp3HRQK0",
- secondary: "AIzaSyBBrYJ965sMrlt_wYlIcYRF4dPBQfsYUdk",
- third:"AIzaSyCAquHJg6pmVYkMz6ZmcztES783NMusA7I" // Backup key. from the school's email
-};
-const apiKey =  "AIzaSyB6u4-Vf39uvXhH3hZAbQFlNK516XxAW5A";
+
+const apiKey = process.env.NEW_GEMINI_API_KEY ;
  
 export async function connectAi(prompt) {
    if (!apiKey) {

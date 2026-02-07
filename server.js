@@ -47,7 +47,6 @@ app.get('/api/ai/test', async (req, res) => {
     const result = await connectAi(prompt);
     res.json(result);
 });
-console.log(process.env.NEW_GEMINI_API_KEY);
 // CORS configuration
 app.use(cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
