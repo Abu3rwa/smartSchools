@@ -108,6 +108,35 @@ const studentSchema = new mongoose.Schema({
         lastGrade: String,
         leavingDate: Date
     },
+    // Optional student email (separate from parent emails)
+    studentEmail: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    // Report preferences for AI reporting system
+    reportPreferences: {
+        language: {
+            type: String,
+            enum: ['english', 'arabic', 'bilingual'],
+            default: 'english'
+        },
+        frequency: {
+            type: String,
+            enum: ['weekly', 'monthly', 'quarterly', 'yearly', 'custom'],
+            default: 'monthly'
+        },
+        recipients: {
+            student: { type: Boolean, default: false },
+            mother: { type: Boolean, default: true },
+            father: { type: Boolean, default: true },
+            teacher: { type: Boolean, default: true }
+        },
+        sendEmail: {
+            type: Boolean,
+            default: true
+        }
+    },
     // Status
     status: {
         type: String,

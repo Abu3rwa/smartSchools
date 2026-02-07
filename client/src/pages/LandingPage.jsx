@@ -61,6 +61,16 @@ const LandingPage = () => {
         <div className="landing-page">
             <div className="bg-gradient"></div>
             <div className="bg-grid"></div>
+            <div className="bg-particles">
+                <div className="bg-particle"></div>
+                <div className="bg-particle"></div>
+                <div className="bg-particle"></div>
+                <div className="bg-particle"></div>
+                <div className="bg-particle"></div>
+                <div className="bg-particle"></div>
+                <div className="bg-particle"></div>
+                <div className="bg-particle"></div>
+            </div>
             
             {/* Navigation */}
             <nav className="landing-nav">

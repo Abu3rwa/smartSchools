@@ -43,6 +43,34 @@ class GradeService {
     }
 
     /**
+     * Get all grades for a student within a date range
+     */
+    async getStudentGradesByDateRange(studentId, { startDate, endDate } = {}) {
+        const query = {
+            student: new mongoose.Types.ObjectId(studentId)
+        };
+
+        if (startDate || endDate) {
+            query.date = {};
+            if (startDate) {
+                const start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                query.date.$gte = start;
+            }
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                query.date.$lte = end;
+            }
+        }
+
+        return await Grade.find(query)
+            .populate('subject', 'name code')
+            .populate('teacher', 'user')
+            .sort({ date: -1 });
+    }
+
+    /**
      * Get grades for a class on a specific date/subject
      */
     async getClassGrades(classId, date, subjectId) {

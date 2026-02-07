@@ -7,6 +7,7 @@ import gradeRoutes from './gradeRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
 import gmailAuthRoutes from './gmailAuthRoutes.js';
 import reportRoutes from './reportRoutes.js';
+import advancedReportRoutes from './advancedReportRoutes.js';
 
 export {
     authRoutes,
@@ -17,5 +18,6 @@ export {
     gradeRoutes,
     notificationRoutes,
     gmailAuthRoutes,
-    reportRoutes
+    reportRoutes,
+    advancedReportRoutes
 };

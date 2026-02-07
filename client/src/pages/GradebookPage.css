@@ -24,13 +24,16 @@
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 1.5rem;
+    background: var(--surface);
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
 }
 
 .gradebook-header h1 {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    font-size: 1.75rem;
     color: var(--text-primary);
 }
 
@@ -327,22 +330,22 @@
 }
 
 .action-buttons {
-    display: flex;
-    gap: 0.25rem;
+display: flex;
+gap: 0.25rem;
 }
 
 /* Modal Enhancements */
 .modal-lg {
-    max-width: 900px;
-    max-height: 90vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+max-width: 1400px !important;
+max-height: 90vh;
+overflow: hidden;
+display: flex;
+flex-direction: column;
 }
 
 .modal-lg .modal-body {
-    flex: 1;
-    overflow-y: auto;
+flex: 1;
+overflow-y: auto;
 }
 
 .modal-sm {

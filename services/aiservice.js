@@ -1,45 +1,72 @@
-
-import { GoogleGenAI } from "@google/genai";
+import { connectAi } from "../utils/connectAi.js";
+import { AITokenUsage } from "../models/AITokenUsage.js";
 
 class AIService {
     constructor() {
-        const apiKey = process.env.GOOGLE_API_KEY;
-        console.log("Using API Key starting with:", apiKey);
-        if (!apiKey) {
-            console.warn('GOOGLE_API_KEY is not set in .env');
-        } else {
-            // Initialize with explicit key, or let it fallback to GOOGLE_API_KEY./GOOGLE_API_KEY env vars if supported by SDK defaults
-            this.ai = new GoogleGenAI({ apiKey });
-            // console.log(this.ai)
-        }
+        
     }
 
     /**
-     * Generate a comprehensive student progress report
-     * @param {Object} studentData - Student details
-     * @param {Array} grades - List of recent grades
-     * @param {String} period - Time period (e.g., "October 2023", "Term 1")
-     * @param {Object} teacher - Teacher details
-     * @returns {Promise<String>} Generated report text
+     * Generate advanced AI report with multi-language support
+     * @param {Object} options - Report generation options
+     * @param {Object} options.studentData - Student details
+     * @param {Array} options.grades - List of grades
+     * @param {String} options.period - Time period description
+     * @param {Object} options.teacher - Teacher details
+     * @param {String} options.language - 'english', 'arabic', or 'bilingual'
+     * @param {String} options.reportType - 'weekly', 'monthly', 'quarterly', 'yearly', 'custom'
+     * @param {Object} options.dateRange - { startDate, endDate }
+     * @param {String} options.customPrompt - Optional custom prompt
+     * @param {String} options.userId - Teacher ID for tracking
+     * @param {String} options.schoolId - School ID for tracking
+     * @returns {Promise<Object>} Generated report and token usage data
      */
-    async generateStudentReport(studentData, grades, period, teacher) {
-        if (!this.ai) {
-            throw new Error("AI Service is not configured (missing API Key)");
-        }
+    async generateAdvancedReport(options) {
+        const {
+            studentData,
+            grades,
+            period,
+            teacher,
+            language = 'english',
+            reportType = 'monthly',
+            dateRange,
+            customPrompt,
+            userId,
+            schoolId
+        } = options;
 
-        const prompt = this.constructReportPrompt(studentData, grades, period, teacher);
+        const prompt = customPrompt || this.constructAdvancedPrompt({
+            studentData,
+            grades,
+            period,
+            teacher,
+            language,
+            reportType,
+            dateRange
+        });
 
         try {
-            // DEBUG: Check which key is being used
-            console.log("Using API Key starting with:", this.ai.apiKey?.substring(0, 10) + "...");
-
-            // Using the simpler "generateContent" method structure
-            const response = await this.ai.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: prompt,
+            const response = await connectAi(prompt);
+            
+            // Track token usage
+            const tokenUsage = await this.trackTokenUsage({
+                userId,
+                schoolId,
+                studentId: studentData._id,
+                reportType,
+                language,
+                dateRange,
+                inputTokens: response.inputtokenCount || 0,
+                outputTokens: response.outputtokenCount || 0,
+                totalTokens: response.totalTokenCount || 0
             });
-            console.log(response.text);
-            return response.text;
+
+            return {
+                text: response.text,
+                tokenUsage,
+                language,
+                reportType
+            };
         } catch (error) {
             console.error("AI Generation Error:", error);
             throw new Error("Failed to generate AI report");
@@ -47,125 +74,202 @@ class AIService {
     }
 
     /**
-     * Construct the prompt for the AI model
+     * Construct advanced prompt for multi-language reporting
      */
-    constructReportPrompt(student, grades, period, teacher) {
-        // Sort grades by date (Oldest -> Newest) to help AI see trends
+    constructAdvancedPrompt(options) {
+        const {
+            studentData,
+            grades,
+            period,
+            teacher,
+            language,
+            reportType,
+            dateRange
+        } = options;
+
+        // Sort grades by date (Oldest -> Newest)
         const sortedGrades = [...grades].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        // Calculate basic stats for context
+        // Calculate basic stats
         const totalMarks = sortedGrades.reduce((sum, g) => sum + g.marks, 0);
         const totalMax = sortedGrades.reduce((sum, g) => sum + g.maxMarks, 0);
         const average = totalMax > 0 ? Math.round((totalMarks / totalMax) * 100) : 0;
 
         const subjects = [...new Set(sortedGrades.map(g => g.subject?.name || 'Unknown'))].join(', ');
-
         const teacherName = teacher ? `${teacher.firstName} ${teacher.lastName}` : 'The Teacher';
 
-        // Format grades with dates to show progression
+        // Format grades with dates
         const gradeList = sortedGrades.map(g => {
             const dateStr = new Date(g.date).toLocaleDateString();
-
-            // Combine notes and remarks if they exist
             const notesAndRemarks = [g.notes, g.remarks]
                 .filter(n => n && n.trim().length > 0)
                 .join(' | ');
-
             const noteContent = notesAndRemarks ? `[NOTES: ${notesAndRemarks}]` : '';
             return `- ${dateStr} | ${g.subject?.name || 'Subject'}: ${g.marks}/${g.maxMarks} (${g.gradeType}) ${noteContent}`;
         }).join('\n');
 
+        // Language-specific prompts
+        if (language === 'arabic') {
+            return `
+أنت معلم محترف وودود. اكتب رسالة تقرير تقدم للوالدين باللغة العربية.
+
+مهم جداً (قواعد الإخراج):
+- اكتب HTML فقط.
+- ممنوع Markdown نهائياً (ممنوع ** أو code fences).
+- ممنوع رموز مزخرفة أو غريبة مثل @#$%^&*.
+- لا تكتب أي شرح أو مقدمة خارج HTML.
+- لا تكتب <html> أو <head> أو <body>.
+- استخدم فقط: <div>, <p>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <li>, <strong>.
+
+- ضع dir="rtl" على <div> الخارجي.
+
+بيانات الطالب:
+- الاسم: ${studentData.firstName} ${studentData.lastName}
+- الفترة: ${period}
+- المعدل العام: ${average}%
+- المواد: ${subjects}
+- اسم المعلم: ${teacherName}
+
+الدرجات (ترتيب زمني) - استخدم هذه البيانات لإنشاء صفوف جدول:
+${gradeList}
+
+الهيكل المطلوب داخل HTML:
+1) <p>افتتاحية قصيرة</p>
+2) <p><strong>نقاط القوة:</strong> ...</p>
+3) <p><strong>مجالات للتحسين:</strong> ...</p>
+4) <table> جدول درجات منظم (التاريخ/المادة/الدرجة/ملاحظات) </table>
+5) <ul>كيف يمكنكم المساعدة في المنزل</ul>
+6) <p>خاتمة وتوقيع باسم المعلم</p>
+
+اكتب الناتج النهائي ككتلة HTML واحدة فقط.
+            `.trim();
+        }
+
+        if (language === 'bilingual') {
+            return `
+Write a parent progress report in TWO SECTIONS: English then Arabic.
+
+Very important output rules:
+- Output ONLY HTML.
+- No Markdown (no **, no code fences).
+- No weird symbols like @#$%^&*.
+- Do not include <html>, <head>, or <body>.
+- Use only: <div>, <p>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <li>, <strong>.
+
+Student:
+- Name: ${studentData.firstName} ${studentData.lastName}
+- Period: ${period}
+- Overall average: ${average}%
+- Subjects: ${subjects}
+- Teacher: ${teacherName}
+
+Grades (chronological) - use these lines to build the grades table rows:
+${gradeList}
+
+Output HTML structure:
+- One outer <div>.
+- Inside it:
+  - <div dir="ltr">English section</div>
+  - <div dir="rtl">Arabic section</div>
+
+Each section must contain:
+1) Greeting paragraph
+2) Strengths paragraph
+3) Areas for growth paragraph
+4) Grades table (Date/Subject/Grade/Notes)
+5) Bullet list: how to help at home
+6) Closing + signature
+            `.trim();
+        }
+
         return `
-        Role: You are an experienced, empathetic, and professional teacher at a school. 
-        Task: Write a concise progress report email for a parent regarding their child's recent performance. You are their teacher, speak directly about them using their gender ${student.gender} .
+You are an experienced, empathetic teacher. Write a parent progress report in English.
 
-        Student Name: ${student.firstName} 
-        Period: ${period}
-        Overall Average: ${average}%
-        Subjects Covered: ${subjects}
-        Sender Name: ${teacherName}
-        
+Very important output rules:
+- Output ONLY HTML.
+- No Markdown (no **, no code fences).
+- No weird symbols like @#$%^&*.
+- Do not include <html>, <head>, or <body>.
+- Use only: <div>, <p>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <li>, <strong>.
+- Wrap everything in a single outer <div dir="ltr">.
 
-        Recent Grades Breakdown (Chronological Order):
-        ${gradeList}
+Student:
+- Name: ${studentData.firstName} ${studentData.lastName}
+- Period: ${period}
+- Overall average: ${average}%
+- Subjects: ${subjects}
+- Teacher: ${teacherName}
 
-        Guidelines:
-        1. **Structure (The Sandwich Method)**: You MUST structure the email body in three distinct parts:
-            *   **Positive Opening**: Start with genuine praise, highlighting specific strengths, good grades, or positive behavioral notes.
-            *   **Areas for Growth**: Constructively address the valid concerns, grade declines, or behavioral issues. Be direct but kind.
-            *   **Positive Closing**: End with encouraging words, expressing confidence in the student's future success and next steps.
-        2. **Analyze Trends**: Look at the chronological order of grades to identify if the student is improving or declining.
-        3. **Focus on Behavior**: Pay special attention to the 'NOTES'. Behavior/effort comments are as important as grades.
-        4. **Tone**: Professional, empathetic, and constructive.
-        5. **Format**: Use HTML for readability (use <p>, <ul>, <li>, <strong>). Keep paragraphs short. nice colors for important words.
-        6. **Length**: Keep it concise (approx 200-350 words).
-        7. **Signature**: Sign off the email clearly with "Best regards," followed by the Sender Name provided above (${teacherName}) and nothing else. every phrase in a separate line.
-        8. **Language**: Use English and Arabic translation(same content). 
-        9. don't include any other text except the report.
-        10. don't include the subject line. start with solution line
-        11. the Arabic html should be from right to left. and English from left to write
-        `;
+Grades (chronological) - use these lines to build the grades table rows:
+${gradeList}
+
+HTML structure:
+1) Greeting paragraph
+2) Strengths paragraph
+3) Areas for growth paragraph
+4) Grades table (Date/Subject/Grade/Notes)
+5) Bullet list: how to help at home
+6) Closing + signature
+
+Output the final report as ONE HTML block only.
+        `.trim();
     }
 
     /**
-     * Generate AI report for a specific date range
-     * @param {Object} studentData - Student details
-     * @param {Array} grades - Filtered grades for the date range
-     * @param {Date} startDate - Start date of the period
-     * @param {Date} endDate - End date of the period
-     * @param {Object} teacher - Teacher details
-     * @returns {Promise<String>} Generated report text
+     * Track token usage for analytics and cost calculation
      */
-    async generateDateRangeReport(studentData, grades, startDate, endDate, teacher) {
-        if (!this.ai) {
-            throw new Error("AI Service is not configured (missing API Key)");
-        }
+    async trackTokenUsage(usageData) {
+        const {
+            userId,
+            schoolId,
+            studentId,
+            reportType,
+            language,
+            dateRange,
+            inputTokens,
+            outputTokens,
+            totalTokens
+        } = usageData;
 
-        const period = this.formatDateRange(startDate, endDate);
-        const prompt = this.constructReportPrompt(studentData, grades, period, teacher);
+        // Calculate estimated cost (using Gemini 2.5 Flash pricing)
+        const pricing = {
+            input: 0.000125,  // per 1K tokens
+            output: 0.000375  // per 1K tokens
+        };
+        
+        const estimatedCost = (inputTokens * pricing.input / 1000) + 
+                             (outputTokens * pricing.output / 1000);
 
-        try {
-            console.log("Using API Key starting with:", this.ai.apiKey?.substring(0, 10) + "...");
-            
-            const response = await this.ai.models.generateContent({
-                model: "gemini-3-flash-preview",
-                contents: prompt,
-            });
-            console.log(response.text);
-            return response.text;
-        } catch (error) {
-            console.error("AI Generation Error:", error);
-            throw new Error("Failed to generate AI report");
-        }
+        const tokenUsage = new AITokenUsage({
+            model: 'gemini-2.5-flash',
+            user: userId,
+            school: schoolId,
+            schoolId: schoolId.toString(),
+            student: studentId,
+            reportType,
+            language,
+            dateRange,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            estimatedCost
+        });
+
+        return await tokenUsage.save();
     }
 
     /**
-     * Format date range for display
+     * Legacy method for backward compatibility
      */
-    formatDateRange(startDate, endDate) {
-        const startStr = startDate.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
+    async generateStudentReport(studentData, grades, period, teacher) {
+        return await this.generateAdvancedReport({
+            studentData,
+            grades,
+            period,
+            teacher,
+            language: 'english',
+            reportType: 'monthly'
         });
-        
-        const endStr = endDate.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-
-        // If same day, just show one date
-        if (startDate.toDateString() === endDate.toDateString()) {
-            return startStr;
-        }
-
-        // If same month/year, shorten
-        if (startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()) {
-            return `${startDate.toLocaleDateString('en-US', { month: 'long' })} ${startDate.getDate()}-${endDate.getDate()}, ${startDate.getFullYear()}`;
-        }
-
-        return `${startStr} to ${endStr}`;
     }
 }
 

@@ -12,9 +12,7 @@ import {
     HiOutlineChevronRight,
     HiOutlineLogout,
     HiOutlineShieldCheck,
-    HiOutlineCalendar,
     HiOutlineAcademicCap,
-    HiOutlineUsers,
     HiOutlineChartBar
 } from 'react-icons/hi';
 import './Sidebar.css';

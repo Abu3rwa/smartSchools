@@ -73,6 +73,15 @@ const GradebookPage = () => {
     const [selectedStudentForAI, setSelectedStudentForAI] = useState(null);
     const [aiReportContent, setAiReportContent] = useState('');
     const [generatingAI, setGeneratingAI] = useState(false);
+    // Advanced AI Report State
+    const [aiLanguage, setAiLanguage] = useState('english');
+    const [aiRecipients, setAiRecipients] = useState({
+        mother: true,
+        father: true,
+        student: false,
+        teacher: true
+    });
+    const [aiSendEmail, setAiSendEmail] = useState(false);
 
     // Form state for adding grades
     const [formData, setFormData] = useState({
@@ -172,6 +181,16 @@ const GradebookPage = () => {
             maxMarks: 10,
             studentGrades: initialGrades
         });
+        // Reset AI state
+        setAiReportContent('');
+        setAiLanguage('english');
+        setAiRecipients({
+            mother: true,
+            father: true,
+            student: false,
+            teacher: true
+        });
+        setAiSendEmail(false);
     };
 
     const handleGradeChange = (studentId, field, value) => {
@@ -341,6 +360,10 @@ const GradebookPage = () => {
                             ))}
                         </select>
                     </div>
+                    <Link to="/portal/reports/generator" className="btn btn-outline">
+                        <HiOutlineSparkles size={20} />
+                        Advanced Reports
+                    </Link>
                     <button
                         className="btn btn-success"
                         onClick={handleSendClassworkUpdate}
@@ -670,12 +693,18 @@ const GradebookPage = () => {
                                                 const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label;
                                                 const periodStr = `${monthLabel} ${academicYear.split('-')[1]}`; // e.g. February 2026
 
-                                                const response = await api.post('/reports/generate-ai', {
+                                                // Use advanced report generation
+                                                const response = await api.post('/reports/generate-advanced', {
                                                     studentId: selectedStudentForAI._id,
-                                                    academicYear: academicYear,
-                                                    period: periodStr
+                                                    reportType: 'monthly',
+                                                    language: aiLanguage,
+                                                    sendEmail: aiSendEmail,
+                                                    recipients: aiRecipients
                                                 });
-                                                setAiReportContent(response.data.data.report);
+                                                
+                                                if (response.data.success) {
+                                                    setAiReportContent(response.data.data.report);
+                                                }
                                             } catch (error) {
                                                 console.error(error);
                                                 toast.error('Failed to generate report');
@@ -695,6 +724,58 @@ const GradebookPage = () => {
                                             </>
                                         )}
                                     </button>
+                                    {/* Language Selection */}
+                                    <div style={{ marginTop: '20px' }}>
+                                        <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px' }}>
+                                            Report Language
+                                        </label>
+                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                            {['english', 'arabic', 'bilingual'].map(lang => (
+                                                <button
+                                                    key={lang}
+                                                    type="button"
+                                                    className={`btn btn-sm ${aiLanguage === lang ? 'btn-primary' : 'btn-outline'}`}
+                                                    onClick={() => setAiLanguage(lang)}
+                                                    style={{ textTransform: 'capitalize' }}
+                                                >
+                                                    {lang}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {/* Email Options */}
+                                    <div style={{ marginTop: '16px' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={aiSendEmail}
+                                                onChange={(e) => setAiSendEmail(e.target.checked)}
+                                            />
+                                            Send report via email after generation
+                                        </label>
+                                    </div>
+                                    {aiSendEmail && (
+                                        <div style={{ marginTop: '12px', padding: '12px', background: '#f9fafb', borderRadius: '8px' }}>
+                                            <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '13px' }}>
+                                                Email Recipients
+                                            </label>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                                                {['mother', 'father', 'student', 'teacher'].map(recipient => (
+                                                    <label key={recipient} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={aiRecipients[recipient]}
+                                                            onChange={(e) => setAiRecipients(prev => ({
+                                                                ...prev,
+                                                                [recipient]: e.target.checked
+                                                            }))}
+                                                        />
+                                                        <span style={{ textTransform: 'capitalize' }}>{recipient}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="ai-report-preview">
@@ -713,39 +794,53 @@ const GradebookPage = () => {
                                     />
 
                                     <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                                        <button
-                                            className="btn btn-secondary"
-                                            onClick={() => setAiReportContent('')}
-                                        >
-                                            Regenerate
-                                        </button>
-                                        <button
-                                            className="btn btn-success"
-                                            onClick={async () => {
-                                                try {
-                                                    // Send the AI report to parent
-                                                    const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label;
-                                                    const periodStr = `${monthLabel} ${academicYear.split('-')[1]}`;
-                                                    
-                                                    const response = await api.post(`/notifications/send-ai-report/${selectedStudentForAI._id}`, {
-                                                        reportContent: aiReportContent,
-                                                        period: periodStr
-                                                    });
-                                                    
-                                                    if (response.data.success) {
-                                                        toast.success('AI report sent to parent successfully!');
-                                                        setShowAIModal(false);
-                                                    } else {
-                                                        toast.error(response.data.message || 'Failed to send report');
-                                                    }
-                                                } catch (error) {
-                                                    console.error('Error sending AI report:', error);
-                                                    toast.error(error.response?.data?.message || 'Failed to send report');
-                                                }
-                                            }}
-                                        >
-                                            <HiOutlineMail /> Send to Parents
-                                        </button>
+                                        {aiSendEmail ? (
+                                            <div style={{ 
+                                                padding: '10px 20px', 
+                                                background: '#dcfce7', 
+                                                color: '#16a34a', 
+                                                borderRadius: '8px',
+                                                fontSize: '14px'
+                                            }}>
+                                                ✓ Report will be sent automatically after generation
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    className="btn btn-secondary"
+                                                    onClick={() => setAiReportContent('')}
+                                                >
+                                                    Regenerate
+                                                </button>
+                                                <button
+                                                    className="btn btn-success"
+                                                    onClick={async () => {
+                                                        try {
+                                                            // Send the AI report to parent
+                                                            const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label;
+                                                            const periodStr = `${monthLabel} ${academicYear.split('-')[1]}`;
+                                                            
+                                                            const response = await api.post(`/notifications/send-ai-report/${selectedStudentForAI._id}`, {
+                                                                reportContent: aiReportContent,
+                                                                period: periodStr
+                                                            });
+                                                            
+                                                            if (response.data.success) {
+                                                                toast.success('AI report sent to parent successfully!');
+                                                                setShowAIModal(false);
+                                                            } else {
+                                                                toast.error(response.data.message || 'Failed to send report');
+                                                            }
+                                                        } catch (error) {
+                                                            console.error('Error sending AI report:', error);
+                                                            toast.error(error.response?.data?.message || 'Failed to send report');
+                                                        }
+                                                    }}
+                                                >
+                                                    <HiOutlineMail /> Send to Parents
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             )}

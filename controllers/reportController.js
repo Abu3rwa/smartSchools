@@ -1,7 +1,6 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Student from '../models/Student.js';
 import gradeService from '../services/gradeService.js';
-import aiService from '../services/aiservice.js';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 
 /**
@@ -34,7 +33,8 @@ export const generateAIReport = asyncHandler(async (req, res) => {
     // Determine period if not provided
     const currentPeriod = period || new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
 
-    // 3. Generate Report via AI Service
+    // 3. Generate Report via AI Service (lazy load to ensure env vars are loaded)
+    const { default: aiService } = await import('../services/aiservice.js');
     const reportText = await aiService.generateStudentReport(
         student,
         grades,

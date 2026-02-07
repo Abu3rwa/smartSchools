@@ -254,7 +254,7 @@ roomSchema.index({ school: 1, name: 1 }, { unique: true });
 roomSchema.index({ school: 1, type: 1 });
 roomSchema.index({ school: 1, isAvailable: 1 });
 roomSchema.index({ school: 1, capacity: 1 });
-roomSchema.index({ 'location.coordinates': '2dsphere' });
+     
 
 // Virtuals
 roomSchema.virtual('fullName').get(function() {

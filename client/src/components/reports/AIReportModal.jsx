@@ -1,14 +1,67 @@
-import { useState } from 'react';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import { HiOutlineX, HiOutlineCalendar, HiOutlineClock, HiOutlineDocumentText } from 'react-icons/hi';
+import { useState, useEffect, useCallback } from 'react';
+import { format, formatDistanceToNow, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { 
+    HiOutlineX, 
+    HiOutlineCalendar, 
+    HiOutlineClock, 
+    HiOutlineDocumentText,
+    HiOutlineSparkles,
+    HiOutlineCheckCircle,
+    HiOutlineExclamation,
+    HiOutlineTrendingUp,
+    HiOutlineTrendingDown,
+    HiOutlineAcademicCap,
+    HiOutlineChartBar
+} from 'react-icons/hi';
 import './AIReportModal.css';
 
-const AIReportModal = ({ isOpen, onClose, onGenerate, studentName }) => {
-    const [periodType, setPeriodType] = useState('predefined'); // 'predefined' or 'custom'
+/**
+ * AI Progress Report Modal
+ * A sophisticated glassmorphism modal for AI-generated progress reports
+ */
+const AIReportModal = ({ 
+    isOpen, 
+    onClose, 
+    onGenerate, 
+    studentName,
+    studentData = null,
+    reportProgress = null,
+    aiAnalysis = null,
+    timestamp = null,
+    status = 'idle' // 'idle' | 'generating' | 'complete' | 'error'
+}) => {
+    const [periodType, setPeriodType] = useState('predefined');
     const [predefinedPeriod, setPredefinedPeriod] = useState('this-week');
     const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [isLoading, setIsLoading] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [localStatus, setLocalStatus] = useState(status);
+
+    // Handle escape key
+    const handleKeyDown = useCallback((e) => {
+        if (e.key === 'Escape' && !isLoading) {
+            onClose();
+        }
+    }, [isLoading, onClose]);
+
+    useEffect(() => {
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [handleKeyDown]);
+
+    // Simulate progress during generation
+    useEffect(() => {
+        if (localStatus === 'generating' && progress < 100) {
+            const interval = setInterval(() => {
+                setProgress(prev => {
+                    const increment = Math.random() * 15 + 5;
+                    return Math.min(prev + increment, 100);
+                });
+            }, 500);
+            return () => clearInterval(interval);
+        }
+    }, [localStatus, progress]);
 
     const predefinedOptions = [
         { value: 'this-week', label: 'This Week', icon: <HiOutlineClock /> },
@@ -20,135 +73,321 @@ const AIReportModal = ({ isOpen, onClose, onGenerate, studentName }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsLoading(true);
+        setLocalStatus('generating');
+        setProgress(0);
 
         try {
             let payload;
             
             if (periodType === 'predefined') {
-                payload = {
-                    periodType: predefinedPeriod
-                };
+                payload = { periodType: predefinedPeriod };
             } else {
-                // Validate dates
                 const start = new Date(startDate);
                 const end = new Date(endDate);
                 
                 if (start > end) {
                     alert('Start date must be before end date');
+                    setLocalStatus('error');
+                    setIsLoading(false);
                     return;
                 }
                 
-                payload = {
-                    startDate,
-                    endDate
-                };
+                payload = { startDate, endDate };
             }
 
             await onGenerate(payload, periodType);
+            setLocalStatus('complete');
         } catch (error) {
             console.error('Error generating report:', error);
+            setLocalStatus('error');
         } finally {
             setIsLoading(false);
         }
     };
 
+    const handleClose = () => {
+        if (!isLoading) {
+            onClose();
+            // Reset state after close animation
+            setTimeout(() => {
+                setLocalStatus('idle');
+                setProgress(0);
+            }, 300);
+        }
+    };
+
+    const getStatusConfig = () => {
+        switch (localStatus) {
+            case 'generating':
+                return { 
+                    className: 'pending',
+                    text: 'Generating AI Report...',
+                    icon: <div className="status-indicator pending" />
+                };
+            case 'complete':
+                return { 
+                    className: '',
+                    text: 'Report Generated Successfully',
+                    icon: <div className="status-indicator" />
+                };
+            case 'error':
+                return { 
+                    className: 'error',
+                    text: 'Generation Failed',
+                    icon: <div className="status-indicator error" />
+                };
+            default:
+                return null;
+        }
+    };
+
+    const statusConfig = getStatusConfig();
+
+    const formatRelativeTime = (date) => {
+        if (!date) return null;
+        return formatDistanceToNow(new Date(date), { addSuffix: true });
+    };
+
     if (!isOpen) return null;
 
     return (
-        <div className="modal-overlay">
-            <div className="modal-content ai-report-modal">
+        <div 
+            className="modal-overlay" 
+            onClick={(e) => e.target === e.currentTarget && handleClose()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+        >
+            <div className="ai-report-modal" role="document">
+                {/* Modal Header */}
                 <div className="modal-header">
-                    <h2>
+                    <h2 id="modal-title">
                         <HiOutlineDocumentText className="icon" />
-                        Generate AI Report for {studentName}
+                        AI Progress Report - {studentName || 'Student'}
                     </h2>
-                    <button className="close-button" onClick={onClose}>
+                    <button 
+                        className="close-button" 
+                        onClick={handleClose}
+                        aria-label="Close modal"
+                        disabled={isLoading}
+                    >
                         <HiOutlineX />
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="modal-body">
-                    <div className="form-group">
-                        <label className="form-label">Report Period</label>
-                        <div className="radio-group">
-                            <label className="radio-option">
-                                <input
-                                    type="radio"
-                                    name="periodType"
-                                    value="predefined"
-                                    checked={periodType === 'predefined'}
-                                    onChange={(e) => setPeriodType(e.target.value)}
-                                />
-                                <span className="radio-label">Predefined Periods</span>
-                            </label>
-                            <label className="radio-option">
-                                <input
-                                    type="radio"
-                                    name="periodType"
-                                    value="custom"
-                                    checked={periodType === 'custom'}
-                                    onChange={(e) => setPeriodType(e.target.value)}
-                                />
-                                <span className="radio-label">Custom Date Range</span>
-                            </label>
+                <div className="modal-body">
+                    {/* Status Indicator */}
+                    {statusConfig && (
+                        <div className="status-section" role="status" aria-live="polite">
+                            {statusConfig.icon}
+                            <span className="status-text">
+                                <strong>{statusConfig.text}</strong>
+                            </span>
                         </div>
-                    </div>
+                    )}
 
-                    {periodType === 'predefined' ? (
-                        <div className="form-group">
-                            <label className="form-label">Select Period</label>
-                            <div className="period-options">
-                                {predefinedOptions.map(option => (
-                                    <button
-                                        key={option.value}
-                                        type="button"
-                                        className={`period-option ${predefinedPeriod === option.value ? 'selected' : ''}`}
-                                        onClick={() => setPredefinedPeriod(option.value)}
-                                    >
-                                        <span className="option-icon">{option.icon}</span>
-                                        <span className="option-label">{option.label}</span>
-                                    </button>
-                                ))}
+                    {/* Loading State */}
+                    {localStatus === 'generating' && (
+                        <div className="loading-overlay">
+                            <div className="loading-spinner" role="status" aria-label="Generating report">
+                                <span className="sr-only">Loading...</span>
                             </div>
-                        </div>
-                    ) : (
-                        <div className="date-range-fields">
-                            <div className="form-group">
-                                <label className="form-label">Start Date</label>
-                                <input
-                                    type="date"
-                                    className="form-input"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">End Date</label>
-                                <input
-                                    type="date"
-                                    className="form-input"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    required
-                                />
+                            <p className="loading-text">AI is analyzing student performance...</p>
+                            
+                            {/* Progress Section */}
+                            <div className="progress-section">
+                                <div className="progress-header">
+                                    <span className="progress-title">Analysis Progress</span>
+                                    <span className="progress-percentage">{Math.round(progress)}%</span>
+                                </div>
+                                <div className="progress-bar-container" role="progressbar" 
+                                    aria-valuenow={Math.round(progress)} aria-valuemin="0" aria-valuemax="100">
+                                    <div 
+                                        className="progress-bar" 
+                                        style={{ width: `${progress}%` }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    <div className="modal-footer">
-                        <button type="button" className="btn btn-secondary" onClick={onClose}>
-                            Cancel
-                        </button>
-                        <button 
-                            type="submit" 
-                            className="btn btn-primary"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? 'Generating...' : 'Generate & Send Report'}
-                        </button>
-                    </div>
-                </form>
+                    {/* Loading Skeleton */}
+                    {localStatus === 'generating' && (
+                        <div className="loading-overlay">
+                            <div className="skeleton skeleton-title"></div>
+                            <div className="skeleton skeleton-text"></div>
+                            <div className="skeleton skeleton-text short"></div>
+                            <div className="skeleton skeleton-progress"></div>
+                            <div className="skeleton-insights">
+                                <div className="skeleton skeleton-insight"></div>
+                                <div className="skeleton skeleton-insight"></div>
+                                <div className="skeleton skeleton-insight"></div>
+                                <div className="skeleton skeleton-insight"></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* AI Analysis Section */}
+                    {aiAnalysis && localStatus === 'complete' && (
+                        <div className="ai-analysis-section" role="region" aria-label="AI Analysis">
+                            <div className="ai-analysis-header">
+                                <span className="ai-badge">
+                                    <HiOutlineSparkles />
+                                    AI Powered
+                                </span>
+                                <span className="ai-analysis-title">Key Insights</span>
+                            </div>
+                            <div className="insights-grid">
+                                <div className="insight-card">
+                                    <div className="insight-label">Overall Average</div>
+                                    <div className={`insight-value ${aiAnalysis.average >= 70 ? 'positive' : 'warning'}`}>
+                                        {aiAnalysis.average}%
+                                    </div>
+                                </div>
+                                <div className="insight-card">
+                                    <div className="insight-label">Performance Trend</div>
+                                    <div className="insight-value">
+                                        {aiAnalysis.trend === 'up' ? (
+                                            <span style={{ color: '#10b981' }}>
+                                                <HiOutlineTrendingUp style={{ marginRight: '4px' }} />
+                                                Improving
+                                            </span>
+                                        ) : aiAnalysis.trend === 'down' ? (
+                                            <span style={{ color: '#ef4444' }}>
+                                                <HiOutlineTrendingDown style={{ marginRight: '4px' }} />
+                                                Declining
+                                            </span>
+                                        ) : (
+                                            <span style={{ color: '#f59e0b' }}>
+                                                <HiOutlineChartBar style={{ marginRight: '4px' }} />
+                                                Stable
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="insight-card">
+                                    <div className="insight-label">Subjects</div>
+                                    <div className="insight-value">{aiAnalysis.subjects || 'N/A'}</div>
+                                </div>
+                                <div className="insight-card">
+                                    <div className="insight-label">Strength Area</div>
+                                    <div className="insight-value positive">{aiAnalysis.strength || 'N/A'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Timestamp */}
+                    {timestamp && (
+                        <div className="timestamp-section">
+                            <HiOutlineClock className="timestamp-icon" />
+                            <span className="timestamp-text">
+                                Generated <strong>{formatRelativeTime(timestamp)}</strong>
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Report Generation Form */}
+                    {localStatus !== 'generating' && (
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label className="form-label">Report Period</label>
+                                <div className="radio-group">
+                                    <label className="radio-option">
+                                        <input
+                                            type="radio"
+                                            name="periodType"
+                                            value="predefined"
+                                            checked={periodType === 'predefined'}
+                                            onChange={(e) => setPeriodType(e.target.value)}
+                                            disabled={isLoading}
+                                        />
+                                        <span>Predefined Periods</span>
+                                    </label>
+                                    <label className="radio-option">
+                                        <input
+                                            type="radio"
+                                            name="periodType"
+                                            value="custom"
+                                            checked={periodType === 'custom'}
+                                            onChange={(e) => setPeriodType(e.target.value)}
+                                            disabled={isLoading}
+                                        />
+                                        <span>Custom Date Range</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {periodType === 'predefined' ? (
+                                <div className="form-group">
+                                    <label className="form-label">Select Period</label>
+                                    <div className="period-options" role="radiogroup" aria-label="Predefined periods">
+                                        {predefinedOptions.map(option => (
+                                            <button
+                                                key={option.value}
+                                                type="button"
+                                                className={`period-option ${predefinedPeriod === option.value ? 'selected' : ''}`}
+                                                onClick={() => setPredefinedPeriod(option.value)}
+                                                disabled={isLoading}
+                                                role="radio"
+                                                aria-checked={predefinedPeriod === option.value}
+                                            >
+                                                <span className="option-icon">{option.icon}</span>
+                                                <span className="option-label">{option.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="date-range-fields">
+                                    <div className="form-group">
+                                        <label className="form-label" htmlFor="startDate">Start Date</label>
+                                        <input
+                                            type="date"
+                                            id="startDate"
+                                            className="form-input"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                            required
+                                            disabled={isLoading}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label" htmlFor="endDate">End Date</label>
+                                        <input
+                                            type="date"
+                                            id="endDate"
+                                            className="form-input"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                            required
+                                            disabled={isLoading}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Modal Footer */}
+                            <div className="modal-footer">
+                                <button 
+                                    type="button" 
+                                    className="btn btn-secondary" 
+                                    onClick={handleClose}
+                                    disabled={isLoading}
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="submit" 
+                                    className="btn btn-primary"
+                                    disabled={isLoading}
+                                >
+                                    {isLoading ? 'Generating...' : 'Generate & Send Report'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+                </div>
             </div>
         </div>
     );

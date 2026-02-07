@@ -1,12 +1,15 @@
-import express from 'express';
-import cors from 'cors';
+// Load environment variables FIRST - before any other imports
 import dotenv from 'dotenv';
+dotenv.config();
+import cors from 'cors';
+import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
 import hpp from 'hpp';
 import connectDB from './config/db.js';
 import errorHandler, { notFound } from './middleware/errorHandler.js';
+import { connectAi } from './utils/connectAi.js';
 
 import {
     authRoutes,
@@ -32,16 +35,19 @@ import attendanceRoutes from './routes/attendanceRoutes.js';
 import schoolCalendarRoutes from './routes/schoolCalendarRoutes.js';
 import timetableRoutes from './routes/timetableRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
+import advancedReportRoutes from './routes/advancedReportRoutes.js';
 import { behaviorTracker } from './middleware/behaviorTracker.js';
-
-// Load environment variables
-dotenv.config();
 
 // Connect to database
 connectDB();
-
 const app = express();
 
+app.get('/api/ai/test', async (req, res) => {
+    const prompt = req.query.prompt || 'Test prompt';
+    const result = await connectAi(prompt);
+    res.json(result);
+});
+console.log(process.env.NEW_GEMINI_API_KEY);
 // CORS configuration
 app.use(cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -112,6 +118,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/auth/gmail', gmailAuthRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/reports', advancedReportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/behavior', behaviorRoutes);
@@ -189,7 +196,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Serve static assets in production
 import path from 'path';
 import { fileURLToPath } from 'url';
-
+ 
 if (process.env.NODE_ENV === 'production') {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
@@ -215,17 +222,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-    console.log(`
-╔══════════════════════════════════════════════════════════╗
-║                                                          ║
-║   🎓 GradeBook API Server                                ║
-║   ────────────────────────────────────────────────────   ║
-║   Environment: ${(process.env.NODE_ENV || 'development').padEnd(40)}║
-║   Port: ${String(PORT).padEnd(47)}║
-║   API: http://localhost:${PORT}/api${' '.repeat(29)}║
-║                                                          ║
-╚══════════════════════════════════════════════════════════╝
-  `);
+    console.log("Server is running");
 });
 
 export default app;

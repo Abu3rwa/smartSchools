@@ -26,7 +26,6 @@ const NotificationsPage = () => {
 
     useEffect(() => {
         dispatch(fetchNotificationHistory());
-        dispatch(fetchNotificationHistory());
     }, [dispatch, academicYear]);
 
 

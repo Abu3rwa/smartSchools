@@ -38,6 +38,12 @@ import TeacherAttendancePage from './pages/teacher/TeacherAttendancePage';
 import TeacherAttendanceNewPage from './pages/teacher/TeacherAttendanceNewPage';
 import LessonPlanPage from './pages/LessonPlanPage';
 
+// Report Pages
+import AdvancedReportGenerator from './pages/reports/AdvancedReportGenerator';
+import ReportAnalytics from './pages/reports/ReportAnalytics';
+import ReportTemplates from './pages/reports/ReportTemplates';
+import ReportHistory from './pages/reports/ReportHistory';
+
 // Platform Admin Pages
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminSchoolsPage from './pages/admin/AdminSchoolsPage';
@@ -46,6 +52,7 @@ import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminSubscriptionsPage from './pages/admin/AdminSubscriptionsPage';
 import AdminSubscriptionDetailsPage from './pages/admin/AdminSubscriptionDetailsPage';
+import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
 
 // Protected Route - requires authentication
 const ProtectedRoute = ({ children }) => {
@@ -150,6 +157,12 @@ function App() {
         <Route path="teachers" element={<RoleRoute roles={['admin']}><TeachersPage /></RoleRoute>} />
         <Route path="teachers/:id" element={<RoleRoute roles={['admin']}><TeacherDetailsPage /></RoleRoute>} />
         
+        {/* Reports Routes */}
+        <Route path="reports/generator" element={<RoleRoute roles={['admin', 'teacher']}><AdvancedReportGenerator /></RoleRoute>} />
+        <Route path="reports/analytics" element={<RoleRoute roles={['admin', 'teacher']}><ReportAnalytics /></RoleRoute>} />
+        <Route path="reports/templates" element={<RoleRoute roles={['admin', 'teacher']}><ReportTemplates /></RoleRoute>} />
+        <Route path="reports/history" element={<RoleRoute roles={['admin', 'teacher']}><ReportHistory /></RoleRoute>} />
+        
       </Route>
 
       {/* Platform Admin Routes (super_admin only) */}
@@ -169,6 +182,7 @@ function App() {
         <Route path="schools/new" element={<AdminSchoolsPage />} />
         <Route path="schools/:id" element={<AdminSchoolDetailsPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="analytics" element={<AdminAnalyticsPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
         <Route path="subscriptions/:id" element={<AdminSubscriptionDetailsPage />} />

@@ -68,6 +68,29 @@ const schoolSchema = new mongoose.Schema({
             }
         }
     },
+    // AI Report settings
+    reportSettings: {
+        defaultLanguage: {
+            type: String,
+            enum: ['english', 'arabic', 'bilingual'],
+            default: 'english'
+        },
+        allowedReportTypes: {
+            type: [String],
+            enum: ['weekly', 'monthly', 'quarterly', 'yearly', 'custom'],
+            default: ['weekly', 'monthly', 'quarterly', 'yearly']
+        },
+        emailTemplates: {
+            english: String,
+            arabic: String,
+            bilingual: String
+        },
+        tokenLimits: {
+            monthlyPerTeacher: { type: Number, default: 10000 },
+            yearlyPerSchool: { type: Number, default: 100000 },
+            warningThreshold: { type: Number, default: 0.8 }
+        }
+    },
     contact: {
         adminName: {
             type: String,
@@ -109,7 +132,6 @@ const schoolSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-schoolSchema.index({ slug: 1 });
 schoolSchema.index({ 'subscription.status': 1 });
 schoolSchema.index({ createdAt: -1 });
 

@@ -1,0 +1,534 @@
+import gmailOAuthService from './gmailOAuthService.js';
+import { EmailReport } from '../models/EmailReport.js';
+import { AITokenUsage } from '../models/AITokenUsage.js';
+import Notification from '../models/Notification.js';
+
+/**
+ * Sanitize email subject to plain ASCII (remove emojis and special characters)
+ */
+const sanitizeSubject = (subject) => {
+    if (!subject) return 'Progress Report';
+    // Remove emojis and non-ASCII characters, keep only basic ASCII
+    return subject.replace(/[^\x00-\x7F]/g, '').trim();
+};
+
+const normalizeAiHtml = (content, language) => {
+    const isRTL = language === 'arabic';
+    const direction = isRTL ? 'rtl' : 'ltr';
+
+    let html = (content || '').toString().trim();
+
+    // Strip common LLM wrappers
+    html = html.replace(/```[a-zA-Z]*\n?/g, '');
+    html = html.replace(/```/g, '');
+
+    // Convert simple markdown bold to HTML
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // Remove repeated symbol noise, but avoid breaking emails/urls by only targeting runs
+    html = html.replace(/[@#$%^&*]{2,}/g, '');
+
+    // Remove control characters (keep newlines)
+    html = html.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+
+    // If model returned plain text, wrap into paragraphs
+    const hasTags = /<\s*\w+[\s>]/.test(html);
+    if (!hasTags) {
+        const safeText = html
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        html = `<p>${safeText.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br/>')}</p>`;
+    }
+
+    // Ensure single outer wrapper with direction
+    html = html.replace(/^<div[^>]*dir\s*=\s*"?(rtl|ltr)"?[^>]*>/i, '<div>');
+    if (!/^<div[\s>]/i.test(html)) {
+        html = `<div>${html}</div>`;
+    }
+
+    return `<div dir="${direction}">${html.replace(/^<div[\s>]/i, '').replace(/<\/div>\s*$/i, '')}</div>`;
+};
+
+class EmailService {
+    constructor() {
+        // Gmail OAuth service handles authentication
+        this.gmailService = gmailOAuthService;
+    }
+
+    /**
+     * Send report email to multiple recipients in one email
+     * @param {Object} options - Email sending options
+     * @param {String} options.reportId - Token usage record ID
+     * @param {Object} options.studentData - Student information
+     * @param {String} options.reportContent - Generated report content
+     * @param {String} options.language - Report language
+     * @param {Object} options.recipients - Recipient configuration
+     * @param {Object} options.teacher - Teacher information
+     * @returns {Promise<Object>} Email sending results
+     */
+    async sendReportEmails(options) {
+        const {
+            reportId,
+            studentData,
+            reportContent,
+            language,
+            recipients,
+            teacher
+        } = options;
+
+        // Prepare recipient list (all in one email)
+        const emailList = this.prepareRecipientList({
+            studentData,
+            recipients,
+            teacher
+        });
+
+        if (emailList.length === 0) {
+            return {
+                success: false,
+                message: 'No valid email recipients found'
+            };
+        }
+
+        try {
+            // Send ONE email to all recipients
+            const result = await this.sendSingleEmailToMultiple({
+                reportId,
+                recipients: emailList,
+                reportContent,
+                language,
+                studentData,
+                teacherId: teacher._id
+            });
+
+            // Log to Notification history so teachers/admins can see sent AI reports in /portal/notifications
+            try {
+                const subject = sanitizeSubject(this.getEmailSubject(studentData, language));
+                const htmlContent = this.formatEmailContent(reportContent, language);
+
+                const notification = new Notification({
+                    school: studentData.school,
+                    recipientEmail: emailList.map(r => r.email).join(','),
+                    student: studentData._id,
+                    type: 'ai_report',
+                    subject,
+                    message: (reportContent || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(),
+                    htmlContent,
+                    channels: ['email'],
+                    status: result.success ? 'sent' : 'failed',
+                    metadata: {
+                        reportId,
+                        language,
+                        reportType: 'advanced_ai',
+                        primaryRecipients: result.primaryRecipients,
+                        ccRecipients: result.ccRecipients,
+                        error: result.success ? undefined : result.error
+                    },
+                    createdBy: teacher._id
+                });
+
+                await notification.save();
+                if (result.success) {
+                    await notification.markAsSent('email');
+                }
+            } catch (logError) {
+                // Don't fail the main flow if notification logging fails
+                console.error('Failed to log advanced report email to notifications:', logError);
+            }
+
+            // Update token usage record with email status
+            await this.updateEmailStatus(reportId, {
+                sent: result.success ? [result] : [],
+                failed: result.success ? [] : [result],
+                total: 1
+            });
+
+            return result;
+        } catch (error) {
+            return {
+                success: false,
+                message: error.message,
+                recipients: emailList
+            };
+        }
+    }
+
+    /**
+     * Prepare list of all recipients for one email
+     */
+    prepareRecipientList({ studentData, recipients, teacher }) {
+        const emailList = [];
+
+        // Add parent emails (primary recipients)
+        if (recipients.mother && studentData.parentInfo?.motherEmail) {
+            emailList.push({
+                email: studentData.parentInfo.motherEmail,
+                type: 'mother',
+                name: studentData.parentInfo.motherName || `Mother of ${studentData.firstName}`
+            });
+        }
+
+        if (recipients.father && studentData.parentInfo?.fatherEmail) {
+            emailList.push({
+                email: studentData.parentInfo.fatherEmail,
+                type: 'father', 
+                name: studentData.parentInfo.fatherName || `Father of ${studentData.firstName}`
+            });
+        }
+
+        // Add guardian if no parents
+        if (emailList.length === 0 && studentData.parentInfo?.guardianEmail) {
+            emailList.push({
+                email: studentData.parentInfo.guardianEmail,
+                type: 'guardian',
+                name: studentData.parentInfo.guardianName || `Guardian of ${studentData.firstName}`
+            });
+        }
+
+        // Add student email (CC)
+        if (recipients.student && studentData.studentEmail) {
+            emailList.push({
+                email: studentData.studentEmail,
+                type: 'student',
+                name: `${studentData.firstName} ${studentData.lastName}`
+            });
+        }
+
+        // Add teacher email (CC)
+        if (recipients.teacher && teacher?.email) {
+            emailList.push({
+                email: teacher.email,
+                type: 'teacher',
+                name: `${teacher.firstName} ${teacher.lastName}`
+            });
+        }
+
+        return emailList;
+    }
+
+    /**
+     * Send single email to multiple recipients using Gmail API
+     */
+    async sendSingleEmailToMultiple(options) {
+        const {
+            reportId,
+            recipients,
+            reportContent,
+            language,
+            studentData,
+            teacherId
+        } = options;
+
+        // Separate primary recipients (parents) from CC recipients
+        const primaryRecipients = recipients.filter(r => ['mother', 'father', 'guardian'].includes(r.type));
+        const ccRecipients = recipients.filter(r => ['student', 'teacher'].includes(r.type));
+
+        if (primaryRecipients.length === 0) {
+            throw new Error('No primary recipients (parents/guardian) found');
+        }
+
+        const subject = sanitizeSubject(this.getEmailSubject(studentData, language));
+        const htmlContent = this.formatEmailContent(reportContent, language);
+
+        // Prepare recipient list for Gmail API
+        const toEmails = primaryRecipients.map(r => r.email).join(', ');
+        const ccEmails = ccRecipients.length > 0 ? ccRecipients.map(r => r.email).join(', ') : undefined;
+
+        try {
+            // Check if teacher has Gmail connected
+            const hasValidTokens = await this.gmailService.hasValidTokens(teacherId);
+            if (!hasValidTokens) {
+                throw new Error('Gmail not connected. Please authenticate with Google first.');
+            }
+
+            // Send email using Gmail OAuth
+            const mailOptions = {
+                to: toEmails,
+                cc: ccEmails,
+                subject,
+                html: htmlContent
+            };
+
+            const result = await this.gmailService.sendEmail(teacherId, mailOptions);
+
+            // Save email record
+            const emailRecord = new EmailReport({
+                reportId,
+                recipientType: 'parents', // Single record for the group email
+                email: [...primaryRecipients, ...ccRecipients].map(r => r.email).join(', '),
+                subject,
+                content: htmlContent,
+                language,
+                messageId: result.messageId,
+                status: 'sent',
+                sentAt: new Date()
+            });
+
+            await emailRecord.save();
+
+            return {
+                success: true,
+                messageId: result.messageId,
+                threadId: result.threadId,
+                recipients: recipients,
+                primaryRecipients: primaryRecipients.length,
+                ccRecipients: ccRecipients.length
+            };
+        } catch (error) {
+            // Save failed email record
+            const emailRecord = new EmailReport({
+                reportId,
+                recipientType: 'parents',
+                email: [...primaryRecipients, ...ccRecipients].map(r => r.email).join(', '),
+                subject,
+                content: htmlContent,
+                language,
+                status: 'failed',
+                error: error.message
+            });
+
+            await emailRecord.save();
+
+            return {
+                success: false,
+                error: error.message,
+                recipients: recipients
+            };
+        }
+    }
+
+    /**
+     * Get email subject based on language (plain ASCII text)
+     */
+    getEmailSubject(studentData, language) {
+        const studentName = `${studentData.firstName} ${studentData.lastName}`;
+        
+        switch (language) {
+            case 'arabic':
+                // Use plain English with Arabic translation in parentheses
+                return `Progress Report for ${studentName} (تقرير التقدم)`;
+            case 'bilingual':
+                return `Progress Report - ${studentName}`;
+            default:
+                return `Progress Report for ${studentName}`;
+        }
+    }
+
+    /**
+     * Format email content with proper styling
+     */
+    formatEmailContent(content, language, recipientType) {
+        const isRTL = language === 'arabic';
+        const direction = isRTL ? 'rtl' : 'ltr';
+
+        const normalizedContent = normalizeAiHtml(content, language);
+
+        return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                }
+                .container {
+                    background-color: white;
+                    padding: 30px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+                .header {
+                    border-bottom: 2px solid #007bff;
+                    padding-bottom: 20px;
+                    margin-bottom: 20px;
+                }
+                .footer {
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #eee;
+                    font-size: 12px;
+                    color: #666;
+                    text-align: center;
+                }
+                .highlight {
+                    background-color: #fff3cd;
+                    padding: 15px;
+                    border-left: 4px solid #ffc107;
+                    margin: 20px 0;
+                }
+                .positive {
+                    color: #28a745;
+                    font-weight: bold;
+                }
+                .improvement {
+                    color: #dc3545;
+                    font-weight: bold;
+                }
+            </style>
+        </head>
+        <body dir="${direction}">
+            <div class="container">
+                <div class="header">
+                    <h2 style="margin: 0; color: #007bff;">
+                        ${language === 'arabic' ? 'تقرير التقدم' : 'Student Progress Report'}
+                    </h2>
+                </div>
+                
+                <div class="content">
+                    ${normalizedContent}
+                </div>
+
+                <div class="footer">
+                    <p>${language === 'arabic' ? 'هذا تقرير تلقائي تم إنشاؤه بواسطة نظام إدارة المدارس' : 'This is an auto-generated report from the School Management System'}</p>
+                    <p>${language === 'arabic' ? 'إذا كانت لديك أي أسئلة، يرجى التواصل مع المدرسة' : 'If you have any questions, please contact the school'}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        `;
+    }
+
+    /**
+     * Update email status in token usage record
+     */
+    async updateEmailStatus(reportId, results) {
+        const updateData = {
+            emailRecipients: results.sent.length > 0 ? results.sent[0].recipients?.map(r => r.email) : [],
+            emailStatus: {}
+        };
+
+        // Initialize email status for all types
+        ['student', 'mother', 'father', 'guardian', 'teacher', 'parents'].forEach(type => {
+            updateData.emailStatus[type] = {
+                sent: false,
+                sentAt: null,
+                messageId: null
+            };
+        });
+
+        // If group email was sent successfully, mark 'parents' as sent
+        if (results.sent.length > 0) {
+            updateData.emailStatus.parents = {
+                sent: true,
+                sentAt: new Date(),
+                messageId: results.sent[0].messageId
+            };
+
+            // Also mark individual types as sent based on recipients
+            results.sent[0].recipients?.forEach(recipient => {
+                if (updateData.emailStatus[recipient.type]) {
+                    updateData.emailStatus[recipient.type] = {
+                        sent: true,
+                        sentAt: new Date(),
+                        messageId: results.sent[0].messageId
+                    };
+                }
+            });
+        }
+
+        await AITokenUsage.findByIdAndUpdate(reportId, updateData);
+    }
+
+    /**
+     * Get email delivery status
+     */
+    async getEmailStatus(reportId) {
+        const emails = await EmailReport.find({ reportId });
+        return {
+            total: emails.length,
+            sent: emails.filter(e => e.status === 'sent').length,
+            failed: emails.filter(e => e.status === 'failed').length,
+            pending: emails.filter(e => e.status === 'pending').length,
+            details: emails
+        };
+    }
+
+    /**
+     * Retry failed emails
+     */
+    async retryFailedEmails(reportId) {
+        const failedEmails = await EmailReport.find({ 
+            reportId, 
+            status: 'failed',
+            retryCount: { $lt: 3 } // Max 3 retries
+        });
+
+        const results = {
+            retried: 0,
+            successful: 0,
+            failed: 0
+        };
+
+        for (const emailRecord of failedEmails) {
+            try {
+                // Resend the email
+                const mailOptions = {
+                    from: process.env.EMAIL_USER,
+                    to: emailRecord.email,
+                    subject: emailRecord.subject,
+                    html: emailRecord.content
+                };
+
+                const info = await this.transporter.sendMail(mailOptions);
+
+                // Update record
+                await EmailReport.findByIdAndUpdate(emailRecord._id, {
+                    status: 'sent',
+                    messageId: info.messageId,
+                    sentAt: new Date(),
+                    retryCount: emailRecord.retryCount + 1
+                });
+
+                results.successful++;
+            } catch (error) {
+                // Update retry count
+                await EmailReport.findByIdAndUpdate(emailRecord._id, {
+                    retryCount: emailRecord.retryCount + 1,
+                    lastRetryAt: new Date()
+                });
+
+                results.failed++;
+            }
+
+            results.retried++;
+        }
+
+        return results;
+    }
+
+    /**
+     * Test Gmail OAuth configuration for a user
+     */
+    async testEmailConfiguration(userId) {
+        try {
+            const tokenStatus = await this.gmailService.getTokenStatus(userId);
+            
+            if (tokenStatus.connected) {
+                return { 
+                    success: true, 
+                    message: `Gmail OAuth is configured and connected to ${tokenStatus.email}`,
+                    email: tokenStatus.email,
+                    needsRefresh: tokenStatus.needsRefresh
+                };
+            } else {
+                return { 
+                    success: false, 
+                    message: 'Gmail OAuth not connected. Please authenticate with Google first.' 
+                };
+            }
+        } catch (error) {
+            return { success: false, message: error.message };
+        }
+    }
+}
+
+export default new EmailService();

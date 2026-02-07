@@ -5,6 +5,15 @@ import User from '../models/User.js';
 import gradeService from './gradeService.js';
 import gmailOAuthService from './gmailOAuthService.js';
 
+/**
+ * Sanitize email subject to plain ASCII (remove emojis and special characters)
+ */
+const sanitizeSubject = (subject) => {
+    if (!subject) return 'Notification';
+    // Remove emojis and non-ASCII characters, keep only basic ASCII
+    return subject.replace(/[^\x00-\x7F]/g, '').trim();
+};
+
 class NotificationService {
   constructor() {
     this.transporter = null;
