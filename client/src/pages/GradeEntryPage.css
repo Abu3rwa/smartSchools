@@ -1,0 +1,109 @@
+.grade-entry-page {
+    animation: fadeIn 0.4s ease;
+}
+
+.selection-card {
+    margin-bottom: var(--spacing-xl);
+}
+
+.selection-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-lg);
+}
+
+.grade-table {
+    width: 100%;
+}
+
+.grade-table th,
+.grade-table td {
+    padding: var(--spacing-md);
+}
+
+.row-number {
+    width: 40px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.marks-input {
+    width: 80px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.remarks-input {
+    width: 100%;
+    max-width: 200px;
+}
+
+.status-icon {
+    color: var(--text-muted);
+}
+
+.status-icon.success {
+    color: var(--accent-emerald);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.entry-summary {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--spacing-2xl);
+    color: var(--text-muted);
+}
+
+.mt-sm {
+    margin-top: var(--spacing-sm);
+}
+
+.category-selection {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 1024px) {
+    .selection-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .selection-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card-footer {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .marks-input,
+    .remarks-input {
+        width: 100%;
+    }
+}

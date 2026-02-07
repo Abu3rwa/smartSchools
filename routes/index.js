@@ -1,0 +1,21 @@
+import authRoutes from './authRoutes.js';
+import studentRoutes from './studentRoutes.js';
+import teacherRoutes from './teacherRoutes.js';
+import classRoutes from './classRoutes.js';
+import subjectRoutes from './subjectRoutes.js';
+import gradeRoutes from './gradeRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
+import gmailAuthRoutes from './gmailAuthRoutes.js';
+import reportRoutes from './reportRoutes.js';
+
+export {
+    authRoutes,
+    studentRoutes,
+    teacherRoutes,
+    classRoutes,
+    subjectRoutes,
+    gradeRoutes,
+    notificationRoutes,
+    gmailAuthRoutes,
+    reportRoutes
+};

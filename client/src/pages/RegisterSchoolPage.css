@@ -1,0 +1,215 @@
+.register-page {
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Header */
+.register-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-xl);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-card);
+}
+
+.register-back {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+}
+
+.register-back:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+}
+
+/* Content */
+.register-content {
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-2xl) var(--spacing-xl);
+}
+
+.register-card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-2xl);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Info */
+.register-info {
+    text-align: center;
+    margin-bottom: var(--spacing-2xl);
+}
+
+.register-icon {
+    width: 72px;
+    height: 72px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-gradient);
+    border-radius: var(--radius-lg);
+    color: white;
+    margin-bottom: var(--spacing-md);
+    box-shadow: var(--shadow-glow);
+}
+
+.register-info h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.register-info p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Form */
+.register-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.register-section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: calc(-1 * var(--spacing-sm));
+}
+
+.register-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.register-form label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.register-form input,
+.register-form select {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+.register-form input:focus,
+.register-form select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.register-form input::placeholder {
+    color: var(--text-muted);
+}
+
+/* Submit */
+.register-submit {
+    width: 100%;
+    padding: var(--spacing-md);
+    background: var(--accent-gradient);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-glow);
+}
+
+.register-submit:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+}
+
+.register-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Terms */
+.register-terms {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: var(--spacing-md);
+}
+
+/* Success */
+.register-success {
+    text-align: center;
+    padding: var(--spacing-2xl);
+}
+
+.register-success-icon {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: var(--radius-lg);
+    margin: 0 auto var(--spacing-md);
+    color: var(--accent-emerald);
+}
+
+.register-success h2 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.register-success p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .register-content {
+        padding: var(--spacing-lg) var(--spacing-md);
+    }
+
+    .register-card {
+        padding: var(--spacing-lg);
+    }
+
+    .register-icon {
+        width: 60px;
+        height: 60px;
+    }
+
+    .register-header {
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+}

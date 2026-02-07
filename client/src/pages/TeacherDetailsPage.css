@@ -1,0 +1,337 @@
+.teacher-details-page {
+    animation: fadeIn 0.4s ease;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--spacing-xl);
+}
+
+.details-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xl);
+    gap: var(--spacing-lg);
+}
+
+.teacher-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.teacher-selector label {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.form-select {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    min-width: 250px;
+}
+
+.teacher-profile-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.profile-header {
+    background: var(--accent-gradient);
+    padding: var(--spacing-2xl);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xl);
+    color: white;
+}
+
+.teacher-avatar-large {
+    width: 100px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-lg);
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+}
+
+.profile-info h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: var(--spacing-sm);
+}
+
+.profile-meta {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+}
+
+.employee-id-large {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full);
+}
+
+.department-badge-large {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full);
+    font-weight: 600;
+}
+
+.profile-grid {
+    padding: var(--spacing-2xl);
+    display: grid;
+    gap: var(--spacing-2xl);
+}
+
+.info-section {
+    background: var(--bg-secondary);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+.info-section h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-lg);
+}
+
+.info-section h3 svg {
+    color: var(--primary-500);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--spacing-lg);
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.info-item label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.info-item span {
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.subjects-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.subject-card {
+    background: var(--bg-card);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    transition: all var(--transition-normal);
+}
+
+.subject-card:hover {
+    border-color: var(--primary-500);
+    box-shadow: var(--shadow-md);
+}
+
+.subject-card h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.subject-code {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--primary-500);
+    background: rgba(102, 126, 234, 0.1);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+}
+
+.subject-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: var(--spacing-sm);
+    line-height: 1.5;
+}
+
+.assignments-list {
+    display: grid;
+    gap: var(--spacing-md);
+}
+
+.assignment-card {
+    background: var(--bg-card);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    transition: all var(--transition-normal);
+}
+
+.assignment-card:hover {
+    border-color: var(--primary-500);
+    box-shadow: var(--shadow-md);
+}
+
+.assignment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.assignment-header h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.class-teacher-badge {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--success-600);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.assignment-details {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+}
+
+.subject-name {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.academic-year {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .teacher-details-page {
+        padding: var(--spacing-lg);
+    }
+
+    .details-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-md);
+    }
+
+    .teacher-selector {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .form-select {
+        min-width: auto;
+        width: 100%;
+    }
+
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+        padding: var(--spacing-xl);
+    }
+
+    .teacher-avatar-large {
+        width: 80px;
+        height: 80px;
+        font-size: 2rem;
+    }
+
+    .profile-info h1 {
+        font-size: 1.5rem;
+    }
+
+    .profile-meta {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .profile-grid {
+        padding: var(--spacing-lg);
+        gap: var(--spacing-lg);
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .subjects-list {
+        grid-template-columns: 1fr;
+    }
+
+    .assignment-details {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-xs);
+    }
+}
+
+@media (max-width: 480px) {
+    .teacher-details-page {
+        padding: var(--spacing-md);
+    }
+
+    .profile-header {
+        padding: var(--spacing-lg);
+    }
+
+    .teacher-avatar-large {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+    }
+
+    .profile-info h1 {
+        font-size: 1.25rem;
+    }
+
+    .profile-grid {
+        padding: var(--spacing-md);
+    }
+
+    .info-section {
+        padding: var(--spacing-md);
+    }
+}
