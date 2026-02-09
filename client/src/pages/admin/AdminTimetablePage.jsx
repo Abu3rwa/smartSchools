@@ -14,6 +14,8 @@ import timetableService from '../../services/timetableService';
 import roomService from '../../services/roomService';
 import './AdminTimetablePage.css';
 
+const TIMETABLE_DROPDOWN_LIMIT = 200; // Max items for teachers/classes/subjects dropdowns; add pagination if needed.
+
 const dayLabels = [
     { value: 0, label: 'Sun' },
     { value: 1, label: 'Mon' },
@@ -160,9 +162,9 @@ const AdminTimetablePage = () => {
     };
 
     useEffect(() => {
-        dispatch(fetchTeachers({ limit: 200 }));
-        dispatch(fetchClasses({ limit: 200 }));
-        dispatch(fetchSubjects({ limit: 200 }));
+        dispatch(fetchTeachers({ limit: TIMETABLE_DROPDOWN_LIMIT }));
+        dispatch(fetchClasses({ limit: TIMETABLE_DROPDOWN_LIMIT }));
+        dispatch(fetchSubjects({ limit: TIMETABLE_DROPDOWN_LIMIT }));
         fetchTimetableData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dispatch]);

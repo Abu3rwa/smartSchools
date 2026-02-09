@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { attachSchoolContext } from './tenantIsolation.js';
+import { runInTenantContext } from './tenantIsolation.js';
+import logger from '../utils/logger.js';
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -46,9 +47,15 @@ export const protect = async (req, res, next) => {
             req.school = user.school;
         }
 
+        // Run the rest of the request in tenant context so ALL Mongoose queries are
+        // automatically scoped to this user's school. Prevents an admin of one school
+        // from seeing another school's data (Student, Class, Grade, etc.).
+        if (req.user.role !== 'super_admin' && req.schoolId) {
+            return runInTenantContext(req.schoolId, next);
+        }
         next();
     } catch (error) {
-        console.error('Auth middleware error:', error);
+        logger.error('Auth middleware error:', error);
         return res.status(401).json({
             success: false,
             message: 'Not authorized to access this route'

@@ -42,16 +42,20 @@ export const getClasses = asyncHandler(async (req, res) => {
         .skip((page - 1) * limit)
         .limit(parseInt(limit));
 
-    // Get student counts
-    const classesWithCounts = await Promise.all(
-        classes.map(async (cls) => {
-            const studentCount = await Student.countDocuments({
-                currentClass: cls._id,
-                status: 'active'
-            });
-            return { ...cls.toObject(), studentCount };
-        })
-    );
+    // Get student counts (single aggregation instead of N+1)
+    const classIds = classes.map(c => c._id);
+    let classesWithCounts;
+    if (classIds.length === 0) {
+        classesWithCounts = classes.map(cls => ({ ...cls.toObject(), studentCount: 0 }));
+    } else {
+        const counts = await Student.aggregate([
+            { $match: { currentClass: { $in: classIds }, status: 'active' } },
+            { $group: { _id: '$currentClass', count: { $sum: 1 } } }
+        ]);
+        const countByClass = {};
+        counts.forEach(r => { countByClass[r._id.toString()] = r.count; });
+        classesWithCounts = classes.map(cls => ({ ...cls.toObject(), studentCount: countByClass[cls._id.toString()] ?? 0 }));
+    }
 
     const total = await Class.countDocuments(query);
 
@@ -194,7 +198,13 @@ export const updateClass = asyncHandler(async (req, res) => {
         });
     }
 
-    classData = await Class.findByIdAndUpdate(req.params.id, req.body, {
+    const allowedFields = ['grade', 'section', 'academicYear', 'classTeacher', 'room', 'capacity', 'name', 'isActive'];
+    const updates = {};
+    allowedFields.forEach((field) => {
+        if (req.body[field] !== undefined) updates[field] = req.body[field];
+    });
+
+    classData = await Class.findByIdAndUpdate(req.params.id, updates, {
         new: true,
         runValidators: true
     })

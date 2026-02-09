@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
     HiOutlineCalendar,
@@ -20,11 +20,20 @@ import {
     HiOutlineChevronRight,
     HiOutlineRefresh
 } from 'react-icons/hi';
+import { fetchTeachers } from '../../store/slices/teacherSlice';
+import { fetchClasses } from '../../store/slices/classSlice';
+import { fetchSubjects } from '../../store/slices/subjectSlice';
+import scheduleService from '../../services/scheduleService';
+import roomService from '../../services/roomService';
 import './AdminSchedulePage.css';
 
 const AdminSchedulePage = () => {
     const dispatch = useDispatch();
-    
+    const teachers = useSelector((state) => state.teachers.teachers) || [];
+    const classes = useSelector((state) => state.classes.classes) || [];
+    const subjects = useSelector((state) => state.subjects.subjects) || [];
+    const loadingData = useSelector((state) => state.teachers.loading || state.classes.loading || state.subjects.loading);
+
     // Local state
     const [schedules, setSchedules] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -36,7 +45,9 @@ const AdminSchedulePage = () => {
     const [showFilters, setShowFilters] = useState(false);
     const [currentView, setCurrentView] = useState('list'); // 'list', 'calendar', 'week'
     const [currentDate, setCurrentDate] = useState(new Date());
-    
+    const [rooms, setRooms] = useState([]);
+    const [roomsLoading, setRoomsLoading] = useState(false);
+
     // Filters
     const [filters, setFilters] = useState({
         type: '',
@@ -47,7 +58,7 @@ const AdminSchedulePage = () => {
         endDate: '',
         search: ''
     });
-    
+
     // Form data
     const [formData, setFormData] = useState({
         title: '',
@@ -71,116 +82,57 @@ const AdminSchedulePage = () => {
         color: '#3B82F6'
     });
 
-    // Mock data for development
-    const [teachers, setTeachers] = useState([]);
-    const [classes, setClasses] = useState([]);
-    const [subjects, setSubjects] = useState([]);
-    const [rooms, setRooms] = useState([]);
-    const [loadingData, setLoadingData] = useState(false);
-
-    // Fetch data for dropdowns
+    // Fetch dropdown data on mount
     useEffect(() => {
-        fetchScheduleData();
-    }, []);
+        dispatch(fetchTeachers());
+        dispatch(fetchClasses());
+        dispatch(fetchSubjects());
+        const loadRooms = async () => {
+            setRoomsLoading(true);
+            try {
+                const res = await roomService.getRooms();
+                setRooms(res?.data?.rooms ?? []);
+            } catch (err) {
+                console.error('Error fetching rooms:', err);
+            } finally {
+                setRoomsLoading(false);
+            }
+        };
+        loadRooms();
+    }, [dispatch]);
 
-    const fetchScheduleData = async () => {
-        try {
-            setLoadingData(true);
-            
-            // Mock data - in real app, these would be API calls
-            const mockTeachers = [
-                { _id: '1', firstName: 'John', lastName: 'Doe', email: 'john@school.com', subjects: ['1'] },
-                { _id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@school.com', subjects: ['2'] },
-                { _id: '3', firstName: 'Mike', lastName: 'Johnson', email: 'mike@school.com', subjects: ['1', '2'] }
-            ];
-            
-            const mockClasses = [
-                { _id: '1', name: 'Grade 10A', grade: '10', students: 25 },
-                { _id: '2', name: 'Grade 10B', grade: '10', students: 23 },
-                { _id: '3', name: 'Grade 11A', grade: '11', students: 28 },
-                { _id: '4', name: 'Grade 11B', grade: '11', students: 22 }
-            ];
-            
-            const mockSubjects = [
-                { _id: '1', name: 'Mathematics', code: 'MATH', color: '#3B82F6' },
-                { _id: '2', name: 'Science', code: 'SCI', color: '#10B981' },
-                { _id: '3', name: 'English', code: 'ENG', color: '#8B5CF6' },
-                { _id: '4', name: 'History', code: 'HIST', color: '#F59E0B' }
-            ];
-            
-            const mockRooms = [
-                { _id: '1', name: 'Room 101', capacity: 30, type: 'Classroom', equipment: ['Projector', 'Whiteboard'] },
-                { _id: '2', name: 'Room 102', capacity: 25, type: 'Classroom', equipment: ['Smart Board'] },
-                { _id: '3', name: 'Lab 201', capacity: 20, type: 'Science Lab', equipment: ['Microscopes', 'Bunsen Burners'] },
-                { _id: '4', name: 'Conference Room', capacity: 15, type: 'Meeting Room', equipment: ['Video Conference'] }
-            ];
-            
-            setTeachers(mockTeachers);
-            setClasses(mockClasses);
-            setSubjects(mockSubjects);
-            setRooms(mockRooms);
-        } catch (err) {
-            console.error('Error fetching schedule data:', err);
-        } finally {
-            setLoadingData(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchSchedules();
-    }, [filters, currentView, currentDate]);
-
-    const fetchSchedules = async () => {
+    const fetchSchedules = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-            
-            const params = new URLSearchParams();
-            Object.entries(filters).forEach(([key, value]) => {
-                if (value) params.append(key, value);
-            });
-            
-            // For now, use mock data
-            const mockSchedules = [
-                {
-                    _id: '1',
-                    title: 'Mathematics Class',
-                    description: 'Algebra and Geometry',
-                    type: 'class',
-                    class: { _id: '1', name: 'Grade 10A', grade: '10' },
-                    subject: { _id: '1', name: 'Mathematics' },
-                    teacher: { _id: '1', firstName: 'John', lastName: 'Doe' },
-                    room: 'Room 101',
-                    startTime: new Date('2024-01-15T09:00:00'),
-                    endTime: new Date('2024-01-15T10:00:00'),
-                    status: 'scheduled',
-                    color: '#3B82F6',
-                    participants: []
-                },
-                {
-                    _id: '2',
-                    title: 'Science Lab',
-                    description: 'Chemistry Experiment',
-                    type: 'class',
-                    class: { _id: '2', name: 'Grade 11B', grade: '11' },
-                    subject: { _id: '2', name: 'Science' },
-                    teacher: { _id: '2', firstName: 'Jane', lastName: 'Smith' },
-                    room: 'Lab 201',
-                    startTime: new Date('2024-01-15T11:00:00'),
-                    endTime: new Date('2024-01-15T12:30:00'),
-                    status: 'scheduled',
-                    color: '#10B981',
-                    participants: []
+            const params = { ...filters };
+            if (currentView === 'list') {
+                const res = await scheduleService.getSchedules(params);
+                setSchedules(res?.data?.schedules ?? []);
+            } else {
+                const start = new Date(currentDate);
+                const end = new Date(currentDate);
+                if (currentView === 'week') {
+                    start.setDate(start.getDate() - start.getDay());
+                    end.setDate(start.getDate() + 6);
+                } else if (currentView === 'calendar') {
+                    start.setDate(1);
+                    end.setMonth(end.getMonth() + 1);
+                    end.setDate(0);
                 }
-            ];
-            
-            setSchedules(mockSchedules);
+                const res = await scheduleService.getSchedulesByDateRange(start.toISOString(), end.toISOString(), params);
+                setSchedules(res?.data?.schedules ?? []);
+            }
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || err.message || 'Failed to load schedules');
         } finally {
             setLoading(false);
         }
-    };
+    }, [filters, currentView, currentDate]);
+
+    useEffect(() => {
+        fetchSchedules();
+    }, [fetchSchedules]);
 
     const handleCreateSchedule = () => {
         // Reset form
@@ -208,18 +160,18 @@ const AdminSchedulePage = () => {
         setShowCreateModal(true);
     };
 
-    const handleQuickSchedule = (teacherId, classId, subjectId) => {
-        const teacher = teachers.find(t => t._id === teacherId);
+    const handleQuickSchedule = (teacherUserId, classId, subjectId) => {
+        const teacher = teachers.find(t => t.user?._id === teacherUserId || t.user?._id?.toString() === teacherUserId);
         const classData = classes.find(c => c._id === classId);
         const subject = subjects.find(s => s._id === subjectId);
-        
+        const teacherName = teacher?.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : '';
         setFormData({
-            title: `${subject?.name || 'Class'} - ${classData?.name || 'Class'} - ${teacher?.firstName} ${teacher?.lastName}`,
+            title: `${subject?.name || 'Class'} - ${classData?.name || 'Class'} - ${teacherName}`,
             description: '',
             type: 'class',
             class: classId,
             subject: subjectId,
-            teacher: teacherId,
+            teacher: teacherUserId,
             room: '',
             location: '',
             startTime: '',
@@ -237,28 +189,26 @@ const AdminSchedulePage = () => {
         setShowCreateModal(true);
     };
 
-    const handleTeacherChange = (teacherId) => {
-        setFormData(prev => ({ ...prev, teacher: teacherId }));
-        
-        // Auto-select subject based on teacher's expertise
-        const teacher = teachers.find(t => t._id === teacherId);
-        if (teacher && teacher.subjects.length === 1) {
-            setFormData(prev => ({ ...prev, subject: teacher.subjects[0] }));
+    const handleTeacherChange = (teacherUserId) => {
+        setFormData(prev => ({ ...prev, teacher: teacherUserId }));
+        const teacher = teachers.find(t => t.user?._id === teacherUserId || t.user?._id?.toString() === teacherUserId);
+        const subjectIds = teacher?.subjects?.map(s => (typeof s === 'object' && s?._id ? s._id : s)) || [];
+        if (subjectIds.length === 1) {
+            setFormData(prev => ({ ...prev, subject: subjectIds[0] }));
         }
     };
 
     const handleSubjectChange = (subjectId) => {
         setFormData(prev => ({ ...prev, subject: subjectId }));
-        
-        // Auto-update color based on subject
         const subject = subjects.find(s => s._id === subjectId);
-        if (subject) {
+        if (subject?.color) {
             setFormData(prev => ({ ...prev, color: subject.color }));
         }
     };
 
     const handleEditSchedule = (schedule) => {
         setSelectedSchedule(schedule);
+        const roomId = schedule.room?._id || schedule.room || '';
         setFormData({
             title: schedule.title,
             description: schedule.description || '',
@@ -266,7 +216,7 @@ const AdminSchedulePage = () => {
             class: schedule.class?._id || '',
             subject: schedule.subject?._id || '',
             teacher: schedule.teacher?._id || '',
-            room: schedule.room || '',
+            room: roomId,
             location: schedule.location || '',
             startTime: schedule.startTime ? new Date(schedule.startTime).toISOString().slice(0, 16) : '',
             endTime: schedule.endTime ? new Date(schedule.endTime).toISOString().slice(0, 16) : '',
@@ -276,7 +226,7 @@ const AdminSchedulePage = () => {
                 interval: 1,
                 daysOfWeek: []
             },
-            requiresAttendance: schedule.requiresAttendance || false,
+            requiresAttendance: schedule.requiresAttendance ?? false,
             tags: schedule.tags || [],
             color: schedule.color || '#3B82F6'
         });
@@ -289,13 +239,12 @@ const AdminSchedulePage = () => {
     };
 
     const handleDeleteSchedule = async (scheduleId) => {
-        if (window.confirm('Are you sure you want to delete this schedule?')) {
-            try {
-                // await api.delete(`/schedules/${scheduleId}`);
-                setSchedules(schedules.filter(s => s._id !== scheduleId));
-            } catch (err) {
-                setError(err.message);
-            }
+        if (!window.confirm('Are you sure you want to delete this schedule?')) return;
+        try {
+            await scheduleService.deleteSchedule(scheduleId);
+            setSchedules(schedules.filter(s => s._id !== scheduleId));
+        } catch (err) {
+            setError(err.response?.data?.message || err.message || 'Failed to delete schedule');
         }
     };
 
@@ -315,8 +264,55 @@ const AdminSchedulePage = () => {
         });
     };
 
+    const handleSaveSchedule = async () => {
+        if (!formData.title || !formData.startTime || !formData.endTime || !formData.teacher || !formData.room) {
+            setError('Title, start time, end time, teacher, and room are required.');
+            return;
+        }
+        try {
+            setError(null);
+            const payload = {
+                title: formData.title,
+                description: formData.description || '',
+                type: formData.type,
+                class: formData.class || undefined,
+                subject: formData.subject || undefined,
+                teacher: formData.teacher,
+                room: formData.room,
+                location: formData.location || '',
+                startTime: formData.startTime,
+                endTime: formData.endTime,
+                requiresAttendance: formData.requiresAttendance ?? false,
+                tags: Array.isArray(formData.tags) ? formData.tags : [],
+                color: formData.color || '#3B82F6'
+            };
+            if (showCreateModal) {
+                const res = await scheduleService.createSchedule(payload);
+                const newSchedule = res?.data?.schedule;
+                if (newSchedule) setSchedules(prev => [...prev, newSchedule]);
+            } else if (showEditModal && selectedSchedule?._id) {
+                const res = await scheduleService.updateSchedule(selectedSchedule._id, payload);
+                const updated = res?.data?.schedule;
+                if (updated) {
+                    setSchedules(prev => prev.map(s => s._id === updated._id ? updated : s));
+                }
+            }
+            setShowCreateModal(false);
+            setShowEditModal(false);
+        } catch (err) {
+            setError(err.response?.data?.message || err.message || 'Failed to save schedule');
+        }
+    };
+
     const formatDateTime = (date) => {
         return new Date(date).toLocaleString();
+    };
+
+    const getRoomDisplay = (schedule) => {
+        if (!schedule?.room) return '—';
+        if (typeof schedule.room === 'object' && schedule.room?.name) return schedule.room.name;
+        const r = rooms.find(rr => rr._id === schedule.room || rr._id?.toString() === schedule.room?.toString());
+        return r?.name || schedule.room;
     };
 
     const getStatusColor = (status) => {
@@ -411,7 +407,7 @@ const AdminSchedulePage = () => {
                             {schedule.room && (
                                 <div className="info-item">
                                     <HiOutlineLocationMarker size={16} />
-                                    <span>{schedule.room}</span>
+                                    <span>{getRoomDisplay(schedule)}</span>
                                 </div>
                             )}
                             {schedule.subject && (
@@ -507,7 +503,7 @@ const AdminSchedulePage = () => {
                                                     {new Date(schedule.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                                 {schedule.room && (
-                                                    <div className="event-room">{schedule.room}</div>
+                                                    <div className="event-room">{getRoomDisplay(schedule)}</div>
                                                 )}
                                             </div>
                                         ))}
@@ -612,9 +608,9 @@ const AdminSchedulePage = () => {
                             onChange={(e) => handleFilterChange('teacher', e.target.value)}
                         >
                             <option value="">All Teachers</option>
-                            {mockTeachers.map(teacher => (
-                                <option key={teacher._id} value={teacher._id}>
-                                    {teacher.firstName} {teacher.lastName}
+                            {teachers.map(teacher => (
+                                <option key={teacher._id} value={teacher.user?._id || teacher._id}>
+                                    {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}
                                 </option>
                             ))}
                         </select>
@@ -627,7 +623,7 @@ const AdminSchedulePage = () => {
                             onChange={(e) => handleFilterChange('class', e.target.value)}
                         >
                             <option value="">All Classes</option>
-                            {mockClasses.map(cls => (
+                            {classes.map(cls => (
                                 <option key={cls._id} value={cls._id}>
                                     {cls.name}
                                 </option>
@@ -683,38 +679,42 @@ const AdminSchedulePage = () => {
                     <div className="quick-schedule-card">
                         <h3>Teacher Assignments</h3>
                         <div className="teacher-assignments">
-                            {teachers.map(teacher => (
-                                <div key={teacher._id} className="teacher-card">
-                                    <div className="teacher-info">
-                                        <strong>{teacher.firstName} {teacher.lastName}</strong>
-                                        <span>{teacher.email}</span>
+                            {teachers.map(teacher => {
+                                const teacherUserId = teacher.user?._id || teacher._id;
+                                const teacherSubjectIds = (teacher.subjects || []).map(s => (typeof s === 'object' && s?._id ? s._id : s));
+                                return (
+                                    <div key={teacher._id} className="teacher-card">
+                                        <div className="teacher-info">
+                                            <strong>{teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}</strong>
+                                            <span>{teacher.user?.email || ''}</span>
+                                        </div>
+                                        <div className="teacher-subjects">
+                                            {teacherSubjectIds.map(subjectId => {
+                                                const subject = subjects.find(s => s._id === subjectId);
+                                                return (
+                                                    <span key={subjectId} className="subject-tag" style={{ backgroundColor: subject?.color }}>
+                                                        {subject?.name}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="quick-actions">
+                                            {classes.map(cls => (
+                                                teacherSubjectIds.map(subjectId => (
+                                                    <button
+                                                        key={`${cls._id}-${subjectId}`}
+                                                        className="quick-schedule-btn"
+                                                        onClick={() => handleQuickSchedule(teacherUserId, cls._id, subjectId)}
+                                                        title={`Schedule ${subjects.find(s => s._id === subjectId)?.name} for ${cls.name}`}
+                                                    >
+                                                        {cls.name} - {subjects.find(s => s._id === subjectId)?.code}
+                                                    </button>
+                                                ))
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="teacher-subjects">
-                                        {teacher.subjects.map(subjectId => {
-                                            const subject = subjects.find(s => s._id === subjectId);
-                                            return (
-                                                <span key={subjectId} className="subject-tag" style={{ backgroundColor: subject?.color }}>
-                                                    {subject?.name}
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                    <div className="quick-actions">
-                                        {classes.map(cls => (
-                                            teacher.subjects.map(subjectId => (
-                                                <button
-                                                    key={`${cls._id}-${subjectId}`}
-                                                    className="quick-schedule-btn"
-                                                    onClick={() => handleQuickSchedule(teacher._id, cls._id, subjectId)}
-                                                    title={`Schedule ${subjects.find(s => s._id === subjectId)?.name} for ${cls.name}`}
-                                                >
-                                                    {cls.name} - {subjects.find(s => s._id === subjectId)?.code}
-                                                </button>
-                                            ))
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                     
@@ -744,10 +744,10 @@ const AdminSchedulePage = () => {
                                                 >
                                                     <option value="">Assign Teacher</option>
                                                     {teachers
-                                                        .filter(teacher => teacher.subjects.includes(subject._id))
+                                                        .filter(teacher => (teacher.subjects || []).some(s => (s?._id || s) === subject._id))
                                                         .map(teacher => (
-                                                            <option key={teacher._id} value={teacher._id}>
-                                                                {teacher.firstName} {teacher.lastName}
+                                                            <option key={teacher._id} value={teacher.user?._id || teacher._id}>
+                                                                {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}
                                                             </option>
                                                         ))}
                                                 </select>
@@ -887,8 +887,8 @@ const AdminSchedulePage = () => {
                                     >
                                         <option value="">Select Teacher</option>
                                         {teachers.map(teacher => (
-                                            <option key={teacher._id} value={teacher._id}>
-                                                {teacher.firstName} {teacher.lastName}
+                                            <option key={teacher._id} value={teacher.user?._id || teacher._id}>
+                                                {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}
                                             </option>
                                         ))}
                                     </select>
@@ -902,7 +902,7 @@ const AdminSchedulePage = () => {
                                     >
                                         <option value="">Select Room</option>
                                         {rooms.map(room => (
-                                            <option key={room._id} value={room.name}>
+                                            <option key={room._id} value={room._id}>
                                                 {room.name} ({room.type}, Capacity: {room.capacity})
                                             </option>
                                         ))}
@@ -970,11 +970,7 @@ const AdminSchedulePage = () => {
                             </button>
                             <button
                                 className="btn btn-primary"
-                                onClick={() => {
-                                    // Handle save logic here
-                                    setShowCreateModal(false);
-                                    setShowEditModal(false);
-                                }}
+                                onClick={handleSaveSchedule}
                             >
                                 {showCreateModal ? 'Create' : 'Update'} Schedule
                             </button>
@@ -1050,7 +1046,7 @@ const AdminSchedulePage = () => {
                                         {selectedSchedule.room && (
                                             <div className="detail-item">
                                                 <label>Room:</label>
-                                                <span>{selectedSchedule.room}</span>
+                                                <span>{getRoomDisplay(selectedSchedule)}</span>
                                             </div>
                                         )}
                                         {selectedSchedule.location && (

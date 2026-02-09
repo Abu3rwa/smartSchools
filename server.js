@@ -32,11 +32,13 @@ import behaviorRoutes from './routes/behaviorRoutes.js';
 import scheduleRoutes from './routes/scheduleRoutes.js';
 import scheduleRoutesEnhanced from './routes/scheduleRoutesEnhanced.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
+import attendanceTakingReminderRoutes from './routes/attendanceTakingReminderRoutes.js';
 import schoolCalendarRoutes from './routes/schoolCalendarRoutes.js';
 import timetableRoutes from './routes/timetableRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
 import advancedReportRoutes from './routes/advancedReportRoutes.js';
 import { behaviorTracker } from './middleware/behaviorTracker.js';
+import { processAttendanceReminders } from './controllers/attendanceTakingReminderController.js';
 
 // Connect to database
 connectDB();
@@ -124,6 +126,7 @@ app.use('/api/behavior', behaviorRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/schedules-enhanced', scheduleRoutesEnhanced);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/attendance-taking-reminders', attendanceTakingReminderRoutes);
 app.use('/api/school-calendar', schoolCalendarRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/rooms', roomRoutes);
@@ -220,8 +223,19 @@ app.use(errorHandler);
 // Start server
 const PORT = process.env.PORT || 5000;
 
+const REMINDER_JOB_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
 app.listen(PORT, () => {
     console.log("Server is running");
+    if (process.env.RUN_ATTENDANCE_REMINDER_JOB !== 'false') {
+        setInterval(async () => {
+            try {
+                await processAttendanceReminders();
+            } catch (err) {
+                console.error('Attendance reminder job error:', err?.message || err);
+            }
+        }, REMINDER_JOB_INTERVAL_MS);
+    }
 });
 
 export default app;

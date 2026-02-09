@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSchoolBySlug, selectCurrentSchool, selectSchoolLoading, selectSchoolError } from '../store/slices/schoolSlice';
-import { googleLogin, selectAuth } from '../store/slices/authSlice';
-import { HiOutlineAcademicCap, HiOutlineArrowLeft, HiOutlineExclamationCircle } from 'react-icons/hi';
+import { login, googleLogin, selectAuth } from '../store/slices/authSlice';
+import { HiOutlineAcademicCap, HiOutlineArrowLeft, HiOutlineExclamationCircle, HiOutlineMail, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff } from 'react-icons/hi';
+import toast from 'react-hot-toast';
 import './SchoolLoginPage.css';
 
 const GoogleIcon = () => (

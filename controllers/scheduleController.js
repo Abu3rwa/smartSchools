@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
 import Schedule from '../models/Schedule.js';
 import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';

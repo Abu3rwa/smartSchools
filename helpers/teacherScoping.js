@@ -26,27 +26,68 @@ export const getTeacherClassIds = async (teacherId) => {
 
 /**
  * Get all subject IDs this teacher is assigned to teach.
+ * Uses Teacher.assignedClasses and Class.subjects (fallback) so assignments
+ * made via either path are included.
  * @param {ObjectId} teacherId - The Teacher model _id
  * @returns {ObjectId[]} Array of Subject _ids
  */
 export const getTeacherSubjectIds = async (teacherId) => {
-    const teacher = await Teacher.findById(teacherId);
-    if (!teacher) return [];
-    return teacher.assignedClasses.map(ac => ac.subject);
+    const fromTeacher = await Teacher.findById(teacherId).select('assignedClasses.subject');
+    const subjectIdsFromTeacher = (fromTeacher?.assignedClasses || []).map(ac => ac.subject);
+
+    const classesWithTeacher = await Class.find({ 'subjects.teacher': teacherId }).select('subjects');
+    const subjectIdsFromClass = new Set();
+    for (const cls of classesWithTeacher) {
+        for (const s of cls.subjects || []) {
+            if (s.teacher?.toString() === teacherId.toString() && s.subject) {
+                subjectIdsFromClass.add(s.subject.toString());
+            }
+        }
+    }
+
+    const merged = new Set([
+        ...subjectIdsFromTeacher.map(id => id?.toString()).filter(Boolean),
+        ...subjectIdsFromClass
+    ]);
+    return Array.from(merged);
 };
 
 /**
  * Get the teacher's assignments as { classId, subjectId } pairs.
+ * Uses Teacher.assignedClasses and Class.subjects (fallback) so assignments
+ * made via either path are included.
  * @param {ObjectId} teacherId - The Teacher model _id
  * @returns {{ classId: ObjectId, subjectId: ObjectId }[]}
  */
 export const getTeacherAssignments = async (teacherId) => {
-    const teacher = await Teacher.findById(teacherId);
-    if (!teacher) return [];
-    return teacher.assignedClasses.map(ac => ({
+    const fromTeacher = await Teacher.findById(teacherId).select('assignedClasses');
+    const fromTeacherList = (fromTeacher?.assignedClasses || []).map(ac => ({
         classId: ac.class,
         subjectId: ac.subject
     }));
+
+    const classesWithTeacher = await Class.find({ 'subjects.teacher': teacherId }).select('_id subjects');
+    const fromClassList = [];
+    for (const cls of classesWithTeacher) {
+        for (const s of cls.subjects || []) {
+            if (s.teacher?.toString() === teacherId.toString() && s.subject) {
+                fromClassList.push({ classId: cls._id, subjectId: s.subject });
+            }
+        }
+    }
+
+    const seen = new Set();
+    const merged = [];
+    for (const a of [...fromTeacherList, ...fromClassList]) {
+        const classId = a.classId?.toString();
+        const subjectId = a.subjectId?.toString();
+        if (!classId || !subjectId) continue;
+        const key = `${classId}_${subjectId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push({ classId: a.classId, subjectId: a.subjectId });
+    }
+    return merged;
 };
 
 /**

@@ -114,7 +114,6 @@ userSchema.methods.gmailTokenNeedsRefresh = function () {
 
 // Update Gmail tokens
 userSchema.methods.updateGmailTokens = async function (tokens, email) {
-    console.log('Updating Gmail tokens for user:', tokens);
     this.gmailTokens = {
         email: email || this.gmailTokens?.email,
         accessToken: tokens.access_token,

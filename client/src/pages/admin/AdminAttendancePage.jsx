@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
     HiOutlineCalendar,
     HiOutlineClock,
     HiOutlineUserGroup,
     HiOutlineCheckCircle,
     HiOutlineXCircle,
+    HiOutlineX,
     HiOutlineExclamation,
     HiOutlineRefresh,
     HiOutlineSearch,
@@ -16,17 +18,62 @@ import {
     HiOutlineAcademicCap,
     HiOutlineUsers
 } from 'react-icons/hi';
+import { fetchTeachers } from '../../store/slices/teacherSlice';
+import { fetchClasses } from '../../store/slices/classSlice';
+import { fetchSubjects } from '../../store/slices/subjectSlice';
+import attendanceService from '../../services/attendanceService';
 import './AdminAttendancePage.css';
 
+function mapRecordToUI(record) {
+    const scheduleDisplay = record.schedule
+        ? {
+            _id: record.schedule._id,
+            title: record.schedule.title,
+            class: record.schedule.class || record.class,
+            subject: record.schedule.subject || record.subject,
+            teacher: record.schedule.teacher || record.teacher,
+            startTime: record.schedule.startTime || record.startTime,
+            endTime: record.schedule.endTime || record.endTime,
+            room: record.schedule.room?.name ?? record.schedule.room ?? record.room ?? '—'
+        }
+        : {
+            _id: record.period?._id || record._id,
+            title: record.period ? `Period: ${record.period.name || record.period._id}` : 'Period',
+            class: record.class,
+            subject: record.subject,
+            teacher: record.teacher,
+            startTime: record.startTime,
+            endTime: record.endTime,
+            room: record.room || '—'
+        };
+    return {
+        _id: record._id,
+        schedule: scheduleDisplay,
+        attendanceRecorded: record.status !== 'draft',
+        recordedAt: record.recordedAt,
+        recordedBy: record.recordedBy,
+        totalStudents: record.totalStudents ?? 0,
+        present: record.present ?? 0,
+        absent: record.absent ?? 0,
+        late: record.late ?? 0,
+        excused: record.excused ?? 0,
+        attendanceRate: record.attendanceRate ?? 0
+    };
+}
+
 const AdminAttendancePage = () => {
-    // Local state
+    const dispatch = useDispatch();
+    const teachers = useSelector((state) => state.teachers.teachers) || [];
+    const classes = useSelector((state) => state.classes.classes) || [];
+    const subjects = useSelector((state) => state.subjects.subjects) || [];
+
     const [attendanceData, setAttendanceData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedAttendance, setSelectedAttendance] = useState(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
-    const [viewMode, setViewMode] = useState('today'); // 'today', 'week', 'month'
+    const [viewMode, setViewMode] = useState('today');
     const [filters, setFilters] = useState({
         teacher: '',
         class: '',
@@ -34,153 +81,100 @@ const AdminAttendancePage = () => {
         status: ''
     });
 
-    // Mock data
-    const [teachers] = useState([
-        { _id: '1', firstName: 'John', lastName: 'Doe' },
-        { _id: '2', firstName: 'Jane', lastName: 'Smith' },
-        { _id: '3', firstName: 'Mike', lastName: 'Johnson' }
-    ]);
-
-    const [classes] = useState([
-        { _id: '1', name: 'Grade 10A' },
-        { _id: '2', name: 'Grade 10B' },
-        { _id: '3', name: 'Grade 11A' }
-    ]);
-
-    const [subjects] = useState([
-        { _id: '1', name: 'Mathematics' },
-        { _id: '2', name: 'Science' },
-        { _id: '3', name: 'English' }
-    ]);
-
     useEffect(() => {
-        fetchAttendanceData();
-    }, [currentDate, viewMode, filters]);
+        dispatch(fetchTeachers());
+        dispatch(fetchClasses());
+        dispatch(fetchSubjects());
+    }, [dispatch]);
 
-    const fetchAttendanceData = async () => {
+    const fetchAttendanceData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
-            
-            // Calculate date range based on view mode
-            let startDate, endDate;
             const today = new Date(currentDate);
-            
+            let startDate, endDate;
             if (viewMode === 'today') {
-                startDate = new Date(today.setHours(0, 0, 0, 0));
-                endDate = new Date(today.setHours(23, 59, 59, 999));
+                startDate = new Date(today);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(today);
+                endDate.setHours(23, 59, 59, 999);
             } else if (viewMode === 'week') {
                 const startOfWeek = new Date(today);
                 startOfWeek.setDate(today.getDate() - today.getDay());
-                startDate = new Date(startOfWeek.setHours(0, 0, 0, 0));
-                
-                const endOfWeek = new Date(startOfWeek);
-                endOfWeek.setDate(startOfWeek.getDate() + 6);
-                endDate = new Date(endOfWeek.setHours(23, 59, 59, 999));
-            } else { // month
+                startDate = new Date(startOfWeek);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(startOfWeek);
+                endDate.setDate(startOfWeek.getDate() + 6);
+                endDate.setHours(23, 59, 59, 999);
+            } else {
                 startDate = new Date(today.getFullYear(), today.getMonth(), 1);
                 endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
                 endDate.setHours(23, 59, 59, 999);
             }
-            
-            // Mock attendance data
-            const mockAttendanceData = [
-                {
-                    _id: '1',
-                    schedule: {
-                        _id: '1',
-                        title: 'Mathematics - Grade 10A',
-                        class: { _id: '1', name: 'Grade 10A' },
-                        subject: { _id: '1', name: 'Mathematics' },
-                        teacher: { _id: '1', firstName: 'John', lastName: 'Doe' },
-                        startTime: new Date('2024-01-15T09:00:00'),
-                        endTime: new Date('2024-01-15T10:00:00'),
-                        room: 'Room 101'
-                    },
-                    attendanceRecorded: true,
-                    recordedAt: new Date('2024-01-15T10:05:00'),
-                    recordedBy: { _id: '1', firstName: 'John', lastName: 'Doe' },
-                    totalStudents: 25,
-                    present: 22,
-                    absent: 2,
-                    late: 1,
-                    excused: 0,
-                    attendanceRate: 88.0
-                },
-                {
-                    _id: '2',
-                    schedule: {
-                        _id: '2',
-                        title: 'Science - Grade 10B',
-                        class: { _id: '2', name: 'Grade 10B' },
-                        subject: { _id: '2', name: 'Science' },
-                        teacher: { _id: '2', firstName: 'Jane', lastName: 'Smith' },
-                        startTime: new Date('2024-01-15T10:30:00'),
-                        endTime: new Date('2024-01-15T11:30:00'),
-                        room: 'Lab 201'
-                    },
-                    attendanceRecorded: false,
-                    totalStudents: 23,
-                    present: 0,
-                    absent: 0,
-                    late: 0,
-                    excused: 0,
-                    attendanceRate: 0
-                },
-                {
-                    _id: '3',
-                    schedule: {
-                        _id: '3',
-                        title: 'English - Grade 11A',
-                        class: { _id: '3', name: 'Grade 11A' },
-                        subject: { _id: '3', name: 'English' },
-                        teacher: { _id: '3', firstName: 'Mike', lastName: 'Johnson' },
-                        startTime: new Date('2024-01-15T14:00:00'),
-                        endTime: new Date('2024-01-15T15:00:00'),
-                        room: 'Room 102'
-                    },
-                    attendanceRecorded: true,
-                    recordedAt: new Date('2024-01-15T15:02:00'),
-                    recordedBy: { _id: '3', firstName: 'Mike', lastName: 'Johnson' },
-                    totalStudents: 28,
-                    present: 26,
-                    absent: 2,
-                    late: 0,
-                    excused: 0,
-                    attendanceRate: 92.9
-                }
-            ];
-            
-            // Filter attendance data based on date range
-            const filteredData = mockAttendanceData.filter(item => {
-                const scheduleDate = new Date(item.schedule.startTime);
-                return scheduleDate >= startDate && scheduleDate <= endDate;
-            });
-            
-            // Apply additional filters
-            let finalData = filteredData;
-            if (filters.teacher) {
-                finalData = finalData.filter(item => item.schedule.teacher._id === filters.teacher);
-            }
-            if (filters.class) {
-                finalData = finalData.filter(item => item.schedule.class._id === filters.class);
-            }
-            if (filters.subject) {
-                finalData = finalData.filter(item => item.schedule.subject._id === filters.subject);
-            }
-            if (filters.status) {
-                if (filters.status === 'recorded') {
-                    finalData = finalData.filter(item => item.attendanceRecorded);
-                } else if (filters.status === 'pending') {
-                    finalData = finalData.filter(item => !item.attendanceRecorded);
-                }
-            }
-            
-            setAttendanceData(finalData);
+            const params = {
+                viewMode: 'range',
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                ...(filters.teacher && { teacher: filters.teacher }),
+                ...(filters.class && { class: filters.class }),
+                ...(filters.subject && { subject: filters.subject }),
+                ...(filters.status && { status: filters.status })
+            };
+            const res = await attendanceService.getAdminAttendance(params);
+            const records = res?.attendanceRecords ?? [];
+            setAttendanceData(records.map(mapRecordToUI));
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.message || err.message || 'Failed to load attendance');
         } finally {
             setLoading(false);
+        }
+    }, [currentDate, viewMode, filters]);
+
+    useEffect(() => {
+        fetchAttendanceData();
+    }, [fetchAttendanceData]);
+
+    const handleExport = async () => {
+        try {
+            const today = new Date(currentDate);
+            let startDate, endDate;
+            if (viewMode === 'today') {
+                startDate = new Date(today);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(today);
+                endDate.setHours(23, 59, 59, 999);
+            } else if (viewMode === 'week') {
+                const startOfWeek = new Date(today);
+                startOfWeek.setDate(today.getDate() - today.getDay());
+                startDate = new Date(startOfWeek);
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(startOfWeek);
+                endDate.setDate(startOfWeek.getDate() + 6);
+                endDate.setHours(23, 59, 59, 999);
+            } else {
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                endDate.setHours(23, 59, 59, 999);
+            }
+            const params = {
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                format: 'csv',
+                ...(filters.teacher && { teacher: filters.teacher }),
+                ...(filters.class && { class: filters.class }),
+                ...(filters.subject && { subject: filters.subject })
+            };
+            const blob = await attendanceService.exportAttendanceData(params);
+            const url = window.URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `attendance_${startDate.toISOString().split('T')[0]}_to_${endDate.toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err.response?.data?.message || err.message || 'Export failed');
         }
     };
 
@@ -293,7 +287,7 @@ const AdminAttendancePage = () => {
                     </button>
                     <button
                         className="btn btn-secondary"
-                        onClick={() => {/* Export functionality */}}
+                        onClick={handleExport}
                     >
                         <HiOutlineDownload size={20} />
                         Export Report
@@ -387,8 +381,8 @@ const AdminAttendancePage = () => {
                         >
                             <option value="">All Teachers</option>
                             {teachers.map(teacher => (
-                                <option key={teacher._id} value={teacher._id}>
-                                    {teacher.firstName} {teacher.lastName}
+                                <option key={teacher._id} value={teacher.user?._id || teacher._id}>
+                                    {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}
                                 </option>
                             ))}
                         </select>
@@ -452,14 +446,14 @@ const AdminAttendancePage = () => {
                                     <div className="class-details">
                                         <span className="teacher-name">
                                             <HiOutlineUsers size={14} />
-                                            {record.schedule.teacher.firstName} {record.schedule.teacher.lastName}
+                                            {record.schedule.teacher ? `${record.schedule.teacher.firstName || ''} ${record.schedule.teacher.lastName || ''}`.trim() : '—'}
                                         </span>
                                         <span className="class-name">
                                             <HiOutlineAcademicCap size={14} />
-                                            {record.schedule.class.name}
+                                            {record.schedule.class?.name ?? '—'}
                                         </span>
-                                        <span className="subject">{record.schedule.subject.name}</span>
-                                        <span className="room">{record.schedule.room}</span>
+                                        <span className="subject">{record.schedule.subject?.name ?? '—'}</span>
+                                        <span className="room">{record.schedule.room ?? '—'}</span>
                                     </div>
                                 </div>
                                 <div className="attendance-status">
@@ -514,7 +508,7 @@ const AdminAttendancePage = () => {
                             </div>
                             
                             <div className="attendance-meta">
-                                {record.attendanceRecorded && (
+                                {record.attendanceRecorded && record.recordedBy && (
                                     <div className="recorded-info">
                                         <span>Recorded by {record.recordedBy.firstName} {record.recordedBy.lastName}</span>
                                         <span>{formatDateTime(record.recordedAt)}</span>
@@ -553,10 +547,10 @@ const AdminAttendancePage = () => {
                             <div className="attendance-details">
                                 <h3>{selectedAttendance.schedule.title}</h3>
                                 <div className="schedule-info">
-                                    <p><strong>Teacher:</strong> {selectedAttendance.schedule.teacher.firstName} {selectedAttendance.schedule.teacher.lastName}</p>
-                                    <p><strong>Class:</strong> {selectedAttendance.schedule.class.name}</p>
-                                    <p><strong>Subject:</strong> {selectedAttendance.schedule.subject.name}</p>
-                                    <p><strong>Room:</strong> {selectedAttendance.schedule.room}</p>
+                                    <p><strong>Teacher:</strong> {selectedAttendance.schedule.teacher ? `${selectedAttendance.schedule.teacher.firstName || ''} ${selectedAttendance.schedule.teacher.lastName || ''}`.trim() : '—'}</p>
+                                    <p><strong>Class:</strong> {selectedAttendance.schedule.class?.name ?? '—'}</p>
+                                    <p><strong>Subject:</strong> {selectedAttendance.schedule.subject?.name ?? '—'}</p>
+                                    <p><strong>Room:</strong> {selectedAttendance.schedule.room ?? '—'}</p>
                                     <p><strong>Time:</strong> {formatDateTime(selectedAttendance.schedule.startTime)} - {formatDateTime(selectedAttendance.schedule.endTime)}</p>
                                 </div>
                                 
@@ -586,7 +580,7 @@ const AdminAttendancePage = () => {
                                     </div>
                                 </div>
                                 
-                                {selectedAttendance.attendanceRecorded && (
+                                {selectedAttendance.attendanceRecorded && selectedAttendance.recordedBy && (
                                     <div className="recorded-details">
                                         <h4>Recording Details</h4>
                                         <p><strong>Recorded by:</strong> {selectedAttendance.recordedBy.firstName} {selectedAttendance.recordedBy.lastName}</p>

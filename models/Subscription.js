@@ -246,8 +246,7 @@ const subscriptionSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Indexes
-subscriptionSchema.index({ school: 1 });
+// Indexes (school already has unique: true in schema)
 subscriptionSchema.index({ stripeCustomerId: 1 });
 subscriptionSchema.index({ stripeSubscriptionId: 1 });
 subscriptionSchema.index({ status: 1 });

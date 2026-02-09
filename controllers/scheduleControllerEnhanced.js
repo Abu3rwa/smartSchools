@@ -1,4 +1,4 @@
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
 import Schedule from '../models/Schedule.js';
 import Room from '../models/Room.js';
 import User from '../models/User.js';

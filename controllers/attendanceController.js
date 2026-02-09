@@ -1,4 +1,5 @@
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import logger from '../utils/logger.js';
 import Attendance from '../models/Attendance.js';
 import Schedule from '../models/Schedule.js';
 import Student from '../models/Student.js';
@@ -17,7 +18,7 @@ async function getRoomName(roomId) {
         const room = await Room.findById(roomId);
         return room?.name || 'Unknown Room';
     } catch (error) {
-        console.error('Error fetching room name:', error);
+        logger.error('Error fetching room name:', error);
         return 'Error';
     }
 }
@@ -56,13 +57,14 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
         end = new Date(endDate);
     }
     
-    // Get attendance records
+    // Get attendance records (include period for period-based rows)
     const attendanceRecords = await Attendance.find({
         school: req.user.school,
         teacher: teacherId,
         date: { $gte: start, $lte: end }
     })
     .populate('schedule class subject')
+    .populate('period', 'name')
     .populate('studentAttendance.student', 'firstName lastName email')
     .populate('recordedBy', 'firstName lastName')
     .sort({ date: 1, startTime: 1 });
@@ -122,6 +124,10 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
         start = new Date(today.getFullYear(), today.getMonth(), 1);
         end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         end.setHours(23, 59, 59, 999);
+    } else if (viewMode === 'range' && startDate && endDate) {
+        start = new Date(startDate);
+        end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
     } else {
         start = new Date(startDate);
         end = new Date(endDate);
@@ -142,9 +148,10 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
         query.status = 'draft';
     }
     
-    // Get attendance records
+    // Get attendance records (include period for period-based rows)
     const attendanceRecords = await Attendance.find(query)
     .populate('schedule class subject teacher')
+    .populate('period', 'name')
     .populate('recordedBy', 'firstName lastName')
     .sort({ date: 1, startTime: 1 });
     

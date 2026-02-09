@@ -3,7 +3,7 @@ import School from '../models/School.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 // @desc    Get all subscriptions (super admin only)
 // @route   GET /api/subscriptions

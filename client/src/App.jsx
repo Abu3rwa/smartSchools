@@ -10,7 +10,6 @@ import AdminLayout from './components/layout/AdminLayout';
 
 // Pages
 import LandingPage from './pages/LandingPage';
-import SchoolLoginPage from './pages/SchoolLoginPage';
 import RegisterSchoolPage from './pages/RegisterSchoolPage';
 import LoginPage from './pages/LoginPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
@@ -34,7 +33,6 @@ import AdminSchoolCalendarPage from './pages/admin/AdminSchoolCalendarPage';
 import AdminTimetablePage from './pages/admin/AdminTimetablePage';
 import TeacherSchedulePage from './pages/teacher/TeacherSchedulePage';
 import TeacherTimetablePage from './pages/teacher/TeacherTimetablePage';
-import TeacherAttendancePage from './pages/teacher/TeacherAttendancePage';
 import TeacherAttendanceNewPage from './pages/teacher/TeacherAttendanceNewPage';
 import LessonPlanPage from './pages/LessonPlanPage';
 
@@ -115,7 +113,7 @@ function App() {
       {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/login/:schoolSlug" element={<SchoolLoginPage />} />
+      <Route path="/login/:schoolSlug" element={<LoginPage />} />
       <Route path="/register-school" element={<RegisterSchoolPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
 

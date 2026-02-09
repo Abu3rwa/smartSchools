@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
 import Behavior from '../models/Behavior.js';
 import { protect } from '../middleware/auth.js';
 import { superAdminOnly } from '../middleware/tenantIsolation.js';

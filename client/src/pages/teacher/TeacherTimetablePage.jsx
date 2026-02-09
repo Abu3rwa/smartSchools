@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
     HiOutlineCalendar,
@@ -15,7 +15,6 @@ import './TeacherTimetablePage.css';
 
 const COLORS = ['blue', 'green', 'purple', 'orange', 'pink', 'teal', 'red', 'yellow'];
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WORKING_DAYS = [1, 2, 3, 4, 5]; // Mon-Fri default
 
@@ -62,8 +61,8 @@ const TeacherTimetablePage = () => {
     // Build lookup: { periodId -> { dayOfWeek -> assignment } }
     const timetableMap = useMemo(() => {
         const map = new Map();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
 
         for (const assignment of assignments) {
             const periodId = assignment.period?._id || assignment.period;
@@ -72,7 +71,7 @@ const TeacherTimetablePage = () => {
             // Check if assignment is currently active by date range
             const start = new Date(assignment.startDate);
             const end = new Date(assignment.endDate);
-            if (today < start || today > end) continue;
+            if (todayDate < start || todayDate > end) continue;
 
             for (const day of (assignment.daysOfWeek || [])) {
                 const key = `${periodId}_${day}`;
@@ -155,8 +154,6 @@ const TeacherTimetablePage = () => {
         }
         return map;
     }, []);
-
-    const gridColumns = daysToShow.length + 1; // +1 for period label column
 
     if (loading) {
         return (
@@ -264,54 +261,55 @@ const TeacherTimetablePage = () => {
                     {/* Period rows */}
                     {periods.map(period => {
                         const isCurrent = period._id === currentPeriodId;
-                        return [
-                            <div
-                                key={`label-${period._id}`}
-                                className={`period-label ${isCurrent ? 'is-current' : ''}`}
-                            >
-                                <span className="period-name">{period.name}</span>
-                                <span className="period-time">{period.startTime} - {period.endTime}</span>
-                            </div>,
-                            ...daysToShow.map(day => {
-                                const key = `${period._id}_${day}`;
-                                const assignment = timetableMap.get(key);
-                                const isCellCurrent = isCurrent && day === currentDayOfWeek;
+                        return (
+                            <React.Fragment key={period._id}>
+                                <div
+                                    className={`period-label ${isCurrent ? 'is-current' : ''}`}
+                                >
+                                    <span className="period-name">{period.name}</span>
+                                    <span className="period-time">{period.startTime} - {period.endTime}</span>
+                                </div>
+                                {daysToShow.map(day => {
+                                    const key = `${period._id}_${day}`;
+                                    const assignment = timetableMap.get(key);
+                                    const isCellCurrent = isCurrent && day === currentDayOfWeek;
 
-                                if (!assignment) {
+                                    if (!assignment) {
+                                        return (
+                                            <div
+                                                key={key}
+                                                className={`timetable-cell empty ${isCellCurrent ? 'is-current-period' : ''}`}
+                                            />
+                                        );
+                                    }
+
+                                    const subjectId = assignment.subject?._id || 'none';
+                                    const color = subjectColorMap.get(subjectId) || 'blue';
+
                                     return (
                                         <div
                                             key={key}
-                                            className={`timetable-cell empty ${isCellCurrent ? 'is-current-period' : ''}`}
-                                        />
-                                    );
-                                }
-
-                                const subjectId = assignment.subject?._id || 'none';
-                                const color = subjectColorMap.get(subjectId) || 'blue';
-
-                                return (
-                                    <div
-                                        key={key}
-                                        className={`timetable-cell ${isCellCurrent ? 'is-current-period' : ''}`}
-                                    >
-                                        <div className={`lesson-card color-${color}`}>
-                                            <span className="lesson-subject">
-                                                {assignment.subject?.name || 'No subject'}
-                                            </span>
-                                            <span className="lesson-class">
-                                                {assignment.class?.name || 'No class'}
-                                            </span>
-                                            {assignment.room?.name && (
-                                                <span className="lesson-room">
-                                                    <HiOutlineLocationMarker size={12} />
-                                                    {assignment.room.name}
+                                            className={`timetable-cell ${isCellCurrent ? 'is-current-period' : ''}`}
+                                        >
+                                            <div className={`lesson-card color-${color}`}>
+                                                <span className="lesson-subject">
+                                                    {assignment.subject?.name || 'No subject'}
                                                 </span>
-                                            )}
+                                                <span className="lesson-class">
+                                                    {assignment.class?.name || 'No class'}
+                                                </span>
+                                                {assignment.room?.name && (
+                                                    <span className="lesson-room">
+                                                        <HiOutlineLocationMarker size={12} />
+                                                        {assignment.room.name}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })
-                        ];
+                                    );
+                                })}
+                            </React.Fragment>
+                        );
                     })}
                 </div>
             )}

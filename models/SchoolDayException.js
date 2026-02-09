@@ -5,8 +5,7 @@ const schoolDayExceptionSchema = new mongoose.Schema({
     school: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'School',
-        required: true,
-        index: true
+        required: true
     },
     date: {
         type: Date,

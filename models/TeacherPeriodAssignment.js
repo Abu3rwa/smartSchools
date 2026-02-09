@@ -5,8 +5,7 @@ const teacherPeriodAssignmentSchema = new mongoose.Schema({
     school: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'School',
-        required: true,
-        index: true
+        required: true
     },
     teacher: {
         type: mongoose.Schema.Types.ObjectId,

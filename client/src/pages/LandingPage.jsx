@@ -3,29 +3,49 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSchools, selectSchools, selectSchoolLoading } from '../store/slices/schoolSlice';
 import { selectIsAuthenticated } from '../store/slices/authSlice';
-import { 
-    HiOutlineAcademicCap, 
-    HiOutlineSearch, 
-    HiOutlineMail, 
-    HiOutlineUserGroup, 
+import {
+    HiOutlineAcademicCap,
+    HiOutlineSearch,
+    HiOutlineUserGroup,
     HiOutlinePlus,
     HiOutlineCheckCircle,
     HiOutlineChartBar,
     HiOutlineShieldCheck,
-    HiOutlineClock,
-    HiOutlineDeviceMobile,
     HiOutlineCloud,
-    HiOutlineStar,
-    HiOutlineArrowRight,
-    HiOutlineGlobeAlt,
-    HiOutlineAcademicCap as HiOutlineGraduationCap,
-    HiOutlineBookOpen,
+    HiOutlineDeviceMobile,
     HiOutlineSparkles,
-    HiOutlinePlay,
+    HiOutlineArrowRight,
+    HiOutlineChevronDown,
     HiOutlineMenu,
-    HiOutlineX
+    HiOutlineX,
+    HiOutlineMail,
+    HiOutlineClipboardCheck,
+    HiOutlineOfficeBuilding
 } from 'react-icons/hi';
 import './LandingPage.css';
+
+const FAQ_ITEMS = [
+    {
+        q: 'How does the free trial work?',
+        a: 'Start with our Free plan—no credit card required. You get up to 50 students, full gradebook, and parent notifications. Upgrade to Growth anytime when you need more capacity or premium features.'
+    },
+    {
+        q: 'Is my school data secure?',
+        a: 'Yes. We use bank-level encryption, secure cloud hosting, and are designed for GDPR compliance. Each school\'s data is fully isolated—no other institution can access your information.'
+    },
+    {
+        q: 'Can we use our own branding?',
+        a: 'Growth and Enterprise plans support white-label options: custom logo, colors, and domain so parents and staff see your school\'s brand when they log in.'
+    },
+    {
+        q: 'Do you integrate with existing systems?',
+        a: 'We offer CSV import for students and grades. Enterprise plans can include API access and custom integrations—contact us to discuss your needs.'
+    },
+    {
+        q: 'What kind of support do you offer?',
+        a: 'All plans include email support. Growth adds priority support; Enterprise includes a dedicated success manager and optional training for your staff.'
+    }
+];
 
 const LandingPage = () => {
     const dispatch = useDispatch();
@@ -35,6 +55,7 @@ const LandingPage = () => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     const [searchTerm, setSearchTerm] = useState('');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [openFaqIndex, setOpenFaqIndex] = useState(null);
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -59,157 +80,111 @@ const LandingPage = () => {
 
     return (
         <div className="landing-page">
-            <div className="bg-gradient"></div>
-            <div className="bg-grid"></div>
-            <div className="bg-particles">
-                <div className="bg-particle"></div>
-                <div className="bg-particle"></div>
-                <div className="bg-particle"></div>
-                <div className="bg-particle"></div>
-                <div className="bg-particle"></div>
-                <div className="bg-particle"></div>
-                <div className="bg-particle"></div>
-                <div className="bg-particle"></div>
-            </div>
-            
+            <div className="landing-bg-gradient" aria-hidden="true" />
+            <div className="landing-bg-mesh" aria-hidden="true" />
+
             {/* Navigation */}
-            <nav className="landing-nav">
-                <div className="nav-container">
-                    <div className="nav-brand">
-                        <div className="brand-icon">
-                            <HiOutlineGraduationCap size={28} />
-                        </div>
-                        <span className="brand-text">GradeBook Pro</span>
-                    </div>
-                    <div className="nav-links">
-                        <a href="#features" className="nav-link">Features</a>
-                        <a href="#pricing" className="nav-link">Pricing</a>
-                        <a href="#testimonials" className="nav-link">Testimonials</a>
-                        <button className="nav-admin-btn" onClick={() => navigate('/login')}>
-                            Login
+            <header className="landing-header">
+                <div className="landing-header-inner">
+                    <a href="#" className="landing-logo" onClick={(e) => { e.preventDefault(); window.scrollTo(0, 0); }}>
+                        <span className="landing-logo-icon">
+                            <HiOutlineAcademicCap size={26} />
+                        </span>
+                        <span className="landing-logo-text">GradeBook Pro</span>
+                    </a>
+                    <nav className="landing-nav">
+                        <a href="#features">Features</a>
+                        <a href="#pricing">Pricing</a>
+                        <a href="#testimonials">Testimonials</a>
+                        <a href="#faq">FAQ</a>
+                        <a href="#find-school">Find your school</a>
+                        <button type="button" className="landing-nav-btn secondary" onClick={() => navigate('/login')}>
+                            Log in
                         </button>
-                    </div>
-                    <button 
-                        className="nav-mobile-toggle"
+                        <button type="button" className="landing-nav-btn primary" onClick={() => navigate('/register-school')}>
+                            Start free
+                        </button>
+                    </nav>
+                    <button
+                        type="button"
+                        className="landing-nav-mobile-toggle"
                         onClick={() => setMobileMenuOpen(true)}
+                        aria-label="Open menu"
                     >
                         <HiOutlineMenu size={24} />
                     </button>
                 </div>
-            </nav>
+            </header>
 
-            {/* Mobile Navigation Menu */}
             {mobileMenuOpen && (
-                <div className="nav-mobile-menu active">
-                    <button 
-                        className="nav-mobile-close"
-                        onClick={() => setMobileMenuOpen(false)}
-                    >
-                        <HiOutlineX size={24} />
-                    </button>
-                    <div className="nav-mobile-links">
-                        <a 
-                            href="#features" 
-                            className="nav-mobile-link"
-                            onClick={() => setMobileMenuOpen(false)}
-                        >
-                            Features
-                        </a>
-                        <a 
-                            href="#pricing" 
-                            className="nav-mobile-link"
-                            onClick={() => setMobileMenuOpen(false)}
-                        >
-                            Pricing
-                        </a>
-                        <a 
-                            href="#testimonials" 
-                            className="nav-mobile-link"
-                            onClick={() => setMobileMenuOpen(false)}
-                        >
-                            Testimonials
-                        </a>
-                        <button 
-                            className="nav-admin-btn" 
-                            onClick={() => {
-                                setMobileMenuOpen(false);
-                                navigate('/login');
-                            }}
-                        >
-                          Login
+                <div className="landing-mobile-menu" role="dialog" aria-label="Menu">
+                    <div className="landing-mobile-menu-inner">
+                        <button type="button" className="landing-mobile-close" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
+                            <HiOutlineX size={24} />
+                        </button>
+                        <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
+                        <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>Pricing</a>
+                        <a href="#testimonials" onClick={() => setMobileMenuOpen(false)}>Testimonials</a>
+                        <a href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</a>
+                        <a href="#find-school" onClick={() => setMobileMenuOpen(false)}>Find your school</a>
+                        <button type="button" className="landing-nav-btn secondary" onClick={() => { setMobileMenuOpen(false); navigate('/login'); }}>
+                            Log in
+                        </button>
+                        <button type="button" className="landing-nav-btn primary" onClick={() => { setMobileMenuOpen(false); navigate('/register-school'); }}>
+                            Start free
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* Hero Section */}
-            <section className="hero-section">
-                <div className="hero-container">
-                    <div className="hero-content">
-                        <div className="hero-badge">
+            {/* Hero */}
+            <section className="landing-hero">
+                <div className="landing-hero-inner">
+                    <div className="landing-hero-content">
+                        <p className="landing-hero-badge">
                             <HiOutlineSparkles size={16} />
-                            <span>Trusted by 1,000+ Schools Worldwide</span>
-                        </div>
-                        <h1 className="hero-title">
-                            Modern School Management Made Simple
+                            Trusted by schools worldwide
+                        </p>
+                        <h1 className="landing-hero-title">
+                            The gradebook that runs your school—not the other way around
                         </h1>
-                        <p className="hero-subtitle">
-                            Streamline your educational institution with powerful tools for grading, attendance, 
-                            parent communication, and comprehensive analytics.
+                        <p className="landing-hero-subtitle">
+                            Daily grades, attendance, timetables, and parent communication in one place. 
+                            Start free with up to 50 students—no credit card required.
                         </p>
-                        <div className="hero-actions">
-                            <button className="btn-primary" onClick={() => navigate('/register-school')}>
-                                <HiOutlinePlus size={20} />
-                                Start Free Trial
+                        <div className="landing-hero-actions">
+                            <button type="button" className="landing-cta primary" onClick={() => navigate('/register-school')}>
+                                Start free trial
+                                <HiOutlineArrowRight size={18} />
                             </button>
-                            <button className="btn-secondary">
-                                <HiOutlinePlay size={20} />
-                                Watch Demo
+                            <button type="button" className="landing-cta secondary" onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}>
+                                See pricing
                             </button>
                         </div>
-                        <div className="hero-stats">
-                            <div className="stat">
-                                <span className="stat-number">50K+</span>
-                                <span className="stat-label">Active Students</span>
-                            </div>
-                            <div className="stat">
-                                <span className="stat-number">1,000+</span>
-                                <span className="stat-label">Schools</span>
-                            </div>
-                            <div className="stat">
-                                <span className="stat-number">99.9%</span>
-                                <span className="stat-label">Uptime</span>
-                            </div>
+                        <div className="landing-hero-trust">
+                            <span><HiOutlineCheckCircle size={16} /> Free up to 50 students</span>
+                            <span><HiOutlineCheckCircle size={16} /> No credit card</span>
+                            <span><HiOutlineCheckCircle size={16} /> Cancel anytime</span>
                         </div>
                     </div>
-                    <div className="hero-visual">
-                        <div className="dashboard-preview">
-                            <div className="preview-header">
-                                <div className="preview-dots">
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                </div>
-                                <div className="preview-title">GradeBook Dashboard</div>
+                    <div className="landing-hero-visual">
+                        <div className="landing-hero-mock">
+                            <div className="landing-hero-mock-bar">
+                                <span /><span /><span />
                             </div>
-                            <div className="preview-content">
-                                <div className="preview-card">
-                                    <div className="preview-stat">
-                                        <span className="preview-number">245</span>
-                                        <span className="preview-label">Total Students</span>
-                                    </div>
+                            <div className="landing-hero-mock-body">
+                                <div className="landing-hero-mock-row">
+                                    <div className="landing-hero-mock-card"><strong>245</strong> Students</div>
+                                    <div className="landing-hero-mock-card"><strong>18</strong> Classes</div>
+                                    <div className="landing-hero-mock-card"><strong>92%</strong> Attendance</div>
                                 </div>
-                                <div className="preview-card">
-                                    <div className="preview-stat">
-                                        <span className="preview-number">18</span>
-                                        <span className="preview-label">Classes</span>
-                                    </div>
-                                </div>
-                                <div className="preview-card">
-                                    <div className="preview-stat">
-                                        <span className="preview-number">92%</span>
-                                        <span className="preview-label">Attendance</span>
-                                    </div>
+                                <div className="landing-hero-mock-table">
+                                    <div className="landing-hero-mock-th">Class</div>
+                                    <div className="landing-hero-mock-th">Subject</div>
+                                    <div className="landing-hero-mock-th">Grades today</div>
+                                    <div className="landing-hero-mock-tr"><span>10-A</span><span>Math</span><span>24</span></div>
+                                    <div className="landing-hero-mock-tr"><span>10-B</span><span>Science</span><span>22</span></div>
+                                    <div className="landing-hero-mock-tr"><span>11-A</span><span>English</span><span>20</span></div>
                                 </div>
                             </div>
                         </div>
@@ -217,259 +192,249 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* Features Section */}
-            <section id="features" className="features-section">
-                <div className="section-container">
-                    <div className="section-header">
-                        <h2 className="section-title">Everything You Need to Excel</h2>
-                        <p className="section-subtitle">
-                            Powerful features designed to make school management effortless
-                        </p>
-                    </div>
-                    <div className="features-grid">
-                        <div className="feature-card">
-                            <div className="feature-icon">
-                                <HiOutlineChartBar size={32} />
-                            </div>
-                            <h3>Advanced Analytics</h3>
-                            <p>Track student performance, attendance trends, and institutional metrics with real-time dashboards.</p>
+            {/* Trust strip */}
+            <section className="landing-trust-strip">
+                <div className="landing-trust-inner">
+                    <span><HiOutlineShieldCheck size={18} /> Secure & compliant</span>
+                    <span><HiOutlineCloud size={18} /> Cloud-based</span>
+                    <span>99.9% uptime</span>
+                </div>
+            </section>
+
+            {/* How it works */}
+            <section className="landing-section landing-how">
+                <div className="landing-container">
+                    <h2 className="landing-section-title">Get started in minutes</h2>
+                    <p className="landing-section-subtitle">Register your school, add classes and teachers, then start recording grades and attendance.</p>
+                    <div className="landing-steps">
+                        <div className="landing-step">
+                            <div className="landing-step-num">1</div>
+                            <h3>Create your school</h3>
+                            <p>Sign up with your school details. No credit card required for the Free plan.</p>
                         </div>
-                        <div className="feature-card">
-                            <div className="feature-icon">
-                                <HiOutlineCloud size={32} />
-                            </div>
-                            <h3>Cloud-Based</h3>
-                            <p>Access your data from anywhere with secure cloud storage and automatic backups.</p>
+                        <div className="landing-step">
+                            <div className="landing-step-num">2</div>
+                            <h3>Add classes & teachers</h3>
+                            <p>Set up grades, subjects, and assign teachers. Import students via CSV if you like.</p>
                         </div>
-                        <div className="feature-card">
-                            <div className="feature-icon">
-                                <HiOutlineDeviceMobile size={32} />
-                            </div>
-                            <h3>Mobile Friendly</h3>
-                            <p>Full mobile support for teachers, students, and parents on any device.</p>
-                        </div>
-                        <div className="feature-card">
-                            <div className="feature-icon">
-                                <HiOutlineShieldCheck size={32} />
-                            </div>
-                            <h3>Secure & Compliant</h3>
-                            <p>Bank-level security with GDPR compliance and data encryption.</p>
-                        </div>
-                        <div className="feature-card">
-                            <div className="feature-icon">
-                                <HiOutlineClock size={32} />
-                            </div>
-                            <h3>24/7 Support</h3>
-                            <p>Round-the-clock customer support with dedicated account managers.</p>
-                        </div>
-                        <div className="feature-card">
-                            <div className="feature-icon">
-                                <HiOutlineBookOpen size={32} />
-                            </div>
-                            <h3>Digital Gradebook</h3>
-                            <p>Comprehensive grade management with automated calculations and report generation.</p>
+                        <div className="landing-step">
+                            <div className="landing-step-num">3</div>
+                            <h3>Start managing</h3>
+                            <p>Enter daily grades, take attendance, and send reports to parents—all from one dashboard.</p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Pricing Section */}
-            <section id="pricing" className="pricing-section">
-                <div className="section-container">
-                    <div className="section-header">
-                        <h2 className="section-title">Simple, Transparent Pricing</h2>
-                        <p className="section-subtitle">
-                            Choose the perfect plan for your institution
-                        </p>
+            {/* Features */}
+            <section id="features" className="landing-section landing-features">
+                <div className="landing-container">
+                    <h2 className="landing-section-title">Built for how schools actually work</h2>
+                    <p className="landing-section-subtitle">One platform for grades, attendance, timetables, and parent communication.</p>
+                    <div className="landing-features-grid">
+                        <div className="landing-feature">
+                            <div className="landing-feature-icon"><HiOutlineClipboardCheck size={28} /></div>
+                            <h3>Daily gradebook</h3>
+                            <p>Bulk entry by class, automatic averages, and report generation. Configure max marks and passing criteria per subject.</p>
+                        </div>
+                        <div className="landing-feature">
+                            <div className="landing-feature-icon"><HiOutlineUserGroup size={28} /></div>
+                            <h3>Attendance & timetable</h3>
+                            <p>Period-based timetables and attendance. Teachers see their day at a glance and record attendance in one click.</p>
+                        </div>
+                        <div className="landing-feature">
+                            <div className="landing-feature-icon"><HiOutlineMail size={28} /></div>
+                            <h3>Parent notifications</h3>
+                            <p>Send grade updates and reports on demand. Optional Gmail integration for a professional sender address.</p>
+                        </div>
+                        <div className="landing-feature">
+                            <div className="landing-feature-icon"><HiOutlineChartBar size={28} /></div>
+                            <h3>Analytics & reports</h3>
+                            <p>Dashboards, monthly and semester averages, and AI-powered report generation for parents and admins.</p>
+                        </div>
+                        <div className="landing-feature">
+                            <div className="landing-feature-icon"><HiOutlineShieldCheck size={28} /></div>
+                            <h3>Multi-tenant & secure</h3>
+                            <p>Each school’s data is isolated. Role-based access, secure auth, and white-label options on paid plans.</p>
+                        </div>
+                        <div className="landing-feature">
+                            <div className="landing-feature-icon"><HiOutlineDeviceMobile size={28} /></div>
+                            <h3>Works everywhere</h3>
+                            <p>Responsive web app—use it on desktop, tablet, or phone. No separate app install required.</p>
+                        </div>
                     </div>
-                    <div className="pricing-grid">
-                        <div className="pricing-card">
-                            <div className="pricing-header">
-                                <h3>Starter</h3>
-                                <div className="pricing-price">
-                                    <span className="price-amount">$29</span>
-                                    <span className="price-period">/month</span>
-                                </div>
-                                <p className="pricing-description">Perfect for small schools</p>
-                            </div>
-                            <ul className="pricing-features">
-                                <li><HiOutlineCheckCircle size={16} /> Up to 50 students</li>
-                                <li><HiOutlineCheckCircle size={16} /> Basic gradebook</li>
+                </div>
+            </section>
+
+            {/* Pricing */}
+            <section id="pricing" className="landing-section landing-pricing">
+                <div className="landing-container">
+                    <h2 className="landing-section-title">Simple, transparent pricing</h2>
+                    <p className="landing-section-subtitle">Start free. Scale when you grow. No hidden fees.</p>
+                    <div className="landing-pricing-grid">
+                        <div className="landing-price-card">
+                            <h3>Starter</h3>
+                            <div className="landing-price-amount"><span className="landing-price-num">$0</span><span className="landing-price-period">/month</span></div>
+                            <p className="landing-price-desc">Up to 50 students</p>
+                            <ul>
+                                <li><HiOutlineCheckCircle size={16} /> Full gradebook</li>
+                                <li><HiOutlineCheckCircle size={16} /> Attendance & timetable</li>
+                                <li><HiOutlineCheckCircle size={16} /> Parent notifications</li>
                                 <li><HiOutlineCheckCircle size={16} /> Email support</li>
-                                <li><HiOutlineCheckCircle size={16} /> Mobile app access</li>
                             </ul>
-                            <button className="pricing-btn">Start Free Trial</button>
+                            <button type="button" className="landing-price-btn" onClick={() => navigate('/register-school')}>Start free</button>
                         </div>
-                        <div className="pricing-card featured">
-                            <div className="pricing-badge">Most Popular</div>
-                            <div className="pricing-header">
-                                <h3>Professional</h3>
-                                <div className="pricing-price">
-                                    <span className="price-amount">$79</span>
-                                    <span className="price-period">/month</span>
-                                </div>
-                                <p className="pricing-description">Ideal for growing institutions</p>
-                            </div>
-                            <ul className="pricing-features">
-                                <li><HiOutlineCheckCircle size={16} /> Up to 500 students</li>
-                                <li><HiOutlineCheckCircle size={16} /> Advanced analytics</li>
-                                <li><HiOutlineCheckCircle size={16} /> Parent portal</li>
+                        <div className="landing-price-card featured">
+                            <span className="landing-price-badge">Most popular</span>
+                            <h3>Growth</h3>
+                            <div className="landing-price-amount"><span className="landing-price-num">$2</span><span className="landing-price-period">/student/mo</span></div>
+                            <p className="landing-price-desc">Unlimited students + premium features</p>
+                            <ul>
+                                <li><HiOutlineCheckCircle size={16} /> Everything in Starter</li>
+                                <li><HiOutlineCheckCircle size={16} /> White-label branding</li>
                                 <li><HiOutlineCheckCircle size={16} /> Priority support</li>
-                                <li><HiOutlineCheckCircle size={16} /> Custom reports</li>
-                                <li><HiOutlineCheckCircle size={16} /> API access</li>
+                                <li><HiOutlineCheckCircle size={16} /> Usage analytics</li>
                             </ul>
-                            <button className="pricing-btn primary">Start Free Trial</button>
+                            <button type="button" className="landing-price-btn primary" onClick={() => navigate('/register-school')}>Get started</button>
                         </div>
-                        <div className="pricing-card">
-                            <div className="pricing-header">
-                                <h3>Enterprise</h3>
-                                <div className="pricing-price">
-                                    <span className="price-amount">Custom</span>
-                                </div>
-                                <p className="pricing-description">For large institutions</p>
-                            </div>
-                            <ul className="pricing-features">
-                                <li><HiOutlineCheckCircle size={16} /> Unlimited students</li>
-                                <li><HiOutlineCheckCircle size={16} /> Custom features</li>
-                                <li><HiOutlineCheckCircle size={16} /> Dedicated support</li>
-                                <li><HiOutlineCheckCircle size={16} /> On-premise option</li>
-                                <li><HiOutlineCheckCircle size={16} /> SLA guarantee</li>
+                        <div className="landing-price-card">
+                            <h3>Enterprise</h3>
+                            <div className="landing-price-amount"><span className="landing-price-num">Custom</span></div>
+                            <p className="landing-price-desc">Advanced features & dedicated support</p>
+                            <ul>
+                                <li><HiOutlineCheckCircle size={16} /> Everything in Growth</li>
+                                <li><HiOutlineCheckCircle size={16} /> Custom integrations</li>
+                                <li><HiOutlineCheckCircle size={16} /> Dedicated success manager</li>
+                                <li><HiOutlineCheckCircle size={16} /> SLA & training</li>
                             </ul>
-                            <button className="pricing-btn">Contact Sales</button>
+                            <button type="button" className="landing-price-btn" onClick={() => navigate('/register-school')}>Contact sales</button>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Testimonials Section */}
-            <section id="testimonials" className="testimonials-section">
-                <div className="section-container">
-                    <div className="section-header">
-                        <h2 className="section-title">Loved by Educators Worldwide</h2>
-                        <p className="section-subtitle">
-                            See what school administrators and teachers are saying
-                        </p>
-                    </div>
-                    <div className="testimonials-grid">
-                        <div className="testimonial-card">
-                            <div className="testimonial-content">
-                                <p>"GradeBook Pro has transformed how we manage our school. The analytics dashboard alone has saved us hours of work each week."</p>
-                            </div>
-                            <div className="testimonial-author">
-                                <div className="author-avatar">
-                                    <span>JD</span>
+            {/* Testimonials */}
+            <section id="testimonials" className="landing-section landing-testimonials">
+                <div className="landing-container">
+                    <h2 className="landing-section-title">Loved by educators</h2>
+                    <p className="landing-section-subtitle">See what admins and teachers say about GradeBook Pro.</p>
+                    <div className="landing-testimonials-grid">
+                        <div className="landing-testimonial">
+                            <p>"The analytics dashboard alone has saved us hours each week. Parents love the real-time grade updates."</p>
+                            <div className="landing-testimonial-author">
+                                <div className="landing-testimonial-avatar">JD</div>
+                                <div>
+                                    <strong>Dr. Jane Davis</strong>
+                                    <span>Principal, Lincoln High School</span>
                                 </div>
-                                <div className="author-info">
-                                    <h4>Dr. Jane Davis</h4>
-                                    <p>Principal, Lincoln High School</p>
-                                </div>
-                            </div>
-                            <div className="testimonial-rating">
-                                {[...Array(5)].map((_, i) => <HiOutlineStar key={i} size={16} className="star-filled" />)}
                             </div>
                         </div>
-                        <div className="testimonial-card">
-                            <div className="testimonial-content">
-                                <p>"The parent portal has revolutionized our communication. Parents love being able to track their child's progress in real-time."</p>
-                            </div>
-                            <div className="testimonial-author">
-                                <div className="author-avatar">
-                                    <span>MS</span>
+                        <div className="landing-testimonial">
+                            <p>"We switched from spreadsheets last year. Setup was quick, and our teachers actually use it every day."</p>
+                            <div className="landing-testimonial-author">
+                                <div className="landing-testimonial-avatar">MS</div>
+                                <div>
+                                    <strong>Mark Stevens</strong>
+                                    <span>IT Director, Riverside Academy</span>
                                 </div>
-                                <div className="author-info">
-                                    <h4>Mark Stevens</h4>
-                                    <p>IT Director, Riverside Academy</p>
-                                </div>
-                            </div>
-                            <div className="testimonial-rating">
-                                {[...Array(5)].map((_, i) => <HiOutlineStar key={i} size={16} className="star-filled" />)}
                             </div>
                         </div>
-                        <div className="testimonial-card">
-                            <div className="testimonial-content">
-                                <p>"As a teacher, the mobile app is a game-changer. I can update grades and attendance right from my classroom."</p>
-                            </div>
-                            <div className="testimonial-author">
-                                <div className="author-avatar">
-                                    <span>SC</span>
+                        <div className="landing-testimonial">
+                            <p>"I can update grades and take attendance from my phone between classes. Game-changer."</p>
+                            <div className="landing-testimonial-author">
+                                <div className="landing-testimonial-avatar">SC</div>
+                                <div>
+                                    <strong>Sarah Chen</strong>
+                                    <span>Math Teacher, Oak Valley School</span>
                                 </div>
-                                <div className="author-info">
-                                    <h4>Sarah Chen</h4>
-                                    <p>Math Teacher, Oak Valley School</p>
-                                </div>
-                            </div>
-                            <div className="testimonial-rating">
-                                {[...Array(5)].map((_, i) => <HiOutlineStar key={i} size={16} className="star-filled" />)}
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* School Search Section */}
-            <section className="school-search-section">
-                <div className="section-container">
-                    <div className="section-header">
-                        <h2 className="section-title">Find Your School</h2>
-                        <p className="section-subtitle">
-                            Search for your institution to get started
-                        </p>
+            {/* FAQ */}
+            <section id="faq" className="landing-section landing-faq">
+                <div className="landing-container landing-faq-container">
+                    <h2 className="landing-section-title">Frequently asked questions</h2>
+                    <div className="landing-faq-list">
+                        {FAQ_ITEMS.map((item, i) => (
+                            <div
+                                key={i}
+                                className={`landing-faq-item ${openFaqIndex === i ? 'open' : ''}`}
+                                onClick={() => setOpenFaqIndex(openFaqIndex === i ? null : i)}
+                            >
+                                <button type="button" className="landing-faq-q" aria-expanded={openFaqIndex === i}>
+                                    {item.q}
+                                    <HiOutlineChevronDown size={20} className="landing-faq-chevron" />
+                                </button>
+                                <div className="landing-faq-a"><p>{item.a}</p></div>
+                            </div>
+                        ))}
                     </div>
-                    <div className="search-container">
-                        <div className="search-input-wrapper">
-                            <HiOutlineSearch className="search-icon" size={20} />
-                            <input
-                                type="text"
-                                placeholder="Search for your school..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="search-input"
-                            />
-                        </div>
+                </div>
+            </section>
+
+            {/* CTA */}
+            <section className="landing-section landing-cta-block">
+                <div className="landing-container landing-cta-inner">
+                    <h2 className="landing-cta-title">Ready to simplify your school?</h2>
+                    <p className="landing-cta-subtitle">Join schools that switched from spreadsheets and paperwork to one clear system.</p>
+                    <button type="button" className="landing-cta primary large" onClick={() => navigate('/register-school')}>
+                        Start free trial
+                        <HiOutlineArrowRight size={20} />
+                    </button>
+                </div>
+            </section>
+
+            {/* Find your school */}
+            <section id="find-school" className="landing-section landing-school-search">
+                <div className="landing-container">
+                    <h2 className="landing-section-title">Find your school</h2>
+                    <p className="landing-section-subtitle">Search for your institution to log in, or register a new school.</p>
+                    <div className="landing-search-wrap">
+                        <HiOutlineSearch size={20} className="landing-search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Search by school name..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="landing-search-input"
+                        />
                     </div>
-                    <div className="schools-container">
+                    <div className="landing-schools-wrap">
                         {filtered.length > 0 ? (
-                            <div className="schools-grid">
+                            <div className="landing-schools-grid">
                                 {filtered.map((school) => (
-                                    <div
+                                    <button
                                         key={school._id}
-                                        className="school-card"
+                                        type="button"
+                                        className="landing-school-card"
                                         onClick={() => navigate(`/login/${school.slug}`)}
                                     >
-                                        <div className="school-card-header">
-                                            <div className="school-card-icon">
-                                                <HiOutlineGraduationCap size={24} />
-                                            </div>
-                                            <div className="school-card-info">
-                                                <h3>{school.name}</h3>
-                                                <span>
-                                                    <HiOutlineUserGroup size={12} style={{ display: 'inline', marginRight: 4 }} />
-                                                    Up to {school.settings?.maxStudents || 50} students
-                                                </span>
-                                            </div>
+                                        <span className="landing-school-card-icon"><HiOutlineOfficeBuilding size={22} /></span>
+                                        <div className="landing-school-card-info">
+                                            <strong>{school.name}</strong>
+                                            <span>Up to {school.settings?.maxStudents || 50} students</span>
                                         </div>
-                                        <div className="school-card-footer">
-                                            <HiOutlineMail size={14} />
-                                            <span>{school.contact?.adminEmail}</span>
-                                        </div>
-                                    </div>
+                                        {school.contact?.adminEmail && (
+                                            <span className="landing-school-card-email"><HiOutlineMail size={14} /> {school.contact.adminEmail}</span>
+                                        )}
+                                    </button>
                                 ))}
                             </div>
                         ) : (
-                            <div className="schools-empty">
-                                <div className="schools-empty-icon">
-                                    <HiOutlineGraduationCap size={32} />
-                                </div>
-                                <h3>No schools found</h3>
-                                <p>Try a different search or register your school below</p>
+                            <div className="landing-schools-empty">
+                                <HiOutlineAcademicCap size={40} />
+                                <p>No schools found. Try a different search or register your school.</p>
                             </div>
                         )}
                     </div>
-                    <div className="register-cta">
-                        <p>Don't see your school?</p>
-                        <button className="btn-primary" onClick={() => navigate('/register-school')}>
-                            <HiOutlinePlus size={20} />
-                            Register Your School
+                    <div className="landing-register-cta">
+                        <p>Don’t see your school?</p>
+                        <button type="button" className="landing-cta primary" onClick={() => navigate('/register-school')}>
+                            <HiOutlinePlus size={18} />
+                            Register your school
                         </button>
                     </div>
                 </div>
@@ -477,42 +442,34 @@ const LandingPage = () => {
 
             {/* Footer */}
             <footer className="landing-footer">
-                <div className="footer-container">
-                    <div className="footer-content">
-                        <div className="footer-brand">
-                            <div className="brand-icon">
-                                <HiOutlineGraduationCap size={24} />
-                            </div>
-                            <span className="brand-text">GradeBook Pro</span>
-                            <p>Modern school management for the digital age</p>
+                <div className="landing-footer-inner">
+                    <div className="landing-footer-top">
+                        <div className="landing-footer-brand">
+                            <span className="landing-logo-icon"><HiOutlineAcademicCap size={24} /></span>
+                            <span className="landing-logo-text">GradeBook Pro</span>
+                            <p>School management for the digital age.</p>
                         </div>
-                        <div className="footer-links">
-                            <div className="footer-column">
+                        <div className="landing-footer-links">
+                            <div>
                                 <h4>Product</h4>
                                 <a href="#features">Features</a>
                                 <a href="#pricing">Pricing</a>
-                                <a href="#testimonials">Testimonials</a>
+                                <a href="#faq">FAQ</a>
                             </div>
-                            <div className="footer-column">
+                            <div>
                                 <h4>Company</h4>
                                 <a href="#">About</a>
-                                <a href="#">Blog</a>
-                                <a href="#">Careers</a>
-                            </div>
-                            <div className="footer-column">
-                                <h4>Support</h4>
-                                <a href="#">Help Center</a>
                                 <a href="#">Contact</a>
-                                <a href="#">Status</a>
+                            </div>
+                            <div>
+                                <h4>Legal</h4>
+                                <a href="#">Privacy</a>
+                                <a href="#">Terms</a>
                             </div>
                         </div>
                     </div>
-                    <div className="footer-bottom">
-                        <p>&copy; 2024 GradeBook Pro. All rights reserved.</p>
-                        <div className="footer-legal">
-                            <a href="#">Privacy Policy</a>
-                            <a href="#">Terms of Service</a>
-                        </div>
+                    <div className="landing-footer-bottom">
+                        <p>&copy; {new Date().getFullYear()} GradeBook Pro. All rights reserved.</p>
                     </div>
                 </div>
             </footer>

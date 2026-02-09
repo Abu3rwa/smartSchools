@@ -4,8 +4,7 @@ const attendanceSchema = new mongoose.Schema({
     school: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'School',
-        required: true,
-        index: true
+        required: true // index covered by compound index below
     },
     schedule: {
         type: mongoose.Schema.Types.ObjectId,
@@ -252,6 +251,7 @@ attendanceSchema.statics.findByTeacherAndDate = function(teacherId, date) {
     }).populate('schedule class subject');
 };
 
+// Missed attendance is schedule-centric; period-based expectations not included.
 attendanceSchema.statics.findMissedAttendance = function(schoolId, date) {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);

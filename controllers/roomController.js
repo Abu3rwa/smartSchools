@@ -1,4 +1,4 @@
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
 import Room from '../models/Room.js';
 
 export const getRooms = asyncHandler(async (req, res) => {

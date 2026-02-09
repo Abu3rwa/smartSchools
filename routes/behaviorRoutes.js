@@ -1,5 +1,5 @@
 import express from 'express';
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
 import {
     getBehaviorAnalytics,
     getUserBehavior,

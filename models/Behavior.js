@@ -11,8 +11,7 @@ const behaviorSchema = new mongoose.Schema({
     school: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'School',
-        required: true,
-        index: true
+        required: true // index covered by compound indexes below
     },
     
     // Event Information
@@ -149,8 +148,7 @@ const behaviorSchema = new mongoose.Schema({
     // Timestamp
     timestamp: {
         type: Date,
-        default: Date.now,
-        index: true
+        default: Date.now // index covered by compound indexes and TTL index below
     },
     
     // Session Information

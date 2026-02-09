@@ -2,6 +2,7 @@ import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import { superAdminOnly } from '../middleware/tenantIsolation.js';
 import User from '../models/User.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ router.get('/', async (req, res) => {
 
         res.json({ success: true, data: users });
     } catch (error) {
-        console.error('Error fetching users:', error);
+        logger.error('Error fetching users:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch users' });
     }
 });

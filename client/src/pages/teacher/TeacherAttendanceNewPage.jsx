@@ -21,8 +21,6 @@ const STATUS_OPTIONS = [
     { key: 'absent_excused', label: 'Absent Excused', short: 'AE' }
 ];
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
 const TeacherAttendanceNewPage = () => {
     const user = useSelector(selectUser);
 

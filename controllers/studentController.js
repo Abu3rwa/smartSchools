@@ -147,12 +147,18 @@ export const updateStudent = asyncHandler(async (req, res) => {
         });
     }
 
-    // Handle empty email
-    if (req.body.email === '') {
-        req.body.email = null; // Set to null for sparse index
-    }
+    const allowedFields = [
+        'firstName', 'lastName', 'dateOfBirth', 'email', 'gender', 'currentClass',
+        'academicYear', 'enrollmentDate', 'parentInfo', 'address', 'medicalInfo',
+        'previousSchool', 'studentEmail', 'reportPreferences', 'status', 'notes'
+    ];
+    const updates = {};
+    allowedFields.forEach((field) => {
+        if (req.body[field] !== undefined) updates[field] = req.body[field];
+    });
+    if (updates.email === '') updates.email = null;
 
-    student = await Student.findByIdAndUpdate(req.params.id, req.body, {
+    student = await Student.findByIdAndUpdate(req.params.id, updates, {
         new: true,
         runValidators: true
     }).populate('currentClass', 'name grade section');

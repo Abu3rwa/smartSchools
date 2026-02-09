@@ -1,6 +1,7 @@
 import express from 'express';
 import gmailOAuthService from '../services/gmailOAuthService.js';
 import { protect } from '../middleware/auth.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.get('/url', protect, async (req, res) => {
             authUrl
         });
     } catch (error) {
-        console.error('Error generating auth URL:', error);
+        logger.error('Error generating auth URL:', error);
         res.status(500).json({
             success: false,
             message: error.message
@@ -52,7 +53,7 @@ router.get('/callback', async (req, res) => {
         // Redirect back to client with success
         res.redirect(`${process.env.CLIENT_URL}/settings?gmail_connected=true`);
     } catch (error) {
-        console.error('Gmail OAuth callback error:', error);
+        logger.error('Gmail OAuth callback error:', error);
         res.redirect(`${process.env.CLIENT_URL}/settings?gmail_error=${encodeURIComponent(error.message)}`);
     }
 });
@@ -71,7 +72,7 @@ router.get('/status', protect, async (req, res) => {
             ...status
         });
     } catch (error) {
-        console.error('Error getting Gmail status:', error);
+        logger.error('Error getting Gmail status:', error);
         res.status(500).json({
             success: false,
             message: error.message
@@ -93,7 +94,7 @@ router.delete('/disconnect', protect, async (req, res) => {
             message: 'Gmail account disconnected successfully'
         });
     } catch (error) {
-        console.error('Error disconnecting Gmail:', error);
+        logger.error('Error disconnecting Gmail:', error);
         res.status(500).json({
             success: false,
             message: error.message
@@ -132,7 +133,7 @@ router.post('/test', protect, async (req, res) => {
             message: 'Test email sent successfully'
         });
     } catch (error) {
-        console.error('Error sending test email:', error);
+        logger.error('Error sending test email:', error);
         res.status(500).json({
             success: false,
             message: error.message

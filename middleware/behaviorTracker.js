@@ -1,5 +1,6 @@
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from './errorHandler.js';
 import Behavior from '../models/Behavior.js';
+import logger from '../utils/logger.js';
 
 // Optional dependencies - will be used if available
 let geoip, useragent;
@@ -156,7 +157,7 @@ const behaviorTracker = asyncHandler(async (req, res, next) => {
         
         next();
     } catch (error) {
-        console.error('Behavior tracking error:', error);
+        logger.error('Behavior tracking error:', error);
         next();
     }
 });
@@ -286,7 +287,7 @@ const logBehaviorEvent = async (req, additionalData = {}) => {
         Behavior.logEvent(behaviorData);
         
     } catch (error) {
-        console.error('Error logging behavior event:', error);
+        logger.error('Error logging behavior event:', error);
     }
 };
 
@@ -319,7 +320,7 @@ const logCustomEvent = async (req, eventData) => {
         
         await Behavior.logEvent(behaviorData);
     } catch (error) {
-        console.error('Error logging custom event:', error);
+        logger.error('Error logging custom event:', error);
     }
 };
 
@@ -345,7 +346,7 @@ const trackPageView = asyncHandler(async (req, res, next) => {
         
         res.json({ success: true, message: 'Page view tracked' });
     } catch (error) {
-        console.error('Error tracking page view:', error);
+        logger.error('Error tracking page view:', error);
         res.status(500).json({ success: false, message: 'Failed to track page view' });
     }
 });
@@ -371,7 +372,7 @@ const trackFeatureUsage = asyncHandler(async (req, res, next) => {
         
         res.json({ success: true, message: 'Feature usage tracked' });
     } catch (error) {
-        console.error('Error tracking feature usage:', error);
+        logger.error('Error tracking feature usage:', error);
         res.status(500).json({ success: false, message: 'Failed to track feature usage' });
     }
 });

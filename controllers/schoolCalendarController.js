@@ -1,4 +1,4 @@
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
 import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import SchoolDayException from '../models/SchoolDayException.js';
 

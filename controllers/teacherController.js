@@ -126,24 +126,64 @@ export const createTeacher = asyncHandler(async (req, res) => {
         });
     }
 
-    // Generate employee ID if not provided
-    let empId = employeeId;
+    // Generate employee ID if not provided (use max+1 to avoid reuse after deletions or race)
+    let empId = employeeId?.trim() || null;
     if (!empId) {
-        const count = await Teacher.countDocuments({ school: req.schoolId });
         const year = new Date().getFullYear().toString().slice(-2);
-        empId = `TCH${year}${String(count + 1).padStart(4, '0')}`;
+        const prefix = `TCH${year}`;
+        const existing = await Teacher.find({ school: req.schoolId, employeeId: new RegExp('^' + prefix) })
+            .select('employeeId')
+            .lean();
+        const maxSeq = existing.length
+            ? Math.max(...existing.map((t) => parseInt(t.employeeId.slice(-4), 10) || 0))
+            : 0;
+        empId = `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+    } else {
+        const exists = await Teacher.findOne({ school: req.schoolId, employeeId: empId });
+        if (exists) {
+            return res.status(400).json({
+                success: false,
+                message: `Employee ID "${empId}" is already in use. Please use another value.`
+            });
+        }
     }
 
-    // Create teacher profile
-    const teacher = await Teacher.create({
-        school: req.schoolId,
-        user: user._id,
-        employeeId: empId,
-        department,
-        qualification,
-        specialization,
-        subjects: subjects || []
-    });
+    // Create teacher profile (retry once on duplicate key race)
+    let teacher;
+    try {
+        teacher = await Teacher.create({
+            school: req.schoolId,
+            user: user._id,
+            employeeId: empId,
+            department,
+            qualification,
+            specialization,
+            subjects: subjects || []
+        });
+    } catch (createErr) {
+        if (createErr.code === 11000 && createErr.keyValue?.employeeId && !employeeId?.trim()) {
+            const year = new Date().getFullYear().toString().slice(-2);
+            const prefix = `TCH${year}`;
+            const existing = await Teacher.find({ school: req.schoolId, employeeId: new RegExp('^' + prefix) })
+                .select('employeeId')
+                .lean();
+            const maxSeq = existing.length
+                ? Math.max(...existing.map((t) => parseInt(t.employeeId.slice(-4), 10) || 0))
+                : 0;
+            const retryId = `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+            teacher = await Teacher.create({
+                school: req.schoolId,
+                user: user._id,
+                employeeId: retryId,
+                department,
+                qualification,
+                specialization,
+                subjects: subjects || []
+            });
+        } else {
+            throw createErr;
+        }
+    }
 
     const populatedTeacher = await Teacher.findById(teacher._id)
         .populate('user', 'firstName lastName email phone')
@@ -171,15 +211,21 @@ export const updateTeacher = asyncHandler(async (req, res) => {
         });
     }
 
-    const { firstName, lastName, phone, ...teacherData } = req.body;
+    const { firstName, lastName, phone, ...rest } = req.body;
+
+    const allowedTeacherFields = ['department', 'qualification', 'specialization', 'subjects', 'joiningDate', 'address', 'isActive'];
+    const updates = {};
+    allowedTeacherFields.forEach((field) => {
+        if (rest[field] !== undefined) updates[field] = rest[field];
+    });
 
     // Update user info if provided
-    if (firstName || lastName || phone) {
+    if (firstName !== undefined || lastName !== undefined || phone !== undefined) {
         await User.findByIdAndUpdate(teacher.user, { firstName, lastName, phone });
     }
 
-    // Update teacher profile
-    teacher = await Teacher.findByIdAndUpdate(req.params.id, teacherData, {
+    // Update teacher profile (whitelist only; no school, user, employeeId, assignedClasses)
+    teacher = await Teacher.findByIdAndUpdate(req.params.id, updates, {
         new: true,
         runValidators: true
     })
@@ -342,11 +388,15 @@ export const removeClassAssignment = asyncHandler(async (req, res) => {
 
     await teacher.save();
 
-    // Keep Class.subjects in sync
+    // Keep Class.subjects in sync; clear classTeacher if this teacher was class teacher
     if (removed) {
         await Class.findByIdAndUpdate(removed.class, {
             $pull: { subjects: { subject: removed.subject, teacher: teacher._id } }
         });
+        await Class.findOneAndUpdate(
+            { _id: removed.class, classTeacher: teacher._id },
+            { $unset: { classTeacher: 1 } }
+        );
     }
 
     res.json({

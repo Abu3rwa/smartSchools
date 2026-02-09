@@ -30,6 +30,11 @@ const attendanceService = {
     getAttendanceDetails: async (id) => {
         const response = await api.get(`/attendance/${id}`);
         return response.data;
+    },
+
+    exportAttendanceData: async (params = {}) => {
+        const response = await api.get('/attendance/export', { params, responseType: 'blob' });
+        return response.data;
     }
 };
 

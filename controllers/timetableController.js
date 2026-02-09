@@ -1,4 +1,4 @@
-import asyncHandler from 'express-async-handler';
+import { asyncHandler } from '../middleware/errorHandler.js';
 import TimetablePeriod from '../models/TimetablePeriod.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import Class from '../models/Class.js';
@@ -81,6 +81,60 @@ function datesOverlap(aStart, aEnd, bStart, bEnd) {
     return aStart <= bEnd && bStart <= aEnd;
 }
 
+/**
+ * Check for teacher/class/room conflicts in the same period with overlapping dates and days.
+ * @param {string} schoolId
+ * @param {object} candidate - { teacher, class, room, period, daysOfWeek, startDate, endDate }
+ * @param {string|null} excludeAssignmentId - assignment id to exclude (e.g. when updating)
+ * @returns {Promise<{ hasConflict: boolean, conflicts: array }>}
+ */
+async function checkAssignmentConflicts(schoolId, candidate, excludeAssignmentId = null) {
+    const { teacher, class: classId, room, period, daysOfWeek, startDate, endDate } = candidate;
+    const existingForPeriod = await TeacherPeriodAssignment.find({
+        school: schoolId,
+        isActive: true,
+        period
+    });
+
+    const s = new Date(startDate);
+    const e = new Date(endDate);
+    const normalizedStart = new Date(s.setHours(0, 0, 0, 0));
+    const normalizedEnd = new Date(e.setHours(23, 59, 59, 999));
+
+    const candidateDays = Array.from(new Set((daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [1, 2, 3, 4, 5])));
+    const conflicts = [];
+
+    for (const existing of existingForPeriod) {
+        if (excludeAssignmentId && existing._id.toString() === excludeAssignmentId.toString()) continue;
+
+        const dateOverlap = datesOverlap(normalizedStart, normalizedEnd, new Date(existing.startDate), new Date(existing.endDate));
+        if (!dateOverlap) continue;
+
+        const dayOverlap = (existing.daysOfWeek || []).some(d => candidateDays.includes(d));
+        if (!dayOverlap) continue;
+
+        const isTeacherConflict = existing.teacher.toString() === teacher?.toString();
+        const isClassConflict = existing.class.toString() === classId?.toString();
+        const isRoomConflict = room && existing.room && existing.room.toString() === room.toString();
+
+        if (isTeacherConflict || isClassConflict || isRoomConflict) {
+            conflicts.push({
+                id: existing._id,
+                teacher: existing.teacher,
+                class: existing.class,
+                room: existing.room,
+                period: existing.period,
+                daysOfWeek: existing.daysOfWeek,
+                startDate: existing.startDate,
+                endDate: existing.endDate,
+                reason: isTeacherConflict ? 'teacher' : isClassConflict ? 'class' : 'room'
+            });
+        }
+    }
+
+    return { hasConflict: conflicts.length > 0, conflicts };
+}
+
 // @desc    Create teacher period assignment
 // @route   POST /api/timetable/assignments
 // @access  Private (Admin)
@@ -143,49 +197,17 @@ export const createAssignment = asyncHandler(async (req, res) => {
         createdBy: req.user._id
     };
 
-    const normalizedCandidate = {
-        startDate: new Date(s.setHours(0, 0, 0, 0)),
-        endDate: new Date(e.setHours(23, 59, 59, 999))
-    };
-
-    // Conflict checks: same period, overlapping dates, shared day-of-week
-    const existingForPeriod = await TeacherPeriodAssignment.find({
-        school: req.schoolId,
-        isActive: true,
-        period: period
+    const { hasConflict, conflicts } = await checkAssignmentConflicts(req.schoolId, {
+        teacher,
+        class: classId,
+        room,
+        period,
+        daysOfWeek,
+        startDate: s,
+        endDate: e
     });
 
-    const candidateDays = Array.from(new Set((daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [1, 2, 3, 4, 5])));
-
-    const conflicts = [];
-
-    for (const existing of existingForPeriod) {
-        const dateOverlap = datesOverlap(normalizedCandidate.startDate, normalizedCandidate.endDate, new Date(existing.startDate), new Date(existing.endDate));
-        if (!dateOverlap) continue;
-
-        const dayOverlap = (existing.daysOfWeek || []).some(d => candidateDays.includes(d));
-        if (!dayOverlap) continue;
-
-        const isTeacherConflict = existing.teacher.toString() === teacher;
-        const isClassConflict = existing.class.toString() === classId;
-        const isRoomConflict = room && existing.room && existing.room.toString() === room;
-
-        if (isTeacherConflict || isClassConflict || isRoomConflict) {
-            conflicts.push({
-                id: existing._id,
-                teacher: existing.teacher,
-                class: existing.class,
-                room: existing.room,
-                period: existing.period,
-                daysOfWeek: existing.daysOfWeek,
-                startDate: existing.startDate,
-                endDate: existing.endDate,
-                reason: isTeacherConflict ? 'teacher' : isClassConflict ? 'class' : 'room'
-            });
-        }
-    }
-
-    if (conflicts.length > 0) {
+    if (hasConflict) {
         const reasons = [...new Set(conflicts.map(c => c.reason))];
         return res.status(400).json({
             success: false,
@@ -256,21 +278,21 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     }
 
     const {
-        teacher,
+        teacher: bodyTeacher,
         class: classId,
         subject: rawSubject,
         room: rawRoom,
-        period,
-        daysOfWeek,
-        startDate,
-        endDate,
+        period: bodyPeriod,
+        daysOfWeek: bodyDays,
+        startDate: bodyStart,
+        endDate: bodyEnd,
         isActive
     } = req.body;
 
-    const subject = rawSubject || undefined;
-    const room = rawRoom || undefined;
+    const subject = rawSubject !== undefined ? rawSubject || undefined : assignment.subject;
+    const room = rawRoom !== undefined ? rawRoom || undefined : assignment.room;
 
-    if (teacher !== undefined) assignment.teacher = teacher;
+    if (bodyTeacher !== undefined) assignment.teacher = bodyTeacher;
     if (classId !== undefined) {
         const classDoc = await Class.findById(classId);
         if (!classDoc || classDoc.school.toString() !== req.schoolId.toString()) {
@@ -279,14 +301,42 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         assignment.class = classId;
         assignment.grade = classDoc.grade;
     }
-    if (subject !== undefined) assignment.subject = subject;
-    if (room !== undefined) assignment.room = room;
-    if (period !== undefined) assignment.period = period;
-    if (daysOfWeek !== undefined) assignment.daysOfWeek = daysOfWeek;
-    if (startDate !== undefined) assignment.startDate = startDate;
-    if (endDate !== undefined) assignment.endDate = endDate;
+    if (rawSubject !== undefined) assignment.subject = subject;
+    if (rawRoom !== undefined) assignment.room = room;
+    if (bodyPeriod !== undefined) assignment.period = bodyPeriod;
+    if (bodyDays !== undefined) assignment.daysOfWeek = bodyDays;
+    if (bodyStart !== undefined) assignment.startDate = bodyStart;
+    if (bodyEnd !== undefined) assignment.endDate = bodyEnd;
     if (isActive !== undefined) assignment.isActive = isActive;
     assignment.lastModifiedBy = req.user._id;
+
+    const teacherVal = assignment.teacher;
+    const classVal = assignment.class;
+    const periodVal = assignment.period;
+    const daysVal = assignment.daysOfWeek;
+    const startVal = assignment.startDate ? new Date(assignment.startDate) : null;
+    const endVal = assignment.endDate ? new Date(assignment.endDate) : null;
+
+    if (periodVal && startVal && endVal) {
+        const { hasConflict, conflicts } = await checkAssignmentConflicts(req.schoolId, {
+            teacher: teacherVal,
+            class: classVal,
+            room: assignment.room,
+            period: periodVal,
+            daysOfWeek: daysVal,
+            startDate: startVal,
+            endDate: endVal
+        }, req.params.id);
+
+        if (hasConflict) {
+            const reasons = [...new Set(conflicts.map(c => c.reason))];
+            return res.status(400).json({
+                success: false,
+                message: `Conflict: ${reasons.map(r => r === 'room' ? 'room already occupied' : r === 'teacher' ? 'teacher already assigned' : 'class already has a lesson').join(', ')} at this period`,
+                conflicts
+            });
+        }
+    }
 
     await assignment.save();
 
