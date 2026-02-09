@@ -37,11 +37,20 @@ This application is configured to be deployed as a single "Monolith" where the N
     You must configure your production keys on Heroku. Replace values with your actual secrets.
     ```bash
     heroku config:set NODE_ENV=production
-    heroku config:set MONGO_URI=your_mongodb_connection_string
+    heroku config:set MONGODB_URI=your_mongodb_connection_string
     heroku config:set JWT_SECRET=your_jwt_secret
     heroku config:set CLIENT_URL=https://your-app-name.herokuapp.com
+    # Google OAuth (required for /auth/callback and Gmail to work in production)
+    heroku config:set GOOGLE_CLIENT_ID=your_client_id
+    heroku config:set GOOGLE_CLIENT_SECRET=your_client_secret
+    heroku config:set GOOGLE_REDIRECT_URI=https://your-app-name.herokuapp.com/api/auth/gmail/callback
+    heroku config:set GOOGLE_LOGIN_REDIRECT_URI=https://your-app-name.herokuapp.com/api/auth/google/callback
     # Add any other env vars from your .env file
     ```
+    **Important:** In [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → your OAuth 2.0 Client → Authorized redirect URIs, add:
+    - `https://your-app-name.herokuapp.com/api/auth/gmail/callback`
+    - `https://your-app-name.herokuapp.com/api/auth/google/callback`
+    Otherwise Google will reject the redirect and login/Gmail connect will fail.
 
 6.  **Deploy**
     ```bash
