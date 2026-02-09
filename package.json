@@ -9,6 +9,8 @@
     "dev": "nodemon server.js",
     "seed": "node seeds/seedData.js",
     "test:reminder": "node scripts/test-attendance-reminder.js",
+    "playground": "node scripts/playground.js",
+    "deploy": "git add . && git commit -m \"Deployment\" && git push heroku main",
     "heroku-postbuild": "cd client && npm install && npm run build"
   },
   "keywords": [
