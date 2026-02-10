@@ -1,0 +1,193 @@
+.practice-dashboard {
+    animation: fadeIn 0.4s ease;
+}
+
+.practice-dashboard .page-header {
+    margin-bottom: var(--spacing-lg);
+}
+
+.practice-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.practice-stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    text-align: center;
+}
+
+.practice-stat-card .stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--primary-600);
+}
+
+.practice-stat-card .stat-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.practice-stat-card.mastered .stat-value { color: var(--success-600, #059669); }
+.practice-stat-card.in-progress .stat-value { color: var(--warning-600, #d97706); }
+.practice-stat-card.not-started .stat-value { color: var(--text-muted); }
+
+.practice-standards-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.practice-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    transition: all var(--transition-normal);
+    position: relative;
+    overflow: hidden;
+}
+
+.practice-card:hover {
+    border-color: var(--primary-300);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+
+.practice-card.mastered {
+    border-color: var(--success-300, #6ee7b7);
+}
+
+.practice-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.practice-card-top .badge-code {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--primary-50, #eff6ff);
+    color: var(--primary-700, #1d4ed8);
+    font-weight: 600;
+}
+
+.practice-card h3 {
+    font-size: 1rem;
+    margin-bottom: 6px;
+}
+
+.practice-card .description {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: var(--spacing-md);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.practice-card-meta {
+    display: flex;
+    gap: var(--spacing-md);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-md);
+}
+
+.practice-progress {
+    margin-bottom: var(--spacing-md);
+}
+
+.practice-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.practice-progress-bar .fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+.practice-progress-bar .fill.green { background: linear-gradient(90deg, #10b981, #34d399); }
+.practice-progress-bar .fill.yellow { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.practice-progress-bar .fill.red { background: linear-gradient(90deg, #ef4444, #f87171); }
+.practice-progress-bar .fill.gray { background: var(--border-color); }
+
+.practice-progress-text {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.practice-card-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.practice-card-actions .btn {
+    flex: 1;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.82rem;
+}
+
+.btn-success {
+    background: var(--success-500, #10b981);
+    color: white;
+    border: none;
+}
+
+.btn-success:hover {
+    background: var(--success-600, #059669);
+}
+
+.mastered-overlay {
+    position: absolute;
+    top: 12px;
+    right: -30px;
+    background: var(--success-500, #10b981);
+    color: white;
+    padding: 4px 40px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transform: rotate(45deg);
+}
+
+.practice-empty {
+    text-align: center;
+    padding: var(--spacing-2xl);
+    color: var(--text-muted);
+}
+
+.practice-empty svg {
+    margin-bottom: var(--spacing-md);
+    opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+    .practice-standards-list {
+        grid-template-columns: 1fr;
+    }
+    .practice-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

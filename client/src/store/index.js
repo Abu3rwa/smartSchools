@@ -12,6 +12,8 @@ import dashboardReducer from './slices/dashboardSlice';
 import schoolReducer from './slices/schoolSlice';
 import subscriptionReducer from './slices/subscriptionSlice';
 import behaviorReducer from './slices/behaviorSlice';
+import standardReducer from './slices/standardSlice';
+import practiceReducer from './slices/practiceSlice';
 
 export const store = configureStore({
     reducer: {
@@ -27,7 +29,9 @@ export const store = configureStore({
         dashboard: dashboardReducer,
         schools: schoolReducer,
         subscriptions: subscriptionReducer,
-        behavior: behaviorReducer
+        behavior: behaviorReducer,
+        standards: standardReducer,
+        practice: practiceReducer
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({

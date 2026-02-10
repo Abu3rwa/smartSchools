@@ -16,7 +16,9 @@ import {
     HiOutlineClock,
     HiOutlineUsers,
     HiOutlineChevronLeft,
-    HiOutlineChevronRight
+    HiOutlineChevronRight,
+    HiOutlineLightningBolt,
+    HiOutlineClipboardCheck
 } from 'react-icons/hi';
 import './Sidebar.css';
 
@@ -26,11 +28,12 @@ const Sidebar = () => {
     const sidebarOpen = useSelector(selectSidebarOpen);
     const isAdmin = user?.role === 'admin';
     const isTeacher = user?.role === 'teacher';
+    const isStudent = user?.role === 'student';
 
     const navItems = [
         { path: '/portal/dashboard', icon: HiOutlineHome, label: 'Dashboard' },
-        { path: '/portal/classes', icon: HiOutlineAcademicCap, label: 'Classes' },
-        { path: '/portal/students', icon: HiOutlineUserGroup, label: 'Students' },
+        { path: '/portal/classes', icon: HiOutlineAcademicCap, label: 'Classes', roles: ['admin', 'teacher'] },
+        { path: '/portal/students', icon: HiOutlineUserGroup, label: 'Students', roles: ['admin', 'teacher'] },
         { path: '/portal/my-schedule', icon: HiOutlineCalendar, label: 'My Schedule', teacher: true },
         { path: '/portal/my-timetable', icon: HiOutlineClock, label: 'My Timetable', teacher: true },
         { path: '/portal/my-attendance', icon: HiOutlineUsers, label: 'My Attendance', teacher: true },
@@ -39,16 +42,22 @@ const Sidebar = () => {
         { path: '/portal/timetable', icon: HiOutlineClock, label: 'Timetable', admin: true },
         { path: '/portal/attendance', icon: HiOutlineUsers, label: 'Attendance', admin: true },
         { path: '/portal/teachers', icon: HiOutlineChartBar, label: 'Teachers', admin: true },
-        { path: '/portal/lessons', icon: HiOutlineDocumentText, label: 'Lesson Plans' },
-        { path: '/portal/grades/entry', icon: HiOutlineClipboardList, label: 'Grade Entry' },
+        { path: '/portal/lessons', icon: HiOutlineDocumentText, label: 'Lesson Plans', roles: ['admin', 'teacher'] },
+        { path: '/portal/grades/entry', icon: HiOutlineClipboardList, label: 'Grade Entry', roles: ['admin', 'teacher'] },
         { path: '/portal/subjects', icon: HiOutlineBookOpen, label: 'Subjects', admin: true },
-        { path: '/portal/notifications', icon: HiOutlineBell, label: 'Notifications' },
+        { path: '/portal/standards', icon: HiOutlineClipboardCheck, label: 'Standards', admin: true },
+        { path: '/portal/standards/assign', icon: HiOutlineClipboardCheck, label: 'Assign Standards', roles: ['admin', 'teacher'] },
+        { path: '/portal/practice', icon: HiOutlineLightningBolt, label: 'Practice', student: true },
+        { path: '/portal/notifications', icon: HiOutlineBell, label: 'Notifications', roles: ['admin', 'teacher'] },
         { path: '/portal/settings', icon: HiOutlineCog, label: 'Settings' },
     ];
 
     const filteredNavItems = navItems.filter(item => {
+        // If roles array is provided, check if user's role is included
+        if (item.roles) return item.roles.includes(user?.role);
         if (item.admin && !isAdmin) return false;
         if (item.teacher && !isTeacher) return false;
+        if (item.student && !isStudent) return false;
         return true;
     });
 

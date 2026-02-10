@@ -42,6 +42,13 @@ import ReportAnalytics from './pages/reports/ReportAnalytics';
 import ReportTemplates from './pages/reports/ReportTemplates';
 import ReportHistory from './pages/reports/ReportHistory';
 
+// Standards Practice Pages
+import StandardsPage from './pages/StandardsPage';
+import StandardAssignPage from './pages/StandardAssignPage';
+import PracticeDashboardPage from './pages/PracticeDashboardPage';
+import PracticeSessionPage from './pages/PracticeSessionPage';
+import PracticeHistoryPage from './pages/PracticeHistoryPage';
+
 // Platform Admin Pages
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminSchoolsPage from './pages/admin/AdminSchoolsPage';
@@ -160,6 +167,13 @@ function App() {
         <Route path="reports/analytics" element={<RoleRoute roles={['admin', 'teacher']}><ReportAnalytics /></RoleRoute>} />
         <Route path="reports/templates" element={<RoleRoute roles={['admin', 'teacher']}><ReportTemplates /></RoleRoute>} />
         <Route path="reports/history" element={<RoleRoute roles={['admin', 'teacher']}><ReportHistory /></RoleRoute>} />
+
+        {/* Standards Practice Routes */}
+        <Route path="standards" element={<RoleRoute roles={['admin']}><StandardsPage /></RoleRoute>} />
+        <Route path="standards/assign" element={<RoleRoute roles={['admin', 'teacher']}><StandardAssignPage /></RoleRoute>} />
+        <Route path="practice" element={<RoleRoute roles={['student']}><PracticeDashboardPage /></RoleRoute>} />
+        <Route path="practice/:assignmentId" element={<RoleRoute roles={['student']}><PracticeSessionPage /></RoleRoute>} />
+        <Route path="practice/:assignmentId/history" element={<RoleRoute roles={['student']}><PracticeHistoryPage /></RoleRoute>} />
         
       </Route>
 
