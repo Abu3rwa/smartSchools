@@ -6,6 +6,8 @@ import Subject from './Subject.js';
 import Grade from './Grade.js';
 import Notification from './Notification.js';
 import School from './School.js';
+import NewsletterIssue from './NewsletterIssue.js';
+import NewsletterSection from './NewsletterSection.js';
 
 export {
     User,
@@ -15,5 +17,7 @@ export {
     Subject,
     Grade,
     Notification,
-    School
+    School,
+    NewsletterIssue,
+    NewsletterSection
 };

@@ -12,6 +12,7 @@ import dashboardReducer from './slices/dashboardSlice';
 import schoolReducer from './slices/schoolSlice';
 import subscriptionReducer from './slices/subscriptionSlice';
 import behaviorReducer from './slices/behaviorSlice';
+import newsletterReducer from './slices/newsletterSlice';
 
 export const store = configureStore({
     reducer: {
@@ -24,6 +25,7 @@ export const store = configureStore({
         notifications: notificationReducer,
         ui: uiReducer,
         lessons: lessonReducer,
+        newsletters: newsletterReducer,
         dashboard: dashboardReducer,
         schools: schoolReducer,
         subscriptions: subscriptionReducer,

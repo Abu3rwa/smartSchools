@@ -1,17 +1,17 @@
-import nodemailer from 'nodemailer';
-import Notification from '../models/Notification.js';
-import Student from '../models/Student.js';
-import User from '../models/User.js';
-import gradeService from './gradeService.js';
-import gmailOAuthService from './gmailOAuthService.js';
+import nodemailer from "nodemailer";
+import Notification from "../models/Notification.js";
+import Student from "../models/Student.js";
+import User from "../models/User.js";
+import gradeService from "./gradeService.js";
+import gmailOAuthService from "./gmailOAuthService.js";
 
 /**
  * Sanitize email subject to plain ASCII (remove emojis and special characters)
  */
 const sanitizeSubject = (subject) => {
-    if (!subject) return 'Notification';
-    // Remove emojis and non-ASCII characters, keep only basic ASCII
-    return subject.replace(/[^\x00-\x7F]/g, '').trim();
+  if (!subject) return "Notification";
+  // Remove emojis and non-ASCII characters, keep only basic ASCII
+  return subject.replace(/[^\x00-\x7F]/g, "").trim();
 };
 
 class NotificationService {
@@ -21,15 +21,24 @@ class NotificationService {
   }
 
   initializeTransporter() {
-    if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPassRaw = process.env.SMTP_PASS;
+    const smtpPass =
+      (smtpPassRaw || "")
+        .toString()
+        .replace(/\s+/g, ""); // guard against spaced app-password copies
+    const smtpPort = Number(process.env.SMTP_PORT || 587);
+
+    if (smtpHost && smtpUser && smtpPass) {
       this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT || 587,
-        secure: false,
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
+          user: smtpUser,
+          pass: smtpPass,
+        },
       });
     }
   }
@@ -39,11 +48,11 @@ class NotificationService {
    */
   async sendGradeUpdateNotification(studentId, gradeData, createdBy) {
     const student = await Student.findById(studentId);
-    if (!student) throw new Error('Student not found');
+    if (!student) throw new Error("Student not found");
 
     const contact = student.getPrimaryContact();
     if (!contact?.email) {
-      console.log('No parent email found for student:', studentId);
+      console.log("No parent email found for student:", studentId);
       return null;
     }
 
@@ -54,19 +63,23 @@ class NotificationService {
 
     const subject = `Grade Update for ${student.fullName}`;
     const message = this.formatGradeUpdateMessage(student, gradeData);
-    const htmlContent = await this.formatGradeUpdateHtml(student, gradeData, createdBy);
+    const htmlContent = await this.formatGradeUpdateHtml(
+      student,
+      gradeData,
+      createdBy,
+    );
 
     const notification = new Notification({
       school: student.school,
-      recipientEmail: recipients.join(','),
+      recipientEmail: recipients.join(","),
       recipientPhone: contact.phone,
       student: studentId,
-      type: 'grade_update',
+      type: "grade_update",
       subject,
       message,
       htmlContent,
-      channels: ['email'],
-      createdBy
+      channels: ["email"],
+      createdBy,
     });
 
     await notification.save();
@@ -79,8 +92,8 @@ class NotificationService {
    * Send daily report for a student
    */
   async sendDailyReport(studentId, date, createdBy) {
-    const student = await Student.findById(studentId).populate('currentClass');
-    if (!student) throw new Error('Student not found');
+    const student = await Student.findById(studentId).populate("currentClass");
+    if (!student) throw new Error("Student not found");
 
     const contact = student.getPrimaryContact();
     if (!contact?.email) return null;
@@ -92,7 +105,7 @@ class NotificationService {
     endOfDay.setHours(23, 59, 59, 999);
 
     const grades = await gradeService.getStudentGrades(studentId, {
-      date: { $gte: startOfDay, $lte: endOfDay }
+      date: { $gte: startOfDay, $lte: endOfDay },
     });
 
     if (grades.length === 0) return null;
@@ -104,18 +117,23 @@ class NotificationService {
 
     const subject = `Daily Report for ${student.fullName} - ${date.toLocaleDateString()}`;
     const message = this.formatDailyReportMessage(student, grades, date);
-    const htmlContent = await this.formatDailyReportHtml(student, grades, date, createdBy);
+    const htmlContent = await this.formatDailyReportHtml(
+      student,
+      grades,
+      date,
+      createdBy,
+    );
 
     const notification = new Notification({
       school: student.school,
-      recipientEmail: recipients.join(','),
+      recipientEmail: recipients.join(","),
       student: studentId,
-      type: 'daily_report',
+      type: "daily_report",
       subject,
       message,
       htmlContent,
-      channels: ['email'],
-      createdBy
+      channels: ["email"],
+      createdBy,
     });
 
     await notification.save();
@@ -129,38 +147,43 @@ class NotificationService {
    * Includes all classwork grades from the 1st of the month to today
    */
   async sendDailyClassworkUpdate(studentId, date, createdBy, filters = {}) {
-    const student = await Student.findById(studentId).populate('currentClass');
-    if (!student) throw new Error('Student not found');
+    const student = await Student.findById(studentId).populate("currentClass");
+    if (!student) throw new Error("Student not found");
 
     const contact = student.getPrimaryContact();
     if (!contact?.email) return null;
 
     // Get all classwork grades for the current month up to today, with optional filters
-    const grades = await gradeService.getMonthlyClassworkGrades(studentId, date, {
-      subject: filters.subject,
-      category: filters.category
-    });
+    const grades = await gradeService.getMonthlyClassworkGrades(
+      studentId,
+      date,
+      {
+        subject: filters.subject,
+        category: filters.category,
+      },
+    );
 
     if (grades.length === 0) return null;
 
-    const monthName = date.toLocaleString('default', { month: 'long' });
-    const dayName = date.toLocaleString('default', { weekday: 'long' });
+    const monthName = date.toLocaleString("default", { month: "long" });
+    const dayName = date.toLocaleString("default", { weekday: "long" });
     const todayDate = date.getDate();
     const year = date.getFullYear();
     const today = `${dayName}, ${monthName} ${todayDate}, ${year}`;
-    console.log("today", today)
-    const todayFormatted = date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
+    console.log("today", today);
+    const todayFormatted = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
     });
 
     // Customize subject line based on filters
-    let reportTitle = 'Class Update';
+    let reportTitle = "Class Update";
     if (filters.category) {
       // Capitalize first letter
-      const categoryTitle = filters.category.charAt(0).toUpperCase() + filters.category.slice(1);
+      const categoryTitle =
+        filters.category.charAt(0).toUpperCase() + filters.category.slice(1);
       reportTitle = `${categoryTitle} Report`;
     }
 
@@ -170,25 +193,41 @@ class NotificationService {
     }
 
     const subject = `${reportTitle} - ${student.fullName} (${today})`;
-    const message = await this.formatDailyClassworkUpdateMessage(student, grades, date, monthName, year, reportTitle, createdBy);
-    const htmlContent = await this.formatDailyClassworkUpdateHtml(student, grades, date, monthName, year, reportTitle, createdBy);
+    const message = await this.formatDailyClassworkUpdateMessage(
+      student,
+      grades,
+      date,
+      monthName,
+      year,
+      reportTitle,
+      createdBy,
+    );
+    const htmlContent = await this.formatDailyClassworkUpdateHtml(
+      student,
+      grades,
+      date,
+      monthName,
+      year,
+      reportTitle,
+      createdBy,
+    );
 
     const notification = new Notification({
       school: student.school,
-      recipientEmail: recipients.join(','),
+      recipientEmail: recipients.join(","),
       student: studentId,
-      type: 'daily_classwork_update',
+      type: "daily_classwork_update",
       subject,
       message,
       htmlContent,
-      channels: ['email'],
+      channels: ["email"],
       metadata: {
         month: date.getMonth() + 1,
         year,
         gradesCount: grades.length,
-        filterCategory: filters.category
+        filterCategory: filters.category,
       },
-      createdBy
+      createdBy,
     });
 
     await notification.save();
@@ -201,14 +240,19 @@ class NotificationService {
    * Send monthly report
    */
   async sendMonthlyReport(studentId, month, academicYear, createdBy) {
-    const student = await Student.findById(studentId).populate('currentClass');
-    if (!student) throw new Error('Student not found');
+    const student = await Student.findById(studentId).populate("currentClass");
+    if (!student) throw new Error("Student not found");
 
     const contact = student.getPrimaryContact();
     if (!contact?.email) return null;
 
-    const report = await gradeService.getStudentGradeReport(studentId, academicYear);
-    const monthName = new Date(2024, month - 1).toLocaleString('default', { month: 'long' });
+    const report = await gradeService.getStudentGradeReport(
+      studentId,
+      academicYear,
+    );
+    const monthName = new Date(2024, month - 1).toLocaleString("default", {
+      month: "long",
+    });
 
     const recipients = [contact.email];
     if (student.email) {
@@ -216,20 +260,31 @@ class NotificationService {
     }
 
     const subject = `Monthly Report for ${student.fullName} - ${monthName} ${academicYear}`;
-    const message = this.formatMonthlyReportMessage(student, report, month, monthName);
-    const htmlContent = await this.formatMonthlyReportHtml(student, report, month, monthName, createdBy);
+    const message = this.formatMonthlyReportMessage(
+      student,
+      report,
+      month,
+      monthName,
+    );
+    const htmlContent = await this.formatMonthlyReportHtml(
+      student,
+      report,
+      month,
+      monthName,
+      createdBy,
+    );
 
     const notification = new Notification({
       school: student.school,
-      recipientEmail: recipients.join(','),
+      recipientEmail: recipients.join(","),
       student: studentId,
-      type: 'monthly_report',
+      type: "monthly_report",
       subject,
       message,
       htmlContent,
-      channels: ['email'],
+      channels: ["email"],
       metadata: { month, academicYear },
-      createdBy
+      createdBy,
     });
 
     await notification.save();
@@ -247,12 +302,12 @@ class NotificationService {
    * @returns {Promise<Object>} Notification document
    */
   async sendAIReportToParent(studentId, reportContent, period, userId) {
-    const student = await Student.findById(studentId).populate('currentClass');
-    if (!student) throw new Error('Student not found');
+    const student = await Student.findById(studentId).populate("currentClass");
+    if (!student) throw new Error("Student not found");
 
     const contact = student.getPrimaryContact();
     if (!contact?.email) {
-      throw new Error('No parent email found for student');
+      throw new Error("No parent email found for student");
     }
 
     const recipients = [contact.email];
@@ -261,24 +316,27 @@ class NotificationService {
     }
 
     const subject = `Progress Report for ${student.fullName} - ${period}`;
-    
+
     // Extract text content from HTML for plain text version
-    const plainText = reportContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    const plainText = reportContent
+      .replace(/<[^>]*>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
     const notification = new Notification({
       school: student.school,
-      recipientEmail: recipients.join(','),
+      recipientEmail: recipients.join(","),
       student: studentId,
-      type: 'ai_report',
+      type: "ai_report",
       subject,
       message: plainText,
       htmlContent: reportContent,
-      channels: ['email'],
+      channels: ["email"],
       metadata: {
         period,
-        reportType: 'ai_generated'
+        reportType: "ai_generated",
       },
-      createdBy: userId
+      createdBy: userId,
     });
 
     await notification.save();
@@ -295,9 +353,9 @@ class NotificationService {
   async sendEmail(notification, userId = null) {
     const mailOptions = {
       to: notification.recipientEmail,
-      subject: notification.subject,
+      subject: sanitizeSubject(notification.subject), // Sanitize subject to avoid email errors
       text: notification.message,
-      html: notification.htmlContent || notification.message
+      html: notification.htmlContent || notification.message,
     };
 
     // Try Gmail OAuth if userId provided
@@ -306,49 +364,64 @@ class NotificationService {
         const hasGmail = await gmailOAuthService.hasValidTokens(userId);
 
         if (hasGmail) {
-
-
           // Use gmailOAuthService which handles token refresh properly
           const result = await gmailOAuthService.sendEmail(userId, mailOptions);
 
-          await notification.markAsSent('email');
-          console.log('✅ Email sent via Gmail OAuth to:', notification.recipientEmail, 'MessageId:', result.messageId);
+          await notification.markAsSent("email");
+          console.log(
+            "✅ Email sent via Gmail OAuth to:",
+            notification.recipientEmail,
+            "MessageId:",
+            result.messageId,
+          );
           return;
         }
       } catch (error) {
-        console.error('Gmail OAuth send failed:', error.message);
+        console.error("Gmail OAuth send failed:", error.message);
         // Continue to SMTP fallback
       }
     }
 
-    // Fall back to SMTP
+    // Fall back to SMTP (or use SMTP directly if userId is null)
     if (!this.transporter) {
-      console.log('Email transporter not configured and no Gmail OAuth available. Skipping email send.');
-      notification.status = 'pending';
+      // Lazy init to avoid ESM import-order issues with dotenv.
+      this.initializeTransporter();
+    }
+    if (!this.transporter) {
+      const errorMsg =
+        "SMTP transporter not configured. Please set SMTP_HOST, SMTP_USER, and SMTP_PASS in .env";
+      console.error("❌", errorMsg);
+      notification.status = "failed";
+      notification.lastError = errorMsg;
       await notification.save();
-      return;
+      throw new Error(errorMsg);
     }
 
     // Get the authenticated user's name for the email sender
-    let senderName = process.env.FROM_NAME || 'GradeBook';
+    let senderName = process.env.FROM_NAME || "GradeBook";
     let replyToAddress = null;
 
     if (userId) {
       try {
-        const authenticatedUser = await User.findById(userId).select('firstName lastName email');
+        const authenticatedUser = await User.findById(userId).select(
+          "firstName lastName email",
+        );
         if (authenticatedUser) {
           senderName = authenticatedUser.fullName;
           replyToAddress = authenticatedUser.email;
         }
       } catch (error) {
-        console.error('Error fetching authenticated user for email sender:', error);
+        console.error(
+          "Error fetching authenticated user for email sender:",
+          error,
+        );
       }
     }
 
     try {
       const emailOptions = {
         from: `"${senderName}" <${process.env.SMTP_USER || process.env.FROM_EMAIL}>`,
-        ...mailOptions
+        ...mailOptions,
       };
 
       if (replyToAddress) {
@@ -357,15 +430,13 @@ class NotificationService {
 
       await this.transporter.sendMail(emailOptions);
 
-      await notification.markAsSent('email');
-      console.log('✅ Email sent');
+      await notification.markAsSent("email");
+      console.log("✅ Email sent");
     } catch (error) {
-      console.error('Email send error:', error);
-      await notification.markAsFailed('email', error);
+      console.error("Email send error:", error);
+      await notification.markAsFailed("email", error);
     }
   }
-
-
 
   // Message formatters
   formatGradeUpdateMessage(student, gradeData) {
@@ -378,25 +449,28 @@ Subject: ${gradeData.subjectName}
 Type: ${gradeData.gradeType}
 Marks: ${gradeData.marks}/${gradeData.maxMarks}
 Date: ${new Date(gradeData.date).toLocaleDateString()}
-${gradeData.remarks ? `Remarks: ${gradeData.remarks}` : ''}
+${gradeData.remarks ? `Remarks: ${gradeData.remarks}` : ""}
 
 Best regards,
     `.trim();
   }
 
   async formatGradeUpdateHtml(student, gradeData, createdBy = null) {
-    const percentage = ((gradeData.marks / gradeData.maxMarks) * 100).toFixed(1);
+    const percentage = ((gradeData.marks / gradeData.maxMarks) * 100).toFixed(
+      1,
+    );
 
     // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = 'Unknown Teacher';
+    let authenticatedTeacherName = "Unknown Teacher";
     if (createdBy) {
       try {
-        const authenticatedUser = await User.findById(createdBy).select('firstName lastName');
+        const authenticatedUser =
+          await User.findById(createdBy).select("firstName lastName");
         if (authenticatedUser) {
           authenticatedTeacherName = authenticatedUser.firstName;
         }
       } catch (error) {
-        console.error('Error fetching authenticated user:', error);
+        console.error("Error fetching authenticated user:", error);
       }
     }
 
@@ -433,16 +507,20 @@ Best regards,
                <div style="font-size: 12px; color: #666; font-weight: 500;">${percentage}% Score</div>
             </div>
 
-            ${gradeData.remarks ? `
+            ${
+              gradeData.remarks
+                ? `
             <div style="margin-top: 12px; background: #fff; padding: 8px; border-radius: 3px; border: 1px solid #eee;">
               <span style="font-size: 10px; text-transform: uppercase; color: #888; font-weight: 600;">Teacher's Remarks</span>
               <div style="font-size: 12px; color: #444; margin-top: 3px; font-style: italic;">"${gradeData.remarks}"</div>
             </div>
-            ` : ''}
+            `
+                : ""
+            }
           </div>
           
           <div style="text-align: center; margin-top: 16px;">
-             <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}" style="background-color: #1e3c72; color: white; padding: 8px 16px; text-decoration: none; border-radius: 20px; font-weight: 600; font-size: 12px; display: inline-block;">View Full Gradebook</a>
+             <a href="${process.env.CLIENT_URL || "http://localhost:5173"}" style="background-color: #1e3c72; color: white; padding: 8px 16px; text-decoration: none; border-radius: 20px; font-weight: 600; font-size: 12px; display: inline-block;">View Full Gradebook</a>
           </div>
         </div>
         <div style="background-color: #f1f3f5; padding: 12px; text-align: center; font-size: 12px; color: #888;">
@@ -453,17 +531,17 @@ Best regards,
   }
 
   formatDailyReportMessage(student, grades, date) {
-    const prettyDate = date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
+    const prettyDate = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
     });
 
     let message = `Daily Report for ${student.fullName}\n`;
     message += `Date: ${prettyDate}\n\n`;
 
-    grades.forEach(grade => {
+    grades.forEach((grade) => {
       const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(1);
       message += `${grade.subject.name}: ${grade.marks}/${grade.maxMarks} (${percentage}%)\n`;
     });
@@ -472,36 +550,39 @@ Best regards,
   }
 
   async formatDailyReportHtml(student, grades, date, createdBy = null) {
-    const prettyDate = date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
+    const prettyDate = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
     });
 
     // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = 'Unknown Teacher';
+    let authenticatedTeacherName = "Unknown Teacher";
     if (createdBy) {
       try {
-        const authenticatedUser = await User.findById(createdBy).select('firstName lastName');
+        const authenticatedUser =
+          await User.findById(createdBy).select("firstName lastName");
         if (authenticatedUser) {
           authenticatedTeacherName = authenticatedUser.firstName;
         }
       } catch (error) {
-        console.error('Error fetching authenticated user:', error);
+        console.error("Error fetching authenticated user:", error);
       }
     }
 
-    const gradesHtml = grades.map(grade => {
-      const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(1);
-      return `
+    const gradesHtml = grades
+      .map((grade) => {
+        const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(1);
+        return `
         <tr>
           <td style="padding: 6px; border: 1px solid #dee2e6; font-size: 12px;">${grade.subject.name}</td>
           <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${grade.marks}/${grade.maxMarks}</td>
           <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${percentage}%</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; background: #f8f9fa; padding: 10px;">
@@ -537,7 +618,7 @@ Best regards,
   formatMonthlyReportMessage(student, report, month, monthName) {
     let message = `Monthly Report for ${student.fullName} - ${monthName}\n\n`;
 
-    report.subjects.forEach(subject => {
+    report.subjects.forEach((subject) => {
       const monthData = subject.monthlyAverages[month];
       if (monthData) {
         message += `${subject.subjectName}: ${monthData.average}% (based on ${monthData.entries} entries)\n`;
@@ -548,32 +629,41 @@ Best regards,
     return message.trim();
   }
 
-  async formatMonthlyReportHtml(student, report, month, monthName, createdBy = null) {
+  async formatMonthlyReportHtml(
+    student,
+    report,
+    month,
+    monthName,
+    createdBy = null,
+  ) {
     // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = 'Unknown Teacher';
+    let authenticatedTeacherName = "Unknown Teacher";
     if (createdBy) {
       try {
-        const authenticatedUser = await User.findById(createdBy).select('firstName lastName');
+        const authenticatedUser =
+          await User.findById(createdBy).select("firstName lastName");
         if (authenticatedUser) {
           authenticatedTeacherName = authenticatedUser.firstName;
         }
       } catch (error) {
-        console.error('Error fetching authenticated user:', error);
+        console.error("Error fetching authenticated user:", error);
       }
     }
 
-    const subjectsHtml = report.subjects.map(subject => {
-      const monthData = subject.monthlyAverages[month];
-      const avg = monthData?.average || 'N/A';
-      const entries = monthData?.entries || 0;
-      return `
+    const subjectsHtml = report.subjects
+      .map((subject) => {
+        const monthData = subject.monthlyAverages[month];
+        const avg = monthData?.average || "N/A";
+        const entries = monthData?.entries || 0;
+        return `
         <tr>
           <td style="padding: 6px; border: 1px solid #dee2e6; font-size: 12px;">${subject.subjectName}</td>
           <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${avg}%</td>
           <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${entries}</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; background: #f8f9fa; padding: 5px;">
@@ -611,19 +701,33 @@ Best regards,
   }
 
   // Daily Classwork Update formatters
-  async formatDailyClassworkUpdateMessage(student, grades, date, monthName, year, title = 'Class Update', createdBy = null) {
-    const todayStr = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  async formatDailyClassworkUpdateMessage(
+    student,
+    grades,
+    date,
+    monthName,
+    year,
+    title = "Class Update",
+    createdBy = null,
+  ) {
+    const todayStr = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
 
     // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = 'Unknown Teacher';
+    let authenticatedTeacherName = "Unknown Teacher";
     if (createdBy) {
       try {
-        const authenticatedUser = await User.findById(createdBy).select('firstName lastName');
+        const authenticatedUser =
+          await User.findById(createdBy).select("firstName lastName");
         if (authenticatedUser) {
           authenticatedTeacherName = authenticatedUser.firstName;
         }
       } catch (error) {
-        console.error('Error fetching authenticated user:', error);
+        console.error("Error fetching authenticated user:", error);
       }
     }
 
@@ -631,13 +735,13 @@ Best regards,
     message += `Report Date: ${todayStr}\n`;
     message += `Month: ${monthName} ${year}\n\n`;
     message += `Classwork Summary (${grades.length} entries this month) by ${authenticatedTeacherName}:\n`;
-    message += '─'.repeat(50) + '\n';
+    message += "─".repeat(50) + "\n";
 
     // Group grades by subject and category
     const grouped = {};
-    grades.forEach(grade => {
-      const subjectName = grade.subject?.name || 'Unknown Subject';
-      const category = grade.category || grade.gradeType || 'Classwork';
+    grades.forEach((grade) => {
+      const subjectName = grade.subject?.name || "Unknown Subject";
+      const category = grade.category || grade.gradeType || "Classwork";
       if (!grouped[subjectName]) {
         grouped[subjectName] = {};
       }
@@ -651,73 +755,94 @@ Best regards,
       message += `\n${subjectName}\n`;
       Object.entries(categories).forEach(([category, subjectGrades]) => {
         message += `  ${category}:\n`;
-        subjectGrades.forEach(grade => {
-          const gradeDate = new Date(grade.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        subjectGrades.forEach((grade) => {
+          const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          });
           const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
           message += `    ${gradeDate} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
           if (grade.notes) {
             message += ` | ${grade.notes}`;
           }
-          message += '\n';
+          message += "\n";
         });
       });
-      message += '─'.repeat(50) + '\n';
+      message += "─".repeat(50) + "\n";
     });
 
     const totalMarks = grades.reduce((sum, g) => sum + g.marks, 0);
     const totalMaxMarks = grades.reduce((sum, g) => sum + g.maxMarks, 0);
-    const overallPercentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : 0;
+    const overallPercentage =
+      totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : 0;
 
-    message += '─'.repeat(50) + '\n';
+    message += "─".repeat(50) + "\n";
     message += `Monthly Average: ${overallPercentage}%\n\n`;
-    message += 'Best regards,\n' + authenticatedTeacherName;
+    message += "Best regards,\n" + authenticatedTeacherName;
 
     return message;
   }
 
-  async formatDailyClassworkUpdateHtml(student, grades, date, monthName, year, title = 'Class Update', createdBy = null) {
-
-
-    const todayStr = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  async formatDailyClassworkUpdateHtml(
+    student,
+    grades,
+    date,
+    monthName,
+    year,
+    title = "Class Update",
+    createdBy = null,
+  ) {
+    const todayStr = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
 
     // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = 'Unknown Teacher';
-    let authenticatedUser = { firstName: '', email: '' };
+    let authenticatedTeacherName = "Unknown Teacher";
+    let authenticatedUser = { firstName: "", email: "" };
 
     if (createdBy) {
       try {
-        const user = await User.findById(createdBy).select('firstName lastName email');
+        const user = await User.findById(createdBy).select(
+          "firstName lastName email",
+        );
         if (user) {
           authenticatedUser = user;
           authenticatedTeacherName = user.firstName;
         }
       } catch (error) {
-        console.error('Error fetching authenticated user:', error);
+        console.error("Error fetching authenticated user:", error);
       }
     }
 
     // Calculate totals
     const totalMarks = grades.reduce((sum, g) => sum + g.marks, 0);
     const totalMaxMarks = grades.reduce((sum, g) => sum + g.maxMarks, 0);
-    const overallPercentage = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : 0;
-    const overallOutOfTen = totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 10).toFixed(1) : 0;
+    const overallPercentage =
+      totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : 0;
+    const overallOutOfTen =
+      totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 10).toFixed(1) : 0;
 
     // Get unique subjects
-    const subjects = [...new Set(grades.map(g => g.subject?.name || 'Unknown Subject'))];
+    const subjects = [
+      ...new Set(grades.map((g) => g.subject?.name || "Unknown Subject")),
+    ];
 
     // Use authenticated teacher name instead of individual grade teachers
     const teachers = [authenticatedTeacherName];
 
     // Group grades by subject and category with teacher info
     const grouped = {};
-    grades.forEach(grade => {
-      const subjectName = grade.subject?.name || 'Unknown Subject';
-      const category = grade.category || grade.gradeType || 'Classwork';
+    grades.forEach((grade) => {
+      const subjectName = grade.subject?.name || "Unknown Subject";
+      const category = grade.category || grade.gradeType || "Classwork";
 
       if (!grouped[subjectName]) {
         grouped[subjectName] = {
-          teacher: authenticatedTeacherName,  // Use authenticated teacher name
-          categories: {}
+          teacher: authenticatedTeacherName, // Use authenticated teacher name
+          categories: {},
         };
       }
 
@@ -728,31 +853,51 @@ Best regards,
     });
 
     // Build grouped HTML sections
-    const groupedSectionsHtml = Object.entries(grouped).map(([subjectName, subjectData]) => {
-      const { teacher, categories } = subjectData;
+    const groupedSectionsHtml = Object.entries(grouped)
+      .map(([subjectName, subjectData]) => {
+        const { teacher, categories } = subjectData;
 
-      // Generate category sections with individual averages
-      const categorySections = Object.entries(categories).map(([category, subjectGrades]) => {
-        // Calculate category average
-        const categoryTotalMarks = subjectGrades.reduce((sum, g) => sum + g.marks, 0);
-        const categoryTotalMaxMarks = subjectGrades.reduce((sum, g) => sum + g.maxMarks, 0);
-        const categoryAverage = categoryTotalMaxMarks > 0 ? ((categoryTotalMarks / categoryTotalMaxMarks) * 10).toFixed(1) : 0;
+        // Generate category sections with individual averages
+        const categorySections = Object.entries(categories)
+          .map(([category, subjectGrades]) => {
+            // Calculate category average
+            const categoryTotalMarks = subjectGrades.reduce(
+              (sum, g) => sum + g.marks,
+              0,
+            );
+            const categoryTotalMaxMarks = subjectGrades.reduce(
+              (sum, g) => sum + g.maxMarks,
+              0,
+            );
+            const categoryAverage =
+              categoryTotalMaxMarks > 0
+                ? ((categoryTotalMarks / categoryTotalMaxMarks) * 10).toFixed(1)
+                : 0;
 
-        const rowsHtml = subjectGrades.map((grade, index) => {
-          const gradeDate = new Date(grade.date).toLocaleDateString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric'
-          });
-          const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
-          const outOfTen = ((grade.marks / grade.maxMarks) * 10).toFixed(1);
-          const bgColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
+            const rowsHtml = subjectGrades
+              .map((grade, index) => {
+                const gradeDate = new Date(grade.date).toLocaleDateString(
+                  "en-US",
+                  {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  },
+                );
+                const percentage = (
+                  (grade.marks / grade.maxMarks) *
+                  100
+                ).toFixed(0);
+                const outOfTen = ((grade.marks / grade.maxMarks) * 10).toFixed(
+                  1,
+                );
+                const bgColor = index % 2 === 0 ? "#ffffff" : "#f8f9fa";
 
-          let gradeColor = '#28a745';
-          if (outOfTen < 5) gradeColor = '#dc3545';
-          else if (outOfTen < 7) gradeColor = '#ffc107';
+                let gradeColor = "#28a745";
+                if (outOfTen < 5) gradeColor = "#dc3545";
+                else if (outOfTen < 7) gradeColor = "#ffc107";
 
-          return `
+                return `
             <tr style="background: ${bgColor};">
               <td style="padding: 6px 4px; border: 1px solid #dee2e6; font-size: 12px;">${gradeDate}</td>
               <td style="padding: 6px 4px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">
@@ -760,13 +905,14 @@ Best regards,
                 <div style="color: #6c757d; font-size: 10px;">(${grade.marks}/${grade.maxMarks})</div>
               </td>
               <td style="padding: 6px 4px; border: 1px solid #dee2e6; font-style: italic; color: #555; font-size: 12px; max-width: 120px; word-wrap: break-word;">
-                ${grade.notes || '-'}
+                ${grade.notes || "-"}
               </td>
             </tr>
           `;
-        }).join('');
+              })
+              .join("");
 
-        return `
+            return `
           <div style="margin: 3px 0; padding: 4px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;">
             <h3 style="color: #2c3e50; font-size: 14px; margin: 0 0 6px 0; padding-bottom: 4px; border-bottom: 2px solid #3498db;">
               ${category.charAt(0).toUpperCase() + category.slice(1)}
@@ -796,9 +942,10 @@ Best regards,
             </div>
           </div>
         `;
-      }).join('');
+          })
+          .join("");
 
-      return `
+        return `
         <div style="margin: 6px 0; padding: 6px; background: #ffffff; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 3px solid #3498db;">
           <div style="margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #eee;">
             <h2 style="color: #2c3e50; margin: 0 0 4px 0; font-size: 15px;">${subjectName}</h2>
@@ -809,7 +956,8 @@ Best regards,
           ${categorySections}
         </div>
       `;
-    }).join('');
+      })
+      .join("");
 
     return `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 100%; margin: 0; background: #f5f5f5; padding: 4px; box-sizing: border-box;">
@@ -866,7 +1014,7 @@ Best regards,
     if (filters.createdBy) query.createdBy = filters.createdBy;
 
     const notifications = await Notification.find(query)
-      .populate('student', 'firstName lastName studentId')
+      .populate("student", "firstName lastName studentId")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
@@ -879,8 +1027,8 @@ Best regards,
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+      },
     };
   }
 }

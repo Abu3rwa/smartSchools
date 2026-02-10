@@ -1,6 +1,6 @@
 /**
- * Test script: create a fake class that ended 59 minutes ago (actual time),
- * wait 1 minute so we're at "1 hour after end", then run the reminder job.
+ * Test script: create a fake class that ended 10 hours ago (within the reminder window),
+ * then run the reminder job to test email sending.
  * Run from server folder: node scripts/test-attendance-reminder.js
  */
 import dotenv from 'dotenv';
@@ -18,8 +18,8 @@ import { processAttendanceReminders } from '../controllers/attendanceTakingRemin
 
 async function run() {
   const now = new Date();
-  // Class ended 59 minutes ago → in 1 minute it will be exactly 1 hour after end (reminder window)
-  const endTime = new Date(now.getTime() - 59 * 60 * 1000);
+  // Class ended 10 hours and 5 minutes ago → within the 10h to 10h15m reminder window
+  const endTime = new Date(now.getTime() - (10 * 60 * 60 * 1000 + 5 * 60 * 1000));
   const startTime = new Date(endTime.getTime() - 45 * 60 * 1000); // 45-min class
 
   await connectDB();
@@ -77,14 +77,12 @@ async function run() {
     createdBy: teacher._id
   }]).then(([s]) => s);
 
-  console.log('Created fake class (schedule):');
+  console.log('Created test class (schedule):');
   console.log('  startTime:', startTime.toISOString());
   console.log('  endTime:  ', endTime.toISOString());
   console.log('  teacher:  ', teacher.email);
-  console.log('  (Class ended 59 min ago; in 1 min we run the job = 1 hour after end)\n');
-  console.log('Waiting 1 minute, then running reminder job...\n');
-
-  await new Promise((r) => setTimeout(r, 60 * 1000));
+  console.log('  (Class ended ~10 hours ago - within reminder window)\n');
+  console.log('Running reminder job now...\n');
 
   const { results } = await processAttendanceReminders();
   console.log('Reminder job result:', results);

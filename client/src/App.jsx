@@ -34,7 +34,9 @@ import AdminTimetablePage from './pages/admin/AdminTimetablePage';
 import TeacherSchedulePage from './pages/teacher/TeacherSchedulePage';
 import TeacherTimetablePage from './pages/teacher/TeacherTimetablePage';
 import TeacherAttendanceNewPage from './pages/teacher/TeacherAttendanceNewPage';
+import TeacherNewslettersPage from './pages/teacher/TeacherNewslettersPage';
 import LessonPlanPage from './pages/LessonPlanPage';
+import AdminNewslettersPage from './pages/admin/AdminNewslettersPage';
 
 // Report Pages
 import AdvancedReportGenerator from './pages/reports/AdvancedReportGenerator';
@@ -72,7 +74,27 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Role Route - requires specific role(s), super_admin bypasses all
+// Portal Route - super_admin must use /admin/*
+const PortalRoute = ({ children }) => {
+  const user = useSelector(selectUser);
+  const { loading } = useSelector(selectAuth);
+
+  if (loading) {
+    return (
+      <div className="loading-overlay">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (user?.role === 'super_admin') {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Role Route - requires specific role(s)
 const RoleRoute = ({ roles, children }) => {
   const user = useSelector(selectUser);
   const { loading } = useSelector(selectAuth);
@@ -86,7 +108,12 @@ const RoleRoute = ({ roles, children }) => {
   }
 
   if (!user) return <Navigate to="/" replace />;
-  if (user.role === 'super_admin') return children;
+  // super_admin should only access routes that explicitly allow it
+  if (user.role === 'super_admin') {
+    return roles.includes('super_admin')
+      ? children
+      : <Navigate to="/admin/dashboard" replace />;
+  }
   if (!roles.includes(user.role)) return <Navigate to="/portal" replace />;
 
   return children;
@@ -122,7 +149,9 @@ function App() {
         path="/portal/*"
         element={
           <ProtectedRoute>
-            <MainLayout />
+            <PortalRoute>
+              <MainLayout />
+            </PortalRoute>
           </ProtectedRoute>
         }
       >
@@ -147,9 +176,11 @@ function App() {
         <Route path="school-calendar" element={<RoleRoute roles={['admin']}><AdminSchoolCalendarPage /></RoleRoute>} />
         <Route path="timetable" element={<RoleRoute roles={['admin']}><AdminTimetablePage /></RoleRoute>} />
         <Route path="attendance" element={<RoleRoute roles={['admin']}><AdminAttendancePage /></RoleRoute>} />
+        <Route path="newsletters/admin" element={<RoleRoute roles={['admin']}><AdminNewslettersPage /></RoleRoute>} />
         <Route path="my-schedule" element={<RoleRoute roles={['teacher']}><TeacherSchedulePage /></RoleRoute>} />
         <Route path="my-timetable" element={<RoleRoute roles={['teacher', 'admin']}><TeacherTimetablePage /></RoleRoute>} />
         <Route path="my-attendance" element={<RoleRoute roles={['teacher']}><TeacherAttendanceNewPage /></RoleRoute>} />
+        <Route path="newsletters" element={<RoleRoute roles={['teacher']}><TeacherNewslettersPage /></RoleRoute>} />
         
         {/* Admin only */}
         <Route path="teachers" element={<RoleRoute roles={['admin']}><TeachersPage /></RoleRoute>} />

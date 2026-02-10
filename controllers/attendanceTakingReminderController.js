@@ -6,9 +6,9 @@ import Schedule from "../models/Schedule.js";
 import Notification from "../models/Notification.js";
 import notificationService from "../services/notificationService.js";
 
-/** Reminder window: 1h to 1.5h after class end (run job every ~15 min so we catch "1h after end") */
-const REMINDER_WINDOW_END_MS = 60 * 60 * 1000;
-const REMINDER_WINDOW_START_MS = 90 * 60 * 1000;
+/** Reminder window: 10 hours after class end (run job every ~15 min so we catch "10h after end") */
+const REMINDER_WINDOW_END_MS = 10 * 60 * 60 * 1000; // 10 hours
+const REMINDER_WINDOW_START_MS = 10 * 60 * 60 * 1000 + 15 * 60 * 1000; // 10h to 10h15m (15 min window)
 
 /**
  * Build date at local midnight for schedule date (matches Attendance date storage).
@@ -20,7 +20,7 @@ function toAttendanceDate(d) {
 }
 /**
  * Run the missed-attendance reminder job (no req/res). Find classes that ended
- * 1–1.5h ago, no attendance taken, no reminder sent → create reminder, send email.
+ * 10 hours ago, no attendance taken, no reminder sent → create reminder, send email via SMTP.
  * Safe to call repeatedly (idempotent). Used by the API route and by the automatic scheduler.
  */
 export async function processAttendanceReminders() {
@@ -106,9 +106,11 @@ export async function processAttendanceReminders() {
     let reminderStatus = "sent";
     let failureReason = null;
     try {
+      // Use SMTP only for attendance reminders (skip Gmail OAuth)
+      // Pass null as userId to force SMTP fallback
       await notificationService.sendEmail(
         notification,
-        schedule.teacher._id.toString(),
+        null, // No userId = skip Gmail OAuth, use SMTP only
       );
     } catch (err) {
       logger.error("Attendance reminder email failed", {

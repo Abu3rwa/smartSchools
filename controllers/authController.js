@@ -253,6 +253,14 @@ export const logout = asyncHandler(async (req, res) => {
 export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
     const { schoolSlug } = req.query;
 
+    // Check if Google OAuth credentials are configured
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+        return res.status(500).json({
+            success: false,
+            message: 'Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your environment variables.'
+        });
+    }
+
     // Step 1: Create OAuth2 client with your credentials
     const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
@@ -300,6 +308,11 @@ export const googleCallback = asyncHandler(async (req, res) => {
 
     if (!code) {
         return res.redirect(`${clientUrl}/login?error=missing_code`);
+    }
+
+    // Check if Google OAuth credentials are configured
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+        return res.redirect(`${clientUrl}/login?error=${encodeURIComponent('Google OAuth is not configured')}`);
     }
 
     try {

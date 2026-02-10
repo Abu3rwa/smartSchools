@@ -28,6 +28,7 @@
     padding: var(--spacing-lg);
     border-bottom: 1px solid var(--border-color);
     min-height: var(--header-height);
+    position: relative;
 }
 
 .logo {
@@ -67,19 +68,40 @@
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     cursor: pointer;
     transition: all var(--transition-fast);
     flex-shrink: 0;
 }
 
+.toggle-btn svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
 .toggle-btn:hover {
     background: var(--bg-card-hover);
     color: var(--text-primary);
+    border-color: var(--border-color-hover);
 }
 
 .sidebar.collapsed .toggle-btn {
+    /* In collapsed mode, hide the logo to avoid overlap and center the toggle */
     margin: 0 auto;
+}
+
+.sidebar.collapsed .sidebar-header {
+    justify-content: center;
+}
+
+.sidebar.collapsed .logo {
+    display: none;
+}
+
+.toggle-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.25);
 }
 
 /* Navigation */
