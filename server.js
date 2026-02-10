@@ -20,7 +20,10 @@ import {
     gradeRoutes,
     notificationRoutes,
     gmailAuthRoutes,
-    reportRoutes
+    reportRoutes,
+    standardRoutes,
+    standardAssignmentRoutes,
+    practiceRoutes
 } from './routes/index.js';
 import emailRoutes from './routes/emailRoutes.js';
 import schoolRoutes from './routes/schoolRoutes.js';
@@ -132,6 +135,9 @@ app.use('/api/lessons', lessonPlanRoutes);
 app.use('/api/school-calendar', schoolCalendarRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/standards', standardRoutes);
+app.use('/api/standard-assignments', standardAssignmentRoutes);
+app.use('/api/practice', practiceRoutes);
 
 // API documentation route (development only)
 if (process.env.NODE_ENV !== 'production') {

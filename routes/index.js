@@ -8,6 +8,9 @@ import notificationRoutes from './notificationRoutes.js';
 import gmailAuthRoutes from './gmailAuthRoutes.js';
 import reportRoutes from './reportRoutes.js';
 import advancedReportRoutes from './advancedReportRoutes.js';
+import standardRoutes from './standardRoutes.js';
+import standardAssignmentRoutes from './standardAssignmentRoutes.js';
+import practiceRoutes from './practiceRoutes.js';
 
 export {
     authRoutes,
@@ -19,5 +22,8 @@ export {
     notificationRoutes,
     gmailAuthRoutes,
     reportRoutes,
-    advancedReportRoutes
+    advancedReportRoutes,
+    standardRoutes,
+    standardAssignmentRoutes,
+    practiceRoutes
 };
