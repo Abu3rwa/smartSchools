@@ -73,6 +73,13 @@ const lessonPlanSchema = new mongoose.Schema(
         timing: { type: String, default: "" },
       },
     ],
+    // Linked curriculum standards (AI-detected or manually selected)
+    standardIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Standard",
+      },
+    ],
   },
   { timestamps: true },
 );

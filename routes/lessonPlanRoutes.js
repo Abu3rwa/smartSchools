@@ -6,13 +6,21 @@ import {
     getLessonPlanById,
     createLessonPlan,
     updateLessonPlan,
-    deleteLessonPlan
+    deleteLessonPlan,
+    suggestField,
+    detectStandards,
+    generateSection
 } from '../controllers/lessonPlanController.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(requireSchoolContext);
+
+// AI routes (must be before /:id to avoid "ai" parsed as id)
+router.post('/ai/suggest', authorize('teacher', 'admin'), suggestField);
+router.post('/ai/detect-standards', authorize('teacher', 'admin'), detectStandards);
+router.post('/ai/generate-section', authorize('teacher', 'admin'), generateSection);
 
 router.get('/', getLessonPlans);
 router.get('/:id', getLessonPlanById);

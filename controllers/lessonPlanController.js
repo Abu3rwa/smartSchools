@@ -1,5 +1,16 @@
 import LessonPlan from '../models/LessonPlan.js';
+import Class from '../models/Class.js';
+import Subject from '../models/Subject.js';
+import Standard from '../models/Standard.js';
+import { AITokenUsage } from '../models/AITokenUsage.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import * as lessonPlanAIService from '../services/lessonPlanAIService.js';
+
+const MODEL_NAME = 'gemini-2.5-flash-lite';
+const VALID_SUGGEST_FIELDS = [
+    'title', 'summary', 'description', 'homework', 'teachingObjectives', 'vocabulary',
+    'previousKnowledge', 'characterTraitLinks', 'techIntegration', 'stageProcedure'
+];
 
 /**
  * @desc    Get lesson plans (list with filters)
@@ -26,6 +37,7 @@ export const getLessonPlans = asyncHandler(async (req, res) => {
         .populate('class', 'name')
         .populate('subject', 'name')
         .populate('teacher', 'firstName lastName')
+        .populate('standardIds', 'code name')
         .sort({ date: -1, createdAt: -1 })
         .skip(skip)
         .limit(Math.min(100, Math.max(1, parseInt(limit, 10))))
@@ -56,7 +68,8 @@ export const getLessonPlanById = asyncHandler(async (req, res) => {
     const lesson = await LessonPlan.findById(req.params.id)
         .populate('class', 'name')
         .populate('subject', 'name')
-        .populate('teacher', 'firstName lastName');
+        .populate('teacher', 'firstName lastName')
+        .populate('standardIds', 'code name');
 
     if (!lesson) {
         return res.status(404).json({ success: false, message: 'Lesson plan not found' });
@@ -102,6 +115,7 @@ export const createLessonPlan = asyncHandler(async (req, res) => {
         vocabulary: body.vocabulary ?? '',
         characterTraitLinks: body.characterTraitLinks ?? '',
         techIntegration: body.techIntegration ?? '',
+        standardIds: Array.isArray(body.standardIds) ? body.standardIds : [],
         stages: Array.isArray(body.stages) ? body.stages.map(s => ({
             name: s.name ?? '',
             procedure: s.procedure ?? '',
@@ -115,6 +129,7 @@ export const createLessonPlan = asyncHandler(async (req, res) => {
         .populate('class', 'name')
         .populate('subject', 'name')
         .populate('teacher', 'firstName lastName')
+        .populate('standardIds', 'code name')
         .lean();
 
     res.status(201).json({ success: true, data: { lesson: populated } });
@@ -140,7 +155,7 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
     const body = req.body;
     const allowed = [
         'class', 'subject', 'date', 'title', 'summary', 'description', 'homework',
-        'previousKnowledge', 'teachingObjectives', 'vocabulary', 'characterTraitLinks', 'techIntegration', 'stages'
+        'previousKnowledge', 'teachingObjectives', 'vocabulary', 'characterTraitLinks', 'techIntegration', 'standardIds', 'stages'
     ];
     for (const key of allowed) {
         if (body[key] === undefined) continue;
@@ -148,7 +163,9 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
         else if (key === 'class') existing.class = body.class || body.classId;
         else if (key === 'subject') existing.subject = body.subject || body.subjectId;
         else if (key === 'title') existing.title = (body.title || '').trim();
-        else if (key === 'stages' && Array.isArray(body.stages)) {
+        else if (key === 'standardIds' && Array.isArray(body.standardIds)) {
+            existing.standardIds = body.standardIds;
+        } else if (key === 'stages' && Array.isArray(body.stages)) {
             existing.stages = body.stages.map(s => ({
                 name: s.name ?? '',
                 procedure: s.procedure ?? '',
@@ -165,9 +182,181 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
         .populate('class', 'name')
         .populate('subject', 'name')
         .populate('teacher', 'firstName lastName')
+        .populate('standardIds', 'code name')
         .lean();
 
     res.json({ success: true, data: { lesson } });
+});
+
+/**
+ * @desc    AI suggest content for a lesson plan field
+ * @route   POST /api/lessons/ai/suggest
+ * @access  Private (Teacher, Admin)
+ */
+export const suggestField = asyncHandler(async (req, res) => {
+    const {
+        field,
+        currentValue,
+        subjectId,
+        classId,
+        title,
+        summary,
+        stageIndex,
+        stageProcedure
+    } = req.body;
+    const schoolId = req.schoolId;
+    const userId = req.user?._id;
+
+    if (!VALID_SUGGEST_FIELDS.includes(field)) {
+        return res.status(400).json({ success: false, message: 'Invalid field for suggestion' });
+    }
+    if (!subjectId || !classId) {
+        return res.status(400).json({ success: false, message: 'Class and Subject are required' });
+    }
+
+    const cls = await Class.findById(classId).lean();
+    const subj = await Subject.findById(subjectId).lean();
+    if (!cls || !subj) {
+        return res.status(404).json({ success: false, message: 'Class or Subject not found' });
+    }
+
+    const actualValue = field === 'stageProcedure' ? (stageProcedure || currentValue || '') : (currentValue || '');
+
+    const result = await lessonPlanAIService.suggestFieldContent({
+        field,
+        currentValue: actualValue,
+        context: {
+            subjectName: subj.name || '',
+            gradeLevel: cls.grade ?? '',
+            title: title || '',
+            summary: summary || '',
+            stageIndex
+        }
+    });
+
+    if (schoolId && userId) {
+        await AITokenUsage.create({
+            model: MODEL_NAME,
+            feature: 'lesson_plan_suggest',
+            school: schoolId,
+            user: userId,
+            inputTokens: result.tokenUsage.input,
+            outputTokens: result.tokenUsage.output,
+            totalTokens: result.tokenUsage.total,
+            schoolId: schoolId.toString(),
+            metadata: { field, subjectId, classId }
+        });
+    }
+
+    res.json({
+        success: true,
+        data: { suggestion: result.text, tokenUsage: result.tokenUsage }
+    });
+});
+
+/**
+ * @desc    AI detect standards aligned with lesson content
+ * @route   POST /api/lessons/ai/detect-standards
+ * @access  Private (Teacher, Admin)
+ */
+export const detectStandards = asyncHandler(async (req, res) => {
+    const { subjectId, classId, lessonText } = req.body;
+    const schoolId = req.schoolId;
+    const userId = req.user?._id;
+
+    if (!subjectId || !classId) {
+        return res.status(400).json({ success: false, message: 'Class and Subject are required' });
+    }
+
+    const cls = await Class.findById(classId).lean();
+    const subj = await Subject.findById(subjectId).lean();
+    if (!cls || !subj) {
+        return res.status(404).json({ success: false, message: 'Class or Subject not found' });
+    }
+
+    const gradeLevel = cls.grade ?? 1;
+    const standards = await Standard.find({
+        subject: subjectId,
+        gradeLevel,
+        isActive: true
+    })
+        .lean()
+        .limit(50);
+
+    const result = await lessonPlanAIService.detectStandardsFromContent({
+        schoolId,
+        subjectId,
+        gradeLevel,
+        lessonText: lessonText || '',
+        standards
+    });
+
+    if (schoolId && userId && result.tokenUsage.total > 0) {
+        await AITokenUsage.create({
+            model: MODEL_NAME,
+            feature: 'lesson_plan_detect_standards',
+            school: schoolId,
+            user: userId,
+            inputTokens: result.tokenUsage.input,
+            outputTokens: result.tokenUsage.output,
+            totalTokens: result.tokenUsage.total,
+            schoolId: schoolId.toString(),
+            metadata: { subjectId, classId }
+        });
+    }
+
+    res.json({
+        success: true,
+        data: { standards: result.standards, tokenUsage: result.tokenUsage }
+    });
+});
+
+/**
+ * @desc    AI generate multiple lesson sections from title + context
+ * @route   POST /api/lessons/ai/generate-section
+ * @access  Private (Teacher, Admin)
+ */
+export const generateSection = asyncHandler(async (req, res) => {
+    const { title, subjectId, classId, sourceFields } = req.body;
+    const schoolId = req.schoolId;
+    const userId = req.user?._id;
+
+    if (!subjectId || !classId) {
+        return res.status(400).json({ success: false, message: 'Class and Subject are required' });
+    }
+
+    const cls = await Class.findById(classId).lean();
+    const subj = await Subject.findById(subjectId).lean();
+    if (!cls || !subj) {
+        return res.status(404).json({ success: false, message: 'Class or Subject not found' });
+    }
+
+    const result = await lessonPlanAIService.generateSection({
+        title: title || '',
+        context: { subjectName: subj.name || '', gradeLevel: cls.grade ?? '' },
+        sourceFields: Array.isArray(sourceFields)
+            ? sourceFields
+            : ['summary', 'description', 'teachingObjectives', 'vocabulary']
+    });
+
+    if (schoolId && userId) {
+        await AITokenUsage.create({
+            model: MODEL_NAME,
+            feature: 'lesson_plan_generate_section',
+            school: schoolId,
+            user: userId,
+            inputTokens: result.tokenUsage.input,
+            outputTokens: result.tokenUsage.output,
+            totalTokens: result.tokenUsage.total,
+            schoolId: schoolId.toString(),
+            metadata: { subjectId, classId }
+        });
+    }
+
+    res.json({
+        success: true,
+        data: { generated: result.generated, tokenUsage: result.tokenUsage }
+    });
 });
 
 /**
