@@ -62,6 +62,45 @@ export const fetchLessonById = createAsyncThunk(
     }
 );
 
+export const suggestField = createAsyncThunk(
+    'lessons/suggestField',
+    async (payload, { rejectWithValue }) => {
+        try {
+            const res = await api.post('/lessons/ai/suggest', payload);
+            if (!res.data.success) throw new Error(res.data.message);
+            return res.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'AI suggestion failed');
+        }
+    }
+);
+
+export const detectStandards = createAsyncThunk(
+    'lessons/detectStandards',
+    async (payload, { rejectWithValue }) => {
+        try {
+            const res = await api.post('/lessons/ai/detect-standards', payload);
+            if (!res.data.success) throw new Error(res.data.message);
+            return res.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Standards detection failed');
+        }
+    }
+);
+
+export const generateSection = createAsyncThunk(
+    'lessons/generateSection',
+    async (payload, { rejectWithValue }) => {
+        try {
+            const res = await api.post('/lessons/ai/generate-section', payload);
+            if (!res.data.success) throw new Error(res.data.message);
+            return res.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Section generation failed');
+        }
+    }
+);
+
 const lessonSlice = createSlice({
     name: 'lessons',
     initialState: {
