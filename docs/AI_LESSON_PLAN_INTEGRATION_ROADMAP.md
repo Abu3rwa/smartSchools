@@ -1,6 +1,6 @@
 # AI Lesson Plan Integration Roadmap & Implementation Plan
 
-> **Document Version**: 1.0  
+> **Document Version**: 1.1  
 > **Last Updated**: February 11, 2025  
 > **Status**: Planning
 
@@ -18,6 +18,11 @@
 8. [Database Schema Changes](#database-schema-changes)
 9. [Cost & Performance Considerations](#cost--performance-considerations)
 10. [Success Metrics](#success-metrics)
+11. [Quick-Start Implementation Checklist](#quick-start-implementation-checklist)
+12. [Detailed Prompt Templates](#detailed-prompt-templates)
+13. [Inline Auto-Complete Specification](#inline-auto-complete-specification)
+14. [Error Handling & Retry Flows](#error-handling--retry-flows)
+15. [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -346,11 +351,11 @@ generateSection: createAsyncThunk(...)
 
 **File**: `models/AITokenUsage.js`
 
-**Existing**: `reportType` can be extended. Add values: `'lesson_plan_suggest'`, `'lesson_plan_detect_standards'`, `'lesson_plan_generate_section'`.
+**Existing**: Use the `feature` field (indexed, flexible) for lesson plan AI analytics. Values: `'lesson_plan_suggest'`, `'lesson_plan_detect_standards'`, `'lesson_plan_generate_section'`.
 
 **File**: `services/lessonPlanAIService.js` or controller
 
-**Action**: After each `connectAi` call, create `AITokenUsage` document with `reportType`, `user`, `school`, `inputTokens`, `outputTokens`, `estimatedCost`.
+**Action**: After each `connectAi` call, create `AITokenUsage` document with `feature`, `user`, `school`, `inputTokens`, `outputTokens`, `estimatedCost`.
 
 ### Step 6: Standards Detection Logic
 
@@ -458,17 +463,17 @@ generateSection: createAsyncThunk(...)
 ### LessonPlan Schema Addition
 
 ```javascript
-// models/LessonPlan.js
+// models/LessonPlan.js — add to schema
 standardIds: [{
   type: mongoose.Schema.Types.ObjectId,
-  ref: "Standard",
-  default: []
+  ref: "Standard"
 }]
+// Default is [] for arrays; no migration needed for existing docs
 ```
 
 ### AITokenUsage (No schema change)
 
-Use existing `reportType` with new values:
+Use existing `feature` field with new values:
 - `lesson_plan_suggest`
 - `lesson_plan_detect_standards`
 - `lesson_plan_generate_section`
@@ -524,6 +529,226 @@ Extend `buildPayload()` in LessonPlanPage and controller to include `standardIds
 
 ---
 
+## Quick-Start Implementation Checklist
+
+Execute in this order for fastest path to working AI features:
+
+| # | Task | Est. | Dependencies |
+|---|------|------|--------------|
+| 1 | Add `standardIds` to LessonPlan model | 15 min | None |
+| 2 | Create `services/lessonPlanAIService.js` with `suggestFieldContent` | 1–2 hrs | connectAi |
+| 3 | Add `POST /api/lessons/ai/suggest` route + controller handler | 30 min | Step 2 |
+| 4 | Create `AISuggestButton.jsx` component | 45 min | None |
+| 5 | Add `suggestField` thunk to lessonSlice | 20 min | api config |
+| 6 | Integrate AISuggestButton into Title and Summary fields | 30 min | Steps 4, 5 |
+| 7 | Add token tracking (AITokenUsage) in suggest handler | 20 min | Step 3 |
+| 8 | Implement `detectStandardsFromContent` in service | 1 hr | Standards, Class |
+| 9 | Add `POST /api/lessons/ai/detect-standards` route | 30 min | Step 8 |
+| 10 | Create `StandardsSuggester.jsx` component | 1 hr | Step 9 |
+| 11 | Add `generateSection` to service + route | 1 hr | Step 2 |
+| 12 | Add "Generate from title" button in form | 30 min | Step 11 |
+
+**Total estimated**: 8–10 hours for core features.
+
+---
+
+## Detailed Prompt Templates
+
+### suggestFieldContent — Title
+
+```
+You are an experienced teacher. Suggest a clearer, more structured lesson title.
+
+CONTEXT:
+- Subject: {subjectName}
+- Grade: {gradeLevel}
+- Current title: {currentValue}
+
+Provide ONLY the suggested title. No explanation, no quotes, no markdown. 1 line max.
+```
+
+### suggestFieldContent — Summary
+
+```
+You are an experienced teacher. Expand the following into a concise 2–3 sentence summary suitable for parents.
+
+CONTEXT:
+- Subject: {subjectName}
+- Grade: {gradeLevel}
+- Lesson title: {title}
+- Current value: {currentValue}
+
+Provide ONLY the suggested summary. No explanation, no quotes, no markdown.
+```
+
+### suggestFieldContent — Teaching Objectives
+
+```
+You are an experienced teacher. Convert these notes into formal, measurable learning objectives (SMART format).
+
+CONTEXT:
+- Subject: {subjectName}
+- Grade: {gradeLevel}
+- Lesson title: {title}
+- Current value: {currentValue}
+
+Provide ONLY the objectives. Use bullet points. No explanation, no quotes, no markdown.
+```
+
+### suggestFieldContent — Vocabulary
+
+```
+You are an experienced teacher. Suggest 5–8 age-appropriate key vocabulary terms for this lesson topic.
+
+CONTEXT:
+- Subject: {subjectName}
+- Grade: {gradeLevel}
+- Lesson title: {title}
+- Current value: {currentValue}
+
+Provide ONLY a comma-separated list of terms. No explanation, no quotes, no markdown.
+```
+
+### detectStandardsFromContent — AI Prompt
+
+```
+You are an expert curriculum analyst. Given the following lesson content and list of standards, select the top 5–10 standards that BEST align with this lesson.
+
+LESSON CONTENT:
+{lessonText}
+
+AVAILABLE STANDARDS (subject: {subjectName}, grade: {gradeLevel}):
+{standardsList}
+
+For each selected standard, provide:
+- standardId (exact _id from the list)
+- relevanceScore (0–1)
+- explanation (1 sentence why it matches)
+
+Output ONLY valid JSON array:
+[
+  { "standardId": "...", "relevanceScore": 0.92, "explanation": "..." },
+  ...
+]
+```
+
+### generateSection — AI Prompt
+
+```
+You are an experienced teacher. Generate lesson plan sections from the minimal input below.
+
+INPUT:
+- Subject: {subjectName}
+- Grade: {gradeLevel}
+- Title: {title}
+
+Generate the following fields. Use age-appropriate language and pedagogical best practices.
+Output ONLY valid JSON:
+{
+  "summary": "...",
+  "description": "...",
+  "teachingObjectives": "...",
+  "vocabulary": "..."
+}
+```
+
+---
+
+## Inline Auto-Complete Specification
+
+**Scope**: Vocabulary field only (Phase 4 optional enhancement).
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| **Min characters before trigger** | 3 | Avoid trivial suggestions |
+| **Debounce delay** | 600 ms | Balance responsiveness vs API cost |
+| **Max suggestions** | 5 | Keep UI simple |
+| **Display** | Dropdown below input | Standard autocomplete UX |
+| **Keyboard** | Enter to accept, Escape to dismiss | Accessibility |
+| **Cache** | Per session, keyed by (subjectId, classId, prefix) | Reduce duplicate calls |
+
+**Implementation**:
+```javascript
+// useVocabularySuggest hook
+const useVocabularySuggest = (prefix, subjectId, classId) => {
+  const [suggestions, setSuggestions] = useState([]);
+  const debouncedPrefix = useDebounce(prefix, 600);
+  useEffect(() => {
+    if (debouncedPrefix.length < 3 || !subjectId || !classId) {
+      setSuggestions([]);
+      return;
+    }
+    suggestField({ field: 'vocabulary', currentValue: debouncedPrefix, subjectId, classId })
+      .then(res => setSuggestions(res.suggestion.split(',').map(s => s.trim()).slice(0, 5)))
+      .catch(() => setSuggestions([]));
+  }, [debouncedPrefix, subjectId, classId]);
+  return suggestions;
+};
+```
+
+---
+
+## Error Handling & Retry Flows
+
+### Client-Side
+
+| Scenario | Behavior |
+|----------|----------|
+| **Network error** | Show toast: "AI suggestion failed. Check connection and try again." |
+| **429 (rate limit)** | Show toast: "Too many requests. Please wait a minute." |
+| **500 (server error)** | Show toast with retry button; max 2 retries |
+| **Timeout (>10s)** | Cancel request, show "Request timed out. Try again." |
+
+### Server-Side
+
+| Scenario | Behavior |
+|----------|----------|
+| **connectAi throws** | Catch, log, return 503 with message "AI service temporarily unavailable" |
+| **Invalid field name** | 400 "Invalid field for suggestion" |
+| **Empty standards list** | Return empty array, 200 (no AI call) |
+| **JSON parse fail (detect-standards)** | Fallback: return top 3 standards by name similarity (optional) |
+
+### Retry Logic (Backend)
+
+- Do NOT auto-retry connectAi (Gemini may be down)
+- Return error to client; client may retry on user action
+
+---
+
+## Testing Strategy
+
+### Unit Tests
+
+| Component | What to Test |
+|-----------|--------------|
+| `lessonPlanAIService.suggestFieldContent` | Mock connectAi; verify prompt structure, output parsing |
+| `lessonPlanAIService.detectStandardsFromContent` | Mock connectAi + Standard.find; verify JSON parse, top N |
+| Controller handlers | Mock service; verify 200/400/403, response shape |
+
+### Integration Tests
+
+| Scenario | Steps |
+|----------|-------|
+| Suggest flow | POST /ai/suggest with valid payload → 200, suggestion present |
+| Detect standards | POST /ai/detect-standards → 200, standards array |
+| Tenant isolation | Request with wrong schoolId → 403 |
+
+### E2E Tests (Optional)
+
+- Open lesson modal → click Suggest on title → verify suggestion appears in field
+- Fill lesson → click Detect Standards → verify standards list → save → verify standardIds persisted
+
+### Manual QA Checklist
+
+- [ ] Suggest works for each field type
+- [ ] Standards detection returns relevant results for Math/ELA sample lessons
+- [ ] Generate from title populates all requested fields
+- [ ] Token usage recorded in AITokenUsage
+- [ ] Rate limit enforced (if implemented)
+- [ ] Graceful degradation when API key missing
+
+---
+
 ## Appendix: File Checklist
 
 ### Backend
@@ -532,7 +757,7 @@ Extend `buildPayload()` in LessonPlanPage and controller to include `standardIds
 - [ ] `controllers/lessonPlanController.js` — Add `suggestField`, `detectStandards`, `generateSection`
 - [ ] `routes/lessonPlanRoutes.js` — Add `/ai/suggest`, `/ai/detect-standards`, `/ai/generate-section`
 - [ ] `models/LessonPlan.js` — Add `standardIds`
-- [ ] `models/AITokenUsage.js` — Document new reportType values (optional doc update)
+- [ ] `models/AITokenUsage.js` — Document new feature values (optional doc update)
 
 ### Frontend
 
