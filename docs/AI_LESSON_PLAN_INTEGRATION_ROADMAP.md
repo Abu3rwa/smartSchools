@@ -1,8 +1,9 @@
-# AI Lesson Plan Integration Roadmap & Implementation Plan
+# AI Lesson Plan Integration — Roadmap & Implementation Plan
 
-> **Document Version**: 1.0  
+> **Document Version**: 2.0  
 > **Last Updated**: February 11, 2025  
-> **Status**: Planning
+> **Status**: Planning  
+> **Target Branch**: main (via feature branch merge)
 
 ---
 
@@ -18,12 +19,15 @@
 8. [Database Schema Changes](#database-schema-changes)
 9. [Cost & Performance Considerations](#cost--performance-considerations)
 10. [Success Metrics](#success-metrics)
+11. [Testing Strategy](#testing-strategy)
+12. [Deployment & Rollback](#deployment--rollback)
+13. [Appendix](#appendix)
 
 ---
 
 ## Executive Summary
 
-This document outlines a comprehensive plan to integrate AI capabilities into the lesson plan creation workflow. The primary features include:
+This document provides a **detailed roadmap and implementation plan** for integrating AI capabilities into the lesson plan creation workflow. The primary features include:
 
 1. **Auto-complete** — AI-powered suggestions for lesson plan fields (title, summary, description, objectives, vocabulary, etc.) as teachers type or on demand.
 2. **Standards Detection** — Automatically detect and suggest curriculum standards that align with the lesson content based on subject, grade level, and lesson text.
@@ -61,13 +65,18 @@ The integration leverages the existing Gemini AI infrastructure (`connectAi`, `A
 - Standards are scoped by school and linked to subjects
 - Used for practice questions; can be leveraged for lesson plan alignment
 
+### Class Model (`models/Class.js`)
+
+- `grade` (1–12) — Required for standards filtering
+- `name`, `section`, `academicYear`
+
 ### Existing AI Infrastructure
 
 - **`utils/connectAi.js`** — Google Gemini 2.5 Flash Lite integration
-- **`models/AITokenUsage.js`** — Token tracking for cost/analytics
-- **`services/standardsPracticeAIService.js`** — Structured AI prompts, Zod validation, token usage
+- **`models/AITokenUsage.js`** — Token tracking via `feature`, `school`, `user`, `inputTokens`, `outputTokens`
+- **`services/standardsPracticeAIService.js`** — Structured AI prompts, Zod validation
 - **`services/aiservice.js`** — Report generation, `trackTokenUsage`
-- **`services/newsletterAiService.js`** — Compact prompts, lesson plan context
+- **`services/newsletterAiService.js`** — Compact prompts, lesson plan context, AITokenUsage pattern
 
 ### Lesson Plan UI (`client/src/pages/LessonPlanPage.jsx`)
 
@@ -192,55 +201,89 @@ client/src/
     lessonSlice.js          # Add thunks for AI endpoints
 ```
 
+### Dependency Graph
+
+```
+Phase 1 (Foundation):
+  lessonPlanAIService.js
+    └── depends on: connectAi, AITokenUsage
+  lessonPlanController.js (AI handlers)
+    └── depends on: lessonPlanAIService, Class, Subject
+  lessonPlanRoutes.js
+    └── depends on: lessonPlanController
+  AISuggestButton.jsx
+    └── depends on: lessonSlice (suggestField thunk)
+  lessonSlice.js
+
+Phase 2 (Auto-Complete Expansion):
+  All fields with AISuggestButton
+  generateSection in service + controller + route
+  LessonPlanPage "Generate from title" button
+
+Phase 3 (Standards Detection):
+  LessonPlan model (standardIds)
+  detectStandards in service + controller + route
+  StandardsSuggester.jsx
+  LessonPlanPage form payload (standardIds)
+```
+
 ---
 
 ## Detailed Roadmap
 
 ### Phase 1: Foundation (Weeks 1–2)
 
-**Goal**: Establish AI service, token tracking, and one end-to-end feature (e.g., suggest for title/summary).
+**Goal**: Establish AI service, token tracking, and one end-to-end feature (suggest for title/summary).
 
-| Milestone | Deliverables | Success Criteria |
-|-----------|--------------|------------------|
-| 1.1 | Create `lessonPlanAIService.js` | Service exists, can call `connectAi` with lesson plan prompts |
-| 1.2 | Add token tracking for `lesson_plan_*` | AITokenUsage records `reportType: 'lesson_plan_suggest'` etc. |
-| 1.3 | `POST /api/lessons/ai/suggest` endpoint | Accepts `{ field, currentValue, context }`, returns `{ suggestion }` |
-| 1.4 | `AISuggestButton` component | Reusable component with loading state |
-| 1.5 | Integrate suggest into Title and Summary | Teacher can click Suggest and see AI-generated text |
+| ID | Milestone | Deliverables | Acceptance Criteria | Est. Days |
+|----|-----------|--------------|---------------------|-----------|
+| 1.1 | Create `lessonPlanAIService.js` | Service with `suggestFieldContent()` | Service exists, calls `connectAi` with lesson plan prompts, returns `{ text, tokenUsage }` | 2 |
+| 1.2 | Add token tracking | AITokenUsage records with `feature: 'lesson_plan_suggest'` | Each suggest call creates AITokenUsage doc with school, user, tokens | 1 |
+| 1.3 | `POST /api/lessons/ai/suggest` | Endpoint accepts `{ field, currentValue, context }`, returns `{ suggestion }` | 200 with suggestion; 400 on invalid input; 500 on AI failure | 1 |
+| 1.4 | `AISuggestButton` component | Reusable component with loading state | Renders button, shows spinner on click, calls `onSuggestion(suggestion)` on success | 1 |
+| 1.5 | Integrate suggest into Title and Summary | Teacher can click Suggest and see AI-generated text | Suggest replaces/merges field value; toast on error | 1 |
+
+**Phase 1 Total**: ~6 working days
 
 ### Phase 2: Auto-Complete Expansion (Weeks 2–3)
 
 **Goal**: Extend suggest to all relevant fields and add generate-section capability.
 
-| Milestone | Deliverables | Success Criteria |
-|-----------|--------------|------------------|
-| 2.1 | Suggest for description, objectives, vocabulary, homework | All fields support Suggest |
-| 2.2 | Suggest for each stage (procedure, materials, timing) | Stages have per-field Suggest |
-| 2.3 | `POST /api/lessons/ai/generate-section` | Generate multiple fields from title + subject + grade |
-| 2.4 | "Generate from title" button in form | One-click to fill summary, description, objectives |
+| ID | Milestone | Deliverables | Acceptance Criteria | Est. Days |
+|----|-----------|--------------|---------------------|-----------|
+| 2.1 | Suggest for description, objectives, vocabulary, homework | All fields support Suggest | Each field has AISuggestButton; context-aware prompts | 2 |
+| 2.2 | Suggest for each stage (procedure, materials, timing) | Stages have per-field Suggest | stageProcedure, stageMaterials, stageTiming field types; stageIndex in request | 2 |
+| 2.3 | `POST /api/lessons/ai/generate-section` | Generate multiple fields from title + subject + grade | Returns `{ generated: { summary, description, ... } }` | 1 |
+| 2.4 | "Generate from title" button | One-click to fill summary, description, objectives | Button visible when title exists; merges result into form; doesn't overwrite if user has content | 1 |
+
+**Phase 2 Total**: ~6 working days
 
 ### Phase 3: Standards Detection (Weeks 3–4)
 
 **Goal**: Detect and suggest standards from lesson content.
 
-| Milestone | Deliverables | Success Criteria |
-|-----------|--------------|------------------|
-| 3.1 | Add `standardIds` to LessonPlan schema | Lesson plans can reference standards |
-| 3.2 | `POST /api/lessons/ai/detect-standards` | Returns ranked standards with relevance |
-| 3.3 | `StandardsSuggester` component | UI to show suggested standards, accept/reject |
-| 3.4 | Persist selected standards on save | `standardIds` saved with lesson plan |
-| 3.5 | Display linked standards in lesson card | Lesson cards show standard codes/names |
+| ID | Milestone | Deliverables | Acceptance Criteria | Est. Days |
+|----|-----------|--------------|---------------------|-----------|
+| 3.1 | Add `standardIds` to LessonPlan schema | Lesson plans can reference standards | Schema has `standardIds: [ObjectId]`; default `[]`; no migration needed | 0.5 |
+| 3.2 | `POST /api/lessons/ai/detect-standards` | Returns ranked standards with relevance | Returns `{ standards: [{ standardId, code, name, relevanceScore, explanation }] }` | 2 |
+| 3.3 | `StandardsSuggester` component | UI to show suggested standards, accept/reject | Checkboxes for each standard; "Detect Standards" button; loading state | 2 |
+| 3.4 | Persist selected standards on save | `standardIds` saved with lesson plan | buildPayload includes standardIds; controller accepts and saves | 0.5 |
+| 3.5 | Display linked standards in lesson card | Lesson cards show standard codes/names | Lesson card shows badges/tags for linked standards | 1 |
+
+**Phase 3 Total**: ~6 working days
 
 ### Phase 4: Polish & Optimization (Weeks 4–5)
 
 **Goal**: Performance, UX, and cost controls.
 
-| Milestone | Deliverables | Success Criteria |
-|-----------|--------------|------------------|
-| 4.1 | Debounced inline suggest (optional) | Vocabulary field can suggest as user types |
-| 4.2 | Rate limiting / per-user limits | Prevent abuse, control costs |
-| 4.3 | Error handling and fallbacks | Graceful failure, retry options |
-| 4.4 | Analytics dashboard for lesson plan AI usage | Token/cost tracking per teacher/school |
+| ID | Milestone | Deliverables | Acceptance Criteria | Est. Days |
+|----|-----------|--------------|---------------------|-----------|
+| 4.1 | Debounced inline suggest (optional) | Vocabulary field can suggest as user types | 500ms debounce; max 1 request per 2s; optional feature flag | 1 |
+| 4.2 | Rate limiting / per-user limits | Prevent abuse, control costs | express-rate-limit or similar; 30 suggests/hr, 10 detect/hr, 5 generate/hr | 1 |
+| 4.3 | Error handling and fallbacks | Graceful failure, retry options | User sees friendly error; "Retry" button; no uncaught errors | 1 |
+| 4.4 | Analytics dashboard for lesson plan AI usage | Token/cost tracking per teacher/school | AITokenUsage aggregation by feature; admin view | 2 |
+
+**Phase 4 Total**: ~5 working days
 
 ---
 
@@ -275,6 +318,32 @@ CONTEXT:
 Provide ONLY the suggested text. No explanation, no quotes, no markdown.
 ```
 
+**Field-specific prompt variations**:
+- **title**: "Suggest a clearer, more structured lesson title."
+- **summary**: "Expand into a concise 2–3 sentence summary suitable for parents."
+- **description**: "Expand into a detailed lesson description with key activities."
+- **teachingObjectives**: "Convert to formal learning objectives (SMART format)."
+- **vocabulary**: "Suggest 5–8 age-appropriate vocabulary terms, comma-separated."
+- **homework**: "Generate homework aligned with the lesson content."
+- **stageProcedure**: "Expand into step-by-step procedure instructions."
+
+**Pseudocode**:
+```javascript
+async suggestFieldContent({ field, currentValue, context }) {
+  const prompt = buildSuggestPrompt(field, currentValue, context);
+  const response = await connectAi(prompt);
+  const suggestion = (response.text || '').trim();
+  return {
+    text: suggestion,
+    tokenUsage: {
+      input: response.inputtokenCount || 0,
+      output: response.outputtokenCount || 0,
+      total: response.totalTokenCount || 0
+    }
+  };
+}
+```
+
 ### Step 2: Extend LessonPlan Model
 
 **File**: `models/LessonPlan.js`
@@ -288,27 +357,73 @@ standardIds: [{
 }]
 ```
 
-**Migration**: None required if default is empty array; existing docs remain valid.
+**Correct schema syntax** (Mongoose default for array):
+```javascript
+standardIds: [{
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Standard"
+}],
+// No default needed; Mongoose treats [] as default for arrays
+```
+
+**Migration**: None required; existing docs remain valid.
 
 ### Step 3: Add AI Routes and Controller Handlers
 
 **File**: `routes/lessonPlanRoutes.js`
 
-**New Routes**:
+**Route order**: AI routes must be defined **before** `/:id` to avoid "ai" being parsed as an ID.
+
 ```javascript
+// AI routes (before /:id)
 router.post('/ai/suggest', authorize('teacher', 'admin'), suggestField);
 router.post('/ai/detect-standards', authorize('teacher', 'admin'), detectStandards);
 router.post('/ai/generate-section', authorize('teacher', 'admin'), generateSection);
+
+router.get('/', getLessonPlans);
+router.get('/:id', getLessonPlanById);
+// ...
 ```
 
-**File**: `controllers/lessonPlanController.js` (or new `lessonPlanAIController.js`)
+**File**: `controllers/lessonPlanController.js`
 
-**Handlers**:
-- `suggestField`: Validate `{ field, currentValue, subjectId, classId, ... }`, call service, track tokens, return `{ suggestion }`
-- `detectStandards`: Validate `{ subjectId, classId, lessonText }`, fetch standards, call service, return `{ standards: [{ standardId, code, name, relevance, explanation }] }`
-- `generateSection`: Validate `{ title, subjectId, classId, sourceFields }`, call service, return `{ generated: { summary, description, ... } }`
+**Handler pseudocode**:
 
-**Authorization**: Reuse `authorize('teacher', 'admin')`; ensure tenant isolation (school from `req.user` or request body).
+```javascript
+export const suggestField = asyncHandler(async (req, res) => {
+  const { field, currentValue, subjectId, classId, title, summary, stageIndex } = req.body;
+  const schoolId = req.user?.school;
+  const userId = req.user?._id;
+
+  // Validate field
+  const validFields = ['title','summary','description','homework','teachingObjectives','vocabulary','previousKnowledge','characterTraitLinks','techIntegration','stageProcedure'];
+  if (!validFields.includes(field)) return res.status(400).json({ success: false, message: 'Invalid field' });
+
+  // Load Class, Subject for context
+  const cls = await Class.findById(classId).lean();
+  const subj = await Subject.findById(subjectId).lean();
+  if (!cls || !subj) return res.status(404).json({ success: false, message: 'Class or Subject not found' });
+
+  const result = await lessonPlanAIService.suggestFieldContent({
+    field, currentValue: currentValue || '',
+    context: { subjectName: subj.name, gradeLevel: cls.grade, title: title || '', summary: summary || '', stageIndex }
+  });
+
+  // Track tokens
+  await AITokenUsage.create({
+    model: 'gemini-2.5-flash-lite',
+    feature: 'lesson_plan_suggest',
+    school: schoolId, user: userId,
+    inputTokens: result.tokenUsage.input,
+    outputTokens: result.tokenUsage.output,
+    totalTokens: result.tokenUsage.total,
+    schoolId: schoolId.toString(),
+    metadata: { field, subjectId, classId }
+  });
+
+  res.json({ success: true, data: { suggestion: result.text, tokenUsage: result.tokenUsage } });
+});
+```
 
 ### Step 4: Frontend Integration
 
@@ -318,39 +433,56 @@ router.post('/ai/generate-section', authorize('teacher', 'admin'), generateSecti
 ```javascript
 suggestField: createAsyncThunk(
   'lessons/suggestField',
-  async ({ field, currentValue, subjectId, classId, ... }, { rejectWithValue }) => {
-    const res = await api.post('/api/lessons/ai/suggest', { field, currentValue, subjectId, classId, ... });
+  async (payload, { rejectWithValue }) => {
+    const res = await api.post('/lessons/ai/suggest', payload);
     if (!res.data.success) throw new Error(res.data.message);
     return res.data.data;
   }
 ),
-detectStandards: createAsyncThunk(...),
-generateSection: createAsyncThunk(...)
+detectStandards: createAsyncThunk(
+  'lessons/detectStandards',
+  async (payload, { rejectWithValue }) => {
+    const res = await api.post('/lessons/ai/detect-standards', payload);
+    if (!res.data.success) throw new Error(res.data.message);
+    return res.data.data;
+  }
+),
+generateSection: createAsyncThunk(
+  'lessons/generateSection',
+  async (payload, { rejectWithValue }) => {
+    const res = await api.post('/lessons/ai/generate-section', payload);
+    if (!res.data.success) throw new Error(res.data.message);
+    return res.data.data;
+  }
+)
 ```
 
 **File**: `client/src/components/lessonPlan/AISuggestButton.jsx`
 
-**Props**: `{ field, currentValue, subjectId, classId, onSuggestion }`
+**Props**: `{ field, currentValue, subjectId, classId, title, summary, stageIndex, onSuggestion, disabled }`
 
-**Behavior**: On click, dispatch `suggestField`, show loading spinner, on success call `onSuggestion(suggestion)` so parent can update form state.
+**Behavior**: On click, dispatch `suggestField`, show loading spinner, on success call `onSuggestion(suggestion)` so parent can update form state. Disable when subject/class not selected.
 
 **File**: `client/src/pages/LessonPlanPage.jsx`
 
 **Integrations**:
+- Add `standardIds` to formData and lessonToFormData
 - Add `<AISuggestButton>` next to title, summary, description, teachingObjectives, vocabulary, homework
 - For stages: add Suggest button per procedure textarea
 - Add "Generate from title" button that calls `generateSection` and merges result into form
 - Add StandardsSuggester in Detailed tab: shows detected standards, checkboxes to select, persist via `standardIds` in payload
+- Extend `buildPayload` to include `standardIds`
 
 ### Step 5: Token Tracking
 
 **File**: `models/AITokenUsage.js`
 
-**Existing**: `reportType` can be extended. Add values: `'lesson_plan_suggest'`, `'lesson_plan_detect_standards'`, `'lesson_plan_generate_section'`.
+**Note**: Use `feature` (not reportType) for lesson plan AI operations. Existing values like `"newsletter_section"` use `feature`. Add:
+- `feature: "lesson_plan_suggest"`
+- `feature: "lesson_plan_detect_standards"`
+- `feature: "lesson_plan_generate_section"`
 
-**File**: `services/lessonPlanAIService.js` or controller
-
-**Action**: After each `connectAi` call, create `AITokenUsage` document with `reportType`, `user`, `school`, `inputTokens`, `outputTokens`, `estimatedCost`.
+**Action**: After each `connectAi` call in lessonPlanAIService (or in controller), create `AITokenUsage` document with `feature`, `school`, `user`, `inputTokens`, `outputTokens`, `totalTokens`, `schoolId`, `metadata`.
 
 ### Step 6: Standards Detection Logic
 
@@ -358,9 +490,23 @@ generateSection: createAsyncThunk(...)
 1. Client sends `{ subjectId, classId, lessonText }` (lessonText = title + summary + description + teachingObjectives)
 2. Backend loads Class to get `grade`, loads Subject to get name
 3. Backend queries `Standard.find({ subject: subjectId, gradeLevel: grade, school: schoolId, isActive: true })`
-4. If many standards (>20), optionally limit to top 50 by relevance or category
+4. If many standards (>50), compact list for prompt (limit to 50)
 5. Build prompt: list standards (code, name, description), ask AI to return JSON array of `{ standardId, relevanceScore, explanation }` for top 5–10 matches
-6. Return to client for UI display
+6. Parse JSON, validate, return to client
+
+**Prompt structure**:
+```
+You are matching curriculum standards to a lesson. Given the lesson text and the list of standards, return the top 5–10 standards that best align.
+
+LESSON TEXT:
+{lessonText}
+
+STANDARDS (id, code, name, description):
+{standardsList}
+
+Output ONLY valid JSON:
+{ "matches": [ { "standardId": "...", "relevanceScore": 0.0-1.0, "explanation": "..." } ] }
+```
 
 ---
 
@@ -391,6 +537,9 @@ generateSection: createAsyncThunk(...)
   }
 }
 ```
+
+**Error (400)**: Invalid field, missing subjectId/classId  
+**Error (500)**: AI service failure
 
 ### POST `/api/lessons/ai/detect-standards`
 
@@ -458,17 +607,16 @@ generateSection: createAsyncThunk(...)
 ### LessonPlan Schema Addition
 
 ```javascript
-// models/LessonPlan.js
+// models/LessonPlan.js — add to schema
 standardIds: [{
   type: mongoose.Schema.Types.ObjectId,
-  ref: "Standard",
-  default: []
+  ref: "Standard"
 }]
 ```
 
 ### AITokenUsage (No schema change)
 
-Use existing `reportType` with new values:
+Use existing `feature` field with new values:
 - `lesson_plan_suggest`
 - `lesson_plan_detect_standards`
 - `lesson_plan_generate_section`
@@ -524,23 +672,123 @@ Extend `buildPayload()` in LessonPlanPage and controller to include `standardIds
 
 ---
 
-## Appendix: File Checklist
+## Testing Strategy
 
-### Backend
+### Unit Tests
+
+| Component | Test Cases |
+|-----------|------------|
+| lessonPlanAIService | Mock connectAi; verify prompt structure; verify response parsing |
+| suggestField controller | Valid input returns 200; invalid field returns 400; missing class returns 404 |
+| detectStandards controller | Valid input returns standards; empty standards returns empty array |
+
+### Integration Tests
+
+| Scenario | Steps |
+|----------|-------|
+| Suggest flow | POST /ai/suggest with valid payload → expect suggestion in response |
+| Detect standards flow | POST /ai/detect-standards with lesson text → expect standards array |
+| Generate section flow | POST /ai/generate-section → expect generated object |
+
+### E2E Tests (Optional)
+
+- Open lesson plan modal → click Suggest on title → verify field updates
+- Fill lesson content → click Detect Standards → verify standards appear → save → verify standardIds persisted
+
+### Manual QA Checklist
+
+- [ ] Suggest works for each field type
+- [ ] Suggest disabled when class/subject not selected
+- [ ] Detect Standards shows loading state
+- [ ] Selected standards persist on save
+- [ ] Generate from title fills multiple fields
+- [ ] Error toast on API failure
+- [ ] Token usage recorded in AITokenUsage
+
+---
+
+## Deployment & Rollback
+
+### Pre-Deployment Checklist
+
+- [ ] Environment: `GEMINI_API_KEY_TWO` set
+- [ ] Database: LessonPlan schema migrated (add standardIds)
+- [ ] Feature flag (optional): `ENABLE_LESSON_PLAN_AI=true`
+
+### Deployment Steps
+
+1. Deploy backend (new routes, controller, service)
+2. Deploy frontend (new components, LessonPlanPage updates)
+3. Verify /api/lessons/ai/suggest returns 200 with mock data
+4. Monitor AITokenUsage for lesson_plan_* features
+
+### Rollback Plan
+
+1. **Backend**: Revert lessonPlanRoutes, lessonPlanController (remove AI handlers); keep LessonPlan schema (standardIds can stay)
+2. **Frontend**: Revert LessonPlanPage, remove AISuggestButton, StandardsSuggester, lessonSlice thunks
+3. **Data**: No data migration needed; standardIds can remain empty
+
+---
+
+## Appendix
+
+### Appendix A: File Checklist
+
+#### Backend
 
 - [ ] `services/lessonPlanAIService.js` — New
 - [ ] `controllers/lessonPlanController.js` — Add `suggestField`, `detectStandards`, `generateSection`
 - [ ] `routes/lessonPlanRoutes.js` — Add `/ai/suggest`, `/ai/detect-standards`, `/ai/generate-section`
 - [ ] `models/LessonPlan.js` — Add `standardIds`
-- [ ] `models/AITokenUsage.js` — Document new reportType values (optional doc update)
+- [ ] `models/AITokenUsage.js` — Document new feature values (optional)
 
-### Frontend
+#### Frontend
 
 - [ ] `client/src/components/lessonPlan/AISuggestButton.jsx` — New
 - [ ] `client/src/components/lessonPlan/StandardsSuggester.jsx` — New
 - [ ] `client/src/store/slices/lessonSlice.js` — Add thunks
 - [ ] `client/src/pages/LessonPlanPage.jsx` — Integrate AI components
 
-### Documentation
+#### Documentation
 
 - [x] `docs/AI_LESSON_PLAN_INTEGRATION_ROADMAP.md` — This document
+
+### Appendix B: Error Handling Matrix
+
+| Error | HTTP | User Message | Log |
+|-------|------|--------------|-----|
+| Invalid field | 400 | "Invalid field for suggestion" | Yes |
+| Missing subjectId/classId | 400 | "Class and Subject are required" | Yes |
+| Class/Subject not found | 404 | "Class or Subject not found" | Yes |
+| AI service timeout | 500 | "AI suggestion unavailable. Please try again." | Yes |
+| No standards for subject/grade | 200 | Return empty standards array | No |
+| Rate limit exceeded | 429 | "Too many requests. Please wait a moment." | Yes |
+
+### Appendix C: UX Wireframe Notes
+
+**Basic Tab**:
+- Title: input + [✨ Suggest] button (right-aligned)
+- Summary: textarea + [✨ Suggest]
+- Description: textarea + [✨ Suggest]
+- Homework: textarea + [✨ Suggest]
+- [Generate from title] button (prominent, below title)
+
+**Detailed Tab**:
+- Teaching Objectives: textarea + [✨ Suggest] + [Detect Standards]
+- Vocabulary: input + [✨ Suggest]
+- StandardsSuggester: appears after "Detect Standards" click; checkboxes; "Apply selected"
+- Each stage: procedure textarea + [✨ Suggest]
+
+### Appendix D: Week-by-Week Gantt Summary
+
+| Week | Focus | Deliverables |
+|------|-------|--------------|
+| 1 | Phase 1 (Foundation) | lessonPlanAIService, suggest endpoint, AISuggestButton, Title+Summary integration |
+| 2 | Phase 2 (Auto-Complete) | All fields Suggest, generate-section, Generate from title button |
+| 3 | Phase 3 (Standards) | standardIds, detect-standards endpoint, StandardsSuggester, persistence |
+| 4 | Phase 4 (Polish) | Rate limiting, error handling, optional debounced suggest |
+| 5 | Phase 4 (Analytics) | Analytics dashboard, documentation |
+
+---
+
+*End of document*
