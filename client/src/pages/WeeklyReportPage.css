@@ -112,7 +112,7 @@
 
     .card {
         box-shadow: none;
-        border: 1px solid #eee;
+        border: 1px solid var(--border-color);
     }
 }
 

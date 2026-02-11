@@ -10,7 +10,8 @@ import {
     listAssignments,
     updateAssignment,
     deleteAssignment,
-    getMyTimetable
+    getMyTimetable,
+    getStudentTimetable
 } from '../controllers/timetableController.js';
 
 const router = express.Router();
@@ -20,6 +21,8 @@ router.use(requireSchoolContext);
 
 // Teacher: own timetable
 router.get('/my-timetable', authorize('teacher'), getMyTimetable);
+// Student: today's schedule
+router.get('/my-schedule', authorize('student'), getStudentTimetable);
 
 // Periods (teachers can read, admins can CRUD)
 router.get('/periods', authorize('admin', 'teacher'), listPeriods);

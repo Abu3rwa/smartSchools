@@ -23,6 +23,60 @@ async function getRoomName(roomId) {
     }
 }
 
+// @desc    Get current student's own attendance records
+// @route   GET /api/attendance/my-attendance
+// @access  Private (Student)
+export const getMyAttendance = asyncHandler(async (req, res) => {
+    const student = await Student.findOne({ user: req.user._id, status: 'active' });
+    if (!student) {
+        return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const { month, year } = req.query;
+    const query = { school: req.schoolId, 'studentAttendance.student': student._id };
+
+    if (month && year) {
+        const y = parseInt(year, 10);
+        const m = parseInt(month, 10) - 1;
+        const start = new Date(y, m, 1);
+        const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+        query.date = { $gte: start, $lte: end };
+    }
+
+    const records = await Attendance.find(query)
+        .populate('subject', 'name code')
+        .populate('period', 'name startTime endTime')
+        .sort({ date: -1 });
+
+    const myRecords = records.map(r => {
+        const entry = r.studentAttendance.find(
+            sa => sa.student && sa.student.toString() === student._id.toString()
+        );
+        const status = entry?.status || 'unknown';
+        return {
+            date: r.date,
+            subject: r.subject,
+            period: r.period,
+            status,
+            remarks: entry?.notes || entry?.remarks
+        };
+    });
+
+    const total = myRecords.length;
+    const present = myRecords.filter(r => r.status === 'present').length;
+    const late = myRecords.filter(r => ['tardy', 'tardy_excused'].includes(r.status)).length;
+    const absent = myRecords.filter(r => ['absent', 'absent_excused'].includes(r.status)).length;
+    const percentage = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+
+    res.json({
+        success: true,
+        data: {
+            records: myRecords,
+            summary: { total, present, late, absent, percentage }
+        }
+    });
+});
+
 // @desc    Get attendance data for a teacher
 // @route   GET /api/attendance/teacher
 // @access  Private (Teacher, Admin)

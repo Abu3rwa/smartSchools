@@ -88,6 +88,42 @@ export const deleteStudent = createAsyncThunk(
     }
 );
 
+export const createStudentLogin = createAsyncThunk(
+    'students/createStudentLogin',
+    async ({ studentId, email }, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/students/${studentId}/create-login`, { email });
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to create student login');
+        }
+    }
+);
+
+export const resetStudentPassword = createAsyncThunk(
+    'students/resetStudentPassword',
+    async (studentId, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/students/${studentId}/reset-password`);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to reset password');
+        }
+    }
+);
+
+export const bulkCreateStudentLogin = createAsyncThunk(
+    'students/bulkCreateStudentLogin',
+    async (studentIds, { rejectWithValue }) => {
+        try {
+            const response = await api.post('/students/bulk-create-login', { studentIds });
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to create logins');
+        }
+    }
+);
+
 const studentSlice = createSlice({
     name: 'students',
     initialState: {

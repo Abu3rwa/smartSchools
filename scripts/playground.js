@@ -10,6 +10,8 @@
  *
  * Requirements:
  * - Set an API key in .env (recommended) OR rely on your existing env setup.
+ *
+ * See also: node scripts/tenantIsolationPlayground.js for how tenant isolation works (school-scoped queries).
  */
 
 import dotenv from "dotenv";
@@ -48,11 +50,6 @@ const newsletterSectionSchema = {
       type: "string",
       description: "The newsletter section text (30-40 words).",
     },
-    wordCount: {
-      type: "integer",
-      description: "Word count of `content`.",
-      minimum: 0,
-    },
     keyTopics: {
       type: "array",
       items: { type: "string" },
@@ -84,7 +81,6 @@ const structured = JSON.parse(response.text);
 
 // 5) (Optional) Validate a business rule yourself (schema does NOT guarantee this).
 const words = structured.content.trim().split(/\s+/).filter(Boolean);
-const computedWordCount = words.length;
 
 console.log("Raw JSON text from Gemini:");
 console.log(response.text);

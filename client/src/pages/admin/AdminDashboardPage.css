@@ -45,22 +45,22 @@
 }
 
 .admin-stat-icon.schools {
-    background: rgba(245, 158, 11, 0.1);
+    background: rgba(245, 158, 11, 0.15);
     color: #f59e0b;
 }
 
 .admin-stat-icon.users {
-    background: rgba(102, 126, 234, 0.1);
+    background: rgba(102, 126, 234, 0.15);
     color: var(--primary);
 }
 
 .admin-stat-icon.students {
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(16, 185, 129, 0.15);
     color: var(--accent-emerald);
 }
 
 .admin-stat-icon.revenue {
-    background: rgba(139, 92, 246, 0.1);
+    background: rgba(139, 92, 246, 0.15);
     color: #8b5cf6;
 }
 
@@ -142,17 +142,17 @@
 }
 
 .status-badge.active {
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(16, 185, 129, 0.15);
     color: var(--accent-emerald);
 }
 
 .status-badge.trial {
-    background: rgba(245, 158, 11, 0.1);
+    background: rgba(245, 158, 11, 0.15);
     color: #f59e0b;
 }
 
 .status-badge.inactive {
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.15);
     color: var(--accent-red);
 }
 

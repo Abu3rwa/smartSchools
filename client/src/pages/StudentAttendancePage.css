@@ -1,0 +1,194 @@
+.student-attendance-page {
+    padding: var(--spacing-lg, 1.5rem);
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.student-attendance-page .page-header {
+    margin-bottom: var(--spacing-xl, 2rem);
+}
+
+.student-attendance-page .page-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+    color: var(--text-primary, #111);
+}
+
+.student-attendance-page .header-icon {
+    color: var(--primary, #4f46e5);
+}
+
+.student-attendance-page .page-subtitle {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--text-secondary, #555);
+}
+
+.student-attendance-page .filters-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md, 1rem);
+    margin-bottom: var(--spacing-xl, 2rem);
+}
+
+.student-attendance-page .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.student-attendance-page .filter-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary, #555);
+}
+
+.student-attendance-page .filter-select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: var(--radius-md, 6px);
+    font-size: 0.875rem;
+    min-width: 140px;
+    background: var(--bg-primary, #fff);
+}
+
+.student-attendance-page .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    gap: var(--spacing-md, 1rem);
+    color: var(--text-muted, #666);
+}
+
+.student-attendance-page .summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--spacing-md, 1rem);
+    margin-bottom: var(--spacing-xl, 2rem);
+}
+
+.student-attendance-page .stat-card {
+    background: var(--bg-secondary, #f9fafb);
+    border: 1px solid var(--border-color, #eee);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--spacing-md, 1rem);
+    text-align: center;
+}
+
+.student-attendance-page .stat-card.present {
+    background: var(--success-50, #ecfdf5);
+    border-color: var(--success-200, #a7f3d0);
+}
+
+.student-attendance-page .stat-card.late {
+    background: var(--warning-50, #fffbeb);
+    border-color: var(--warning-200, #fde68a);
+}
+
+.student-attendance-page .stat-card.absent {
+    background: var(--error-50, #fef2f2);
+    border-color: var(--error-200, #fecaca);
+}
+
+.student-attendance-page .stat-card.percentage {
+    background: var(--primary-50, #eef2ff);
+    border-color: var(--primary-200, #c7d2fe);
+}
+
+.student-attendance-page .stat-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary, #111);
+}
+
+.student-attendance-page .stat-card.percentage .stat-value {
+    color: var(--primary, #4f46e5);
+}
+
+.student-attendance-page .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #555);
+}
+
+.student-attendance-page .section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 var(--spacing-md, 1rem) 0;
+    color: var(--text-primary, #111);
+}
+
+.student-attendance-page .empty-state {
+    padding: var(--spacing-xl, 2rem);
+    text-align: center;
+    color: var(--text-muted, #666);
+    font-size: 0.9375rem;
+}
+
+.records-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border-color, #eee);
+    border-radius: var(--radius-md, 8px);
+    overflow: hidden;
+}
+
+.record-item {
+    display: grid;
+    grid-template-columns: 1fr 1fr 80px 100px;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color, #eee);
+    font-size: 0.875rem;
+}
+
+.record-item:last-child {
+    border-bottom: none;
+}
+
+.record-item.status-present {
+    background: var(--success-50, #ecfdf5);
+}
+
+.record-item.status-absent,
+.record-item.status-absent_excused {
+    background: var(--error-50, #fef2f2);
+}
+
+.record-item.status-tardy,
+.record-item.status-tardy_excused {
+    background: var(--warning-50, #fffbeb);
+}
+
+.record-date {
+    font-weight: 500;
+    color: var(--text-primary, #111);
+}
+
+.record-subject {
+    color: var(--text-primary, #111);
+}
+
+.record-period {
+    font-size: 0.8125rem;
+    color: var(--text-secondary, #555);
+}
+
+.record-status {
+    font-weight: 600;
+    font-size: 0.8125rem;
+}
+
+.record-remarks {
+    grid-column: 1 / -1;
+    font-size: 0.8125rem;
+    color: var(--text-muted, #666);
+}

@@ -190,6 +190,51 @@ export const addExamGrade = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Get current student's own grades (for student portal)
+ * @route   GET /api/grades/my-grades
+ * @access  Private (Student)
+ */
+export const getMyGrades = asyncHandler(async (req, res) => {
+    const student = await Student.findOne({ user: req.user._id, status: 'active' });
+    if (!student) {
+        return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const { month, semester, subjectId, academicYear } = req.query;
+    const query = { student: student._id };
+    if (month) query.month = parseInt(month, 10);
+    if (semester) query.semester = parseInt(semester, 10);
+    if (subjectId) query.subject = subjectId;
+    if (academicYear) query.academicYear = academicYear;
+
+    const grades = await Grade.find(query)
+        .populate('subject', 'name code maxMarks passingMarks')
+        .populate('class', 'name grade')
+        .sort({ date: -1 });
+
+    const subjectMap = {};
+    for (const g of grades) {
+        const sid = g.subject?._id?.toString();
+        if (!sid) continue;
+        if (!subjectMap[sid]) {
+            subjectMap[sid] = { subject: g.subject, grades: [], total: 0, count: 0 };
+        }
+        subjectMap[sid].grades.push(g);
+        subjectMap[sid].total += (g.marks / g.maxMarks) * 100;
+        subjectMap[sid].count += 1;
+    }
+    const bySubject = Object.values(subjectMap).map(s => ({
+        ...s,
+        average: s.count > 0 ? Math.round(s.total / s.count) : 0
+    }));
+
+    res.json({
+        success: true,
+        data: { grades, bySubject }
+    });
+});
+
+/**
  * @desc    Get grades for a student
  * @route   GET /api/grades/student/:studentId
  * @access  Private

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { selectUser } from '../store/slices/authSlice';
+import StudentDashboardPage from './StudentDashboardPage';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
 import { fetchStudents, selectStudents } from '../store/slices/studentSlice';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
@@ -32,6 +33,10 @@ const DashboardPage = () => {
         dispatch(fetchStudents({ limit: 5 }));
         dispatch(fetchDashboardStats(academicYear));
     }, [dispatch, academicYear]);
+
+    if (user?.role === 'student') {
+        return <StudentDashboardPage />;
+    }
 
     const stats = [
         {

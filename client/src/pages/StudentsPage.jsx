@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchStudents, selectStudents, selectStudentsLoading, createStudent, updateStudent, importStudents } from '../store/slices/studentSlice';
+import { fetchStudents, selectStudents, selectStudentsLoading, createStudent, updateStudent, deleteStudent, importStudents, createStudentLogin, bulkCreateStudentLogin, resetStudentPassword } from '../store/slices/studentSlice';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
-import { HiOutlinePlus, HiOutlineSearch, HiOutlinePencil, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload, HiOutlineExclamationCircle, HiOutlineCheckCircle } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineSearch, HiOutlinePencil, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload, HiOutlineExclamationCircle, HiOutlineCheckCircle, HiOutlineKey, HiOutlineUserAdd, HiOutlineClipboardCopy } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './StudentsPage.css';
 
@@ -48,6 +48,19 @@ const StudentsPage = () => {
             country: 'South Africa'
         }
     });
+
+    // Credentials modal state
+    const [showCredentials, setShowCredentials] = useState(false);
+    const [credentials, setCredentials] = useState(null); // { email, tempPassword, studentName }
+    const [loginEmail, setLoginEmail] = useState('');
+    const [showLoginEmailPrompt, setShowLoginEmailPrompt] = useState(false);
+    const [loginTargetStudent, setLoginTargetStudent] = useState(null);
+
+    // Bulk login state
+    const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
+    const [showBulkCredentials, setShowBulkCredentials] = useState(false);
+    const [bulkCredentials, setBulkCredentials] = useState(null); // { created: [], errors: [] }
+    const [bulkLoginLoading, setBulkLoginLoading] = useState(false);
 
     // CSV Import state
     const [showImportModal, setShowImportModal] = useState(false);
@@ -142,6 +155,129 @@ const StudentsPage = () => {
                 country: 'South Africa'
             }
         });
+    };
+
+    // ── Student Login Management ──────────────────────────────
+    const handleCreateLogin = (student) => {
+        const email = student.email || student.studentEmail || '';
+        if (!email) {
+            // Need to ask admin for an email
+            setLoginTargetStudent(student);
+            setLoginEmail('');
+            setShowLoginEmailPrompt(true);
+            return;
+        }
+        doCreateLogin(student, email);
+    };
+
+    const doCreateLogin = async (student, email) => {
+        setShowLoginEmailPrompt(false);
+        const result = await dispatch(createStudentLogin({ studentId: student._id, email }));
+        if (createStudentLogin.fulfilled.match(result)) {
+            setCredentials({
+                email: result.payload.data.email,
+                tempPassword: result.payload.data.tempPassword,
+                studentName: `${student.firstName} ${student.lastName}`
+            });
+            setShowCredentials(true);
+            dispatch(fetchStudents()); // refresh list to show linked user
+            toast.success('Login account created!');
+        } else {
+            toast.error(result.payload || 'Failed to create login');
+        }
+    };
+
+    const handleResetPassword = async (student) => {
+        if (!window.confirm(`Reset password for ${student.firstName} ${student.lastName}?`)) return;
+        const result = await dispatch(resetStudentPassword(student._id));
+        if (resetStudentPassword.fulfilled.match(result)) {
+            setCredentials({
+                email: result.payload.data.email,
+                tempPassword: result.payload.data.tempPassword,
+                studentName: `${student.firstName} ${student.lastName}`
+            });
+            setShowCredentials(true);
+            toast.success('Password reset successfully!');
+        } else {
+            toast.error(result.payload || 'Failed to reset password');
+        }
+    };
+
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text).then(() => {
+            toast.success('Copied to clipboard!');
+        }).catch(() => {
+            toast.error('Failed to copy');
+        });
+    };
+
+    // ── Bulk login (admin only) ───────────────────────────────
+    const toggleSelectStudent = (id, hasLogin) => {
+        if (hasLogin) return;
+        setSelectedStudentIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAllWithoutLogin = (studentsWithoutLogin, isAllSelected) => {
+        if (isAllSelected) {
+            setSelectedStudentIds(prev => {
+                const next = new Set(prev);
+                studentsWithoutLogin.forEach(s => next.delete(s._id));
+                return next;
+            });
+        } else {
+            setSelectedStudentIds(prev => {
+                const next = new Set(prev);
+                studentsWithoutLogin.forEach(s => next.add(s._id));
+                return next;
+            });
+        }
+    };
+
+    const handleBulkCreateLogin = async () => {
+        const ids = Array.from(selectedStudentIds);
+        if (ids.length === 0) return;
+        setBulkLoginLoading(true);
+        const result = await dispatch(bulkCreateStudentLogin(ids));
+        setBulkLoginLoading(false);
+        if (bulkCreateStudentLogin.fulfilled.match(result)) {
+            setBulkCredentials(result.payload.data);
+            setShowBulkCredentials(true);
+            setSelectedStudentIds(new Set());
+            dispatch(fetchStudents());
+            toast.success(result.payload.message || 'Logins created');
+        } else {
+            toast.error(result.payload || 'Failed to create logins');
+        }
+    };
+
+    const downloadBulkCredentialsCSV = () => {
+        if (!bulkCredentials?.created?.length) return;
+        const header = 'Student Name,Email,Password';
+        const rows = bulkCredentials.created.map(c =>
+            [c.name, c.email, c.tempPassword].map(f => `"${String(f).replace(/"/g, '""')}"`).join(',')
+        );
+        const csv = [header, ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'student_login_credentials.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('CSV downloaded');
+    };
+
+    const copyAllBulkCredentials = () => {
+        if (!bulkCredentials?.created?.length) return;
+        const block = bulkCredentials.created
+            .map(c => `${c.name}\t${c.email}\t${c.tempPassword}`)
+            .join('\n');
+        copyToClipboard(block);
     };
 
     // CSV Import functions
@@ -253,6 +389,10 @@ const StudentsPage = () => {
         return matchesSearch && matchesClass;
     });
 
+    const studentsWithoutLogin = filteredStudents.filter(s => !s.user);
+    const isAllWithoutLoginSelected = studentsWithoutLogin.length > 0 &&
+        studentsWithoutLogin.every(s => selectedStudentIds.has(s._id));
+
     return (
         <div className="students-page">
             {/* Header */}
@@ -263,6 +403,15 @@ const StudentsPage = () => {
                 </div>
                 {isAdmin && (
                     <div className="header-actions">
+                        <button
+                            className="btn btn-outline"
+                            onClick={handleBulkCreateLogin}
+                            disabled={selectedStudentIds.size === 0 || bulkLoginLoading}
+                            title={selectedStudentIds.size === 0 ? 'Select students without a login first' : ''}
+                        >
+                            <HiOutlineUserAdd size={20} />
+                            Create logins for selected ({selectedStudentIds.size})
+                        </button>
                         <button className="btn btn-outline" onClick={() => setShowImportModal(true)}>
                             <HiOutlineUpload size={20} />
                             Import CSV
@@ -306,17 +455,44 @@ const StudentsPage = () => {
                         <table>
                             <thead>
                                 <tr>
+                                    {isAdmin && (
+                                        <th className="th-checkbox">
+                                            {studentsWithoutLogin.length > 0 && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isAllWithoutLoginSelected}
+                                                    onChange={() => toggleSelectAllWithoutLogin(studentsWithoutLogin, isAllWithoutLoginSelected)}
+                                                    title="Select all without login"
+                                                />
+                                            )}
+                                        </th>
+                                    )}
                                     <th>Student</th>
                                     <th>ID</th>
                                     <th>Class</th>
                                     <th>Gender</th>
                                     <th>Status</th>
+                                    {isAdmin && <th>Login</th>}
                                     {isAdmin && <th>Actions</th>}
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredStudents.map(student => (
                                     <tr key={student._id}>
+                                        {isAdmin && (
+                                            <td className="td-checkbox">
+                                                {student.user ? (
+                                                    <span className="checkbox-placeholder" title="Has login">—</span>
+                                                ) : (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedStudentIds.has(student._id)}
+                                                        onChange={() => toggleSelectStudent(student._id, !!student.user)}
+                                                        title="Select for bulk login"
+                                                    />
+                                                )}
+                                            </td>
+                                        )}
                                         <td>
                                             <div className="student-cell">
                                                 <div className="avatar-sm">
@@ -338,6 +514,31 @@ const StudentsPage = () => {
                                         </td>
                                         {isAdmin && (
                                             <td>
+                                                {student.user ? (
+                                                    <div className="login-status">
+                                                        <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>Has Login</span>
+                                                        <button
+                                                            className="btn-icon"
+                                                            onClick={() => handleResetPassword(student)}
+                                                            title="Reset password"
+                                                        >
+                                                            <HiOutlineKey size={16} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        className="btn btn-xs btn-outline"
+                                                        onClick={() => handleCreateLogin(student)}
+                                                        title="Create login account"
+                                                    >
+                                                        <HiOutlineUserAdd size={14} />
+                                                        <span>Create Login</span>
+                                                    </button>
+                                                )}
+                                            </td>
+                                        )}
+                                        {isAdmin && (
+                                            <td>
                                                 <div className="student-actions">
                                                     <button 
                                                         className="btn-icon"
@@ -350,7 +551,13 @@ const StudentsPage = () => {
                                                         className="btn-icon text-danger"
                                                         onClick={() => {
                                                             if (window.confirm(`Delete ${student.firstName} ${student.lastName}?`)) {
-                                                                // TODO: Add delete functionality
+                                                                dispatch(deleteStudent(student._id)).then(result => {
+                                                                    if (deleteStudent.fulfilled.match(result)) {
+                                                                        toast.success('Student deleted');
+                                                                    } else {
+                                                                        toast.error(result.payload || 'Failed to delete');
+                                                                    }
+                                                                });
                                                             }
                                                         }}
                                                         title="Delete student"
@@ -364,7 +571,7 @@ const StudentsPage = () => {
                                 ))}
                                 {filteredStudents.length === 0 && (
                                     <tr>
-                                        <td colSpan={isAdmin ? 6 : 5} className="empty-row">
+                                        <td colSpan={isAdmin ? 8 : 5} className="empty-row">
                                             No students found
                                         </td>
                                     </tr>
@@ -675,6 +882,171 @@ const StudentsPage = () => {
                                 </button>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* ── Credentials Modal (shown once after create-login / reset-password) ── */}
+            {showCredentials && credentials && (
+                <div className="modal-overlay" onClick={() => setShowCredentials(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+                        <div className="modal-header">
+                            <h3>Student Login Credentials</h3>
+                            <button className="modal-close" onClick={() => setShowCredentials(false)}>&times;</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="credentials-card">
+                                <p className="credentials-warning">
+                                    <HiOutlineExclamationCircle size={18} />
+                                    <strong>Copy these credentials now!</strong> The password cannot be viewed again.
+                                </p>
+                                <div className="credentials-row">
+                                    <label>Student</label>
+                                    <span>{credentials.studentName}</span>
+                                </div>
+                                <div className="credentials-row">
+                                    <label>Email</label>
+                                    <div className="credentials-value">
+                                        <code>{credentials.email}</code>
+                                        <button className="btn-icon" onClick={() => copyToClipboard(credentials.email)} title="Copy email">
+                                            <HiOutlineClipboardCopy size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="credentials-row">
+                                    <label>Password</label>
+                                    <div className="credentials-value">
+                                        <code className="password-display">{credentials.tempPassword}</code>
+                                        <button className="btn-icon" onClick={() => copyToClipboard(credentials.tempPassword)} title="Copy password">
+                                            <HiOutlineClipboardCopy size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <button
+                                    className="btn btn-outline btn-sm mt-md"
+                                    onClick={() => {
+                                        const text = `Student: ${credentials.studentName}\nEmail: ${credentials.email}\nPassword: ${credentials.tempPassword}`;
+                                        copyToClipboard(text);
+                                    }}
+                                >
+                                    <HiOutlineClipboardCopy size={16} />
+                                    Copy All
+                                </button>
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-primary" onClick={() => setShowCredentials(false)}>
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Bulk credentials modal ── */}
+            {showBulkCredentials && bulkCredentials && (
+                <div className="modal-overlay" onClick={() => { setShowBulkCredentials(false); setBulkCredentials(null); }}>
+                    <div className="modal modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+                        <div className="modal-header">
+                            <h3>Bulk Login Credentials</h3>
+                            <button className="modal-close" onClick={() => { setShowBulkCredentials(false); setBulkCredentials(null); }}>&times;</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="credentials-card">
+                                <p className="credentials-warning">
+                                    <HiOutlineExclamationCircle size={18} />
+                                    <strong>Copy or download these credentials now!</strong> Passwords cannot be viewed again.
+                                </p>
+                                {bulkCredentials.created?.length > 0 && (
+                                    <>
+                                        <div className="table-container" style={{ maxHeight: 280, overflow: 'auto', marginBottom: '1rem' }}>
+                                            <table>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Student Name</th>
+                                                        <th>Email</th>
+                                                        <th>Password</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {bulkCredentials.created.map((c, i) => (
+                                                        <tr key={c.studentId || i}>
+                                                            <td>{c.name}</td>
+                                                            <td><code className="font-mono text-sm">{c.email}</code></td>
+                                                            <td><code className="password-display font-mono text-sm">{c.tempPassword}</code></td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className="bulk-credentials-actions">
+                                            <button type="button" className="btn btn-outline btn-sm" onClick={downloadBulkCredentialsCSV}>
+                                                <HiOutlineDownload size={16} />
+                                                Download CSV
+                                            </button>
+                                            <button type="button" className="btn btn-outline btn-sm" onClick={copyAllBulkCredentials}>
+                                                <HiOutlineClipboardCopy size={16} />
+                                                Copy All
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                                {bulkCredentials.errors?.length > 0 && (
+                                    <div className="import-errors mt-md">
+                                        <h4><HiOutlineExclamationCircle /> Issues</h4>
+                                        <ul>
+                                            {bulkCredentials.errors.map((err, i) => (
+                                                <li key={i}>
+                                                    {err.name ? `${err.name}: ` : ''}{err.error}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-primary" onClick={() => { setShowBulkCredentials(false); setBulkCredentials(null); }}>
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Email Prompt Modal (when student has no email) ── */}
+            {showLoginEmailPrompt && loginTargetStudent && (
+                <div className="modal-overlay" onClick={() => setShowLoginEmailPrompt(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+                        <div className="modal-header">
+                            <h3>Enter Email for Login</h3>
+                            <button className="modal-close" onClick={() => setShowLoginEmailPrompt(false)}>&times;</button>
+                        </div>
+                        <form onSubmit={(e) => { e.preventDefault(); doCreateLogin(loginTargetStudent, loginEmail); }}>
+                            <div className="modal-body">
+                                <p className="text-muted">
+                                    <strong>{loginTargetStudent.firstName} {loginTargetStudent.lastName}</strong> doesn't have an email on file. Enter one to create their login account.
+                                </p>
+                                <div className="form-group">
+                                    <label>Email Address *</label>
+                                    <input
+                                        type="email"
+                                        value={loginEmail}
+                                        onChange={(e) => setLoginEmail(e.target.value)}
+                                        placeholder="student@example.com"
+                                        required
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowLoginEmailPrompt(false)}>
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn btn-primary" disabled={!loginEmail}>
+                                    Create Login
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

@@ -17,6 +17,8 @@ import {
   HiOutlineUsers,
   HiOutlineChevronLeft,
   HiOutlineChevronRight,
+  HiOutlineLightningBolt,
+  HiOutlineClipboardCheck,
 } from "react-icons/hi";
 import "./Sidebar.css";
 
@@ -26,11 +28,22 @@ const Sidebar = () => {
   const sidebarOpen = useSelector(selectSidebarOpen);
   const isAdmin = user?.role === "admin";
   const isTeacher = user?.role === "teacher";
+  const isStudent = user?.role === "student";
 
   const navItems = [
     { path: "/portal/dashboard", icon: HiOutlineHome, label: "Dashboard" },
-    { path: "/portal/classes", icon: HiOutlineAcademicCap, label: "Classes" },
-    { path: "/portal/students", icon: HiOutlineUserGroup, label: "Students" },
+    {
+      path: "/portal/classes",
+      icon: HiOutlineAcademicCap,
+      label: "Classes",
+      roles: ["admin", "teacher"],
+    },
+    {
+      path: "/portal/students",
+      icon: HiOutlineUserGroup,
+      label: "Students",
+      roles: ["admin", "teacher"],
+    },
     {
       path: "/portal/my-schedule",
       icon: HiOutlineCalendar,
@@ -95,17 +108,50 @@ const Sidebar = () => {
       path: "/portal/lessons",
       icon: HiOutlineDocumentText,
       label: "Lesson Plans",
+      roles: ["admin", "teacher"],
     },
     {
       path: "/portal/grades/entry",
       icon: HiOutlineClipboardList,
       label: "Grade Entry",
+      roles: ["admin", "teacher"],
     },
     {
       path: "/portal/subjects",
       icon: HiOutlineBookOpen,
       label: "Subjects",
       admin: true,
+    },
+    {
+      path: "/portal/standards",
+      icon: HiOutlineClipboardCheck,
+      label: "Standards",
+      roles: ["admin", "teacher"],
+      end: true,
+    },
+    {
+      path: "/portal/standards/assign",
+      icon: HiOutlineClipboardCheck,
+      label: "Assign Standards",
+      roles: ["admin", "teacher"],
+    },
+    {
+      path: "/portal/my-grades",
+      icon: HiOutlineClipboardList,
+      label: "My Grades",
+      roles: ["student"],
+    },
+    {
+      path: "/portal/my-attendance",
+      icon: HiOutlineClipboardCheck,
+      label: "My Attendance",
+      roles: ["student"],
+    },
+    {
+      path: "/portal/practice",
+      icon: HiOutlineLightningBolt,
+      label: "Practice",
+      roles: ["student"],
     },
     {
       path: "/portal/notifications",
@@ -116,8 +162,11 @@ const Sidebar = () => {
   ];
 
   const filteredNavItems = navItems.filter((item) => {
+    // If roles array is provided, check if user's role is included
+    if (item.roles) return item.roles.includes(user?.role);
     if (item.admin && !isAdmin) return false;
     if (item.teacher && !isTeacher) return false;
+    if (item.student && !isStudent) return false;
     return true;
   });
 
@@ -150,6 +199,7 @@ const Sidebar = () => {
           <NavLink
             key={item.path}
             to={item.path}
+            end={item.end || false}
             className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
           >
             <item.icon className="nav-icon" size={22} />

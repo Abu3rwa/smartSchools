@@ -11,14 +11,19 @@ import {
     exportAttendanceData,
     lockAttendance,
     getMyTodayPeriods,
-    takePeriodAttendance
+    takePeriodAttendance,
+    getMyAttendance
 } from '../controllers/attendanceController.js';
+import { authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // All routes require authentication and school context
 router.use(protect);
 router.use(requireSchoolContext);
+
+// Student: own attendance
+router.get('/my-attendance', authorize('student'), getMyAttendance);
 
 // Teacher period-based attendance
 router.get('/my-today', getMyTodayPeriods);

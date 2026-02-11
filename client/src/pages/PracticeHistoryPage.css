@@ -1,0 +1,100 @@
+.practice-history {
+    animation: fadeIn 0.4s ease;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.practice-history .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    margin-bottom: var(--spacing-md);
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 0;
+}
+
+.practice-history .back-link:hover {
+    color: var(--primary-400);
+}
+
+.history-header {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.history-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    transition: all 0.2s ease;
+}
+
+.history-item:hover {
+    border-color: var(--border-color-hover);
+}
+
+.history-item.correct {
+    border-left: 3px solid var(--success-400, #34d399);
+}
+
+.history-item.incorrect {
+    border-left: 3px solid var(--danger-400, #f87171);
+}
+
+.history-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
+}
+
+.history-item-header .attempt-num {
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.history-item-header .attempt-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.history-question {
+    font-size: 0.9rem;
+    margin-bottom: var(--spacing-xs);
+    line-height: 1.5;
+}
+
+.history-answers {
+    display: flex;
+    gap: var(--spacing-lg);
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.history-answers .label {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.history-empty {
+    text-align: center;
+    padding: var(--spacing-2xl);
+    color: var(--text-muted);
+}

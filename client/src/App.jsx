@@ -1,58 +1,72 @@
-import { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { selectIsAuthenticated, selectAuth, selectUser, fetchCurrentUser } from './store/slices/authSlice';
-import { selectTheme } from './store/slices/uiSlice';
+import { useEffect } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import {
+  selectIsAuthenticated,
+  selectAuth,
+  selectUser,
+  fetchCurrentUser,
+} from "./store/slices/authSlice";
+import { selectTheme } from "./store/slices/uiSlice";
 
 // Layouts
-import MainLayout from './components/layout/MainLayout';
-import AdminLayout from './components/layout/AdminLayout';
+import MainLayout from "./components/layout/MainLayout";
+import AdminLayout from "./components/layout/AdminLayout";
 
 // Pages
-import LandingPage from './pages/LandingPage';
-import RegisterSchoolPage from './pages/RegisterSchoolPage';
-import LoginPage from './pages/LoginPage';
-import AuthCallbackPage from './pages/AuthCallbackPage';
-import DashboardPage from './pages/DashboardPage';
-import ClassesPage from './pages/ClassesPage';
-import ClassDetailPage from './pages/ClassDetailPage';
-import StudentsPage from './pages/StudentsPage';
-import StudentDetailPage from './pages/StudentDetailPage';
-import GradeEntryPage from './pages/GradeEntryPage';
-import GradeReportPage from './pages/GradeReportPage';
-import WeeklyReportPage from './pages/WeeklyReportPage';
-import GradebookPage from './pages/GradebookPage';
-import TeachersPage from './pages/TeachersPage';
-import TeacherDetailsPage from './pages/TeacherDetailsPage';
-import SubjectsPage from './pages/SubjectsPage';
-import NotificationsPage from './pages/NotificationsPage';
-import SettingsPage from './pages/SettingsPage';
-import AdminSchedulePage from './pages/admin/AdminSchedulePage';
-import AdminAttendancePage from './pages/admin/AdminAttendancePage';
-import AdminSchoolCalendarPage from './pages/admin/AdminSchoolCalendarPage';
-import AdminTimetablePage from './pages/admin/AdminTimetablePage';
-import TeacherSchedulePage from './pages/teacher/TeacherSchedulePage';
-import TeacherTimetablePage from './pages/teacher/TeacherTimetablePage';
-import TeacherAttendanceNewPage from './pages/teacher/TeacherAttendanceNewPage';
-import TeacherNewslettersPage from './pages/teacher/TeacherNewslettersPage';
-import LessonPlanPage from './pages/LessonPlanPage';
-import AdminNewslettersPage from './pages/admin/AdminNewslettersPage';
+import LandingPage from "./pages/LandingPage";
+import RegisterSchoolPage from "./pages/RegisterSchoolPage";
+import LoginPage from "./pages/LoginPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
+import DashboardPage from "./pages/DashboardPage";
+import ClassesPage from "./pages/ClassesPage";
+import ClassDetailPage from "./pages/ClassDetailPage";
+import StudentsPage from "./pages/StudentsPage";
+import StudentDetailPage from "./pages/StudentDetailPage";
+import GradeEntryPage from "./pages/GradeEntryPage";
+import GradeReportPage from "./pages/GradeReportPage";
+import WeeklyReportPage from "./pages/WeeklyReportPage";
+import GradebookPage from "./pages/GradebookPage";
+import TeachersPage from "./pages/TeachersPage";
+import TeacherDetailsPage from "./pages/TeacherDetailsPage";
+import SubjectsPage from "./pages/SubjectsPage";
+import NotificationsPage from "./pages/NotificationsPage";
+import SettingsPage from "./pages/SettingsPage";
+import AdminSchedulePage from "./pages/admin/AdminSchedulePage";
+import AdminAttendancePage from "./pages/admin/AdminAttendancePage";
+import AdminSchoolCalendarPage from "./pages/admin/AdminSchoolCalendarPage";
+import AdminTimetablePage from "./pages/admin/AdminTimetablePage";
+import TeacherSchedulePage from "./pages/teacher/TeacherSchedulePage";
+import TeacherTimetablePage from "./pages/teacher/TeacherTimetablePage";
+import TeacherAttendanceNewPage from "./pages/teacher/TeacherAttendanceNewPage";
+import TeacherNewslettersPage from "./pages/teacher/TeacherNewslettersPage";
+import LessonPlanPage from "./pages/LessonPlanPage";
+import AdminNewslettersPage from "./pages/admin/AdminNewslettersPage";
 
 // Report Pages
-import AdvancedReportGenerator from './pages/reports/AdvancedReportGenerator';
-import ReportAnalytics from './pages/reports/ReportAnalytics';
-import ReportTemplates from './pages/reports/ReportTemplates';
-import ReportHistory from './pages/reports/ReportHistory';
+import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator";
+import ReportAnalytics from "./pages/reports/ReportAnalytics";
+import ReportTemplates from "./pages/reports/ReportTemplates";
+import ReportHistory from "./pages/reports/ReportHistory";
+
+// Standards Practice Pages
+import StandardsPage from "./pages/StandardsPage";
+import StandardAssignPage from "./pages/StandardAssignPage";
+import PracticeDashboardPage from "./pages/PracticeDashboardPage";
+import PracticeSessionPage from "./pages/PracticeSessionPage";
+import PracticeHistoryPage from "./pages/PracticeHistoryPage";
+import StudentGradesPage from "./pages/StudentGradesPage";
+import StudentAttendancePage from "./pages/StudentAttendancePage";
 
 // Platform Admin Pages
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
-import AdminSchoolsPage from './pages/admin/AdminSchoolsPage';
-import AdminSchoolDetailsPage from './pages/admin/AdminSchoolDetailsPage';
-import AdminUsersPage from './pages/admin/AdminUsersPage';
-import AdminSettingsPage from './pages/admin/AdminSettingsPage';
-import AdminSubscriptionsPage from './pages/admin/AdminSubscriptionsPage';
-import AdminSubscriptionDetailsPage from './pages/admin/AdminSubscriptionDetailsPage';
-import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
+import AdminSchoolsPage from "./pages/admin/AdminSchoolsPage";
+import AdminSchoolDetailsPage from "./pages/admin/AdminSchoolDetailsPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
+import AdminSubscriptionsPage from "./pages/admin/AdminSubscriptionsPage";
+import AdminSubscriptionDetailsPage from "./pages/admin/AdminSubscriptionDetailsPage";
+import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage";
 
 // Protected Route - requires authentication
 const ProtectedRoute = ({ children }) => {
@@ -87,7 +101,7 @@ const PortalRoute = ({ children }) => {
     );
   }
 
-  if (user?.role === 'super_admin') {
+  if (user?.role === "super_admin") {
     return <Navigate to="/admin/dashboard" replace />;
   }
 
@@ -109,10 +123,12 @@ const RoleRoute = ({ roles, children }) => {
 
   if (!user) return <Navigate to="/" replace />;
   // super_admin should only access routes that explicitly allow it
-  if (user.role === 'super_admin') {
-    return roles.includes('super_admin')
-      ? children
-      : <Navigate to="/admin/dashboard" replace />;
+  if (user.role === "super_admin") {
+    return roles.includes("super_admin") ? (
+      children
+    ) : (
+      <Navigate to="/admin/dashboard" replace />
+    );
   }
   if (!roles.includes(user.role)) return <Navigate to="/portal" replace />;
 
@@ -125,11 +141,11 @@ function App() {
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (token && isAuthenticated) {
       dispatch(fetchCurrentUser());
     }
@@ -161,37 +177,276 @@ function App() {
         <Route path="settings" element={<SettingsPage />} />
 
         {/* Admin + Teacher */}
-        <Route path="classes" element={<RoleRoute roles={['admin', 'teacher']}><ClassesPage /></RoleRoute>} />
-        <Route path="classes/:id" element={<RoleRoute roles={['admin', 'teacher']}><ClassDetailPage /></RoleRoute>} />
-        <Route path="classes/:classId/gradebook" element={<RoleRoute roles={['admin', 'teacher']}><GradebookPage /></RoleRoute>} />
-        <Route path="students" element={<RoleRoute roles={['admin', 'teacher']}><StudentsPage /></RoleRoute>} />
-        <Route path="students/:id" element={<RoleRoute roles={['admin', 'teacher']}><StudentDetailPage /></RoleRoute>} />
-        <Route path="grades/entry" element={<RoleRoute roles={['admin', 'teacher']}><GradeEntryPage /></RoleRoute>} />
-        <Route path="grades/report/:studentId" element={<RoleRoute roles={['admin', 'teacher']}><GradeReportPage /></RoleRoute>} />
-        <Route path="grades/weekly/class/:classId" element={<RoleRoute roles={['admin', 'teacher']}><WeeklyReportPage /></RoleRoute>} />
-        <Route path="lessons" element={<RoleRoute roles={['admin', 'teacher']}><LessonPlanPage /></RoleRoute>} />
-        <Route path="subjects" element={<RoleRoute roles={['admin', 'teacher']}><SubjectsPage /></RoleRoute>} />
-        <Route path="notifications" element={<RoleRoute roles={['admin', 'teacher']}><NotificationsPage /></RoleRoute>} />
-        <Route path="schedules" element={<RoleRoute roles={['admin']}><AdminSchedulePage /></RoleRoute>} />
-        <Route path="school-calendar" element={<RoleRoute roles={['admin']}><AdminSchoolCalendarPage /></RoleRoute>} />
-        <Route path="timetable" element={<RoleRoute roles={['admin']}><AdminTimetablePage /></RoleRoute>} />
-        <Route path="attendance" element={<RoleRoute roles={['admin']}><AdminAttendancePage /></RoleRoute>} />
-        <Route path="newsletters/admin" element={<RoleRoute roles={['admin']}><AdminNewslettersPage /></RoleRoute>} />
-        <Route path="my-schedule" element={<RoleRoute roles={['teacher']}><TeacherSchedulePage /></RoleRoute>} />
-        <Route path="my-timetable" element={<RoleRoute roles={['teacher', 'admin']}><TeacherTimetablePage /></RoleRoute>} />
-        <Route path="my-attendance" element={<RoleRoute roles={['teacher']}><TeacherAttendanceNewPage /></RoleRoute>} />
-        <Route path="newsletters" element={<RoleRoute roles={['teacher']}><TeacherNewslettersPage /></RoleRoute>} />
-        
+        <Route
+          path="classes"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <ClassesPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="classes/:id"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <ClassDetailPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="classes/:classId/gradebook"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <GradebookPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="students"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <StudentsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="students/:id"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <StudentDetailPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="grades/entry"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <GradeEntryPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="grades/report/:studentId"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <GradeReportPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="grades/weekly/class/:classId"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <WeeklyReportPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="lessons"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <LessonPlanPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="subjects"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <SubjectsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="notifications"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <NotificationsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="schedules"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <AdminSchedulePage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="school-calendar"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <AdminSchoolCalendarPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="timetable"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <AdminTimetablePage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="attendance"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <AdminAttendancePage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="newsletters/admin"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <AdminNewslettersPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="my-schedule"
+          element={
+            <RoleRoute roles={["teacher"]}>
+              <TeacherSchedulePage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="my-timetable"
+          element={
+            <RoleRoute roles={["teacher", "admin"]}>
+              <TeacherTimetablePage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="my-attendance"
+          element={
+            <RoleRoute roles={["teacher"]}>
+              <TeacherAttendanceNewPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="newsletters"
+          element={
+            <RoleRoute roles={["teacher"]}>
+              <TeacherNewslettersPage />
+            </RoleRoute>
+          }
+        />
+
         {/* Admin only */}
-        <Route path="teachers" element={<RoleRoute roles={['admin']}><TeachersPage /></RoleRoute>} />
-        <Route path="teachers/:id" element={<RoleRoute roles={['admin']}><TeacherDetailsPage /></RoleRoute>} />
-        
+        <Route
+          path="teachers"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <TeachersPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="teachers/:id"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <TeacherDetailsPage />
+            </RoleRoute>
+          }
+        />
+
         {/* Reports Routes */}
-        <Route path="reports/generator" element={<RoleRoute roles={['admin', 'teacher']}><AdvancedReportGenerator /></RoleRoute>} />
-        <Route path="reports/analytics" element={<RoleRoute roles={['admin', 'teacher']}><ReportAnalytics /></RoleRoute>} />
-        <Route path="reports/templates" element={<RoleRoute roles={['admin', 'teacher']}><ReportTemplates /></RoleRoute>} />
-        <Route path="reports/history" element={<RoleRoute roles={['admin', 'teacher']}><ReportHistory /></RoleRoute>} />
-        
+        <Route
+          path="reports/generator"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <AdvancedReportGenerator />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="reports/analytics"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <ReportAnalytics />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="reports/templates"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <ReportTemplates />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="reports/history"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <ReportHistory />
+            </RoleRoute>
+          }
+        />
+
+        {/* Standards Practice Routes */}
+        <Route
+          path="standards"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <StandardsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="standards/assign"
+          element={
+            <RoleRoute roles={["admin", "teacher"]}>
+              <StandardAssignPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="practice"
+          element={
+            <RoleRoute roles={["student", "admin", "teacher"]}>
+              <PracticeDashboardPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="practice/:assignmentId"
+          element={
+            <RoleRoute roles={["student", "admin", "teacher"]}>
+              <PracticeSessionPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="practice/:assignmentId/history"
+          element={
+            <RoleRoute roles={["student", "admin", "teacher"]}>
+              <PracticeHistoryPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="my-grades"
+          element={
+            <RoleRoute roles={["student"]}>
+              <StudentGradesPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="my-attendance"
+          element={
+            <RoleRoute roles={["student"]}>
+              <StudentAttendancePage />
+            </RoleRoute>
+          }
+        />
       </Route>
 
       {/* Platform Admin Routes (super_admin only) */}
@@ -199,7 +454,7 @@ function App() {
         path="/admin/*"
         element={
           <ProtectedRoute>
-            <RoleRoute roles={['super_admin']}>
+            <RoleRoute roles={["super_admin"]}>
               <AdminLayout />
             </RoleRoute>
           </ProtectedRoute>
@@ -214,7 +469,10 @@ function App() {
         <Route path="analytics" element={<AdminAnalyticsPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
-        <Route path="subscriptions/:id" element={<AdminSubscriptionDetailsPage />} />
+        <Route
+          path="subscriptions/:id"
+          element={<AdminSubscriptionDetailsPage />}
+        />
       </Route>
 
       {/* Catch all */}

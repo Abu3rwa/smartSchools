@@ -346,11 +346,11 @@
 }
 
 .insight-value.positive {
-    color: #10b981;
+    color: var(--accent-emerald);
 }
 
 .insight-value.warning {
-    color: #f59e0b;
+    color: var(--accent-amber);
 }
 
 /* Timestamp Display */
@@ -394,18 +394,18 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #10b981;
+    background: var(--accent-emerald);
     box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
     animation: pulse 2s infinite;
 }
 
 .status-indicator.pending {
-    background: #f59e0b;
+    background: var(--accent-amber);
     box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
 }
 
 .status-indicator.error {
-    background: #ef4444;
+    background: var(--accent-red);
     box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
 }
 

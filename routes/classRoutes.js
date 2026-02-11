@@ -19,11 +19,11 @@ router.use(protect);
 
 // CRUD routes
 router.route('/')
-    .get(getClasses)
+    .get(authorize('admin', 'teacher'), getClasses)
     .post(authorize('admin'), validationRules.createClass, validate, createClass);
 
 router.route('/:id')
-    .get(validationRules.mongoId, validate, getClass)
+    .get(authorize('admin', 'teacher'), validationRules.mongoId, validate, getClass)
     .put(authorize('admin'), validationRules.mongoId, validate, updateClass)
     .delete(authorize('admin'), validationRules.mongoId, validate, deleteClass);
 
@@ -32,6 +32,6 @@ router.post('/:id/subjects', authorize('admin'), validationRules.mongoId, valida
 router.delete('/:id/subjects/:subjectId', authorize('admin'), removeSubjectFromClass);
 
 // Statistics
-router.get('/:id/stats', validationRules.mongoId, validate, getClassStats);
+router.get('/:id/stats', authorize('admin', 'teacher'), validationRules.mongoId, validate, getClassStats);
 
 export default router;

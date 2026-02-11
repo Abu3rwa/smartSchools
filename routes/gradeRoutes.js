@@ -3,6 +3,7 @@ import {
     addDailyGrade,
     bulkAddGrades,
     addExamGrade,
+    getMyGrades,
     getStudentGrades,
     getStudentGradeReport,
     getMonthlyAverage,
@@ -32,6 +33,7 @@ router.post('/bulk', authorize('teacher', 'admin'), bulkAddGrades);
 router.post('/exam', authorize('teacher', 'admin'), addExamGrade);
 
 // Get grades
+router.get('/my-grades', authorize('student'), getMyGrades);
 router.get('/student/:studentId', getStudentGrades);
 router.get('/report/:studentId', getStudentGradeReport);
 router.get('/class/:classId', authorize('teacher', 'admin'), getClassGrades);

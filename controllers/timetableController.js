@@ -4,6 +4,7 @@ import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
 import User from '../models/User.js';
+import Student from '../models/Student.js';
 
 // @desc    List periods
 // @route   GET /api/timetable/periods
@@ -244,6 +245,52 @@ export const listAssignments = asyncHandler(async (req, res) => {
     res.json({ success: true, data: { assignments } });
 });
 
+// @desc    Get student's today schedule (by currentClass)
+// @route   GET /api/timetable/my-schedule
+// @access  Private (Student)
+export const getStudentTimetable = asyncHandler(async (req, res) => {
+    const student = await Student.findOne({ user: req.user._id, status: 'active' })
+        .select('currentClass')
+        .populate('currentClass', 'name grade section');
+    if (!student || !student.currentClass) {
+        return res.json({ success: true, data: { schedule: [] } });
+    }
+
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 Sun .. 6 Sat
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const assignments = await TeacherPeriodAssignment.find({
+        school: req.schoolId,
+        class: student.currentClass._id,
+        isActive: true,
+        startDate: { $lte: endOfDay },
+        endDate: { $gte: startOfDay },
+        $or: [
+            { daysOfWeek: { $exists: false } },
+            { daysOfWeek: { $size: 0 } },
+            { daysOfWeek: dayOfWeek }
+        ]
+    })
+        .populate('period', 'name startTime endTime order')
+        .populate('subject', 'name code')
+        .populate('room', 'name')
+        .populate('teacher', 'firstName lastName')
+        .sort({ 'period.order': 1, 'period.startTime': 1 });
+
+    const schedule = assignments.map(a => ({
+        period: a.period,
+        subject: a.subject,
+        room: a.room,
+        teacher: a.teacher
+    }));
+
+    res.json({ success: true, data: { schedule } });
+});
+
 // @desc    Get current teacher's timetable (periods + their assignments)
 // @route   GET /api/timetable/my-timetable
 // @access  Private (Teacher)
@@ -360,3 +407,5 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
 
     res.json({ success: true, message: 'Assignment deleted' });
 });
+
+//
