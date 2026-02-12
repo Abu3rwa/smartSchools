@@ -33,8 +33,39 @@
 
 .student-dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: var(--spacing-lg, 1.5rem);
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+}
+
+/* Desktop: large schedule on the left, other cards stacked on the right */
+@media (min-width: 1024px) {
+    .student-dashboard-grid {
+        grid-template-columns: 2fr 1fr;
+        grid-template-areas:
+            "schedule cards"
+            "schedule cards";
+        gap: var(--spacing-lg, 1.5rem);
+    }
+
+    .schedule-card { grid-area: schedule; }
+    .grades-card { grid-area: cards; }
+    .practice-card { grid-area: cards; }
+    .due-card { grid-area: cards; }
+
+    /* Stack the right-side cards inside their column */
+    .grades-card,
+    .practice-card,
+    .due-card {
+        margin-bottom: var(--spacing-md, 1rem);
+    }
+}
+
+/* Larger tablets / small desktops: two columns equal width */
+@media (min-width: 768px) and (max-width: 1023px) {
+    .student-dashboard-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 .student-card {
@@ -43,6 +74,7 @@
     padding: var(--spacing-lg, 1.5rem);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     border: 1px solid var(--border-color, #eee);
+    position: relative;
 }
 
 .student-card h2 {

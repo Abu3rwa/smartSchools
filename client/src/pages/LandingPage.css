@@ -1,5 +1,6 @@
 /* ==========================================
    GradeBook Pro — SaaS Landing Page
+   Professional, polished layout and typography
    ========================================== */
 
 .landing-page {
@@ -7,6 +8,7 @@
     background: var(--bg-primary);
     position: relative;
     overflow-x: hidden;
+    font-feature-settings: "kern" 1, "liga" 1;
 }
 
 /* Background */
@@ -15,9 +17,9 @@
     inset: 0;
     z-index: -2;
     background:
-        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61, 159, 235, 0.15), transparent),
-        radial-gradient(ellipse 60% 40% at 100% 50%, rgba(139, 92, 246, 0.08), transparent),
-        radial-gradient(ellipse 60% 40% at 0% 80%, rgba(61, 159, 235, 0.06), transparent);
+        radial-gradient(ellipse 90% 60% at 50% -15%, rgba(61, 159, 235, 0.18), transparent 50%),
+        radial-gradient(ellipse 70% 50% at 100% 40%, rgba(139, 92, 246, 0.1), transparent 45%),
+        radial-gradient(ellipse 70% 50% at 0% 70%, rgba(61, 159, 235, 0.08), transparent 45%);
     pointer-events: none;
 }
 
@@ -26,11 +28,11 @@
     inset: 0;
     z-index: -1;
     background-image:
-        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 64px 64px;
-    mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black, transparent 70%);
-    -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 0%, black, transparent 70%);
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 85% 75% at 50% 0%, black, transparent 65%);
+    -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 0%, black, transparent 65%);
     pointer-events: none;
 }
 
@@ -41,14 +43,14 @@
     left: 0;
     right: 0;
     z-index: 1000;
-    background: rgba(15, 15, 26, 0.8);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(15, 15, 26, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .landing-header-inner {
-    max-width: 1200px;
+    max-width: 1280px;
     margin: 0 auto;
     padding: 0.875rem 1.5rem;
     display: flex;
@@ -100,6 +102,12 @@
 
 .landing-nav a:hover {
     color: var(--text-primary);
+}
+
+.landing-nav a:focus-visible {
+    outline: 2px solid var(--primary-400);
+    outline-offset: 4px;
+    border-radius: 4px;
 }
 
 .landing-nav-btn {
@@ -180,13 +188,13 @@
 
 /* Hero */
 .landing-hero {
-    padding: 8rem 1.5rem 5rem;
+    padding: 9rem 1.5rem 6rem;
     position: relative;
     z-index: 1;
 }
 
 .landing-hero-inner {
-    max-width: 1200px;
+    max-width: 1280px;
     margin: 0 auto;
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -200,26 +208,28 @@
     gap: 0.5rem;
     padding: 0.5rem 1rem;
     background: rgba(61, 159, 235, 0.12);
-    border: 1px solid rgba(61, 159, 235, 0.2);
+    border: 1px solid rgba(61, 159, 235, 0.22);
     border-radius: 9999px;
-    font-size: 0.875rem;
-    font-weight: 500;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     color: var(--primary-400);
     margin-bottom: 1.5rem;
+    text-transform: uppercase;
 }
 
 .landing-hero-title {
-    font-size: 3.25rem;
+    font-size: 3.5rem;
     font-weight: 800;
-    line-height: 1.15;
-    letter-spacing: -0.02em;
+    line-height: 1.12;
+    letter-spacing: -0.03em;
     color: var(--text-primary);
     margin-bottom: 1.25rem;
 }
 
 .landing-hero-subtitle {
-    font-size: 1.25rem;
-    line-height: 1.6;
+    font-size: 1.1875rem;
+    line-height: 1.65;
     color: var(--text-secondary);
     margin-bottom: 2rem;
     max-width: 520px;
@@ -247,24 +257,34 @@
 .landing-cta.primary {
     background: var(--accent-gradient);
     color: white;
-    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+    box-shadow: 0 4px 16px rgba(32, 59, 180, 0.35);
 }
 
 .landing-cta.primary:hover {
-    filter: brightness(1.08);
+    filter: brightness(1.06);
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 8px 24px rgba(32, 59, 180, 0.4);
+}
+
+.landing-cta.primary:focus-visible {
+    outline: 2px solid var(--primary-400);
+    outline-offset: 2px;
 }
 
 .landing-cta.secondary {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.05);
     color: var(--text-primary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .landing-cta.secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.landing-cta.secondary:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.3);
+    outline-offset: 2px;
 }
 
 .landing-cta.large {
@@ -300,12 +320,12 @@
 
 .landing-hero-mock {
     width: 100%;
-    max-width: 420px;
-    background: rgba(26, 26, 46, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
+    max-width: 440px;
+    background: rgba(26, 26, 46, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 18px;
     overflow: hidden;
-    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 24px 56px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
 }
 
 .landing-hero-mock-bar {
@@ -384,20 +404,21 @@
 
 /* Trust strip */
 .landing-trust-strip {
-    padding: 1rem 1.5rem;
+    padding: 1.25rem 1.5rem;
     background: rgba(255, 255, 255, 0.02);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .landing-trust-inner {
-    max-width: 1200px;
+    max-width: 1280px;
     margin: 0 auto;
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
-    gap: 2rem;
+    gap: 2.5rem;
     font-size: 0.875rem;
+    font-weight: 500;
     color: var(--text-muted);
 }
 
@@ -409,36 +430,48 @@
 
 .landing-trust-inner svg {
     color: var(--primary-400);
+    opacity: 0.9;
 }
 
 /* Section common */
 .landing-section {
-    padding: 5rem 1.5rem;
+    padding: 5.5rem 1.5rem;
     position: relative;
     z-index: 1;
 }
 
 .landing-container {
-    max-width: 1200px;
+    max-width: 1280px;
     margin: 0 auto;
 }
 
+.landing-section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--primary-400);
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
 .landing-section-title {
-    font-size: 2.25rem;
+    font-size: 2.375rem;
     font-weight: 700;
     color: var(--text-primary);
     text-align: center;
     margin-bottom: 0.75rem;
     letter-spacing: -0.02em;
+    line-height: 1.25;
 }
 
 .landing-section-subtitle {
     font-size: 1.125rem;
     color: var(--text-secondary);
     text-align: center;
-    max-width: 560px;
+    max-width: 580px;
     margin: 0 auto 3rem;
-    line-height: 1.6;
+    line-height: 1.65;
 }
 
 /* How it works */
@@ -455,15 +488,16 @@
 
 .landing-step {
     text-align: center;
-    padding: 2rem 1.5rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 16px;
-    transition: border-color 0.2s ease;
+    padding: 2.25rem 1.75rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 18px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .landing-step:hover {
-    border-color: rgba(61, 159, 235, 0.25);
+    border-color: rgba(61, 159, 235, 0.28);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .landing-step-num {
@@ -505,16 +539,17 @@
 }
 
 .landing-feature {
-    padding: 2rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 16px;
-    transition: all 0.25s ease;
+    padding: 2.25rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 18px;
+    transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
 }
 
 .landing-feature:hover {
-    border-color: rgba(61, 159, 235, 0.25);
-    background: rgba(61, 159, 235, 0.04);
+    border-color: rgba(61, 159, 235, 0.28);
+    background: rgba(61, 159, 235, 0.05);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .landing-feature-icon {
@@ -557,21 +592,23 @@
 
 .landing-price-card {
     position: relative;
-    padding: 2rem;
-    background: rgba(255, 255, 255, 0.02);
+    padding: 2.25rem;
+    background: rgba(255, 255, 255, 0.025);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    transition: all 0.25s ease;
+    border-radius: 18px;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .landing-price-card:hover {
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
 }
 
 .landing-price-card.featured {
-    background: linear-gradient(135deg, rgba(61, 159, 235, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
-    border-color: rgba(61, 159, 235, 0.3);
-    transform: scale(1.03);
+    background: linear-gradient(135deg, rgba(61, 159, 235, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+    border-color: rgba(61, 159, 235, 0.35);
+    transform: scale(1.02);
+    box-shadow: 0 16px 48px rgba(32, 59, 180, 0.15);
 }
 
 .landing-price-badge {
@@ -677,16 +714,22 @@
 }
 
 .landing-testimonial {
-    padding: 2rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 16px;
+    padding: 2.25rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 18px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.landing-testimonial:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .landing-testimonial p {
-    font-size: 0.9375rem;
+    font-size: 1rem;
     color: var(--text-secondary);
-    line-height: 1.65;
+    line-height: 1.7;
     font-style: italic;
     margin-bottom: 1.25rem;
 }
@@ -743,16 +786,16 @@
 }
 
 .landing-faq-item {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
     overflow: hidden;
     transition: border-color 0.2s ease;
 }
 
 .landing-faq-item:hover,
 .landing-faq-item.open {
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
 .landing-faq-q {
@@ -804,30 +847,31 @@
 
 /* CTA block */
 .landing-cta-block {
-    padding: 5rem 1.5rem;
-    background: linear-gradient(135deg, rgba(61, 159, 235, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%);
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 5.5rem 1.5rem;
+    background: linear-gradient(135deg, rgba(61, 159, 235, 0.14) 0%, rgba(139, 92, 246, 0.14) 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .landing-cta-inner {
     text-align: center;
-    max-width: 560px;
+    max-width: 580px;
     margin: 0 auto;
 }
 
 .landing-cta-title {
-    font-size: 2rem;
+    font-size: 2.125rem;
     font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
 }
 
 .landing-cta-subtitle {
     font-size: 1.125rem;
     color: var(--text-secondary);
-    margin-bottom: 1.5rem;
-    line-height: 1.6;
+    margin-bottom: 1.75rem;
+    line-height: 1.65;
 }
 
 .landing-cta-block .landing-cta {
@@ -891,19 +935,25 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
-    padding: 1.25rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
+    padding: 1.35rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
     cursor: pointer;
     text-align: left;
     color: inherit;
-    transition: all 0.2s ease;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .landing-school-card:hover {
-    border-color: rgba(61, 159, 235, 0.3);
+    border-color: rgba(61, 159, 235, 0.35);
     background: rgba(61, 159, 235, 0.06);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.landing-school-card:focus-visible {
+    outline: 2px solid var(--primary-400);
+    outline-offset: 2px;
 }
 
 .landing-school-card-icon {
@@ -954,10 +1004,10 @@
 
 .landing-register-cta {
     text-align: center;
-    padding: 2rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 16px;
+    padding: 2.25rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 18px;
     max-width: 480px;
     margin: 0 auto;
 }
@@ -971,12 +1021,12 @@
 /* Footer */
 .landing-footer {
     background: var(--bg-tertiary);
-    padding: 3rem 1.5rem 1.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 3.5rem 1.5rem 1.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .landing-footer-inner {
-    max-width: 1200px;
+    max-width: 1280px;
     margin: 0 auto;
 }
 
@@ -1126,6 +1176,10 @@
     }
     .landing-section {
         padding: 3.5rem 1rem;
+    }
+    .landing-section-label {
+        font-size: 0.6875rem;
+        letter-spacing: 0.1em;
     }
     .landing-section-title {
         font-size: 1.875rem;

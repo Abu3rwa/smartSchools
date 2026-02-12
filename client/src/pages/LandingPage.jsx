@@ -204,6 +204,7 @@ const LandingPage = () => {
             {/* How it works */}
             <section className="landing-section landing-how">
                 <div className="landing-container">
+                    <p className="landing-section-label">How it works</p>
                     <h2 className="landing-section-title">Get started in minutes</h2>
                     <p className="landing-section-subtitle">Register your school, add classes and teachers, then start recording grades and attendance.</p>
                     <div className="landing-steps">
@@ -229,6 +230,7 @@ const LandingPage = () => {
             {/* Features */}
             <section id="features" className="landing-section landing-features">
                 <div className="landing-container">
+                    <p className="landing-section-label">Features</p>
                     <h2 className="landing-section-title">Built for how schools actually work</h2>
                     <p className="landing-section-subtitle">One platform for grades, attendance, timetables, and parent communication.</p>
                     <div className="landing-features-grid">
@@ -269,6 +271,7 @@ const LandingPage = () => {
             {/* Pricing */}
             <section id="pricing" className="landing-section landing-pricing">
                 <div className="landing-container">
+                    <p className="landing-section-label">Pricing</p>
                     <h2 className="landing-section-title">Simple, transparent pricing</h2>
                     <p className="landing-section-subtitle">Start free. Scale when you grow. No hidden fees.</p>
                     <div className="landing-pricing-grid">
@@ -316,6 +319,7 @@ const LandingPage = () => {
             {/* Testimonials */}
             <section id="testimonials" className="landing-section landing-testimonials">
                 <div className="landing-container">
+                    <p className="landing-section-label">Testimonials</p>
                     <h2 className="landing-section-title">Loved by educators</h2>
                     <p className="landing-section-subtitle">See what admins and teachers say about GradeBook Pro.</p>
                     <div className="landing-testimonials-grid">
@@ -356,6 +360,7 @@ const LandingPage = () => {
             {/* FAQ */}
             <section id="faq" className="landing-section landing-faq">
                 <div className="landing-container landing-faq-container">
+                    <p className="landing-section-label">FAQ</p>
                     <h2 className="landing-section-title">Frequently asked questions</h2>
                     <div className="landing-faq-list">
                         {FAQ_ITEMS.map((item, i) => (
@@ -390,8 +395,9 @@ const LandingPage = () => {
             {/* Find your school */}
             <section id="find-school" className="landing-section landing-school-search">
                 <div className="landing-container">
-                    <h2 className="landing-section-title">Find your school</h2>
-                    <p className="landing-section-subtitle">Search for your institution to log in, or register a new school.</p>
+                    <p className="landing-section-label">Find your school</p>
+                    <h2 className="landing-section-title">Log in to your institution</h2>
+                    <p className="landing-section-subtitle">Search for your school to log in, or register a new one.</p>
                     <div className="landing-search-wrap">
                         <HiOutlineSearch size={20} className="landing-search-icon" />
                         <input
