@@ -1,0 +1,130 @@
+.reading-upload-page {
+  animation: fadeIn 0.3s ease;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--spacing-lg);
+}
+
+.reading-upload-page .back-btn {
+  margin-bottom: var(--spacing-md);
+}
+
+.reading-upload-header {
+  margin-bottom: var(--spacing-xl);
+}
+
+.reading-upload-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--text-primary);
+}
+
+.reading-upload-header .subtitle {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.reading-upload-form .form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.reading-upload-form label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.reading-upload-form input[type="text"],
+.reading-upload-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.reading-upload-form input:focus,
+.reading-upload-form textarea:focus,
+.reading-upload-form select:focus {
+  outline: none;
+  border-color: var(--primary-400);
+}
+
+.reading-upload-form .field-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.reading-upload-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.reading-upload-form textarea {
+  resize: vertical;
+  min-height: 200px;
+}
+
+.reading-upload-form .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+@media (max-width: 600px) {
+  .reading-upload-form .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reading-upload-form .checkbox-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.reading-upload-form .checkbox-group input[type="checkbox"] {
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
+}
+
+.reading-upload-form .checkbox-group label {
+  margin-bottom: 0;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.reading-upload-form .form-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: flex-end;
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.reading-upload-form .btn-loading {
+  display: inline-block;
+  min-width: 100px;
+}
+
+.reading-upload-form .btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}

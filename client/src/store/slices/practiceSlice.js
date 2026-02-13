@@ -60,6 +60,9 @@ const practiceSlice = createSlice({
         studentId: null,
         currentQuestion: null,
         lastResult: null,
+        practiceStatus: null,
+        sessionInfo: null,
+        statusMessage: null,
         practiceHistory: [],
         historyMastery: null,
         historyPagination: null,
@@ -70,7 +73,12 @@ const practiceSlice = createSlice({
     },
     reducers: {
         clearError: (state) => { state.error = null; },
-        clearCurrentQuestion: (state) => { state.currentQuestion = null; state.lastResult = null; },
+        clearCurrentQuestion: (state) => {
+            state.currentQuestion = null;
+            state.lastResult = null;
+            state.practiceStatus = null;
+            state.statusMessage = null;
+        },
         clearLastResult: (state) => { state.lastResult = null; },
         clearPracticeHistory: (state) => { state.practiceHistory = []; state.historyMastery = null; }
     },
@@ -91,7 +99,10 @@ const practiceSlice = createSlice({
             .addCase(generateQuestion.pending, (state) => { state.generating = true; state.error = null; state.lastResult = null; })
             .addCase(generateQuestion.fulfilled, (state, action) => {
                 state.generating = false;
-                state.currentQuestion = action.payload;
+                state.practiceStatus = action.payload.status;
+                state.statusMessage = action.payload.message || null;
+                state.sessionInfo = action.payload.session || null;
+                state.currentQuestion = action.payload.question || null;
             })
             .addCase(generateQuestion.rejected, (state, action) => {
                 state.generating = false;
@@ -103,6 +114,7 @@ const practiceSlice = createSlice({
                 state.submitting = false;
                 state.lastResult = action.payload;
                 state.currentQuestion = null;
+                state.sessionInfo = action.payload.session || state.sessionInfo;
             })
             .addCase(submitAnswer.rejected, (state, action) => {
                 state.submitting = false;
@@ -136,5 +148,8 @@ export const selectPracticeLoading = (state) => state.practice?.loading;
 export const selectGenerating = (state) => state.practice?.generating;
 export const selectSubmitting = (state) => state.practice?.submitting;
 export const selectPracticeError = (state) => state.practice?.error;
+export const selectPracticeStatus = (state) => state.practice?.practiceStatus;
+export const selectPracticeSessionInfo = (state) => state.practice?.sessionInfo;
+export const selectPracticeStatusMessage = (state) => state.practice?.statusMessage;
 
 export default practiceSlice.reducer;

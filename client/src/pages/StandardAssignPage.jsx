@@ -36,8 +36,18 @@ const StandardAssignPage = () => {
         subjectId: '',
         students: [],
         dueDate: '',
-        instructions: ''
+        instructions: '',
+        practiceConfig: {
+            sessionType: 'practice',
+            questionLimit: '',
+            timeLimitSeconds: '', // store as minutes in UI, convert on submit
+            allowedQuestionTypes: ['multiple_choice', 'short_answer', 'true_false'],
+            allowedDifficulties: ['easy', 'medium', 'hard'],
+            lockStudentOptions: false
+        }
     });
+
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
     const isAdmin = user?.role === 'admin';
     const isTeacher = user?.role === 'teacher';
@@ -107,12 +117,38 @@ const StandardAssignPage = () => {
     const handleAssign = async (e) => {
         e.preventDefault();
         setSubmitting(true);
+
+        const payload = {
+            ...formData,
+            practiceConfig: {
+                ...formData.practiceConfig,
+                questionLimit: formData.practiceConfig.questionLimit ? parseInt(formData.practiceConfig.questionLimit) : null,
+                timeLimitSeconds: formData.practiceConfig.timeLimitSeconds ? parseInt(formData.practiceConfig.timeLimitSeconds) * 60 : null
+            }
+        };
+
         try {
-            const result = await dispatch(createAssignment(formData));
+            const result = await dispatch(createAssignment(payload));
             if (createAssignment.fulfilled.match(result)) {
                 toast.success('Standard assigned successfully!');
                 setShowAssignModal(false);
-                setFormData({ standardId: '', classId: '', subjectId: '', students: [], dueDate: '', instructions: '' });
+                setFormData({
+                    standardId: '',
+                    classId: '',
+                    subjectId: '',
+                    students: [],
+                    dueDate: '',
+                    instructions: '',
+                    practiceConfig: {
+                        sessionType: 'practice',
+                        questionLimit: '',
+                        timeLimitSeconds: '',
+                        allowedQuestionTypes: ['multiple_choice', 'short_answer', 'true_false'],
+                        allowedDifficulties: ['easy', 'medium', 'hard'],
+                        lockStudentOptions: false
+                    }
+                });
+                setShowAdvanced(false);
                 dispatch(fetchAssignments());
             } else {
                 toast.error(result.payload || 'Failed to assign');
@@ -301,6 +337,128 @@ const StandardAssignPage = () => {
                                         onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                                     />
                                 </div>
+
+                                <div className="advanced-toggle" onClick={() => setShowAdvanced(!showAdvanced)} style={{ cursor: 'pointer', color: 'var(--primary-600)', fontWeight: 600, margin: '15px 0', display: 'flex', alignItems: 'center' }}>
+                                    <span style={{ marginRight: 5 }}>{showAdvanced ? '▼' : '▶'}</span>
+                                    Advanced Settings (Practice Config)
+                                </div>
+
+                                {showAdvanced && (
+                                    <div className="advanced-settings" style={{ background: 'var(--bg-secondary)', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label>Session Type</label>
+                                                <select
+                                                    value={formData.practiceConfig.sessionType}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        practiceConfig: { ...formData.practiceConfig, sessionType: e.target.value }
+                                                    })}
+                                                >
+                                                    <option value="practice">Practice (Default)</option>
+                                                    <option value="homework">Homework</option>
+                                                    <option value="assessment">Assessment</option>
+                                                    <option value="classwork">Classwork</option>
+                                                </select>
+                                            </div>
+                                            <div className="form-group">
+                                                <label>Questions Limit (0 = Unlimited)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    placeholder="e.g. 10"
+                                                    value={formData.practiceConfig.questionLimit}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        practiceConfig: { ...formData.practiceConfig, questionLimit: e.target.value }
+                                                    })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Time Limit (minutes, 0 = Unlimited)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                placeholder="e.g. 30"
+                                                value={formData.practiceConfig.timeLimitSeconds}
+                                                onChange={(e) => setFormData({
+                                                    ...formData,
+                                                    practiceConfig: { ...formData.practiceConfig, timeLimitSeconds: e.target.value }
+                                                })}
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Allowed Question Types</label>
+                                            <div className="checkbox-group" style={{ display: 'flex', gap: '15px' }}>
+                                                {['multiple_choice', 'short_answer', 'true_false'].map(type => (
+                                                    <label key={type} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.practiceConfig.allowedQuestionTypes.includes(type)}
+                                                            onChange={(e) => {
+                                                                const current = formData.practiceConfig.allowedQuestionTypes;
+                                                                let next;
+                                                                if (e.target.checked) next = [...current, type];
+                                                                else next = current.filter(t => t !== type);
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    practiceConfig: { ...formData.practiceConfig, allowedQuestionTypes: next }
+                                                                });
+                                                            }}
+                                                            style={{ marginRight: 5 }}
+                                                        />
+                                                        {type.replace('_', ' ')}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Allowed Difficulties</label>
+                                            <div className="checkbox-group" style={{ display: 'flex', gap: '15px' }}>
+                                                {['easy', 'medium', 'hard'].map(diff => (
+                                                    <label key={diff} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.practiceConfig.allowedDifficulties.includes(diff)}
+                                                            onChange={(e) => {
+                                                                const current = formData.practiceConfig.allowedDifficulties;
+                                                                let next;
+                                                                if (e.target.checked) next = [...current, diff];
+                                                                else next = current.filter(t => t !== diff);
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    practiceConfig: { ...formData.practiceConfig, allowedDifficulties: next }
+                                                                });
+                                                            }}
+                                                            style={{ marginRight: 5 }}
+                                                        />
+                                                        {diff}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.practiceConfig.lockStudentOptions}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        practiceConfig: { ...formData.practiceConfig, lockStudentOptions: e.target.checked }
+                                                    })}
+                                                    style={{ marginRight: 8 }}
+                                                />
+                                                Lock student options (Student cannot override strict difficulty/type)
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="form-group">
                                     <label>Instructions (optional)</label>
                                     <textarea

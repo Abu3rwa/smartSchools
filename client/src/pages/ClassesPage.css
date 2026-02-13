@@ -213,7 +213,7 @@
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--overlay-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -278,12 +278,16 @@
     border-top: 1px solid var(--border-color);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .page-header {
         flex-direction: column;
     }
 
     .form-row {
         grid-template-columns: 1fr;
+    }
+
+    .search-bar {
+        max-width: 100%;
     }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchSubjects, selectSubjects, selectSubjectsLoading, createSubject, updateSubject, deleteSubject } from '../store/slices/subjectSlice';
+import { fetchSubjects, selectSubjects, selectSubjectsLoading, selectSubjectsError, createSubject, updateSubject, deleteSubject } from '../store/slices/subjectSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
 import { HiOutlinePlus, HiOutlineSearch, HiOutlineBookOpen, HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi';
 import toast from 'react-hot-toast';
@@ -10,6 +10,7 @@ const SubjectsPage = () => {
     const dispatch = useDispatch();
     const subjects = useSelector(selectSubjects);
     const loading = useSelector(selectSubjectsLoading);
+    const error = useSelector(selectSubjectsError);
     const isAdmin = useSelector(selectIsAdmin);
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -124,6 +125,13 @@ const SubjectsPage = () => {
             {loading ? (
                 <div className="loading-container">
                     <div className="spinner"></div>
+                </div>
+            ) : error ? (
+                <div className="error-container">
+                    <p className="error-message">{error}</p>
+                    <button className="btn btn-primary" onClick={() => dispatch(fetchSubjects())}>
+                        Retry
+                    </button>
                 </div>
             ) : (
                 <div className="subjects-grid">

@@ -1,6 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { getTheme } from "./theme";
 import {
   selectIsAuthenticated,
   selectAuth,
@@ -57,6 +60,13 @@ import PracticeSessionPage from "./pages/PracticeSessionPage";
 import PracticeHistoryPage from "./pages/PracticeHistoryPage";
 import StudentGradesPage from "./pages/StudentGradesPage";
 import StudentAttendancePage from "./pages/StudentAttendancePage";
+import RevisionPlansListPage from "./pages/RevisionPlansListPage";
+import RevisionPlanCreatePage from "./pages/RevisionPlanCreatePage";
+import RevisionPlanViewPage from "./pages/RevisionPlanViewPage";
+import ReadingMyAssignmentsPage from "./pages/ReadingMyAssignmentsPage";
+import ReadingTextsListPage from "./pages/ReadingTextsListPage";
+import ReadingUploadPage from "./pages/ReadingUploadPage";
+import ReadingViewPage from "./pages/ReadingViewPage";
 
 // Platform Admin Pages
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
@@ -137,12 +147,13 @@ const RoleRoute = ({ roles, children }) => {
 
 function App() {
   const dispatch = useDispatch();
-  const theme = useSelector(selectTheme);
+  const themeMode = useSelector(selectTheme);
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const muiTheme = useMemo(() => getTheme(themeMode), [themeMode]);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+    document.documentElement.setAttribute("data-theme", themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -152,7 +163,9 @@ function App() {
   }, [dispatch, isAuthenticated]);
 
   return (
-    <Routes>
+    <ThemeProvider theme={muiTheme}>
+      <CssBaseline />
+      <Routes>
       {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -447,6 +460,65 @@ function App() {
             </RoleRoute>
           }
         />
+        {/* Revision Plans */}
+        <Route
+          path="revision"
+          element={
+            <RoleRoute roles={["student", "teacher", "admin"]}>
+              <RevisionPlansListPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="revision/create"
+          element={
+            <RoleRoute roles={["student", "teacher", "admin"]}>
+              <RevisionPlanCreatePage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="revision/:planId"
+          element={
+            <RoleRoute roles={["student", "teacher", "admin"]}>
+              <RevisionPlanViewPage />
+            </RoleRoute>
+          }
+        />
+        {/* Reading Assistant: student sees assignments and reader */}
+        <Route
+          path="reading"
+          element={
+            <RoleRoute roles={["student"]}>
+              <ReadingMyAssignmentsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="reading/view/:textId"
+          element={
+            <RoleRoute roles={["student"]}>
+              <ReadingViewPage />
+            </RoleRoute>
+          }
+        />
+        {/* Reading: teacher/admin manage texts and assign */}
+        <Route
+          path="reading/texts"
+          element={
+            <RoleRoute roles={["teacher", "admin"]}>
+              <ReadingTextsListPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="reading/upload"
+          element={
+            <RoleRoute roles={["teacher", "admin"]}>
+              <ReadingUploadPage />
+            </RoleRoute>
+          }
+        />
       </Route>
 
       {/* Platform Admin Routes (super_admin only) */}
@@ -477,7 +549,8 @@ function App() {
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </ThemeProvider>
   );
 }
 

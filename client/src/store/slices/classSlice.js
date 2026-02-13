@@ -156,5 +156,6 @@ export const selectClasses = (state) => state.classes.classes;
 export const selectCurrentClass = (state) => state.classes.currentClass;
 export const selectClassStudents = (state) => state.classes.students;
 export const selectClassesLoading = (state) => state.classes.loading;
+export const selectClassesError = (state) => state.classes.error;
 
 export default classSlice.reducer;

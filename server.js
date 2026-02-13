@@ -45,6 +45,8 @@ import { registerApiDocsRoute } from "./routes/apiDocsRoute.js";
 import { behaviorTracker } from "./middleware/behaviorTracker.js";
 import { processAttendanceReminders } from "./controllers/attendanceTakingReminderController.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
+import revisionRoutes from "./routes/revisionRoutes.js";
+import readingRoutes from "./routes/readingRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 
 // Connect to database
@@ -156,6 +158,8 @@ app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/standards", standardRoutes);
 app.use("/api/standard-assignments", standardAssignmentRoutes);
 app.use("/api/practice", practiceRoutes);
+app.use("/api/revision", revisionRoutes);
+app.use("/api/reading", readingRoutes);
 
 registerApiDocsRoute(app);
 

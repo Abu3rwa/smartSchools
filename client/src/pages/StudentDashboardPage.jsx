@@ -20,6 +20,19 @@ const getGreeting = () => {
     return 'Good evening';
 };
 
+/** Format "HH:MM" or "H:MM" as "h:MM AM/PM" */
+const formatTime12h = (timeStr) => {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hour = parseInt(match[1], 10);
+    const min = match[2];
+    if (hour < 0 || hour > 23) return null;
+    const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    const ampm = hour < 12 ? 'AM' : 'PM';
+    return `${h12}:${min} ${ampm}`;
+};
+
 const StudentDashboardPage = () => {
     const dispatch = useDispatch();
     const assignments = useSelector(selectMyAssignments);
@@ -55,9 +68,24 @@ const StudentDashboardPage = () => {
     const user = useSelector(selectUser);
     const firstName = user?.firstName ?? 'Student';
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const formatDueDate = (due) => {
+        const d = new Date(due);
+        d.setHours(0, 0, 0, 0);
+        if (d.getTime() === todayStart.getTime()) return 'Due today';
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
     const upcomingAssignments = assignments
         .filter((a) => a.dueDate && !a.mastery?.isMastered)
         .map((a) => ({ ...a, due: new Date(a.dueDate) }))
+        .filter((a) => {
+            const dueStart = new Date(a.due);
+            dueStart.setHours(0, 0, 0, 0);
+            return dueStart >= todayStart;
+        })
         .sort((a, b) => a.due - b.due)
         .slice(0, 5);
 
@@ -81,18 +109,35 @@ const StudentDashboardPage = () => {
                         {schedule.length === 0 ? (
                             <p className="empty-text">No classes scheduled for today.</p>
                         ) : (
-                            <ul className="schedule-list">
-                                {schedule.map((item, i) => (
-                                    <li key={i} className="schedule-item">
-                                        <span className="period-name">{item.period?.name || `Period ${i + 1}`}</span>
-                                        <span className="subject-name">{item.subject?.name || '—'}</span>
-                                        <span className="room-name">{item.room?.name || item.room || '—'}</span>
-                                        <span className="teacher-name">
-                                            {item.teacher?.firstName} {item.teacher?.lastName}
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
+                            <div className="schedule-table-wrap">
+                                <table className="schedule-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Period</th>
+                                            <th>Subject</th>
+                                            <th>Teacher</th>
+                                            <th>Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {schedule.map((item, i) => {
+                                            const startFmt = formatTime12h(item.period?.startTime);
+                                            const endFmt = formatTime12h(item.period?.endTime);
+                                            const timeStr = startFmt && endFmt ? `${startFmt} – ${endFmt}` : (startFmt || endFmt || '—');
+                                            return (
+                                                <tr key={i}>
+                                                    <td className="schedule-period">{item.period?.name || `Period ${i + 1}`}</td>
+                                                    <td className="schedule-subject">{item.subject?.name || '—'}</td>
+                                                    <td className="schedule-teacher">
+                                                        {item.teacher ? `${item.teacher.firstName || ''} ${item.teacher.lastName || ''}`.trim() || '—' : '—'}
+                                                    </td>
+                                                    <td className="schedule-time">{timeStr}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </section>
 
@@ -167,11 +212,7 @@ const StudentDashboardPage = () => {
                                     <li key={a._id} className="due-item">
                                         <span className="due-code">{a.standard?.code}</span>
                                         <span className="due-date">
-                                            {a.due.toLocaleDateString(undefined, {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                year: 'numeric',
-                                            })}
+                                            {formatDueDate(a.due)}
                                         </span>
                                         <Link to={`/portal/practice/${a._id}`} className="link-sm">
                                             Practice

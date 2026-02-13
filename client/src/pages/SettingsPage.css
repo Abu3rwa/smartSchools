@@ -3,9 +3,8 @@
 }
 
 .settings-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-lg);
+    /* Layout handled by MUI Grid (xs={12} md={6}) */
+    max-width: 100%;
 }
 
 .settings-card {
@@ -132,7 +131,7 @@
 
 .theme-option.active {
     background: var(--accent-gradient);
-    color: white;
+    color: var(--on-accent);
     border-color: transparent;
 }
 
@@ -141,10 +140,10 @@
 }
 
 .danger-zone {
-    border-color: rgba(239, 68, 68, 0.3);
+    border-color: var(--error-400);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .settings-grid {
         grid-template-columns: 1fr;
     }

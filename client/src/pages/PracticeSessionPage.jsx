@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import {
     generateQuestion, submitAnswer,
     selectCurrentQuestion, selectLastResult, selectGenerating, selectSubmitting,
+    selectPracticeStatus, selectPracticeSessionInfo, selectPracticeStatusMessage,
     clearCurrentQuestion, clearLastResult
 } from '../store/slices/practiceSlice';
 import {
@@ -11,6 +12,7 @@ import {
     HiOutlineLightningBolt, HiOutlineRefresh
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import api from '../config/api';
 import './PracticeSessionPage.css';
 
 const PracticeSessionPage = () => {
@@ -22,6 +24,9 @@ const PracticeSessionPage = () => {
     const lastResult = useSelector(selectLastResult);
     const generating = useSelector(selectGenerating);
     const submittingAnswer = useSelector(selectSubmitting);
+    const practiceStatus = useSelector(selectPracticeStatus);
+    const sessionInfo = useSelector(selectPracticeSessionInfo);
+    const statusMessage = useSelector(selectPracticeStatusMessage);
 
     const [selectedAnswer, setSelectedAnswer] = useState('');
     const [shortAnswer, setShortAnswer] = useState('');
@@ -31,6 +36,8 @@ const PracticeSessionPage = () => {
     const [sessionStats, setSessionStats] = useState({ asked: 0, correct: 0 });
 
     const textareaRef = useRef(null);
+    const lastIntegrityLogRef = useRef(0);
+    const wasHiddenRef = useRef(false);
 
     useEffect(() => {
         return () => {
@@ -38,6 +45,47 @@ const PracticeSessionPage = () => {
             dispatch(clearLastResult());
         };
     }, [dispatch]);
+
+    useEffect(() => {
+        const logIntegrityEvent = async (eventType) => {
+            if (!assignmentId) return;
+            const now = Date.now();
+            if (now - lastIntegrityLogRef.current < 3000) return;
+            lastIntegrityLogRef.current = now;
+            try {
+                await api.post('/practice/integrity-event', {
+                    assignmentId,
+                    attemptId: currentQuestion?.attemptId || null,
+                    eventType,
+                    metadata: { path: window.location.pathname }
+                });
+            } catch (error) {
+                // Avoid interrupting the student experience for telemetry failures.
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                wasHiddenRef.current = true;
+                logIntegrityEvent('tab_hidden');
+            } else if (wasHiddenRef.current) {
+                wasHiddenRef.current = false;
+                toast.error('Tab change detected. Your teacher will be notified.');
+            }
+        };
+
+        const handleBlur = () => {
+            logIntegrityEvent('window_blur');
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('blur', handleBlur);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', handleBlur);
+        };
+    }, [assignmentId, currentQuestion?.attemptId]);
 
     const handleGenerate = async () => {
         dispatch(clearLastResult());
@@ -52,9 +100,6 @@ const PracticeSessionPage = () => {
 
         if (generateQuestion.fulfilled.match(result)) {
             setStartTime(Date.now());
-            if (result.payload.mastered) {
-                // Already mastered
-            }
         } else {
             toast.error(result.payload || 'Failed to load question. Please try again.');
         }
@@ -88,7 +133,9 @@ const PracticeSessionPage = () => {
         }
     };
 
-    const isMasteredResult = currentQuestion?.mastered || lastResult?.newlyMastered;
+    const isMasteredResult = practiceStatus === 'mastered' || lastResult?.newlyMastered;
+    const isSessionComplete = practiceStatus === 'session_complete' || lastResult?.sessionComplete;
+    const showQuestion = practiceStatus === 'question' && currentQuestion;
 
     return (
         <div className="practice-session">
@@ -97,7 +144,7 @@ const PracticeSessionPage = () => {
             </button>
 
             {/* Difficulty & Type Selector */}
-            {!currentQuestion && !lastResult && (
+            {!currentQuestion && !lastResult && !isSessionComplete && !isMasteredResult && (
                 <div className="question-card">
                     <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Start Practicing</h3>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
@@ -143,6 +190,14 @@ const PracticeSessionPage = () => {
                         </div>
                     </div>
 
+                    {sessionInfo && (
+                        <div style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            Session Type: {sessionInfo.sessionType}
+                            {sessionInfo.questionLimit ? ` | Limit: ${sessionInfo.questionLimit} questions` : ''}
+                            {sessionInfo.timeRemainingSeconds !== null ? ` | Time left: ${sessionInfo.timeRemainingSeconds}s` : ''}
+                        </div>
+                    )}
+
                     {sessionStats.asked > 0 && (
                         <div style={{ marginBottom: 'var(--spacing-md)', padding: 'var(--spacing-sm)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
                             Session: {sessionStats.correct}/{sessionStats.asked} correct ({sessionStats.asked > 0 ? Math.round((sessionStats.correct / sessionStats.asked) * 100) : 0}%)
@@ -170,14 +225,32 @@ const PracticeSessionPage = () => {
             )}
 
             {/* Already Mastered */}
-            {currentQuestion?.mastered && (
+            {isMasteredResult && !lastResult && (
                 <div className="mastery-celebration">
                     <HiOutlineCheckCircle size={64} style={{ color: 'var(--success-600, #059669)', marginBottom: 'var(--spacing-md)' }} />
                     <h2>Standard Mastered!</h2>
-                    <p>{currentQuestion.message}</p>
-                    <p style={{ fontSize: '0.85rem', marginTop: 'var(--spacing-sm)' }}>
-                        Score: {currentQuestion.mastery?.percentage}% ({currentQuestion.mastery?.correctCount}/{currentQuestion.mastery?.totalAttempts})
-                    </p>
+                    <p>{statusMessage || 'You have already mastered this standard.'}</p>
+                    <button
+                        className="btn btn-primary"
+                        onClick={() => navigate('/portal/practice')}
+                        style={{ marginTop: 'var(--spacing-lg)' }}
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            )}
+
+            {isSessionComplete && !generating && !lastResult && (
+                <div className="mastery-celebration">
+                    <HiOutlineCheckCircle size={64} style={{ color: 'var(--success-600, #059669)', marginBottom: 'var(--spacing-md)' }} />
+                    <h2>Session Complete</h2>
+                    <p>{statusMessage || 'You have completed this practice session.'}</p>
+                    {sessionInfo && (
+                        <p style={{ fontSize: '0.85rem', marginTop: 'var(--spacing-sm)' }}>
+                            Answered: {sessionInfo.questionsAnswered}
+                            {sessionInfo.questionLimit ? `/${sessionInfo.questionLimit}` : ''} | Correct: {sessionInfo.correctCount}
+                        </p>
+                    )}
                     <button
                         className="btn btn-primary"
                         onClick={() => navigate('/portal/practice')}
@@ -189,7 +262,7 @@ const PracticeSessionPage = () => {
             )}
 
             {/* Question Display */}
-            {currentQuestion && !currentQuestion.mastered && !generating && (
+            {showQuestion && !generating && (
                 <div className="question-card">
                     <div className="question-meta">
                         <span className="badge badge-attempt">Question #{currentQuestion.attemptNumber}</span>
@@ -197,6 +270,9 @@ const PracticeSessionPage = () => {
                             {currentQuestion.difficulty}
                         </span>
                         <span className="badge">{currentQuestion.questionType?.replace('_', ' ')}</span>
+                        {sessionInfo?.questionLimit && (
+                            <span className="badge">Session {sessionInfo.questionsAnswered + 1}/{sessionInfo.questionLimit}</span>
+                        )}
                     </div>
 
                     <div className="question-text">{currentQuestion.questionText}</div>
@@ -263,6 +339,11 @@ const PracticeSessionPage = () => {
                                     <p style={{ marginTop: 'var(--spacing-sm)' }}><span className="label">Explanation:</span></p>
                                     <p>{lastResult.explanation}</p>
                                 </>
+                            )}
+                            {lastResult.sessionComplete && (
+                                <p style={{ marginTop: 'var(--spacing-sm)', fontWeight: 600 }}>
+                                    Session complete. Great work!
+                                </p>
                             )}
                         </div>
 

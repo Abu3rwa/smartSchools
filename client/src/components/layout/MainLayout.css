@@ -24,10 +24,10 @@
     width: 100%;
 }
 
-/* Mobile */
-@media (max-width: 768px) {
+/* Mobile: MUI handles drawer, so no margin needed */
+@media (max-width: 899px) {
     .main-content {
-        margin-left: 0;
+        margin-left: 0 !important;
     }
 
     .page-content {

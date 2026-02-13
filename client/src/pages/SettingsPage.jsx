@@ -1,4 +1,5 @@
 import { useSelector, useDispatch } from 'react-redux';
+import { Box, Grid } from '@mui/material';
 import { selectUser, updateProfile, logout } from '../store/slices/authSlice';
 import { selectTheme, setTheme, selectCurrentAcademicYear, setCurrentAcademicYear } from '../store/slices/uiSlice';
 import { HiOutlineMoon, HiOutlineSun, HiOutlineLogout, HiOutlineUser } from 'react-icons/hi';
@@ -30,7 +31,7 @@ const SettingsPage = () => {
     ];
 
     return (
-        <div className="settings-page">
+        <Box className="settings-page" sx={{ px: { xs: 0, sm: 0 } }}>
             <div className="page-header">
                 <div>
                     <h1>Settings</h1>
@@ -38,8 +39,9 @@ const SettingsPage = () => {
                 </div>
             </div>
 
-            <div className="settings-grid">
+            <Grid container spacing={2} className="settings-grid">
                 {/* Profile Card */}
+                <Grid item xs={12} md={6}>
                 <div className="card settings-card">
                     <div className="card-header">
                         <h3 className="card-title">
@@ -75,8 +77,10 @@ const SettingsPage = () => {
                         </div>
                     </div>
                 </div>
+                </Grid>
 
                 {/* Appearance Card */}
+                <Grid item xs={12} md={6}>
                 <div className="card settings-card">
                     <div className="card-header">
                         <h3 className="card-title">Appearance</h3>
@@ -104,8 +108,10 @@ const SettingsPage = () => {
                         </div>
                     </div>
                 </div>
+                </Grid>
 
                 {/* Academic Year Card */}
+                <Grid item xs={12} md={6}>
                 <div className="card settings-card">
                     <div className="card-header">
                         <h3 className="card-title">Academic Settings</h3>
@@ -126,8 +132,10 @@ const SettingsPage = () => {
                         </select>
                     </div>
                 </div>
+                </Grid>
 
                 {/* Account Actions */}
+                <Grid item xs={12} md={6}>
                 <div className="card settings-card danger-zone">
                     <div className="card-header">
                         <h3 className="card-title">Account</h3>
@@ -143,8 +151,9 @@ const SettingsPage = () => {
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
+                </Grid>
+            </Grid>
+        </Box>
     );
 };
 

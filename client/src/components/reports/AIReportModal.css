@@ -7,7 +7,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(15, 15, 30, 0.85);
+    background: var(--overlay-bg);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
@@ -25,19 +25,16 @@
 
 /* Modal Container */
 .ai-report-modal {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--glass-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-color);
     border-radius: 20px;
     width: 100%;
     max-width: 520px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 
-        0 25px 50px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.05),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: var(--shadow-lg);
     animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -58,8 +55,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 1.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(135deg, var(--stat-primary-bg) 0%, var(--stat-secondary-bg) 100%);
 }
 
 .modal-header h2 {
@@ -73,14 +70,13 @@
 }
 
 .modal-header .icon {
-    color: #667eea;
-    filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.5));
+    color: var(--primary-500);
 }
 
 /* Close Button */
 .close-button {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     width: 36px;
     height: 36px;
     border-radius: 10px;
@@ -94,9 +90,9 @@
 }
 
 .close-button:hover {
-    background: rgba(255, 95, 86, 0.15);
-    border-color: rgba(255, 95, 86, 0.3);
-    color: #ff5f56;
+    background: var(--error-100);
+    border-color: var(--error-400);
+    color: var(--error-600);
     transform: rotate(90deg);
 }
 

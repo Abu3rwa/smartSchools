@@ -1,0 +1,77 @@
+.parent-dashboard {
+    padding: var(--spacing-lg, 1.5rem);
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.parent-dashboard-header {
+    margin-bottom: var(--spacing-xl, 2rem);
+}
+
+.parent-dashboard-header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+    color: var(--text-primary);
+}
+
+.parent-dashboard-header p {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+}
+
+.parent-dashboard-card {
+    background: var(--card-bg, #fff);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--spacing-xl, 2rem);
+    box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
+    border: 1px solid var(--border-color, #eee);
+}
+
+.parent-dashboard-icon {
+    color: var(--primary);
+    margin-bottom: var(--spacing-md, 1rem);
+}
+
+.parent-dashboard-card h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0 0 var(--spacing-sm, 0.5rem) 0;
+    color: var(--text-primary);
+}
+
+.parent-dashboard-message {
+    color: var(--text-secondary);
+    margin: 0 0 var(--spacing-lg, 1.5rem);
+    line-height: 1.5;
+}
+
+.parent-dashboard-contact {
+    padding-top: var(--spacing-md, 1rem);
+    border-top: 1px solid var(--border-color, #eee);
+}
+
+.parent-dashboard-contact p {
+    margin: 0 0 var(--spacing-sm, 0.5rem);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.parent-dashboard-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 600px) {
+    .parent-dashboard {
+        padding: var(--spacing-md, 1rem);
+    }
+    .parent-dashboard-card {
+        padding: var(--spacing-lg, 1.5rem);
+    }
+}

@@ -10,34 +10,47 @@ import {
   HiOutlineAcademicCap,
   HiOutlinePlay,
   HiOutlineEye,
-  HiOutlineBookOpen,
-  HiOutlineCheckCircle,
+  HiOutlineRefresh,
 } from "react-icons/hi";
 import "./PracticeDashboardPage.css";
 
 const PracticeDashboardPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const assignments = useSelector(selectMyAssignments);
+  const rawAssignments = useSelector(selectMyAssignments);
+  const assignments = rawAssignments.filter((a) => a.standard);
   const loading = useSelector(selectPracticeLoading);
 
   useEffect(() => {
     dispatch(fetchMyAssignments());
   }, [dispatch]);
 
-  const mastered = assignments.filter((a) => a.mastery?.isMastered);
+  const mastered = assignments.filter((a) => a.mastery?.isMastered && !a.mastery?.needsReview);
+  const needsReview = assignments.filter(
+    (a) => a.mastery?.masteryStatus === "needs_review" || (a.mastery?.isMastered && a.mastery?.needsReview),
+  );
   const inProgress = assignments.filter(
-    (a) => !a.mastery?.isMastered && a.mastery?.totalAttempts > 0,
+    (a) =>
+      a.mastery?.masteryStatus === "in_progress" ||
+      (!a.mastery?.isMastered && a.mastery?.totalAttempts > 0 && a.mastery?.masteryStatus !== "needs_review"),
   );
   const notStarted = assignments.filter(
-    (a) => !a.mastery?.isMastered && a.mastery?.totalAttempts === 0,
+    (a) => a.mastery?.masteryStatus === "not_started" || (!a.mastery?.isMastered && a.mastery?.totalAttempts === 0),
   );
 
-  const getMasteryColor = (pct) => {
-    if (pct >= 80) return "green";
-    if (pct >= 40) return "yellow";
-    if (pct > 0) return "red";
+  const getMasteryColor = (confidenceOrPct) => {
+    if (confidenceOrPct >= 80) return "green";
+    if (confidenceOrPct >= 40) return "yellow";
+    if (confidenceOrPct > 0) return "red";
     return "gray";
+  };
+
+  const getStatusBadge = (a) => {
+    if (a.mastery?.isMastered && !a.mastery?.needsReview) return { label: "Mastered (Gold)", className: "status-mastered-gold" };
+    if (a.mastery?.masteryStatus === "needs_review" || (a.mastery?.isMastered && a.mastery?.needsReview))
+      return { label: "Needs Review", className: "status-needs-review" };
+    if (a.mastery?.totalAttempts > 0) return { label: "In Progress", className: "status-in-progress" };
+    return { label: "Not Started", className: "status-not-started" };
   };
 
   return (
@@ -51,7 +64,6 @@ const PracticeDashboardPage = () => {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="practice-stats">
         <div className="practice-stat-card">
           <div className="stat-value">{assignments.length}</div>
@@ -59,7 +71,11 @@ const PracticeDashboardPage = () => {
         </div>
         <div className="practice-stat-card mastered">
           <div className="stat-value">{mastered.length}</div>
-          <div className="stat-label">Mastered</div>
+          <div className="stat-label">Mastered (Gold)</div>
+        </div>
+        <div className="practice-stat-card needs-review">
+          <div className="stat-value">{needsReview.length}</div>
+          <div className="stat-label">Needs Review</div>
         </div>
         <div className="practice-stat-card in-progress">
           <div className="stat-value">{inProgress.length}</div>
@@ -82,108 +98,128 @@ const PracticeDashboardPage = () => {
           <p>Your teacher will assign standards for you to practice.</p>
         </div>
       ) : (
-        <div className="practice-standards-list">
-          {assignments.map((a) => (
-            <div
-              key={a._id}
-              className={`practice-card ${a.mastery?.isMastered ? "mastered" : ""}`}
-            >
-              {a.mastery?.isMastered && (
-                <div className="mastered-overlay">Mastered</div>
-              )}
-              <div className="practice-card-top">
-                <span className="badge-code">{a.standard?.code}</span>
-                <span
-                  className="mastery-badge"
-                  style={{
-                    background: a.mastery?.isMastered
-                      ? "var(--success-100, #d1fae5)"
-                      : a.mastery?.totalAttempts > 0
-                        ? "var(--warning-100, #fef3c7)"
-                        : "var(--bg-secondary)",
-                    color: a.mastery?.isMastered
-                      ? "var(--success-700, #047857)"
-                      : a.mastery?.totalAttempts > 0
-                        ? "var(--warning-700, #b45309)"
-                        : "var(--text-muted)",
-                    padding: "2px 8px",
-                    borderRadius: "12px",
-                    fontSize: "0.72rem",
-                    fontWeight: 600,
-                  }}
-                >
-                  {a.mastery?.isMastered
-                    ? "Mastered"
-                    : a.mastery?.totalAttempts > 0
-                      ? "In Progress"
-                      : "Not Started"}
-                </span>
-              </div>
-              <h3>{a.standard?.name}</h3>
-              <p className="description">{a.standard?.description}</p>
-              <div className="practice-card-meta">
-                <span>
-                  <HiOutlineBookOpen size={14} /> {a.subject?.name}
-                </span>
-                <span>
-                  <HiOutlineAcademicCap size={14} /> Grade{" "}
-                  {a.standard?.gradeLevel}
-                </span>
-              </div>
-              <div className="practice-progress">
-                <div className="practice-progress-bar">
-                  <div
-                    className={`fill ${getMasteryColor(a.mastery?.percentage || 0)}`}
-                    style={{ width: `${a.mastery?.percentage || 0}%` }}
-                  ></div>
-                </div>
-                <div className="practice-progress-text">
-                  <span>
-                    {a.mastery?.correctCount || 0}/
-                    {a.mastery?.totalAttempts || 0} correct
-                  </span>
-                  <span>{a.mastery?.percentage || 0}%</span>
-                </div>
-              </div>
-              <div className="practice-card-actions">
-                {a.mastery?.isMastered ? (
-                  <button
-                    className="btn btn-success btn-sm"
-                    onClick={() =>
-                      navigate(`/portal/practice/${a._id}/history`)
+        <div className="table-container">
+          <table className="practice-table">
+            <thead>
+              <tr>
+                <th>Standard</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Lifetime / Recent</th>
+                <th>Mastery Confidence</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assignments.map((a) => {
+                const badge = getStatusBadge(a);
+                const lifetimeTotal = a.mastery?.lifetimeStats?.totalAttempts ?? a.mastery?.totalAttempts ?? 0;
+                const windowCorrect = a.mastery?.rollingWindowStats?.windowCorrect ?? a.mastery?.correctCount ?? 0;
+                const windowAttempts = a.mastery?.rollingWindowStats?.windowAttempts ?? 0;
+                const confidence = a.mastery?.confidenceScore ?? a.mastery?.percentage ?? 0;
+                const isReview = a.mastery?.masteryStatus === "needs_review" || a.mastery?.needsReview;
+                return (
+                  <tr
+                    key={a._id}
+                    className={
+                      a.mastery?.isMastered && !a.mastery?.needsReview
+                        ? "mastered-row"
+                        : isReview
+                        ? "needs-review-row"
+                        : ""
                     }
                   >
-                    <HiOutlineCheckCircle
-                      size={16}
-                      style={{ marginRight: 4 }}
-                    />
-                    View History
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={() => navigate(`/portal/practice/${a._id}`)}
-                    >
-                      <HiOutlinePlay size={16} style={{ marginRight: 4 }} />
-                      {a.mastery?.totalAttempts > 0 ? "Continue" : "Start"}
-                    </button>
-                    {a.mastery?.totalAttempts > 0 && (
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() =>
-                          navigate(`/portal/practice/${a._id}/history`)
-                        }
-                      >
-                        <HiOutlineEye size={16} style={{ marginRight: 4 }} />
-                        History
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
+                    <td>
+                      <div className="standard-cell">
+                        <span className="standard-code">
+                          {a.standard?.code || "N/A"}
+                        </span>
+                        <span className="standard-name">
+                          {a.standard?.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td>{a.subject?.name}</td>
+                    <td>
+                      <span className={`status-badge ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="lifetime-recent-cell">
+                        <span className="lifetime-label" title="Total questions answered">
+                          {lifetimeTotal} answered
+                        </span>
+                        {windowAttempts > 0 && (
+                          <span className="recent-label" title="Correct in recent window">
+                            {windowCorrect}/{windowAttempts} recent
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="progress-cell">
+                        <div className="progress-bar-wrapper">
+                          <div
+                            className={`progress-bar-fill ${getMasteryColor(confidence)}`}
+                            style={{ width: `${Math.min(100, confidence)}%` }}
+                          />
+                        </div>
+                        <span className="progress-text">{confidence}%</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="actions-cell">
+                        {a.mastery?.isMastered && !isReview ? (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() =>
+                              navigate(`/portal/practice/${a._id}/history`)
+                            }
+                          >
+                            <HiOutlineEye size={16} />
+                            <span>History</span>
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              className={`btn btn-sm ${isReview ? "btn-warning" : "btn-primary"}`}
+                              onClick={() => navigate(`/portal/practice/${a._id}`)}
+                            >
+                              {isReview ? (
+                                <>
+                                  <HiOutlineRefresh size={16} />
+                                  <span>Review</span>
+                                </>
+                              ) : (
+                                <>
+                                  <HiOutlinePlay size={16} />
+                                  <span>
+                                    {lifetimeTotal > 0 ? "Continue" : "Start"}
+                                  </span>
+                                </>
+                              )}
+                            </button>
+                            {lifetimeTotal > 0 && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() =>
+                                  navigate(`/portal/practice/${a._id}/history`)
+                                }
+                              >
+                                <HiOutlineEye size={16} />
+                                <span>History</span>
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

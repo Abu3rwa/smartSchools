@@ -1,303 +1,340 @@
 .student-dashboard {
-    padding: var(--spacing-lg, 1.5rem);
-    max-width: 1200px;
-    margin: 0 auto;
+  padding: var(--spacing-lg, 1.5rem);
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .student-dashboard-header {
-    margin-bottom: var(--spacing-xl, 2rem);
+  margin-bottom: var(--spacing-xl, 2rem);
 }
 
 .student-dashboard-header h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin: 0 0 0.25rem 0;
-    color: var(--text-primary, #111);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+  color: var(--text-primary);
 }
 
 .student-dashboard-header p {
-    margin: 0;
-    font-size: 0.9375rem;
-    color: var(--text-secondary, #555);
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
 }
 
 .student-dashboard-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 200px;
-    gap: var(--spacing-md, 1rem);
-    color: var(--text-muted, #666);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: var(--spacing-md, 1rem);
+  color: var(--text-muted);
 }
 
 .student-dashboard-grid {
-    display: grid;
-    gap: var(--spacing-lg, 1.5rem);
-    grid-template-columns: 1fr;
-    grid-auto-rows: auto;
+  display: grid;
+  gap: var(--spacing-lg, 1.5rem);
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
 }
 
 /* Desktop: large schedule on the left, other cards stacked on the right */
 @media (min-width: 1024px) {
-    .student-dashboard-grid {
-        grid-template-columns: 2fr 1fr;
-        grid-template-areas:
-            "schedule cards"
-            "schedule cards";
-        gap: var(--spacing-lg, 1.5rem);
-    }
+  .student-dashboard-grid {
+    grid-template-columns: 2fr 1fr;
+    grid-template-areas:
+      "schedule grades"
+      "schedule practice"
+      "schedule due";
+    gap: var(--spacing-lg, 1.5rem);
+  }
 
-    .schedule-card { grid-area: schedule; }
-    .grades-card { grid-area: cards; }
-    .practice-card { grid-area: cards; }
-    .due-card { grid-area: cards; }
-
-    /* Stack the right-side cards inside their column */
-    .grades-card,
-    .practice-card,
-    .due-card {
-        margin-bottom: var(--spacing-md, 1rem);
-    }
+  .schedule-card {
+    grid-area: schedule;
+  }
+  .grades-card {
+    grid-area: grades;
+  }
+  .practice-card {
+    grid-area: practice;
+  }
+  .due-card {
+    grid-area: due;
+  }
 }
 
 /* Larger tablets / small desktops: two columns equal width */
 @media (min-width: 768px) and (max-width: 1023px) {
-    .student-dashboard-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
+  .student-dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .student-card {
-    background: var(--bg-secondary, #fff);
-    border-radius: var(--radius-md, 8px);
-    padding: var(--spacing-lg, 1.5rem);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    border: 1px solid var(--border-color, #eee);
-    position: relative;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  position: relative;
 }
 
 .student-card h2 {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 1rem;
-    font-weight: 600;
-    margin: 0 0 var(--spacing-md, 1rem) 0;
-    color: var(--text-primary, #111);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--text-primary);
 }
 
 .student-card .card-icon {
-    flex-shrink: 0;
-    color: var(--primary, #4f46e5);
+  flex-shrink: 0;
+  color: var(--primary-500);
 }
 
 .student-card .card-action {
-    position: absolute;
-    top: var(--spacing-lg, 1.5rem);
-    right: var(--spacing-lg, 1.5rem);
+  position: absolute;
+  top: var(--spacing-lg, 1.5rem);
+  right: var(--spacing-lg, 1.5rem);
 }
 
 .student-card .link-sm {
-    font-size: 0.8125rem;
-    color: var(--primary, #4f46e5);
-    text-decoration: none;
+  font-size: 0.8125rem;
+  color: var(--primary-500);
+  text-decoration: none;
 }
 
 .student-card .link-sm:hover {
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
 .student-card .empty-text {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--text-muted, #666);
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
 }
 
 /* Schedule */
 .schedule-card {
-    position: relative;
+  position: relative;
 }
 
-.schedule-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+.schedule-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-color);
 }
 
-.schedule-item {
-    display: grid;
-    grid-template-columns: 80px 1fr 60px auto;
-    gap: 0.5rem;
-    align-items: center;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border-color, #eee);
-    font-size: 0.875rem;
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
 }
 
-.schedule-item:last-child {
-    border-bottom: none;
+.schedule-table thead {
+  background: var(--bg-tertiary);
 }
 
-.period-name {
-    font-weight: 600;
-    color: var(--text-primary, #111);
+.schedule-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;
 }
 
-.subject-name {
-    color: var(--text-primary, #111);
+.schedule-table th:first-child {
+  border-radius: var(--radius-md, 8px) 0 0 0;
 }
 
-.room-name,
-.teacher-name {
-    color: var(--text-secondary, #555);
-    font-size: 0.8125rem;
+.schedule-table th:last-child {
+  border-radius: 0 var(--radius-md, 8px) 0 0;
+}
+
+.schedule-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.15s ease;
+}
+
+.schedule-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.schedule-table tbody tr:hover {
+  background: var(--bg-tertiary);
+}
+
+.schedule-table td {
+  padding: 0.75rem 1rem;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.schedule-table .schedule-period {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.schedule-table .schedule-subject {
+  color: var(--text-primary);
+}
+
+.schedule-table .schedule-teacher {
+  color: var(--text-secondary);
+}
+
+.schedule-table .schedule-time {
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 /* Grades */
 .grades-card {
-    position: relative;
+  position: relative;
 }
 
 .grades-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .grades-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border-color, #eee);
-    font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.875rem;
 }
 
 .grades-item:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 .grade-subject {
-    font-weight: 500;
-    color: var(--text-primary, #111);
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .grade-marks {
-    color: var(--text-secondary, #555);
+  color: var(--text-secondary);
 }
 
 .grade-date {
-    font-size: 0.8125rem;
-    color: var(--text-muted, #666);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
 /* Practice */
 .practice-card {
-    position: relative;
+  position: relative;
 }
 
 .practice-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .practice-item {
-    display: grid;
-    grid-template-columns: 60px 1fr 60px 40px auto;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border-color, #eee);
-    font-size: 0.875rem;
+  display: grid;
+  grid-template-columns: 60px 1fr 60px 40px auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.875rem;
 }
 
 .practice-item:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 .practice-code {
-    font-weight: 600;
-    color: var(--text-primary, #111);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .practice-name {
-    color: var(--text-secondary, #555);
-    font-size: 0.8125rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .practice-progress-bar {
-    width: 60px;
-    height: 6px;
-    background: var(--bg-tertiary, #eee);
-    border-radius: 3px;
-    overflow: hidden;
+  width: 60px;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .practice-progress-fill {
-    height: 100%;
-    background: var(--primary, #4f46e5);
-    border-radius: 3px;
-    transition: width 0.3s ease;
+  height: 100%;
+  background: var(--primary-500);
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
 .practice-pct {
-    font-size: 0.8125rem;
-    color: var(--text-muted, #666);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
 .badge-mastered {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: var(--success-700, #047857);
-    background: var(--success-100, #d1fae5);
-    padding: 2px 6px;
-    border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--success-700);
+  background: var(--success-100);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .practice-item .btn-sm {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
 }
 
 /* Due dates */
 .due-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .due-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border-color, #eee);
-    font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.875rem;
 }
 
 .due-item:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 .due-code {
-    font-weight: 600;
-    color: var(--text-primary, #111);
-    min-width: 60px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 60px;
 }
 
 .due-date {
-    color: var(--text-secondary, #555);
-    font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
 }
 
 .due-item .link-sm {
-    margin-left: auto;
+  margin-left: auto;
 }

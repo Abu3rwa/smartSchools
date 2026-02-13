@@ -1,7 +1,9 @@
-import { NavLink } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTheme, useMediaQuery } from '@mui/material';
 import { selectUser, logout } from '../../store/slices/authSlice';
-import { selectSidebarOpen, toggleSidebar } from '../../store/slices/uiSlice';
+import { selectSidebarOpen, toggleSidebar, setSidebarOpen } from '../../store/slices/uiSlice';
 import {
     HiOutlineHome,
     HiOutlineOfficeBuilding,
@@ -10,6 +12,7 @@ import {
     HiOutlineCreditCard,
     HiOutlineChevronLeft,
     HiOutlineChevronRight,
+    HiOutlineMenu,
     HiOutlineLogout,
     HiOutlineShieldCheck,
     HiOutlineAcademicCap,
@@ -19,8 +22,22 @@ import './Sidebar.css';
 
 const AdminSidebar = () => {
     const dispatch = useDispatch();
+    const location = useLocation();
     const user = useSelector(selectUser);
     const sidebarOpen = useSelector(selectSidebarOpen);
+    const theme = useTheme();
+    const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+
+    // Close drawer on mobile only when route changes (not when opening)
+    const prevPathRef = useRef(location.pathname);
+    useEffect(() => {
+        if (!isDesktop && prevPathRef.current !== location.pathname) {
+            prevPathRef.current = location.pathname;
+            dispatch(setSidebarOpen(false));
+        } else {
+            prevPathRef.current = location.pathname;
+        }
+    }, [location.pathname, isDesktop, dispatch]);
 
     const navItems = [
         { path: '/admin/dashboard', icon: HiOutlineHome, label: 'Dashboard' },
@@ -44,9 +61,9 @@ const AdminSidebar = () => {
                 <button
                     className="toggle-btn"
                     onClick={() => dispatch(toggleSidebar())}
-                    aria-label="Toggle sidebar"
+                    aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
                 >
-                    {sidebarOpen ? <HiOutlineChevronLeft /> : <HiOutlineChevronRight />}
+                    {sidebarOpen ? <HiOutlineChevronLeft size={20} /> : <HiOutlineMenu size={24} />}
                 </button>
             </div>
 

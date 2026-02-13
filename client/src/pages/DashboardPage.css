@@ -56,22 +56,22 @@
 }
 
 .stat-primary .stat-icon {
-    background: rgba(102, 126, 234, 0.15);
-    color: var(--primary-400);
+    background: var(--stat-primary-bg);
+    color: var(--primary-500);
 }
 
 .stat-purple .stat-icon {
-    background: rgba(139, 92, 246, 0.15);
+    background: var(--stat-secondary-bg);
     color: var(--accent-purple);
 }
 
 .stat-emerald .stat-icon {
-    background: rgba(16, 185, 129, 0.15);
+    background: var(--stat-success-bg);
     color: var(--accent-emerald);
 }
 
 .stat-amber .stat-icon {
-    background: rgba(245, 158, 11, 0.15);
+    background: var(--stat-warning-bg);
     color: var(--accent-amber);
 }
 
@@ -101,22 +101,18 @@
     color: var(--accent-emerald);
 }
 
-/* Dashboard Grid */
+/* Dashboard Grid - Now handled by MUI Grid */
 .dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-lg);
+    /* MUI Grid handles layout */
 }
 
 /* Quick Actions */
 .quick-actions-card {
-    grid-column: 1;
+    /* Grid handled by MUI */
 }
 
 .quick-actions-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-md);
+    /* Grid handled by MUI Grid container */
 }
 
 .quick-action {
@@ -156,8 +152,7 @@
 
 /* Students List */
 .recent-students-card {
-    grid-column: 2;
-    grid-row: 1 / 3;
+    /* Grid handled by MUI */
 }
 
 .students-list {
@@ -223,7 +218,7 @@
 
 /* Classes List */
 .classes-overview-card {
-    grid-column: 1;
+    /* Grid handled by MUI */
 }
 
 .classes-list {
@@ -265,7 +260,7 @@
 
 /* Performance Card */
 .performance-card {
-    grid-column: 2;
+    /* Grid handled by MUI */
 }
 
 .chart-placeholder {
@@ -302,36 +297,6 @@
     margin: 0;
 }
 
-/* Responsive */
-@media (max-width: 1024px) {
-    .dashboard-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .recent-students-card {
-        grid-column: 1;
-        grid-row: auto;
-    }
-
-    .performance-card {
-        grid-column: 1;
-    }
-}
-
-@media (max-width: 768px) {
-    .dashboard-header {
-        flex-direction: column;
-    }
-
-    .header-actions {
-        width: 100%;
-    }
-
-    .header-actions .btn {
-        width: 100%;
-    }
-
-    .quick-actions-grid {
-        grid-template-columns: 1fr;
-    }
-}
+/* Responsive - Now handled by MUI breakpoints */
+/* Dashboard header responsive handled inline with MUI Box sx prop */
+/* Grid responsive handled by MUI Grid xs/sm/md props */

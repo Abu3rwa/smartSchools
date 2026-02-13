@@ -1,13 +1,15 @@
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTheme, useMediaQuery, Box } from '@mui/material';
 import { selectUser, logout } from '../../store/slices/authSlice';
-import { selectTheme, setTheme, selectCurrentAcademicYear } from '../../store/slices/uiSlice';
+import { selectTheme, setTheme, selectCurrentAcademicYear, toggleSidebar } from '../../store/slices/uiSlice';
 import {
     HiOutlineMoon,
     HiOutlineSun,
     HiOutlineLogout,
     HiOutlineSearch,
-    HiOutlineBell
+    HiOutlineBell,
+    HiOutlineMenu
 } from 'react-icons/hi';
 import './Header.css';
 
@@ -17,6 +19,8 @@ const Header = () => {
     const user = useSelector(selectUser);
     const theme = useSelector(selectTheme);
     const academicYear = useSelector(selectCurrentAcademicYear);
+    const muiTheme = useTheme();
+    const isDesktop = useMediaQuery(muiTheme.breakpoints.up('md'));
 
     const handleLogout = () => {
         dispatch(logout());
@@ -27,10 +31,26 @@ const Header = () => {
         dispatch(setTheme(theme === 'dark' ? 'light' : 'dark'));
     };
 
+    const handleMenuClick = () => {
+        dispatch(toggleSidebar());
+    };
+
     return (
         <header className="header">
             <div className="header-left">
-                <div className="search-box">
+                {/* Hamburger menu for mobile */}
+                {!isDesktop && (
+                    <button
+                        className="header-btn hamburger-btn"
+                        onClick={handleMenuClick}
+                        aria-label="Open menu"
+                    >
+                        <HiOutlineMenu size={20} />
+                    </button>
+                )}
+                
+                {/* Search box - hidden on mobile */}
+                <div className="search-box" style={{ display: isDesktop ? 'block' : 'none' }}>
                     <HiOutlineSearch className="search-icon" />
                     <input
                         type="text"

@@ -1,0 +1,188 @@
+.teacher-dashboard {
+    animation: fadeIn 0.4s ease;
+}
+
+.teacher-dashboard-header {
+    margin-bottom: var(--spacing-2xl);
+}
+
+.teacher-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    transition: all var(--transition-normal);
+}
+
+.teacher-card .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-md);
+}
+
+.teacher-card .card-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.teacher-card .card-icon {
+    color: var(--primary-400);
+    flex-shrink: 0;
+}
+
+.empty-text {
+    color: var(--text-muted);
+    margin: 0;
+    padding: var(--spacing-md) 0;
+    font-size: 0.9375rem;
+}
+
+/* Today's schedule list */
+.teacher-schedule-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.teacher-schedule-item {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr 1fr auto;
+    gap: var(--spacing-md);
+    align-items: center;
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .teacher-schedule-item {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--spacing-xs);
+    }
+    .teacher-schedule-item .period-time {
+        grid-column: 1 / -1;
+        font-weight: 600;
+        color: var(--primary-400);
+    }
+}
+
+.teacher-schedule-item .period-time {
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.teacher-schedule-item .period-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.teacher-schedule-item .subject-name,
+.teacher-schedule-item .class-name {
+    color: var(--text-primary);
+}
+
+.teacher-schedule-item .room-name {
+    color: var(--text-muted);
+}
+
+/* My classes list */
+.teacher-classes-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.teacher-class-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.teacher-class-item:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--primary-500);
+}
+
+.teacher-class-item .class-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.teacher-class-item .class-count {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.teacher-class-item .action-arrow {
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: all var(--transition-fast);
+}
+
+.teacher-class-item:hover .action-arrow {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* Quick actions (reuse dashboard pattern) */
+.teacher-card.quick-actions-card .card-title {
+    margin-bottom: var(--spacing-md);
+}
+
+.teacher-card .quick-action {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.teacher-card .quick-action:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--primary-500);
+}
+
+.teacher-card .quick-action span {
+    flex: 1;
+    font-weight: 500;
+}
+
+.teacher-card .quick-action .action-arrow {
+    opacity: 0;
+    transform: translateX(-8px);
+    transition: all var(--transition-fast);
+}
+
+.teacher-card .quick-action:hover .action-arrow {
+    opacity: 1;
+    transform: translateX(0);
+}

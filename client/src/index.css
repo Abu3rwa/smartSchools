@@ -1,9 +1,7 @@
 /* ==========================================
    GradeBook - Global Styles
-   Premium Dark Theme Design System
    ========================================== */
 
-/* CSS Variables / Design Tokens */
 :root {
   /* Primary Colors */
   --primary-50: #e8f4fc;
@@ -79,10 +77,80 @@
   --sidebar-collapsed: 80px;
   --header-height: 70px;
   --content-max-width: 1400px;
+
+  /* Overlay (modals, backdrops) */
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+
+  /* Semantic: single primary + focus */
+  --primary: #5aaeee;
+  --focus-ring: rgba(90, 174, 238, 0.35);
+
+  /* Success / Error / Warning scales (dark theme) */
+  --success-50: #ecfdf5;
+  --success-100: #d1fae5;
+  --success-200: #a7f3d0;
+  --success-400: #34d399;
+  --success-500: #10b981;
+  --success-600: #059669;
+  --success-700: #047857;
+  --error-50: #fef2f2;
+  --error-100: #fee2e2;
+  --error-200: #fecaca;
+  --error-400: #f87171;
+  --error-500: #ef4444;
+  --error-600: #dc2626;
+  --error-700: #b91c1c;
+  --warning-50: #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --warning-700: #b45309;
+
+  /* Glass card, text on accent (e.g. nav active) */
+  --glass-bg: rgba(30, 30, 53, 0.7);
+  --on-accent: #ffffff;
+
+  /* Grade colors (semantic) */
+  --grade-success: #10b981;
+  --grade-success-alt: #22c55e;
+  --grade-warning: #eab308;
+  --grade-warning-alt: #f59e0b;
+  --grade-error: #ef4444;
+
+  /* For rgba() use in components (e.g. LessonPlanPage) */
+  --accent-primary-rgb: 90, 174, 238;
+
+  /* Stat card / subtle backgrounds */
+  --stat-primary-bg: rgba(90, 174, 238, 0.15);
+  --stat-secondary-bg: rgba(139, 92, 246, 0.15);
+  --stat-success-bg: rgba(16, 185, 129, 0.15);
+  --stat-warning-bg: rgba(245, 158, 11, 0.15);
 }
 
 /* Light Theme Override */
 [data-theme="light"] {
+  /* shadcn/ui light */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  /* GradeBook light */
   --bg-primary: #f5f7fa;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f0f2f5;
@@ -97,6 +165,47 @@
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --overlay-bg: rgba(0, 0, 0, 0.35);
+
+  /* Semantic (light theme) */
+  --primary: #2f7fd2;
+  --focus-ring: rgba(47, 127, 210, 0.25);
+
+  --success-50: #ecfdf5;
+  --success-100: #d1fae5;
+  --success-200: #a7f3d0;
+  --success-400: #34d399;
+  --success-500: #10b981;
+  --success-600: #059669;
+  --success-700: #047857;
+  --error-50: #fef2f2;
+  --error-100: #fee2e2;
+  --error-200: #fecaca;
+  --error-400: #f87171;
+  --error-500: #ef4444;
+  --error-600: #dc2626;
+  --error-700: #b91c1c;
+  --warning-50: #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --warning-700: #b45309;
+
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --on-accent: #ffffff;
+
+  --grade-success: #059669;
+  --grade-success-alt: #16a34a;
+  --grade-warning: #d97706;
+  --grade-warning-alt: #b45309;
+  --grade-error: #dc2626;
+
+  --accent-primary-rgb: 47, 127, 210;
+  --stat-primary-bg: rgba(47, 127, 210, 0.12);
+  --stat-secondary-bg: rgba(109, 40, 217, 0.12);
+  --stat-success-bg: rgba(5, 150, 105, 0.12);
+  --stat-warning-bg: rgba(217, 119, 6, 0.12);
 }
 
 /* ==========================================
@@ -182,7 +291,7 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 input::placeholder, textarea::placeholder {
@@ -244,7 +353,7 @@ label {
 }
 
 .btn-success:hover {
-  background: #059669;
+  background: var(--success-600);
 }
 
 .btn-danger {
@@ -253,7 +362,7 @@ label {
 }
 
 .btn-danger:hover {
-  background: #dc2626;
+  background: var(--error-600);
 }
 
 .btn-ghost {
@@ -325,7 +434,7 @@ label {
 
 /* Glass Card */
 .card-glass {
-  background: rgba(30, 30, 53, 0.7);
+  background: var(--glass-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -388,18 +497,18 @@ tbody tr:hover {
 }
 
 .badge-success {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--accent-emerald);
+  background: var(--success-100);
+  color: var(--success-700);
 }
 
 .badge-warning {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--accent-amber);
+  background: var(--warning-100);
+  color: var(--warning-700);
 }
 
 .badge-danger {
-  background: rgba(239, 68, 68, 0.15);
-  color: var(--accent-red);
+  background: var(--error-100);
+  color: var(--error-700);
 }
 
 .badge-info {
@@ -408,21 +517,21 @@ tbody tr:hover {
 }
 
 .badge-primary {
-  background: rgba(102, 126, 234, 0.15);
-  color: var(--primary-400);
+  background: var(--primary-100);
+  color: var(--primary-700);
 }
 
 /* ==========================================
    Grade Colors
    ========================================== */
 
-.grade-a-plus { color: #10b981; }
-.grade-a { color: #22c55e; }
-.grade-b-plus { color: #84cc16; }
-.grade-b { color: #eab308; }
-.grade-c-plus { color: #f59e0b; }
-.grade-c { color: #f97316; }
-.grade-f { color: #ef4444; }
+.grade-a-plus { color: var(--grade-success); }
+.grade-a { color: var(--grade-success-alt); }
+.grade-b-plus { color: var(--grade-success-alt); }
+.grade-b { color: var(--grade-warning); }
+.grade-c-plus { color: var(--grade-warning-alt); }
+.grade-c { color: var(--grade-warning-alt); }
+.grade-f { color: var(--grade-error); }
 
 /* ==========================================
    Loading & Spinner
@@ -444,11 +553,38 @@ tbody tr:hover {
 .loading-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 15, 26, 0.8);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  min-height: 200px;
+  padding: var(--spacing-xl);
+}
+
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  min-height: 200px;
+  padding: var(--spacing-xl);
+  text-align: center;
+}
+
+.error-message {
+  color: var(--accent-red);
+  font-weight: 500;
+  margin: 0;
 }
 
 /* ==========================================
@@ -476,6 +612,22 @@ tbody tr:hover {
 .text-success { color: var(--accent-emerald); }
 .text-danger { color: var(--accent-red); }
 .text-warning { color: var(--accent-amber); }
+
+/* Inline toast-style messages (e.g. ReportTemplates) */
+.success-toast {
+  background: var(--success-100);
+  color: var(--success-700);
+  border: 1px solid var(--success-200);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+}
+.error-toast {
+  background: var(--error-100);
+  color: var(--error-700);
+  border: 1px solid var(--error-200);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+}
 
 .font-medium { font-weight: 500; }
 .font-semibold { font-weight: 600; }
@@ -557,12 +709,42 @@ tbody tr:hover {
 }
 
 /* ==========================================
-   Responsive
+   Page layout (theme-aware, use on all pages)
    ========================================== */
 
-@media (max-width: 768px) {
+.page-container {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-2xl);
+}
+
+.page-header h1 {
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.page-header .text-muted {
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+/* ==========================================
+   Responsive (align with MUI md: 900px)
+   ========================================== */
+
+@media (max-width: 899px) {
   html {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .card {
@@ -572,4 +754,20 @@ tbody tr:hover {
   h1 { font-size: 2rem; }
   h2 { font-size: 1.5rem; }
   h3 { font-size: 1.25rem; }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 599px) {
+  html {
+    font-size: 14px;
+  }
 }

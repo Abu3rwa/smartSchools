@@ -43,6 +43,39 @@ const standardAssignmentSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    practiceConfig: {
+        sessionType: {
+            type: String,
+            enum: ['assessment', 'homework', 'classwork', 'practice'],
+            default: 'practice'
+        },
+        questionLimit: {
+            type: Number,
+            min: 1,
+            default: null
+        },
+        timeLimitSeconds: {
+            type: Number,
+            min: 60,
+            default: null
+        },
+        allowedQuestionTypes: [{
+            type: String,
+            enum: ['multiple_choice', 'short_answer', 'true_false']
+        }],
+        allowedDifficulties: [{
+            type: String,
+            enum: ['easy', 'medium', 'hard']
+        }],
+        availability: {
+            startAt: { type: Date, default: null },
+            endAt: { type: Date, default: null }
+        },
+        lockStudentOptions: {
+            type: Boolean,
+            default: false
+        }
+    },
     isActive: {
         type: Boolean,
         default: true

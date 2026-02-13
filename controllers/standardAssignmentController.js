@@ -5,6 +5,7 @@ import PracticeAttempt from '../models/PracticeAttempt.js';
 import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject, getTeacherClassIds } from '../helpers/teacherScoping.js';
+import { practiceConfigSchema } from '../schemas/practiceSchemas.js';
 
 /**
  * @desc    Get assignments (teacher sees own, admin sees all)
@@ -106,7 +107,9 @@ export const getAssignment = asyncHandler(async (req, res) => {
                 student._id,
                 assignment.standard._id,
                 assignment.standard.masteryThreshold,
-                assignment.standard.masteryMinQuestions
+                assignment.standard.masteryMinQuestions,
+                3,
+                req.schoolId
             );
             return {
                 student: student.toObject ? student.toObject() : student,
@@ -130,7 +133,7 @@ export const getAssignment = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Teacher)
  */
 export const createAssignment = asyncHandler(async (req, res) => {
-    const { standardId, classId, subjectId, students, dueDate, instructions } = req.body;
+    const { standardId, classId, subjectId, students, dueDate, instructions, practiceConfig } = req.body;
 
     if (!standardId || !classId || !subjectId) {
         return res.status(400).json({
@@ -233,6 +236,19 @@ export const createAssignment = asyncHandler(async (req, res) => {
         });
     }
 
+    let parsedConfig = undefined;
+    if (practiceConfig !== undefined) {
+        const parsed = practiceConfigSchema.safeParse(practiceConfig);
+        if (!parsed.success) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid practiceConfig',
+                errors: parsed.error.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+            });
+        }
+        parsedConfig = parsed.data;
+    }
+
     const assignment = await StandardAssignment.create({
         school: req.schoolId,
         standard: standardId,
@@ -241,7 +257,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
         subject: subjectId,
         students: students || [],
         dueDate: dueDate || null,
-        instructions: instructions || ''
+        instructions: instructions || '',
+        practiceConfig: parsedConfig
     });
 
     const populated = await StandardAssignment.findById(assignment._id)
@@ -277,11 +294,35 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         }
     }
 
-    const allowedFields = ['students', 'dueDate', 'instructions', 'isActive'];
+    const allowedFields = ['students', 'dueDate', 'instructions', 'isActive', 'practiceConfig'];
     const updates = {};
-    allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) updates[field] = req.body[field];
-    });
+    for (const field of allowedFields) {
+        if (req.body[field] === undefined) continue;
+        if (field === 'practiceConfig') {
+            const parsed = practiceConfigSchema.safeParse(req.body.practiceConfig);
+            if (!parsed.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid practiceConfig',
+                    errors: parsed.error.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+                });
+            }
+            const currentConfig = assignment.practiceConfig
+                ? assignment.practiceConfig.toObject()
+                : {};
+            const nextAvailability = {
+                ...(currentConfig.availability || {}),
+                ...(parsed.data.availability || {})
+            };
+            updates.practiceConfig = {
+                ...currentConfig,
+                ...parsed.data,
+                availability: nextAvailability
+            };
+        } else {
+            updates[field] = req.body[field];
+        }
+    }
 
     assignment = await StandardAssignment.findByIdAndUpdate(req.params.id, updates, {
         new: true,

@@ -118,5 +118,6 @@ export const { clearError } = subjectSlice.actions;
 export const selectSubjects = (state) => state.subjects.subjects;
 export const selectGradeSubjects = (state) => state.subjects.gradeSubjects;
 export const selectSubjectsLoading = (state) => state.subjects.loading;
+export const selectSubjectsError = (state) => state.subjects.error;
 
 export default subjectSlice.reducer;

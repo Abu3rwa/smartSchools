@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchClasses, selectClasses, selectClassesLoading, createClass } from '../store/slices/classSlice';
+import { fetchClasses, selectClasses, selectClassesLoading, selectClassesError, createClass } from '../store/slices/classSlice';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
 import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap } from 'react-icons/hi';
@@ -12,6 +12,7 @@ const ClassesPage = () => {
     const dispatch = useDispatch();
     const classes = useSelector(selectClasses);
     const loading = useSelector(selectClassesLoading);
+    const error = useSelector(selectClassesError);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
 
@@ -83,6 +84,13 @@ const ClassesPage = () => {
             {loading ? (
                 <div className="loading-container">
                     <div className="spinner"></div>
+                </div>
+            ) : error ? (
+                <div className="error-container">
+                    <p className="error-message">{error}</p>
+                    <button className="btn btn-primary" onClick={() => dispatch(fetchClasses({ academicYear }))}>
+                        Retry
+                    </button>
                 </div>
             ) : (
                 <div className="table-container">

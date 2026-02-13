@@ -123,27 +123,31 @@
     border-radius: var(--radius-full);
     font-size: 0.8rem;
     font-weight: 600;
-    color: white;
+    color: var(--on-accent);
 }
 
 .logout-btn:hover {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--accent-red);
-    border-color: var(--accent-red);
+    background: var(--error-100);
+    color: var(--error-600);
+    border-color: var(--error-500);
 }
 
 .academic-year {
     margin-right: var(--spacing-sm);
 }
 
-/* Mobile */
-@media (max-width: 768px) {
+/* Mobile: Header adjustments */
+@media (max-width: 899px) {
     .header {
-        left: 0;
+        left: 0 !important;
         padding: 0 var(--spacing-md);
     }
 
     .search-box {
         display: none;
     }
+}
+
+.hamburger-btn {
+    margin-right: var(--spacing-sm);
 }

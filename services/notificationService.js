@@ -44,22 +44,19 @@ class NotificationService {
   }
 
   /**
-   * Send grade update notification to parent
+   * Send grade update notification to parent(s) and student
    */
   async sendGradeUpdateNotification(studentId, gradeData, createdBy) {
     const student = await Student.findById(studentId);
     if (!student) throw new Error("Student not found");
 
-    const contact = student.getPrimaryContact();
-    if (!contact?.email) {
-      console.log("No parent email found for student:", studentId);
+    const recipients = student.getAllContactEmails();
+    if (recipients.length === 0) {
+      console.log("No parent or student email found for student:", studentId);
       return null;
     }
 
-    const recipients = [contact.email];
-    if (student.email) {
-      recipients.push(student.email);
-    }
+    const contact = student.getPrimaryContact();
 
     const subject = `Grade Update for ${student.fullName}`;
     const message = this.formatGradeUpdateMessage(student, gradeData);
@@ -72,7 +69,7 @@ class NotificationService {
     const notification = new Notification({
       school: student.school,
       recipientEmail: recipients.join(","),
-      recipientPhone: contact.phone,
+      recipientPhone: contact?.phone,
       student: studentId,
       type: "grade_update",
       subject,
@@ -89,14 +86,14 @@ class NotificationService {
   }
 
   /**
-   * Send daily report for a student
+   * Send daily report for a student to all contact emails
    */
   async sendDailyReport(studentId, date, createdBy) {
     const student = await Student.findById(studentId).populate("currentClass");
     if (!student) throw new Error("Student not found");
 
-    const contact = student.getPrimaryContact();
-    if (!contact?.email) return null;
+    const recipients = student.getAllContactEmails();
+    if (recipients.length === 0) return null;
 
     // Get today's grades
     const startOfDay = new Date(date);
@@ -109,11 +106,6 @@ class NotificationService {
     });
 
     if (grades.length === 0) return null;
-
-    const recipients = [contact.email];
-    if (student.email) {
-      recipients.push(student.email);
-    }
 
     const subject = `Daily Report for ${student.fullName} - ${date.toLocaleDateString()}`;
     const message = this.formatDailyReportMessage(student, grades, date);
@@ -150,8 +142,8 @@ class NotificationService {
     const student = await Student.findById(studentId).populate("currentClass");
     if (!student) throw new Error("Student not found");
 
-    const contact = student.getPrimaryContact();
-    if (!contact?.email) return null;
+    const recipients = student.getAllContactEmails();
+    if (recipients.length === 0) return null;
 
     // Get all classwork grades for the current month up to today, with optional filters
     const grades = await gradeService.getMonthlyClassworkGrades(
@@ -185,11 +177,6 @@ class NotificationService {
       const categoryTitle =
         filters.category.charAt(0).toUpperCase() + filters.category.slice(1);
       reportTitle = `${categoryTitle} Report`;
-    }
-
-    const recipients = [contact.email];
-    if (student.email) {
-      recipients.push(student.email);
     }
 
     const subject = `${reportTitle} - ${student.fullName} (${today})`;
@@ -237,14 +224,14 @@ class NotificationService {
   }
 
   /**
-   * Send monthly report
+   * Send monthly report to all contact emails
    */
   async sendMonthlyReport(studentId, month, academicYear, createdBy) {
     const student = await Student.findById(studentId).populate("currentClass");
     if (!student) throw new Error("Student not found");
 
-    const contact = student.getPrimaryContact();
-    if (!contact?.email) return null;
+    const recipients = student.getAllContactEmails();
+    if (recipients.length === 0) return null;
 
     const report = await gradeService.getStudentGradeReport(
       studentId,
@@ -253,11 +240,6 @@ class NotificationService {
     const monthName = new Date(2024, month - 1).toLocaleString("default", {
       month: "long",
     });
-
-    const recipients = [contact.email];
-    if (student.email) {
-      recipients.push(student.email);
-    }
 
     const subject = `Monthly Report for ${student.fullName} - ${monthName} ${academicYear}`;
     const message = this.formatMonthlyReportMessage(
@@ -305,14 +287,9 @@ class NotificationService {
     const student = await Student.findById(studentId).populate("currentClass");
     if (!student) throw new Error("Student not found");
 
-    const contact = student.getPrimaryContact();
-    if (!contact?.email) {
-      throw new Error("No parent email found for student");
-    }
-
-    const recipients = [contact.email];
-    if (student.email) {
-      recipients.push(student.email);
+    const recipients = student.getAllContactEmails();
+    if (recipients.length === 0) {
+      throw new Error("No parent or student email found for student");
     }
 
     const subject = `Progress Report for ${student.fullName} - ${period}`;

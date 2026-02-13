@@ -201,6 +201,27 @@ studentSchema.methods.getPrimaryContact = function () {
     }
 };
 
+/**
+ * Returns an array of unique, non-empty emails from father, mother, guardian, and student.
+ * Used when sending notifications to all contacts (e.g. grade updates, reports).
+ */
+studentSchema.methods.getAllContactEmails = function () {
+    const emails = new Set();
+    const add = (value) => {
+        if (value && typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (normalized) emails.add(normalized);
+        }
+    };
+    if (this.parentInfo) {
+        add(this.parentInfo.fatherEmail);
+        add(this.parentInfo.motherEmail);
+        add(this.parentInfo.guardianEmail);
+    }
+    add(this.email);
+    return [...emails];
+};
+
 // Apply tenant isolation plugin
 studentSchema.plugin(tenantIsolationPlugin);
 

@@ -15,6 +15,8 @@ import behaviorReducer from './slices/behaviorSlice';
 import newsletterReducer from './slices/newsletterSlice';
 import standardReducer from './slices/standardSlice';
 import practiceReducer from './slices/practiceSlice';
+import revisionReducer from './slices/revisionSlice';
+import readingReducer from './slices/readingSlice';
 
 export const store = configureStore({
     reducer: {
@@ -33,7 +35,9 @@ export const store = configureStore({
         subscriptions: subscriptionReducer,
         behavior: behaviorReducer,
         standards: standardReducer,
-        practice: practiceReducer
+        practice: practiceReducer,
+        revision: revisionReducer,
+        reading: readingReducer
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
