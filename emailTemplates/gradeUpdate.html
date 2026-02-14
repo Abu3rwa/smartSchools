@@ -1,0 +1,43 @@
+<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 100%; margin: 0 auto; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 16px; text-align: center; color: white;">
+    <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Grade Update</h2>
+    <p style="margin: 6px 0 0; opacity: 0.9; font-size: 14px;">{{studentFullName}}</p>
+  </div>
+  
+  <div style="background: #ffffff; padding: 16px 12px;">
+    <p style="margin-top: 0; color: #555; font-size: 14px;">Dear {{studentFirstName}}'s Parent,</p>
+    <p style="color: #555; line-height: 1.4; font-size: 14px;">A new grade has been posted for <strong>{{studentFirstName}}</strong> by <strong>{{teacherName}}</strong>.</p>
+    
+    <div style="background: #f8f9fa; border-left: 3px solid #1e3c72; padding: 12px; margin: 16px 0; border-radius: 0 3px 3px 0;">
+      <div style="margin-bottom: 8px;">
+        <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Subject</span>
+        <div style="font-size: 16px; font-weight: 600; color: #333;">{{subjectName}}</div>
+      </div>
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+        <div>
+          <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Category</span>
+          <div style="font-size: 14px; color: #333;">{{gradeType}}</div>
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Date</span>
+          <div style="font-size: 14px; color: #333;">{{gradeDate}}</div>
+        </div>
+      </div>
+
+      <div style="text-align: center; padding: 8px 0;">
+         <div style="font-size: 28px; font-weight: 700; color: #1e3c72;">{{marks}}<span style="font-size: 16px; color: #888; font-weight: 400;">/{{maxMarks}}</span></div>
+         <div style="font-size: 12px; color: #666; font-weight: 500;">{{percentage}}% Score</div>
+      </div>
+
+      {{remarksSection}}
+    </div>
+    
+    <div style="text-align: center; margin-top: 16px;">
+       <a href="{{clientUrl}}" style="background-color: #1e3c72; color: white; padding: 8px 16px; text-decoration: none; border-radius: 20px; font-weight: 600; font-size: 12px; display: inline-block;">View Full Gradebook</a>
+    </div>
+  </div>
+  <div style="background-color: #f1f3f5; padding: 12px; text-align: center; font-size: 12px; color: #888;">
+    &copy; {{year}} {{teacherName}}. All rights reserved.
+  </div>
+</div>

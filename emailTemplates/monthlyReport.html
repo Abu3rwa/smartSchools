@@ -1,0 +1,31 @@
+<div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; background: #f8f9fa; padding: 5px;">
+  <div style="background: #2c3e50; color: white; padding: 7px 15px; border-radius: 6px 6px 0 0;">
+    <h2 style="margin: 0; font-size: 16px;">Monthly Report - {{monthName}}</h2>
+    <p style="margin: 3px 0 0 0; font-size: 12px; opacity: 0.9;">Student: {{studentFullName}}</p>
+  </div>
+  <div style="background: #ffffff; padding: 12px; border-radius: 0 0 6px 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);">
+    <p style="margin: 0 0 12px 0; color: #333; font-size: 13px;">
+      Below is the average performance for <strong>{{studentFullName}}</strong> in each subject for <strong>{{monthName}}</strong> by <strong>{{teacherName}}</strong>:
+    </p>
+    <table style="width: 100%; border-collapse: collapse; margin: 6px 0 0 0; font-size: 12px;">
+      <thead>
+        <tr style="background: #e9ecef; color: #212529;">
+          <th style="padding: 6px; border: 1px solid #dee2e6; text-align: left; font-size: 12px;">Subject</th>
+          <th style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">Average (%)</th>
+          <th style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">Entries</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{subjectsRows}}
+        <tr style="background: #28a745; color: white; font-weight: bold;">
+          <td style="padding: 6px; border: 1px solid #dee2e6; font-size: 12px;">Overall Average</td>
+          <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">{{overallAverage}}%</td>
+          <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="color: #6c757d; font-size: 10px; margin-top: 10px; border-top: 1px solid #eee; padding-top: 6px;">
+      This report shows percentage averages based on recorded grades for the selected month by {{teacherName}}.
+    </p>
+  </div>
+</div>

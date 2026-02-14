@@ -3,6 +3,7 @@ import Student from "../models/Student.js";
 import User from "../models/User.js";
 import gradeService from "./gradeService.js";
 import gmailOAuthService from "./gmailOAuthService.js";
+import { renderTemplate } from "../emailTemplates/templateLoader.js";
 
 /**
  * Sanitize email subject to plain ASCII (remove emojis and special characters)
@@ -16,6 +17,28 @@ const sanitizeSubject = (subject) => {
 class NotificationService {
   constructor() {
     // Gmail OAuth is the sole email transport – no SMTP configuration needed.
+  }
+
+  /** Resolve teacher first name from userId (shared helper). */
+  async _resolveTeacherName(userId) {
+    if (!userId) return "Unknown Teacher";
+    try {
+      const user = await User.findById(userId).select("firstName lastName");
+      return user?.firstName || "Unknown Teacher";
+    } catch {
+      return "Unknown Teacher";
+    }
+  }
+
+  /** Resolve teacher first name + email from userId (shared helper). */
+  async _resolveTeacherInfo(userId) {
+    if (!userId) return { firstName: "", email: "" };
+    try {
+      const user = await User.findById(userId).select("firstName lastName email");
+      return user || { firstName: "", email: "" };
+    } catch {
+      return { firstName: "", email: "" };
+    }
   }
 
   /**
@@ -407,78 +430,27 @@ Best regards,
   }
 
   async formatGradeUpdateHtml(student, gradeData, createdBy = null) {
-    const percentage = ((gradeData.marks / gradeData.maxMarks) * 100).toFixed(
-      1,
-    );
+    const percentage = ((gradeData.marks / gradeData.maxMarks) * 100).toFixed(1);
+    const teacherName = await this._resolveTeacherName(createdBy);
 
-    // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = "Unknown Teacher";
-    if (createdBy) {
-      try {
-        const authenticatedUser =
-          await User.findById(createdBy).select("firstName lastName");
-        if (authenticatedUser) {
-          authenticatedTeacherName = authenticatedUser.firstName;
-        }
-      } catch (error) {
-        console.error("Error fetching authenticated user:", error);
-      }
-    }
+    const remarksSection = gradeData.remarks
+      ? renderTemplate("gradeUpdateRemarks", { remarks: gradeData.remarks })
+      : "";
 
-    return `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 100%; margin: 0 auto; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 16px; text-align: center; color: white;">
-          <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Grade Update</h2>
-          <p style="margin: 6px 0 0; opacity: 0.9; font-size: 14px;">${student.fullName}</p>
-        </div>
-        
-        <div style="background: #ffffff; padding: 16px 12px;">
-          <p style="margin-top: 0; color: #555; font-size: 14px;">Dear ${student.firstName}'s Parent,</p>
-          <p style="color: #555; line-height: 1.4; font-size: 14px;">A new grade has been posted for <strong>${student.firstName}</strong> by <strong>${authenticatedTeacherName}</strong>.</p>
-          
-          <div style="background: #f8f9fa; border-left: 3px solid #1e3c72; padding: 12px; margin: 16px 0; border-radius: 0 3px 3px 0;">
-            <div style="margin-bottom: 8px;">
-              <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Subject</span>
-              <div style="font-size: 16px; font-weight: 600; color: #333;">${gradeData.subjectName}</div>
-            </div>
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-              <div>
-                <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Category</span>
-                <div style="font-size: 14px; color: #333;">${gradeData.gradeType}</div>
-              </div>
-              <div style="text-align: right;">
-                <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Date</span>
-                <div style="font-size: 14px; color: #333;">${new Date(gradeData.date).toLocaleDateString()}</div>
-              </div>
-            </div>
-
-            <div style="text-align: center; padding: 8px 0;">
-               <div style="font-size: 28px; font-weight: 700; color: #1e3c72;">${gradeData.marks}<span style="font-size: 16px; color: #888; font-weight: 400;">/${gradeData.maxMarks}</span></div>
-               <div style="font-size: 12px; color: #666; font-weight: 500;">${percentage}% Score</div>
-            </div>
-
-            ${
-              gradeData.remarks
-                ? `
-            <div style="margin-top: 12px; background: #fff; padding: 8px; border-radius: 3px; border: 1px solid #eee;">
-              <span style="font-size: 10px; text-transform: uppercase; color: #888; font-weight: 600;">Teacher's Remarks</span>
-              <div style="font-size: 12px; color: #444; margin-top: 3px; font-style: italic;">"${gradeData.remarks}"</div>
-            </div>
-            `
-                : ""
-            }
-          </div>
-          
-          <div style="text-align: center; margin-top: 16px;">
-             <a href="${process.env.CLIENT_URL || "http://localhost:5173"}" style="background-color: #1e3c72; color: white; padding: 8px 16px; text-decoration: none; border-radius: 20px; font-weight: 600; font-size: 12px; display: inline-block;">View Full Gradebook</a>
-          </div>
-        </div>
-        <div style="background-color: #f1f3f5; padding: 12px; text-align: center; font-size: 12px; color: #888;">
-          &copy; ${new Date().getFullYear()} ${authenticatedTeacherName}. All rights reserved.
-        </div>
-      </div>
-    `;
+    return renderTemplate("gradeUpdate", {
+      studentFullName: student.fullName,
+      studentFirstName: student.firstName,
+      teacherName,
+      subjectName: gradeData.subjectName,
+      gradeType: gradeData.gradeType,
+      gradeDate: new Date(gradeData.date).toLocaleDateString(),
+      marks: gradeData.marks,
+      maxMarks: gradeData.maxMarks,
+      percentage,
+      remarksSection,
+      clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+      year: new Date().getFullYear(),
+    });
   }
 
   formatDailyReportMessage(student, grades, date) {
@@ -507,63 +479,26 @@ Best regards,
       day: "numeric",
       year: "numeric",
     });
+    const teacherName = await this._resolveTeacherName(createdBy);
 
-    // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = "Unknown Teacher";
-    if (createdBy) {
-      try {
-        const authenticatedUser =
-          await User.findById(createdBy).select("firstName lastName");
-        if (authenticatedUser) {
-          authenticatedTeacherName = authenticatedUser.firstName;
-        }
-      } catch (error) {
-        console.error("Error fetching authenticated user:", error);
-      }
-    }
-
-    const gradesHtml = grades
+    const gradesRows = grades
       .map((grade) => {
         const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(1);
-        return `
-        <tr>
+        return `<tr>
           <td style="padding: 6px; border: 1px solid #dee2e6; font-size: 12px;">${grade.subject.name}</td>
           <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${grade.marks}/${grade.maxMarks}</td>
           <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${percentage}%</td>
-        </tr>
-      `;
+        </tr>`;
       })
       .join("");
 
-    return `
-      <div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; background: #f8f9fa; padding: 10px;">
-        <div style="background: #2c3e50; color: white; padding: 12px 15px; border-radius: 6px 6px 0 0;">
-          <h2 style="margin: 0; font-size: 16px;">Daily Report</h2>
-          <p style="margin: 3px 0 0 0; font-size: 12px; opacity: 0.9;">${prettyDate}</p>
-        </div>
-        <div style="background: #ffffff; padding: 12px; border-radius: 0 0 6px 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);">
-          <p style="margin: 0 0 8px 0; color: #333; font-size: 13px;">Dear ${student.firstName}'s Parent,</p>
-          <p style="margin: 0 0 12px 0; color: #333; font-size: 13px;">
-            Here is the summary of today's performance for <strong>${student.fullName}</strong> by <strong>${authenticatedTeacherName}</strong>:
-          </p>
-          <table style="width: 100%; border-collapse: collapse; margin: 8px 0 0 0; font-size: 12px;">
-            <thead>
-              <tr style="background: #e9ecef; color: #212529;">
-                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: left; font-size: 12px;">Subject</th>
-                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">Marks</th>
-                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">Percentage</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${gradesHtml}
-            </tbody>
-          </table>
-          <p style="color: #6c757d; font-size: 10px; margin-top: 12px; border-top: 1px solid #eee; padding-top: 6px;">
-            This is an automated message from ${authenticatedTeacherName}.
-          </p>
-        </div>
-      </div>
-    `;
+    return renderTemplate("dailyReport", {
+      prettyDate,
+      studentFirstName: student.firstName,
+      studentFullName: student.fullName,
+      teacherName,
+      gradesRows,
+    });
   }
 
   formatMonthlyReportMessage(student, report, month, monthName) {
@@ -587,68 +522,28 @@ Best regards,
     monthName,
     createdBy = null,
   ) {
-    // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = "Unknown Teacher";
-    if (createdBy) {
-      try {
-        const authenticatedUser =
-          await User.findById(createdBy).select("firstName lastName");
-        if (authenticatedUser) {
-          authenticatedTeacherName = authenticatedUser.firstName;
-        }
-      } catch (error) {
-        console.error("Error fetching authenticated user:", error);
-      }
-    }
+    const teacherName = await this._resolveTeacherName(createdBy);
 
-    const subjectsHtml = report.subjects
+    const subjectsRows = report.subjects
       .map((subject) => {
         const monthData = subject.monthlyAverages[month];
         const avg = monthData?.average || "N/A";
         const entries = monthData?.entries || 0;
-        return `
-        <tr>
+        return `<tr>
           <td style="padding: 6px; border: 1px solid #dee2e6; font-size: 12px;">${subject.subjectName}</td>
           <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${avg}%</td>
           <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${entries}</td>
-        </tr>
-      `;
+        </tr>`;
       })
       .join("");
 
-    return `
-      <div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; background: #f8f9fa; padding: 5px;">
-        <div style="background: #2c3e50; color: white; padding: 7px 15px; border-radius: 6px 6px 0 0;">
-          <h2 style="margin: 0; font-size: 16px;">Monthly Report - ${monthName}</h2>
-          <p style="margin: 3px 0 0 0; font-size: 12px; opacity: 0.9;">Student: ${student.fullName}</p>
-        </div>
-        <div style="background: #ffffff; padding: 12px; border-radius: 0 0 6px 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);">
-          <p style="margin: 0 0 12px 0; color: #333; font-size: 13px;">
-            Below is the average performance for <strong>${student.fullName}</strong> in each subject for <strong>${monthName}</strong> by <strong>${authenticatedTeacherName}</strong>:
-          </p>
-          <table style="width: 100%; border-collapse: collapse; margin: 6px 0 0 0; font-size: 12px;">
-            <thead>
-              <tr style="background: #e9ecef; color: #212529;">
-                <th style="padding: 6px; border: 1px solid #dee2e6; text-align: left; font-size: 12px;">Subject</th>
-                <th style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">Average (%)</th>
-                <th style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">Entries</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${subjectsHtml}
-              <tr style="background: #28a745; color: white; font-weight: bold;">
-                <td style="padding: 6px; border: 1px solid #dee2e6; font-size: 12px;">Overall Average</td>
-                <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${report.overallAverage}%</td>
-                <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">&nbsp;</td>
-              </tr>
-            </tbody>
-          </table>
-          <p style="color: #6c757d; font-size: 10px; margin-top: 10px; border-top: 1px solid #eee; padding-top: 6px;">
-            This report shows percentage averages based on recorded grades for the selected month by ${authenticatedTeacherName}.
-          </p>
-        </div>
-      </div>
-    `;
+    return renderTemplate("monthlyReport", {
+      monthName,
+      studentFullName: student.fullName,
+      teacherName,
+      subjectsRows,
+      overallAverage: report.overallAverage,
+    });
   }
 
   // Daily Classwork Update formatters
@@ -750,208 +645,74 @@ Best regards,
       year: "numeric",
     });
 
-    // Fetch the authenticated user (teacher) who is sending the notification
-    let authenticatedTeacherName = "Unknown Teacher";
-    let authenticatedUser = { firstName: "", email: "" };
+    const teacherInfo = await this._resolveTeacherInfo(createdBy);
+    const teacherName = teacherInfo.firstName || "Unknown Teacher";
 
-    if (createdBy) {
-      try {
-        const user = await User.findById(createdBy).select(
-          "firstName lastName email",
-        );
-        if (user) {
-          authenticatedUser = user;
-          authenticatedTeacherName = user.firstName;
-        }
-      } catch (error) {
-        console.error("Error fetching authenticated user:", error);
-      }
-    }
-
-    // Calculate totals
-    const totalMarks = grades.reduce((sum, g) => sum + g.marks, 0);
-    const totalMaxMarks = grades.reduce((sum, g) => sum + g.maxMarks, 0);
-    const overallPercentage =
-      totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : 0;
-    const overallOutOfTen =
-      totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 10).toFixed(1) : 0;
-
-    // Get unique subjects
-    const subjects = [
-      ...new Set(grades.map((g) => g.subject?.name || "Unknown Subject")),
-    ];
-
-    // Use authenticated teacher name instead of individual grade teachers
-    const teachers = [authenticatedTeacherName];
-
-    // Group grades by subject and category with teacher info
+    // Group grades by subject and category
     const grouped = {};
     grades.forEach((grade) => {
       const subjectName = grade.subject?.name || "Unknown Subject";
       const category = grade.category || grade.gradeType || "Classwork";
-
       if (!grouped[subjectName]) {
-        grouped[subjectName] = {
-          teacher: authenticatedTeacherName, // Use authenticated teacher name
-          categories: {},
-        };
+        grouped[subjectName] = { teacher: teacherName, categories: {} };
       }
-
       if (!grouped[subjectName].categories[category]) {
         grouped[subjectName].categories[category] = [];
       }
       grouped[subjectName].categories[category].push(grade);
     });
 
-    // Build grouped HTML sections
+    // Build grouped HTML using partial templates
     const groupedSectionsHtml = Object.entries(grouped)
       .map(([subjectName, subjectData]) => {
         const { teacher, categories } = subjectData;
 
-        // Generate category sections with individual averages
         const categorySections = Object.entries(categories)
           .map(([category, subjectGrades]) => {
-            // Calculate category average
-            const categoryTotalMarks = subjectGrades.reduce(
-              (sum, g) => sum + g.marks,
-              0,
-            );
-            const categoryTotalMaxMarks = subjectGrades.reduce(
-              (sum, g) => sum + g.maxMarks,
-              0,
-            );
-            const categoryAverage =
-              categoryTotalMaxMarks > 0
-                ? ((categoryTotalMarks / categoryTotalMaxMarks) * 10).toFixed(1)
-                : 0;
+            const catTotal = subjectGrades.reduce((s, g) => s + g.marks, 0);
+            const catMax = subjectGrades.reduce((s, g) => s + g.maxMarks, 0);
+            const categoryAverage = catMax > 0 ? ((catTotal / catMax) * 10).toFixed(1) : 0;
 
-            const rowsHtml = subjectGrades
+            const gradeRows = subjectGrades
               .map((grade, index) => {
-                const gradeDate = new Date(grade.date).toLocaleDateString(
-                  "en-US",
-                  {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                  },
-                );
-                const percentage = (
-                  (grade.marks / grade.maxMarks) *
-                  100
-                ).toFixed(0);
-                const outOfTen = ((grade.marks / grade.maxMarks) * 10).toFixed(
-                  1,
-                );
+                const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
+                  weekday: "short", month: "short", day: "numeric",
+                });
+                const outOfTen = ((grade.marks / grade.maxMarks) * 10).toFixed(1);
                 const bgColor = index % 2 === 0 ? "#ffffff" : "#f8f9fa";
-
                 let gradeColor = "#28a745";
                 if (outOfTen < 5) gradeColor = "#dc3545";
                 else if (outOfTen < 7) gradeColor = "#ffc107";
 
-                return `
-            <tr style="background: ${bgColor};">
-              <td style="padding: 6px 4px; border: 1px solid #dee2e6; font-size: 12px;">${gradeDate}</td>
-              <td style="padding: 6px 4px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">
-                <div style="color: ${gradeColor}; font-weight: bold; font-size: 14px;">${outOfTen}/10</div>
-                <div style="color: #6c757d; font-size: 10px;">(${grade.marks}/${grade.maxMarks})</div>
-              </td>
-              <td style="padding: 6px 4px; border: 1px solid #dee2e6; font-style: italic; color: #555; font-size: 12px; max-width: 120px; word-wrap: break-word;">
-                ${grade.notes || "-"}
-              </td>
-            </tr>
-          `;
+                return renderTemplate("classworkGradeRow", {
+                  bgColor, gradeDate, gradeColor, outOfTen,
+                  marks: grade.marks, maxMarks: grade.maxMarks,
+                  notes: grade.notes || "-",
+                });
               })
               .join("");
 
-            return `
-          <div style="margin: 3px 0; padding: 4px; background: #ffffff; border-radius: 4px; border: 1px solid #e5e7eb;">
-            <h3 style="color: #2c3e50; font-size: 14px; margin: 0 0 6px 0; padding-bottom: 4px; border-bottom: 2px solid #3498db;">
-              ${category.charAt(0).toUpperCase() + category.slice(1)}
-            </h3>
-            
-            <div style="overflow-x: auto; margin-bottom: 6px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 12px; min-width: 250px;">
-                <thead>
-                  <tr style="background: #3498db; color: white;">
-                    <th style="padding: 4px 2px; border: 1px solid #2980b9; text-align: left; font-weight: 600; font-size: 12px;">Date</th>
-                    <th style="padding: 4px 2px; border: 1px solid #2980b9; text-align: center; font-weight: 600; font-size: 12px;">Score (/10)</th>
-                    <th style="padding: 4px 2px; border: 1px solid #2980b9; text-align: left; font-weight: 600; font-size: 12px;">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rowsHtml}
-                </tbody>
-              </table>
-            </div>
-            
-            <!-- Category Average -->
-            <div style="background: #e8f4fd; padding: 6px; border-radius: 3px; border-left: 3px solid #3498db; margin-top: 5px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #2c3e50; font-weight: 600; font-size: 12px;">  ${`Average: `} </span>
-                 <span style="font-size: 14px; font-weight: bold; color: #3498db;"> ${categoryAverage}/10</span>
-              </div>
-            </div>
-          </div>
-        `;
+            return renderTemplate("classworkCategorySection", {
+              categoryName: category.charAt(0).toUpperCase() + category.slice(1),
+              gradeRows,
+              categoryAverage,
+            });
           })
           .join("");
 
-        return `
-        <div style="margin: 6px 0; padding: 6px; background: #ffffff; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 3px solid #3498db;">
-          <div style="margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #eee;">
-            <h2 style="color: #2c3e50; margin: 0 0 4px 0; font-size: 15px;">${subjectName}</h2>
-            <div style="font-size: 12px; color: #7f8c8d;">
-              <strong>Instructor:</strong> ${teacher}
-            </div>
-          </div>
-          ${categorySections}
-        </div>
-      `;
+        return renderTemplate("classworkSubjectSection", {
+          subjectName, teacher, categorySections,
+        });
       })
       .join("");
 
-    return `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 100%; margin: 0; background: #f5f5f5; padding: 4px; box-sizing: border-box;">
-        <div style="background: #ffffff; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-          
-          <!-- Mobile-Optimized Header -->
-          <div style="background: linear-gradient(135deg,rgb(18, 41, 63) 0%,rgb(86, 52, 94) 100%); color: white; padding: 10px 8px;">
-            <div style="text-align: center;">
-              <h1 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 700;">${title}</h1>
-              <p style="margin: 0; font-size: 12px; opacity: 0.9;">${todayStr}</p>
-             
-            </div>
-          </div>
-
-          <!-- Mobile Content -->
-          <div style="padding: 6px 4px;">
-            
-            
-            <!-- Mobile Subjects Info -->
-            <div style="margin-bottom: 8px;">
-              <h2 style="color: #2c3e50; font-size: 13px; margin: 0 0 4px 0; padding-bottom: 4px; border-bottom: 2px solid #3498db;">
-                Academic Summary
-              </h2>
-               
-             
-            </div>
-
-            <!-- Mobile-Optimized Grades -->
-            ${groupedSectionsHtml}
-
-            <!-- Mobile Footer Summary -->
-            <div style="margin-top: 6px; padding: 6px; background: #f8f9fa; border-radius: 4px; border: 1px solid #e5e7eb;">
-              <div style="text-align: start;">
-                <strong style="color: #2c3e50; font-size: 12px; display: block; margin-bottom: 4px;">Best regards,</strong>
-                <strong style="color: #2c3e50; font-size: 12px; display: block; margin-bottom: 4px;">${authenticatedUser.firstName},</strong>
-                <strong style="color: #2c3e50; font-size: 12px; display: block; margin-bottom: 4px;">${authenticatedUser.email}</strong>
-
-                </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+    return renderTemplate("dailyClassworkUpdate", {
+      title,
+      todayStr,
+      groupedSectionsHtml,
+      teacherFirstName: teacherInfo.firstName,
+      teacherEmail: teacherInfo.email,
+    });
   }
 
   /**
@@ -964,14 +725,13 @@ Best regards,
     const typeLabel = request.requestType?.labelEn || request.requestType?.labelAr || "Attendance Request";
     const subject = `New attendance request from ${request.requesterName} - ${typeLabel}`;
     const message = `A new attendance request has been submitted.\n\nRequester: ${request.requesterName}\nEmail: ${request.requesterEmail}\nType: ${typeLabel}\nNotes: ${request.notes || "(none)"}`;
-    const htmlContent = `
-      <p>A new attendance request has been submitted.</p>
-      <p><strong>Requester:</strong> ${request.requesterName}<br/>
-      <strong>Email:</strong> ${request.requesterEmail}<br/>
-      <strong>Type:</strong> ${typeLabel}</p>
-      ${request.notes ? `<p><strong>Notes:</strong> ${request.notes}</p>` : ""}
-      <p>Please log in to review and approve or reject the request.</p>
-    `;
+    const notesSection = request.notes ? `<p><strong>Notes:</strong> ${request.notes}</p>` : "";
+    const htmlContent = renderTemplate("attendanceRequestNew", {
+      requesterName: request.requesterName,
+      requesterEmail: request.requesterEmail,
+      typeLabel,
+      notesSection,
+    });
     for (const principal of principalUsers) {
       const notification = new Notification({
         school: request.school,
@@ -1000,11 +760,12 @@ Best regards,
     const statusLabel = request.status === "approved" ? "Approved" : "Rejected";
     const subject = `Attendance request ${statusLabel} - ${typeLabel}`;
     const message = `Your attendance request (${typeLabel}) has been ${statusLabel.toLowerCase()}.\n\n${request.reviewNote ? `Review note: ${request.reviewNote}` : ""}`;
-    const htmlContent = `
-      <p>Your attendance request has been <strong>${statusLabel}</strong>.</p>
-      <p><strong>Type:</strong> ${typeLabel}</p>
-      ${request.reviewNote ? `<p><strong>Review note:</strong> ${request.reviewNote}</p>` : ""}
-    `;
+    const reviewNoteSection = request.reviewNote ? `<p><strong>Review note:</strong> ${request.reviewNote}</p>` : "";
+    const htmlContent = renderTemplate("attendanceRequestStatus", {
+      statusLabel,
+      typeLabel,
+      reviewNoteSection,
+    });
     const notification = new Notification({
       school: request.school,
       recipient: request.requester,

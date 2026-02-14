@@ -51,7 +51,7 @@ const notificationService = {
 
     // Run attendance reminder job with custom hours
     runAttendanceReminder: async (hours) => {
-        const response = await api.post('/attendance-taking-reminders/run', null, {
+        const response = await api.post('/attendance-taking-reminders/run', {}, {
             params: { hours }
         });
         return response.data;
