@@ -47,6 +47,20 @@ const notificationService = {
     resendNotification: async (id) => {
         const response = await api.post(`/notifications/${id}/resend`);
         return response.data;
+    },
+
+    // Run attendance reminder job with custom hours
+    runAttendanceReminder: async (hours) => {
+        const response = await api.post('/attendance-taking-reminders/run', null, {
+            params: { hours }
+        });
+        return response.data;
+    },
+
+    // Get attendance reminder history
+    getAttendanceReminders: async (params = {}) => {
+        const response = await api.get('/attendance-taking-reminders', { params });
+        return response.data;
     }
 };
 

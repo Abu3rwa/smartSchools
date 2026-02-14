@@ -119,6 +119,28 @@
     line-height: 1.6;
 }
 
+.enrollment-history-table-wrap {
+    overflow-x: auto;
+}
+
+.enrollment-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.enrollment-history-table th,
+.enrollment-history-table td {
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.enrollment-history-table th {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
 @media (max-width: 768px) {
     .student-header {
         flex-direction: column;

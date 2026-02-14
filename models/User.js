@@ -19,13 +19,19 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['super_admin', 'admin', 'teacher', 'parent', 'student'],
+        enum: ['super_admin', 'admin', 'department_principal', 'teacher', 'parent', 'student'],
         default: 'student'
     },
     school: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'School',
         index: true
+    },
+    // For department_principal: the one department they manage (required when role is department_principal)
+    department: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Department',
+        default: null
     },
     firstName: {
         type: String,

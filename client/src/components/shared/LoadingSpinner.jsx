@@ -1,24 +1,22 @@
 /**
- * Reusable loading spinner with optional message.
+ * Reusable loading spinner with optional message. Uses theme-aware shared-loading from index.css.
  *
  * Usage:
  *   <LoadingSpinner />
  *   <LoadingSpinner message="Loading students..." />
  *   <LoadingSpinner size="sm" />
  */
-const LoadingSpinner = ({ message, size = 'md' }) => {
+const LoadingSpinner = ({ message, size = 'md', className = '' }) => {
     const sizeMap = { sm: 24, md: 40, lg: 56 };
     const px = sizeMap[size] || sizeMap.md;
 
     return (
-        <div className="shared-loading" style={{ textAlign: 'center', padding: 'var(--spacing-2xl) var(--spacing-md)' }}>
+        <div className={`shared-loading ${className}`.trim()}>
             <div
                 className="spinner"
                 style={{ width: px, height: px, margin: '0 auto var(--spacing-md)' }}
             />
-            {message && (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{message}</p>
-            )}
+            {message && <p>{message}</p>}
         </div>
     );
 };

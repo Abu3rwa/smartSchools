@@ -7,7 +7,16 @@ const router = express.Router();
 
 router.use(protect);
 
-/** Run the reminder job (classes that ended ~1h ago, no attendance → send email). Admin only. */
+/** 
+ * Run the reminder job manually with custom time window. Admin only.
+ * Query/Body params:
+ *   - hours: Number of hours after class end (default: 10)
+ *            Examples: 1, 1.5, 2, 10
+ * 
+ * Usage:
+ *   POST /api/attendance-taking-reminders/run?hours=1
+ *   POST /api/attendance-taking-reminders/run?hours=1.5
+ */
 router.post('/run', (req, res, next) => {
     if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
         return res.status(403).json({ success: false, message: 'Admin access required' });

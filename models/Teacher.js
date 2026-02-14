@@ -16,7 +16,14 @@ const teacherSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Employee ID is required']
     },
+    // Department this teacher belongs to (academic or support e.g. IT, HR)
     department: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Department',
+        default: null
+    },
+    // Legacy display name if needed (optional, for migration)
+    departmentName: {
         type: String,
         trim: true
     },

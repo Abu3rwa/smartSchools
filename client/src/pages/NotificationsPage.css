@@ -92,3 +92,108 @@
     color: var(--text-muted);
     padding: var(--spacing-2xl) !important;
 }
+
+/* Attendance Quick Panel */
+.attendance-quick-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.quick-panel-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+}
+
+.quick-panel-header svg {
+    color: var(--primary-400);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.quick-send-buttons {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.quick-send-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quick-send-btn:hover:not(:disabled) {
+    border-color: var(--primary-400);
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+    color: var(--primary-400);
+    transform: translateY(-1px);
+}
+
+.quick-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.quick-sending-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.quick-result {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+}
+
+.quick-result-stats {
+    display: flex;
+    gap: var(--spacing-lg);
+    flex-wrap: wrap;
+}
+
+.quick-stat {
+    font-size: 0.875rem;
+    color: var(--accent-emerald);
+}
+
+.quick-stat.muted {
+    color: var(--text-muted);
+}
+
+.quick-stat.error {
+    color: var(--accent-red);
+}
+
+.view-all-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--primary-400);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0;
+    transition: opacity 0.2s;
+}
+
+.view-all-link:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}

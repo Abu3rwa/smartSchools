@@ -27,6 +27,12 @@ const classSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Academic year is required']
     },
+    // Department this class belongs to (e.g. Middle School)
+    department: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Department',
+        default: null
+    },
     // Class teacher
     classTeacher: {
         type: mongoose.Schema.Types.ObjectId,

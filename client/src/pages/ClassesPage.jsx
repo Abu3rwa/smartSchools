@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchClasses, selectClasses, selectClassesLoading, selectClassesError, createClass } from '../store/slices/classSlice';
+import { fetchDepartments, selectDepartments } from '../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
 import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap } from 'react-icons/hi';
@@ -11,6 +12,7 @@ import './ClassesPage.css';
 const ClassesPage = () => {
     const dispatch = useDispatch();
     const classes = useSelector(selectClasses);
+    const departments = useSelector(selectDepartments);
     const loading = useSelector(selectClassesLoading);
     const error = useSelector(selectClassesError);
     const academicYear = useSelector(selectCurrentAcademicYear);
@@ -24,11 +26,13 @@ const ClassesPage = () => {
         section: '',
         academicYear: academicYear,
         room: '',
-        capacity: 40
+        capacity: 40,
+        department: ''
     });
 
     useEffect(() => {
         dispatch(fetchClasses({ academicYear }));
+        dispatch(fetchDepartments());
     }, [dispatch, academicYear]);
 
     const filteredClasses = classes.filter(cls =>
@@ -44,7 +48,7 @@ const ClassesPage = () => {
             if (createClass.fulfilled.match(result)) {
                 toast.success('Class created successfully!');
                 setShowModal(false);
-                setFormData({ grade: '', section: '', academicYear, room: '', capacity: 40 });
+                setFormData({ grade: '', section: '', academicYear, room: '', capacity: 40, department: '' });
             } else {
                 toast.error(result.payload || 'Failed to create class');
             }
@@ -100,6 +104,7 @@ const ClassesPage = () => {
                                 <th>Grade</th>
                                 <th>Section</th>
                                 <th>Class Name</th>
+                                <th>Department</th>
                                 <th>Academic Year</th>
                                 <th>Students</th>
                                 <th>Subjects</th>
@@ -118,7 +123,13 @@ const ClassesPage = () => {
                                             {cls.name}
                                         </Link>
                                     </td>
-                                    <td>{cls.academicYear}</td>
+                                    <td>{cls.department?.name ?? '—'}</td>
+                                    <td>
+                                        {cls.academicYear}
+                                        {cls.isActive === false && (
+                                            <span className="badge badge-secondary" style={{ marginLeft: 6 }}>Inactive</span>
+                                        )}
+                                    </td>
                                     <td>
                                         <div className="stat-cell">
                                             <HiOutlineUserGroup />
@@ -193,6 +204,18 @@ const ClassesPage = () => {
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
+                                        <label>Department</label>
+                                        <select
+                                            value={formData.department}
+                                            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                                        >
+                                            <option value="">— No department —</option>
+                                            {departments.map((d) => (
+                                                <option key={d._id} value={d._id}>{d.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
                                         <label>Room</label>
                                         <input
                                             type="text"
@@ -201,6 +224,8 @@ const ClassesPage = () => {
                                             onChange={(e) => setFormData({ ...formData, room: e.target.value })}
                                         />
                                     </div>
+                                </div>
+                                <div className="form-row">
                                     <div className="form-group">
                                         <label>Capacity</label>
                                         <input

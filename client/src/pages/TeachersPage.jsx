@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { fetchTeachers, selectTeachers, selectTeachersLoading, createTeacher, updateTeacher, deleteTeacher, assignMultipleClassesToTeacher, removeClassFromTeacher } from '../store/slices/teacherSlice';
 import { fetchSubjects, selectSubjects } from '../store/slices/subjectSlice';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
-import { selectIsAdmin } from '../store/slices/authSlice';
+import { fetchDepartments, selectDepartments } from '../store/slices/departmentSlice';
+import { selectIsAdmin, selectUser } from '../store/slices/authSlice';
 import { HiOutlinePlus, HiOutlineSearch, HiOutlineMail, HiOutlinePhone, HiOutlineTrash, HiOutlineUserGroup, HiOutlinePencil, HiOutlineEye } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './TeachersPage.css';
@@ -15,8 +16,11 @@ const TeachersPage = () => {
     const teachers = useSelector(selectTeachers);
     const subjects = useSelector(selectSubjects);
     const classes = useSelector(selectClasses);
+    const departments = useSelector(selectDepartments);
     const loading = useSelector(selectTeachersLoading);
     const isAdmin = useSelector(selectIsAdmin);
+    const user = useSelector(selectUser);
+    const canManageTeachers = isAdmin || user?.role === 'department_principal';
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
@@ -31,7 +35,7 @@ const TeachersPage = () => {
         email: '',
         phone: '',
         password: 'Teacher@123',
-        department: 'General',
+        department: '',
         qualification: '',
         subjects: []
     });
@@ -41,6 +45,7 @@ const TeachersPage = () => {
         dispatch(fetchTeachers());
         dispatch(fetchSubjects());
         dispatch(fetchClasses());
+        dispatch(fetchDepartments());
     }, [dispatch]);
 
     const filteredTeachers = teachers.filter(teacher => {
@@ -53,13 +58,16 @@ const TeachersPage = () => {
         e.preventDefault();
         setSubmitting(true);
         try {
-            const result = await dispatch(createTeacher(formData));
+            const result = await dispatch(createTeacher({
+                ...formData,
+                department: formData.department || null
+            }));
             if (createTeacher.fulfilled.match(result)) {
                 toast.success('Teacher created successfully!');
                 setShowModal(false);
                 setFormData({
                     firstName: '', lastName: '', email: '', phone: '',
-                    password: 'Teacher@123', department: 'General', qualification: '', subjects: []
+                    password: 'Teacher@123', department: '', qualification: '', subjects: []
                 });
             } else {
                 toast.error(result.payload || 'Failed to create teacher');
@@ -76,7 +84,7 @@ const TeachersPage = () => {
             lastName: teacher.user?.lastName || '',
             email: teacher.user?.email || '',
             phone: teacher.user?.phone || '',
-            department: teacher.department || 'General',
+            department: teacher.department?._id ?? teacher.department ?? '',
             qualification: teacher.qualification || '',
             subjects: teacher.subjects?.map(s => s._id) || []
         });
@@ -89,7 +97,7 @@ const TeachersPage = () => {
         try {
             const result = await dispatch(updateTeacher({ 
                 id: editingTeacher._id, 
-                teacherData: formData 
+                teacherData: { ...formData, department: formData.department || null }
             }));
             if (updateTeacher.fulfilled.match(result)) {
                 toast.success('Teacher updated successfully!');
@@ -97,7 +105,7 @@ const TeachersPage = () => {
                 setEditingTeacher(null);
                 setFormData({
                     firstName: '', lastName: '', email: '', phone: '',
-                    password: 'Teacher@123', department: 'General', qualification: '', subjects: []
+                    password: 'Teacher@123', department: '', qualification: '', subjects: []
                 });
             } else {
                 toast.error(result.payload || 'Failed to update teacher');
@@ -198,7 +206,7 @@ const TeachersPage = () => {
                     <h1>Teachers</h1>
                     <p className="text-muted">Manage teaching staff and class assignments</p>
                 </div>
-                {isAdmin && (
+                {canManageTeachers && (
                     <button className="btn btn-primary" onClick={() => setShowModal(true)}>
                         <HiOutlinePlus size={20} />
                         Add Teacher
@@ -227,6 +235,7 @@ const TeachersPage = () => {
                             <tr>
                                 <th>Name</th>
                                 <th>Employee ID</th>
+                                <th>Department</th>
                                 <th>Email</th>
                                 <th>Subjects</th>
                                 <th>Actions</th>
@@ -245,6 +254,9 @@ const TeachersPage = () => {
                                     </td>
                                     <td>
                                         <span className="employee-id-badge">{teacher.employeeId}</span>
+                                    </td>
+                                    <td>
+                                        <span>{teacher.department?.name ?? '—'}</span>
                                     </td>
                                     <td>
                                         <div className="contact-cell">
@@ -272,7 +284,7 @@ const TeachersPage = () => {
                                                 <HiOutlineEye size={16} />
                                                 View
                                             </button>
-                                            {isAdmin && (
+                                            {canManageTeachers && (
                                                 <>
                                                     <button
                                                         className="btn btn-sm btn-ghost"
@@ -366,11 +378,15 @@ const TeachersPage = () => {
                                 <div className="form-row">
                                     <div className="form-group">
                                         <label>Department</label>
-                                        <input
-                                            type="text"
+                                        <select
                                             value={formData.department}
                                             onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                                        />
+                                        >
+                                            <option value="">— No department —</option>
+                                            {departments.map((d) => (
+                                                <option key={d._id} value={d._id}>{d.name}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div className="form-group">
                                         <label>Qualification</label>
@@ -466,11 +482,15 @@ const TeachersPage = () => {
                                 <div className="form-row">
                                     <div className="form-group">
                                         <label>Department</label>
-                                        <input
-                                            type="text"
+                                        <select
                                             value={formData.department}
                                             onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                                        />
+                                        >
+                                            <option value="">— No department —</option>
+                                            {departments.map((d) => (
+                                                <option key={d._id} value={d._id}>{d.name}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div className="form-group">
                                         <label>Qualification</label>

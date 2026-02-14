@@ -13,7 +13,12 @@ export const getTeachers = asyncHandler(async (req, res) => {
 
     const query = {};
 
-    if (department) query.department = department;
+    // Department principal sees only teachers in their department
+    if (req.departmentId) {
+        query.department = req.departmentId;
+    } else if (department) {
+        query.department = department;
+    }
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
     // Apply search filter at DB level for performance
@@ -28,6 +33,7 @@ export const getTeachers = asyncHandler(async (req, res) => {
 
     let teachers = await Teacher.find(query)
         .populate('user', 'firstName lastName email phone')
+        .populate('department', 'name type')
         .populate('subjects', 'name code')
         .populate('assignedClasses.class', 'name grade section')
         .populate('assignedClasses.subject', 'name code')
@@ -67,6 +73,7 @@ export const getTeachers = asyncHandler(async (req, res) => {
 export const getTeacher = asyncHandler(async (req, res) => {
     const teacher = await Teacher.findById(req.params.id)
         .populate('user', 'firstName lastName email phone avatar')
+        .populate('department', 'name type')
         .populate('subjects', 'name code description')
         .populate('assignedClasses.class', 'name grade section academicYear')
         .populate('assignedClasses.subject', 'name code');
@@ -75,6 +82,14 @@ export const getTeacher = asyncHandler(async (req, res) => {
         return res.status(404).json({
             success: false,
             message: 'Teacher not found'
+        });
+    }
+
+    // Department principal can only view teachers in their department
+    if (req.departmentId && teacher.department?.toString() !== req.departmentId.toString()) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to view this teacher'
         });
     }
 
@@ -97,11 +112,14 @@ export const createTeacher = asyncHandler(async (req, res) => {
         lastName,
         phone,
         employeeId,
-        department,
+        department: bodyDepartment,
         qualification,
         specialization,
         subjects
     } = req.body;
+
+    // Department principal can only create teachers in their department
+    const department = req.departmentId || bodyDepartment || null;
 
     // Check if user already exists (global email lookup)
     let user = await User.findOne({ email }).setOptions({ skipTenantFilter: true });
@@ -155,7 +173,7 @@ export const createTeacher = asyncHandler(async (req, res) => {
             school: req.schoolId,
             user: user._id,
             employeeId: empId,
-            department,
+            department: department || undefined,
             qualification,
             specialization,
             subjects: subjects || []
@@ -175,7 +193,7 @@ export const createTeacher = asyncHandler(async (req, res) => {
                 school: req.schoolId,
                 user: user._id,
                 employeeId: retryId,
-                department,
+                department: department || undefined,
                 qualification,
                 specialization,
                 subjects: subjects || []
@@ -187,6 +205,7 @@ export const createTeacher = asyncHandler(async (req, res) => {
 
     const populatedTeacher = await Teacher.findById(teacher._id)
         .populate('user', 'firstName lastName email phone')
+        .populate('department', 'name type')
         .populate('subjects', 'name code');
 
     res.status(isNewUser ? 201 : 200).json({
@@ -211,6 +230,14 @@ export const updateTeacher = asyncHandler(async (req, res) => {
         });
     }
 
+    // Department principal can only update teachers in their department
+    if (req.departmentId && teacher.department?.toString() !== req.departmentId.toString()) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to update this teacher'
+        });
+    }
+
     const { firstName, lastName, phone, ...rest } = req.body;
 
     const allowedTeacherFields = ['department', 'qualification', 'specialization', 'subjects', 'joiningDate', 'address', 'isActive'];
@@ -218,6 +245,11 @@ export const updateTeacher = asyncHandler(async (req, res) => {
     allowedTeacherFields.forEach((field) => {
         if (rest[field] !== undefined) updates[field] = rest[field];
     });
+
+    // Department principal cannot change a teacher's department
+    if (req.departmentId && updates.department !== undefined) {
+        delete updates.department;
+    }
 
     // Update user info if provided
     if (firstName !== undefined || lastName !== undefined || phone !== undefined) {
@@ -230,6 +262,7 @@ export const updateTeacher = asyncHandler(async (req, res) => {
         runValidators: true
     })
         .populate('user', 'firstName lastName email phone')
+        .populate('department', 'name type')
         .populate('subjects', 'name code')
         .populate('assignedClasses.class', 'name grade section')
         .populate('assignedClasses.subject', 'name code');
@@ -253,6 +286,14 @@ export const deleteTeacher = asyncHandler(async (req, res) => {
         return res.status(404).json({
             success: false,
             message: 'Teacher not found'
+        });
+    }
+
+    // Department principal can only delete teachers in their department
+    if (req.departmentId && teacher.department?.toString() !== req.departmentId.toString()) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to delete this teacher'
         });
     }
 
@@ -290,6 +331,14 @@ export const assignMultipleClasses = asyncHandler(async (req, res) => {
         return res.status(404).json({
             success: false,
             message: 'Teacher not found'
+        });
+    }
+
+    // Department principal can only assign classes to teachers in their department
+    if (req.departmentId && teacher.department?.toString() !== req.departmentId.toString()) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to assign classes for this teacher'
         });
     }
 
@@ -375,6 +424,13 @@ export const removeClassAssignment = asyncHandler(async (req, res) => {
         return res.status(404).json({
             success: false,
             message: 'Teacher not found'
+        });
+    }
+
+    if (req.departmentId && teacher.department?.toString() !== req.departmentId.toString()) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to modify this teacher'
         });
     }
 

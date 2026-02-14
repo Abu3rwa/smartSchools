@@ -9,29 +9,32 @@ import {
     removeClassAssignment,
     getMyClasses
 } from '../controllers/teacherController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, scopeDepartmentPrincipal } from '../middleware/auth.js';
+import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(protect);
+router.use(requireSchoolContext);
+
+// Set req.departmentId for department_principal so controllers can scope
+router.use(scopeDepartmentPrincipal);
 
 // Teacher's own classes
 router.get('/my-classes', authorize('teacher'), getMyClasses);
 
-// CRUD routes
+// CRUD: admin sees all; department_principal sees only their department
 router.route('/')
-    .get(getTeachers)
-    .post(authorize('admin'), validationRules.createTeacher, validate, createTeacher);
+    .get(authorize('admin', 'department_principal', 'teacher'), getTeachers)
+    .post(authorize('admin', 'department_principal'), validationRules.createTeacher, validate, createTeacher);
 
 router.route('/:id')
-    .get(validationRules.mongoId, validate, getTeacher)
-    .put(authorize('admin'), validationRules.mongoId, validate, updateTeacher)
-    .delete(authorize('admin'), validationRules.mongoId, validate, deleteTeacher);
+    .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getTeacher)
+    .put(authorize('admin', 'department_principal'), validationRules.mongoId, validate, updateTeacher)
+    .delete(authorize('admin', 'department_principal'), validationRules.mongoId, validate, deleteTeacher);
 
-// Class assignment routes
-router.post('/:id/assign-classes', authorize('admin'), validationRules.mongoId, validate, assignMultipleClasses);
-router.delete('/:id/remove-class/:assignmentId', authorize('admin'), removeClassAssignment);
+router.post('/:id/assign-classes', authorize('admin', 'department_principal'), validationRules.mongoId, validate, assignMultipleClasses);
+router.delete('/:id/remove-class/:assignmentId', authorize('admin', 'department_principal'), removeClassAssignment);
 
 export default router;

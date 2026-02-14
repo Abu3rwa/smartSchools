@@ -17,10 +17,12 @@ import standardReducer from './slices/standardSlice';
 import practiceReducer from './slices/practiceSlice';
 import revisionReducer from './slices/revisionSlice';
 import readingReducer from './slices/readingSlice';
+import departmentReducer from './slices/departmentSlice';
 
 export const store = configureStore({
     reducer: {
         auth: authReducer,
+        departments: departmentReducer,
         classes: classReducer,
         students: studentReducer,
         grades: gradeReducer,

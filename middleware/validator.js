@@ -88,5 +88,16 @@ export const validationRules = {
     // MongoDB ObjectId
     mongoId: [
         param('id').isMongoId().withMessage('Invalid ID format')
+    ],
+
+    // Attendance request type
+    createAttendanceRequestType: [
+        body('labelEn').notEmpty().trim().withMessage('English label is required')
+    ],
+
+    // Attendance request review
+    reviewAttendanceRequest: [
+        body('status').isIn(['approved', 'rejected']).withMessage('status must be approved or rejected'),
+        body('reviewNote').optional().trim().isString()
     ]
 };

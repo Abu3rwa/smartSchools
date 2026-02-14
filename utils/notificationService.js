@@ -1,8 +1,9 @@
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
-
 import Notification from '../models/Notification.js';
+import notificationServiceMain from '../services/notificationService.js';
+import logger from './logger.js';
 
 // AI-powered message generation
 const generateAIMessage = (type, context) => {
@@ -94,92 +95,48 @@ export const generateNotification = async ({
         
         return notification;
     } catch (error) {
-        console.error('Error generating notification:', error);
+        logger.error('Error generating notification:', error);
         throw error;
     }
 };
 
-// Send notification through channels
+// Send notification through channels using the main notification service
 const sendNotification = async (notification, recipient) => {
     const { channels } = notification;
     
     for (const channel of channels) {
         try {
             switch (channel) {
-                case 'in_app':
-                    await sendInAppNotification(notification, recipient);
-                    break;
                 case 'email':
-                    await sendEmailNotification(notification, recipient);
+                    // Use the main notification service to send emails properly
+                    await notificationServiceMain.sendEmail(
+                        notification, 
+                        notification.createdBy?.toString() || null
+                    );
+                    logger.info(`Email notification sent to ${recipient.email}`);
                     break;
                 case 'sms':
-                    await sendSMSNotification(notification, recipient);
+                    logger.warn('SMS notifications not yet implemented');
                     break;
                 case 'push':
-                    await sendPushNotification(notification, recipient);
+                    logger.warn('Push notifications not yet implemented');
                     break;
+                case 'in_app':
+                    // In-app notifications are stored in DB, no external action needed
+                    logger.info('In-app notification created');
+                    break;
+                default:
+                    logger.warn(`Unknown notification channel: ${channel}`);
             }
         } catch (error) {
-            console.error(`Error sending ${channel} notification:`, error);
+            logger.error(`Error sending ${channel} notification:`, error);
             notification.lastError = error.message;
-            notification.retryCount += 1;
+            notification.retryCount = (notification.retryCount || 0) + 1;
+            await notification.save();
         }
     }
-    
-    // Update notification status using existing schema methods
-    if (notification.retryCount >= 3) {
-        notification.status = 'failed';
-    } else {
-        await notification.markAsSent('email'); // Use existing method
-    }
 };
 
-// In-app notification (not supported in existing schema)
-const sendInAppNotification = async (notification, recipient) => {
-    // In-app notifications are not supported in the existing schema
-    // We'll mark as delivered for email/SMS channels
-    console.log('In-app notification not supported, using email/SMS instead');
-};
-
-// Email notification
-const sendEmailNotification = async (notification, recipient) => {
-    // This would integrate with an email service like SendGrid, Nodemailer, etc.
-    // For now, we'll just log it
-    console.log(`Email to ${recipient.email}: ${notification.title}`);
-    console.log(`Message: ${notification.message}`);
-    
-    // In a real implementation, you would:
-    // 1. Use an email service provider
-    // 2. Create an email template
-    // 3. Send the email
-    // 4. Handle delivery status
-};
-
-// SMS notification
-const sendSMSNotification = async (notification, recipient) => {
-    // This would integrate with an SMS service like Twilio
-    // For now, we'll just log it
-    if (recipient.phone) {
-        console.log(`SMS to ${recipient.phone}: ${notification.message}`);
-        
-        // In a real implementation, you would:
-        // 1. Use an SMS service provider
-        // 2. Send the SMS
-        // 3. Handle delivery status
-    }
-};
-
-// Push notification
-const sendPushNotification = async (notification, recipient) => {
-    // This would integrate with a push notification service
-    // For now, we'll just log it
-    console.log(`Push notification to ${recipient._id}: ${notification.title}`);
-    
-    // In a real implementation, you would:
-    // 1. Use a push notification service (Firebase, OneSignal, etc.)
-    // 2. Send to the user's device tokens
-    // 3. Handle delivery status
-};
 
 // Get notifications for a user
 export const getUserNotifications = async (userId, options = {}) => {
@@ -324,7 +281,7 @@ export const sendMissedAttendanceNotifications = async (schoolId, date) => {
         
         return { message: 'Missed attendance notifications sent successfully' };
     } catch (error) {
-        console.error('Error sending missed attendance notifications:', error);
+        logger.error('Error sending missed attendance notifications:', error);
         throw error;
     }
 };
@@ -340,7 +297,7 @@ export const schedulePeriodicNotifications = () => {
                 await sendMissedAttendanceNotifications(school._id, new Date());
             }
         } catch (error) {
-            console.error('Error in periodic notification check:', error);
+            logger.error('Error in periodic notification check:', error);
         }
     }, 60 * 60 * 1000); // Every hour
 };

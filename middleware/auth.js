@@ -76,6 +76,24 @@ export const authorize = (...roles) => {
     };
 };
 
+/**
+ * Set req.departmentId when user is department_principal (the department they manage).
+ * Use after protect + authorize so req.user is set.
+ */
+export const scopeDepartmentPrincipal = (req, res, next) => {
+    if (req.user.role === 'department_principal') {
+        const deptId = req.user.department?._id || req.user.department;
+        if (!deptId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Department principal must have a department assigned'
+            });
+        }
+        req.departmentId = deptId;
+    }
+    next();
+};
+
 // Check if user owns the resource or is admin
 export const ownerOrAdmin = (resourceUserIdField = 'userId') => {
     return (req, res, next) => {

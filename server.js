@@ -7,9 +7,13 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
+import path from "path";
+import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
+import { validateEnvironment } from "./config/validateEnv.js";
 import errorHandler, { notFound } from "./middleware/errorHandler.js";
 import { connectAi } from "./utils/connectAi.js";
+import logger from "./utils/logger.js";
 
 import {
   authRoutes,
@@ -47,24 +51,33 @@ import { processAttendanceReminders } from "./controllers/attendanceTakingRemind
 import newsletterRoutes from "./routes/newsletterRoutes.js";
 import revisionRoutes from "./routes/revisionRoutes.js";
 import readingRoutes from "./routes/readingRoutes.js";
+import departmentRoutes from "./routes/departmentRoutes.js";
+import attendanceRequestTypeRoutes from "./routes/attendanceRequestTypeRoutes.js";
+import attendanceRequestRoutes from "./routes/attendanceRequestRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
+
+// Validate environment variables
+validateEnvironment();
 
 // Connect to database
 connectDB();
 const app = express();
-
-app.get("/api/ai/test", async (req, res) => {
-  const prompt = req.query.prompt || "Test prompt";
-  const result = await connectAi(prompt);
-  res.json(result);
-});
 // CORS configuration
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:5173",
+  "https://aqueous-fortress-98392-f4793139e201.herokuapp.com"
+].filter(Boolean);
+
 app.use(
   cors({
-    origin:
-      process.env.CLIENT_URL ||
-      "http://localhost:5173" ||
-      "https://aqueous-fortress-98392-f4793139e201.herokuapp.com",
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -99,6 +112,14 @@ const apiLimiter = rateLimit({
     message: "Too many requests, please try again later",
   },
 });
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    success: false,
+    message: "Too many AI requests, please try again later",
+  },
+});
 
 // Body parser
 app.use(express.json({ limit: "10mb" }));
@@ -121,7 +142,20 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/public/register-school", authLimiter);
+app.use("/api/ai", aiLimiter);
 app.use("/api", apiLimiter);
+
+// AI test endpoint (with rate limiting)
+app.get("/api/ai/test", async (req, res) => {
+  try {
+    const prompt = req.query.prompt || "Test prompt";
+    const result = await connectAi(prompt);
+    res.json(result);
+  } catch (error) {
+    logger.error("AI test endpoint error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // Behavior tracking middleware (applies to all API routes)
 app.use("/api", behaviorTracker);
@@ -136,6 +170,9 @@ app.use("/api/schools", schoolRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/teachers", teacherRoutes);
 app.use("/api/classes", classRoutes);
+app.use("/api/departments", departmentRoutes);
+app.use("/api/attendance-request-types", attendanceRequestTypeRoutes);
+app.use("/api/attendance-requests", attendanceRequestRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/grades", gradeRoutes);
 app.use("/api/notifications", notificationRoutes);
@@ -163,13 +200,14 @@ app.use("/api/reading", readingRoutes);
 
 registerApiDocsRoute(app);
 
+// Serve uploaded files (attendance request attachments)
+const __dirnameServer = path.dirname(fileURLToPath(import.meta.url));
+app.use("/uploads", express.static(path.join(__dirnameServer, "uploads")));
+
 // Serve static assets in production
-import path from "path";
-import { fileURLToPath } from "url";
 
 if (process.env.NODE_ENV === "production") {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
+  const __dirname = __dirnameServer;
 
   app.use(express.static(path.join(__dirname, "client/dist")));
 
@@ -195,13 +233,13 @@ const REMINDER_JOB_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 app.listen(PORT, () => {
-  console.log("Server is running");
+  logger.info(`Server is running on port ${PORT}`);
   if (process.env.RUN_ATTENDANCE_REMINDER_JOB !== "false") {
     setInterval(async () => {
       try {
         await processAttendanceReminders();
       } catch (err) {
-        console.error("Attendance reminder job error:", err?.message || err);
+        logger.error("Attendance reminder job error:", err?.message || err);
       }
     }, REMINDER_JOB_INTERVAL_MS);
   }
@@ -210,13 +248,13 @@ app.listen(PORT, () => {
   if (process.env.RUN_NEWSLETTER_ISSUE_SCHEDULER !== "false") {
     // Run once on startup, then periodically.
     ensureCurrentWeekIssuesForAllClasses(new Date()).catch((err) => {
-      console.error("Newsletter issue scheduler startup error:", err?.message || err);
+      logger.error("Newsletter issue scheduler startup error:", err?.message || err);
     });
     setInterval(async () => {
       try {
         await ensureCurrentWeekIssuesForAllClasses(new Date());
       } catch (err) {
-        console.error("Newsletter issue scheduler error:", err?.message || err);
+        logger.error("Newsletter issue scheduler error:", err?.message || err);
       }
     }, NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS);
   }

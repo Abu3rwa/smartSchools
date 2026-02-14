@@ -181,6 +181,35 @@ const StudentDetailPage = () => {
                         </div>
                     </div>
 
+                    {/* Enrollment history */}
+                    {student.classEnrollmentHistory?.length > 0 && (
+                        <div className="card">
+                            <div className="card-header">
+                                <h3 className="card-title">Enrollment History</h3>
+                            </div>
+                            <div className="enrollment-history-table-wrap">
+                                <table className="enrollment-history-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Academic Year</th>
+                                            <th>Class</th>
+                                            <th>Left</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {student.classEnrollmentHistory.map((entry, idx) => (
+                                            <tr key={idx}>
+                                                <td>{entry.academicYear}</td>
+                                                <td>{entry.class?.name ?? '—'}</td>
+                                                <td>{entry.leftAt ? format(new Date(entry.leftAt), 'MMM d, yyyy') : '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Parent Info */}
                     <div className="card">
                         <div className="card-header">

@@ -192,10 +192,10 @@
 
 .period-row .period-class-info .class-name {
     font-weight: 600;
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
+    background: var(--stat-success-bg);
+    color: var(--success-400);
     padding: 2px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.75rem;
 }
 
@@ -220,13 +220,13 @@
 }
 
 .attendance-badge.done {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
+    background: var(--stat-success-bg);
+    color: var(--success-400);
 }
 
 .attendance-badge.pending {
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
+    background: var(--stat-warning-bg);
+    color: var(--warning-500);
 }
 
 .no-class-label {
@@ -288,8 +288,8 @@
     background: var(--bg-secondary);
 }
 
-.quick-actions button.all-present { color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
-.quick-actions button.all-present:hover { background: rgba(16, 185, 129, 0.15); }
+.quick-actions button.all-present { color: var(--success-400); border-color: var(--success-200); }
+.quick-actions button.all-present:hover { background: var(--stat-success-bg); }
 
 /* Student list */
 .student-list {
@@ -362,32 +362,27 @@
 }
 
 .status-btn.active-present {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
-    border-color: rgba(16, 185, 129, 0.3);
+    background: var(--stat-success-bg);
+    color: var(--success-400);
+    border-color: var(--success-200);
 }
 
 .status-btn.active-absent {
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
-    border-color: rgba(239, 68, 68, 0.3);
+    background: var(--error-100);
+    color: var(--error-400);
+    border-color: var(--error-200);
 }
 
-.status-btn.active-tardy {
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
-    border-color: rgba(245, 158, 11, 0.3);
-}
-
+.status-btn.active-tardy,
 .status-btn.active-tardy_excused {
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
-    border-color: rgba(245, 158, 11, 0.3);
+    background: var(--stat-warning-bg);
+    color: var(--warning-500);
+    border-color: var(--warning-200);
 }
 
 .status-btn.active-absent_excused {
-    background: rgba(139, 92, 246, 0.12);
-    color: #a78bfa;
+    background: var(--stat-secondary-bg);
+    color: var(--accent-purple);
     border-color: rgba(139, 92, 246, 0.3);
 }
 
@@ -419,10 +414,10 @@
     border-radius: 50%;
 }
 
-.attendance-summary-inline .dot.present { background: #34d399; }
-.attendance-summary-inline .dot.absent { background: #f87171; }
-.attendance-summary-inline .dot.tardy { background: #fbbf24; }
-.attendance-summary-inline .dot.excused { background: #a78bfa; }
+.attendance-summary-inline .dot.present { background: var(--success-400); }
+.attendance-summary-inline .dot.absent { background: var(--error-400); }
+.attendance-summary-inline .dot.tardy { background: var(--warning-500); }
+.attendance-summary-inline .dot.excused { background: var(--accent-purple); }
 
 /* Empty state */
 .empty-attendance {

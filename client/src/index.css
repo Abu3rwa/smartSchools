@@ -78,6 +78,13 @@
   --header-height: 70px;
   --content-max-width: 1400px;
 
+  /* Responsive breakpoints (use in media queries: max-width) */
+  --bp-xl: 1400px;
+  --bp-lg: 1200px;
+  --bp-md: 899px;
+  --bp-sm: 599px;
+  --bp-xs: 380px;
+
   /* Overlay (modals, backdrops) */
   --overlay-bg: rgba(0, 0, 0, 0.55);
 
@@ -742,6 +749,10 @@ tbody tr:hover {
    Responsive (align with MUI md: 900px)
    ========================================== */
 
+/* Hide/show by breakpoint – use for table columns, labels */
+.show-mobile { display: none !important; }
+.hide-mobile { display: block; }
+
 @media (max-width: 899px) {
   html {
     font-size: 15px;
@@ -764,10 +775,69 @@ tbody tr:hover {
     width: 100%;
     justify-content: center;
   }
+
+  .detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .table-container {
+    margin-left: calc(-1 * var(--spacing-md));
+    margin-right: calc(-1 * var(--spacing-md));
+    width: calc(100% + 2 * var(--spacing-md));
+    border-radius: 0;
+  }
 }
 
 @media (max-width: 599px) {
   html {
     font-size: 14px;
   }
+
+  .show-mobile { display: block !important; }
+  .hide-mobile { display: none !important; }
+}
+
+@media (max-width: 380px) {
+  .page-content {
+    padding-left: var(--spacing-sm);
+    padding-right: var(--spacing-sm);
+  }
+}
+
+/* ==========================================
+   Shared component styles (EmptyState, LoadingSpinner)
+   ========================================== */
+
+.shared-empty-state {
+  text-align: center;
+  padding: var(--spacing-2xl) var(--spacing-md);
+  color: var(--text-muted);
+}
+
+.shared-empty-state .shared-empty-icon {
+  opacity: 0.5;
+  margin-bottom: var(--spacing-md);
+  color: var(--text-muted);
+}
+
+.shared-empty-state p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.shared-empty-state p:first-of-type {
+  font-weight: 500;
+  margin-bottom: var(--spacing-xs);
+}
+
+.shared-loading {
+  text-align: center;
+  padding: var(--spacing-2xl) var(--spacing-md);
+}
+
+.shared-loading p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }

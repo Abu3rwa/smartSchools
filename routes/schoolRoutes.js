@@ -7,6 +7,12 @@ import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { generateToken } from '../middleware/auth.js';
+import {
+    getAcademicYears,
+    copyClassesFromYear,
+    deactivateYear,
+    promoteStudents
+} from '../controllers/rolloverController.js';
 
 const router = express.Router();
 
@@ -52,6 +58,98 @@ router.put('/me', requireSchoolContext, authorize('admin'), asyncHandler(async (
         data: { school }
     });
 }));
+
+/**
+ * @desc    List users in current school (for role/department management)
+ * @route   GET /api/schools/me/users
+ * @access  Private (Admin)
+ */
+router.get('/me/users', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const users = await User.find({ school: req.schoolId })
+        .select('firstName lastName email role isActive department createdAt')
+        .populate('department', 'name type')
+        .sort({ role: 1, 'firstName': 1 });
+
+    res.json({ success: true, data: { users } });
+}));
+
+/**
+ * @desc    Update a user's role and department (school admin only)
+ * @route   PATCH /api/schools/me/users/:userId
+ * @access  Private (Admin)
+ */
+router.patch('/me/users/:userId', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+    const { role, department } = req.body;
+
+    const user = await User.findById(userId).setOptions({ skipTenantFilter: true });
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (user.school?.toString() !== req.schoolId.toString()) {
+        return res.status(403).json({ success: false, message: 'User does not belong to your school' });
+    }
+    if (user.role === 'super_admin') {
+        return res.status(403).json({ success: false, message: 'Cannot change super admin role' });
+    }
+
+    const allowedRoles = ['admin', 'department_principal', 'teacher', 'parent', 'student'];
+    if (role !== undefined) {
+        if (!allowedRoles.includes(role)) {
+            return res.status(400).json({ success: false, message: `Role must be one of: ${allowedRoles.join(', ')}` });
+        }
+        user.role = role;
+    }
+    if (department !== undefined) {
+        user.department = department || null;
+    }
+    if (user.role === 'department_principal' && !user.department) {
+        return res.status(400).json({
+            success: false,
+            message: 'Department is required when role is department_principal'
+        });
+    }
+    await user.save();
+
+    const updated = await User.findById(user._id)
+        .select('firstName lastName email role isActive department')
+        .populate('department', 'name type')
+        .setOptions({ skipTenantFilter: true });
+
+    res.json({
+        success: true,
+        message: 'User updated successfully',
+        data: { user: updated }
+    });
+}));
+
+/**
+ * @desc    List academic years that have classes or students
+ * @route   GET /api/schools/me/academic-years
+ * @access  Private (Admin)
+ */
+router.get('/me/academic-years', requireSchoolContext, authorize('admin'), asyncHandler(getAcademicYears));
+
+/**
+ * @desc    Create classes for new year from previous year structure
+ * @route   POST /api/schools/me/rollover/classes
+ * @access  Private (Admin)
+ */
+router.post('/me/rollover/classes', requireSchoolContext, authorize('admin'), asyncHandler(copyClassesFromYear));
+
+/**
+ * @desc    Deactivate all classes for an academic year
+ * @route   POST /api/schools/me/rollover/deactivate-year
+ * @access  Private (Admin)
+ */
+router.post('/me/rollover/deactivate-year', requireSchoolContext, authorize('admin'), asyncHandler(deactivateYear));
+
+/**
+ * @desc    Promote students to next grade (bulk)
+ * @route   POST /api/schools/me/rollover/promote-students
+ * @access  Private (Admin)
+ */
+router.post('/me/rollover/promote-students', requireSchoolContext, authorize('admin'), asyncHandler(promoteStudents));
 
 // ─── Super Admin Routes ───
 

@@ -1,0 +1,49 @@
+import logger from '../utils/logger.js';
+
+const requiredEnvVars = [
+  'MONGODB_URI',
+  'JWT_SECRET',
+  'GEMINI_API_KEY_TWO',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET'
+];
+
+const optionalEnvVars = [
+  'PORT',
+  'NODE_ENV',
+  'CLIENT_URL',
+  'JWT_EXPIRE',
+  'GOOGLE_REDIRECT_URI',
+  'GOOGLE_LOGIN_REDIRECT_URI',
+  'RUN_ATTENDANCE_REMINDER_JOB',
+  'RUN_NEWSLETTER_ISSUE_SCHEDULER'
+];
+
+export function validateEnvironment() {
+  const missing = [];
+  const warnings = [];
+
+  for (const varName of requiredEnvVars) {
+    if (!process.env[varName]) {
+      missing.push(varName);
+    }
+  }
+
+  if (missing.length > 0) {
+    logger.error('Missing required environment variables:', missing.join(', '));
+    logger.error('Please check your .env file and ensure all required variables are set.');
+    process.exit(1);
+  }
+
+  for (const varName of optionalEnvVars) {
+    if (!process.env[varName]) {
+      warnings.push(varName);
+    }
+  }
+
+  if (warnings.length > 0) {
+    logger.warn('Optional environment variables not set (using defaults):', warnings.join(', '));
+  }
+
+  logger.info('Environment validation passed');
+}

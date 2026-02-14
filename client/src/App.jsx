@@ -35,8 +35,11 @@ import TeacherDetailsPage from "./pages/TeacherDetailsPage";
 import SubjectsPage from "./pages/SubjectsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import SettingsPage from "./pages/SettingsPage";
+import SchoolSettingsPage from "./pages/SchoolSettingsPage";
 import AdminSchedulePage from "./pages/admin/AdminSchedulePage";
 import AdminAttendancePage from "./pages/admin/AdminAttendancePage";
+import AdminAttendanceRequestsPage from "./pages/admin/AdminAttendanceRequestsPage";
+import AdminAttendanceRequestTypesPage from "./pages/admin/AdminAttendanceRequestTypesPage";
 import AdminSchoolCalendarPage from "./pages/admin/AdminSchoolCalendarPage";
 import AdminTimetablePage from "./pages/admin/AdminTimetablePage";
 import TeacherSchedulePage from "./pages/teacher/TeacherSchedulePage";
@@ -45,6 +48,7 @@ import TeacherAttendanceNewPage from "./pages/teacher/TeacherAttendanceNewPage";
 import TeacherNewslettersPage from "./pages/teacher/TeacherNewslettersPage";
 import LessonPlanPage from "./pages/LessonPlanPage";
 import AdminNewslettersPage from "./pages/admin/AdminNewslettersPage";
+import AttendanceRemindersPage from "./pages/admin/AttendanceRemindersPage";
 
 // Report Pages
 import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator";
@@ -60,6 +64,8 @@ import PracticeSessionPage from "./pages/PracticeSessionPage";
 import PracticeHistoryPage from "./pages/PracticeHistoryPage";
 import StudentGradesPage from "./pages/StudentGradesPage";
 import StudentAttendancePage from "./pages/StudentAttendancePage";
+import AttendanceRequestFormPage from "./pages/AttendanceRequestFormPage";
+import MyAttendanceRequestsPage from "./pages/MyAttendanceRequestsPage";
 import RevisionPlansListPage from "./pages/RevisionPlansListPage";
 import RevisionPlanCreatePage from "./pages/RevisionPlanCreatePage";
 import RevisionPlanViewPage from "./pages/RevisionPlanViewPage";
@@ -188,6 +194,14 @@ function App() {
         <Route index element={<DashboardPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route
+          path="school-settings"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <SchoolSettingsPage />
+            </RoleRoute>
+          }
+        />
 
         {/* Admin + Teacher */}
         <Route
@@ -319,6 +333,14 @@ function App() {
           }
         />
         <Route
+          path="attendance-reminders"
+          element={
+            <RoleRoute roles={["admin", "department_principal"]}>
+              <AttendanceRemindersPage />
+            </RoleRoute>
+          }
+        />
+        <Route
           path="my-schedule"
           element={
             <RoleRoute roles={["teacher"]}>
@@ -351,11 +373,11 @@ function App() {
           }
         />
 
-        {/* Admin only */}
+        {/* Admin + Department Principal */}
         <Route
           path="teachers"
           element={
-            <RoleRoute roles={["admin"]}>
+            <RoleRoute roles={["admin", "department_principal"]}>
               <TeachersPage />
             </RoleRoute>
           }
@@ -363,8 +385,43 @@ function App() {
         <Route
           path="teachers/:id"
           element={
-            <RoleRoute roles={["admin"]}>
+            <RoleRoute roles={["admin", "department_principal"]}>
               <TeacherDetailsPage />
+            </RoleRoute>
+          }
+        />
+
+        {/* Attendance Requests: submit form + my list (all requesters) */}
+        <Route
+          path="attendance-request"
+          element={
+            <RoleRoute roles={["admin", "department_principal", "teacher", "parent", "student"]}>
+              <AttendanceRequestFormPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="attendance-requests"
+          element={
+            <RoleRoute roles={["admin", "department_principal", "teacher", "parent", "student"]}>
+              <MyAttendanceRequestsPage />
+            </RoleRoute>
+          }
+        />
+        {/* Principal: review queue */}
+        <Route
+          path="review-attendance-requests"
+          element={
+            <RoleRoute roles={["admin", "department_principal"]}>
+              <AdminAttendanceRequestsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="attendance-request-types"
+          element={
+            <RoleRoute roles={["admin"]}>
+              <AdminAttendanceRequestTypesPage />
             </RoleRoute>
           }
         />

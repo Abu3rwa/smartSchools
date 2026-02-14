@@ -7,6 +7,7 @@ import {
     deleteStudent,
     getStudentsByClass,
     bulkEnrollStudents,
+    enrollStudent,
     importStudents,
     transferStudent,
     createStudentLogin,
@@ -39,5 +40,6 @@ router.post('/bulk-enroll', authorize('admin'), bulkEnrollStudents);
 router.post('/:id/create-login', authorize('admin'), createStudentLogin);
 router.post('/:id/reset-password', authorize('admin'), resetStudentPassword);
 router.put('/:id/transfer', authorize('admin'), validationRules.mongoId, validate, transferStudent);
+router.put('/:id/enroll', authorize('admin'), validationRules.mongoId, validate, enrollStudent);
 
 export default router;

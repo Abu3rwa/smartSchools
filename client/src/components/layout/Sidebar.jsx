@@ -22,6 +22,7 @@ import {
   HiOutlineMenu,
   HiOutlineLightningBolt,
   HiOutlineClipboardCheck,
+  HiOutlineOfficeBuilding,
 } from "react-icons/hi";
 import "./Sidebar.css";
 
@@ -116,9 +117,33 @@ const Sidebar = () => {
       admin: true,
     },
     {
+      path: "/portal/attendance-reminders",
+      icon: HiOutlineBell,
+      label: "Attendance Reminders",
+      roles: ["admin", "department_principal"],
+    },
+    {
+      path: "/portal/attendance-requests",
+      icon: HiOutlineClipboardList,
+      label: "Attendance Requests",
+      roles: ["admin", "department_principal", "teacher", "parent", "student"],
+    },
+    {
+      path: "/portal/review-attendance-requests",
+      icon: HiOutlineClipboardCheck,
+      label: "Review Attendance Requests",
+      roles: ["admin", "department_principal"],
+    },
+    {
       path: "/portal/teachers",
       icon: HiOutlineChartBar,
       label: "Teachers",
+      roles: ["admin", "department_principal"],
+    },
+    {
+      path: "/portal/school-settings",
+      icon: HiOutlineOfficeBuilding,
+      label: "School Settings",
       admin: true,
     },
     {

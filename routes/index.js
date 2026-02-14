@@ -11,6 +11,9 @@ import advancedReportRoutes from './advancedReportRoutes.js';
 import standardRoutes from './standardRoutes.js';
 import standardAssignmentRoutes from './standardAssignmentRoutes.js';
 import practiceRoutes from './practiceRoutes.js';
+import departmentRoutes from './departmentRoutes.js';
+import attendanceRequestTypeRoutes from './attendanceRequestTypeRoutes.js';
+import attendanceRequestRoutes from './attendanceRequestRoutes.js';
 
 export {
     authRoutes,
@@ -25,5 +28,8 @@ export {
     advancedReportRoutes,
     standardRoutes,
     standardAssignmentRoutes,
-    practiceRoutes
+    practiceRoutes,
+    departmentRoutes,
+    attendanceRequestTypeRoutes,
+    attendanceRequestRoutes
 };

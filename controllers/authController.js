@@ -148,7 +148,9 @@ export const login = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const getMe = asyncHandler(async (req, res) => {
-    const user = await User.findById(req.user._id).populate('school');
+    const user = await User.findById(req.user._id)
+        .populate('school')
+        .populate('department', 'name type');
 
     let profile = null;
     if (user.role === 'teacher') {
@@ -169,6 +171,7 @@ export const getMe = asyncHandler(async (req, res) => {
                 fullName: user.fullName,
                 role: user.role,
                 school: user.school,
+                department: user.department,
                 phone: user.phone,
                 avatar: user.avatar,
                 lastLogin: user.lastLogin

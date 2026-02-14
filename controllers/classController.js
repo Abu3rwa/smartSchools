@@ -28,6 +28,7 @@ export const getClasses = asyncHandler(async (req, res) => {
     }
 
     const classes = await Class.find(query)
+        .populate('department', 'name type')
         .populate('classTeacher', 'user')
         .populate({
             path: 'classTeacher',
@@ -80,6 +81,7 @@ export const getClasses = asyncHandler(async (req, res) => {
  */
 export const getClass = asyncHandler(async (req, res) => {
     let classData = await Class.findById(req.params.id)
+        .populate('department', 'name type')
         .populate({
             path: 'classTeacher',
             populate: { path: 'user', select: 'firstName lastName email' }
@@ -142,7 +144,7 @@ export const getClass = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Teacher)
  */
 export const createClass = asyncHandler(async (req, res) => {
-    const { grade, section, academicYear, classTeacher, room, capacity } = req.body;
+    const { grade, section, academicYear, classTeacher, room, capacity, department } = req.body;
 
     // Access Control
     if (req.user.role !== 'admin' && req.user.role !== 'teacher') {
@@ -173,6 +175,7 @@ export const createClass = asyncHandler(async (req, res) => {
         classTeacher: resolvedClassTeacher || undefined,
         room,
         capacity,
+        department: department || undefined,
         name: `Grade ${grade}${section ? '-' + section : ''}`
     });
 
@@ -198,7 +201,7 @@ export const updateClass = asyncHandler(async (req, res) => {
         });
     }
 
-    const allowedFields = ['grade', 'section', 'academicYear', 'classTeacher', 'room', 'capacity', 'name', 'isActive'];
+    const allowedFields = ['grade', 'section', 'academicYear', 'classTeacher', 'room', 'capacity', 'name', 'isActive', 'department'];
     const updates = {};
     allowedFields.forEach((field) => {
         if (req.body[field] !== undefined) updates[field] = req.body[field];
@@ -208,6 +211,7 @@ export const updateClass = asyncHandler(async (req, res) => {
         new: true,
         runValidators: true
     })
+        .populate('department', 'name type')
         .populate({
             path: 'classTeacher',
             populate: { path: 'user', select: 'firstName lastName' }

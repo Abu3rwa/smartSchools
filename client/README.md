@@ -1,4 +1,13 @@
-# React + Vite
+# GradeBook Client (React + Vite)
+
+## Frontend conventions
+
+- **Theme:** Use CSS variables from `src/index.css` (`:root` and `[data-theme="light"]`). Prefer `var(--text-primary)`, `var(--bg-card)`, `var(--border-color)`, `var(--spacing-*)`, `var(--radius-*)` instead of hardcoded colors or sizes.
+- **Responsive:** Breakpoints are defined as `--bp-md: 899px`, `--bp-sm: 599px`, `--bp-xs: 380px` (use in media queries). Main layout is responsive (sidebar becomes drawer below 900px). Use `.show-mobile` / `.hide-mobile` for conditional visibility; tables should live in `.table-container` for horizontal scroll on small screens.
+- **Modularization:** Reuse `EmptyState`, `LoadingSpinner`, `ErrorBanner` from `components/shared/`. Use global `.card`, `.card-header`, `.btn`, `.badge` classes where possible. Page-specific CSS should be scoped under a single root class (e.g. `.my-attendance-requests-page`).
+- **Layout:** Content is rendered inside `MainLayout` → `main.page-content`. Use `PageContainer` when you need consistent max-width; page-level wrappers can set `max-width` and `margin: 0 auto` with `padding: var(--spacing-lg)`.
+
+---
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

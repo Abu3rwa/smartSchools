@@ -6,9 +6,10 @@ import Schedule from "../models/Schedule.js";
 import Notification from "../models/Notification.js";
 import notificationService from "../services/notificationService.js";
 
-/** Reminder window: 10 hours after class end (run job every ~15 min so we catch "10h after end") */
-const REMINDER_WINDOW_END_MS = 10 * 60 * 60 * 1000; // 10 hours
-const REMINDER_WINDOW_START_MS = 10 * 60 * 60 * 1000 + 15 * 60 * 1000; // 10h to 10h15m (15 min window)
+/** Default reminder window: 10 hours after class end (run job every ~15 min so we catch "10h after end") */
+const DEFAULT_REMINDER_HOURS = 10;
+const REMINDER_WINDOW_END_MS = DEFAULT_REMINDER_HOURS * 60 * 60 * 1000;
+const REMINDER_WINDOW_START_MS = REMINDER_WINDOW_END_MS + 15 * 60 * 1000; // Add 15 min window
 
 /**
  * Build date at local midnight for schedule date (matches Attendance date storage).
@@ -20,13 +21,16 @@ function toAttendanceDate(d) {
 }
 /**
  * Run the missed-attendance reminder job (no req/res). Find classes that ended
- * 10 hours ago, no attendance taken, no reminder sent → create reminder, send email via SMTP.
+ * X hours ago (default 10), no attendance taken, no reminder sent → create reminder, send email via SMTP.
  * Safe to call repeatedly (idempotent). Used by the API route and by the automatic scheduler.
+ * @param {number} hoursAfterClass - Hours after class end to check (default: 10)
  */
-export async function processAttendanceReminders() {
+export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMINDER_HOURS) {
   const now = new Date();
-  const windowEnd = new Date(now.getTime() - REMINDER_WINDOW_END_MS);
-  const windowStart = new Date(now.getTime() - REMINDER_WINDOW_START_MS);
+  const windowEndMs = hoursAfterClass * 60 * 60 * 1000;
+  const windowStartMs = windowEndMs + 15 * 60 * 1000; // 15 min window
+  const windowEnd = new Date(now.getTime() - windowEndMs);
+  const windowStart = new Date(now.getTime() - windowStartMs);
 
   const schedules = await Schedule.find({
     type: "class",
@@ -106,11 +110,10 @@ export async function processAttendanceReminders() {
     let reminderStatus = "sent";
     let failureReason = null;
     try {
-      // Use SMTP only for attendance reminders (skip Gmail OAuth)
-      // Pass null as userId to force SMTP fallback
+      // Pass null as userId – sendEmail will auto-find a school admin with Gmail connected
       await notificationService.sendEmail(
         notification,
-        null, // No userId = skip Gmail OAuth, use SMTP only
+        null,
       );
     } catch (err) {
       logger.error("Attendance reminder email failed", {
@@ -137,18 +140,37 @@ export async function processAttendanceReminders() {
     else results.failed += 1;
   }
 
-  return { results };
+  return { 
+    results,
+    hoursAfterClass,
+    windowStart: windowStart.toISOString(),
+    windowEnd: windowEnd.toISOString()
+  };
 }
 
 /**
  * HTTP handler: run the reminder job and return JSON.
+ * Query params:
+ *   - hours: Number of hours after class end to check (default: 10)
+ *            Examples: 1, 1.5, 2, 10
  */
 export const runReminderJob = asyncHandler(async (req, res) => {
-  const { results } = await processAttendanceReminders();
+  const hoursParam = req.query.hours || req.body.hours;
+  const hours = hoursParam ? parseFloat(hoursParam) : DEFAULT_REMINDER_HOURS;
+  
+  // Validate hours parameter
+  if (isNaN(hours) || hours <= 0 || hours > 24) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid hours parameter. Must be between 0 and 24.",
+    });
+  }
+
+  const result = await processAttendanceReminders(hours);
   res.json({
     success: true,
-    message: "Reminder job completed",
-    results,
+    message: `Reminder job completed for classes ending ${hours} hour(s) ago`,
+    ...result,
   });
 });
 

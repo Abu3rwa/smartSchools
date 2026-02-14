@@ -110,7 +110,7 @@ const TeacherDetailsPage = () => {
                         <h1>{currentTeacher.user?.firstName} {currentTeacher.user?.lastName}</h1>
                         <div className="profile-meta">
                             <span className="employee-id-large">{currentTeacher.employeeId}</span>
-                            <span className="department-badge-large">{currentTeacher.department || 'General'}</span>
+                            <span className="department-badge-large">{currentTeacher.department?.name ?? '—'}</span>
                         </div>
                     </div>
                 </div>
@@ -143,7 +143,7 @@ const TeacherDetailsPage = () => {
                             </div>
                             <div className="info-item">
                                 <label>Department</label>
-                                <span>{currentTeacher.department || 'General'}</span>
+                                <span>{currentTeacher.department?.name ?? '—'}</span>
                             </div>
                         </div>
                     </div>

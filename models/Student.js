@@ -41,6 +41,12 @@ const studentSchema = new mongoose.Schema({
         enum: ['male', 'female', 'other'],
         required: true
     },
+    // Department this student belongs to (e.g. Middle School, Primary)
+    department: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Department',
+        default: null
+    },
     // Current class enrollment
     currentClass: {
         type: mongoose.Schema.Types.ObjectId,
@@ -54,6 +60,13 @@ const studentSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    // Append-only history when student is promoted or moved to another class
+    classEnrollmentHistory: [{
+        academicYear: { type: String, required: true },
+        class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
+        enrolledAt: { type: Date, default: Date.now },
+        leftAt: { type: Date }
+    }],
     // Parent/Guardian Information
     parentInfo: {
         fatherName: {

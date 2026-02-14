@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import Notification from "../models/Notification.js";
 import Student from "../models/Student.js";
 import User from "../models/User.js";
@@ -16,31 +15,7 @@ const sanitizeSubject = (subject) => {
 
 class NotificationService {
   constructor() {
-    this.transporter = null;
-    this.initializeTransporter();
-  }
-
-  initializeTransporter() {
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPassRaw = process.env.SMTP_PASS;
-    const smtpPass =
-      (smtpPassRaw || "")
-        .toString()
-        .replace(/\s+/g, ""); // guard against spaced app-password copies
-    const smtpPort = Number(process.env.SMTP_PORT || 587);
-
-    if (smtpHost && smtpUser && smtpPass) {
-      this.transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-    }
+    // Gmail OAuth is the sole email transport – no SMTP configuration needed.
   }
 
   /**
@@ -323,27 +298,28 @@ class NotificationService {
   }
 
   /**
-   * Send email using Gmail OAuth (primary) or SMTP (fallback)
+   * Send email using Gmail OAuth.
+   * If userId is provided, tries that user's Gmail first.
+   * If userId is null or that user has no Gmail, finds any admin in the same
+   * school with a connected Gmail account to send on behalf of the school.
+   *
    * @param {Object} notification - Notification document
-   * @param {string} userId - User ID for Gmail OAuth (required for Gmail)
+   * @param {string} userId - User ID for Gmail OAuth (optional)
    */
   async sendEmail(notification, userId = null) {
     const mailOptions = {
       to: notification.recipientEmail,
-      subject: sanitizeSubject(notification.subject), // Sanitize subject to avoid email errors
+      subject: sanitizeSubject(notification.subject),
       text: notification.message,
       html: notification.htmlContent || notification.message,
     };
 
-    // Try Gmail OAuth if userId provided
+    // 1. Try the provided userId first
     if (userId) {
       try {
         const hasGmail = await gmailOAuthService.hasValidTokens(userId);
-
         if (hasGmail) {
-          // Use gmailOAuthService which handles token refresh properly
           const result = await gmailOAuthService.sendEmail(userId, mailOptions);
-
           await notification.markAsSent("email");
           console.log(
             "✅ Email sent via Gmail OAuth to:",
@@ -354,65 +330,63 @@ class NotificationService {
           return;
         }
       } catch (error) {
-        console.error("Gmail OAuth send failed:", error.message);
-        // Continue to SMTP fallback
+        console.error("Gmail OAuth send failed for provided user:", error.message);
+        // Fall through to admin fallback
       }
     }
 
-    // Fall back to SMTP (or use SMTP directly if userId is null)
-    if (!this.transporter) {
-      // Lazy init to avoid ESM import-order issues with dotenv.
-      this.initializeTransporter();
-    }
-    if (!this.transporter) {
-      const errorMsg =
-        "SMTP transporter not configured. Please set SMTP_HOST, SMTP_USER, and SMTP_PASS in .env";
-      console.error("❌", errorMsg);
-      notification.status = "failed";
-      notification.lastError = errorMsg;
-      await notification.save();
-      throw new Error(errorMsg);
-    }
-
-    // Get the authenticated user's name for the email sender
-    let senderName = process.env.FROM_NAME || "GradeBook";
-    let replyToAddress = null;
-
-    if (userId) {
+    // 2. Fallback: find an admin in the school with Gmail connected
+    const schoolId = notification.school;
+    if (schoolId) {
       try {
-        const authenticatedUser = await User.findById(userId).select(
-          "firstName lastName email",
-        );
-        if (authenticatedUser) {
-          senderName = authenticatedUser.fullName;
-          replyToAddress = authenticatedUser.email;
+        const adminsWithGmail = await User.find({
+          school: schoolId,
+          role: "admin",
+          isActive: true,
+          "gmailTokens.refreshToken": { $exists: true, $ne: null },
+        })
+          .select("_id")
+          .setOptions({ skipTenantFilter: true })
+          .lean();
+
+        for (const admin of adminsWithGmail) {
+          try {
+            const hasGmail = await gmailOAuthService.hasValidTokens(admin._id);
+            if (hasGmail) {
+              const result = await gmailOAuthService.sendEmail(
+                admin._id.toString(),
+                mailOptions,
+              );
+              await notification.markAsSent("email");
+              console.log(
+                "✅ Email sent via admin Gmail fallback to:",
+                notification.recipientEmail,
+                "MessageId:",
+                result.messageId,
+              );
+              return;
+            }
+          } catch (innerErr) {
+            console.error(
+              `Admin ${admin._id} Gmail send failed:`,
+              innerErr.message,
+            );
+            // Try next admin
+          }
         }
       } catch (error) {
-        console.error(
-          "Error fetching authenticated user for email sender:",
-          error,
-        );
+        console.error("Error finding admin Gmail sender:", error.message);
       }
     }
 
-    try {
-      const emailOptions = {
-        from: `"${senderName}" <${process.env.SMTP_USER || process.env.FROM_EMAIL}>`,
-        ...mailOptions,
-      };
-
-      if (replyToAddress) {
-        emailOptions.replyTo = replyToAddress;
-      }
-
-      await this.transporter.sendMail(emailOptions);
-
-      await notification.markAsSent("email");
-      console.log("✅ Email sent");
-    } catch (error) {
-      console.error("Email send error:", error);
-      await notification.markAsFailed("email", error);
-    }
+    // 3. No Gmail sender available
+    const errorMsg =
+      "No Gmail account available to send email. An admin must connect their Gmail in Settings > Gmail Integration.";
+    console.error("❌", errorMsg);
+    notification.status = "failed";
+    notification.lastError = errorMsg;
+    await notification.save();
+    throw new Error(errorMsg);
   }
 
   // Message formatters
@@ -978,6 +952,74 @@ Best regards,
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Notify principals (admins + department principals) of a new attendance request.
+   * @param {Object} request - AttendanceRequest document (with populated requestType)
+   * @param {Array} principalUsers - Array of User documents to notify
+   * @param {string} createdBy - User id (for Gmail OAuth sender, optional)
+   */
+  async sendAttendanceRequestNewToPrincipals(request, principalUsers, createdBy = null) {
+    const typeLabel = request.requestType?.labelEn || request.requestType?.labelAr || "Attendance Request";
+    const subject = `New attendance request from ${request.requesterName} - ${typeLabel}`;
+    const message = `A new attendance request has been submitted.\n\nRequester: ${request.requesterName}\nEmail: ${request.requesterEmail}\nType: ${typeLabel}\nNotes: ${request.notes || "(none)"}`;
+    const htmlContent = `
+      <p>A new attendance request has been submitted.</p>
+      <p><strong>Requester:</strong> ${request.requesterName}<br/>
+      <strong>Email:</strong> ${request.requesterEmail}<br/>
+      <strong>Type:</strong> ${typeLabel}</p>
+      ${request.notes ? `<p><strong>Notes:</strong> ${request.notes}</p>` : ""}
+      <p>Please log in to review and approve or reject the request.</p>
+    `;
+    for (const principal of principalUsers) {
+      const notification = new Notification({
+        school: request.school,
+        recipient: principal._id,
+        recipientEmail: principal.email,
+        type: "attendance_request",
+        subject,
+        message,
+        htmlContent,
+        channels: ["email"],
+        metadata: { attendanceRequest: request._id },
+        createdBy: createdBy || request.requester,
+      });
+      await notification.save();
+      await this.sendEmail(notification, principal._id.toString());
+    }
+  }
+
+  /**
+   * Notify requester that their attendance request was approved or rejected.
+   * @param {Object} request - AttendanceRequest document (with populated requestType, reviewedBy)
+   * @param {string} createdBy - User id of the reviewer (for Gmail OAuth sender)
+   */
+  async sendAttendanceRequestStatusToRequester(request, createdBy) {
+    const typeLabel = request.requestType?.labelEn || request.requestType?.labelAr || "Attendance Request";
+    const statusLabel = request.status === "approved" ? "Approved" : "Rejected";
+    const subject = `Attendance request ${statusLabel} - ${typeLabel}`;
+    const message = `Your attendance request (${typeLabel}) has been ${statusLabel.toLowerCase()}.\n\n${request.reviewNote ? `Review note: ${request.reviewNote}` : ""}`;
+    const htmlContent = `
+      <p>Your attendance request has been <strong>${statusLabel}</strong>.</p>
+      <p><strong>Type:</strong> ${typeLabel}</p>
+      ${request.reviewNote ? `<p><strong>Review note:</strong> ${request.reviewNote}</p>` : ""}
+    `;
+    const notification = new Notification({
+      school: request.school,
+      recipient: request.requester,
+      recipientEmail: request.requesterEmail,
+      type: "attendance_request_status",
+      subject,
+      message,
+      htmlContent,
+      channels: ["email"],
+      metadata: { attendanceRequest: request._id, status: request.status },
+      createdBy,
+    });
+    await notification.save();
+    await this.sendEmail(notification, createdBy);
+    return notification;
   }
 
   /**

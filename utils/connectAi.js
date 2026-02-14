@@ -1,20 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
+import logger from "./logger.js";
 
 const modelName = "gemini-2.5-flash-lite";
-const apiKey =
-  process.env.GEMINI_API_KEY_TWO || "AIzaSyDTXLa32vwUm5w81wMz2w67JPjkp3HRQK0";
+const apiKey = process.env.GEMINI_API_KEY_TWO;
 
 export async function connectAi(prompt, options) {
   if (!apiKey) {
-    console.warn("GEMINI_API_KEY_TWO is not set in .env");
+    logger.error("GEMINI_API_KEY_TWO is not set in environment variables");
     throw new Error("AI Service is not configured (missing API Key)");
   }
   const ai = new GoogleGenAI({ apiKey: apiKey });
-
-  console.log(
-    "Using API Key starting with:",
-    ai.apiKey?.substring(0, 10) + "...",
-  );
 
   // --- Step 2: Generate Content (Optional) ---
   const response = await ai.models.generateContent({

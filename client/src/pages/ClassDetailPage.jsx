@@ -1,11 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchClass, selectCurrentClass, selectClassStudents, selectClassesLoading, addSubjectToClass } from '../store/slices/classSlice';
+import {
+    fetchClass,
+    selectCurrentClass,
+    selectClassStudents,
+    selectClassesLoading,
+    addSubjectToClass,
+    fetchClassAnalytics,
+    fetchClassInsights,
+    selectClassAnalytics,
+    selectClassInsights,
+    selectClassAnalyticsLoading,
+    selectClassInsightsLoading,
+    clearClassAnalyticsData
+} from '../store/slices/classSlice';
 import { fetchSubjects, selectSubjects } from '../store/slices/subjectSlice';
 import { fetchTeachers, selectTeachers } from '../store/slices/teacherSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
-import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlinePencil, HiOutlineClipboardList, HiOutlinePlus, HiOutlineDocumentText } from 'react-icons/hi';
+import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardList, HiOutlinePlus, HiOutlineDocumentText, HiOutlineChartBar, HiOutlineLightBulb } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './ClassDetailPage.css';
 
@@ -23,12 +36,33 @@ const ClassDetailPage = () => {
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedTeacher, setSelectedTeacher] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [showAnalytics, setShowAnalytics] = useState(false);
+
+    const analytics = useSelector(selectClassAnalytics);
+    const insightsData = useSelector(selectClassInsights);
+    const analyticsLoading = useSelector(selectClassAnalyticsLoading);
+    const insightsLoading = useSelector(selectClassInsightsLoading);
 
     useEffect(() => {
         dispatch(fetchClass(id));
         dispatch(fetchSubjects());
         dispatch(fetchTeachers());
+        dispatch(clearClassAnalyticsData());
     }, [dispatch, id]);
+
+    const handleLoadAnalytics = () => {
+        setShowAnalytics(true);
+        dispatch(fetchClassAnalytics({ classId: id, academicYear: currentClass?.academicYear })).then((result) => {
+            if (fetchClassAnalytics.rejected.match(result)) toast.error(result.payload || 'Failed to load analytics');
+        });
+    };
+
+    const handleGenerateInsights = () => {
+        dispatch(fetchClassInsights({ classId: id, academicYear: currentClass?.academicYear, includeAnalytics: true })).then((result) => {
+            if (fetchClassInsights.rejected.match(result)) toast.error(result.payload || 'Failed to generate insights');
+            else toast.success('Insights generated');
+        });
+    };
 
     const handleAddSubject = async (e) => {
         e.preventDefault();
@@ -90,7 +124,7 @@ const ClassDetailPage = () => {
                     <div className="class-grade-lg">{currentClass.grade}</div>
                     <div>
                         <h1>{currentClass.name}</h1>
-                        <p className="text-muted">{currentClass.academicYear} • {currentClass.room || 'No room assigned'}</p>
+                        <p className="text-muted">{currentClass.academicYear} • {currentClass.department?.name ? `${currentClass.department.name} • ` : ''}{currentClass.room || 'No room assigned'}</p>
                     </div>
                 </div>
                 <div className="header-actions">
@@ -205,6 +239,91 @@ const ClassDetailPage = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Analytics & Insights */}
+            <div className="card analytics-card">
+                <div className="card-header">
+                    <h3 className="card-title">
+                        <HiOutlineChartBar /> Analytics & AI Insights
+                    </h3>
+                    {!showAnalytics ? (
+                        <button type="button" className="btn btn-secondary" onClick={handleLoadAnalytics} disabled={analyticsLoading}>
+                            {analyticsLoading ? 'Loading...' : 'Load analytics'}
+                        </button>
+                    ) : (
+                        <button type="button" className="btn btn-primary" onClick={handleGenerateInsights} disabled={insightsLoading}>
+                            <HiOutlineLightBulb /> {insightsLoading ? 'Generating...' : 'Generate AI insights'}
+                        </button>
+                    )}
+                </div>
+                {showAnalytics && (
+                    <div className="analytics-content">
+                        {analyticsLoading && !analytics && <p className="text-muted">Loading analytics...</p>}
+                        {analytics && !analyticsLoading && (
+                            <>
+                                <div className="analytics-summary">
+                                    {analytics.gradeStatsBySubject?.length > 0 && (
+                                        <div className="analytics-block">
+                                            <h4>Class average by subject</h4>
+                                            <ul className="analytics-list">
+                                                {analytics.gradeStatsBySubject.map((s) => (
+                                                    <li key={s.subjectId}>
+                                                        <span className="subject-name">{s.subjectName}</span>
+                                                        <span className="stat">{s.classAverage}%</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {analytics.attendanceSummary && (
+                                        <div className="analytics-block">
+                                            <h4>Attendance</h4>
+                                            <p>
+                                                {analytics.attendanceSummary.averageRate}% present
+                                                {analytics.attendanceSummary.totalSessions != null && (
+                                                    <span className="text-muted"> ({analytics.attendanceSummary.totalSessions} sessions)</span>
+                                                )}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {analytics.studentsToSupport?.length > 0 && (
+                                        <div className="analytics-block">
+                                            <h4>Students to support ({analytics.atRiskCount})</h4>
+                                            <ul className="analytics-list">
+                                                {analytics.studentsToSupport.map((s) => (
+                                                    <li key={s._id}>
+                                                        <Link to={`/portal/students/${s._id}`}>{s.firstName} {s.lastName}</Link>
+                                                        {(s.averagePercentage != null || s.attendanceRate != null) && (
+                                                            <span className="text-muted">
+                                                                {s.averagePercentage != null && ` avg ${s.averagePercentage}%`}
+                                                                {s.attendanceRate != null && ` attendance ${s.attendanceRate}%`}
+                                                            </span>
+                                                        )}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                                {(insightsData?.insights || insightsData?.data?.insights) && (
+                                    <div className="insights-block">
+                                        <h4><HiOutlineLightBulb /> AI insights</h4>
+                                        <div className="insights-text">
+                                            {((insightsData?.insights ?? insightsData?.data?.insights) || '')
+                                                .split(/\n+/)
+                                                .filter(Boolean)
+                                                .map((line, i) => (
+                                                    <p key={i}>{line.replace(/^[-•]\s*/, '')}</p>
+                                                ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+
             {/* Add Subject Modal */}
             {showSubjectModal && (
                 <div className="modal-overlay" onClick={() => setShowSubjectModal(false)}>

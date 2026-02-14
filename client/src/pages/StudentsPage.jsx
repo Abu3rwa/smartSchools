@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchStudents, selectStudents, selectStudentsLoading, createStudent, updateStudent, deleteStudent, importStudents, createStudentLogin, bulkCreateStudentLogin, resetStudentPassword } from '../store/slices/studentSlice';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
+import { fetchDepartments, selectDepartments } from '../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
 import { HiOutlinePlus, HiOutlineSearch, HiOutlinePencil, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload, HiOutlineExclamationCircle, HiOutlineCheckCircle, HiOutlineKey, HiOutlineUserAdd, HiOutlineClipboardCopy } from 'react-icons/hi';
@@ -13,6 +14,7 @@ const StudentsPage = () => {
     const dispatch = useDispatch();
     const students = useSelector(selectStudents);
     const classes = useSelector(selectClasses);
+    const departments = useSelector(selectDepartments);
     const loading = useSelector(selectStudentsLoading);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
@@ -30,6 +32,7 @@ const StudentsPage = () => {
         dateOfBirth: '',
         gender: '',
         currentClass: '',
+        department: '',
         academicYear: '2025-2026',
         parentInfo: {
             fatherName: '',
@@ -73,16 +76,18 @@ const StudentsPage = () => {
     useEffect(() => {
         dispatch(fetchStudents());
         dispatch(fetchClasses());
+        dispatch(fetchDepartments());
     }, [dispatch]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         let result;
         
+        const payload = { ...formData, department: formData.department || null };
         if (isEditing) {
-            result = await dispatch(updateStudent({ id: editingStudentId, data: formData }));
+            result = await dispatch(updateStudent({ id: editingStudentId, data: payload }));
         } else {
-            result = await dispatch(createStudent(formData));
+            result = await dispatch(createStudent(payload));
         }
         
         if ((isEditing ? updateStudent : createStudent).fulfilled.match(result)) {
@@ -105,6 +110,7 @@ const StudentsPage = () => {
             dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
             gender: student.gender || '',
             currentClass: student.currentClass?._id || '',
+            department: student.department?._id || student.department || '',
             academicYear: student.academicYear || '2025-2026',
             parentInfo: {
                 fatherName: student.parentInfo?.fatherName || '',
@@ -137,6 +143,7 @@ const StudentsPage = () => {
             dateOfBirth: '',
             gender: '',
             currentClass: '',
+            department: '',
             academicYear: '2025-2026',
             parentInfo: {
                 fatherName: '',
@@ -470,6 +477,7 @@ const StudentsPage = () => {
                                     <th>Student</th>
                                     <th>ID</th>
                                     <th>Class</th>
+                                    <th>Department</th>
                                     <th>Gender</th>
                                     <th>Status</th>
                                     {isAdmin && <th>Login</th>}
@@ -506,6 +514,7 @@ const StudentsPage = () => {
                                         </td>
                                         <td className="text-muted font-mono">{student.studentId}</td>
                                         <td>{student.currentClass?.name || 'Unassigned'}</td>
+                                        <td>{student.department?.name ?? '—'}</td>
                                         <td className="text-capitalize">{student.gender}</td>
                                         <td>
                                             <span className={`badge badge-${student.status === 'active' ? 'success' : 'warning'}`}>
@@ -656,17 +665,31 @@ const StudentsPage = () => {
                                         </select>
                                     </div>
                                 </div>
-                                <div className="form-group">
-                                    <label>Assign to Class</label>
-                                    <select
-                                        value={formData.currentClass}
-                                        onChange={(e) => setFormData({ ...formData, currentClass: e.target.value })}
-                                    >
-                                        <option value="">Select Class</option>
-                                        {classes.map(cls => (
-                                            <option key={cls._id} value={cls._id}>{cls.name}</option>
-                                        ))}
-                                    </select>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Assign to Class</label>
+                                        <select
+                                            value={formData.currentClass}
+                                            onChange={(e) => setFormData({ ...formData, currentClass: e.target.value })}
+                                        >
+                                            <option value="">Select Class</option>
+                                            {classes.map(cls => (
+                                                <option key={cls._id} value={cls._id}>{cls.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Department</label>
+                                        <select
+                                            value={formData.department}
+                                            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                                        >
+                                            <option value="">— No department —</option>
+                                            {departments.map((d) => (
+                                                <option key={d._id} value={d._id}>{d.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
 
                                 <h4 className="section-title mt-lg">Parent/Guardian Information</h4>

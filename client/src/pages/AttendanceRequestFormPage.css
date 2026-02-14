@@ -1,0 +1,206 @@
+.attendance-request-form-page {
+    padding: var(--spacing-lg);
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+@media (max-width: 599px) {
+    .attendance-request-form-page {
+        padding-left: var(--spacing-md);
+        padding-right: var(--spacing-md);
+    }
+}
+
+.attendance-request-form-page .page-header {
+    margin-bottom: var(--spacing-xl, 2rem);
+}
+
+.attendance-request-form-page .page-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+    color: var(--text-primary);
+}
+
+.attendance-request-form-page .header-icon {
+    color: var(--primary);
+}
+
+.attendance-request-form-page .page-subtitle {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+}
+
+.attendance-request-form-page .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    gap: var(--spacing-md, 1rem);
+    color: var(--text-muted);
+}
+
+.attendance-request-form {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg, 10px);
+    padding: var(--spacing-xl, 2rem);
+}
+
+.attendance-request-form .form-section {
+    margin-bottom: var(--spacing-xl, 2rem);
+}
+
+.attendance-request-form .form-section:last-of-type {
+    margin-bottom: var(--spacing-lg, 1.5rem);
+}
+
+.attendance-request-form .section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 var(--spacing-md, 1rem) 0;
+    color: var(--text-primary);
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.attendance-request-form .form-row {
+    margin-bottom: var(--spacing-md, 1rem);
+}
+
+.attendance-request-form .form-row-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md, 1rem);
+}
+
+.attendance-request-form .form-field-half {
+    flex: 1;
+    min-width: 140px;
+}
+
+.attendance-request-form .field-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.35rem;
+}
+
+.attendance-request-form .field-label .ar {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.attendance-request-form .field-label .required {
+    color: var(--error-500);
+}
+
+.attendance-request-form .field-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0 0 0.35rem 0;
+}
+
+.attendance-request-form .form-input,
+.attendance-request-form .form-select,
+.attendance-request-form .form-textarea {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md, 6px);
+    font-size: 0.9375rem;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    min-height: 44px;
+}
+
+.attendance-request-form .form-input:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.attendance-request-form .form-textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.attendance-request-form .file-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.attendance-request-form .file-input {
+    font-size: 0.875rem;
+    min-width: 0;
+}
+
+.attendance-request-form .file-name {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.attendance-request-form .field-error {
+    display: block;
+    font-size: 0.8125rem;
+    color: var(--error-500);
+    margin-top: 0.25rem;
+}
+
+.attendance-request-form .form-actions {
+    display: flex;
+    gap: var(--spacing-md, 1rem);
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    padding-top: var(--spacing-md, 1rem);
+    border-top: 1px solid var(--border-color);
+}
+
+.attendance-request-form .btn {
+    padding: 0.6rem 1.25rem;
+    border-radius: var(--radius-md, 6px);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    min-height: 44px;
+    cursor: pointer;
+    border: none;
+}
+
+.attendance-request-form .btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.attendance-request-form .btn-primary {
+    background: var(--accent-gradient);
+    color: var(--on-accent);
+}
+
+.attendance-request-form .btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+@media (max-width: 480px) {
+    .attendance-request-form-page {
+        padding: var(--spacing-md, 1rem);
+    }
+    .attendance-request-form {
+        padding: var(--spacing-md, 1rem);
+    }
+    .attendance-request-form .form-actions {
+        flex-direction: column;
+    }
+    .attendance-request-form .btn {
+        width: 100%;
+    }
+}

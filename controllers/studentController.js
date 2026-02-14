@@ -67,6 +67,7 @@ export const getStudents = asyncHandler(async (req, res) => {
     }
 
     const students = await Student.find(query)
+        .populate('department', 'name type')
         .populate('currentClass', 'name grade section')
         .populate('user', 'email isActive')
         .sort({ firstName: 1, lastName: 1 })
@@ -96,7 +97,9 @@ export const getStudents = asyncHandler(async (req, res) => {
  */
 export const getStudent = asyncHandler(async (req, res) => {
     const student = await Student.findById(req.params.id)
+        .populate('department', 'name type')
         .populate('currentClass', 'name grade section academicYear')
+        .populate('classEnrollmentHistory.class', 'name grade section academicYear')
         .populate('user', 'email');
 
     if (!student) {
@@ -171,7 +174,7 @@ export const updateStudent = asyncHandler(async (req, res) => {
     }
 
     const allowedFields = [
-        'firstName', 'lastName', 'dateOfBirth', 'email', 'gender', 'currentClass',
+        'firstName', 'lastName', 'dateOfBirth', 'email', 'gender', 'department', 'currentClass',
         'academicYear', 'enrollmentDate', 'parentInfo', 'address', 'medicalInfo',
         'previousSchool', 'studentEmail', 'reportPreferences', 'status', 'notes'
     ];
@@ -184,7 +187,7 @@ export const updateStudent = asyncHandler(async (req, res) => {
     student = await Student.findByIdAndUpdate(req.params.id, updates, {
         new: true,
         runValidators: true
-    }).populate('currentClass', 'name grade section');
+    }).populate('department', 'name type').populate('currentClass', 'name grade section');
 
     res.json({
         success: true,
@@ -256,14 +259,77 @@ export const getStudentsByClass = asyncHandler(async (req, res) => {
 export const bulkEnrollStudents = asyncHandler(async (req, res) => {
     const { studentIds, classId } = req.body;
 
+    const update = { currentClass: classId };
+    if (classId) {
+        const cls = await Class.findById(classId).select('department academicYear').lean();
+        if (cls?.department) update.department = cls.department;
+        if (cls?.academicYear) update.academicYear = cls.academicYear;
+    }
+
     const result = await Student.updateMany(
         { _id: { $in: studentIds }, school: req.schoolId },
-        { currentClass: classId }
+        update
     );
 
     res.json({
         success: true,
         message: `${result.modifiedCount} students enrolled successfully`
+    });
+});
+
+/**
+ * @desc    Enroll or move student to a class (appends to enrollment history first)
+ * @route   PUT /api/students/:id/enroll
+ * @access  Private (Admin)
+ */
+export const enrollStudent = asyncHandler(async (req, res) => {
+    const { classId, academicYear } = req.body;
+    if (!classId || !academicYear) {
+        return res.status(400).json({
+            success: false,
+            message: 'classId and academicYear are required'
+        });
+    }
+
+    const student = await Student.findById(req.params.id);
+    if (!student) {
+        return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    if (student.school.toString() !== req.schoolId.toString()) {
+        return res.status(403).json({ success: false, message: 'Student does not belong to your school' });
+    }
+
+    const newClass = await Class.findOne({ _id: classId, school: req.schoolId, academicYear });
+    if (!newClass) {
+        return res.status(400).json({
+            success: false,
+            message: 'Class not found or academic year does not match'
+        });
+    }
+
+    const updates = { currentClass: newClass._id, academicYear };
+    if (student.currentClass) {
+        updates.$push = {
+            classEnrollmentHistory: {
+                $each: [{
+                    academicYear: student.academicYear,
+                    class: student.currentClass,
+                    leftAt: new Date()
+                }],
+                $position: 0
+            }
+        };
+    }
+    const updated = await Student.findByIdAndUpdate(
+        req.params.id,
+        updates,
+        { new: true, runValidators: true }
+    ).populate('currentClass', 'name grade section academicYear');
+
+    res.json({
+        success: true,
+        message: 'Student enrolled successfully',
+        data: { student: updated }
     });
 });
 
@@ -289,15 +355,19 @@ export const importStudents = asyncHandler(async (req, res) => {
         });
     }
 
-    // Validate class exists if provided
+    // Validate class exists and get its department and academic year for assignment
+    let classDepartment = null;
+    let classAcademicYear = null;
     if (classId) {
-        const cls = await Class.findById(classId);
+        const cls = await Class.findById(classId).select('department academicYear');
         if (!cls) {
             return res.status(400).json({
                 success: false,
                 message: 'Selected class not found'
             });
         }
+        classDepartment = cls.department || null;
+        classAcademicYear = cls.academicYear || null;
     }
 
     // Get current count for ID generation
@@ -340,11 +410,14 @@ export const importStudents = asyncHandler(async (req, res) => {
             lastName: row.lastName.trim(),
             dateOfBirth: dob,
             gender,
-            academicYear: row.academicYear || '2025-2026',
+            academicYear: row.academicYear || classAcademicYear || '2025-2026',
             status: 'active'
         };
 
-        if (classId) studentData.currentClass = classId;
+        if (classId) {
+            studentData.currentClass = classId;
+            if (classDepartment) studentData.department = classDepartment;
+        }
         if (row.email && row.email.trim()) studentData.email = row.email.trim().toLowerCase();
 
         // Optional parent info
