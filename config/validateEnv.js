@@ -3,7 +3,7 @@ import logger from '../utils/logger.js';
 const requiredEnvVars = [
   'MONGODB_URI',
   'JWT_SECRET',
-  'GEMINI_API_KEY_TWO',
+  'GEMINI_API_KEY',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET'
 ];

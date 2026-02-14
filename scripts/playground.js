@@ -19,15 +19,11 @@ dotenv.config();
 
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey =
-  process.env.GEMINI_API_KEY_TWO ||
-  process.env.NEW_GEMINI_API_KEY ||
-  process.env.GEMINI_API_KEY ||
-  "";
+const apiKey = process.env.GEMINI_API_KEY || "";
 
 if (!apiKey) {
   throw new Error(
-    "Missing API key. Set GEMINI_API_KEY_TWO (or NEW_GEMINI_API_KEY) in server/.env",
+    "Missing API key. Set GEMINI_API_KEY in server/.env",
   );
 }
 

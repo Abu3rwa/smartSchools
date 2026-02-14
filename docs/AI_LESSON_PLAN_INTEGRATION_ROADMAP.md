@@ -906,7 +906,7 @@ const useVocabularySuggest = (prefix, subjectId, classId) => {
 
 ### Pre-Deployment Checklist
 
-- [ ] Environment: `GEMINI_API_KEY_TWO` set
+- [ ] Environment: `GEMINI_API_KEY` set
 - [ ] Database: LessonPlan schema migrated (add standardIds)
 - [ ] Feature flag (optional): `ENABLE_LESSON_PLAN_AI=true`
 
@@ -933,7 +933,7 @@ const useVocabularySuggest = (prefix, subjectId, classId) => {
 
 ### Pre-Deployment Checklist
 
-- [ ] Environment: `GEMINI_API_KEY_TWO` set
+- [ ] Environment: `GEMINI_API_KEY` set
 - [ ] Database: LessonPlan schema migrated (add standardIds)
 - [ ] Feature flag (optional): `ENABLE_LESSON_PLAN_AI=true`
 
