@@ -24,10 +24,27 @@ const getGreeting = () => {
     return 'Good evening';
 };
 
-const formatTime = (dateStr) => {
-    if (!dateStr) return '—';
-    const d = new Date(dateStr);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const formatTime = (val) => {
+    if (val == null || val === '') return '—';
+    const str = typeof val === 'string' ? val : String(val);
+    if (str === 'Invalid Date' || str === 'undefined' || str === 'null') return '—';
+    // Handle HH:MM strings from TimetablePeriod (e.g. "08:00", "14:30")
+    const hhmm = str.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmm) {
+        const h = Number(hhmm[1]);
+        const m = Number(hhmm[2]);
+        const period = h >= 12 ? 'PM' : 'AM';
+        const hour12 = h % 12 || 12;
+        return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
+    }
+    try {
+        const d = new Date(val);
+        if (isNaN(d.getTime())) return '—';
+        const result = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return result.includes('Invalid') ? '—' : result;
+    } catch {
+        return '—';
+    }
 };
 
 const TeacherDashboardPage = () => {
@@ -76,16 +93,26 @@ const TeacherDashboardPage = () => {
             if (!days || !Array.isArray(days) || days.length === 0) return true;
             return days.includes(dayOfWeek);
         });
+        // period is populated from TimetablePeriod — grab its HH:MM startTime/endTime
+        // Also look up from the periods array as a fallback if period wasn't populated
+        const periodsMap = new Map((timetable.periods || []).map((p) => [p._id, p]));
         const withOrder = assignments
-            .map((a) => ({
-                ...a,
-                order: a.period?.order ?? 0,
-                startTime: a.period?.startTime,
-                endTime: a.period?.endTime,
-            }))
+            .map((a) => {
+                const periodObj =
+                    (a.period && typeof a.period === 'object' ? a.period : null) ||
+                    periodsMap.get(a.period) ||
+                    null;
+                return {
+                    ...a,
+                    order: periodObj?.order ?? 0,
+                    startTime: periodObj?.startTime ?? null,
+                    endTime: periodObj?.endTime ?? null,
+                    _periodObj: periodObj,
+                };
+            })
             .sort((a, b) => a.order - b.order);
         return withOrder;
-    }, [timetable.assignments]);
+    }, [timetable.assignments, timetable.periods]);
 
     const quickActions = [
         { label: 'Enter Grades', path: '/portal/grades/entry', icon: HiOutlineClipboardList },
@@ -137,7 +164,7 @@ const TeacherDashboardPage = () => {
                                             <span className="period-time">
                                                 {formatTime(a.startTime)} – {formatTime(a.endTime)}
                                             </span>
-                                            <span className="period-name">{a.period?.name || `Period ${i + 1}`}</span>
+                                            <span className="period-name">{a._periodObj?.name || a.period?.name || `Period ${i + 1}`}</span>
                                             <span className="subject-name">{a.subject?.name || '—'}</span>
                                             <span className="class-name">{a.class?.name || '—'}</span>
                                             <span className="room-name">{a.room?.name || a.room || '—'}</span>
