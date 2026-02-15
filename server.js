@@ -235,13 +235,20 @@ const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 app.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`);
   if (process.env.RUN_ATTENDANCE_REMINDER_JOB !== "false") {
-    setInterval(async () => {
+    logger.info("Attendance reminder job scheduled (every 15 min). Run once on startup in 1 min.");
+    const runReminderJob = async () => {
       try {
-        await processAttendanceReminders();
+        const result = await processAttendanceReminders();
+        const { processed, sent, skipped, failed } = result?.results ?? {};
+        if (processed > 0 || sent > 0 || failed > 0) {
+          logger.info(`Attendance reminders: processed=${processed ?? 0}, sent=${sent ?? 0}, skipped=${skipped ?? 0}, failed=${failed ?? 0}`);
+        }
       } catch (err) {
         logger.error("Attendance reminder job error:", err?.message || err);
       }
-    }, REMINDER_JOB_INTERVAL_MS);
+    };
+    setTimeout(runReminderJob, 60 * 1000);
+    setInterval(runReminderJob, REMINDER_JOB_INTERVAL_MS);
   }
 
   // Optional scheduler: ensure weekly issues exist for all classes (idempotent).

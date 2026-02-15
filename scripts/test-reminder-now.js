@@ -5,13 +5,17 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import mongoose from 'mongoose';
 import connectDB from '../config/db.js';
 import { processAttendanceReminders } from '../controllers/attendanceTakingReminderController.js';
-import User from '../models/User.js';
-import Class from '../models/Class.js';
-import Subject from '../models/Subject.js';
-import Room from '../models/Room.js';
+import '../models/User.js';
+import '../models/Class.js';
+import '../models/Subject.js';
+import '../models/Room.js';
+import '../models/TimetablePeriod.js';
+import '../models/TeacherPeriodAssignment.js';
+import '../models/Attendance.js';
+import '../models/AttendanceTakingReminder.js';
+import '../models/Notification.js';
 
 async function testReminderNow() {
   await connectDB();
