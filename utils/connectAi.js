@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import logger from "./logger.js";
 
 const modelName = "gemini-2.5-flash-lite";
-const apiKey = "AIzaSyB6u4-Vf39uvXhH3hZAbQFlNK516XxAW5A";
+const apiKey = process.env.GEMINI_API_KEY;
 
 export async function connectAi(prompt, options) {
   if (!apiKey) {
