@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchStudents, selectStudents, selectStudentsLoading, createStudent, updateStudent, deleteStudent, importStudents, createStudentLogin, bulkCreateStudentLogin, resetStudentPassword } from '../store/slices/studentSlice';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
@@ -12,6 +12,8 @@ import './StudentsPage.css';
 
 const StudentsPage = () => {
     const dispatch = useDispatch();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const searchFromUrl = searchParams.get('search') || '';
     const students = useSelector(selectStudents);
     const classes = useSelector(selectClasses);
     const departments = useSelector(selectDepartments);
@@ -19,7 +21,7 @@ const StudentsPage = () => {
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
 
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(searchFromUrl);
     const [filterClass, setFilterClass] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -74,10 +76,14 @@ const StudentsPage = () => {
     const [importResult, setImportResult] = useState(null);
 
     useEffect(() => {
-        dispatch(fetchStudents());
+        setSearchTerm(searchFromUrl);
+    }, [searchFromUrl]);
+
+    useEffect(() => {
+        dispatch(fetchStudents({ search: searchFromUrl || undefined }));
         dispatch(fetchClasses());
         dispatch(fetchDepartments());
-    }, [dispatch]);
+    }, [dispatch, searchFromUrl]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
