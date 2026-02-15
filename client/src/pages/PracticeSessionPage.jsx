@@ -5,8 +5,10 @@ import {
     generateQuestion, submitAnswer,
     selectCurrentQuestion, selectLastResult, selectGenerating, selectSubmitting,
     selectPracticeStatus, selectPracticeSessionInfo, selectPracticeStatusMessage,
+    selectPracticeStudentFirstName, selectPracticeSuggestRemediation,
     clearCurrentQuestion, clearLastResult
 } from '../store/slices/practiceSlice';
+import { selectUser } from '../store/slices/authSlice';
 import {
     HiOutlineArrowLeft, HiOutlineCheckCircle, HiOutlineXCircle,
     HiOutlineLightningBolt, HiOutlineRefresh
@@ -27,6 +29,9 @@ const PracticeSessionPage = () => {
     const practiceStatus = useSelector(selectPracticeStatus);
     const sessionInfo = useSelector(selectPracticeSessionInfo);
     const statusMessage = useSelector(selectPracticeStatusMessage);
+    const studentFirstName = useSelector(selectPracticeStudentFirstName);
+    const suggestRemediation = useSelector(selectPracticeSuggestRemediation);
+    const user = useSelector(selectUser);
 
     const [selectedAnswer, setSelectedAnswer] = useState('');
     const [shortAnswer, setShortAnswer] = useState('');
@@ -47,8 +52,11 @@ const PracticeSessionPage = () => {
     }, [dispatch]);
 
     useEffect(() => {
+        const isValidAssignmentId = /^[a-fA-F0-9]{24}$/.test(assignmentId || '');
+        const allowedIntegrityEvents = new Set(['tab_hidden', 'window_blur', 'visibility_visible', 'window_focus']);
+
         const logIntegrityEvent = async (eventType) => {
-            if (!assignmentId) return;
+            if (!isValidAssignmentId || !allowedIntegrityEvents.has(eventType)) return;
             const now = Date.now();
             if (now - lastIntegrityLogRef.current < 3000) return;
             lastIntegrityLogRef.current = now;
@@ -136,6 +144,11 @@ const PracticeSessionPage = () => {
     const isMasteredResult = practiceStatus === 'mastered' || lastResult?.newlyMastered;
     const isSessionComplete = practiceStatus === 'session_complete' || lastResult?.sessionComplete;
     const showQuestion = practiceStatus === 'question' && currentQuestion;
+    const displayName = studentFirstName || user?.firstName || 'Student';
+    const resultParts = lastResult?.feedbackParts || {};
+    const answerDisplay = resultParts.displayAnswer || lastResult?.correctAnswerDisplay || lastResult?.correctAnswer;
+    const quickExplanation = resultParts.explanation || resultParts.reasonSummary || lastResult?.explanation;
+    const resultHeading = resultParts.headline || (lastResult?.isCorrect ? 'Correct!' : 'Keep Going');
 
     return (
         <div className="practice-session">
@@ -146,7 +159,7 @@ const PracticeSessionPage = () => {
             {/* Difficulty & Type Selector */}
             {!currentQuestion && !lastResult && !isSessionComplete && !isMasteredResult && (
                 <div className="question-card">
-                    <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Start Practicing</h3>
+                    <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Start Practicing, {displayName}</h3>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
                         Choose your preferred difficulty and question type, then generate a question.
                     </p>
@@ -199,8 +212,11 @@ const PracticeSessionPage = () => {
                     )}
 
                     {sessionStats.asked > 0 && (
-                        <div style={{ marginBottom: 'var(--spacing-md)', padding: 'var(--spacing-sm)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
-                            Session: {sessionStats.correct}/{sessionStats.asked} correct ({sessionStats.asked > 0 ? Math.round((sessionStats.correct / sessionStats.asked) * 100) : 0}%)
+                        <div className="progress-today">
+                            <div className="progress-today-title">Progress Today</div>
+                            <div className="progress-today-copy">
+                                {displayName}, you got {sessionStats.correct} out of {sessionStats.asked} correct ({sessionStats.asked > 0 ? Math.round((sessionStats.correct / sessionStats.asked) * 100) : 0}%).
+                            </div>
                         </div>
                     )}
 
@@ -276,6 +292,11 @@ const PracticeSessionPage = () => {
                     </div>
 
                     <div className="question-text">{currentQuestion.questionText}</div>
+                    {suggestRemediation && (
+                        <div className="remediation-tip">
+                            Quick Tip: Let’s strengthen the foundation first. Focus on accuracy, then move up in difficulty.
+                        </div>
+                    )}
 
                     {/* Multiple Choice / True-False Options */}
                     {(currentQuestion.questionType === 'multiple_choice' || currentQuestion.questionType === 'true_false') && (
@@ -328,18 +349,56 @@ const PracticeSessionPage = () => {
                                 : <HiOutlineXCircle size={40} />
                             }
                         </div>
-                        <h3>{lastResult.isCorrect ? 'Correct!' : 'Incorrect'}</h3>
+                        <h3>{resultHeading}</h3>
+                        <p className="result-greeting">
+                            {resultParts.personalGreeting || `${displayName}, ${lastResult.isCorrect ? 'great work on this one.' : 'good attempt. Keep going.'}`}
+                        </p>
                         <p className="result-feedback">{lastResult.feedback}</p>
 
                         <div className="result-details">
-                            <p><span className="label">Correct Answer:</span></p>
-                            <p>{lastResult.correctAnswer}</p>
-                            {lastResult.explanation && (
-                                <>
-                                    <p style={{ marginTop: 'var(--spacing-sm)' }}><span className="label">Explanation:</span></p>
-                                    <p>{lastResult.explanation}</p>
-                                </>
+                            {resultParts.whatYouDidWell && (
+                                <div className="result-section">
+                                    <p><span className="label">What You Did Well</span></p>
+                                    <p>{resultParts.whatYouDidWell}</p>
+                                </div>
                             )}
+
+                            <div className="result-section">
+                                <p><span className="label">Best Answer and Why</span></p>
+                                <p>{answerDisplay}</p>
+                                {resultParts.correctionOrConfirmation && (
+                                    <p>{resultParts.correctionOrConfirmation}</p>
+                                )}
+                            </div>
+
+                            {quickExplanation && (
+                                <div className="result-section">
+                                    <p><span className="label">Quick Explanation</span></p>
+                                    <p>{quickExplanation}</p>
+                                </div>
+                            )}
+
+                            {resultParts.nextStep && (
+                                <div className="result-section">
+                                    <p><span className="label">Next Step</span></p>
+                                    <p>{resultParts.nextStep}</p>
+                                </div>
+                            )}
+
+                            {(resultParts.reviewTag || resultParts.confidenceLevel) && (
+                                <div className="result-section">
+                                    <p><span className="label">Focus for Review</span></p>
+                                    <p>
+                                        {resultParts.reviewTag || 'Current skill'}
+                                        {resultParts.confidenceLevel ? ` (${resultParts.confidenceLevel} confidence)` : ''}
+                                    </p>
+                                </div>
+                            )}
+
+                            {resultParts.encouragement && (
+                                <p className="encouragement-line">{resultParts.encouragement}</p>
+                            )}
+
                             {lastResult.sessionComplete && (
                                 <p style={{ marginTop: 'var(--spacing-sm)', fontWeight: 600 }}>
                                     Session complete. Great work!
@@ -375,7 +434,7 @@ const PracticeSessionPage = () => {
                             ) : (
                                 <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
                                     <HiOutlineRefresh size={18} style={{ marginRight: 6 }} />
-                                    Next Question
+                                    Try Another Challenge
                                 </button>
                             )}
                         </div>

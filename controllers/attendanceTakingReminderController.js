@@ -2,14 +2,14 @@ import { asyncHandler } from "../middleware/errorHandler.js";
 import logger from "../utils/logger.js";
 import AttendanceTakingReminder from "../models/AttendanceTakingReminder.js";
 import Attendance from "../models/Attendance.js";
-import Schedule from "../models/Schedule.js";
+import TeacherPeriodAssignment from "../models/TeacherPeriodAssignment.js";
 import Notification from "../models/Notification.js";
 import notificationService from "../services/notificationService.js";
 
-/** Default reminder window: 10 hours after class end (run job every ~15 min so we catch "10h after end") */
+/** Default: send reminder for classes that ended at least this many hours ago */
 const DEFAULT_REMINDER_HOURS = 10;
-const REMINDER_WINDOW_END_MS = DEFAULT_REMINDER_HOURS * 60 * 60 * 1000;
-const REMINDER_WINDOW_START_MS = REMINDER_WINDOW_END_MS + 15 * 60 * 1000; // Add 15 min window
+/** How far back to look for missed classes (48h so we catch yesterday’s classes when job runs next day) */
+const REMINDER_LOOKBACK_HOURS = 48;
 
 /**
  * Build date at local midnight for schedule date (matches Attendance date storage).
@@ -19,6 +19,44 @@ function toAttendanceDate(d) {
   date.setHours(0, 0, 0, 0);
   return date;
 }
+
+/**
+ * Build HTML table for email that matches the timetable: Period, Class, Subject, Room, Date, Start time, End time.
+ * @param {{ periodName: string, className: string, subjectName: string, roomName: string, classDate: string, startTime: string, endTime: string }}
+ */
+function buildEmailTable({ periodName, className, subjectName, roomName, classDate, startTime, endTime }) {
+  return `
+    <table>
+      <tr>
+        <td class="label">📅 Date</td>
+        <td><strong>${classDate}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">🕐 Period</td>
+        <td><strong>${periodName || "—"}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">🏫 Class</td>
+        <td><strong>${className}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">📚 Subject</td>
+        <td><strong>${subjectName}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">🕐 Start Time</td>
+        <td><strong>${startTime}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">🕐 End Time</td>
+        <td><strong>${endTime}</strong></td>
+      </tr>
+      <tr>
+        <td class="label">📍 Room</td>
+        <td><strong>${roomName}</strong></td>
+      </tr>
+    </table>`;
+}
 /**
  * Run the missed-attendance reminder job (no req/res). Find classes that ended
  * X hours ago (default 10), no attendance taken, no reminder sent → create reminder, send email via SMTP.
@@ -27,117 +65,187 @@ function toAttendanceDate(d) {
  */
 export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMINDER_HOURS) {
   const now = new Date();
-  const windowEndMs = hoursAfterClass * 60 * 60 * 1000;
-  const windowStartMs = windowEndMs + 15 * 60 * 1000; // 15 min window
-  const windowEnd = new Date(now.getTime() - windowEndMs);
-  const windowStart = new Date(now.getTime() - windowStartMs);
+  // Class must have ended at least this long ago (give teacher time to record)
+  const minHoursAgoMs = hoursAfterClass * 60 * 60 * 1000;
+  // Don't remind for classes that ended more than REMINDER_LOOKBACK_HOURS ago
+  const lookbackMs = REMINDER_LOOKBACK_HOURS * 60 * 60 * 1000;
+  const windowEnd = new Date(now.getTime() - minHoursAgoMs);   // e.g. now - 10h
+  const windowStart = new Date(now.getTime() - lookbackMs);   // e.g. now - 48h
+  // We want: periodEnd >= windowStart && periodEnd <= windowEnd
+  // i.e. class ended between 10h and 48h ago (so we catch yesterday’s classes when job runs next day)
 
-  const schedules = await Schedule.find({
-    type: "class",
-    requiresAttendance: true,
-    status: { $ne: "cancelled" },
-    endTime: { $gte: windowStart, $lte: windowEnd },
-  })
+  const results = { processed: 0, sent: 0, skipped: 0, failed: 0 };
+
+  // Use only timetable-based reminders so the email always matches the timetable (Period name + correct times).
+  // Schedule-based reminders are skipped to avoid wrong times/period in the email.
+  const assignments = await TeacherPeriodAssignment.find({ isActive: true })
     .setOptions({ skipTenantFilter: true })
     .populate("teacher", "firstName lastName email")
     .populate("class", "name")
     .populate("subject", "name")
     .populate("room", "name")
+    .populate("period", "name startTime endTime order")
     .lean();
 
-  const results = { processed: 0, sent: 0, skipped: 0, failed: 0 };
+  for (const assignment of assignments) {
+    const period = assignment.period;
+    const teacher = assignment.teacher;
+    if (!period?.startTime || !period?.endTime || !teacher?.email) continue;
 
-  for (const schedule of schedules) {
-    results.processed += 1;
-    const attendanceDate = toAttendanceDate(schedule.startTime);
-    const schoolId = schedule.school;
+    const [startH, startM] = (period.startTime || "").split(":").map(Number);
+    const [endH, endM] = (period.endTime || "").split(":").map(Number);
+    const schoolId = assignment.school;
+    const daysOfWeek = assignment.daysOfWeek && assignment.daysOfWeek.length > 0 ? assignment.daysOfWeek : [1, 2, 3, 4, 5];
+    const assignStart = new Date(assignment.startDate);
+    const assignEnd = new Date(assignment.endDate);
+    assignStart.setHours(0, 0, 0, 0);
+    assignEnd.setHours(23, 59, 59, 999);
 
-    const [hasAttendance, existingReminder] = await Promise.all([
-      Attendance.findOne({
+    // Check last 3 days for an occurrence whose period end falls in the reminder window
+    for (let d = 0; d <= 2; d++) {
+      const candidate = new Date(now);
+      candidate.setDate(candidate.getDate() - d);
+      candidate.setHours(0, 0, 0, 0);
+      const dayOfWeek = candidate.getDay();
+      if (!daysOfWeek.includes(dayOfWeek)) continue;
+      if (candidate < assignStart || candidate > assignEnd) continue;
+
+      const periodEnd = new Date(candidate);
+      periodEnd.setHours(endH, endM || 0, 0, 0);
+      if (periodEnd < windowStart || periodEnd > windowEnd) continue;
+
+      results.processed += 1;
+      const attendanceDate = toAttendanceDate(candidate);
+
+      const hasAttendance = await Attendance.findOne({
         school: schoolId,
-        schedule: schedule._id,
+        teacher: assignment.teacher._id,
+        period: assignment.period._id,
         date: attendanceDate,
-      }).setOptions({ skipTenantFilter: true }),
-      AttendanceTakingReminder.findOne({
+      }).setOptions({ skipTenantFilter: true });
+
+      if (hasAttendance) {
+        results.skipped += 1;
+        continue;
+      }
+
+      const alreadySent = await AttendanceTakingReminder.findOne({
         school: schoolId,
-        schedule: schedule._id,
+        assignment: assignment._id,
+        period: assignment.period._id,
         attendanceDate,
-      }).setOptions({ skipTenantFilter: true }),
-    ]);
+      }).setOptions({ skipTenantFilter: true });
 
-    if (hasAttendance || existingReminder) {
-      results.skipped += 1;
-      continue;
-    }
+      if (alreadySent) {
+        results.skipped += 1;
+        continue;
+      }
 
-    const teacher = schedule.teacher;
-    if (!teacher?.email) {
-      results.skipped += 1;
-      continue;
-    }
+      const className = assignment.class?.name || "N/A";
+      const subjectName = assignment.subject?.name || "N/A";
+      const roomName = assignment.room?.name || "N/A";
+      const periodName = period.name || "Period";
+      const teacherName = [teacher.firstName, teacher.lastName].filter(Boolean).join(" ") || "Teacher";
 
-    const className = schedule.class?.name || "N/A";
-    const subjectName = schedule.subject?.name || "N/A";
-    const roomName = schedule.room?.name || "N/A";
-    const teacherName =
-      [teacher.firstName, teacher.lastName].filter(Boolean).join(" ") ||
-      "Teacher";
-    const startTimeStr = new Date(schedule.startTime).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    const subject = `Reminder: Record attendance for ${className} - ${subjectName}`;
-    const message = `Hi ${teacherName}, this is a friendly reminder that you haven't recorded attendance for ${className} - ${subjectName} today. The class was scheduled for ${startTimeStr} in ${roomName}. Please record attendance as soon as possible.`;
-
-    const notification = new Notification({
-      school: schoolId,
-      recipient: schedule.teacher._id,
-      recipientEmail: teacher.email,
-      type: "attendance",
-      subject,
-      message,
-      metadata: {
-        scheduleId: schedule._id,
-        attendanceDate,
-        className,
-        subjectName,
-        room: roomName,
-      },
-    });
-    await notification.save();
-
-    let reminderStatus = "sent";
-    let failureReason = null;
-    try {
-      // Pass null as userId – sendEmail will auto-find a school admin with Gmail connected
-      await notificationService.sendEmail(
-        notification,
-        null,
-      );
-    } catch (err) {
-      logger.error("Attendance reminder email failed", {
-        scheduleId: schedule._id,
-        error: err.message,
+      const classDate = attendanceDate.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
       });
-      reminderStatus = "failed";
-      failureReason = err.message || "Send failed";
-    }
+      const periodStartDate = new Date(candidate);
+      periodStartDate.setHours(startH, startM || 0, 0, 0);
+      const periodEndDate = new Date(candidate);
+      periodEndDate.setHours(endH, endM || 0, 0, 0);
+      const startTimeStr = periodStartDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+      const endTimeStr = periodEndDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
 
-    await AttendanceTakingReminder.create([
-      {
+      const subject = `Reminder: Record attendance for ${className} - ${subjectName}`;
+      const message = `Hi ${teacherName}, this is a friendly reminder that you haven't recorded attendance for ${periodName} — ${className} - ${subjectName} on ${classDate}. The class was scheduled from ${startTimeStr} to ${endTimeStr} in ${roomName}. Please record attendance as soon as possible.`;
+
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; border-radius: 10px 10px 0 0; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
+    .content { background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; }
+    .greeting { font-size: 16px; margin-bottom: 20px; color: #555; }
+    .message { background: #f8f9fa; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+    th { background: #667eea; color: white; padding: 12px; text-align: left; font-weight: 600; font-size: 14px; }
+    td { padding: 12px; border-bottom: 1px solid #e0e0e0; font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    .label { font-weight: 600; color: #667eea; width: 40%; }
+    .footer { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; border: 1px solid #e0e0e0; border-top: none; font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header"><h1>📋 Attendance Reminder</h1></div>
+  <div class="content">
+    <div class="greeting"><p>Dear ${teacherName},</p><p>We hope this message finds you well.</p></div>
+    <div class="message"><p><strong>This is a friendly reminder</strong> that attendance has not yet been recorded for the following class (from your timetable):</p></div>
+    ${buildEmailTable({ periodName, className, subjectName, roomName, classDate, startTime: startTimeStr, endTime: endTimeStr })}
+    <p>Please take a moment to record the attendance for this class as soon as possible.</p>
+    <p style="margin-top: 30px;">Thank you for your attention to this matter!</p>
+    <p style="margin-top: 20px; color: #666;">Best regards,<br><strong>School Administration</strong></p>
+  </div>
+  <div class="footer"><p>This is an automated reminder. Please do not reply to this email.</p></div>
+</body>
+</html>`;
+
+      const notification = new Notification({
         school: schoolId,
-        schedule: schedule._id,
-        attendanceDate,
-        teacher: schedule.teacher._id,
-        status: reminderStatus,
-        failureReason,
-        notification: notification._id,
-      },
-    ]);
+        recipient: teacher._id,
+        recipientEmail: teacher.email,
+        type: "attendance",
+        subject,
+        message,
+        htmlContent,
+        metadata: {
+          assignmentId: assignment._id,
+          periodId: assignment.period._id,
+          attendanceDate,
+          periodName,
+          className,
+          subjectName,
+          room: roomName,
+          startTime: periodStartDate,
+          endTime: periodEndDate,
+        },
+      });
+      await notification.save();
 
-    if (reminderStatus === "sent") results.sent += 1;
-    else results.failed += 1;
+      let reminderStatusT = "sent";
+      let failureReasonT = null;
+      try {
+        await notificationService.sendEmail(notification, null);
+      } catch (err) {
+        logger.error("Attendance reminder email failed (timetable)", {
+          assignmentId: assignment._id,
+          error: err.message,
+        });
+        reminderStatusT = "failed";
+        failureReasonT = err.message || "Send failed";
+      }
+
+      await AttendanceTakingReminder.create({
+        school: schoolId,
+        assignment: assignment._id,
+        period: assignment.period._id,
+        attendanceDate,
+        teacher: teacher._id,
+        status: reminderStatusT,
+        failureReason: failureReasonT,
+        notification: notification._id,
+      });
+
+      if (reminderStatusT === "sent") results.sent += 1;
+      else results.failed += 1;
+      break; // one reminder per assignment per run
+    }
   }
 
   return { 
@@ -199,17 +307,46 @@ export const getReminders = asyncHandler(async (req, res) => {
     (Math.max(1, parseInt(page, 10)) - 1) * Math.max(1, parseInt(limit, 10));
   const reminders = await AttendanceTakingReminder.find(query)
     .populate("schedule", "title startTime endTime")
+    .populate("assignment", "class subject room period")
+    .populate("period", "name startTime endTime")
     .populate("teacher", "firstName lastName email")
     .sort({ sentAt: -1 })
     .skip(skip)
     .limit(Math.min(100, Math.max(1, parseInt(limit, 10))))
     .lean();
 
+  // Check attendance status for each reminder (schedule-based or timetable-based)
+  const remindersWithStatus = await Promise.all(
+    reminders.map(async (reminder) => {
+      let attendanceTaken = false;
+      if (reminder.schedule?._id) {
+        const attendance = await Attendance.findOne({
+          school: reminder.school,
+          schedule: reminder.schedule._id,
+          date: reminder.attendanceDate,
+        }).setOptions({ skipTenantFilter: true });
+        attendanceTaken = !!attendance;
+      } else if (reminder.assignment && reminder.period?._id && reminder.teacher?._id) {
+        const attendance = await Attendance.findOne({
+          school: reminder.school,
+          teacher: reminder.teacher._id,
+          period: reminder.period._id,
+          date: reminder.attendanceDate,
+        }).setOptions({ skipTenantFilter: true });
+        attendanceTaken = !!attendance;
+      }
+      return {
+        ...reminder,
+        attendanceTaken,
+      };
+    })
+  );
+
   const total = await AttendanceTakingReminder.countDocuments(query);
 
   res.json({
     success: true,
-    data: reminders,
+    data: remindersWithStatus,
     pagination: {
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),

@@ -1,1 +1,325 @@
-.admin-timetable-page{padding:24px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media (max-width: 1100px){.grid{grid-template-columns:1fr}}.card{background:var(--card-bg, #fff);border:1px solid rgba(0,0,0,.08);border-radius:12px;padding:16px}.card-title{display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:12px}.error-banner{display:flex;align-items:center;gap:8px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);color:#991b1b;border-radius:10px;padding:10px 12px;margin:12px 0}.form-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.form-row input{padding:10px;border:1px solid rgba(0,0,0,.12);border-radius:10px}.assignment-form{display:grid;grid-template-columns:1fr 1fr 120px;gap:12px}.assignment-form .field{display:flex;flex-direction:column;gap:6px}.assignment-form .field.full{grid-column:1 / -1}.assignment-form select,.assignment-form input{padding:10px;border:1px solid rgba(0,0,0,.12);border-radius:10px}.weekday-selector{display:flex;flex-wrap:wrap;gap:8px}.weekday-pill{border:1px solid rgba(0,0,0,.12);background:transparent;border-radius:999px;padding:8px 10px;cursor:pointer}.weekday-pill.active{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.5)}.table{margin-top:12px;border-top:1px solid rgba(0,0,0,.08)}.row{display:grid;grid-template-columns:1.2fr 1fr 1fr .8fr 44px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.06)}.cell.name{font-weight:600}.cell.muted{color:rgba(0,0,0,.55)}.icon-btn{background:transparent;border:1px solid rgba(0,0,0,.12);border-radius:10px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer}.icon-btn.danger{border-color:rgba(239,68,68,.35);color:#b91c1c}.empty{color:rgba(0,0,0,.55);padding:12px 0}
+/* Admin Timetable Page - Theme-aligned */
+.admin-timetable-page {
+    padding: var(--spacing-2xl);
+    max-width: var(--content-max-width, 1400px);
+    margin: 0 auto;
+    min-height: 100%;
+    color: var(--text-primary);
+}
+
+/* Loading */
+.admin-timetable-page .loading-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 320px;
+}
+
+.admin-timetable-page .spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--primary-500);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Page header */
+.admin-timetable-page .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-xl);
+    margin-bottom: var(--spacing-2xl);
+}
+
+.admin-timetable-page .header-content h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-xs) 0;
+}
+
+.admin-timetable-page .header-content p {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin: 0;
+}
+
+.admin-timetable-page .header-actions {
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+.admin-timetable-page .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all var(--transition-fast);
+}
+
+.admin-timetable-page .btn-primary {
+    background: var(--accent-gradient);
+    color: var(--on-accent);
+    box-shadow: var(--shadow-sm);
+}
+
+.admin-timetable-page .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-glow);
+}
+
+.admin-timetable-page .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.admin-timetable-page .btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.admin-timetable-page .btn-secondary:hover:not(:disabled) {
+    background: var(--bg-card-hover);
+    border-color: var(--border-color-hover);
+}
+
+.admin-timetable-page .btn-secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Error banner */
+.admin-timetable-page .error-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: var(--error-400, var(--accent-red));
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+    font-size: 0.9rem;
+}
+
+/* Grid & cards */
+.admin-timetable-page .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xl);
+}
+
+@media (max-width: 1100px) {
+    .admin-timetable-page .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.admin-timetable-page .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-sm);
+}
+
+.admin-timetable-page .card-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-lg);
+}
+
+/* Form row (periods) */
+.admin-timetable-page .form-row {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.admin-timetable-page .form-row input,
+.admin-timetable-page .form-row select {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.admin-timetable-page .form-row input:focus,
+.admin-timetable-page .form-row select:focus {
+    outline: none;
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* Assignment form */
+.admin-timetable-page .assignment-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr 120px;
+    gap: var(--spacing-md);
+}
+
+.admin-timetable-page .assignment-form .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.admin-timetable-page .assignment-form .field.full {
+    grid-column: 1 / -1;
+}
+
+.admin-timetable-page .assignment-form label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.admin-timetable-page .assignment-form select,
+.admin-timetable-page .assignment-form input {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.admin-timetable-page .assignment-form select:focus,
+.admin-timetable-page .assignment-form input:focus {
+    outline: none;
+    border-color: var(--primary-500);
+}
+
+.admin-timetable-page .assignment-form select:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Weekday selector */
+.admin-timetable-page .weekday-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.admin-timetable-page .weekday-pill {
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    padding: var(--spacing-sm) var(--spacing-md);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+
+.admin-timetable-page .weekday-pill:hover {
+    border-color: var(--border-color-hover);
+    color: var(--text-primary);
+}
+
+.admin-timetable-page .weekday-pill.active {
+    background: rgba(102, 126, 234, 0.2);
+    border-color: var(--primary-500);
+    color: var(--text-primary);
+}
+
+/* Table (periods & assignments lists) */
+.admin-timetable-page .table {
+    margin-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    overflow-x: auto;
+}
+
+.admin-timetable-page .row {
+    display: grid;
+    grid-template-columns: minmax(80px, 1.2fr) minmax(80px, 1fr) minmax(70px, 1fr) minmax(60px, 0.8fr) 44px;
+    gap: var(--spacing-md);
+    align-items: center;
+    padding: var(--spacing-md) 0;
+    border-bottom: 1px solid var(--border-color);
+    min-width: 0;
+}
+
+.admin-timetable-page .row:last-child {
+    border-bottom: none;
+}
+
+.admin-timetable-page .cell {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.admin-timetable-page .cell.name {
+    font-weight: 600;
+}
+
+.admin-timetable-page .cell.muted {
+    color: var(--text-muted);
+}
+
+.admin-timetable-page .empty {
+    color: var(--text-muted);
+    padding: var(--spacing-lg) 0;
+    font-size: 0.9rem;
+}
+
+/* Icon button (delete) */
+.admin-timetable-page .icon-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.admin-timetable-page .icon-btn:hover:not(:disabled) {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--border-color-hover);
+}
+
+.admin-timetable-page .icon-btn.danger {
+    border-color: rgba(239, 68, 68, 0.4);
+    color: var(--error-400, var(--accent-red));
+}
+
+.admin-timetable-page .icon-btn.danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: var(--accent-red);
+}
+
+.admin-timetable-page .icon-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

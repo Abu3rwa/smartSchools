@@ -47,6 +47,8 @@ const AdminSchedulePage = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [rooms, setRooms] = useState([]);
     const [roomsLoading, setRoomsLoading] = useState(false);
+    const [roomAvailability, setRoomAvailability] = useState(null);
+    const [roomAvailabilityLoading, setRoomAvailabilityLoading] = useState(false);
 
     // Filters
     const [filters, setFilters] = useState({
@@ -133,6 +135,34 @@ const AdminSchedulePage = () => {
     useEffect(() => {
         fetchSchedules();
     }, [fetchSchedules]);
+
+    // Fetch room availability when create/edit modal is open and start/end time are set
+    useEffect(() => {
+        if (!showCreateModal && !showEditModal) {
+            setRoomAvailability(null);
+            return;
+        }
+        const start = formData.startTime && formData.startTime.trim();
+        const end = formData.endTime && formData.endTime.trim();
+        if (!start || !end || new Date(start) >= new Date(end)) {
+            setRoomAvailability(null);
+            return;
+        }
+        let cancelled = false;
+        setRoomAvailabilityLoading(true);
+        scheduleService
+            .getRoomAvailability(start, end, showEditModal ? selectedSchedule?._id : null)
+            .then((res) => {
+                if (!cancelled && res?.data?.rooms) setRoomAvailability(res.data.rooms);
+            })
+            .catch(() => {
+                if (!cancelled) setRoomAvailability(null);
+            })
+            .finally(() => {
+                if (!cancelled) setRoomAvailabilityLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [showCreateModal, showEditModal, formData.startTime, formData.endTime, showEditModal ? selectedSchedule?._id : null]);
 
     const handleCreateSchedule = () => {
         // Reset form
@@ -895,18 +925,48 @@ const AdminSchedulePage = () => {
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>Room</label>
+                                    <label>
+                                        Room
+                                        {formData.startTime && formData.endTime && (
+                                            <span className="room-availability-hint">
+                                                {roomAvailabilityLoading ? ' (checking availability…)' : roomAvailability ? ' — select an available room' : ''}
+                                            </span>
+                                        )}
+                                    </label>
                                     <select
                                         value={formData.room}
                                         onChange={(e) => setFormData(prev => ({ ...prev, room: e.target.value }))}
+                                        className={formData.room && roomAvailability ? (roomAvailability.find(r => r._id === formData.room)?.available ? 'room-available' : 'room-occupied') : ''}
                                     >
                                         <option value="">Select Room</option>
-                                        {rooms.map(room => (
-                                            <option key={room._id} value={room._id}>
-                                                {room.name} ({room.type}, Capacity: {room.capacity})
-                                            </option>
-                                        ))}
+                                        {rooms.map(room => {
+                                            const avail = roomAvailability?.find(r => r._id === room._id || r._id?.toString() === room._id?.toString());
+                                            const available = avail === undefined ? true : avail.available;
+                                            const conflictingWith = avail?.conflictingWith;
+                                            const conflictShort = conflictingWith
+                                                ? `Occupied until ${new Date(conflictingWith.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                                : '';
+                                            const conflictTitle = conflictingWith
+                                                ? `${conflictingWith.title || 'Event'} (${new Date(conflictingWith.startTime).toLocaleString()} – ${new Date(conflictingWith.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
+                                                : '';
+                                            return (
+                                                <option
+                                                    key={room._id}
+                                                    value={room._id}
+                                                    disabled={!available}
+                                                    title={available ? 'Available for this time' : conflictTitle}
+                                                >
+                                                    {room.name} ({room.type}, Capacity: {room.capacity})
+                                                    {roomAvailability && (available ? ' ✓ Available' : ` — ${conflictShort}`)}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
+                                    {formData.room && roomAvailability && !roomAvailability.find(r => r._id === formData.room)?.available && (
+                                        <span className="room-occupied-warning">
+                                            <HiOutlineExclamation size={14} /> This room is occupied for the selected time. Choose an available room or change the time.
+                                        </span>
+                                    )}
                                 </div>
                                 
                                 <div className="form-group">

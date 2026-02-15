@@ -69,6 +69,26 @@ const practiceAttemptSchema = new mongoose.Schema(
     feedback: {
       type: String,
     },
+    feedbackParts: {
+      headline: { type: String },
+      personalGreeting: { type: String },
+      whatYouDidWell: { type: String },
+      correctionOrConfirmation: { type: String },
+      nextStep: { type: String },
+      encouragement: { type: String },
+      displayAnswer: { type: String },
+      explanation: { type: String },
+      reviewTag: { type: String },
+      confidenceLevel: {
+        type: String,
+        enum: ["low", "medium", "high"],
+      },
+      reasonSummary: { type: String },
+      conceptChecks: {
+        matched: [{ type: String }],
+        missing: [{ type: String }],
+      },
+    },
     // Difficulty & sequencing
     difficulty: {
       type: String,

@@ -647,6 +647,28 @@
     margin-right: var(--spacing-sm);
 }
 
+/* Room availability in schedule create/edit */
+.room-availability-hint {
+    font-weight: 400;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin-left: var(--spacing-xs);
+}
+.form-group select.room-available {
+    border-color: var(--accent-emerald, #10b981);
+}
+.form-group select.room-occupied {
+    border-color: var(--accent-amber, #f59e0b);
+}
+.room-occupied-warning {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-xs);
+    font-size: 0.8rem;
+    color: var(--accent-amber, #b45309);
+}
+
 .form-group input[type="color"] {
     width: 60px;
     height: 40px;

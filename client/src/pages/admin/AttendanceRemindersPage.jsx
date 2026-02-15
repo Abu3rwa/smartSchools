@@ -126,7 +126,7 @@ const AttendanceRemindersPage = () => {
                     <div>
                         <h3>Send Attendance Reminders</h3>
                         <p className="text-muted">
-                            Notify teachers who missed recording attendance after their class ended
+                            Notify teachers who missed recording attendance after their class ended. You can send multiple reminders for the same class.
                         </p>
                     </div>
                 </div>
@@ -259,7 +259,8 @@ const AttendanceRemindersPage = () => {
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Status</th>
+                                    <th>Reminder Status</th>
+                                    <th>Attendance Status</th>
                                     <th>Teacher</th>
                                     <th>Class</th>
                                     <th>Scheduled Time</th>
@@ -272,6 +273,19 @@ const AttendanceRemindersPage = () => {
                                 {reminders.map((reminder) => (
                                     <tr key={reminder._id}>
                                         <td>{getStatusBadge(reminder.status)}</td>
+                                        <td>
+                                            {reminder.attendanceTaken ? (
+                                                <span className="badge badge-success">
+                                                    <HiOutlineCheckCircle size={14} />
+                                                    Taken
+                                                </span>
+                                            ) : (
+                                                <span className="badge badge-warning">
+                                                    <HiOutlineXCircle size={14} />
+                                                    Not Taken
+                                                </span>
+                                            )}
+                                        </td>
                                         <td>
                                             {reminder.teacher
                                                 ? `${reminder.teacher.firstName} ${reminder.teacher.lastName}`
@@ -312,7 +326,7 @@ const AttendanceRemindersPage = () => {
                                 ))}
                                 {reminders.length === 0 && (
                                     <tr>
-                                        <td colSpan="7" className="empty-row">
+                                        <td colSpan="8" className="empty-row">
                                             No attendance reminders found
                                         </td>
                                     </tr>

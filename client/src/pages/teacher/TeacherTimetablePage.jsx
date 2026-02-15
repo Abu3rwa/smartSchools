@@ -235,10 +235,11 @@ const TeacherTimetablePage = () => {
                     <p style={{ fontSize: '0.8rem', marginTop: 8 }}>Your school admin will assign your periods and classes.</p>
                 </div>
             ) : (
-                <div
-                    className="timetable-grid"
-                    style={{ gridTemplateColumns: `120px repeat(${daysToShow.length}, 1fr)` }}
-                >
+                <div className="timetable-grid-wrapper">
+                    <div
+                        className="timetable-grid"
+                        style={{ gridTemplateColumns: `120px repeat(${daysToShow.length}, minmax(100px, 1fr))` }}
+                    >
                     {/* Corner cell */}
                     <div className="corner-cell">Period</div>
 
@@ -311,6 +312,7 @@ const TeacherTimetablePage = () => {
                             </React.Fragment>
                         );
                     })}
+                    </div>
                 </div>
             )}
         </div>

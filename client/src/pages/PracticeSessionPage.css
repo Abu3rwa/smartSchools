@@ -126,6 +126,16 @@
     color: var(--text-primary);
 }
 
+.remediation-tip {
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
 /* Options */
 .options-list {
     display: flex;
@@ -261,6 +271,12 @@
     line-height: 1.5;
 }
 
+.result-greeting {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-sm);
+}
+
 .result-details {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -281,6 +297,16 @@
     color: var(--text-muted);
     font-size: 0.78rem;
     text-transform: uppercase;
+}
+
+.result-section + .result-section {
+    margin-top: var(--spacing-sm);
+}
+
+.encouragement-line {
+    margin-top: var(--spacing-sm);
+    color: var(--primary-300);
+    font-weight: 500;
 }
 
 .result-actions {
@@ -353,4 +379,26 @@
 .difficulty-selector .diff-btn:hover:not(.active) {
     border-color: var(--border-color-hover);
     background: var(--bg-tertiary);
+}
+
+.progress-today {
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.progress-today-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.progress-today-copy {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
 }

@@ -3,6 +3,7 @@ import StandardAssignment from "../models/StandardAssignment.js";
 import Student from "../models/Student.js";
 import PracticeSession from "../models/PracticeSession.js";
 import PracticeIntegrityEvent from "../models/PracticeIntegrityEvent.js";
+import MasteryRecord from "../models/MasteryRecord.js";
 import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import {
@@ -21,6 +22,12 @@ const DEFAULT_PRACTICE_CONFIG = {
   allowedDifficulties: DIFFICULTIES,
   availability: { startAt: null, endAt: null },
   lockStudentOptions: false,
+};
+
+const DIFFICULTY_RANK = {
+  easy: 1,
+  medium: 2,
+  hard: 3,
 };
 
 const getAssignmentPracticeConfig = (assignment) => {
@@ -77,6 +84,110 @@ const buildSessionInfo = (session) => {
     questionsAnswered: session.questionsAnswered || 0,
     correctCount: session.correctCount || 0,
   };
+};
+
+const resolveDisplayAnswer = (correctAnswer, questionOptions = []) => {
+  const normalized = (correctAnswer || "").trim().toUpperCase();
+  const option =
+    Array.isArray(questionOptions) &&
+    questionOptions.find(
+      (item) => (item?.label || "").trim().toUpperCase() === normalized,
+    );
+
+  if (option?.text) {
+    return `${option.label}. ${option.text}`;
+  }
+  return correctAnswer;
+};
+
+const computeRecentPerformance = (attempts = []) => {
+  let correctStreak = 0;
+  let incorrectStreak = 0;
+
+  for (const attempt of attempts) {
+    if (attempt.isCorrect) correctStreak += 1;
+    else break;
+  }
+
+  for (const attempt of attempts) {
+    if (!attempt.isCorrect) incorrectStreak += 1;
+    else break;
+  }
+
+  return {
+    correctStreak,
+    incorrectStreak,
+    lastWasCorrect: attempts.length > 0 ? attempts[0].isCorrect : null,
+  };
+};
+
+const resolveHighestDifficulty = (current, incoming) => {
+  if (!incoming || !DIFFICULTY_RANK[incoming]) return current || null;
+  if (!current || !DIFFICULTY_RANK[current]) return incoming;
+  return DIFFICULTY_RANK[incoming] > DIFFICULTY_RANK[current]
+    ? incoming
+    : current;
+};
+
+const upsertMasteryRecord = async (
+  schoolId,
+  studentId,
+  standardId,
+  mastery,
+  recentDifficulty,
+) => {
+  const query = {
+    school: schoolId,
+    student: studentId,
+    standard: standardId,
+  };
+  const now = new Date();
+
+  const existing = await MasteryRecord.findOne(query)
+    .select("masteredAt highestDifficultyPassed")
+    .lean();
+
+  const isMastered = Boolean(mastery?.isMastered);
+  const needsReview = Boolean(mastery?.needsReview);
+  const lifetimeStats = mastery?.lifetimeStats || {};
+  const rollingStats = mastery?.rollingWindowStats || {};
+  const masteredAt = isMastered
+    ? mastery?.masteredAt || existing?.masteredAt || now
+    : existing?.masteredAt || null;
+  const highestDifficultyPassed = resolveHighestDifficulty(
+    existing?.highestDifficultyPassed,
+    isMastered ? recentDifficulty : null,
+  );
+
+  await MasteryRecord.findOneAndUpdate(
+    query,
+    {
+      $set: {
+        isMastered,
+        masteredAt,
+        totalAttemptsAllTime:
+          lifetimeStats.totalAttempts ?? mastery?.totalAttempts ?? 0,
+        totalCorrectAllTime:
+          lifetimeStats.correctCount ?? mastery?.correctCount ?? 0,
+        currentStreak: rollingStats.currentStreak ?? 0,
+        bestStreak: rollingStats.bestStreak ?? mastery?.bestStreak ?? 0,
+        highestDifficultyPassed,
+        lastPracticedAt: now,
+        needsReview,
+        reviewSuggestedAt: needsReview ? now : null,
+      },
+      $setOnInsert: {
+        school: schoolId,
+        student: studentId,
+        standard: standardId,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    },
+  );
 };
 
 /** Accuracy threshold to progress to next difficulty; below this on current level = remediate */
@@ -351,10 +462,13 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   }
 
   // Verify student is part of this assignment
+  const assignmentStudents = Array.isArray(assignment.students)
+    ? assignment.students
+    : [];
   const isAssigned =
-    assignment.students.length === 0
+    assignmentStudents.length === 0
       ? student.currentClass?.toString() === assignment.class.toString()
-      : assignment.students.some(
+      : assignmentStudents.some(
           (s) => s.toString() === student._id.toString(),
         );
 
@@ -390,6 +504,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       status: "mastered",
       mastery,
       message: "You have already mastered this standard!",
+      studentFirstName: student.firstName || null,
       question: null,
       session: null,
     });
@@ -407,6 +522,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     const payload = generateQuestionResponseSchema.parse({
       status: "session_complete",
       message: "This practice session is complete. Please start again later.",
+      studentFirstName: student.firstName || null,
       question: null,
       session: null,
     });
@@ -421,6 +537,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     const payload = generateQuestionResponseSchema.parse({
       status: "session_complete",
       message: "This practice session has expired.",
+      studentFirstName: student.firstName || null,
       question: null,
       session: buildSessionInfo(session),
     });
@@ -437,6 +554,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     const payload = generateQuestionResponseSchema.parse({
       status: "session_complete",
       message: "You reached the question limit for this session.",
+      studentFirstName: student.firstName || null,
       question: null,
       session: buildSessionInfo(session),
     });
@@ -480,10 +598,12 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     recentAttempts,
   });
 
+  const subjectName = assignment.subject?.name || "General Studies";
+
   // Generate question
   const question = await standardsPracticeAIService.generateQuestion({
     standard: assignment.standard,
-    subjectName: assignment.subject.name,
+    subjectName,
     difficulty: effectiveDifficulty,
     questionType: effectiveQuestionType,
     previousQuestions,
@@ -512,6 +632,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     status: "question",
     mastery,
     message: null,
+    studentFirstName: student.firstName || null,
     suggestRemediation: suggestRemediation ?? false,
     question: {
       attemptId: attempt._id.toString(),
@@ -542,8 +663,19 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   }
 
   // Find the attempt
-  const attempt =
-    await PracticeAttempt.findById(attemptId).populate("standard");
+  const attempt = await PracticeAttempt.findById(attemptId)
+    .populate(
+      "standard",
+      "code name description gradeLevel masteryThreshold masteryMinQuestions",
+    )
+    .populate({
+      path: "assignment",
+      select: "subject",
+      populate: {
+        path: "subject",
+        select: "name code",
+      },
+    });
   if (!attempt) {
     return res
       .status(404)
@@ -565,6 +697,18 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     return res.status(403).json({ success: false, message: "Not authorized" });
   }
 
+  const recentAnsweredAttempts = await PracticeAttempt.find({
+    school: req.schoolId,
+    student: student._id,
+    standard: attempt.standard._id,
+    status: "answered",
+  })
+    .select("isCorrect")
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
+  const recentPerformance = computeRecentPerformance(recentAnsweredAttempts);
+
   // Evaluate the answer
   const evaluation = await standardsPracticeAIService.evaluateAnswer({
     questionText: attempt.questionText,
@@ -572,12 +716,20 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     studentAnswer: answer,
     questionType: attempt.questionType,
     standard: attempt.standard,
+    questionOptions: attempt.options || [],
+    studentFirstName: student.firstName || "",
+    subjectName: attempt.assignment?.subject?.name || "",
+    gradeLevel: attempt.standard?.gradeLevel || null,
+    difficulty: attempt.difficulty || "medium",
+    attemptNumber: attempt.attemptNumber || 1,
+    recentPerformance,
   });
 
   // Update the attempt
   attempt.studentAnswer = answer;
   attempt.isCorrect = evaluation.isCorrect;
   attempt.feedback = evaluation.feedback;
+  attempt.feedbackParts = evaluation.feedbackParts || undefined;
   attempt.answeredAt = new Date();
   attempt.timeSpentSeconds = timeSpentSeconds || 0;
   attempt.hintsUsed = hintsUsed != null ? Math.max(0, Number(hintsUsed)) : 0;
@@ -605,6 +757,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     student._id,
     attempt.standard._id,
     mastery,
+    attempt.difficulty,
   );
   const newlyMastered = mastery.isMastered && !recordBefore?.isMastered;
 
@@ -635,11 +788,18 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     }
   }
 
+  const correctAnswerDisplay = resolveDisplayAnswer(
+    attempt.correctAnswer,
+    attempt.options || [],
+  );
   const payload = submitAnswerResponseSchema.parse({
     isCorrect: evaluation.isCorrect,
     correctAnswer: attempt.correctAnswer,
+    correctAnswerDisplay,
     explanation: attempt.explanation || null,
     feedback: evaluation.feedback || null,
+    feedbackParts: evaluation.feedbackParts || null,
+    studentFirstName: student.firstName || null,
     mastery,
     newlyMastered,
     sessionComplete: session ? session.status !== "active" : false,
@@ -670,13 +830,23 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
     status: "answered",
   };
 
-  const attempts = await PracticeAttempt.find(query)
+  const attemptsRaw = await PracticeAttempt.find(query)
     .select(
-      "questionText questionType studentAnswer correctAnswer isCorrect explanation feedback difficulty attemptNumber answeredAt timeSpentSeconds",
+      "questionText questionType studentAnswer correctAnswer options isCorrect explanation feedback feedbackParts difficulty attemptNumber answeredAt timeSpentSeconds",
     )
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(parseInt(limit));
+
+  const attempts = attemptsRaw.map((attempt) => {
+    const attemptObj = attempt.toObject();
+    return {
+      ...attemptObj,
+      correctAnswerDisplay:
+        attemptObj.feedbackParts?.displayAnswer ||
+        resolveDisplayAnswer(attemptObj.correctAnswer, attemptObj.options),
+    };
+  });
 
   const total = await PracticeAttempt.countDocuments(query);
 
@@ -804,9 +974,12 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
 
   // Get students
   let students;
-  if (assignment.students.length > 0) {
+  const assignmentStudents = Array.isArray(assignment.students)
+    ? assignment.students
+    : [];
+  if (assignmentStudents.length > 0) {
     students = await Student.find({
-      _id: { $in: assignment.students },
+      _id: { $in: assignmentStudents },
       status: "active",
     }).select("firstName lastName studentId");
   } else {
@@ -872,15 +1045,20 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
  * @access  Private (Student)
  */
 export const logIntegrityEvent = asyncHandler(async (req, res) => {
-  const parsed = integrityEventSchema.safeParse(req.body);
+  const body = req.body ?? {};
+  let parsed;
+  try {
+    parsed = integrityEventSchema.safeParse(body);
+  } catch (zodError) {
+    return res.json({
+      success: true,
+      data: { eventId: null, ignored: true },
+    });
+  }
   if (!parsed.success) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid integrity event",
-      errors: parsed.error.errors.map((e) => ({
-        path: e.path.join("."),
-        message: e.message,
-      })),
+    return res.json({
+      success: true,
+      data: { eventId: null, ignored: true },
     });
   }
 
@@ -904,10 +1082,13 @@ export const logIntegrityEvent = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Assignment not found" });
   }
 
+  const assignmentStudents = Array.isArray(assignment.students)
+    ? assignment.students
+    : [];
   const isAssigned =
-    assignment.students.length === 0
+    assignmentStudents.length === 0
       ? student.currentClass?.toString() === assignment.class.toString()
-      : assignment.students.some(
+      : assignmentStudents.some(
           (s) => s.toString() === student._id.toString(),
         );
 
@@ -960,9 +1141,12 @@ export const getIntegrityByAssignment = asyncHandler(async (req, res) => {
   }
 
   let students;
-  if (assignment.students.length > 0) {
+  const assignmentStudents = Array.isArray(assignment.students)
+    ? assignment.students
+    : [];
+  if (assignmentStudents.length > 0) {
     students = await Student.find({
-      _id: { $in: assignment.students },
+      _id: { $in: assignmentStudents },
       status: "active",
     }).select("firstName lastName studentId");
   } else {

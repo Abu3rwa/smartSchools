@@ -13,6 +13,13 @@ const scheduleService = {
         return response.data;
     },
 
+    getRoomAvailability: async (startTime, endTime, excludeScheduleId = null) => {
+        const params = { startTime, endTime };
+        if (excludeScheduleId) params.excludeScheduleId = excludeScheduleId;
+        const response = await api.get('/schedules/room-availability', { params });
+        return response.data;
+    },
+
     getTeacherSchedule: async (teacherId, startDate, endDate) => {
         const response = await api.get(`/schedules/teacher/${teacherId}`, {
             params: { startDate, endDate }

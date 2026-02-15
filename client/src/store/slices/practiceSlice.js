@@ -63,6 +63,8 @@ const practiceSlice = createSlice({
         practiceStatus: null,
         sessionInfo: null,
         statusMessage: null,
+        studentFirstName: null,
+        suggestRemediation: false,
         practiceHistory: [],
         historyMastery: null,
         historyPagination: null,
@@ -78,6 +80,7 @@ const practiceSlice = createSlice({
             state.lastResult = null;
             state.practiceStatus = null;
             state.statusMessage = null;
+            state.suggestRemediation = false;
         },
         clearLastResult: (state) => { state.lastResult = null; },
         clearPracticeHistory: (state) => { state.practiceHistory = []; state.historyMastery = null; }
@@ -102,6 +105,8 @@ const practiceSlice = createSlice({
                 state.practiceStatus = action.payload.status;
                 state.statusMessage = action.payload.message || null;
                 state.sessionInfo = action.payload.session || null;
+                state.studentFirstName = action.payload.studentFirstName || state.studentFirstName;
+                state.suggestRemediation = Boolean(action.payload.suggestRemediation);
                 state.currentQuestion = action.payload.question || null;
             })
             .addCase(generateQuestion.rejected, (state, action) => {
@@ -115,6 +120,7 @@ const practiceSlice = createSlice({
                 state.lastResult = action.payload;
                 state.currentQuestion = null;
                 state.sessionInfo = action.payload.session || state.sessionInfo;
+                state.studentFirstName = action.payload.studentFirstName || state.studentFirstName;
             })
             .addCase(submitAnswer.rejected, (state, action) => {
                 state.submitting = false;
@@ -151,5 +157,7 @@ export const selectPracticeError = (state) => state.practice?.error;
 export const selectPracticeStatus = (state) => state.practice?.practiceStatus;
 export const selectPracticeSessionInfo = (state) => state.practice?.sessionInfo;
 export const selectPracticeStatusMessage = (state) => state.practice?.statusMessage;
+export const selectPracticeStudentFirstName = (state) => state.practice?.studentFirstName;
+export const selectPracticeSuggestRemediation = (state) => state.practice?.suggestRemediation;
 
 export default practiceSlice.reducer;

@@ -55,9 +55,28 @@ export const sessionSchema = z.object({
     correctCount: z.number()
 });
 
+export const feedbackPartsSchema = z.object({
+    headline: z.string().optional(),
+    personalGreeting: z.string().optional(),
+    whatYouDidWell: z.string().optional(),
+    correctionOrConfirmation: z.string().optional(),
+    nextStep: z.string().optional(),
+    encouragement: z.string().optional(),
+    displayAnswer: z.string().optional(),
+    explanation: z.string().optional(),
+    reviewTag: z.string().optional(),
+    confidenceLevel: z.enum(['low', 'medium', 'high']).optional(),
+    reasonSummary: z.string().optional(),
+    conceptChecks: z.object({
+        matched: z.array(z.string()).optional(),
+        missing: z.array(z.string()).optional()
+    }).optional()
+});
+
 export const generateQuestionResponseSchema = z.object({
     status: z.enum(['mastered', 'question', 'session_complete']),
     message: z.string().nullable().optional(),
+    studentFirstName: z.string().nullable().optional(),
     mastery: masterySchema.optional(),
     suggestRemediation: z.boolean().optional(),
     question: z.object({
@@ -77,8 +96,11 @@ export const generateQuestionResponseSchema = z.object({
 export const submitAnswerResponseSchema = z.object({
     isCorrect: z.boolean(),
     correctAnswer: z.string(),
+    correctAnswerDisplay: z.string().nullable().optional(),
     explanation: z.string().nullable().optional(),
     feedback: z.string().nullable().optional(),
+    feedbackParts: feedbackPartsSchema.nullable().optional(),
+    studentFirstName: z.string().nullable().optional(),
     mastery: masterySchema.optional(),
     newlyMastered: z.boolean().optional(),
     sessionComplete: z.boolean().optional(),
@@ -89,5 +111,5 @@ export const integrityEventSchema = z.object({
     assignmentId: z.string(),
     attemptId: z.string().nullable().optional(),
     eventType: z.enum(['tab_hidden', 'window_blur', 'visibility_visible', 'window_focus']),
-    metadata: z.record(z.any()).optional()
+    metadata: z.record(z.string(), z.any()).optional()
 });

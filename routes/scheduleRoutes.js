@@ -7,6 +7,7 @@ import {
     deleteSchedule,
     cancelSchedule,
     getSchedulesByDateRange,
+    getRoomAvailability,
     getTeacherSchedule,
     getStudentSchedule,
     recordAttendance,
@@ -33,6 +34,11 @@ router.get('/', getSchedules);
 // @desc    Get schedules by date range
 // @access  Private
 router.get('/calendar', getSchedulesByDateRange);
+
+// @route   GET /api/schedules/room-availability
+// @desc    Get which rooms are available for a time range (for schedule create/edit)
+// @access  Private (Admin, Teacher)
+router.get('/room-availability', authorize('admin', 'school_admin', 'teacher'), getRoomAvailability);
 
 // @route   GET /api/schedules/teacher/:teacherId
 // @desc    Get teacher schedule

@@ -496,6 +496,58 @@ export const getSchedulesByDateRange = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Get room availability for a time range (for schedule creation: which rooms are free)
+// @route   GET /api/schedules/room-availability
+// @access  Private (Admin, Teacher)
+export const getRoomAvailability = asyncHandler(async (req, res) => {
+    const { startTime, endTime, excludeScheduleId } = req.query;
+    if (!startTime || !endTime) {
+        return res.status(400).json({ success: false, message: 'startTime and endTime are required (ISO strings)' });
+    }
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (start >= end) {
+        return res.status(400).json({ success: false, message: 'End time must be after start time' });
+    }
+
+    const schoolId = req.school._id;
+    const rooms = await Room.find({ school: schoolId }).lean();
+    const availability = await Promise.all(
+        rooms.map(async (room) => {
+            let conflict = await Schedule.findOne({
+                school: schoolId,
+                room: room._id,
+                status: { $ne: 'cancelled' },
+                startTime: { $lt: end },
+                endTime: { $gt: start }
+            })
+                .select('title startTime endTime')
+                .lean();
+            if (conflict && excludeScheduleId && conflict._id.toString() === excludeScheduleId.toString()) {
+                conflict = null;
+            }
+            const available = !conflict;
+            return {
+                _id: room._id,
+                name: room.name,
+                type: room.type,
+                capacity: room.capacity,
+                available,
+                conflictingWith: available ? null : {
+                    title: conflict?.title,
+                    startTime: conflict?.startTime,
+                    endTime: conflict?.endTime
+                }
+            };
+        })
+    );
+
+    res.json({
+        success: true,
+        data: { rooms: availability }
+    });
+});
+
 // @desc    Get teacher schedule
 // @route   GET /api/schedules/teacher/:teacherId
 // @access  Private

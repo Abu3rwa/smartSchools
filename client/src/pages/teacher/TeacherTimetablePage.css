@@ -1,8 +1,10 @@
 .teacher-timetable-page {
     padding: var(--spacing-xl);
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
     animation: fadeIn 0.4s ease;
+    overflow-x: auto;
+    min-width: 0;
 }
 
 .teacher-timetable-page .page-header {
@@ -89,6 +91,13 @@
 }
 
 /* ---- TIMETABLE GRID ---- */
+.timetable-grid-wrapper {
+    overflow-x: auto;
+    margin: 0 calc(-1 * var(--spacing-xl));
+    padding: 0 var(--spacing-xl);
+    min-width: 0;
+}
+
 .timetable-grid {
     display: grid;
     border-radius: var(--radius-lg);
@@ -182,6 +191,7 @@
     border-right: 1px solid var(--border-color);
     border-bottom: 1px solid var(--border-color);
     min-height: 80px;
+    min-width: 0;
     display: flex;
     align-items: stretch;
 }
@@ -194,6 +204,7 @@
 /* Lesson card inside cell */
 .lesson-card {
     flex: 1;
+    min-width: 0;
     border-radius: var(--radius-md);
     padding: var(--spacing-sm) var(--spacing-md);
     display: flex;
@@ -265,6 +276,9 @@
     font-size: 0.75rem;
     color: var(--text-secondary);
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .lesson-card .lesson-room {

@@ -109,13 +109,15 @@ const PracticeHistoryPage = () => {
                                 {!item.isCorrect && (
                                     <div>
                                         <span className="label">Correct: </span>
-                                        <span style={{ color: 'var(--success-600, #059669)' }}>{item.correctAnswer}</span>
+                                        <span style={{ color: 'var(--success-600, #059669)' }}>
+                                            {item.correctAnswerDisplay || item.correctAnswer}
+                                        </span>
                                     </div>
                                 )}
                             </div>
-                            {item.explanation && (
+                            {(item.feedbackParts?.explanation || item.feedbackParts?.reasonSummary || item.explanation) && (
                                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 6, fontStyle: 'italic' }}>
-                                    {item.explanation}
+                                    {item.feedbackParts?.explanation || item.feedbackParts?.reasonSummary || item.explanation}
                                 </p>
                             )}
                         </div>

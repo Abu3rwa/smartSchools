@@ -7,10 +7,22 @@ const attendanceTakingReminderSchema = new mongoose.Schema({
         ref: 'School',
         required: true
     },
+    /** Set when reminder is for a Schedule-based class (legacy) */
     schedule: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Schedule',
-        required: true,
+        index: true
+    },
+    /** Set when reminder is for a Timetable assignment (matches timetable UI) */
+    assignment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TeacherPeriodAssignment',
+        index: true
+    },
+    /** Set when assignment-based; the period that was missed */
+    period: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TimetablePeriod',
         index: true
     },
     /** Date of the class (YYYY-MM-DD) for which attendance was missed */
@@ -49,7 +61,8 @@ const attendanceTakingReminderSchema = new mongoose.Schema({
     timestamps: true
 });
 
-attendanceTakingReminderSchema.index({ schedule: 1, attendanceDate: 1 }, { unique: true });
+attendanceTakingReminderSchema.index({ schedule: 1, attendanceDate: 1 });
+attendanceTakingReminderSchema.index({ assignment: 1, period: 1, attendanceDate: 1 }, { sparse: true });
 attendanceTakingReminderSchema.index({ school: 1, attendanceDate: -1 });
 attendanceTakingReminderSchema.index({ teacher: 1, sentAt: -1 });
 
