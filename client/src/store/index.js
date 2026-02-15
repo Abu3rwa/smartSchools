@@ -18,6 +18,7 @@ import practiceReducer from './slices/practiceSlice';
 import revisionReducer from './slices/revisionSlice';
 import readingReducer from './slices/readingSlice';
 import departmentReducer from './slices/departmentSlice';
+import substitutionsReducer from './slices/substitutionsSlice';
 
 export const store = configureStore({
     reducer: {
@@ -39,7 +40,8 @@ export const store = configureStore({
         standards: standardReducer,
         practice: practiceReducer,
         revision: revisionReducer,
-        reading: readingReducer
+        reading: readingReducer,
+        substitutions: substitutionsReducer
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({

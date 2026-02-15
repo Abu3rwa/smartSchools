@@ -135,6 +135,12 @@ const Sidebar = () => {
       roles: ["admin", "department_principal"],
     },
     {
+      path: "/portal/substitutions",
+      icon: HiOutlineClipboardList,
+      label: "Sub Requests",
+      roles: ["admin", "department_principal", "teacher"],
+    },
+    {
       path: "/portal/teachers",
       icon: HiOutlineChartBar,
       label: "Teachers",

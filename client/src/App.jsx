@@ -74,6 +74,12 @@ import ReadingTextsListPage from "./pages/ReadingTextsListPage";
 import ReadingUploadPage from "./pages/ReadingUploadPage";
 import ReadingViewPage from "./pages/ReadingViewPage";
 
+// Substitution pages
+import CreateSubRequest from "./pages/substitutions/CreateSubRequest";
+import SubRequestsList from "./pages/substitutions/SubRequestsList";
+import SubRequestDetail from "./pages/substitutions/SubRequestDetail";
+import SubstitutionRespond from "./pages/substitutions/SubstitutionRespond";
+
 // Platform Admin Pages
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import AdminSchoolsPage from "./pages/admin/AdminSchoolsPage";
@@ -178,6 +184,7 @@ function App() {
       <Route path="/login/:schoolSlug" element={<LoginPage />} />
       <Route path="/register-school" element={<RegisterSchoolPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/substitutions/respond" element={<SubstitutionRespond />} />
 
       {/* Protected Routes */}
       <Route
@@ -414,6 +421,30 @@ function App() {
           element={
             <RoleRoute roles={["admin", "department_principal"]}>
               <AdminAttendanceRequestsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="substitutions/create"
+          element={
+            <RoleRoute roles={["admin", "department_principal"]}>
+              <CreateSubRequest />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="substitutions/:id"
+          element={
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+              <SubRequestDetail />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="substitutions"
+          element={
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+              <SubRequestsList />
             </RoleRoute>
           }
         />
