@@ -238,9 +238,30 @@ const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 app.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`);
   if (process.env.RUN_ATTENDANCE_REMINDER_JOB !== "false") {
+    // Run once on startup (like newsletter scheduler), then every 15 min
+    processAttendanceReminders()
+      .then((result) => {
+        logger.info("Attendance reminder job (startup)", {
+          processed: result?.results?.processed ?? 0,
+          sent: result?.results?.sent ?? 0,
+          skipped: result?.results?.skipped ?? 0,
+          failed: result?.results?.failed ?? 0,
+        });
+      })
+      .catch((err) => {
+        logger.error("Attendance reminder job startup error:", err?.message || err);
+      });
     setInterval(async () => {
       try {
-        await processAttendanceReminders();
+        const result = await processAttendanceReminders();
+        if (result?.results && (result.results.sent > 0 || result.results.failed > 0)) {
+          logger.info("Attendance reminder job", {
+            processed: result.results.processed,
+            sent: result.results.sent,
+            skipped: result.results.skipped,
+            failed: result.results.failed,
+          });
+        }
       } catch (err) {
         logger.error("Attendance reminder job error:", err?.message || err);
       }
