@@ -54,6 +54,7 @@ import readingRoutes from "./routes/readingRoutes.js";
 import departmentRoutes from "./routes/departmentRoutes.js";
 import attendanceRequestTypeRoutes from "./routes/attendanceRequestTypeRoutes.js";
 import attendanceRequestRoutes from "./routes/attendanceRequestRoutes.js";
+import substitutionRoutes from "./routes/substitutionRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 
 // Validate environment variables
@@ -197,6 +198,7 @@ app.use("/api/standard-assignments", standardAssignmentRoutes);
 app.use("/api/practice", practiceRoutes);
 app.use("/api/revision", revisionRoutes);
 app.use("/api/reading", readingRoutes);
+app.use("/api/substitutions", substitutionRoutes);
 
 registerApiDocsRoute(app);
 
