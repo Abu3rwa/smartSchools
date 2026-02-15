@@ -67,6 +67,15 @@ export async function cancelSubRequest({ id, note }) {
 }
 
 /**
+ * Fetch pending (SUBMITTED) substitution request count for current user (teachers see own).
+ */
+export async function fetchSubPendingCount() {
+  const { data } = await api.get(`${BASE}?status=SUBMITTED&limit=1`);
+  if (!data.success) throw new Error(data.message || 'Failed to fetch');
+  return data.data?.pagination?.total ?? 0;
+}
+
+/**
  * Respond to a substitution request (confirm/decline) via token.
  * @param {{ token: string, action: 'CONFIRM'|'DECLINE', note?: string }} payload
  * @returns {Promise<Object>}

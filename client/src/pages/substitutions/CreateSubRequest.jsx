@@ -79,6 +79,14 @@ const CreateSubRequest = () => {
       toast.error('Please select absent teacher and date.');
       return;
     }
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (d < today) {
+      toast.error('Date cannot be in the past.');
+      return;
+    }
     setLoaded(false);
     dispatch(fetchSubCandidates({ absentTeacherId: absentTeacher._id, date })).then((result) => {
       if (result.meta.requestStatus === 'fulfilled') setLoaded(true);
@@ -88,6 +96,14 @@ const CreateSubRequest = () => {
   const handleSubmit = () => {
     if (!absentTeacher?._id || !date) {
       toast.error('Absent teacher and date are required.');
+      return;
+    }
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (d < today) {
+      toast.error('Date cannot be in the past.');
       return;
     }
     if (!candidatesData?.targetPeriods?.length) {

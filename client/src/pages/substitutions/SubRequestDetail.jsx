@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Skeleton,
 } from '@mui/material';
 import PageContainer from '../../components/layout/PageContainer';
 import AssignmentsTable from '../../components/substitutions/AssignmentsTable';
@@ -71,8 +72,10 @@ const SubRequestDetail = () => {
   if (loading && !item) {
     return (
       <PageContainer>
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress />
+        <Box sx={{ py: 3 }}>
+          <Skeleton variant="text" width="40%" height={40} sx={{ mb: 2 }} />
+          <Skeleton variant="rectangular" height={120} sx={{ mb: 2 }} />
+          <Skeleton variant="rectangular" height={200} />
         </Box>
       </PageContainer>
     );

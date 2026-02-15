@@ -20,6 +20,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Skeleton,
+  Typography,
 } from '@mui/material';
 import toast from 'react-hot-toast';
 import PageContainer from '../../components/layout/PageContainer';
@@ -211,12 +213,17 @@ const SubRequestsList = () => {
         )}
 
         {loading && items.length === 0 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-            <CircularProgress />
+          <Box sx={{ py: 2 }}>
+            <Skeleton variant="rectangular" height={48} sx={{ mb: 1 }} />
+            <Skeleton variant="rectangular" height={200} />
           </Box>
         ) : items.length === 0 ? (
           <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
-            No substitution requests found.
+            <Typography variant="body2">
+              {(statusFilter || startDate || endDate || (canCreate && (absentTeacherId || substituteTeacherId)))
+                ? 'No requests match your filters. Try adjusting or clearing filters.'
+                : 'No substitution requests found.'}
+            </Typography>
           </Box>
         ) : (
           <TableContainer component={Paper} variant="outlined">

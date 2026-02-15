@@ -124,6 +124,7 @@ const substitutionRequestSchema = new mongoose.Schema({
 substitutionRequestSchema.index({ school: 1, date: 1 });
 substitutionRequestSchema.index({ school: 1, date: 1, absentTeacherId: 1 });
 substitutionRequestSchema.index({ school: 1, date: 1, 'assignments.periodId': 1, 'assignments.substituteTeacherId': 1 });
+substitutionRequestSchema.index({ status: 1, expiresAt: 1 });
 
 substitutionRequestSchema.plugin(tenantIsolationPlugin);
 

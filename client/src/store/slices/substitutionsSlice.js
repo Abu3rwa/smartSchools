@@ -6,6 +6,7 @@ import {
   fetchSubRequestById,
   cancelSubRequest,
   respondToSubRequest,
+  fetchSubPendingCount,
 } from '../../api/substitutionsApi';
 
 export const fetchSubCandidates = createAsyncThunk(
@@ -63,6 +64,17 @@ export const cancelSubRequestThunk = createAsyncThunk(
   }
 );
 
+export const fetchSubPendingCountThunk = createAsyncThunk(
+  'substitutions/fetchSubPendingCount',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await fetchSubPendingCount();
+    } catch (err) {
+      return rejectWithValue(err.message || 'Failed to fetch count');
+    }
+  }
+);
+
 export const respondToSubRequestThunk = createAsyncThunk(
   'substitutions/respondToSubRequest',
   async ({ token, action, note }, { rejectWithValue }) => {
@@ -79,7 +91,8 @@ const initialState = {
   create: { loading: false, error: null, success: false, requestId: null },
   list: { loading: false, error: null, items: [], pagination: null },
   detail: { loading: false, error: null, item: null },
-  respond: { loading: false, error: null, success: false },
+  respond: { loading: false, error: null, success: false, lastRequest: null },
+  pendingCount: { loading: false, count: 0 },
 };
 
 const substitutionsSlice = createSlice({
@@ -175,15 +188,26 @@ const substitutionsSlice = createSlice({
         state.respond.error = null;
         state.respond.success = false;
       })
-      .addCase(respondToSubRequestThunk.fulfilled, (state) => {
+      .addCase(respondToSubRequestThunk.fulfilled, (state, action) => {
         state.respond.loading = false;
         state.respond.success = true;
         state.respond.error = null;
+        state.respond.lastRequest = action.payload ?? null;
       })
       .addCase(respondToSubRequestThunk.rejected, (state, action) => {
         state.respond.loading = false;
         state.respond.error = action.payload;
         state.respond.success = false;
+      })
+      .addCase(fetchSubPendingCountThunk.fulfilled, (state, action) => {
+        state.pendingCount.count = action.payload ?? 0;
+        state.pendingCount.loading = false;
+      })
+      .addCase(fetchSubPendingCountThunk.pending, (state) => {
+        state.pendingCount.loading = true;
+      })
+      .addCase(fetchSubPendingCountThunk.rejected, (state) => {
+        state.pendingCount.loading = false;
       });
   },
 });
@@ -195,5 +219,6 @@ export const selectCreate = (state) => state.substitutions.create;
 export const selectList = (state) => state.substitutions.list;
 export const selectDetail = (state) => state.substitutions.detail;
 export const selectRespond = (state) => state.substitutions.respond;
+export const selectPendingCount = (state) => state.substitutions.pendingCount;
 
 export default substitutionsSlice.reducer;

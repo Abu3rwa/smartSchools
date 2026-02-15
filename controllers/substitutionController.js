@@ -294,7 +294,9 @@ export const cancelRequestHandler = asyncHandler(async (req, res) => {
  */
 export const respondHandler = asyncHandler(async (req, res) => {
     const { token, action, note } = req.body;
-    const request = await processResponse({ token, action, note });
+    const clientIp = req.ip || req.connection?.remoteAddress || null;
+    const userAgent = req.get('user-agent') || null;
+    const request = await processResponse({ token, action, note, meta: { ip: clientIp, userAgent } });
 
     const populated = await SubstitutionRequest.findById(request._id)
         .populate('absentTeacherId', 'firstName lastName')

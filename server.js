@@ -56,6 +56,7 @@ import attendanceRequestTypeRoutes from "./routes/attendanceRequestTypeRoutes.js
 import attendanceRequestRoutes from "./routes/attendanceRequestRoutes.js";
 import substitutionRoutes from "./routes/substitutionRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
+import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 
 // Validate environment variables
 validateEnvironment();
@@ -244,6 +245,18 @@ app.listen(PORT, () => {
         logger.error("Attendance reminder job error:", err?.message || err);
       }
     }, REMINDER_JOB_INTERVAL_MS);
+  }
+
+  // Substitution expiry: mark stale SUBMITTED requests as EXPIRED
+  if (process.env.RUN_SUBSTITUTION_EXPIRY_JOB !== "false") {
+    const SUBSTITUTION_EXPIRY_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+    setInterval(async () => {
+      try {
+        await expireStaleSubstitutionRequests();
+      } catch (err) {
+        logger.error("Substitution expiry job error:", err?.message || err);
+      }
+    }, SUBSTITUTION_EXPIRY_INTERVAL_MS);
   }
 
   // Optional scheduler: ensure weekly issues exist for all classes (idempotent).

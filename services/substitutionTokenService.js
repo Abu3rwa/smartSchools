@@ -85,3 +85,20 @@ export async function validateToken(rawToken) {
 export async function markTokenUsed(tokenDocId) {
     await SubRequestToken.findByIdAndUpdate(tokenDocId, { usedAt: new Date() });
 }
+
+/**
+ * Atomically claim token (set usedAt) if still unused. Prevents double-use race.
+ * @param {string} rawToken
+ * @returns {Promise<{claimed: boolean, tokenDoc?: Object}>}
+ */
+export async function claimToken(rawToken) {
+    const tokenHash = hashToken(rawToken);
+    const tokenDoc = await SubRequestToken.findOneAndUpdate(
+        { tokenHash, usedAt: null },
+        { $set: { usedAt: new Date() } },
+        { new: true }
+    ).setOptions({ skipTenantFilter: true });
+
+    if (!tokenDoc) return { claimed: false };
+    return { claimed: true, tokenDoc };
+}

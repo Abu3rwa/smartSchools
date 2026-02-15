@@ -24,10 +24,10 @@ import {
 
 const router = express.Router();
 
-// Rate limit for token-based respond endpoint (no auth)
+// Stricter rate limit for token-based respond endpoint (security)
 const respondLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 10,
     message: { success: false, message: 'Too many attempts. Please try again later.' }
 });
 

@@ -16,7 +16,19 @@ export const createRequestRules = [
     body('periods.*').optional().isMongoId(),
     body('selections').notEmpty().withMessage('selections is required'),
     body('principalNote').optional().trim().isString(),
-    body('materialsLink').optional().trim().isString(),
+    body('materialsLink')
+        .optional()
+        .trim()
+        .custom((val) => {
+            if (!val) return true;
+            try {
+                const u = new URL(val);
+                return ['http:', 'https:'].includes(u.protocol);
+            } catch {
+                return false;
+            }
+        })
+        .withMessage('materialsLink must be a valid URL (http or https)'),
     body('expiresInHours').optional().isFloat({ min: 1, max: 168 }).withMessage('expiresInHours must be 1-168')
 ];
 

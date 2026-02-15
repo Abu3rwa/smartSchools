@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Box, Grid, Typography, useTheme, useMediaQuery } from '@mui/material';
 import { selectUser } from '../store/slices/authSlice';
 import { fetchMyClasses, selectMyClasses } from '../store/slices/teacherSlice';
+import { fetchSubPendingCountThunk, selectPendingCount } from '../store/slices/substitutionsSlice';
 import timetableService from '../services/timetableService';
 import {
     HiOutlineCalendar,
@@ -61,6 +62,12 @@ const TeacherDashboardPage = () => {
     useEffect(() => {
         dispatch(fetchMyClasses());
     }, [dispatch]);
+
+    useEffect(() => {
+        dispatch(fetchSubPendingCountThunk());
+    }, [dispatch]);
+
+    const pendingCount = useSelector(selectPendingCount);
 
     useEffect(() => {
         let cancelled = false;
@@ -171,6 +178,36 @@ const TeacherDashboardPage = () => {
                                         </li>
                                     ))}
                                 </ul>
+                            )}
+                        </div>
+                    </Grid>
+
+                    {/* Pending Sub Requests */}
+                    <Grid item xs={12} lg={6}>
+                        <div className="teacher-card my-classes-card">
+                            <div className="card-header">
+                                <h3 className="card-title">
+                                    <HiOutlineClipboardList className="card-icon" size={20} />
+                                    Sub Requests
+                                </h3>
+                                <Link to="/portal/substitutions" className="btn btn-ghost btn-sm">View all</Link>
+                            </div>
+                            {pendingCount.loading ? (
+                                <p className="empty-text">Loading...</p>
+                            ) : (pendingCount.count ?? 0) > 0 ? (
+                                <Box sx={{ py: 1 }}>
+                                    <Typography variant="body1" fontWeight={600} color="primary.main">
+                                        {pendingCount.count} pending request{pendingCount.count !== 1 ? 's' : ''}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                        Please confirm or decline.
+                                    </Typography>
+                                    <Link to="/portal/substitutions" className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
+                                        View & respond
+                                    </Link>
+                                </Box>
+                            ) : (
+                                <p className="empty-text">No pending sub requests.</p>
                             )}
                         </div>
                     </Grid>

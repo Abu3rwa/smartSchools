@@ -6,7 +6,7 @@ import TeacherAbsence from '../models/TeacherAbsence.js';
 import User from '../models/User.js';
 import TimetablePeriod from '../models/TimetablePeriod.js';
 import { getTargetPeriods, getCandidates } from './substitutionCandidateService.js';
-import { createToken, validateToken, markTokenUsed } from './substitutionTokenService.js';
+import { createToken, validateToken, claimToken } from './substitutionTokenService.js';
 import { notifySubstituteTeacher } from './substitutionNotificationService.js';
 
 const DEFAULT_EXPIRES_HOURS = 48;
@@ -256,13 +256,18 @@ export async function createRequest({
  * Process teacher response (confirm/decline) via token.
  * @param {Object} params
  */
-export async function processResponse({ token, action, note }) {
+export async function processResponse({ token, action, note, meta = {} }) {
     const validation = await validateToken(token);
     if (!validation.valid) {
         throw new Error('Invalid or expired token');
     }
 
-    const { tokenDoc, requestId, assignmentId, substituteTeacherId } = validation;
+    const claim = await claimToken(token);
+    if (!claim.claimed) {
+        throw new Error('Invalid or expired token');
+    }
+    const { tokenDoc } = claim;
+    const { requestId, assignmentId, substituteTeacherId } = validation;
 
     const request = await SubstitutionRequest.findById(requestId)
         .populate('assignments.periodId', 'name startTime endTime')
@@ -315,11 +320,10 @@ export async function processResponse({ token, action, note }) {
         action: action === 'CONFIRM' ? 'CONFIRMED' : 'DECLINED',
         by: substituteTeacherId,
         at: new Date(),
-        meta: { note, assignmentId: assignmentId.toString() }
+        meta: { note, assignmentId: assignmentId.toString(), ip: meta.ip, userAgent: meta.userAgent }
     });
 
     await request.save();
-    await markTokenUsed(tokenDoc._id);
 
     // Burn any other tokens for this request (e.g. same teacher, multiple periods)
     await SubRequestToken.updateMany(
