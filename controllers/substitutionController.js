@@ -79,7 +79,7 @@ export const getCandidatesHandler = asyncHandler(async (req, res) => {
 export const createRequestHandler = asyncHandler(async (req, res) => {
     const schoolId = req.schoolId;
     const user = req.user;
-    const { absentTeacherId, date, coverageType, periods, selections, principalNote, expiresInHours } = req.body;
+    const { absentTeacherId, date, coverageType, periods, selections, principalNote, materialsLink, expiresInHours } = req.body;
 
     let departmentId = req.body.departmentId || req.departmentId;
     if (user.role === 'department_principal' && user.department) {
@@ -95,6 +95,7 @@ export const createRequestHandler = asyncHandler(async (req, res) => {
         periods,
         selections,
         principalNote,
+        materialsLink,
         expiresInHours,
         createdBy: user._id
     });

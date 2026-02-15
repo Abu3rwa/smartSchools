@@ -120,6 +120,19 @@ const SubRequestDetail = () => {
           </Box>
         )}
 
+        {item.materialsLink && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+              Subbing Materials
+            </Typography>
+            <Typography variant="body2">
+              <a href={item.materialsLink} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
+                {item.materialsLink}
+              </a>
+            </Typography>
+          </Box>
+        )}
+
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle2" fontWeight={600} gutterBottom>
             Assignments

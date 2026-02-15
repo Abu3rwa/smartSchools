@@ -16,6 +16,7 @@ export const createRequestRules = [
     body('periods.*').optional().isMongoId(),
     body('selections').notEmpty().withMessage('selections is required'),
     body('principalNote').optional().trim().isString(),
+    body('materialsLink').optional().trim().isString(),
     body('expiresInHours').optional().isFloat({ min: 1, max: 168 }).withMessage('expiresInHours must be 1-168')
 ];
 

@@ -51,6 +51,7 @@ const CreateSubRequest = () => {
   const [singleSubstitute, setSingleSubstitute] = useState(null);
   const [perPeriodSelections, setPerPeriodSelections] = useState({});
   const [principalNote, setPrincipalNote] = useState('');
+  const [materialsLink, setMaterialsLink] = useState('');
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -109,6 +110,7 @@ const CreateSubRequest = () => {
           periods: periodIds,
           selections: { substituteTeacherId: singleSubstitute._id },
           principalNote: principalNote.trim() || undefined,
+          materialsLink: materialsLink.trim() || undefined,
         })
       );
     } else {
@@ -130,6 +132,7 @@ const CreateSubRequest = () => {
             })),
           },
           principalNote: principalNote.trim() || undefined,
+          materialsLink: materialsLink.trim() || undefined,
         })
       );
     }
@@ -211,18 +214,23 @@ const CreateSubRequest = () => {
                     <TableCell>Period</TableCell>
                     <TableCell>Time</TableCell>
                     <TableCell>Class</TableCell>
+                    <TableCell>Subject</TableCell>
+                    <TableCell>Room</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {targetPeriods.map((p, idx) => {
                     const period = p.periodId?.name ? p.periodId : null;
-                    const label = period?.name || `Period ${idx + 1}`;
-                    const time = p.startTime && p.endTime ? `${p.startTime}-${p.endTime}` : '—';
+                    const label = period?.name || p._periodName || `Period ${idx + 1}`;
+                    const time = p.startTime && p.endTime ? `${p.startTime}–${p.endTime}` : '—';
+                    const gradeClass = p._grade ? `${p._className || p.classId?.name || '—'} (Grade ${p._grade})` : (p._className || p.classId?.name || '—');
                     return (
                       <TableRow key={p.periodId?._id || p.periodId || idx}>
                         <TableCell>{label}</TableCell>
                         <TableCell>{time}</TableCell>
-                        <TableCell>{p.classId?.name || p.className || '—'}</TableCell>
+                        <TableCell>{gradeClass}</TableCell>
+                        <TableCell>{p._subjectName || p.subjectId?.name || '—'}</TableCell>
+                        <TableCell>{p._roomName || p.roomId?.name || '—'}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -313,6 +321,15 @@ const CreateSubRequest = () => {
               placeholder="Optional note for the substitute teacher..."
               value={principalNote}
               onChange={(e) => setPrincipalNote(e.target.value)}
+              sx={{ mb: 2, maxWidth: 600 }}
+            />
+
+            <TextField
+              fullWidth
+              label="Materials Link"
+              placeholder="Optional link to lesson plans, materials, or resources..."
+              value={materialsLink}
+              onChange={(e) => setMaterialsLink(e.target.value)}
               sx={{ mb: 2, maxWidth: 600 }}
             />
 

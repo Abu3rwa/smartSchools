@@ -13,7 +13,8 @@ const periodInfoSchema = new mongoose.Schema({
     startTime: String,
     endTime: String,
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
-    roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Room' }
+    roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Room' },
+    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }
 }, { _id: false });
 
 const assignmentSchema = new mongoose.Schema({
@@ -88,6 +89,11 @@ const substitutionRequestSchema = new mongoose.Schema({
     periods: [periodInfoSchema],
     assignments: [assignmentSchema],
     principalNote: {
+        type: String,
+        trim: true,
+        maxlength: 2000
+    },
+    materialsLink: {
         type: String,
         trim: true,
         maxlength: 2000

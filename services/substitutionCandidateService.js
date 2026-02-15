@@ -41,8 +41,9 @@ export async function getTargetPeriods(schoolId, absentTeacherId, date) {
         ]
     })
         .populate('period', 'name startTime endTime order')
-        .populate('class', 'name')
+        .populate('class', 'name grade section')
         .populate('room', 'name')
+        .populate('subject', 'name code')
         .lean();
 
     const periodIds = [...new Set(assignments.map(a => a.period?._id).filter(Boolean))];
@@ -56,7 +57,13 @@ export async function getTargetPeriods(schoolId, absentTeacherId, date) {
                 startTime: a.period.startTime,
                 endTime: a.period.endTime,
                 classId: a.class?._id,
-                roomId: a.room?._id
+                roomId: a.room?._id,
+                subjectId: a.subject?._id,
+                _periodName: a.period.name,
+                _className: a.class?.name,
+                _grade: a.class?.grade,
+                _roomName: a.room?.name,
+                _subjectName: a.subject?.name
             };
         }
     }

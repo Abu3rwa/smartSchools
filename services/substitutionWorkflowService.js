@@ -79,6 +79,7 @@ export async function createRequest({
     periods, // [{ periodId, ... }] or just periodIds
     selections, // SINGLE: { substituteTeacherId }, PER_PERIOD: [{ periodId, substituteTeacherId }]
     principalNote,
+    materialsLink,
     expiresInHours,
     createdBy
 }) {
@@ -89,14 +90,19 @@ export async function createRequest({
         throw new Error('No periods found for absent teacher on this date');
     }
 
+    const targetMap = Object.fromEntries(targetPeriods.map((p) => [(p.periodId || p).toString(), p]));
     let periodInfos = periods;
     if (!periodInfos || !Array.isArray(periodInfos)) {
         periodInfos = targetPeriods;
     } else {
         const validIds = new Set(targetPeriodIds.map(id => id.toString()));
         periodInfos = periodInfos
-            .map(p => (typeof p === 'object' && p.periodId ? p : { periodId: p }))
-            .filter(p => validIds.has((p.periodId || p).toString()));
+            .map((p) => {
+                const pid = (typeof p === 'object' && p.periodId ? p.periodId : p).toString();
+                const full = targetMap[pid];
+                return full ? { ...full, periodId: full.periodId || p.periodId || p } : (typeof p === 'object' ? p : { periodId: p });
+            })
+            .filter((p) => validIds.has((p.periodId || p).toString()));
         if (periodInfos.length === 0) {
             periodInfos = targetPeriods;
         }
@@ -156,10 +162,12 @@ export async function createRequest({
             startTime: p.startTime,
             endTime: p.endTime,
             classId: p.classId,
-            roomId: p.roomId
+            roomId: p.roomId,
+            subjectId: p.subjectId
         })),
         assignments,
         principalNote: principalNote || '',
+        materialsLink: materialsLink || '',
         status: 'SUBMITTED',
         expiresAt,
         timeline,
@@ -194,8 +202,29 @@ export async function createRequest({
         .lean();
 
     const absentName = absentTeacher ? `${absentTeacher.firstName || ''} ${absentTeacher.lastName || ''}`.trim() : 'Teacher';
-    const dateStr = new Date(date).toISOString().split('T')[0];
-    const message = `You have been selected as a substitute for ${absentName} on ${dateStr}. ${principalNote ? `\n\nPrincipal note: ${principalNote}` : ''}`;
+    const dateStr = new Date(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const populated = await SubstitutionRequest.findById(request._id)
+        .populate('periods.periodId', 'name startTime endTime')
+        .populate('periods.classId', 'name grade section')
+        .populate('periods.roomId', 'name')
+        .populate('periods.subjectId', 'name code')
+        .lean();
+
+    const periodDetails = (populated?.periods || []).map((p) => {
+        const period = p.periodId;
+        const cls = p.classId;
+        const room = p.roomId;
+        const subj = p.subjectId;
+        return {
+            periodName: period?.name || 'Period',
+            time: p.startTime && p.endTime ? `${p.startTime}–${p.endTime}` : (period?.startTime && period?.endTime ? `${period.startTime}–${period.endTime}` : '—'),
+            className: cls?.name || '—',
+            grade: cls?.grade != null ? `Grade ${cls.grade}` : '',
+            roomName: room?.name || '—',
+            subjectName: subj?.name || '—'
+        };
+    });
 
     const notified = new Set();
     for (const a of request.assignments) {
@@ -206,11 +235,17 @@ export async function createRequest({
         await notifySubstituteTeacher({
             teacherId: a.substituteTeacherId,
             requestId: request._id,
-            message,
             confirmUrl,
             declineUrl,
             schoolId,
-            createdBy
+            createdBy,
+            requestDetails: {
+                date: dateStr,
+                absentTeacherName: absentName,
+                periodDetails,
+                principalNote: principalNote || '',
+                materialsLink: materialsLink || ''
+            }
         });
     }
 
