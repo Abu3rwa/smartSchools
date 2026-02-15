@@ -113,6 +113,17 @@
     gap: var(--spacing-sm);
 }
 
+.user-avatar-btn {
+    padding: 2px;
+    background: transparent;
+    border-color: transparent;
+}
+
+.user-avatar-btn:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
 .user-avatar-sm {
     width: 36px;
     height: 36px;

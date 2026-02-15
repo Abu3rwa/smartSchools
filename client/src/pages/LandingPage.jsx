@@ -122,7 +122,7 @@ const LandingPage = () => {
             <Button onClick={() => navigate('/login')} sx={{ color: 'text.secondary', fontWeight: 600 }}>
                 Log in
             </Button>
-            <Button variant="contained" onClick={() => navigate('/register-school')} sx={{ fontWeight: 600 }}>
+            <Button variant="contained" onClick={() => navigate('/register-school')} sx={{ fontWeight: 600, bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
                 Start free
             </Button>
         </>
@@ -161,7 +161,7 @@ const LandingPage = () => {
                         </Button>
                     ))}
                     <Button fullWidth onClick={() => { setMobileOpen(false); navigate('/login'); }} sx={{ color: 'text.secondary' }}>Log in</Button>
-                    <Button variant="contained" fullWidth onClick={() => { setMobileOpen(false); navigate('/register-school'); }}>Start free</Button>
+                    <Button variant="contained" fullWidth onClick={() => { setMobileOpen(false); navigate('/register-school'); }} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>Start free</Button>
                 </Box>
             </Drawer>
 
@@ -183,7 +183,7 @@ const LandingPage = () => {
                                 Daily grades, attendance, timetables, and parent communication in one place. Start free with up to 50 students—no credit card required.
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
-                                <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={18} />} onClick={() => navigate('/register-school')}>
+                                <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={18} />} onClick={() => navigate('/register-school')} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
                                     Start free trial
                                 </Button>
                                 <Button variant="outlined" size="large" onClick={() => scrollTo('pricing')}>See pricing</Button>
@@ -347,7 +347,12 @@ const LandingPage = () => {
                                     <Button
                                         fullWidth
                                         variant={plan.featured ? 'contained' : 'outlined'}
-                                        sx={{ mt: 2 }}
+                                        sx={{
+                                            mt: 2,
+                                            ...(plan.ctaAction !== 'contact' && {
+                                                ...(plan.featured ? { bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } } : {})
+                                            })
+                                        }}
                                         onClick={() => plan.ctaAction === 'contact' ? window.location.href = 'mailto:support@gradebookpro.com?subject=Enterprise%20inquiry' : navigate('/register-school')}
                                     >
                                         {plan.cta}
@@ -414,7 +419,7 @@ const LandingPage = () => {
                     <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>Ready to simplify your school?</Typography>
                     <Typography color="text.secondary" align="center" sx={{ mb: 3 }}>Join schools that switched from spreadsheets and paperwork to one clear system.</Typography>
                     <Box sx={{ textAlign: 'center' }}>
-                        <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={20} />} onClick={() => navigate('/register-school')}>
+                        <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={20} />} onClick={() => navigate('/register-school')} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
                             Start free trial
                         </Button>
                     </Box>
@@ -491,7 +496,7 @@ const LandingPage = () => {
                     </Box>
                     <Typography color="text.secondary" align="center" sx={{ mb: 1.5 }}>Don&apos;t see your school?</Typography>
                     <Box sx={{ textAlign: 'center' }}>
-                        <Button variant="contained" startIcon={<HiOutlinePlus size={18} />} onClick={() => navigate('/register-school')}>
+                        <Button variant="contained" startIcon={<HiOutlinePlus size={18} />} onClick={() => navigate('/register-school')} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
                             Register your school
                         </Button>
                     </Box>
