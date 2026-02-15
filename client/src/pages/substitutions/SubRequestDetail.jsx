@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { selectUser } from '../../store/slices/authSlice';
 import {
   Box,
   Button,
@@ -41,6 +42,7 @@ const SubRequestDetail = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const user = useSelector(selectUser);
   const { loading, error, item } = useSelector(selectDetail);
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelNote, setCancelNote] = useState('');
@@ -91,7 +93,15 @@ const SubRequestDetail = () => {
     return null;
   }
 
-  const canCancel = item.status === 'SUBMITTED';
+  const canCancel = item.status === 'SUBMITTED' && (user?.role === 'admin' || user?.role === 'department_principal');
+
+  const isTeacher = user?.role === 'teacher';
+  const displayAssignments = isTeacher && item.assignments
+    ? item.assignments.filter((a) => {
+        const subId = a.substituteTeacherId?._id || a.substituteTeacherId;
+        return subId?.toString() === user?._id?.toString();
+      })
+    : item.assignments;
 
   return (
     <PageContainer>
@@ -137,7 +147,7 @@ const SubRequestDetail = () => {
           <Typography variant="subtitle2" fontWeight={600} gutterBottom>
             Assignments
           </Typography>
-          <AssignmentsTable assignments={item.assignments} />
+          <AssignmentsTable assignments={displayAssignments} showSubstituteColumn={!isTeacher} />
         </Box>
 
         <Box sx={{ mb: 3 }}>

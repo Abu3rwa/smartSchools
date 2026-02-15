@@ -151,8 +151,10 @@ export const listRequestsHandler = asyncHandler(async (req, res) => {
     // admin sees all (no extra filter)
 
     if (status) query.status = status;
-    if (absentTeacherId) query.absentTeacherId = absentTeacherId;
-    if (substituteTeacherId) query['assignments.substituteTeacherId'] = substituteTeacherId;
+    if (user.role !== 'teacher') {
+        if (absentTeacherId) query.absentTeacherId = absentTeacherId;
+        if (substituteTeacherId) query['assignments.substituteTeacherId'] = substituteTeacherId;
+    }
 
     if (startDate || endDate) {
         query.date = {};

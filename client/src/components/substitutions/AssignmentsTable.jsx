@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import StatusChip from './StatusChip';
 
-const AssignmentsTable = ({ assignments }) => {
+const AssignmentsTable = ({ assignments, showSubstituteColumn = true }) => {
   if (!assignments || assignments.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
@@ -45,7 +45,7 @@ const AssignmentsTable = ({ assignments }) => {
         <TableHead>
           <TableRow>
             <TableCell>Period</TableCell>
-            <TableCell>Substitute Teacher</TableCell>
+            {showSubstituteColumn && <TableCell>Substitute Teacher</TableCell>}
             <TableCell>Status</TableCell>
             <TableCell>Response Note</TableCell>
           </TableRow>
@@ -54,7 +54,7 @@ const AssignmentsTable = ({ assignments }) => {
           {assignments.map((a, idx) => (
             <TableRow key={a._id || idx}>
               <TableCell>{getPeriodLabel(a)}</TableCell>
-              <TableCell>{getSubstituteName(a)}</TableCell>
+              {showSubstituteColumn && <TableCell>{getSubstituteName(a)}</TableCell>}
               <TableCell>
                 <StatusChip status={a.status || 'PENDING'} />
               </TableCell>

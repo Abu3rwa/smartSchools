@@ -76,8 +76,8 @@ const SubRequestsList = () => {
   const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchTeachers());
-  }, [dispatch]);
+    if (canCreate) dispatch(fetchTeachers());
+  }, [dispatch, canCreate]);
 
   const loadRequests = () => {
     const filters = {};
@@ -165,36 +165,40 @@ const SubRequestsList = () => {
             size="small"
             sx={{ minWidth: 140 }}
           />
-          <TextField
-            select
-            label="Absent Teacher"
-            value={absentTeacherId}
-            onChange={(e) => setAbsentTeacherId(e.target.value)}
-            size="small"
-            sx={{ minWidth: 180 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {teacherOptions.map((t) => (
-              <MenuItem key={t.id} value={t.id}>
-                {t.name || 'Unknown'}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Substitute Teacher"
-            value={substituteTeacherId}
-            onChange={(e) => setSubstituteTeacherId(e.target.value)}
-            size="small"
-            sx={{ minWidth: 180 }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {teacherOptions.map((t) => (
-              <MenuItem key={t.id} value={t.id}>
-                {t.name || 'Unknown'}
-              </MenuItem>
-            ))}
-          </TextField>
+          {canCreate && (
+            <>
+              <TextField
+                select
+                label="Absent Teacher"
+                value={absentTeacherId}
+                onChange={(e) => setAbsentTeacherId(e.target.value)}
+                size="small"
+                sx={{ minWidth: 180 }}
+              >
+                <MenuItem value="">All</MenuItem>
+                {teacherOptions.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    {t.name || 'Unknown'}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Substitute Teacher"
+                value={substituteTeacherId}
+                onChange={(e) => setSubstituteTeacherId(e.target.value)}
+                size="small"
+                sx={{ minWidth: 180 }}
+              >
+                <MenuItem value="">All</MenuItem>
+                {teacherOptions.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    {t.name || 'Unknown'}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </>
+          )}
           <Button variant="contained" onClick={loadRequests} disabled={loading}>
             {loading ? <CircularProgress size={22} /> : 'Apply Filters'}
           </Button>
