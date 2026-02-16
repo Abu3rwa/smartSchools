@@ -97,11 +97,16 @@ const StandardsSuggester = ({
                                     checked={isSelected(s.standardId)}
                                     onChange={() => toggleStandard(s.standardId)}
                                 />
-                                <span className="standard-code">{s.code}</span>
-                                <span className="standard-name">{s.name}</span>
-                                {s.explanation && (
-                                    <span className="standard-explanation">{s.explanation}</span>
-                                )}
+                                <div className="standard-content">
+                                    <span className="standard-code">{s.code}</span>
+                                    {s.name && <span className="standard-name">{s.name}</span>}
+                                    {s.description && (
+                                        <span className="standard-description">{s.description}</span>
+                                    )}
+                                    {s.explanation && (
+                                        <span className="standard-explanation">{s.explanation}</span>
+                                    )}
+                                </div>
                             </label>
                         ))}
                     </div>

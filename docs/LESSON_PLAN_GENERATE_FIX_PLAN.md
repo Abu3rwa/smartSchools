@@ -49,6 +49,8 @@
 - Call `detectStandardsFromContent` with the combined generated text (title + summary + description + teachingObjectives)
 - Return top 5–10 matching standard IDs in the response
 
+**Note:** Standards must be the subject's actual standards - code and description come from the Standard document only. AI selects which standards match; it does not invent or modify standards.
+
 **Orchestration:** The controller (`generateSection` handler) will:
 1. Call `lessonPlanAIService.generateSection()` with expanded sourceFields
 2. Fetch standards for subject + gradeLevel

@@ -323,22 +323,34 @@
     margin-top: 0.25rem;
 }
 
+.standard-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
 .standard-code {
     font-weight: 600;
     color: var(--accent-primary);
-    flex-shrink: 0;
 }
 
 .standard-name {
     color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.standard-description {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
 }
 
 .standard-explanation {
     display: block;
-    width: 100%;
     font-size: 0.8rem;
     color: var(--text-muted);
-    margin-left: 1.5rem;
 }
 
 /* Generate from title button */

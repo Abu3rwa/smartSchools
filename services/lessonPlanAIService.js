@@ -147,25 +147,26 @@ export async function detectStandardsFromContent({
   }
 
   const maxStandards = 50;
+  // Pass full code and description from the subject's standards - AI must select ONLY from this list
   const standardsList = standards.slice(0, maxStandards).map((s) => ({
     _id: s._id.toString(),
     code: s.code || "",
     name: s.name || "",
-    description: (s.description || "").slice(0, 200),
+    description: (s.description || "").trim(),
   }));
 
-  const prompt = `You are an expert curriculum analyst. Given the following lesson content and list of standards, select the top 5–10 standards that BEST align with this lesson.
+  const prompt = `You are an expert curriculum analyst. You must select standards ONLY from the AVAILABLE STANDARDS list below. These are the actual standards for this subject and grade - use their exact _id, code, and description. Do NOT invent, modify, or create any standard.
 
 LESSON CONTENT:
 ${lessonText || "(No content provided)"}
 
-AVAILABLE STANDARDS (subject, grade ${gradeLevel}):
+AVAILABLE STANDARDS (subject, grade ${gradeLevel}) - select ONLY from this list:
 ${JSON.stringify(standardsList, null, 0)}
 
 For each selected standard, provide:
-- standardId (exact _id from the list)
+- standardId (exact _id from the list - must match one of the _id values above)
 - relevanceScore (0–1)
-- explanation (1 sentence why it matches)
+- explanation (1 sentence why this standard's code/description matches the lesson)
 
 Output ONLY a valid JSON array. No markdown, no code fences, no extra text:
 [
@@ -191,16 +192,20 @@ Output ONLY a valid JSON array. No markdown, no code fences, no extra text:
     standards.map((s) => [s._id.toString(), s])
   );
 
+  // Return only the subject's actual standards - code and description from the Standard document
   const result = matches
     .filter((m) => m?.standardId && standardsById[m.standardId])
-    .map((m) => ({
-      standardId: m.standardId,
-      code: standardsById[m.standardId]?.code || "",
-      name: standardsById[m.standardId]?.name || "",
-      description: standardsById[m.standardId]?.description || "",
-      relevanceScore: Math.min(1, Math.max(0, Number(m.relevanceScore) || 0)),
-      explanation: (m.explanation || "").trim(),
-    }))
+    .map((m) => {
+      const std = standardsById[m.standardId];
+      return {
+        standardId: m.standardId,
+        code: std?.code || "",
+        name: std?.name || "",
+        description: (std?.description || "").trim(),
+        relevanceScore: Math.min(1, Math.max(0, Number(m.relevanceScore) || 0)),
+        explanation: (m.explanation || "").trim(),
+      };
+    })
     .slice(0, 10);
 
   return {
