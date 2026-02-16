@@ -4,9 +4,15 @@ import api from '../../config/api';
 // Async thunks
 export const fetchClasses = createAsyncThunk(
     'classes/fetchClasses',
-    async (params = {}, { rejectWithValue }) => {
+    async (params = {}, { rejectWithValue, getState }) => {
         try {
-            const response = await api.get('/classes', { params });
+            const state = getState();
+            const user = state?.auth?.user;
+            const finalParams = { ...params };
+            if (user?.role === 'department_principal' && params.myClassesOnly !== false) {
+                finalParams.myClassesOnly = 'true';
+            }
+            const response = await api.get('/classes', { params: finalParams });
             return response.data.data;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch classes');

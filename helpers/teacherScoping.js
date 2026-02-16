@@ -1,5 +1,7 @@
+import mongoose from 'mongoose';
 import Teacher from '../models/Teacher.js';
 import Class from '../models/Class.js';
+import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 
 /**
  * Get the Teacher document for a given User ID.
@@ -15,13 +17,32 @@ export const getTeacherProfile = async (userId) => {
  * @returns {ObjectId[]} Array of Class _ids
  */
 export const getTeacherClassIds = async (teacherId) => {
-    const classIds = await Class.find({
-        $or: [
-            { classTeacher: teacherId },
-            { 'subjects.teacher': teacherId }
-        ]
-    }).distinct('_id');
-    return classIds;
+    const teacher = await Teacher.findById(teacherId).select('user assignedClasses').lean();
+    const userId = teacher?.user;
+
+    const [classIdsFromClass, classIdsFromTimetable] = await Promise.all([
+        Class.find({
+            $or: [
+                { classTeacher: teacherId },
+                { 'subjects.teacher': teacherId }
+            ]
+        }).distinct('_id'),
+        userId
+            ? TeacherPeriodAssignment.find({ teacher: userId, isActive: true }).distinct('class')
+            : Promise.resolve([])
+    ]);
+
+    const fromAssigned = (teacher?.assignedClasses || [])
+        .map((ac) => ac.class)
+        .filter(Boolean);
+
+    const merged = new Set([
+        ...classIdsFromClass.map((id) => id.toString()),
+        ...fromAssigned.map((id) => (id && id.toString ? id.toString() : String(id))).filter(Boolean),
+        ...classIdsFromTimetable.map((id) => id?.toString()).filter(Boolean)
+    ]);
+
+    return Array.from(merged).map((id) => new mongoose.Types.ObjectId(id));
 };
 
 /**

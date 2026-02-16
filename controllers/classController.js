@@ -2,7 +2,7 @@ import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
+import { resolveTeacherProfile, getTeacherClassIds, getTeacherProfile } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope, enforceDepartmentOnWrite } from '../helpers/departmentScope.js';
 
 /**
@@ -22,6 +22,7 @@ export const getClasses = asyncHandler(async (req, res) => {
     if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
 
     // Access Control: Teachers see only their assigned classes
+    // department_principals with Teacher profile can pass ?myClassesOnly=true to see only their classes
     if (req.user.role === 'teacher') {
         const teacher = await resolveTeacherProfile(req);
         if (!teacher) {
@@ -29,6 +30,12 @@ export const getClasses = asyncHandler(async (req, res) => {
         }
         const classIds = await getTeacherClassIds(teacher._id);
         query._id = { $in: classIds };
+    } else if (req.user.role === 'department_principal' && req.query.myClassesOnly === 'true') {
+        const teacher = await getTeacherProfile(req.user._id);
+        if (teacher) {
+            const classIds = await getTeacherClassIds(teacher._id);
+            query._id = { $in: classIds };
+        }
     }
 
     const classes = await Class.find(query)

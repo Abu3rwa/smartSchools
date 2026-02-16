@@ -60,6 +60,15 @@ Teachers are considered "assigned" to classes/subjects via:
 
 ---
 
+## Class Scoping Enhancement (getTeacherClassIds)
+
+**Updated:** `getTeacherClassIds` now includes classes from:
+1. `Class.classTeacher` and `Class.subjects.teacher` (existing)
+2. `Teacher.assignedClasses[].class` (in case this is the source of truth)
+3. `TeacherPeriodAssignment` (timetable-based assignments)
+
+**department_principals:** Can pass `?myClassesOnly=true` to see only classes they teach (when they have a Teacher profile).
+
 ## Recommendations for Further Hardening
 
 1. **Lesson plan create/update** – Verify teacher is assigned to the selected class+subject before save.
