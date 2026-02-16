@@ -6,6 +6,7 @@ import Teacher from '../models/Teacher.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import notificationService from '../services/notificationService.js';
 import { getAttachmentUrl } from '../middleware/uploadAttendanceRequest.js';
+import { applyDepartmentScope } from '../helpers/departmentScope.js';
 
 /**
  * Resolve principals to notify: school admins + department principals for request.department
@@ -224,12 +225,8 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
     const query = { school: schoolId };
 
     if (isPrincipal) {
-        if (user.role === 'department_principal' && user.department) {
-            query.$or = [
-                { department: user.department },
-                { department: null },
-            ];
-        }
+        applyDepartmentScope(query, req.departmentId);
+        if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
     } else {
         query.requester = user._id;
     }
@@ -275,10 +272,10 @@ export const getAttendanceRequest = asyncHandler(async (req, res) => {
     if (!isRequester && !isPrincipal) {
         return res.status(403).json({ success: false, message: 'Not authorized to view this request' });
     }
-    if (isPrincipal && user.role === 'department_principal' && user.department) {
+    if (req.departmentId) {
         const reqDept = request.department?.toString();
-        const myDept = user.department.toString();
-        if (reqDept && reqDept !== myDept) {
+        const scopeDept = req.departmentId.toString();
+        if (!reqDept || reqDept !== scopeDept) {
             return res.status(403).json({ success: false, message: 'Not in your department' });
         }
     }
@@ -302,11 +299,10 @@ export const reviewAttendanceRequest = asyncHandler(async (req, res) => {
     if (request.status !== 'pending') {
         return res.status(400).json({ success: false, message: 'Request has already been reviewed' });
     }
-    const user = req.user;
-    if (user.role === 'department_principal' && user.department) {
+    if (req.departmentId) {
         const reqDept = request.department?.toString();
-        const myDept = user.department.toString();
-        if (!reqDept || reqDept !== myDept) {
+        const scopeDept = req.departmentId.toString();
+        if (!reqDept || reqDept !== scopeDept) {
             return res.status(403).json({ success: false, message: 'Not in your department' });
         }
     }

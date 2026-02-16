@@ -22,7 +22,7 @@ async function testReminderNow() {
 
   console.log('=== TESTING REMINDER WITH UPDATED WINDOW ===\n');
   console.log('Current time:', new Date().toLocaleString());
-  console.log('Checking for classes that ended 10-12 hours ago...\n');
+  console.log('Checking for classes that ended 1-2 hours ago...\n');
 
   try {
     const result = await processAttendanceReminders(10);

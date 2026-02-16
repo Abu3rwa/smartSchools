@@ -210,11 +210,11 @@ function App() {
           }
         />
 
-        {/* Admin + Teacher */}
+        {/* Admin + Department Principal + Teacher */}
         <Route
           path="classes"
           element={
-            <RoleRoute roles={["admin", "teacher"]}>
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
               <ClassesPage />
             </RoleRoute>
           }
@@ -222,7 +222,7 @@ function App() {
         <Route
           path="classes/:id"
           element={
-            <RoleRoute roles={["admin", "teacher"]}>
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
               <ClassDetailPage />
             </RoleRoute>
           }
@@ -230,7 +230,7 @@ function App() {
         <Route
           path="classes/:classId/gradebook"
           element={
-            <RoleRoute roles={["admin", "teacher"]}>
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
               <GradebookPage />
             </RoleRoute>
           }
@@ -238,7 +238,7 @@ function App() {
         <Route
           path="students"
           element={
-            <RoleRoute roles={["admin", "teacher"]}>
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
               <StudentsPage />
             </RoleRoute>
           }
@@ -246,7 +246,7 @@ function App() {
         <Route
           path="students/:id"
           element={
-            <RoleRoute roles={["admin", "teacher"]}>
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
               <StudentDetailPage />
             </RoleRoute>
           }
@@ -278,7 +278,7 @@ function App() {
         <Route
           path="lessons"
           element={
-            <RoleRoute roles={["admin", "teacher"]}>
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
               <LessonPlanPage />
             </RoleRoute>
           }

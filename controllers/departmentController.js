@@ -1,5 +1,6 @@
 import Department from '../models/Department.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { applyDepartmentScope } from '../helpers/departmentScope.js';
 
 /**
  * @desc    Get all departments for the school
@@ -12,6 +13,9 @@ export const getDepartments = asyncHandler(async (req, res) => {
 
     if (type) query.type = type;
     if (isActive !== undefined) query.isActive = isActive === 'true';
+
+    applyDepartmentScope(query, req.departmentId, '_id');
+    if (req.queryFilter?.departmentId) query._id = req.queryFilter.departmentId;
 
     const departments = await Department.find(query)
         .sort({ type: 1, name: 1 });
@@ -34,6 +38,14 @@ export const getDepartment = asyncHandler(async (req, res) => {
         return res.status(404).json({
             success: false,
             message: 'Department not found'
+        });
+    }
+
+    // Department-scoped principal can only view their own department
+    if (req.departmentId && req.departmentId.toString() !== department._id.toString()) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to view this department'
         });
     }
 

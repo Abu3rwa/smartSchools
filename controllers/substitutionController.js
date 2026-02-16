@@ -1,9 +1,11 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import SubstitutionRequest from '../models/SubstitutionRequest.js';
+import Teacher from '../models/Teacher.js';
 import TeacherAbsence from '../models/TeacherAbsence.js';
 import User from '../models/User.js';
 import { getCandidates } from '../services/substitutionCandidateService.js';
 import { createRequest, processResponse } from '../services/substitutionWorkflowService.js';
+import { applyDepartmentScope, enforceDepartmentOnWrite } from '../helpers/departmentScope.js';
 
 /** Mark expired SUBMITTED requests as EXPIRED */
 async function expireStaleRequests(schoolId) {
@@ -26,6 +28,13 @@ export const createAbsenceHandler = asyncHandler(async (req, res) => {
     if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
     if (teacher.role !== 'teacher') return res.status(400).json({ success: false, message: 'Must be a teacher' });
     if (teacher.school?.toString() !== schoolId.toString()) return res.status(403).json({ success: false, message: 'Teacher must belong to your school' });
+
+    if (req.departmentId) {
+        const teacherProfile = await Teacher.findOne({ user: teacherId, school: schoolId }).select('department').setOptions({ skipTenantFilter: true });
+        if (!teacherProfile?.department || teacherProfile.department.toString() !== req.departmentId.toString()) {
+            return res.status(403).json({ success: false, message: 'Teacher must be in your department' });
+        }
+    }
 
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -67,7 +76,7 @@ export const getCandidatesHandler = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: 'Teacher must belong to your school' });
     }
 
-    const result = await getCandidates({ schoolId, absentTeacherId, date });
+    const result = await getCandidates({ schoolId, absentTeacherId, date, departmentId: req.departmentId || undefined });
     res.status(200).json({ success: true, data: result });
 });
 
@@ -81,10 +90,12 @@ export const createRequestHandler = asyncHandler(async (req, res) => {
     const user = req.user;
     const { absentTeacherId, date, coverageType, periods, selections, principalNote, materialsLink, expiresInHours } = req.body;
 
-    let departmentId = req.body.departmentId || req.departmentId;
-    if (user.role === 'department_principal' && user.department) {
-        departmentId = user.department._id || user.department;
+    const payload = { department: req.body.departmentId || req.departmentId };
+    const enforced = enforceDepartmentOnWrite(payload, req.departmentId);
+    if (!enforced.allowed) {
+        return res.status(403).json({ success: false, message: enforced.message });
     }
+    const departmentId = payload.department;
 
     const request = await createRequest({
         schoolId,
@@ -142,13 +153,10 @@ export const listRequestsHandler = asyncHandler(async (req, res) => {
 
     if (user.role === 'teacher') {
         query['assignments.substituteTeacherId'] = user._id;
-    } else if (user.role === 'department_principal' && user.department) {
-        query.$or = [
-            { department: user.department._id || user.department },
-            { department: null }
-        ];
+    } else {
+        applyDepartmentScope(query, req.departmentId);
+        if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
     }
-    // admin sees all (no extra filter)
 
     if (status) query.status = status;
     if (user.role !== 'teacher') {
@@ -222,10 +230,10 @@ export const getRequestHandler = asyncHandler(async (req, res) => {
         if (!isAssigned) {
             return res.status(403).json({ success: false, message: 'Not authorized to view this request' });
         }
-    } else if (user.role === 'department_principal' && user.department) {
+    } else if (req.departmentId) {
         const reqDept = request.department?.toString();
-        const myDept = (user.department?._id || user.department)?.toString();
-        if (reqDept && myDept && reqDept !== myDept) {
+        const scopeDept = req.departmentId.toString();
+        if (!reqDept || reqDept !== scopeDept) {
             return res.status(403).json({ success: false, message: 'Not in your department' });
         }
     }
@@ -256,11 +264,10 @@ export const cancelRequestHandler = asyncHandler(async (req, res) => {
         });
     }
 
-    const user = req.user;
-    if (user.role === 'department_principal' && user.department) {
+    if (req.departmentId) {
         const reqDept = request.department?.toString();
-        const myDept = (user.department?._id || user.department)?.toString();
-        if (reqDept && myDept && reqDept !== myDept) {
+        const scopeDept = req.departmentId.toString();
+        if (!reqDept || reqDept !== scopeDept) {
             return res.status(403).json({ success: false, message: 'Not in your department' });
         }
     }
@@ -268,7 +275,7 @@ export const cancelRequestHandler = asyncHandler(async (req, res) => {
     request.status = 'CANCELLED';
     request.timeline.push({
         action: 'CANCELLED',
-        by: user._id,
+        by: req.user._id,
         at: new Date(),
         meta: { note: req.body.note || 'Request cancelled' }
     });

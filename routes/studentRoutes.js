@@ -14,26 +14,29 @@ import {
     bulkCreateStudentLogin,
     resetStudentPassword
 } from '../controllers/studentController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
+import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(protect);
+router.use(requireSchoolContext);
+router.use(resolveDepartmentScope);
+router.use(parseQueryFilter);
 
-// CRUD routes
 router.route('/')
-    .get(authorize('admin', 'teacher'), getStudents)
+    .get(authorize('admin', 'department_principal', 'teacher'), getStudents)
     .post(authorize('admin'), validationRules.createStudent, validate, createStudent);
 
 // Additional routes (before /:id to avoid param conflicts)
 router.post('/import', authorize('admin'), importStudents);
 router.post('/bulk-create-login', authorize('admin'), bulkCreateStudentLogin);
-router.get('/class/:classId', authorize('admin', 'teacher'), getStudentsByClass);
+router.get('/class/:classId', authorize('admin', 'department_principal', 'teacher'), getStudentsByClass);
 
 router.route('/:id')
-    .get(authorize('admin', 'teacher'), validationRules.mongoId, validate, getStudent)
+    .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getStudent)
     .put(authorize('admin'), validationRules.mongoId, validate, updateStudent)
     .delete(authorize('admin'), validationRules.mongoId, validate, deleteStudent);
 router.post('/bulk-enroll', authorize('admin'), bulkEnrollStudents);

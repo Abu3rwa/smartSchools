@@ -2,6 +2,7 @@ import Teacher from '../models/Teacher.js';
 import User from '../models/User.js';
 import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { applyDepartmentScope } from '../helpers/departmentScope.js';
 
 /**
  * @desc    Get all teachers
@@ -13,12 +14,9 @@ export const getTeachers = asyncHandler(async (req, res) => {
 
     const query = {};
 
-    // Department principal sees only teachers in their department
-    if (req.departmentId) {
-        query.department = req.departmentId;
-    } else if (department) {
-        query.department = department;
-    }
+    applyDepartmentScope(query, req.departmentId);
+    if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
+    else if (department) query.department = department;
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
     // Apply search filter at DB level for performance

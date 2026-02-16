@@ -9,17 +9,17 @@ import {
     removeClassAssignment,
     getMyClasses
 } from '../controllers/teacherController.js';
-import { protect, authorize, scopeDepartmentPrincipal } from '../middleware/auth.js';
+import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(requireSchoolContext);
-
-// Set req.departmentId for department_principal so controllers can scope
-router.use(scopeDepartmentPrincipal);
+router.use(resolveDepartmentScope);
+router.use(parseQueryFilter);
 
 // Teacher's own classes
 router.get('/my-classes', authorize('teacher'), getMyClasses);

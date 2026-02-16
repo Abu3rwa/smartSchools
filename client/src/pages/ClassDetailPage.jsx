@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import {
     fetchClass,
+    updateClass,
     selectCurrentClass,
     selectClassStudents,
     selectClassesLoading,
@@ -17,8 +18,10 @@ import {
 } from '../store/slices/classSlice';
 import { fetchSubjects, selectSubjects } from '../store/slices/subjectSlice';
 import { fetchTeachers, selectTeachers } from '../store/slices/teacherSlice';
-import { selectIsAdmin } from '../store/slices/authSlice';
-import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardList, HiOutlinePlus, HiOutlineDocumentText, HiOutlineChartBar, HiOutlineLightBulb } from 'react-icons/hi';
+import { fetchDepartments, selectDepartments } from '../store/slices/departmentSlice';
+import { selectIsAdmin, selectCanEditClass } from '../store/slices/authSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
+import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardList, HiOutlinePlus, HiOutlineDocumentText, HiOutlineChartBar, HiOutlineLightBulb, HiOutlinePencil } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './ClassDetailPage.css';
 
@@ -30,9 +33,14 @@ const ClassDetailPage = () => {
     const loading = useSelector(selectClassesLoading);
     const subjectsList = useSelector(selectSubjects);
     const teachersList = useSelector(selectTeachers);
+    const departments = useSelector(selectDepartments);
+    const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
+    const canEditClass = useSelector(selectCanEditClass);
 
     const [showSubjectModal, setShowSubjectModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editFormData, setEditFormData] = useState({ grade: '', section: '', academicYear: '', department: '', room: '', capacity: 40, isActive: true });
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedTeacher, setSelectedTeacher] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -47,8 +55,43 @@ const ClassDetailPage = () => {
         dispatch(fetchClass(id));
         dispatch(fetchSubjects());
         dispatch(fetchTeachers());
+        dispatch(fetchDepartments());
         dispatch(clearClassAnalyticsData());
     }, [dispatch, id]);
+
+    const openEditModal = () => {
+        if (currentClass) {
+            setEditFormData({
+                grade: currentClass.grade?.toString() ?? '',
+                section: currentClass.section ?? '',
+                academicYear: currentClass.academicYear ?? academicYear ?? '',
+                department: currentClass.department?._id ?? currentClass.department ?? '',
+                room: currentClass.room ?? '',
+                capacity: currentClass.capacity ?? 40,
+                isActive: currentClass.isActive !== false
+            });
+            setShowEditModal(true);
+        }
+    };
+
+    const handleUpdateClass = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            const payload = { ...editFormData, grade: parseInt(editFormData.grade, 10), capacity: editFormData.capacity || 40 };
+            if (payload.department === '') payload.department = undefined;
+            const result = await dispatch(updateClass({ id, data: payload }));
+            if (updateClass.fulfilled.match(result)) {
+                toast.success('Class updated successfully');
+                setShowEditModal(false);
+                dispatch(fetchClass(id));
+            } else {
+                toast.error(result.payload || 'Failed to update class');
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     const handleLoadAnalytics = () => {
         setShowAnalytics(true);
@@ -128,6 +171,12 @@ const ClassDetailPage = () => {
                     </div>
                 </div>
                 <div className="header-actions">
+                    {canEditClass && (
+                        <button type="button" className="btn btn-secondary" onClick={openEditModal}>
+                            <HiOutlinePencil />
+                            Edit Class
+                        </button>
+                    )}
                     <Link to={`/portal/grades/weekly/class/${id}`} className="btn btn-secondary">
                         <HiOutlineDocumentText />
                         Weekly Report
@@ -323,6 +372,110 @@ const ClassDetailPage = () => {
                     </div>
                 )}
             </div>
+
+            {/* Edit Class Modal */}
+            {showEditModal && (
+                <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>Edit Class</h3>
+                            <button className="modal-close" onClick={() => setShowEditModal(false)}>&times;</button>
+                        </div>
+                        <form onSubmit={handleUpdateClass}>
+                            <div className="modal-body">
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Grade Level *</label>
+                                        <select
+                                            value={editFormData.grade}
+                                            onChange={(e) => setEditFormData({ ...editFormData, grade: e.target.value })}
+                                            required
+                                        >
+                                            <option value="">Select Grade</option>
+                                            {[...Array(12)].map((_, i) => (
+                                                <option key={i + 1} value={i + 1}>Grade {i + 1}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Section</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., A, B, C"
+                                            value={editFormData.section}
+                                            onChange={(e) => setEditFormData({ ...editFormData, section: e.target.value.toUpperCase() })}
+                                            maxLength={2}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Academic Year *</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., 2024-2025"
+                                            value={editFormData.academicYear}
+                                            onChange={(e) => setEditFormData({ ...editFormData, academicYear: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Department</label>
+                                        <select
+                                            value={editFormData.department}
+                                            onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                                        >
+                                            <option value="">— No department —</option>
+                                            {departments.map((d) => (
+                                                <option key={d._id} value={d._id}>{d.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Room</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Room 101"
+                                            value={editFormData.room}
+                                            onChange={(e) => setEditFormData({ ...editFormData, room: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Capacity</label>
+                                        <input
+                                            type="number"
+                                            value={editFormData.capacity}
+                                            onChange={(e) => setEditFormData({ ...editFormData, capacity: parseInt(e.target.value, 10) || 40 })}
+                                            min={1}
+                                            max={100}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="form-group">
+                                    <label className="checkbox-label">
+                                        <input
+                                            type="checkbox"
+                                            checked={editFormData.isActive}
+                                            onChange={(e) => setEditFormData({ ...editFormData, isActive: e.target.checked })}
+                                        />
+                                        Active
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                                    {submitting ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Add Subject Modal */}
             {showSubjectModal && (

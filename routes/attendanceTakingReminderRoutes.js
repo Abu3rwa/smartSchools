@@ -1,30 +1,18 @@
 import express from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { runReminderJob, getReminders } from '../controllers/attendanceTakingReminderController.js';
 
 const router = express.Router();
 
 router.use(protect);
+router.use(requireSchoolContext);
+router.use(resolveDepartmentScope);
 
-/** 
- * Run the reminder job manually with custom time window. Admin only.
- * Query/Body params:
- *   - hours: Number of hours after class end (default: 10)
- *            Examples: 1, 1.5, 2, 10
- * 
- * Usage:
- *   POST /api/attendance-taking-reminders/run?hours=1
- *   POST /api/attendance-taking-reminders/run?hours=1.5
- */
-router.post('/run', (req, res, next) => {
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-        return res.status(403).json({ success: false, message: 'Admin access required' });
-    }
-    next();
-}, runReminderJob);
+/** Run the reminder job manually. Admin and department_principal (scoped to department when req.departmentId set). */
+router.post('/run', authorize('admin', 'super_admin', 'department_principal'), runReminderJob);
 
-/** List reminders (with optional filters). Admin only, school-scoped. */
-router.get('/', authorize('admin', 'super_admin'), requireSchoolContext, getReminders);
+/** List reminders. Admin/super_admin see all; department_principal sees only their department. */
+router.get('/', authorize('admin', 'super_admin', 'department_principal'), getReminders);
 
 export default router;

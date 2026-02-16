@@ -7,12 +7,17 @@ import {
     getEligibleStudents,
     getRequesterContext,
 } from '../controllers/attendanceRequestController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
+import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
 import { uploadAttendanceRequestFile } from '../middleware/uploadAttendanceRequest.js';
 
 const router = express.Router();
 router.use(protect);
+router.use(requireSchoolContext);
+router.use(resolveDepartmentScope);
+router.use(parseQueryFilter);
 
 router.get('/requester-context', getRequesterContext);
 router.get('/eligible-students', authorize('parent', 'student'), getEligibleStudents);

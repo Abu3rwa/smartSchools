@@ -3,11 +3,12 @@ import logger from "../utils/logger.js";
 import AttendanceTakingReminder from "../models/AttendanceTakingReminder.js";
 import Attendance from "../models/Attendance.js";
 import TeacherPeriodAssignment from "../models/TeacherPeriodAssignment.js";
+import Class from "../models/Class.js";
 import Notification from "../models/Notification.js";
 import notificationService from "../services/notificationService.js";
 
 /** Default: send reminder for classes that ended at least this many hours ago */
-const DEFAULT_REMINDER_HOURS = 10;
+const DEFAULT_REMINDER_HOURS = 1;
 /** How far back to look for missed classes (48h so we catch yesterday’s classes when job runs next day) */
 const REMINDER_LOOKBACK_HOURS = 48;
 
@@ -59,29 +60,33 @@ function buildEmailTable({ periodName, className, subjectName, roomName, classDa
 }
 /**
  * Run the missed-attendance reminder job (no req/res). Find classes that ended
- * X hours ago (default 10), no attendance taken, no reminder sent → create reminder, send email via SMTP.
+ * X hours ago (default 1), no attendance taken, no reminder sent → create reminder, send email via SMTP.
  * Safe to call repeatedly (idempotent). Used by the API route and by the automatic scheduler.
- * @param {number} hoursAfterClass - Hours after class end to check (default: 10)
+ * @param {number} hoursAfterClass - Hours after class end to check (default: 1)
+ * @param {{ schoolId?: import('mongoose').Types.ObjectId, departmentId?: import('mongoose').Types.ObjectId }} options - When provided (e.g. from API), scope to school/department
  */
-export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMINDER_HOURS) {
+export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMINDER_HOURS, options = {}) {
   const now = new Date();
-  // Class must have ended at least this long ago (give teacher time to record)
   const minHoursAgoMs = hoursAfterClass * 60 * 60 * 1000;
-  // Don't remind for classes that ended more than REMINDER_LOOKBACK_HOURS ago
   const lookbackMs = REMINDER_LOOKBACK_HOURS * 60 * 60 * 1000;
-  const windowEnd = new Date(now.getTime() - minHoursAgoMs);   // e.g. now - 10h
-  const windowStart = new Date(now.getTime() - lookbackMs);   // e.g. now - 48h
-  // We want: periodEnd >= windowStart && periodEnd <= windowEnd
-  // i.e. class ended between 10h and 48h ago (so we catch yesterday’s classes when job runs next day)
+  const windowEnd = new Date(now.getTime() - minHoursAgoMs);
+  const windowStart = new Date(now.getTime() - lookbackMs);
 
   const results = { processed: 0, sent: 0, skipped: 0, failed: 0 };
 
-  // Use only timetable-based reminders so the email always matches the timetable (Period name + correct times).
-  // Schedule-based reminders are skipped to avoid wrong times/period in the email.
-  const assignments = await TeacherPeriodAssignment.find({ isActive: true })
+  let assignmentQuery = { isActive: true };
+  if (options.schoolId && options.departmentId) {
+    const classIds = await Class.find({ school: options.schoolId, department: options.departmentId }).select("_id").lean();
+    assignmentQuery.class = { $in: classIds.map((c) => c._id) };
+  } else if (options.schoolId) {
+    const classIds = await Class.find({ school: options.schoolId }).select("_id").lean();
+    assignmentQuery.class = { $in: classIds.map((c) => c._id) };
+  }
+
+  const assignments = await TeacherPeriodAssignment.find(assignmentQuery)
     .setOptions({ skipTenantFilter: true })
     .populate("teacher", "firstName lastName email")
-    .populate("class", "name")
+    .populate("class", "name department")
     .populate("subject", "name")
     .populate("room", "name")
     .populate("period", "name startTime endTime order")
@@ -259,14 +264,13 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
 /**
  * HTTP handler: run the reminder job and return JSON.
  * Query params:
- *   - hours: Number of hours after class end to check (default: 10)
+ *   - hours: Number of hours after class end to check (default: 1)
  *            Examples: 1, 1.5, 2, 10
  */
 export const runReminderJob = asyncHandler(async (req, res) => {
   const hoursParam = req.query.hours || req.body.hours;
   const hours = hoursParam ? parseFloat(hoursParam) : DEFAULT_REMINDER_HOURS;
-  
-  // Validate hours parameter
+
   if (isNaN(hours) || hours <= 0 || hours > 24) {
     return res.status(400).json({
       success: false,
@@ -274,7 +278,11 @@ export const runReminderJob = asyncHandler(async (req, res) => {
     });
   }
 
-  const result = await processAttendanceReminders(hours);
+  const scopeOptions = {};
+  if (req.schoolId) scopeOptions.schoolId = req.schoolId;
+  if (req.departmentId) scopeOptions.departmentId = req.departmentId;
+
+  const result = await processAttendanceReminders(hours, scopeOptions);
   res.json({
     success: true,
     message: `Reminder job completed for classes ending ${hours} hour(s) ago`,
@@ -301,6 +309,12 @@ export const getReminders = asyncHandler(async (req, res) => {
     query.attendanceDate = {};
     if (startDate) query.attendanceDate.$gte = new Date(startDate);
     if (endDate) query.attendanceDate.$lte = new Date(endDate);
+  }
+
+  if (req.departmentId) {
+    const classIds = await Class.find({ school: req.schoolId, department: req.departmentId }).select("_id").lean();
+    const assignmentIds = await TeacherPeriodAssignment.find({ class: { $in: classIds.map((c) => c._id) } }).select("_id").lean();
+    query.assignment = { $in: assignmentIds.map((a) => a._id) };
   }
 
   const skip =

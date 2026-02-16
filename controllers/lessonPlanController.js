@@ -24,7 +24,18 @@ export const getLessonPlans = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher') {
         query.teacher = req.user._id;
     }
-    if (classId) query.class = classId;
+    let departmentClassIds = null;
+    if (req.departmentId) {
+        departmentClassIds = await Class.find({ school: req.schoolId, department: req.departmentId }).select('_id').lean();
+        query.class = departmentClassIds.length ? { $in: departmentClassIds.map((c) => c._id) } : { $in: [] };
+    }
+    if (classId) {
+        if (req.departmentId && departmentClassIds && !departmentClassIds.some((c) => c._id.toString() === classId)) {
+            query.class = null; // class not in department: no results
+        } else {
+            query.class = classId;
+        }
+    }
     if (subject) query.subject = subject;
     if (startDate || endDate) {
         query.date = {};
@@ -79,6 +90,12 @@ export const getLessonPlanById = asyncHandler(async (req, res) => {
     }
     if (req.user.role === 'teacher' && lesson.teacher._id.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    if (req.departmentId) {
+        const cls = await Class.findById(lesson.class?._id || lesson.class).select('department').lean();
+        if (!cls?.department || cls.department.toString() !== req.departmentId.toString()) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
     }
 
     res.json({ success: true, data: { lesson } });

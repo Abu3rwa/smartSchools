@@ -249,10 +249,6 @@ const SchoolSettingsPage = () => {
 
     const handleUserSubmit = async (e) => {
         e.preventDefault();
-        if (userFormData.role === 'department_principal' && !userFormData.department) {
-            toast.error('Department is required for Department Principal');
-            return;
-        }
         setSubmittingUser(true);
         try {
             const response = await api.patch(`/schools/me/users/${editingUser._id}`, {
@@ -378,7 +374,7 @@ const SchoolSettingsPage = () => {
             {activeTab === 'users' && (
                 <div className="tab-content">
                     <div className="tab-header">
-                        <span>Assign roles and departments to users. Department Principal requires a department.</span>
+                        <span>Assign roles and departments to users. Department optional for Department Principal — if empty, user is whole-school principal.</span>
                     </div>
                     {usersLoading ? (
                         <div className="loading-container">
@@ -578,19 +574,19 @@ const SchoolSettingsPage = () => {
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label>Department {userFormData.role === 'department_principal' && '*'}</label>
+                                    <label>Department {userFormData.role === 'department_principal' && '(optional)'}</label>
                                     <select
                                         value={userFormData.department}
                                         onChange={(e) => setUserFormData({ ...userFormData, department: e.target.value })}
                                         disabled={userFormData.role !== 'department_principal'}
                                     >
-                                        <option value="">— None —</option>
+                                        <option value="">— None (whole-school principal) —</option>
                                         {departments.map((d) => (
                                             <option key={d._id} value={d._id}>{d.name}</option>
                                         ))}
                                     </select>
                                     {userFormData.role === 'department_principal' && (
-                                        <span className="form-hint">Required for Department Principal</span>
+                                        <span className="form-hint">If empty, user sees all school data (whole-school principal).</span>
                                     )}
                                 </div>
                             </div>

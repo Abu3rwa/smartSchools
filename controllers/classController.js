@@ -3,6 +3,7 @@ import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
+import { applyDepartmentScope, enforceDepartmentOnWrite } from '../helpers/departmentScope.js';
 
 /**
  * @desc    Get all classes
@@ -16,6 +17,9 @@ export const getClasses = asyncHandler(async (req, res) => {
     if (grade) query.grade = grade;
     if (academicYear) query.academicYear = academicYear;
     if (isActive !== undefined) query.isActive = isActive === 'true';
+
+    applyDepartmentScope(query, req.departmentId);
+    if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
 
     // Access Control: Teachers see only their assigned classes
     if (req.user.role === 'teacher') {
@@ -97,6 +101,17 @@ export const getClass = asyncHandler(async (req, res) => {
             success: false,
             message: 'Class not found'
         });
+    }
+
+    // Department scope: department-scoped principal cannot see class with no department or other department
+    if (req.departmentId) {
+        const classDeptId = classData.department?._id || classData.department;
+        if (!classDeptId || classDeptId.toString() !== req.departmentId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to view this class'
+            });
+        }
     }
 
     // Access Control: Check if teacher has access to this specific class
@@ -201,11 +216,26 @@ export const updateClass = asyncHandler(async (req, res) => {
         });
     }
 
+    if (req.departmentId) {
+        const classDeptId = classData.department?._id || classData.department;
+        if (!classDeptId || classDeptId.toString() !== req.departmentId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to edit this class'
+            });
+        }
+    }
+
     const allowedFields = ['grade', 'section', 'academicYear', 'classTeacher', 'room', 'capacity', 'name', 'isActive', 'department'];
     const updates = {};
     allowedFields.forEach((field) => {
         if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
+
+    const enforce = enforceDepartmentOnWrite(updates, req.departmentId);
+    if (!enforce.allowed) {
+        return res.status(403).json({ success: false, message: enforce.message });
+    }
 
     classData = await Class.findByIdAndUpdate(req.params.id, updates, {
         new: true,

@@ -1,3 +1,4 @@
+import Teacher from '../models/Teacher.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import TeacherAbsence from '../models/TeacherAbsence.js';
 import SubstitutionRequest from '../models/SubstitutionRequest.js';
@@ -138,18 +139,21 @@ async function getBusyTeacherIds(schoolId, date, periodIds) {
 }
 
 /**
- * Get all active teachers in the school (role=teacher, isActive).
+ * Get all active teachers in the school. When departmentId is set, filter by Teacher.department (canonical source).
  */
-async function getSchoolTeachers(schoolId) {
-    const users = await User.find({
-        school: schoolId,
-        role: 'teacher',
-        isActive: true
-    })
+async function getSchoolTeachers(schoolId, departmentId = null) {
+    let userFilter = { school: schoolId, role: 'teacher', isActive: true };
+    if (departmentId) {
+        const teacherUserIds = await Teacher.find({ school: schoolId, department: departmentId })
+            .select('user')
+            .setOptions({ skipTenantFilter: true })
+            .distinct('user');
+        userFilter._id = { $in: teacherUserIds };
+    }
+    const users = await User.find(userFilter)
         .select('_id firstName lastName department')
         .setOptions({ skipTenantFilter: true })
         .lean();
-
     return users;
 }
 
@@ -172,9 +176,10 @@ function toTeacherSummary(user) {
  * @param {ObjectId} params.schoolId
  * @param {ObjectId} params.absentTeacherId - User._id
  * @param {Date|string} params.date - YYYY-MM-DD
+ * @param {ObjectId} [params.departmentId] - When set, candidates limited to teachers in this department (Teacher.department)
  * @returns {Promise<{date, absentTeacherId, targetPeriods, candidatesAllPeriods, candidatesByPeriod}>}
  */
-export async function getCandidates({ schoolId, absentTeacherId, date }) {
+export async function getCandidates({ schoolId, absentTeacherId, date, departmentId }) {
     const absentIdStr = absentTeacherId.toString();
     const targetPeriods = await getTargetPeriods(schoolId, absentTeacherId, date);
 
@@ -192,7 +197,7 @@ export async function getCandidates({ schoolId, absentTeacherId, date }) {
     const busySet = await getBusyTeacherIds(schoolId, date, periodIds);
     busySet.add(absentIdStr); // Exclude absent teacher
 
-    const allTeachers = await getSchoolTeachers(schoolId);
+    const allTeachers = await getSchoolTeachers(schoolId, departmentId || undefined);
     const teacherMap = {};
     for (const t of allTeachers) {
         teacherMap[t._id.toString()] = t;

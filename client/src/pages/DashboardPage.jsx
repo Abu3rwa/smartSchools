@@ -115,47 +115,68 @@ const DashboardPage = () => {
     }
 
     return (
-        <Box className="dashboard-page" sx={{ p: { xs: 2, sm: 3 } }}>
+        <Box 
+            className="dashboard-page" 
+            sx={{ 
+                p: { xs: 1.5, sm: 2, md: 3 },
+                maxWidth: 1,
+                overflowX: 'hidden'
+            }}
+        >
             {/* Welcome Header */}
             <Box 
                 sx={{ 
                     display: 'flex', 
-                    flexDirection: { xs: 'column', md: 'row' },
+                    flexDirection: { xs: 'column', sm: 'row' },
                     justifyContent: 'space-between',
-                    alignItems: { xs: 'flex-start', md: 'flex-start' },
-                    mb: { xs: 3, md: 4 },
+                    alignItems: { xs: 'stretch', sm: 'flex-start' },
+                    mb: { xs: 2, md: 3 },
                     gap: 2
                 }}
             >
-                <Box>
-                    <Typography variant="h4" sx={{ mb: 0.5, fontWeight: 700 }}>
+                <Box sx={{ minWidth: 0 }}>
+                    <Typography 
+                        variant="h5" 
+                        component="h1"
+                        sx={{ 
+                            mb: 0.5, 
+                            fontWeight: 700,
+                            fontSize: { xs: '1.25rem', sm: '1.4rem', md: '1.5rem' },
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                        }}
+                    >
                         Welcome back, {user?.firstName}! 👋
                     </Typography>
                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                         Here's what's happening with your classes today.
                     </Typography>
                 </Box>
-                <Box sx={{ width: { xs: '100%', md: 'auto' } }}>
-                    <Link to="/portal/grades/entry" className="btn btn-primary" style={{ width: isSm ? '100%' : 'auto' }}>
-                        <HiOutlineClipboardList size={20} />
+                <Box sx={{ flexShrink: 0 }}>
+                    <Link 
+                        to="/portal/grades/entry" 
+                        className="btn btn-primary dashboard-cta" 
+                        style={{ width: isSm ? '100%' : 'auto' }}
+                    >
+                        <HiOutlineClipboardList size={18} />
                         Enter Grades
                     </Link>
                 </Box>
             </Box>
 
             {/* Stats Grid */}
-            <Grid container spacing={2} sx={{ mb: { xs: 3, md: 4 } }}>
+            <Grid container spacing={2} sx={{ mb: { xs: 2, md: 3 } }}>
                 {stats.map((stat, index) => (
-                    <Grid item xs={12} sm={6} md={3} key={index}>
+                    <Grid item xs={6} sm={6} md={3} key={index}>
                         <Box className={`stat-card stat-${stat.color}`}>
                             <Box className="stat-icon">
-                                <stat.icon size={24} />
+                                <stat.icon size={22} />
                             </Box>
                             <Box className="stat-content">
-                                <Typography variant="body2" className="stat-title">
+                                <Typography variant="caption" className="stat-title">
                                     {stat.title}
                                 </Typography>
-                                <Typography variant="h5" className="stat-value">
+                                <Typography variant="h6" className="stat-value">
                                     {stat.value}
                                 </Typography>
                                 <Typography variant="caption" className={`stat-change ${stat.change.startsWith('+') ? 'positive' : ''}`}>
@@ -172,27 +193,25 @@ const DashboardPage = () => {
                 {/* Quick Actions */}
                 <Grid item xs={12} md={6}>
                     <div className="card quick-actions-card">
-                        <div className="card-header">
+                        <div className="card-header dashboard-card-header">
                             <h3 className="card-title">Quick Actions</h3>
                         </div>
-                        <Grid container spacing={1.5} className="quick-actions-grid">
+                        <div className="quick-actions-grid">
                             {quickActions.map((action, index) => (
-                                <Grid item xs={12} sm={6} key={index}>
-                                    <Link to={action.path} className="quick-action">
-                                        <action.icon size={24} />
-                                        <span>{action.label}</span>
-                                        <HiOutlineArrowRight className="action-arrow" />
-                                    </Link>
-                                </Grid>
+                                <Link to={action.path} className="quick-action" key={index}>
+                                    <action.icon size={22} />
+                                    <span>{action.label}</span>
+                                    <HiOutlineArrowRight className="action-arrow" size={18} />
+                                </Link>
                             ))}
-                        </Grid>
+                        </div>
                     </div>
                 </Grid>
 
                 {/* Recent Students */}
                 <Grid item xs={12} md={6}>
                     <div className="card recent-students-card">
-                        <div className="card-header">
+                        <div className="card-header dashboard-card-header">
                             <h3 className="card-title">Recent Students</h3>
                             <Link to="/portal/students" className="btn btn-ghost btn-sm">View All</Link>
                         </div>
@@ -224,7 +243,7 @@ const DashboardPage = () => {
                 {/* Classes Overview */}
                 <Grid item xs={12} md={6}>
                     <div className="card classes-overview-card">
-                        <div className="card-header">
+                        <div className="card-header dashboard-card-header">
                             <h3 className="card-title">Classes Overview</h3>
                             <Link to="/portal/classes" className="btn btn-ghost btn-sm">View All</Link>
                         </div>
@@ -240,9 +259,7 @@ const DashboardPage = () => {
                                         <span className="class-name">{cls.name}</span>
                                         <span className="class-year">{cls.academicYear}</span>
                                     </div>
-                                    <div className="class-stats">
-                                        <span className="class-count">{cls.studentCount || 0} students</span>
-                                    </div>
+                                    <span className="class-count">{cls.studentCount || 0} students</span>
                                 </Link>
                             ))}
                             {classes.length === 0 && (
@@ -255,11 +272,11 @@ const DashboardPage = () => {
                 {/* Performance Chart Placeholder */}
                 <Grid item xs={12} md={6}>
                     <div className="card performance-card">
-                        <div className="card-header">
+                        <div className="card-header dashboard-card-header">
                             <h3 className="card-title">Performance Trends</h3>
                         </div>
                         <div className="chart-placeholder">
-                            <HiOutlineChartBar size={48} />
+                            <HiOutlineChartBar size={40} />
                             <p>Performance analytics coming soon</p>
                         </div>
                     </div>

@@ -238,6 +238,8 @@ export const selectUser = (state) => state.auth.user;
 export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
 export const selectIsAdmin = (state) => state.auth.user?.role === 'admin';
 export const selectIsTeacher = (state) => state.auth.user?.role === 'teacher';
+export const selectCanEditClass = (state) =>
+    ['admin', 'department_principal'].includes(state.auth.user?.role || '');
 export const selectTeacherProfile = (state) => state.auth.teacherProfile;
 
 export default authSlice.reducer;

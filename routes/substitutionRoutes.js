@@ -1,7 +1,8 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate } from '../middleware/validator.js';
 import {
     getCandidatesHandler,
@@ -53,9 +54,10 @@ router.get(
     respondHandler
 );
 
-// All other routes require auth + school context
 router.use(protect);
 router.use(requireSchoolContext);
+router.use(resolveDepartmentScope);
+router.use(parseQueryFilter);
 
 // Candidates: department_principal, admin
 router.post(

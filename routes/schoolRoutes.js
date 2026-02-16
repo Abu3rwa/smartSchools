@@ -103,12 +103,7 @@ router.patch('/me/users/:userId', requireSchoolContext, authorize('admin'), asyn
     if (department !== undefined) {
         user.department = department || null;
     }
-    if (user.role === 'department_principal' && !user.department) {
-        return res.status(400).json({
-            success: false,
-            message: 'Department is required when role is department_principal'
-        });
-    }
+    // Department optional for department_principal: if empty, user is whole-school principal
     await user.save();
 
     const updated = await User.findById(user._id)

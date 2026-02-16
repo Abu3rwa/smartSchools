@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
+import { applyDepartmentScope } from '../helpers/departmentScope.js';
 
 /**
  * Generate a human-readable temporary password.
@@ -47,6 +48,9 @@ export const getStudents = asyncHandler(async (req, res) => {
     if (classId) query.currentClass = classId;
     if (status) query.status = status;
     if (academicYear) query.academicYear = academicYear;
+
+    applyDepartmentScope(query, req.departmentId);
+    if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
 
     // Access Control: Teachers see only students in their assigned classes
     if (req.user.role === 'teacher') {
@@ -107,6 +111,17 @@ export const getStudent = asyncHandler(async (req, res) => {
             success: false,
             message: 'Student not found'
         });
+    }
+
+    // Department scope: department-scoped principal cannot see student with no department or other department
+    if (req.departmentId) {
+        const studentDeptId = student.department?._id || student.department;
+        if (!studentDeptId || studentDeptId.toString() !== req.departmentId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to view this student'
+            });
+        }
     }
 
     res.json({

@@ -77,22 +77,44 @@ export const authorize = (...roles) => {
 };
 
 /**
- * Set req.departmentId when user is department_principal (the department they manage).
- * Use after protect + authorize so req.user is set.
+ * Resolve department scope for the request. Use after protect (and requireSchoolContext where used).
+ * Sets req.departmentId and req.departmentScope so controllers can apply department filtering consistently.
+ * - admin / super_admin: no department filter (school-wide or cross-school).
+ * - department_principal with department: filter to that department only.
+ * - department_principal without department: no filter (whole-school principal mode).
+ * - other roles: no department filter.
  */
-export const scopeDepartmentPrincipal = (req, res, next) => {
+export const resolveDepartmentScope = (req, res, next) => {
+    req.departmentId = null;
+    req.departmentScope = { role: req.user?.role, scoped: false, source: 'resolveDepartmentScope' };
+
+    if (req.user.role === 'admin' || req.user.role === 'super_admin') {
+        req.authScope = { schoolId: req.schoolId ?? null, departmentId: null, mode: 'unscoped', role: req.user?.role };
+        req.queryFilter = {};
+        return next();
+    }
     if (req.user.role === 'department_principal') {
         const deptId = req.user.department?._id || req.user.department;
-        if (!deptId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Department principal must have a department assigned'
-            });
+        if (deptId) {
+            req.departmentId = deptId;
+            req.departmentScope.scoped = true;
         }
-        req.departmentId = deptId;
     }
+    req.authScope = {
+        schoolId: req.schoolId ?? null,
+        departmentId: req.departmentId ?? null,
+        mode: req.departmentId ? 'scoped' : 'unscoped',
+        role: req.user?.role
+    };
+    req.queryFilter = {};
     next();
 };
+
+/**
+ * Legacy alias: same behavior as resolveDepartmentScope. Department principal without department
+ * is allowed (whole-school principal); req.departmentId remains null.
+ */
+export const scopeDepartmentPrincipal = resolveDepartmentScope;
 
 // Check if user owns the resource or is admin
 export const ownerOrAdmin = (resourceUserIdField = 'userId') => {
