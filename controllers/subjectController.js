@@ -26,10 +26,11 @@ export const getSubjects = asyncHandler(async (req, res) => {
     // Access Control: Teachers see only their assigned subjects
     if (req.user.role === 'teacher') {
         const teacher = await resolveTeacherProfile(req);
-        if (teacher) {
-            const subjectIds = await getTeacherSubjectIds(teacher._id);
-            query._id = { $in: subjectIds };
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
         }
+        const subjectIds = await getTeacherSubjectIds(teacher._id);
+        query._id = { $in: subjectIds };
     }
 
     const subjects = await Subject.find(query)
@@ -66,6 +67,24 @@ export const getSubject = asyncHandler(async (req, res) => {
             success: false,
             message: 'Subject not found'
         });
+    }
+
+    // Access Control: Teachers may only view subjects they are assigned to teach
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        const subjectIds = await getTeacherSubjectIds(teacher._id);
+        const canAccess = subjectIds.some(
+            (id) => id?.toString() === subject._id.toString()
+        );
+        if (!canAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to view this subject'
+            });
+        }
     }
 
     res.json({
@@ -211,13 +230,25 @@ export const deleteSubject = asyncHandler(async (req, res) => {
 export const getSubjectsByGrade = asyncHandler(async (req, res) => {
     const grade = parseInt(req.params.grade);
 
-    const subjects = await Subject.find({
+    const query = {
         $or: [
             { applicableGrades: grade },
             { applicableGrades: { $size: 0 } } // Subjects applicable to all grades
         ],
         isActive: true
-    }).sort({ name: 1 });
+    };
+
+    // Access Control: Teachers see only their assigned subjects
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        const subjectIds = await getTeacherSubjectIds(teacher._id);
+        query._id = { $in: subjectIds };
+    }
+
+    const subjects = await Subject.find(query).sort({ name: 1 });
 
     res.json({
         success: true,
