@@ -1,6 +1,6 @@
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { authorize } from "../middleware/auth.js";
-import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject } from "../helpers/teacherScoping.js";
+import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject, getTeacherClassIds } from "../helpers/teacherScoping.js";
 import NewsletterIssue from "../models/NewsletterIssue.js";
 import NewsletterSection from "../models/NewsletterSection.js";
 import Class from "../models/Class.js";
@@ -71,6 +71,17 @@ export const ensureNewsletterIssue = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "classId is required" });
   }
 
+  if (req.user.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+      return res.status(403).json({ success: false, message: "Teacher profile not found" });
+    }
+    const classIds = await getTeacherClassIds(teacher._id);
+    if (!classIds.some((id) => id.toString() === classId.toString())) {
+      return res.status(403).json({ success: false, message: "Not authorized for this class" });
+    }
+  }
+
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
   const { weekStart, weekEnd } = getWeekRange(referenceDate);
   const academicYearValue =
@@ -96,6 +107,17 @@ export const getNewsletterIssue = asyncHandler(async (req, res) => {
   const { classId, academicYear, weekStart: requestedWeekStart } = req.query;
   if (!classId) {
     return res.status(400).json({ success: false, message: "classId is required" });
+  }
+
+  if (req.user.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+      return res.status(403).json({ success: false, message: "Teacher profile not found" });
+    }
+    const classIds = await getTeacherClassIds(teacher._id);
+    if (!classIds.some((id) => id.toString() === classId.toString())) {
+      return res.status(403).json({ success: false, message: "Not authorized for this class" });
+    }
   }
 
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();

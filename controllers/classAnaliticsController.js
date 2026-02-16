@@ -12,7 +12,7 @@ import * as classAnalyticsAIService from '../services/classAnalyticsAIService.js
  * Ensure the class exists and belongs to the school; for teachers, ensure they have access.
  */
 async function ensureClassAccess(req, classId) {
-    const classDoc = await Class.findById(classId).select('school').lean();
+    const classDoc = await Class.findById(classId).select('school department').lean();
     if (!classDoc) return { allowed: false, status: 404, message: 'Class not found' };
     if (classDoc.school.toString() !== req.schoolId.toString()) {
         return { allowed: false, status: 403, message: 'Access denied to this class' };
@@ -23,6 +23,12 @@ async function ensureClassAccess(req, classId) {
         const allowedClassIds = await getTeacherClassIds(teacher._id);
         if (!allowedClassIds.some((id) => id.toString() === classId)) {
             return { allowed: false, status: 403, message: 'You are not authorized to view this class' };
+        }
+    }
+    if (req.departmentId) {
+        const classDeptId = classDoc.department?.toString?.() || classDoc.department;
+        if (!classDeptId || classDeptId !== req.departmentId.toString()) {
+            return { allowed: false, status: 403, message: 'Not authorized to view this class' };
         }
     }
     return { allowed: true };

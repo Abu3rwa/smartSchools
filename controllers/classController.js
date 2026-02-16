@@ -17,7 +17,7 @@ export const getClasses = asyncHandler(async (req, res) => {
     if (academicYear) query.academicYear = academicYear;
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
-    // Access Control: Teachers see only their assigned classes
+    // Access Control: Teachers see only their assigned classes. Admins see all.
     if (req.user.role === 'teacher') {
         const teacher = await resolveTeacherProfile(req);
         if (!teacher) {
@@ -378,6 +378,29 @@ export const removeSubjectFromClass = asyncHandler(async (req, res) => {
  */
 export const getClassStats = asyncHandler(async (req, res) => {
     const classId = req.params.id;
+
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        const classIds = await getTeacherClassIds(teacher._id);
+        if (!classIds.some((id) => id.toString() === classId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to view this class'
+            });
+        }
+    } else if (req.departmentId) {
+        const classDoc = await Class.findById(classId).select('department').lean();
+        const classDeptId = classDoc?.department?.toString?.() || classDoc?.department;
+        if (!classDeptId || classDeptId !== req.departmentId.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to view this class'
+            });
+        }
+    }
 
     const [totalStudents, maleCount, femaleCount] = await Promise.all([
         Student.countDocuments({ currentClass: classId, status: 'active' }),

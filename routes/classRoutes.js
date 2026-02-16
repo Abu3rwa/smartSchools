@@ -20,15 +20,15 @@ router.use(protect);
 
 // CRUD routes
 router.route('/')
-    .get(authorize('admin', 'teacher'), getClasses)
+    .get(authorize('admin', 'department_principal', 'teacher'), getClasses)
     .post(authorize('admin'), validationRules.createClass, validate, createClass);
 
 // Analytics and AI insights (before /:id so they are not parsed as ids)
-router.get('/:id/analytics', authorize('admin', 'teacher'), validationRules.mongoId, validate, getClassAnalytics);
-router.get('/:id/insights', authorize('admin', 'teacher'), validationRules.mongoId, validate, getClassInsights);
+router.get('/:id/analytics', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassAnalytics);
+router.get('/:id/insights', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassInsights);
 
 router.route('/:id')
-    .get(authorize('admin', 'teacher'), validationRules.mongoId, validate, getClass)
+    .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClass)
     .put(authorize('admin'), validationRules.mongoId, validate, updateClass)
     .delete(authorize('admin'), validationRules.mongoId, validate, deleteClass);
 
@@ -37,6 +37,6 @@ router.post('/:id/subjects', authorize('admin'), validationRules.mongoId, valida
 router.delete('/:id/subjects/:subjectId', authorize('admin'), removeSubjectFromClass);
 
 // Statistics
-router.get('/:id/stats', authorize('admin', 'teacher'), validationRules.mongoId, validate, getClassStats);
+router.get('/:id/stats', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassStats);
 
 export default router;

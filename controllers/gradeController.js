@@ -574,6 +574,18 @@ export const getClassStatistics = asyncHandler(async (req, res) => {
         });
     }
 
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subject);
+        if (!authorized) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized to view stats for this class/subject'
+            });
+        }
+    }
+
     // Get grade statistics for the class and subject
     const stats = await Grade.aggregate([
         {
