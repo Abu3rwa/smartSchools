@@ -130,7 +130,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Ignore favicon requests
 app.get("/favicon.ico", (req, res) => res.status(204).end());
 
-// Health check route
+// Health check routes
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
@@ -138,6 +138,15 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
   });
+});
+
+// Readiness: MongoDB must be connected for the app to serve traffic
+app.get("/api/health/ready", async (req, res) => {
+  const mongoose = (await import("mongoose")).default;
+  const state = mongoose.connection.readyState;
+  const connected = state === 1;
+  const checks = { mongodb: state === 1 ? "connected" : state === 2 ? "connecting" : "disconnected" };
+  res.status(connected ? 200 : 503).json({ ready: connected, checks });
 });
 
 // Apply rate limiters

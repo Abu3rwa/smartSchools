@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import User from '../models/User.js';
 import nodemailer from 'nodemailer';
+import logger from '../utils/logger.js';
 
 class GmailOAuthService {
     constructor() {
@@ -20,7 +21,7 @@ class GmailOAuthService {
                 redirectUri
             );
         } else {
-            console.warn('Google OAuth credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env');
+            logger.warn('Google OAuth credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env');
         }
     }
 
@@ -157,7 +158,7 @@ class GmailOAuthService {
             return user;
         }
 
-        console.log(`Refreshing Gmail token for user ${user.gmailTokens.email} (Force: ${force})...`);
+        logger.info(`Refreshing Gmail token for user ${user.gmailTokens.email}`, { force });
 
         try {
             // Create a local client to avoid race conditions
@@ -176,7 +177,7 @@ class GmailOAuthService {
 
             return user;
         } catch (error) {
-            console.error('Error refreshing token:', error.message);
+            logger.error('Error refreshing token:', error.message);
             throw error;
         }
     }
@@ -258,11 +259,11 @@ class GmailOAuthService {
                 raw: result.data
             };
         } catch (error) {
-            console.error('Send attempt 1 failed:', error.message);
+            logger.error('Send attempt 1 failed:', error.message);
 
             // If auth-related error, force refresh and retry once
             if (error.code === 401 || error.code === 403) {
-                console.log('Auth failed (Gmail API), forcing token refresh and retrying...');
+                logger.info('Auth failed (Gmail API), forcing token refresh and retrying');
                 const user = await this.refreshTokenIfNeeded(userId, true);
 
                 if (!user.gmailTokens || !user.gmailTokens.email) {
@@ -350,7 +351,7 @@ class GmailOAuthService {
                 });
                 await this.oauth2Client.revokeCredentials();
             } catch (error) {
-                console.warn('Could not revoke token with Google:', error.message);
+                logger.warn('Could not revoke token with Google:', error.message);
             }
 
             // Clear tokens from user

@@ -4,6 +4,7 @@ import User from "../models/User.js";
 import gradeService from "./gradeService.js";
 import gmailOAuthService from "./gmailOAuthService.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
+import logger from "../utils/logger.js";
 
 /**
  * Sanitize email subject to plain ASCII (remove emojis and special characters)
@@ -50,7 +51,7 @@ class NotificationService {
 
     const recipients = student.getAllContactEmails();
     if (recipients.length === 0) {
-      console.log("No parent or student email found for student:", studentId);
+      logger.info("No parent or student email found for student:", studentId);
       return null;
     }
 
@@ -160,7 +161,7 @@ class NotificationService {
     const todayDate = date.getDate();
     const year = date.getFullYear();
     const today = `${dayName}, ${monthName} ${todayDate}, ${year}`;
-    console.log("today", today);
+    logger.info("Daily classwork update date", { today });
     const todayFormatted = date.toLocaleDateString("en-US", {
       weekday: "long",
       month: "long",
@@ -344,16 +345,14 @@ class NotificationService {
         if (hasGmail) {
           const result = await gmailOAuthService.sendEmail(userId, mailOptions);
           await notification.markAsSent("email");
-          console.log(
-            "✅ Email sent via Gmail OAuth to:",
-            notification.recipientEmail,
-            "MessageId:",
-            result.messageId,
-          );
+          logger.info("Email sent via Gmail OAuth", {
+            to: notification.recipientEmail,
+            messageId: result.messageId,
+          });
           return;
         }
       } catch (error) {
-        console.error("Gmail OAuth send failed for provided user:", error.message);
+        logger.error("Gmail OAuth send failed for provided user:", error.message);
         // Fall through to admin fallback
       }
     }
@@ -381,31 +380,26 @@ class NotificationService {
                 mailOptions,
               );
               await notification.markAsSent("email");
-              console.log(
-                "✅ Email sent via admin Gmail fallback to:",
-                notification.recipientEmail,
-                "MessageId:",
-                result.messageId,
-              );
+              logger.info("Email sent via admin Gmail fallback", {
+                to: notification.recipientEmail,
+                messageId: result.messageId,
+              });
               return;
             }
           } catch (innerErr) {
-            console.error(
-              `Admin ${admin._id} Gmail send failed:`,
-              innerErr.message,
-            );
+            logger.error(`Admin ${admin._id} Gmail send failed:`, innerErr.message);
             // Try next admin
           }
         }
       } catch (error) {
-        console.error("Error finding admin Gmail sender:", error.message);
+        logger.error("Error finding admin Gmail sender:", error.message);
       }
     }
 
     // 3. No Gmail sender available
     const errorMsg =
       "No Gmail account available to send email. An admin must connect their Gmail in Settings > Gmail Integration.";
-    console.error("❌", errorMsg);
+    logger.error(errorMsg);
     notification.status = "failed";
     notification.lastError = errorMsg;
     await notification.save();
@@ -573,7 +567,7 @@ Best regards,
           authenticatedTeacherName = authenticatedUser.firstName;
         }
       } catch (error) {
-        console.error("Error fetching authenticated user:", error);
+        logger.error("Error fetching authenticated user:", error);
       }
     }
 
