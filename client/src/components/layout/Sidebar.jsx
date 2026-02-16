@@ -54,13 +54,13 @@ const Sidebar = () => {
       path: "/portal/classes",
       icon: HiOutlineAcademicCap,
       label: "Classes",
-      roles: ["admin", "teacher"],
+      roles: ["admin", "department_principal", "teacher"],
     },
     {
       path: "/portal/students",
       icon: HiOutlineUserGroup,
       label: "Students",
-      roles: ["admin", "teacher"],
+      roles: ["admin", "department_principal", "teacher"],
     },
     {
       path: "/portal/my-schedule",
@@ -90,7 +90,7 @@ const Sidebar = () => {
       path: "/portal/newsletters/admin",
       icon: HiOutlineDocumentText,
       label: "Newsletters Review",
-      admin: true,
+      roles: ["admin", "department_principal"],
     },
     {
       path: "/portal/schedules",
@@ -156,13 +156,13 @@ const Sidebar = () => {
       path: "/portal/lessons",
       icon: HiOutlineDocumentText,
       label: "Lesson Plans",
-      roles: ["admin", "teacher"],
+      roles: ["admin", "department_principal", "teacher"],
     },
     {
       path: "/portal/grades/entry",
       icon: HiOutlineClipboardList,
       label: "Grade Entry",
-      roles: ["admin", "teacher"],
+      roles: ["admin", "department_principal", "teacher"],
     },
     {
       path: "/portal/subjects",
@@ -174,14 +174,14 @@ const Sidebar = () => {
       path: "/portal/standards",
       icon: HiOutlineClipboardCheck,
       label: "Standards",
-      roles: ["admin", "teacher"],
+      roles: ["admin", "department_principal", "teacher"],
       end: true,
     },
     {
       path: "/portal/standards/assign",
       icon: HiOutlineClipboardCheck,
       label: "Assign Standards",
-      roles: ["admin", "teacher"],
+      roles: ["admin", "department_principal", "teacher"],
     },
     {
       path: "/portal/my-grades",
@@ -211,13 +211,13 @@ const Sidebar = () => {
       path: "/portal/reading/texts",
       icon: HiOutlineBookOpen,
       label: "Reading",
-      roles: ["admin", "teacher"],
+      roles: ["admin", "department_principal", "teacher"],
     },
     {
       path: "/portal/revision",
       icon: HiOutlineClipboardList,
       label: "Revision Plans",
-      roles: ["student", "teacher", "admin"],
+      roles: ["student", "teacher", "admin", "department_principal"],
     },
     {
       path: "/portal/notifications",
