@@ -24,16 +24,16 @@ router.use(protect);
 
 // CRUD routes
 router.route('/')
-    .get(authorize('admin', 'teacher'), getStudents)
+    .get(authorize('admin', 'department_principal', 'teacher'), getStudents)
     .post(authorize('admin'), validationRules.createStudent, validate, createStudent);
 
 // Additional routes (before /:id to avoid param conflicts)
 router.post('/import', authorize('admin'), importStudents);
 router.post('/bulk-create-login', authorize('admin'), bulkCreateStudentLogin);
-router.get('/class/:classId', authorize('admin', 'teacher'), getStudentsByClass);
+router.get('/class/:classId', authorize('admin', 'department_principal', 'teacher'), getStudentsByClass);
 
 router.route('/:id')
-    .get(authorize('admin', 'teacher'), validationRules.mongoId, validate, getStudent)
+    .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getStudent)
     .put(authorize('admin'), validationRules.mongoId, validate, updateStudent)
     .delete(authorize('admin'), validationRules.mongoId, validate, deleteStudent);
 router.post('/bulk-enroll', authorize('admin'), bulkEnrollStudents);

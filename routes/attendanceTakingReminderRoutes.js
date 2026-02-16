@@ -24,7 +24,7 @@ router.post('/run', (req, res, next) => {
     next();
 }, runReminderJob);
 
-/** List reminders (with optional filters). Admin only, school-scoped. */
-router.get('/', authorize('admin', 'super_admin'), requireSchoolContext, getReminders);
+/** List reminders (with optional filters). Admin/Department Principal, school-scoped. */
+router.get('/', authorize('admin', 'super_admin', 'department_principal'), requireSchoolContext, getReminders);
 
 export default router;

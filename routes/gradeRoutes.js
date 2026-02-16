@@ -28,16 +28,16 @@ router.use(protect);
 router.get('/dashboard/stats', getDashboardStats);
 
 // Add grades
-router.post('/daily', authorize('teacher', 'admin'), validationRules.createGrade, validate, addDailyGrade);
-router.post('/bulk', authorize('teacher', 'admin'), bulkAddGrades);
-router.post('/exam', authorize('teacher', 'admin'), addExamGrade);
+router.post('/daily', authorize('teacher', 'admin', 'department_principal'), validationRules.createGrade, validate, addDailyGrade);
+router.post('/bulk', authorize('teacher', 'admin', 'department_principal'), bulkAddGrades);
+router.post('/exam', authorize('teacher', 'admin', 'department_principal'), addExamGrade);
 
 // Get grades
 router.get('/my-grades', authorize('student'), getMyGrades);
 router.get('/student/:studentId', getStudentGrades);
 router.get('/report/:studentId', getStudentGradeReport);
-router.get('/class/:classId', authorize('teacher', 'admin'), getClassGrades);
-router.get('/gradebook/:classId', authorize('teacher', 'admin'), getGradebookGrades);
+router.get('/class/:classId', authorize('teacher', 'admin', 'department_principal'), getClassGrades);
+router.get('/gradebook/:classId', authorize('teacher', 'admin', 'department_principal'), getGradebookGrades);
 
 // Averages
 router.get('/average/monthly/:studentId', getMonthlyAverage);
@@ -49,7 +49,7 @@ router.get('/stats/class/:classId', getClassStatistics);
 
 // Update/Delete
 router.route('/:id')
-    .put(authorize('teacher', 'admin'), validationRules.mongoId, validate, updateGrade)
-    .delete(authorize('teacher', 'admin'), validationRules.mongoId, validate, deleteGrade);
+    .put(authorize('teacher', 'admin', 'department_principal'), validationRules.mongoId, validate, updateGrade)
+    .delete(authorize('teacher', 'admin', 'department_principal'), validationRules.mongoId, validate, deleteGrade);
 
 export default router;
