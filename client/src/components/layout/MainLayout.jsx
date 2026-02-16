@@ -27,6 +27,7 @@ const MainLayout = () => {
 
     return (
         <div className={`main-layout ${sidebarOpen && isDesktop ? '' : 'sidebar-collapsed'}`}>
+            <a href="#main-content" className="skip-link">Skip to main content</a>
             {/* Desktop: Persistent sidebar */}
             {isDesktop && <Sidebar />}
             
@@ -56,7 +57,7 @@ const MainLayout = () => {
 
             <div className="main-content">
                 <Header />
-                <main className="page-content">
+                <main id="main-content" className="page-content">
                     <Outlet />
                 </main>
             </div>

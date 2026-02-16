@@ -27,7 +27,7 @@ The GradeBook Pro client is built with React, MUI (Material UI), and a custom de
 | Priority | Improvement | Details |
 |----------|-------------|---------|
 | High | **Unify button usage** | Standardize on one approach (MUI Button or shared `Button` component). Audit all pages for `.btn`, `Button`, and raw `<button>` usage. |
-| Medium | **Document design tokens** | Create `client/docs/DESIGN_TOKENS.md` listing all CSS vars and when to use them (e.g. `--primary-500` vs `--accent-purple`). |
+| Medium | **Document design tokens** | Create `client/docs/DESIGN_TOKENS.md` listing all CSS vars and when to use them (e.g. `--primary-500` vs `--accent-purple`). ✅ *Applied* |
 | Medium | **Component inventory** | Build a simple storybook or doc page showing all shared components (EmptyState, ErrorBanner, LoadingSpinner, Button variants) with usage examples. |
 | Low | **Icon consistency** | Standardize on `react-icons/hi` (Heroicons outline); avoid mixing icon sets. |
 
@@ -55,7 +55,7 @@ The GradeBook Pro client is built with React, MUI (Material UI), and a custom de
 | High | **Breadcrumbs** | Add breadcrumbs for deep pages (e.g. Students → Student Detail → Grades). Improves orientation in admin and teacher flows. |
 | Medium | **Sticky header** | Ensure header stays visible on scroll for long pages (gradebook, student list). |
 | Medium | **Nav item active state** | Verify `NavLink` active styling is clear across themes; consider subtle background + left border. |
-| Low | **Keyboard nav** | Ensure sidebar and header can be navigated with Tab; add skip-to-content link for screen readers. |
+| Low | **Keyboard nav** | Ensure sidebar and header can be navigated with Tab; add skip-to-content link for screen readers. ✅ *Skip link applied* |
 
 ---
 
@@ -142,11 +142,11 @@ The GradeBook Pro client is built with React, MUI (Material UI), and a custom de
 
 | Priority | Improvement | Details |
 |----------|-------------|---------|
-| High | **Focus visible** | Add `:focus-visible` styles to interactive elements; ensure sufficient contrast. Button component has `focus-visible` – extend to custom buttons. |
+| High | **Focus visible** | Add `:focus-visible` styles to interactive elements; ensure sufficient contrast. Button component has `focus-visible` – extend to custom buttons. ✅ *Applied: index.css* |
 | High | **Form labels** | Ensure all inputs have associated `<label htmlFor="...">` or `aria-label`; required fields use `aria-required`. |
 | Medium | **Live regions** | Use `aria-live="polite"` for toast notifications and dynamic success messages. |
 | Medium | **Modal traps** | Trap focus inside modals; return focus to trigger on close. |
-| Medium | **Skip link** | Add “Skip to main content” link at top of page for keyboard users. |
+| Medium | **Skip link** | Add “Skip to main content” link at top of page for keyboard users. ✅ *Applied* |
 | Low | **Color contrast audit** | Run axe or similar on key pages; fix any WCAG AA failures. |
 | Low | **Reduced motion** | Respect `prefers-reduced-motion` for animations (spinners, transitions). |
 
@@ -210,11 +210,11 @@ The GradeBook Pro client is built with React, MUI (Material UI), and a custom de
 
 ## 10. Quick Wins (Low Effort)
 
-1. **Add skip-to-content link** – One line in layout; improves keyboard a11y.
+1. **Add skip-to-content link** – One line in layout; improves keyboard a11y. ✅ *Applied*
 2. **Disable submit on invalid form** – Add `disabled={!isValid}` where appropriate.
 3. **Autofocus first modal input** – `autoFocus` on first field when modal opens.
-4. **Standardize toast duration** – e.g. success 3s, error 5s.
-5. **Add `aria-label` to icon-only buttons** – Theme toggle, sidebar toggle, etc.
+4. **Standardize toast duration** – e.g. success 3s, error 5s. ✅ *Applied*
+5. **Add `aria-label` to icon-only buttons** – Theme toggle, sidebar toggle, etc. ✅ *Already present*
 6. **Consistent loading message** – Use “Loading…” or page-specific “Loading students…” everywhere.
 7. **Empty state hints** – Ensure all EmptyState usages have actionable hints where possible.
 8. **Button loading state** – Create `Button` variant or prop for `loading` that shows spinner + disabled.

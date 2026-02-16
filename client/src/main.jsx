@@ -23,12 +23,14 @@ createRoot(document.getElementById('root')).render(
               borderRadius: 'var(--radius-md)',
             },
             success: {
+              duration: 3000,
               iconTheme: {
                 primary: 'var(--accent-emerald)',
                 secondary: 'white',
               },
             },
             error: {
+              duration: 5000,
               iconTheme: {
                 primary: 'var(--accent-red)',
                 secondary: 'white',
