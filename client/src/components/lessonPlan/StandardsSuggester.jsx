@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { HiOutlineAcademicCap, HiOutlineSearch } from 'react-icons/hi';
 import { detectStandards } from '../../store/slices/lessonSlice';
@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 /**
  * UI for detecting and selecting curriculum standards aligned with lesson content.
  * Shows detected standards with checkboxes; selected IDs are passed up via onSelectionChange.
+ * initialSuggestions: standards from "Generate from title" (displays them without extra API call).
  */
 const StandardsSuggester = ({
     subjectId,
@@ -15,10 +16,17 @@ const StandardsSuggester = ({
     selectedStandardIds = [],
     onSelectionChange,
     disabled = false,
+    initialSuggestions = [],
 }) => {
     const dispatch = useDispatch();
     const [loading, setLoading] = useState(false);
     const [suggestions, setSuggestions] = useState([]);
+
+    useEffect(() => {
+        if (Array.isArray(initialSuggestions) && initialSuggestions.length > 0) {
+            setSuggestions(initialSuggestions);
+        }
+    }, [initialSuggestions]);
 
     const handleDetect = async () => {
         if (!subjectId || !classId) {

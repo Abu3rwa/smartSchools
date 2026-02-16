@@ -86,6 +86,7 @@ const LessonPlanPage = () => {
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState(getInitialFormData());
     const [generatingSection, setGeneratingSection] = useState(false);
+    const [generatedStandards, setGeneratedStandards] = useState([]);
 
     useEffect(() => {
         dispatch(fetchClasses({ academicYear }));
@@ -96,6 +97,7 @@ const LessonPlanPage = () => {
     const openCreate = () => {
         setEditingId(null);
         setFormData(getInitialFormData());
+        setGeneratedStandards([]);
         setShowModal(true);
     };
 
@@ -109,6 +111,7 @@ const LessonPlanPage = () => {
         setShowModal(false);
         setEditingId(null);
         setFormData(getInitialFormData());
+        setGeneratedStandards([]);
     };
 
     const handleStageChange = (index, field, value) => {
@@ -132,13 +135,31 @@ const LessonPlanPage = () => {
         setGeneratingSection(false);
         if (generateSection.fulfilled.match(result)) {
             const g = result.payload?.generated || {};
-            setFormData(prev => ({
+            const standards = result.payload?.standards || [];
+            const standardIds = standards.map((s) => s.standardId).filter(Boolean);
+            const generatedStages =
+                Array.isArray(g.stages) && g.stages.length > 0
+                    ? g.stages.map((s) => ({
+                          name: s.name || '',
+                          procedure: s.procedure || '',
+                          materials: s.materials || '',
+                          timing: s.timing || ''
+                      }))
+                    : null;
+            setFormData((prev) => ({
                 ...prev,
                 summary: prev.summary || g.summary || '',
                 description: prev.description || g.description || '',
                 teachingObjectives: prev.teachingObjectives || g.teachingObjectives || '',
-                vocabulary: prev.vocabulary || g.vocabulary || ''
+                vocabulary: prev.vocabulary || g.vocabulary || '',
+                homework: prev.homework || g.homework || '',
+                previousKnowledge: prev.previousKnowledge || g.previousKnowledge || '',
+                characterTraitLinks: prev.characterTraitLinks || g.characterTraitLinks || '',
+                techIntegration: prev.techIntegration || g.techIntegration || '',
+                standardIds: standardIds.length > 0 ? standardIds : prev.standardIds,
+                stages: generatedStages || prev.stages
             }));
+            setGeneratedStandards(standards);
             toast.success('Sections generated');
         } else {
             toast.error(result.payload || 'Generation failed');
@@ -458,6 +479,7 @@ const LessonPlanPage = () => {
                                     lessonText={`${formData.title || ''}\n${formData.summary || ''}\n${formData.description || ''}\n${formData.teachingObjectives || ''}`}
                                     selectedStandardIds={formData.standardIds}
                                     onSelectionChange={(ids) => setFormData({ ...formData, standardIds: ids })}
+                                    initialSuggestions={generatedStandards}
                                 />
 
                                 <div className="form-group form-group-with-suggest">

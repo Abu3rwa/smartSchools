@@ -213,34 +213,65 @@ Output ONLY a valid JSON array. No markdown, no code fences, no extra text:
   };
 }
 
+const DEFAULT_STAGE_NAMES = [
+  "Warm Up",
+  "Presentation of Content",
+  "Guided Practice",
+  "Individual Practice",
+  "Homework/Take Home Material",
+];
+
 /**
  * Generate multiple lesson plan sections from minimal input (title + context)
+ * Includes all text fields, stages (procedure, materials, timing), and optionally standards.
  * @param {Object} options
  * @param {string} options.title - Lesson title
  * @param {Object} options.context - { subjectName, gradeLevel }
- * @param {string[]} options.sourceFields - Fields to generate: summary, description, teachingObjectives, vocabulary
+ * @param {string[]} options.sourceFields - Fields to generate (expanded list)
  */
 export async function generateSection({
   title,
   context = {},
-  sourceFields = ["summary", "description", "teachingObjectives", "vocabulary"],
+  sourceFields = [
+    "summary",
+    "description",
+    "teachingObjectives",
+    "vocabulary",
+    "homework",
+    "previousKnowledge",
+    "characterTraitLinks",
+    "techIntegration",
+  ],
 }) {
   const { subjectName = "", gradeLevel = "" } = context;
 
-  const prompt = `You are an experienced teacher. Generate lesson plan sections from the minimal input below.
+  const prompt = `You are an experienced teacher. Generate a complete lesson plan from the minimal input below.
 
 INPUT:
 - Subject: ${subjectName}
 - Grade: ${gradeLevel}
 - Title: ${title || "Untitled lesson"}
 
-Generate the following fields. Use age-appropriate language and pedagogical best practices.
+Generate ALL of the following. Use age-appropriate language and pedagogical best practices.
+For stages, include realistic timing (e.g. "5 min", "10 min", "15 min") so the total fits a typical class period.
 Output ONLY valid JSON. No markdown, no code fences, no extra text:
+
 {
-  "summary": "...",
-  "description": "...",
-  "teachingObjectives": "...",
-  "vocabulary": "..."
+  "summary": "2-3 sentence summary suitable for parents",
+  "description": "Detailed lesson description with key activities",
+  "teachingObjectives": "3-5 SMART learning objectives",
+  "vocabulary": "5-8 key terms, comma-separated",
+  "homework": "Homework or take-home material aligned with the lesson",
+  "previousKnowledge": "Prerequisites or prior knowledge students need",
+  "characterTraitLinks": "Soft skills or character traits this lesson develops",
+  "techIntegration": "Age-appropriate technology integration ideas",
+  "stages": [
+    { "name": "Warm Up", "procedure": "step-by-step instructions", "materials": "materials needed", "timing": "5 min" },
+    { "name": "Presentation of Content", "procedure": "...", "materials": "...", "timing": "15 min" },
+    { "name": "Guided Practice", "procedure": "...", "materials": "...", "timing": "15 min" },
+    { "name": "Individual Practice", "procedure": "...", "materials": "...", "timing": "10 min" },
+    { "name": "Homework/Take Home Material", "procedure": "...", "materials": "...", "timing": "5 min" }
+  ]
 }`;
 
   const response = await connectAi(prompt);
@@ -272,6 +303,16 @@ Output ONLY valid JSON. No markdown, no code fences, no extra text:
     if (typeof parsed[key] === "string") {
       generated[key] = parsed[key].trim();
     }
+  }
+
+  // Parse stages with procedure, materials, timing
+  if (Array.isArray(parsed.stages) && parsed.stages.length > 0) {
+    generated.stages = parsed.stages.slice(0, 10).map((s, i) => ({
+      name: (s.name || DEFAULT_STAGE_NAMES[i] || `Stage ${i + 1}`).trim(),
+      procedure: (s.procedure || "").trim(),
+      materials: (s.materials || "").trim(),
+      timing: (s.timing || "").trim(),
+    }));
   }
 
   return {

@@ -351,12 +351,55 @@ export const generateSection = asyncHandler(async (req, res) => {
     const result = await lessonPlanAIService.generateSection({
         title: title || '',
         context: { subjectName: subj.name || '', gradeLevel: cls.grade ?? '' },
-        sourceFields: Array.isArray(sourceFields)
-            ? sourceFields
-            : ['summary', 'description', 'teachingObjectives', 'vocabulary']
+        sourceFields: Array.isArray(sourceFields) ? sourceFields : undefined
     });
 
-    if (schoolId && userId) {
+    let standards = [];
+    const generated = result.generated || {};
+    const lessonText = [
+        title || '',
+        generated.summary || '',
+        generated.description || '',
+        generated.teachingObjectives || ''
+    ].filter(Boolean).join('\n\n');
+
+    if (lessonText.trim()) {
+        const gradeLevel = cls.grade ?? 1;
+        const standardsList = await Standard.find({
+            school: schoolId,
+            subject: subjectId,
+            gradeLevel,
+            isActive: true
+        })
+            .lean()
+            .limit(50);
+
+        if (standardsList.length > 0) {
+            const detectResult = await lessonPlanAIService.detectStandardsFromContent({
+                schoolId,
+                subjectId,
+                gradeLevel,
+                lessonText,
+                standards: standardsList
+            });
+            standards = detectResult.standards || [];
+            if (detectResult.tokenUsage?.total > 0 && schoolId && userId) {
+                await AITokenUsage.create({
+                    model: MODEL_NAME,
+                    feature: 'lesson_plan_detect_standards',
+                    school: schoolId,
+                    user: userId,
+                    inputTokens: detectResult.tokenUsage.input,
+                    outputTokens: detectResult.tokenUsage.output,
+                    totalTokens: detectResult.tokenUsage.total,
+                    schoolId: schoolId.toString(),
+                    metadata: { subjectId, classId, fromGenerate: true }
+                });
+            }
+        }
+    }
+
+    if (schoolId && userId && result.tokenUsage?.total > 0) {
         await AITokenUsage.create({
             model: MODEL_NAME,
             feature: 'lesson_plan_generate_section',
@@ -372,7 +415,11 @@ export const generateSection = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { generated: result.generated, tokenUsage: result.tokenUsage }
+        data: {
+            generated: result.generated,
+            standards,
+            tokenUsage: result.tokenUsage
+        }
     });
 });
 
