@@ -160,7 +160,7 @@ const TeacherNewslettersPage = () => {
 
           <div className="tn-actions">
             <button className="tn-btn primary" onClick={onGenerate} disabled={teacherNewsletter.generating}>
-              {teacherNewsletter.generating ? 'Generating...' : 'Generate with AI'}
+              {teacherNewsletter.generating ? 'Generating...' : 'Generate '}
             </button>
             <button className="tn-btn" onClick={onSubmit} disabled={teacherNewsletter.submitting || mySection?.status !== 'draft'}>
               {teacherNewsletter.submitting ? 'Submitting...' : 'Submit to Admin'}

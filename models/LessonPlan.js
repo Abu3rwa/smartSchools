@@ -80,12 +80,103 @@ const lessonPlanSchema = new mongoose.Schema(
         ref: "Standard",
       },
     ],
+    // Additional fields for AI evaluation
+    weekNumber: {
+      type: Number,
+      min: 1,
+      max: 52
+    },
+    topic: {
+      type: String,
+      trim: true,
+      maxlength: 200
+    },
+    learningObjectives: {
+      type: String,
+      trim: true
+    },
+    activities: {
+      type: String,
+      trim: true
+    },
+    assessmentMethods: {
+      type: String,
+      trim: true
+    },
+    resources: {
+      type: String,
+      trim: true
+    },
+    differentiation: {
+      type: String,
+      trim: true
+    },
+    notes: {
+      type: String,
+      trim: true
+    },
+    // Status tracking
+    status: {
+      type: String,
+      enum: ['draft', 'submitted', 'approved', 'needs_revision', 'rejected'],
+      default: 'draft',
+      index: true
+    },
+    submittedAt: {
+      type: Date
+    },
+    evaluatedAt: {
+      type: Date
+    },
+    // AI Evaluation results
+    aiEvaluation: {
+      overallScore: {
+        type: Number,
+        min: 0,
+        max: 100
+      },
+      criteriaScores: [{
+        criteriaId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'LessonPlanCriteria'
+        },
+        criteriaName: String,
+        score: {
+          type: Number,
+          min: 0,
+          max: 100
+        },
+        feedback: String,
+        metMinimum: Boolean
+      }],
+      strengths: [String],
+      areasForImprovement: [String],
+      recommendations: [String],
+      meetsMinimumRequirements: Boolean,
+      evaluatedBy: {
+        type: String,
+        default: 'AI'
+      },
+      evaluatedAt: Date
+    },
+    // Human review (optional)
+    humanReview: {
+      reviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      reviewedAt: Date,
+      comments: String,
+      finalStatus: String
+    }
   },
   { timestamps: true },
 );
 
 lessonPlanSchema.index({ school: 1, date: -1 });
 lessonPlanSchema.index({ school: 1, class: 1, subject: 1 });
+lessonPlanSchema.index({ school: 1, teacher: 1, status: 1 });
+lessonPlanSchema.index({ school: 1, status: 1, submittedAt: -1 });
 lessonPlanSchema.plugin(tenantIsolationPlugin);
 
 const LessonPlan = mongoose.model("LessonPlan", lessonPlanSchema);

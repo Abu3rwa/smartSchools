@@ -7,6 +7,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
+import compression from "compression";
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
@@ -36,6 +37,7 @@ import landingRoutes from "./routes/landingRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import subscriptionRoutes from "./routes/subscriptionRoutes.js";
 import behaviorRoutes from "./routes/behaviorRoutes.js";
+import studentBehaviorRoutes from "./routes/studentBehaviorRoutes.js";
 import scheduleRoutes from "./routes/scheduleRoutes.js";
 import scheduleRoutesEnhanced from "./routes/scheduleRoutesEnhanced.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
@@ -55,6 +57,8 @@ import departmentRoutes from "./routes/departmentRoutes.js";
 import attendanceRequestTypeRoutes from "./routes/attendanceRequestTypeRoutes.js";
 import attendanceRequestRoutes from "./routes/attendanceRequestRoutes.js";
 import substitutionRoutes from "./routes/substitutionRoutes.js";
+import lessonPlanCriteriaRoutes from "./routes/lessonPlanCriteriaRoutes.js";
+import apiDocsRoutes from "./routes/apiDocsRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 
@@ -86,6 +90,16 @@ app.use(
   }),
 );
 
+// HTTPS enforcement in production (Heroku)
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
+
 // Security middleware
 app.use(
   helmet({
@@ -96,6 +110,9 @@ app.use(
 );
 app.use(mongoSanitize());
 app.use(hpp());
+
+// Compression middleware for gzip responses
+app.use(compression());
 
 // Rate limiting
 const authLimiter = rateLimit({
@@ -194,11 +211,13 @@ app.use("/api/reports", advancedReportRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/behavior", behaviorRoutes);
+app.use("/api/student-behavior", studentBehaviorRoutes);
 app.use("/api/schedules", scheduleRoutes);
 app.use("/api/schedules-enhanced", scheduleRoutesEnhanced);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/attendance-taking-reminders", attendanceTakingReminderRoutes);
 app.use("/api/lessons", lessonPlanRoutes);
+app.use("/api/lesson-plan-criteria", lessonPlanCriteriaRoutes);
 app.use("/api/school-calendar", schoolCalendarRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use("/api/rooms", roomRoutes);
@@ -209,6 +228,7 @@ app.use("/api/practice", practiceRoutes);
 app.use("/api/revision", revisionRoutes);
 app.use("/api/reading", readingRoutes);
 app.use("/api/substitutions", substitutionRoutes);
+app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);
 
@@ -244,7 +264,7 @@ const PORT = process.env.PORT || 5000;
 const REMINDER_JOB_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`);
   if (process.env.RUN_ATTENDANCE_REMINDER_JOB !== "false") {
     // Run once on startup (after 1 min), then every 15 min
@@ -295,6 +315,50 @@ app.listen(PORT, () => {
       }
     }, NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS);
   }
+});
+
+// Graceful shutdown handling
+const gracefulShutdown = async (signal) => {
+  logger.info(`${signal} received. Starting graceful shutdown...`);
+  
+  try {
+    // Stop accepting new requests
+    if (server) {
+      await new Promise((resolve) => {
+        server.close(() => {
+          logger.info('HTTP server closed');
+          resolve();
+        });
+      });
+    }
+
+    // Close database connection
+    const mongoose = (await import('mongoose')).default;
+    await mongoose.connection.close();
+    logger.info('MongoDB connection closed');
+
+    logger.info('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  gracefulShutdown('UNCAUGHT_EXCEPTION');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  gracefulShutdown('UNHANDLED_REJECTION');
 });
 
 export default app;

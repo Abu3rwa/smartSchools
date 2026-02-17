@@ -2,6 +2,7 @@ import gmailOAuthService from './gmailOAuthService.js';
 import { EmailReport } from '../models/EmailReport.js';
 import { AITokenUsage } from '../models/AITokenUsage.js';
 import Notification from '../models/Notification.js';
+import xss from 'xss';
 
 /**
  * Sanitize email subject to plain ASCII (remove emojis and special characters)
@@ -47,7 +48,29 @@ const normalizeAiHtml = (content, language) => {
         html = `<div>${html}</div>`;
     }
 
-    return `<div dir="${direction}">${html.replace(/^<div[\s>]/i, '').replace(/<\/div>\s*$/i, '')}</div>`;
+    // Sanitize HTML to prevent XSS attacks
+    const sanitizedHtml = xss(html, {
+        whiteList: {
+            div: ['dir', 'style'],
+            p: ['style'],
+            strong: [],
+            b: [],
+            em: [],
+            i: [],
+            u: [],
+            br: [],
+            h1: [],
+            h2: [],
+            h3: [],
+            h4: [],
+            ul: [],
+            ol: [],
+            li: [],
+            span: ['style']
+        }
+    });
+
+    return `<div dir="${direction}">${sanitizedHtml.replace(/^<div[\s>]/i, '').replace(/<\/div>\s*$/i, '')}</div>`;
 };
 
 class EmailService {
@@ -377,20 +400,11 @@ class EmailService {
         </head>
         <body dir="${direction}">
             <div class="container">
-                <div class="header">
-                    <h2 style="margin: 0; color: #007bff;">
-                        ${language === 'arabic' ? 'تقرير التقدم' : 'Student Progress Report'}
-                    </h2>
-                </div>
-                
                 <div class="content">
                     ${normalizedContent}
                 </div>
 
-                <div class="footer">
-                    <p>${language === 'arabic' ? 'هذا تقرير تلقائي تم إنشاؤه بواسطة نظام إدارة المدارس' : 'This is an auto-generated report from the School Management System'}</p>
-                    <p>${language === 'arabic' ? 'إذا كانت لديك أي أسئلة، يرجى التواصل مع المدرسة' : 'If you have any questions, please contact the school'}</p>
-                </div>
+                
             </div>
         </body>
         </html>
@@ -529,6 +543,168 @@ class EmailService {
             return { success: false, message: error.message };
         }
     }
+
+    /**
+     * Send lesson plan feedback email to teacher
+     * @param {Object} lessonPlan - Lesson plan document
+     * @param {Object} teacher - Teacher information
+     */
+    async sendLessonPlanFeedback(lessonPlan, teacher) {
+        if (!teacher?.email) {
+            console.error('No teacher email provided for lesson plan feedback');
+            return { success: false, message: 'No teacher email provided' };
+        }
+
+        try {
+            const subject = `Lesson Plan Feedback Required - ${lessonPlan.topic || lessonPlan.title}`;
+            const htmlContent = this.formatLessonPlanFeedbackEmail(lessonPlan);
+
+            const emailData = {
+                to: teacher.email,
+                subject: sanitizeSubject(subject),
+                html: htmlContent
+            };
+
+            const result = await this.gmailService.sendEmail(emailData);
+
+            await Notification.create({
+                school: lessonPlan.school,
+                user: teacher._id,
+                type: 'lesson_plan_feedback',
+                title: 'Lesson Plan Requires Revision',
+                message: `Your lesson plan "${lessonPlan.topic || lessonPlan.title}" needs revision based on AI evaluation.`,
+                metadata: {
+                    lessonPlanId: lessonPlan._id.toString(),
+                    overallScore: lessonPlan.aiEvaluation?.overallScore,
+                    meetsRequirements: lessonPlan.aiEvaluation?.meetsMinimumRequirements
+                },
+                emailSent: result.success,
+                emailSentAt: result.success ? new Date() : null,
+                emailError: result.success ? null : result.error
+            });
+
+            return result;
+        } catch (error) {
+            console.error('Error sending lesson plan feedback email:', error);
+            
+            await Notification.create({
+                school: lessonPlan.school,
+                user: teacher._id,
+                type: 'lesson_plan_feedback',
+                title: 'Lesson Plan Requires Revision',
+                message: `Your lesson plan "${lessonPlan.topic || lessonPlan.title}" needs revision based on AI evaluation.`,
+                metadata: {
+                    lessonPlanId: lessonPlan._id.toString(),
+                    overallScore: lessonPlan.aiEvaluation?.overallScore,
+                    meetsRequirements: lessonPlan.aiEvaluation?.meetsMinimumRequirements
+                },
+                emailSent: false,
+                emailError: error.message
+            });
+
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Format lesson plan feedback email content
+     * @param {Object} lessonPlan - Lesson plan document
+     */
+    formatLessonPlanFeedbackEmail(lessonPlan) {
+        const evaluation = lessonPlan.aiEvaluation || {};
+        const failedCriteria = (evaluation.criteriaScores || []).filter(c => !c.metMinimum);
+        
+        const failedCriteriaRows = failedCriteria.map(c => `
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px;"><strong>${c.criteriaName}</strong></td>
+                <td style="padding: 10px;">${c.score}/100</td>
+            </tr>
+            <tr>
+                <td colspan="2" style="padding: 10px; background: #fff3e0;">
+                    ${c.feedback}
+                </td>
+            </tr>
+        `).join('');
+
+        const strengthsList = (evaluation.strengths || []).map(s => `<li>${s}</li>`).join('');
+        const improvementsList = (evaluation.areasForImprovement || []).map(a => `<li>${a}</li>`).join('');
+        const recommendationsList = (evaluation.recommendations || []).map(r => `<li>${r}</li>`).join('');
+
+        return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px;">
+        <h2 style="color: #d32f2f; margin-top: 0;">Lesson Plan Requires Revision</h2>
+        
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Topic:</strong> ${lessonPlan.topic || lessonPlan.title || 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Class:</strong> ${lessonPlan.class?.name || 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Subject:</strong> ${lessonPlan.subject?.name || 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Date:</strong> ${lessonPlan.date ? new Date(lessonPlan.date).toLocaleDateString() : 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Overall Score:</strong> <span style="color: #d32f2f; font-weight: bold;">${evaluation.overallScore || 0}/100</span></p>
+        </div>
+
+        <h3 style="color: #1976d2;">Evaluation Summary</h3>
+        
+        ${failedCriteria.length > 0 ? `
+        <div style="margin: 20px 0;">
+            <h4 style="color: #d32f2f;">Criteria Not Meeting Requirements:</h4>
+            <table style="width: 100%; border-collapse: collapse;">
+                ${failedCriteriaRows}
+            </table>
+        </div>
+        ` : ''}
+
+        ${strengthsList ? `
+        <div style="margin: 20px 0;">
+            <h4 style="color: #388e3c;">Strengths:</h4>
+            <ul style="line-height: 1.6;">
+                ${strengthsList}
+            </ul>
+        </div>
+        ` : ''}
+
+        ${improvementsList ? `
+        <div style="margin: 20px 0;">
+            <h4 style="color: #f57c00;">Areas for Improvement:</h4>
+            <ul style="line-height: 1.6;">
+                ${improvementsList}
+            </ul>
+        </div>
+        ` : ''}
+
+        ${recommendationsList ? `
+        <div style="margin: 20px 0;">
+            <h4 style="color: #1976d2;">Recommendations:</h4>
+            <ul style="line-height: 1.6;">
+                ${recommendationsList}
+            </ul>
+        </div>
+        ` : ''}
+
+        <div style="text-align: center; margin: 30px 0;">
+            <p style="margin-bottom: 15px;">Please revise your lesson plan based on the feedback above and resubmit.</p>
+        </div>
+
+        <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 15px;">
+            This evaluation was generated by AI based on your school's lesson plan criteria. 
+            If you have questions, please contact your department head or academic coordinator.
+        </p>
+    </div>
+</body>
+</html>
+        `.trim();
+    }
 }
 
-export default new EmailService();
+const emailServiceInstance = new EmailService();
+
+export const sendLessonPlanFeedback = (lessonPlan, teacher) => 
+    emailServiceInstance.sendLessonPlanFeedback(lessonPlan, teacher);
+
+export default emailServiceInstance;

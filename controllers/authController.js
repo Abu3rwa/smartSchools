@@ -132,9 +132,12 @@ export const login = asyncHandler(async (req, res) => {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 fullName: user.fullName,
+                title: user.title,
                 role: user.role,
                 school: user.school,
-                lastLogin: user.lastLogin
+                lastLogin: user.lastLogin,
+                permissions: user.permissions || [],
+                permissionScopes: user.permissionScopes || {}
             },
             teacherProfile,
             token
@@ -169,12 +172,15 @@ export const getMe = asyncHandler(async (req, res) => {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 fullName: user.fullName,
+                title: user.title,
                 role: user.role,
                 school: user.school,
                 department: user.department,
                 phone: user.phone,
                 avatar: user.avatar,
-                lastLogin: user.lastLogin
+                lastLogin: user.lastLogin,
+                permissions: user.permissions || [],
+                permissionScopes: user.permissionScopes || {}
             },
             profile
         }
@@ -215,12 +221,20 @@ export const updateProfile = asyncHandler(async (req, res) => {
 export const changePassword = asyncHandler(async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
+    // Get user with password
     const user = await User.findById(req.user._id).select('+password');
 
-    // Check current password
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    // Verify current password
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
-        return res.status(401).json({
+        return res.status(400).json({
             success: false,
             message: 'Current password is incorrect'
         });
@@ -232,9 +246,152 @@ export const changePassword = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        message: 'Password changed successfully'
+        message: 'Password updated successfully'
     });
 });
+
+/**
+ * @desc    Send password reset email
+ * @route   POST /api/auth/forgot-password
+ * @access  Public
+ */
+export const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({
+            success: false,
+            message: 'Email is required'
+        });
+    }
+
+    // Find user by email (skip tenant filter for password reset)
+    const user = await User.findOne({ email }).setOptions({ skipTenantFilter: true });
+
+    if (!user) {
+        // Don't reveal if email exists or not for security
+        return res.json({
+            success: true,
+            message: 'If an account with that email exists, a password reset link has been sent.'
+        });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+    user.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    await user.save({ validateBeforeSave: false });
+
+    // Create reset URL
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
+
+    try {
+        // Send email (you'll need to implement email service)
+        await sendPasswordResetEmail(user.email, resetUrl);
+
+        res.json({
+            success: true,
+            message: 'Password reset link sent to your email'
+        });
+    } catch (error) {
+        console.error('Password reset email error:', error);
+        
+        // Clear reset token on error
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+        await user.save({ validateBeforeSave: false });
+
+        res.status(500).json({
+            success: false,
+            message: 'Error sending password reset email'
+        });
+    }
+});
+
+/**
+ * @desc    Reset password with token
+ * @route   POST /api/auth/reset-password
+ * @access  Public
+ */
+export const resetPassword = asyncHandler(async (req, res) => {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+        return res.status(400).json({
+            success: false,
+            message: 'Token and password are required'
+        });
+    }
+
+    // Hash token and find user
+    const hashedToken = crypto
+        .createHash('sha256')
+        .update(token)
+        .digest('hex');
+
+    const user = await User.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: Date.now() }
+    }).setOptions({ skipTenantFilter: true });
+
+    if (!user) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid or expired reset token'
+        });
+    }
+
+    // Set new password
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    res.json({
+        success: true,
+        message: 'Password reset successful'
+    });
+});
+
+/**
+ * @desc    Send password reset email
+ * @param   {string} email - User email
+ * @param   {string} resetUrl - Password reset URL
+ */
+const sendPasswordResetEmail = async (email, resetUrl) => {
+    // TODO: Implement email sending service
+    // For now, just log the reset URL
+    console.log(`Password reset link for ${email}: ${resetUrl}`);
+    
+    // You can integrate with:
+    // - Nodemailer with SMTP
+    // - SendGrid
+    // - AWS SES
+    // - Gmail API (if user has Gmail tokens)
+    
+    // Example with basic email structure:
+    const emailContent = {
+        to: email,
+        subject: 'Password Reset Request',
+        html: `
+            <h2>Password Reset Request</h2>
+            <p>You requested to reset your password. Click the link below to reset it:</p>
+            <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                Reset Password
+            </a>
+            <p>This link will expire in 10 minutes.</p>
+            <p>If you didn't request this, please ignore this email.</p>
+        `
+    };
+    
+    // For now, just return success
+    // In production, you would send this email using your email service
+    return emailContent;
+};
 
 /**
  * @desc    Logout user (client-side token removal)

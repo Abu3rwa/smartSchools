@@ -231,6 +231,41 @@
     width: 22px;
     height: 22px;
     display: block;
+    transition: color var(--transition-fast);
+}
+
+/* Icon colors for different navigation items */
+.nav-item[href*="dashboard"] .nav-icon { color: var(--icon-blue); }
+.nav-item[href*="classes"] .nav-icon { color: var(--icon-purple); }
+.nav-item[href*="students"] .nav-icon { color: var(--icon-green); }
+.nav-item[href*="schedule"] .nav-icon { color: var(--icon-cyan); }
+.nav-item[href*="timetable"] .nav-icon { color: var(--icon-indigo); }
+.nav-item[href*="attendance"] .nav-icon { color: var(--icon-teal); }
+.nav-item[href*="newsletters"] .nav-icon { color: var(--icon-amber); }
+.nav-item[href*="lessons"] .nav-icon { color: var(--icon-orange); }
+.nav-item[href*="grades"] .nav-icon { color: var(--icon-pink); }
+.nav-item[href*="gradebook"] .nav-icon { color: var(--icon-blue); }
+.nav-item[href*="standards"] .nav-icon { color: var(--icon-purple); }
+.nav-item[href*="behavior"] .nav-icon { color: var(--icon-red); }
+.nav-item[href*="substitutions"] .nav-icon { color: var(--icon-amber); }
+.nav-item[href*="teachers"] .nav-icon { color: var(--icon-indigo); }
+.nav-item[href*="school-settings"] .nav-icon { color: var(--icon-cyan); }
+.nav-item[href*="api-docs"] .nav-icon { color: var(--icon-teal); }
+.nav-item[href*="subjects"] .nav-icon { color: var(--icon-orange); }
+.nav-item[href*="reading"] .nav-icon { color: var(--icon-green); }
+.nav-item[href*="practice"] .nav-icon { color: var(--icon-amber); }
+.nav-item[href*="revision"] .nav-icon { color: var(--icon-purple); }
+.nav-item[href*="notifications"] .nav-icon { color: var(--icon-pink); }
+.nav-item[href*="settings"] .nav-icon { color: var(--icon-cyan); }
+
+/* Active state - icons become white/on-accent color */
+.nav-item.active .nav-icon {
+    color: var(--on-accent);
+}
+
+/* Hover state - brighten the icon slightly */
+.nav-item:hover .nav-icon {
+    filter: brightness(1.2);
 }
 
 .sidebar.collapsed .nav-item {

@@ -5,7 +5,8 @@ import {
     HiOutlinePlus,
     HiOutlineRefresh,
     HiOutlineTrash,
-    HiOutlineExclamation
+    HiOutlineExclamation,
+    HiOutlineOfficeBuilding
 } from 'react-icons/hi';
 import { fetchTeachers, selectTeachers } from '../../store/slices/teacherSlice';
 import { fetchClasses, selectClasses } from '../../store/slices/classSlice';
@@ -24,6 +25,16 @@ const dayLabels = [
     { value: 4, label: 'Thu' },
     { value: 5, label: 'Fri' },
     { value: 6, label: 'Sat' }
+];
+
+const ROOM_TYPES = [
+    { value: 'classroom', label: 'Classroom' },
+    { value: 'lab', label: 'Lab' },
+    { value: 'lecture_hall', label: 'Lecture hall' },
+    { value: 'gym', label: 'Gym' },
+    { value: 'library', label: 'Library' },
+    { value: 'office', label: 'Office' },
+    { value: 'other', label: 'Other' }
 ];
 
 const AdminTimetablePage = () => {
@@ -60,6 +71,10 @@ const AdminTimetablePage = () => {
         endDate: new Date(new Date(today).setMonth(today.getMonth() + 3)).toISOString().slice(0, 10),
         isActive: true
     });
+
+    const [showRoomModal, setShowRoomModal] = useState(false);
+    const [newRoom, setNewRoom] = useState({ name: '', type: 'classroom', capacity: 40 });
+    const [savingRoom, setSavingRoom] = useState(false);
 
     // Resolve the Teacher document _id from the selected User _id
     const selectedTeacherId = useMemo(() => {
@@ -251,6 +266,28 @@ const AdminTimetablePage = () => {
         });
     };
 
+    const handleCreateRoom = async (e) => {
+        e?.preventDefault();
+        if (!newRoom.name?.trim()) return;
+        try {
+            setSavingRoom(true);
+            setError(null);
+            await roomService.createRoom({
+                name: newRoom.name.trim(),
+                type: newRoom.type,
+                capacity: newRoom.capacity || 40
+            });
+            setShowRoomModal(false);
+            setNewRoom({ name: '', type: 'classroom', capacity: 40 });
+            const rRes = await roomService.getRooms();
+            setRooms(rRes?.data?.rooms || []);
+        } catch (err) {
+            setError(err?.response?.data?.message || err.message);
+        } finally {
+            setSavingRoom(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="admin-timetable-page">
@@ -411,17 +448,23 @@ const AdminTimetablePage = () => {
 
                         <div className="field">
                             <label>Room</label>
-                            <select value={newAssignment.room} onChange={(e) => setNewAssignment(prev => ({ ...prev, room: e.target.value }))}>
-                                <option value="">(Optional)</option>
-                                {rooms.map(room => {
-                                    const isOccupied = occupiedRoomIds.has(room._id);
-                                    return (
-                                        <option key={room._id} value={room._id} disabled={isOccupied}>
-                                            {room.name}{isOccupied ? ' (occupied)' : ''}
-                                        </option>
-                                    );
-                                })}
-                            </select>
+                            <div className="field-with-action">
+                                <select value={newAssignment.room} onChange={(e) => setNewAssignment(prev => ({ ...prev, room: e.target.value }))}>
+                                    <option value="">(Optional)</option>
+                                    {rooms.map(room => {
+                                        const isOccupied = occupiedRoomIds.has(room._id);
+                                        return (
+                                            <option key={room._id} value={room._id} disabled={isOccupied}>
+                                                {room.name}{isOccupied ? ' (occupied)' : ''}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowRoomModal(true)} title="Add room">
+                                    <HiOutlineOfficeBuilding size={18} />
+                                    Add room
+                                </button>
+                            </div>
                         </div>
 
                         <div className="field">
@@ -483,29 +526,93 @@ const AdminTimetablePage = () => {
                         {assignments.length === 0 ? (
                             <div className="empty">No assignments yet.</div>
                         ) : (
-                            assignments.map(a => (
-                                <div key={a._id} className="row">
-                                    <div className="cell name">
-                                        {a.teacher?.firstName} {a.teacher?.lastName}
-                                    </div>
-                                    <div className="cell">
-                                        {a.class?.name}
-                                    </div>
-                                    <div className="cell">
-                                        {a.period?.name}
-                                    </div>
-                                    <div className="cell muted">
-                                        {a.daysOfWeek?.join(',')}
-                                    </div>
-                                    <button className="icon-btn danger" onClick={() => deleteAssignment(a._id)} disabled={saving}>
-                                        <HiOutlineTrash size={18} />
-                                    </button>
+                            <>
+                                <div className="row header">
+                                    <div className="cell name">Teacher</div>
+                                    <div className="cell">Class</div>
+                                    <div className="cell">Period</div>
+                                    <div className="cell">Room</div>
+                                    <div className="cell muted">Days</div>
+                                    <div className="cell actions" />
                                 </div>
-                            ))
+                                {assignments.map(a => (
+                                    <div key={a._id} className="row">
+                                        <div className="cell name">
+                                            {a.teacher?.firstName} {a.teacher?.lastName}
+                                        </div>
+                                        <div className="cell">
+                                            {a.class?.name}
+                                        </div>
+                                        <div className="cell">
+                                            {a.period?.name}
+                                        </div>
+                                        <div className="cell">
+                                            {a.room?.name ?? '—'}
+                                        </div>
+                                        <div className="cell muted">
+                                            {a.daysOfWeek?.join(',')}
+                                        </div>
+                                        <button className="icon-btn danger" onClick={() => deleteAssignment(a._id)} disabled={saving}>
+                                            <HiOutlineTrash size={18} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </>
                         )}
                     </div>
                 </div>
             </div>
+
+            {showRoomModal && (
+                <div className="modal-overlay" onClick={() => !savingRoom && setShowRoomModal(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>Add room</h3>
+                            <button type="button" className="modal-close" onClick={() => !savingRoom && setShowRoomModal(false)} aria-label="Close">&times;</button>
+                        </div>
+                        <form onSubmit={handleCreateRoom}>
+                            <div className="modal-body">
+                                <div className="field">
+                                    <label>Name *</label>
+                                    <input
+                                        type="text"
+                                        value={newRoom.name}
+                                        onChange={(e) => setNewRoom(prev => ({ ...prev, name: e.target.value }))}
+                                        placeholder="e.g. Room 101"
+                                        required
+                                    />
+                                </div>
+                                <div className="field">
+                                    <label>Type</label>
+                                    <select value={newRoom.type} onChange={(e) => setNewRoom(prev => ({ ...prev, type: e.target.value }))}>
+                                        {ROOM_TYPES.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="field">
+                                    <label>Capacity</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={1000}
+                                        value={newRoom.capacity}
+                                        onChange={(e) => setNewRoom(prev => ({ ...prev, capacity: parseInt(e.target.value, 10) || 40 }))}
+                                    />
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => !savingRoom && setShowRoomModal(false)}>
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn btn-primary" disabled={savingRoom || !newRoom.name?.trim()}>
+                                    {savingRoom ? 'Creating...' : 'Create room'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

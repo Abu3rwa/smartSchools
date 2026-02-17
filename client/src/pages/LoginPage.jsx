@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { login, googleLogin, selectIsAuthenticated, selectAuth } from '../store/slices/authSlice';
 import { fetchSchoolBySlug, selectCurrentSchool, selectSchoolLoading, selectSchoolError } from '../store/slices/schoolSlice';
@@ -192,6 +192,12 @@ const LoginPage = () => {
                         </>
                     )}
                 </button>
+
+                <div className="login-forgot">
+                    <Link to="/forgot-password" className="forgot-password-link">
+                        Forgot password?
+                    </Link>
+                </div>
 
                 {isSchoolContext && school?.contact?.adminEmail && (
                     <p className="login-contact">

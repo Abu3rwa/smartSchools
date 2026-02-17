@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import {
     register,
     login,
@@ -8,16 +9,32 @@ import {
     logout,
     getGoogleAuthUrl,
     googleCallback,
-    sendTestEmail
+    sendTestEmail,
+    forgotPassword,
+    resetPassword
 } from '../controllers/authController.js';
 import { protect } from '../middleware/auth.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
 const router = express.Router();
 
+// Rate limiter for password reset endpoints
+const passwordResetLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 requests per window
+    message: {
+        success: false,
+        message: 'Too many password reset attempts, please try again later'
+    }
+});
+
 // Public routes
 router.post('/register', validationRules.register, validate, register);
 router.post('/login', validationRules.login, validate, login);
+
+// Password reset routes (public) with rate limiting
+router.post('/forgot-password', passwordResetLimiter, forgotPassword);
+router.post('/reset-password', passwordResetLimiter, resetPassword);
 
 // Google OAuth routes (login/register with Gmail tokens)
 router.get('/google/url', getGoogleAuthUrl);

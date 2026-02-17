@@ -43,6 +43,19 @@ export const tenantIsolationPlugin = (schema) => {
   schema.pre(["findOneAndDelete", "deleteOne", "deleteMany"], function () {
     addSchoolFilter(this);
   });
+
+  // Aggregate operations - prepend $match stage for school filtering
+  schema.pre("aggregate", function () {
+    if (this.options.skipTenantFilter) return;
+
+    const store = tenantStore.getStore();
+    const schoolId = store?.schoolId ?? this.options.schoolId;
+    
+    if (schoolId) {
+      // Prepend a $match stage to filter by school
+      this.pipeline().unshift({ $match: { school: schoolId } });
+    }
+  });
 };
 
 /**

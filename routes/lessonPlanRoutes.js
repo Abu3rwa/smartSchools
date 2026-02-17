@@ -1,6 +1,7 @@
 import express from 'express';
-import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
+import { protect, authorize, authorizeWithPermission, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { PERMISSIONS } from '../config/permissions.js';
 import {
     getLessonPlans,
     getLessonPlanById,
@@ -9,7 +10,11 @@ import {
     deleteLessonPlan,
     suggestField,
     detectStandards,
-    generateSection
+    generateSection,
+    submitLessonPlan,
+    getLessonPlansForReview,
+    reviewLessonPlan,
+    getLessonPlanStats
 } from '../controllers/lessonPlanController.js';
 
 const router = express.Router();
@@ -23,10 +28,38 @@ router.post('/ai/suggest', authorize('teacher', 'admin'), suggestField);
 router.post('/ai/detect-standards', authorize('teacher', 'admin'), detectStandards);
 router.post('/ai/generate-section', authorize('teacher', 'admin'), generateSection);
 
-router.get('/', getLessonPlans);
-router.get('/:id', getLessonPlanById);
+// Admin review routes (must be before /:id)
+router.get('/admin/review', authorizeWithPermission(
+    ['admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), getLessonPlansForReview);
+
+router.get('/stats', authorizeWithPermission(
+    ['admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), getLessonPlanStats);
+
+// View routes - allow teachers, admins, principals, and users with review permission
+router.get('/', authorizeWithPermission(
+    ['teacher', 'admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), getLessonPlans);
+
+router.get('/:id', authorizeWithPermission(
+    ['teacher', 'admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), getLessonPlanById);
+
+// Edit routes - only teachers and admins
 router.post('/', authorize('teacher', 'admin'), createLessonPlan);
 router.put('/:id', authorize('teacher', 'admin'), updateLessonPlan);
 router.delete('/:id', authorize('teacher', 'admin'), deleteLessonPlan);
+
+// Submission and review routes
+router.post('/:id/submit', authorize('teacher', 'admin'), submitLessonPlan);
+router.post('/:id/review', authorizeWithPermission(
+    ['admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), reviewLessonPlan);
 
 export default router;

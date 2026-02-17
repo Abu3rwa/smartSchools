@@ -7,6 +7,7 @@ import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
 import { sendDailyClassworkUpdate, selectNotificationSending } from '../store/slices/notificationSlice';
 import api from '../config/api';
+import DOMPurify from 'dompurify';
 import {
     HiOutlineArrowLeft,
     HiOutlinePlus,
@@ -73,6 +74,8 @@ const GradebookPage = () => {
     const [selectedStudentForAI, setSelectedStudentForAI] = useState(null);
     const [aiReportContent, setAiReportContent] = useState('');
     const [generatingAI, setGeneratingAI] = useState(false);
+    const [isEditingReport, setIsEditingReport] = useState(false);
+    const [editedReportContent, setEditedReportContent] = useState('');
     // Advanced AI Report State
     const [aiLanguage, setAiLanguage] = useState('english');
     const [aiRecipients, setAiRecipients] = useState({
@@ -448,7 +451,7 @@ const GradebookPage = () => {
                                                         </div>
                                                         <button
                                                             className="btn-icon"
-                                                            title="Generate AI Progress Report"
+                                                            title="Generate Progress Report"
                                                             onClick={() => {
                                                                 setSelectedStudentForAI(student);
                                                                 setAiReportContent('');
@@ -668,7 +671,7 @@ const GradebookPage = () => {
                                     <HiOutlineSparkles size={24} />
                                 </div>
                                 <div>
-                                    <h3 style={{ margin: 0 }}>AI Progress Report</h3>
+                                    <h3 style={{ margin: 0 }}>AIProgress Report</h3>
                                     <p className="text-muted" style={{ margin: 0, fontSize: '0.9rem' }}>
                                         for {selectedStudentForAI.firstName} {selectedStudentForAI.lastName}
                                     </p>
@@ -720,7 +723,7 @@ const GradebookPage = () => {
                                             </>
                                         ) : (
                                             <>
-                                                <HiOutlineSparkles /> Generate with AI
+                                                <HiOutlineSparkles /> Generate
                                             </>
                                         )}
                                     </button>
@@ -779,49 +782,115 @@ const GradebookPage = () => {
                                 </div>
                             ) : (
                                 <div className="ai-report-preview">
-                                    <div
-                                        className="report-content"
-                                        style={{
-                                            background: '#f9fafb',
+                                    {/* Email Template Preview */}
+                                    <div style={{
+                                        background: '#ffffff',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: '8px',
+                                        maxHeight: '500px',
+                                        overflowY: 'auto'
+                                    }}>
+                                        {/* Email Header */}
+                                        <div style={{
+                                            background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)',
                                             padding: '20px',
-                                            borderRadius: '8px',
-                                            border: '1px solid #e5e7eb',
-                                            maxHeight: '400px',
-                                            overflowY: 'auto',
-                                            lineHeight: '1.6'
-                                        }}
-                                        dangerouslySetInnerHTML={{ __html: aiReportContent }}
-                                    />
+                                            borderRadius: '8px 8px 0 0',
+                                            color: 'white',
+                                            textAlign: 'center'
+                                        }}>
+                                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Student Progress Report</h3>
+                                        </div>
 
-                                    <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                                        {aiSendEmail ? (
-                                            <div style={{ 
-                                                padding: '10px 20px', 
-                                                background: '#dcfce7', 
-                                                color: '#16a34a', 
-                                                borderRadius: '8px',
-                                                fontSize: '14px'
-                                            }}>
-                                                ✓ Report will be sent automatically after generation
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    className="btn btn-secondary"
-                                                    onClick={() => setAiReportContent('')}
-                                                >
-                                                    Regenerate
-                                                </button>
-                                                <button
-                                                    className="btn btn-success"
-                                                    onClick={async () => {
+                                        {/* Email Body */}
+                                        <div style={{
+                                            padding: '30px',
+                                            background: '#ffffff',
+                                            fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+                                            lineHeight: '1.6',
+                                            color: '#333'
+                                        }}>
+                                            <div
+                                                contentEditable={isEditingReport}
+                                                suppressContentEditableWarning={true}
+                                                onBlur={(e) => {
+                                                    if (isEditingReport) {
+                                                        setEditedReportContent(e.currentTarget.innerHTML);
+                                                    }
+                                                }}
+                                                style={{
+                                                    outline: isEditingReport ? '2px solid #667eea' : 'none',
+                                                    padding: isEditingReport ? '15px' : '0',
+                                                    borderRadius: isEditingReport ? '8px' : '0',
+                                                    minHeight: '200px',
+                                                    cursor: isEditingReport ? 'text' : 'default',
+                                                    background: isEditingReport ? '#fffbeb' : 'transparent'
+                                                }}
+                                                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editedReportContent || aiReportContent) }}
+                                            />
+                                        </div>
+
+                                         
+                                    </div>
+
+                                    {/* Editing Instructions */}
+                                    {isEditingReport && (
+                                        <div style={{
+                                            marginTop: '15px',
+                                            padding: '12px 16px',
+                                            background: '#eff6ff',
+                                            border: '1px solid #3b82f6',
+                                            borderRadius: '8px',
+                                            fontSize: '13px',
+                                            color: '#1e40af'
+                                        }}>
+                                            <strong>✏️ Edit Mode Active:</strong> Click directly in the text above to edit. 
+                                            You can modify text, add paragraphs, or change formatting. 
+                                            Click "Save Edits" when done to preview your changes.
+                                        </div>
+                                    )}
+
+                                    <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                            <button
+                                                className="btn btn-secondary"
+                                                onClick={() => {
+                                                    setAiReportContent('');
+                                                    setEditedReportContent('');
+                                                    setIsEditingReport(false);
+                                                }}
+                                            >
+                                                Regenerate
+                                            </button>
+                                            <button
+                                                className="btn btn-outline"
+                                                onClick={() => {
+                                                    if (isEditingReport) {
+                                                        // Save edits
+                                                        setIsEditingReport(false);
+                                                    } else {
+                                                        // Start editing
+                                                        if (!editedReportContent) {
+                                                            setEditedReportContent(aiReportContent);
+                                                        }
+                                                        setIsEditingReport(true);
+                                                    }
+                                                }}
+                                            >
+                                                <HiOutlinePencil /> {isEditingReport ? 'Save Edits' : 'Edit Report'}
+                                            </button>
+                                        </div>
+                                        {!aiSendEmail && (
+                                            <button
+                                                className="btn btn-success"
+                                                disabled={isEditingReport}
+                                                onClick={async () => {
                                                         try {
                                                             // Send the AI report to parent
                                                             const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label;
                                                             const periodStr = `${monthLabel} ${academicYear.split('-')[1]}`;
                                                             
                                                             const response = await api.post(`/notifications/send-ai-report/${selectedStudentForAI._id}`, {
-                                                                reportContent: aiReportContent,
+                                                                reportContent: editedReportContent || aiReportContent,
                                                                 period: periodStr
                                                             });
                                                             
@@ -839,7 +908,6 @@ const GradebookPage = () => {
                                                 >
                                                     <HiOutlineMail /> Send to Parents
                                                 </button>
-                                            </>
                                         )}
                                     </div>
                                 </div>

@@ -8,6 +8,7 @@ import {
   toggleSidebar,
   setSidebarOpen,
 } from "../../store/slices/uiSlice";
+import { PERMISSIONS } from "../../constants/permissions";
 import {
   HiOutlineHome,
   HiOutlineAcademicCap,
@@ -40,6 +41,15 @@ const Sidebar = () => {
   const isAdmin = user?.role === "admin";
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
+
+  // Helper function to check if user has permission
+  const hasPermission = (permission) => {
+    if (!user) return false;
+    // Super admin and admin have all permissions
+    if (user.role === 'super_admin' || user.role === 'admin') return true;
+    // Check if user has the permission
+    return user.permissions?.includes(permission) ?? false;
+  };
 
   // Close drawer on mobile only when route changes (not when opening)
   const prevPathRef = useRef(location.pathname);
@@ -132,12 +142,20 @@ const Sidebar = () => {
       icon: HiOutlineDocumentText,
       label: "Lesson Plans",
       roles: ["admin", "department_principal", "teacher"],
+      permissions: [PERMISSIONS.EDIT_LESSON_PLANS, PERMISSIONS.REVIEW_LESSON_PLANS],
       section: "teaching",
     },
     {
       path: "/portal/grades/entry",
       icon: HiOutlineClipboardList,
       label: "Grade Entry",
+      roles: ["admin", "teacher"],
+      section: "teaching",
+    },
+    {
+      path: "/portal/gradebook",
+      icon: HiOutlineChartBar,
+      label: "Gradebook",
       roles: ["admin", "teacher"],
       section: "teaching",
     },
@@ -160,7 +178,7 @@ const Sidebar = () => {
       path: "/portal/schedules",
       icon: HiOutlineCalendar,
       label: "Schedule Management",
-      roles: ["admin", "teacher", "department_principal"],
+      roles: ["admin", "department_principal"],
       section: "scheduling",
     },
     {
@@ -189,6 +207,15 @@ const Sidebar = () => {
       icon: HiOutlineBell,
       label: "Attendance Reminders",
       roles: ["admin", "department_principal"],
+      permissions: [PERMISSIONS.MANAGE_ATTENDANCE_REMINDERS],
+      section: "attendance",
+    },
+    {
+      path: "/portal/behavior",
+      icon: HiOutlineClipboardCheck,
+      label: "Behavior Management",
+      roles: ["admin", "department_principal", "teacher"],
+      permissions: [PERMISSIONS.MANAGE_BEHAVIOR, PERMISSIONS.VIEW_BEHAVIOR],
       section: "attendance",
     },
     {
@@ -223,6 +250,13 @@ const Sidebar = () => {
       path: "/portal/school-settings",
       icon: HiOutlineOfficeBuilding,
       label: "School Settings",
+      admin: true,
+      section: "school",
+    },
+    {
+      path: "/portal/api-docs",
+      icon: HiOutlineDocumentText,
+      label: "API Documentation",
       admin: true,
       section: "school",
     },
@@ -290,12 +324,26 @@ const Sidebar = () => {
   ];
 
   const filteredNavItems = navItems.filter((item) => {
-    // If roles array is provided, check if user's role is included
-    if (item.roles) return item.roles.includes(user?.role);
-    if (item.admin && !isAdmin) return false;
-    if (item.teacher && !isTeacher) return false;
-    if (item.student && !isStudent) return false;
-    return true;
+    // Check role-based access first
+    let hasRoleAccess = true;
+    if (item.roles) {
+      hasRoleAccess = item.roles.includes(user?.role);
+    } else if (item.admin && !isAdmin) {
+      hasRoleAccess = false;
+    } else if (item.teacher && !isTeacher) {
+      hasRoleAccess = false;
+    } else if (item.student && !isStudent) {
+      hasRoleAccess = false;
+    }
+
+    // If permissions are specified, check if user has at least one
+    if (item.permissions && item.permissions.length > 0) {
+      const hasRequiredPermission = item.permissions.some(permission => hasPermission(permission));
+      // User needs either role access OR permission access
+      return hasRoleAccess || hasRequiredPermission;
+    }
+
+    return hasRoleAccess;
   });
 
   // Group by section (preserve order), only include sections that have items

@@ -13,9 +13,9 @@ const router = express.Router();
 router.use(protect);
 router.use(requireSchoolContext);
 
-router.get('/', authorize('admin'), getRooms);
-router.post('/', authorize('admin'), createRoom);
-router.put('/:id', authorize('admin'), updateRoom);
-router.delete('/:id', authorize('admin'), deleteRoom);
+router.get('/', authorize('admin', 'department_principal'), getRooms);
+router.post('/', authorize('admin', 'department_principal'), createRoom);
+router.put('/:id', authorize('admin', 'department_principal'), updateRoom);
+router.delete('/:id', authorize('admin', 'department_principal'), deleteRoom);
 
 export default router;

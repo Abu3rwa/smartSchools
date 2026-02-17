@@ -133,6 +133,18 @@
   --stat-secondary-bg: rgba(139, 92, 246, 0.15);
   --stat-success-bg: rgba(16, 185, 129, 0.15);
   --stat-warning-bg: rgba(245, 158, 11, 0.15);
+
+  /* Sidebar icon colors (dark theme) */
+  --icon-blue: #60a5fa;
+  --icon-purple: #a78bfa;
+  --icon-green: #34d399;
+  --icon-amber: #fbbf24;
+  --icon-pink: #f472b6;
+  --icon-cyan: #22d3ee;
+  --icon-red: #f87171;
+  --icon-orange: #fb923c;
+  --icon-indigo: #818cf8;
+  --icon-teal: #2dd4bf;
 }
 
 /* Light Theme Override */
@@ -198,6 +210,18 @@
   --warning-500: #f59e0b;
   --warning-600: #d97706;
   --warning-700: #b45309;
+
+  /* Sidebar icon colors (light theme) */
+  --icon-blue: #3b82f6;
+  --icon-purple: #8b5cf6;
+  --icon-green: #10b981;
+  --icon-amber: #f59e0b;
+  --icon-pink: #ec4899;
+  --icon-cyan: #06b6d4;
+  --icon-red: #ef4444;
+  --icon-orange: #f97316;
+  --icon-indigo: #6366f1;
+  --icon-teal: #14b8a6;
 
   --glass-bg: rgba(255, 255, 255, 0.75);
   --on-accent: #ffffff;

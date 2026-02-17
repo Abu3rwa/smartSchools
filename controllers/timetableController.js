@@ -5,6 +5,7 @@ import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
+import Room from '../models/Room.js';
 
 // @desc    List periods
 // @route   GET /api/timetable/periods
@@ -175,6 +176,13 @@ export const createAssignment = asyncHandler(async (req, res) => {
     const periodDoc = await TimetablePeriod.findById(period);
     if (!periodDoc || periodDoc.school.toString() !== req.schoolId.toString()) {
         return res.status(400).json({ success: false, message: 'Invalid period' });
+    }
+
+    if (room) {
+        const roomDoc = await Room.findById(room);
+        if (!roomDoc || roomDoc.school.toString() !== req.schoolId.toString()) {
+            return res.status(400).json({ success: false, message: 'Invalid room' });
+        }
     }
 
     const s = new Date(startDate);

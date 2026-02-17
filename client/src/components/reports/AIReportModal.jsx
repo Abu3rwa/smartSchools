@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { format, formatDistanceToNow, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import DOMPurify from 'dompurify';
 import { 
     HiOutlineX, 
     HiOutlineCalendar, 
@@ -11,7 +12,9 @@ import {
     HiOutlineTrendingUp,
     HiOutlineTrendingDown,
     HiOutlineAcademicCap,
-    HiOutlineChartBar
+    HiOutlineChartBar,
+    HiOutlinePencil,
+    HiOutlineMail
 } from 'react-icons/hi';
 import './AIReportModal.css';
 
@@ -22,11 +25,13 @@ import './AIReportModal.css';
 const AIReportModal = ({ 
     isOpen, 
     onClose, 
-    onGenerate, 
+    onGenerate,
+    onSendReport,
     studentName,
     studentData = null,
     reportProgress = null,
     aiAnalysis = null,
+    reportContent = null,
     timestamp = null,
     status = 'idle' // 'idle' | 'generating' | 'complete' | 'error'
 }) => {
@@ -37,6 +42,9 @@ const AIReportModal = ({
     const [isLoading, setIsLoading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [localStatus, setLocalStatus] = useState(status);
+    const [isEditingReport, setIsEditingReport] = useState(false);
+    const [editedReportContent, setEditedReportContent] = useState('');
+    const [isSending, setIsSending] = useState(false);
 
     // Handle escape key
     const handleKeyDown = useCallback((e) => {
@@ -163,7 +171,7 @@ const AIReportModal = ({
                 <div className="modal-header">
                     <h2 id="modal-title">
                         <HiOutlineDocumentText className="icon" />
-                        AI Progress Report - {studentName || 'Student'}
+                        Progress Report - {studentName || 'Student'}
                     </h2>
                     <button 
                         className="close-button" 
@@ -223,6 +231,133 @@ const AIReportModal = ({
                                 <div className="skeleton skeleton-insight"></div>
                                 <div className="skeleton skeleton-insight"></div>
                                 <div className="skeleton skeleton-insight"></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Report Content Preview */}
+                    {reportContent && localStatus === 'complete' && (
+                        <div className="report-preview-section">
+                            <div className="report-preview-header">
+                                <h3>Report Preview</h3>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline"
+                                        onClick={() => {
+                                            if (isEditingReport) {
+                                                setIsEditingReport(false);
+                                            } else {
+                                                if (!editedReportContent) {
+                                                    setEditedReportContent(reportContent);
+                                                }
+                                                setIsEditingReport(true);
+                                            }
+                                        }}
+                                    >
+                                        <HiOutlinePencil /> {isEditingReport ? 'Save Edits' : 'Edit Report'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Email Template Preview */}
+                            <div style={{
+                                background: '#ffffff',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                maxHeight: '400px',
+                                overflowY: 'auto',
+                                marginTop: '15px'
+                            }}>
+                                {/* Email Header */}
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)',
+                                    padding: '20px',
+                                    borderRadius: '8px 8px 0 0',
+                                    color: 'white',
+                                    textAlign: 'center'
+                                }}>
+                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Student Progress Report</h3>
+                                </div>
+
+                                {/* Email Body */}
+                                <div style={{
+                                    padding: '30px',
+                                    background: '#ffffff',
+                                    fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+                                    lineHeight: '1.6',
+                                    color: '#333'
+                                }}>
+                                    <div
+                                        contentEditable={isEditingReport}
+                                        suppressContentEditableWarning={true}
+                                        onBlur={(e) => {
+                                            if (isEditingReport) {
+                                                setEditedReportContent(e.currentTarget.innerHTML);
+                                            }
+                                        }}
+                                        style={{
+                                            outline: isEditingReport ? '2px solid #667eea' : 'none',
+                                            padding: isEditingReport ? '15px' : '0',
+                                            borderRadius: isEditingReport ? '8px' : '0',
+                                            minHeight: '200px',
+                                            cursor: isEditingReport ? 'text' : 'default',
+                                            background: isEditingReport ? '#fffbeb' : 'transparent'
+                                        }}
+                                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editedReportContent || reportContent) }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Editing Instructions */}
+                            {isEditingReport && (
+                                <div style={{
+                                    marginTop: '15px',
+                                    padding: '12px 16px',
+                                    background: '#eff6ff',
+                                    border: '1px solid #3b82f6',
+                                    borderRadius: '8px',
+                                    fontSize: '13px',
+                                    color: '#1e40af'
+                                }}>
+                                    <strong>✏️ Edit Mode Active:</strong> Click directly in the text above to edit. 
+                                    Click "Save Edits" when done to preview your changes.
+                                </div>
+                            )}
+
+                            {/* Send Button */}
+                            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => {
+                                        setEditedReportContent('');
+                                        setIsEditingReport(false);
+                                        setLocalStatus('idle');
+                                    }}
+                                >
+                                    Regenerate
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-success"
+                                    onClick={async () => {
+                                        if (onSendReport) {
+                                            setIsSending(true);
+                                            try {
+                                                await onSendReport(editedReportContent || reportContent);
+                                                handleClose();
+                                            } catch (error) {
+                                                console.error('Error sending report:', error);
+                                            } finally {
+                                                setIsSending(false);
+                                            }
+                                        }
+                                    }}
+                                    disabled={isEditingReport || isSending}
+                                >
+                                    <HiOutlineMail /> {isSending ? 'Sending...' : 'Send to Parents'}
+                                </button>
                             </div>
                         </div>
                     )}

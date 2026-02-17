@@ -21,6 +21,8 @@ import LandingPage from "./pages/LandingPage";
 import RegisterSchoolPage from "./pages/RegisterSchoolPage";
 import LoginPage from "./pages/LoginPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import ClassesPage from "./pages/ClassesPage";
 import ClassDetailPage from "./pages/ClassDetailPage";
@@ -49,6 +51,7 @@ import TeacherNewslettersPage from "./pages/teacher/TeacherNewslettersPage";
 import LessonPlanPage from "./pages/LessonPlanPage";
 import AdminNewslettersPage from "./pages/admin/AdminNewslettersPage";
 import AttendanceRemindersPage from "./pages/admin/AttendanceRemindersPage";
+import BehaviorManagementPage from "./pages/BehaviorManagementPage";
 
 // Report Pages
 import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator";
@@ -89,6 +92,7 @@ import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import AdminSubscriptionsPage from "./pages/admin/AdminSubscriptionsPage";
 import AdminSubscriptionDetailsPage from "./pages/admin/AdminSubscriptionDetailsPage";
 import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage";
+import ApiDocsPage from "./pages/ApiDocsPage";
 
 // Protected Route - requires authentication
 const ProtectedRoute = ({ children }) => {
@@ -180,9 +184,11 @@ function App() {
       <Routes>
       {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
+      <Route path="/register-school" element={<RegisterSchoolPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/:schoolSlug" element={<LoginPage />} />
-      <Route path="/register-school" element={<RegisterSchoolPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/substitutions/respond" element={<SubstitutionRespond />} />
 
@@ -206,6 +212,14 @@ function App() {
           element={
             <RoleRoute roles={["admin"]}>
               <SchoolSettingsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="api-docs"
+          element={
+            <RoleRoute roles={["admin", "super_admin"]}>
+              <ApiDocsPage />
             </RoleRoute>
           }
         />
@@ -318,7 +332,7 @@ function App() {
         <Route
           path="timetable"
           element={
-            <RoleRoute roles={["admin"]}>
+            <RoleRoute roles={["admin", "department_principal"]}>
               <AdminTimetablePage />
             </RoleRoute>
           }
@@ -344,6 +358,14 @@ function App() {
           element={
             <RoleRoute roles={["admin", "department_principal"]}>
               <AttendanceRemindersPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="behavior"
+          element={
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+              <BehaviorManagementPage />
             </RoleRoute>
           }
         />

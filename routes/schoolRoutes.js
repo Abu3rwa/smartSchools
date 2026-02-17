@@ -66,7 +66,7 @@ router.put('/me', requireSchoolContext, authorize('admin'), asyncHandler(async (
  */
 router.get('/me/users', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
     const users = await User.find({ school: req.schoolId })
-        .select('firstName lastName email role isActive department createdAt')
+        .select('firstName lastName email role isActive department permissions permissionScopes createdAt')
         .populate('department', 'name type')
         .sort({ role: 1, 'firstName': 1 });
 
@@ -74,13 +74,13 @@ router.get('/me/users', requireSchoolContext, authorize('admin'), asyncHandler(a
 }));
 
 /**
- * @desc    Update a user's role and department (school admin only)
+ * @desc    Update a user's role, permissions, and department (school admin only)
  * @route   PATCH /api/schools/me/users/:userId
  * @access  Private (Admin)
  */
 router.patch('/me/users/:userId', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
     const { userId } = req.params;
-    const { role, department } = req.body;
+    const { role, department, permissions, permissionScopes } = req.body;
 
     const user = await User.findById(userId).setOptions({ skipTenantFilter: true });
     if (!user) {
@@ -93,21 +93,56 @@ router.patch('/me/users/:userId', requireSchoolContext, authorize('admin'), asyn
         return res.status(403).json({ success: false, message: 'Cannot change super admin role' });
     }
 
-    const allowedRoles = ['admin', 'department_principal', 'teacher', 'parent', 'student'];
+    const allowedRoles = [
+        'admin', 
+        'staff',
+        'department_principal', 
+        'teacher', 
+        'parent', 
+        'student',
+        // Legacy staff roles (kept for backward compatibility)
+        'attendance_manager',
+        'lesson_plan_reviewer',
+        'report_viewer',
+        'event_coordinator',
+        'behavior_manager',
+        'transportation_coordinator',
+        'cafeteria_manager',
+        'library_manager',
+        'it_support',
+        'counselor',
+        'nurse'
+    ];
+    
     if (role !== undefined) {
         if (!allowedRoles.includes(role)) {
             return res.status(400).json({ success: false, message: `Role must be one of: ${allowedRoles.join(', ')}` });
         }
         user.role = role;
     }
+    
     if (department !== undefined) {
         user.department = department || null;
     }
+    
+    // Update permissions array
+    if (permissions !== undefined) {
+        if (!Array.isArray(permissions)) {
+            return res.status(400).json({ success: false, message: 'Permissions must be an array' });
+        }
+        user.permissions = permissions;
+    }
+    
+    // Update permission scopes (optional)
+    if (permissionScopes !== undefined) {
+        user.permissionScopes = new Map(Object.entries(permissionScopes || {}));
+    }
+    
     // Department optional for department_principal: if empty, user is whole-school principal
     await user.save();
 
     const updated = await User.findById(user._id)
-        .select('firstName lastName email role isActive department')
+        .select('firstName lastName email role isActive department permissions permissionScopes')
         .populate('department', 'name type')
         .setOptions({ skipTenantFilter: true });
 

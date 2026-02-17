@@ -46,7 +46,13 @@ const CreateSubRequest = () => {
   const { loading: createLoading, error: createError, success, requestId } = useSelector(selectCreate);
 
   const [absentTeacher, setAbsentTeacher] = useState(null);
-  const [date, setDate] = useState('');
+  // Set default date to tomorrow
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+  const [date, setDate] = useState(getTomorrowDate());
   const [coverageType, setCoverageType] = useState('SINGLE_TEACHER_ALL_PERIODS');
   const [singleSubstitute, setSingleSubstitute] = useState(null);
   const [perPeriodSelections, setPerPeriodSelections] = useState({});

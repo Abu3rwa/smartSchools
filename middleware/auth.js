@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { runInTenantContext } from './tenantIsolation.js';
 import logger from '../utils/logger.js';
+import { hasPermission, hasAnyPermission, hasAllPermissions } from '../config/permissions.js';
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -69,7 +70,85 @@ export const authorize = (...roles) => {
         if (!roles.includes(req.user.role)) {
             return res.status(403).json({
                 success: false,
-                message: `Role '${req.user.role}' is not authorized to access this route`
+                message: process.env.NODE_ENV === 'production' 
+                    ? 'Not authorized to access this route'
+                    : `Role '${req.user.role}' is not authorized to access this route`
+            });
+        }
+        next();
+    };
+};
+
+/**
+ * Authorize by permission - checks if user has the required permission
+ * @param {string} permission - Required permission
+ * @returns {Function} Middleware function
+ */
+export const requirePermission = (permission) => {
+    return (req, res, next) => {
+        if (!hasPermission(req.user, permission)) {
+            return res.status(403).json({
+                success: false,
+                message: `Permission '${permission}' is required to access this route`
+            });
+        }
+        next();
+    };
+};
+
+/**
+ * Authorize by role OR permission - checks if user has required role or permission
+ * @param {string[]} roles - Allowed roles
+ * @param {string[]} permissions - Allowed permissions
+ * @returns {Function} Middleware function
+ */
+export const authorizeWithPermission = (roles = [], permissions = []) => {
+    return (req, res, next) => {
+        // Check if user has one of the allowed roles
+        if (roles.includes(req.user.role)) {
+            return next();
+        }
+        
+        // Check if user has any of the allowed permissions
+        if (permissions.length > 0 && hasAnyPermission(req.user, permissions)) {
+            return next();
+        }
+        
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to access this route'
+        });
+    };
+};
+
+/**
+ * Require multiple permissions (user must have ALL)
+ * @param {string[]} permissions - Required permissions
+ * @returns {Function} Middleware function
+ */
+export const requireAllPermissions = (permissions) => {
+    return (req, res, next) => {
+        if (!hasAllPermissions(req.user, permissions)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Insufficient permissions to access this route'
+            });
+        }
+        next();
+    };
+};
+
+/**
+ * Require at least one permission from the list
+ * @param {string[]} permissions - List of permissions (user needs at least one)
+ * @returns {Function} Middleware function
+ */
+export const requireAnyPermission = (permissions) => {
+    return (req, res, next) => {
+        if (!hasAnyPermission(req.user, permissions)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Insufficient permissions to access this route'
             });
         }
         next();

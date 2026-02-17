@@ -12,7 +12,8 @@ import {
     retryFailedEmails,
     testEmailConfiguration
 } from '../controllers/advancedReportController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, authorizeWithPermission } from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/permissions.js';
 
 const router = express.Router();
 
@@ -23,20 +24,35 @@ router.use(protect);
 router.post('/generate-advanced', generateAdvancedReport);
 
 // Report templates
-router.get('/templates', getReportTemplates);
+router.get('/templates', authorizeWithPermission(
+    ['teacher', 'admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getReportTemplates);
 router.post('/templates', authorize('teacher', 'admin'), createReportTemplate);
 router.put('/templates/:id', authorize('teacher', 'admin'), updateReportTemplate);
 router.delete('/templates/:id', authorize('teacher', 'admin'), deleteReportTemplate);
 
 // Token usage analytics
-router.get('/token-usage/:userId?', getTokenUsage);
-router.get('/token-usage/school/:schoolId', authorize('admin', 'super_admin'), getSchoolTokenUsage);
+router.get('/token-usage/:userId?', authorizeWithPermission(
+    ['teacher', 'admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getTokenUsage);
+router.get('/token-usage/school/:schoolId', authorizeWithPermission(
+    ['admin', 'super_admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getSchoolTokenUsage);
 
 // Report history
-router.get('/history', getReportHistory);
+router.get('/history', authorizeWithPermission(
+    ['teacher', 'admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getReportHistory);
 
 // Email management
-router.get('/email-status/:reportId', getEmailStatus);
+router.get('/email-status/:reportId', authorizeWithPermission(
+    ['teacher', 'admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), getEmailStatus);
 router.post('/retry-emails/:reportId', retryFailedEmails);
 
 // Email configuration test (admin only)

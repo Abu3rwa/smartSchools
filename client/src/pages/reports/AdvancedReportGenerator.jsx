@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchStudents, selectStudents } from '../../store/slices/studentSlice';
+import DOMPurify from 'dompurify';
 import toast from 'react-hot-toast';
 import './AdvancedReportGenerator.css';
 
@@ -404,7 +405,7 @@ const AdvancedReportGenerator = () => {
                 <span style={{ marginLeft: '12px' }}>Generating report...</span>
               </div>
             ) : (
-              <div dangerouslySetInnerHTML={{ __html: report.report }} />
+              <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.report) }} />
             )}
           </div>
           

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import api from '../config/api';
+import { PERMISSION_DEFINITIONS, PERMISSION_CATEGORIES, getPermissionsByCategory } from '../constants/permissions';
 import {
     fetchDepartments,
     selectDepartments,
@@ -19,17 +20,32 @@ import {
     HiOutlinePencil,
     HiOutlineTrash,
     HiOutlineUserGroup,
-    HiOutlineCalendar
+    HiOutlineCalendar,
+    HiOutlineDocumentText
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import LessonPlanCriteria from '../components/LessonPlanCriteria';
 import './SchoolSettingsPage.css';
 
 const ROLES = [
-    { value: 'admin', label: 'Admin' },
-    { value: 'department_principal', label: 'Department Principal' },
-    { value: 'teacher', label: 'Teacher' },
-    { value: 'parent', label: 'Parent' },
-    { value: 'student', label: 'Student' }
+    { value: 'admin', label: 'Admin', description: 'Full school access' },
+    { value: 'staff', label: 'Staff', description: 'School employee (assign specific permissions)' },
+    { value: 'teacher', label: 'Teacher', description: 'Teaching staff' },
+    { value: 'department_principal', label: 'Department Principal', description: 'Department head' },
+    { value: 'parent', label: 'Parent', description: 'Parent/Guardian' },
+    { value: 'student', label: 'Student', description: 'Enrolled student' },
+    // Legacy staff roles (kept for backward compatibility)
+    { value: 'attendance_manager', label: 'Attendance Manager (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'lesson_plan_reviewer', label: 'Lesson Plan Reviewer (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'report_viewer', label: 'Report Viewer (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'event_coordinator', label: 'Event Coordinator (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'behavior_manager', label: 'Behavior Manager (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'transportation_coordinator', label: 'Transportation Coordinator (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'cafeteria_manager', label: 'Cafeteria Manager (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'library_manager', label: 'Library Manager (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'it_support', label: 'IT Support (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'counselor', label: 'Counselor (Legacy)', description: 'Use Staff + Permissions instead' },
+    { value: 'nurse', label: 'Nurse (Legacy)', description: 'Use Staff + Permissions instead' }
 ];
 
 const SchoolSettingsPage = () => {
@@ -54,7 +70,7 @@ const SchoolSettingsPage = () => {
     const [usersLoading, setUsersLoading] = useState(false);
     const [showUserModal, setShowUserModal] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
-    const [userFormData, setUserFormData] = useState({ role: '', department: '' });
+    const [userFormData, setUserFormData] = useState({ role: '', department: '', permissions: [] });
     const [submittingUser, setSubmittingUser] = useState(false);
 
     // School year / rollover
@@ -242,7 +258,8 @@ const SchoolSettingsPage = () => {
         setEditingUser(user);
         setUserFormData({
             role: user.role,
-            department: user.department?._id || user.department || ''
+            department: user.department?._id || user.department || '',
+            permissions: user.permissions || []
         });
         setShowUserModal(true);
     };
@@ -253,7 +270,8 @@ const SchoolSettingsPage = () => {
         try {
             const response = await api.patch(`/schools/me/users/${editingUser._id}`, {
                 role: userFormData.role,
-                department: userFormData.department || null
+                department: userFormData.department || null,
+                permissions: userFormData.permissions
             });
             if (response.data.success) {
                 toast.success('User updated');
@@ -273,7 +291,16 @@ const SchoolSettingsPage = () => {
     const handleCloseUserModal = () => {
         setShowUserModal(false);
         setEditingUser(null);
-        setUserFormData({ role: '', department: '' });
+        setUserFormData({ role: '', department: '', permissions: [] });
+    };
+    
+    const handlePermissionToggle = (permission) => {
+        setUserFormData(prev => ({
+            ...prev,
+            permissions: prev.permissions.includes(permission)
+                ? prev.permissions.filter(p => p !== permission)
+                : [...prev.permissions, permission]
+        }));
     };
 
     if (!isAdmin) {
@@ -303,6 +330,13 @@ const SchoolSettingsPage = () => {
                 >
                     <HiOutlineUserGroup size={18} />
                     Users & roles
+                </button>
+                <button
+                    className={`tab-btn ${activeTab === 'lessonplancriteria' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('lessonplancriteria')}
+                >
+                    <HiOutlineDocumentText size={18} />
+                    Lesson Plan Criteria
                 </button>
                 <button
                     className={`tab-btn ${activeTab === 'schoolyear' ? 'active' : ''}`}
@@ -418,6 +452,12 @@ const SchoolSettingsPage = () => {
                             )}
                         </div>
                     )}
+                </div>
+            )}
+
+            {activeTab === 'lessonplancriteria' && (
+                <div className="tab-content">
+                    <LessonPlanCriteria />
                 </div>
             )}
 
@@ -589,6 +629,44 @@ const SchoolSettingsPage = () => {
                                         <span className="form-hint">If empty, user sees all school data (whole-school principal).</span>
                                     )}
                                 </div>
+                                
+                                {/* Permissions Section - Show for staff, teacher, and department_principal roles */}
+                                {['staff', 'teacher', 'department_principal'].includes(userFormData.role) && (
+                                    <div className="form-group">
+                                        <label>Permissions</label>
+                                        <p className="form-hint" style={{ marginBottom: '0.5rem' }}>
+                                            Select specific permissions for this user. Admins have all permissions by default.
+                                        </p>
+                                        <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm)' }}>
+                                            {Object.entries(getPermissionsByCategory()).map(([category, perms]) => (
+                                                <div key={category} style={{ marginBottom: 'var(--spacing-md)' }}>
+                                                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+                                                        {PERMISSION_CATEGORIES[category]?.label || category}
+                                                    </h4>
+                                                    {perms.map((perm) => (
+                                                        <label key={perm.key} style={{ display: 'flex', alignItems: 'flex-start', padding: '0.4rem 0', cursor: 'pointer' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={userFormData.permissions.includes(perm.key)}
+                                                                onChange={() => handlePermissionToggle(perm.key)}
+                                                                style={{ marginRight: '0.5rem', marginTop: '0.2rem' }}
+                                                            />
+                                                            <div>
+                                                                <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{perm.label}</div>
+                                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{perm.description}</div>
+                                                            </div>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {userFormData.permissions.length > 0 && (
+                                            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                {userFormData.permissions.length} permission{userFormData.permissions.length !== 1 ? 's' : ''} selected
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <div className="modal-footer">
                                 <button type="button" className="btn btn-secondary" onClick={handleCloseUserModal}>

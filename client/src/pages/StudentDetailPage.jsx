@@ -130,7 +130,7 @@ const StudentDetailPage = () => {
                             title="Generate AI-powered progress report"
                         >
                             <HiOutlineDocumentText />
-                            {generatingAIReport ? 'Generating...' : 'AI Progress Report'}
+                            {generatingAIReport ? 'Generating...' : ' Progress Report'}
                         </button>
                         <Link to={`/portal/grades/weekly/${student._id}`} className="btn btn-secondary">
                             <HiOutlineClock />

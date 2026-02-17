@@ -253,12 +253,33 @@
 
 .admin-timetable-page .row {
     display: grid;
-    grid-template-columns: minmax(80px, 1.2fr) minmax(80px, 1fr) minmax(70px, 1fr) minmax(60px, 0.8fr) 44px;
     gap: var(--spacing-md);
     align-items: center;
     padding: var(--spacing-md) 0;
     border-bottom: 1px solid var(--border-color);
     min-width: 0;
+}
+
+/* Periods table: name, time, order, delete */
+.admin-timetable-page .card:first-child .table .row {
+    grid-template-columns: minmax(80px, 1.2fr) minmax(120px, 1fr) minmax(50px, 0.6fr) 44px;
+}
+
+/* Assignments table: teacher, class, period, room, days, delete */
+.admin-timetable-page .card:last-child .table .row {
+    grid-template-columns: minmax(80px, 1.2fr) minmax(80px, 1fr) minmax(70px, 0.9fr) minmax(70px, 0.9fr) minmax(60px, 0.8fr) 44px;
+}
+
+.admin-timetable-page .row.header {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.admin-timetable-page .row.header .cell.actions {
+    visibility: hidden;
 }
 
 .admin-timetable-page .row:last-child {
@@ -322,4 +343,91 @@
 .admin-timetable-page .icon-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Room field with Add room button */
+.admin-timetable-page .field-with-action {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.admin-timetable-page .field-with-action select {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-timetable-page .field-with-action .btn-sm {
+    padding: var(--spacing-sm) var(--spacing-md);
+    white-space: nowrap;
+}
+
+/* Add room modal */
+.admin-timetable-page .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--spacing-lg);
+}
+
+.admin-timetable-page .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 420px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.admin-timetable-page .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.admin-timetable-page .modal-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.admin-timetable-page .modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    line-height: 1;
+}
+
+.admin-timetable-page .modal-body {
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.admin-timetable-page .modal-body .field input,
+.admin-timetable-page .modal-body .field select {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.admin-timetable-page .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
 }

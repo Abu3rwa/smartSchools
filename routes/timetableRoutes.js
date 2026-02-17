@@ -24,16 +24,16 @@ router.get('/my-timetable', authorize('teacher'), getMyTimetable);
 // Student: today's schedule
 router.get('/my-schedule', authorize('student'), getStudentTimetable);
 
-// Periods (teachers can read, admins can CRUD)
-router.get('/periods', authorize('admin', 'teacher'), listPeriods);
-router.post('/periods', authorize('admin'), createPeriod);
-router.put('/periods/:id', authorize('admin'), updatePeriod);
-router.delete('/periods/:id', authorize('admin'), deletePeriod);
+// Periods (teachers can read; admins and principals can CRUD)
+router.get('/periods', authorize('admin', 'department_principal', 'teacher'), listPeriods);
+router.post('/periods', authorize('admin', 'department_principal'), createPeriod);
+router.put('/periods/:id', authorize('admin', 'department_principal'), updatePeriod);
+router.delete('/periods/:id', authorize('admin', 'department_principal'), deletePeriod);
 
-// Assignments
-router.get('/assignments', authorize('admin'), listAssignments);
-router.post('/assignments', authorize('admin'), createAssignment);
-router.put('/assignments/:id', authorize('admin'), updateAssignment);
-router.delete('/assignments/:id', authorize('admin'), deleteAssignment);
+// Assignments (admins and principals can CRUD)
+router.get('/assignments', authorize('admin', 'department_principal'), listAssignments);
+router.post('/assignments', authorize('admin', 'department_principal'), createAssignment);
+router.put('/assignments/:id', authorize('admin', 'department_principal'), updateAssignment);
+router.delete('/assignments/:id', authorize('admin', 'department_principal'), deleteAssignment);
 
 export default router;

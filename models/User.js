@@ -19,8 +19,72 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['super_admin', 'admin', 'department_principal', 'teacher', 'parent', 'student'],
+        enum: [
+            'super_admin', 
+            'admin', 
+            'staff',
+            'teacher', 
+            'parent', 
+            'student',
+            // Legacy roles (kept for backward compatibility)
+            'department_principal',
+            'attendance_manager',
+            'lesson_plan_reviewer',
+            'report_viewer',
+            'event_coordinator',
+            'behavior_manager',
+            'transportation_coordinator',
+            'cafeteria_manager',
+            'library_manager',
+            'it_support',
+            'counselor',
+            'nurse'
+        ],
         default: 'student'
+    },
+    // Permissions array for granular access control
+    permissions: {
+        type: [String],
+        enum: [
+            'manage_attendance_reminders',
+            'view_attendance_reports',
+            'review_lesson_plans',
+            'edit_lesson_plans',
+            'manage_substitutions',
+            'manage_events',
+            'view_all_reports',
+            'edit_reports',
+            'manage_behavior',
+            'view_behavior',
+            'manage_transportation',
+            'view_transportation',
+            'manage_cafeteria',
+            'view_cafeteria',
+            'manage_library',
+            'view_library',
+            'provide_it_support',
+            'access_counseling_records',
+            'edit_counseling_records',
+            'access_health_records',
+            'edit_health_records',
+            'manage_users',
+            'view_grades',
+            'edit_grades',
+            'send_notifications',
+            'manage_departments',
+            'manage_school_settings'
+        ],
+        default: []
+    },
+    // Optional scopes and expiration for permissions
+    permissionScopes: {
+        type: Map,
+        of: {
+            departmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Department' }],
+            classIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
+            expiresAt: Date
+        },
+        default: {}
     },
     school: {
         type: mongoose.Schema.Types.ObjectId,
@@ -42,6 +106,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Last name is required'],
         trim: true
+    },
+    title: {
+        type: String,
+        trim: true,
+        maxlength: [100, 'Title cannot exceed 100 characters']
     },
     phone: {
         type: String,

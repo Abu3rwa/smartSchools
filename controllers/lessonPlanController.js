@@ -1,10 +1,13 @@
 import LessonPlan from '../models/LessonPlan.js';
+import LessonPlanCriteria from '../models/LessonPlanCriteria.js';
 import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
 import Standard from '../models/Standard.js';
 import { AITokenUsage } from '../models/AITokenUsage.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import * as lessonPlanAIService from '../services/lessonPlanAIService.js';
+import * as lessonPlanEvaluationService from '../services/lessonPlanEvaluationService.js';
+import { sendLessonPlanFeedback } from '../services/emailService.js';
 
 const MODEL_NAME = 'gemini-2.5-flash-lite';
 const VALID_SUGGEST_FIELDS = [
@@ -21,9 +24,16 @@ export const getLessonPlans = asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, class: classId, subject, startDate, endDate, academicYear } = req.query;
     const query = {};
 
-    if (req.user.role === 'teacher') {
+    // Check if user can view all lesson plans
+    const canViewAll = req.user.role === 'admin' || 
+                       req.user.role === 'department_principal' ||
+                       req.user.permissions?.includes('review_lesson_plans');
+
+    // Teachers without review permission only see their own plans
+    if (req.user.role === 'teacher' && !canViewAll) {
         query.teacher = req.user._id;
     }
+    
     let departmentClassIds = null;
     if (req.departmentId) {
         departmentClassIds = await Class.find({ school: req.schoolId, department: req.departmentId }).select('_id').lean();
@@ -88,9 +98,17 @@ export const getLessonPlanById = asyncHandler(async (req, res) => {
     if (lesson.school.toString() !== req.schoolId.toString()) {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
-    if (req.user.role === 'teacher' && lesson.teacher._id.toString() !== req.user._id.toString()) {
+    
+    // Check if user can view all lesson plans
+    const canViewAll = req.user.role === 'admin' || 
+                       req.user.role === 'department_principal' ||
+                       req.user.permissions?.includes('review_lesson_plans');
+    
+    // Teachers without review permission can only view their own plans
+    if (req.user.role === 'teacher' && !canViewAll && lesson.teacher._id.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
+    
     if (req.departmentId) {
         const cls = await Class.findById(lesson.class?._id || lesson.class).select('department').lean();
         if (!cls?.department || cls.department.toString() !== req.departmentId.toString()) {
@@ -441,4 +459,304 @@ export const deleteLessonPlan = asyncHandler(async (req, res) => {
     }
     await LessonPlan.findByIdAndDelete(req.params.id);
     res.status(200).json({ success: true });
+});
+
+/**
+ * @desc    Submit lesson plan for AI evaluation
+ * @route   POST /api/lessons/:id/submit
+ * @access  Private (Teacher)
+ */
+export const submitLessonPlan = asyncHandler(async (req, res) => {
+    const lesson = await LessonPlan.findById(req.params.id);
+    
+    if (!lesson) {
+        return res.status(404).json({ success: false, message: 'Lesson plan not found' });
+    }
+    
+    if (lesson.school.toString() !== req.schoolId.toString()) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    if (req.user.role === 'teacher' && lesson.teacher.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    if (lesson.status !== 'draft' && lesson.status !== 'needs_revision') {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Only draft or needs_revision lesson plans can be submitted' 
+        });
+    }
+
+    const criteria = await LessonPlanCriteria.find({ 
+        school: req.schoolId, 
+        isActive: true 
+    }).sort({ order: 1 });
+
+    if (criteria.length === 0) {
+        lesson.status = 'submitted';
+        lesson.submittedAt = new Date();
+        await lesson.save();
+        
+        return res.json({ 
+            success: true, 
+            message: 'Lesson plan submitted. No evaluation criteria configured.',
+            data: { lesson }
+        });
+    }
+
+    lesson.status = 'submitted';
+    lesson.submittedAt = new Date();
+    await lesson.save();
+
+    try {
+        const evaluation = await lessonPlanEvaluationService.evaluateLessonPlan(lesson._id, criteria);
+        
+        const updatedLesson = await LessonPlan.findById(lesson._id)
+            .populate('class', 'name')
+            .populate('subject', 'name')
+            .populate('teacher', 'firstName lastName email')
+            .populate('standardIds', 'code name');
+
+        if (!evaluation.meetsMinimumRequirements) {
+            await sendLessonPlanFeedback(updatedLesson, updatedLesson.teacher);
+        }
+
+        res.json({ 
+            success: true, 
+            message: 'Lesson plan submitted and evaluated successfully',
+            data: { 
+                lesson: updatedLesson,
+                evaluation: updatedLesson.aiEvaluation
+            }
+        });
+    } catch (error) {
+        lesson.status = 'draft';
+        lesson.submittedAt = null;
+        await lesson.save();
+        
+        throw error;
+    }
+});
+
+/**
+ * @desc    Get lesson plans for admin review
+ * @route   GET /api/lessons/admin/review
+ * @access  Private (Admin, Department Principal)
+ */
+export const getLessonPlansForReview = asyncHandler(async (req, res) => {
+    const { 
+        page = 1, 
+        limit = 20, 
+        status, 
+        teacher, 
+        subject, 
+        startDate, 
+        endDate,
+        meetsRequirements 
+    } = req.query;
+
+    const query = { school: req.schoolId };
+
+    if (status) {
+        query.status = status;
+    } else {
+        query.status = { $in: ['submitted', 'needs_revision', 'approved', 'rejected'] };
+    }
+
+    if (teacher) query.teacher = teacher;
+    if (subject) query.subject = subject;
+    
+    if (startDate || endDate) {
+        query.submittedAt = {};
+        if (startDate) query.submittedAt.$gte = new Date(startDate);
+        if (endDate) query.submittedAt.$lte = new Date(endDate);
+    }
+
+    if (meetsRequirements !== undefined) {
+        query['aiEvaluation.meetsMinimumRequirements'] = meetsRequirements === 'true';
+    }
+
+    if (req.departmentId) {
+        const departmentClassIds = await Class.find({ 
+            school: req.schoolId, 
+            department: req.departmentId 
+        }).select('_id').lean();
+        
+        if (departmentClassIds.length > 0) {
+            query.class = { $in: departmentClassIds.map(c => c._id) };
+        } else {
+            query.class = { $in: [] };
+        }
+    }
+
+    const skip = (Math.max(1, parseInt(page, 10)) - 1) * Math.max(1, parseInt(limit, 10));
+    
+    const lessons = await LessonPlan.find(query)
+        .populate('class', 'name')
+        .populate('subject', 'name')
+        .populate('teacher', 'firstName lastName email')
+        .populate('humanReview.reviewedBy', 'firstName lastName')
+        .sort({ submittedAt: -1 })
+        .skip(skip)
+        .limit(Math.min(100, Math.max(1, parseInt(limit, 10))))
+        .lean();
+
+    const total = await LessonPlan.countDocuments(query);
+
+    const stats = await LessonPlan.aggregate([
+        { $match: { school: req.schoolId, status: { $ne: 'draft' } } },
+        {
+            $group: {
+                _id: '$status',
+                count: { $sum: 1 }
+            }
+        }
+    ]);
+
+    const statusCounts = stats.reduce((acc, item) => {
+        acc[item._id] = item.count;
+        return acc;
+    }, {});
+
+    res.json({
+        success: true,
+        data: {
+            lessons,
+            pagination: {
+                page: parseInt(page, 10),
+                limit: parseInt(limit, 10),
+                total,
+                pages: Math.ceil(total / Math.max(1, parseInt(limit, 10)))
+            },
+            stats: statusCounts
+        }
+    });
+});
+
+/**
+ * @desc    Admin review lesson plan
+ * @route   POST /api/lessons/:id/review
+ * @access  Private (Admin, Department Principal)
+ */
+export const reviewLessonPlan = asyncHandler(async (req, res) => {
+    const { comments, finalStatus } = req.body;
+    
+    if (!finalStatus || !['approved', 'needs_revision', 'rejected'].includes(finalStatus)) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Valid finalStatus (approved, needs_revision, rejected) is required' 
+        });
+    }
+
+    const lesson = await LessonPlan.findById(req.params.id);
+    
+    if (!lesson) {
+        return res.status(404).json({ success: false, message: 'Lesson plan not found' });
+    }
+    
+    if (lesson.school.toString() !== req.schoolId.toString()) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    if (req.departmentId) {
+        const cls = await Class.findById(lesson.class).select('department').lean();
+        if (!cls?.department || cls.department.toString() !== req.departmentId.toString()) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+    }
+
+    lesson.humanReview = {
+        reviewedBy: req.user._id,
+        reviewedAt: new Date(),
+        comments: comments || '',
+        finalStatus
+    };
+    
+    lesson.status = finalStatus;
+    await lesson.save();
+
+    const updatedLesson = await LessonPlan.findById(lesson._id)
+        .populate('class', 'name')
+        .populate('subject', 'name')
+        .populate('teacher', 'firstName lastName email')
+        .populate('humanReview.reviewedBy', 'firstName lastName');
+
+    res.json({ 
+        success: true, 
+        message: 'Lesson plan reviewed successfully',
+        data: { lesson: updatedLesson }
+    });
+});
+
+/**
+ * @desc    Get lesson plan statistics
+ * @route   GET /api/lessons/stats
+ * @access  Private (Admin, Department Principal)
+ */
+export const getLessonPlanStats = asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.query;
+    const query = { school: req.schoolId };
+
+    if (startDate || endDate) {
+        query.submittedAt = {};
+        if (startDate) query.submittedAt.$gte = new Date(startDate);
+        if (endDate) query.submittedAt.$lte = new Date(endDate);
+    }
+
+    if (req.departmentId) {
+        const departmentClassIds = await Class.find({ 
+            school: req.schoolId, 
+            department: req.departmentId 
+        }).select('_id').lean();
+        
+        if (departmentClassIds.length > 0) {
+            query.class = { $in: departmentClassIds.map(c => c._id) };
+        }
+    }
+
+    const [statusStats, avgScores, teacherStats] = await Promise.all([
+        LessonPlan.aggregate([
+            { $match: query },
+            { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]),
+        LessonPlan.aggregate([
+            { $match: { ...query, 'aiEvaluation.overallScore': { $exists: true } } },
+            {
+                $group: {
+                    _id: null,
+                    avgScore: { $avg: '$aiEvaluation.overallScore' },
+                    minScore: { $min: '$aiEvaluation.overallScore' },
+                    maxScore: { $max: '$aiEvaluation.overallScore' }
+                }
+            }
+        ]),
+        LessonPlan.aggregate([
+            { $match: { ...query, status: { $ne: 'draft' } } },
+            {
+                $group: {
+                    _id: '$teacher',
+                    submitted: { $sum: 1 },
+                    approved: {
+                        $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
+                    },
+                    avgScore: { $avg: '$aiEvaluation.overallScore' }
+                }
+            },
+            { $sort: { submitted: -1 } },
+            { $limit: 10 }
+        ])
+    ]);
+
+    res.json({
+        success: true,
+        data: {
+            statusBreakdown: statusStats.reduce((acc, item) => {
+                acc[item._id] = item.count;
+                return acc;
+            }, {}),
+            averageScores: avgScores[0] || { avgScore: 0, minScore: 0, maxScore: 0 },
+            topTeachers: teacherStats
+        }
+    });
 });

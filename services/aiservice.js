@@ -69,7 +69,17 @@ class AIService {
             };
         } catch (error) {
             console.error("AI Generation Error:", error);
-            throw new Error("Failed to generate AI report");
+            
+            // Provide specific error messages
+            if (error.status === 403 || error.message?.includes('API key')) {
+                throw new Error("AI Service API key is invalid or has been revoked. Please contact your administrator to update the API key.");
+            }
+            
+            if (error.status === 429) {
+                throw new Error("AI Service rate limit exceeded. Please try again later.");
+            }
+            
+            throw new Error(error.message || "Failed to generate AI report");
         }
     }
 
@@ -183,33 +193,63 @@ Each section must contain:
         }
 
         return `
-You are an experienced, empathetic teacher. Write a parent progress report in English.
+You are an experienced, empathetic teacher. Write a detailed narrative progress report for parents in English.
 
-Very important output rules:
+CRITICAL OUTPUT RULES:
 - Output ONLY HTML.
-- No Markdown (no **, no code fences).
-- No weird symbols like @#$%^&*.
+- NO Markdown (no **, no code fences).
+- NO tables whatsoever - use narrative paragraphs only.
+- NO weird symbols like @#$%^&*.
 - Do not include <html>, <head>, or <body>.
-- Use only: <div>, <p>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <li>, <strong>.
+- Use only: <div>, <p>, <span>, <ul>, <li>, <strong>.
 - Wrap everything in a single outer <div dir="ltr">.
 
-Student:
+Student Information:
 - Name: ${studentData.firstName} ${studentData.lastName}
 - Period: ${period}
 - Overall average: ${average}%
 - Subjects: ${subjects}
 - Teacher: ${teacherName}
 
-Grades (chronological) - use these lines to build the grades table rows:
+Grades (chronological):
 ${gradeList}
 
-HTML structure:
-1) Greeting paragraph
-2) Strengths paragraph
-3) Areas for growth paragraph
-4) Grades table (Date/Subject/Grade/Notes)
-5) Bullet list: how to help at home
-6) Closing + signature
+REQUIRED STRUCTURE (Positive-Negative-Positive):
+
+1) **Opening Greeting** (1 paragraph)
+   - Warm, personalized greeting to parents
+
+2) **POSITIVE SECTION - Strengths & Achievements** (2-3 detailed paragraphs)
+   - Highlight specific accomplishments and strong performances
+   - Use <span style="color: #10b981; font-weight: 600;">green colored text</span> for positive highlights
+   - Be specific with examples from the grades
+   - Mention subjects where student excels
+
+3) **NEGATIVE SECTION - Areas for Growth** (2 paragraphs)
+   - Discuss challenges and areas needing improvement
+   - Use <span style="color: #f59e0b; font-weight: 600;">amber colored text</span> for areas of concern
+   - Be constructive and supportive, not harsh
+   - Provide specific examples
+
+4) **POSITIVE SECTION - Progress & Encouragement** (2 paragraphs)
+   - Highlight recent improvements or positive trends
+   - Express confidence in student's ability to grow
+   - Use <span style="color: #10b981; font-weight: 600;">green colored text</span> for encouraging points
+
+5) **Recommendations** (1 paragraph with bullet list)
+   - Practical suggestions for parents to support at home
+   - Use <ul> and <li> tags
+
+6) **Closing** (1 paragraph)
+   - Encouraging final message
+   - End with: "Teacher ${teacherName}"
+
+IMPORTANT:
+- Write in a warm, professional, narrative style
+- NO tables - integrate grade information naturally into the narrative
+- Use colored spans to emphasize positive (green) and growth areas (amber)
+- Be detailed and specific - aim for 400-500 words total
+- Follow the positive-negative-positive sandwich structure strictly
 
 Output the final report as ONE HTML block only.
         `.trim();
@@ -240,18 +280,21 @@ Output the final report as ONE HTML block only.
         const estimatedCost = (inputTokens * pricing.input / 1000) + 
                              (outputTokens * pricing.output / 1000);
 
+        // Convert schoolId to string safely
+        const schoolIdString = schoolId ? (typeof schoolId === 'string' ? schoolId : schoolId.toString()) : '';
+
         const tokenUsage = new AITokenUsage({
             model: 'gemini-2.5-flash',
             user: userId,
             school: schoolId,
-            schoolId: schoolId.toString(),
+            schoolId: schoolIdString,
             student: studentId,
             reportType,
             language,
             dateRange,
-            inputTokens,
-            outputTokens,
-            totalTokens,
+            inputTokens: inputTokens || 0,
+            outputTokens: outputTokens || 0,
+            totalTokens: totalTokens || 0,
             estimatedCost
         });
 
