@@ -1,10 +1,16 @@
-
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Line } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip as ChartJsTooltip, Legend as ChartJsLegend } from 'chart.js';
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, ChartJsTooltip, ChartJsLegend);
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 export const EngagementChart = ({ data }) => {
   return (
@@ -22,19 +28,39 @@ export const EngagementChart = ({ data }) => {
   );
 };
 
+/**
+ * Accepts Chart.js-style data: { labels: string[], datasets: [{ label, data: number[] }] }
+ * and renders a Recharts line chart for "Student Performance Over Time".
+ */
 export const PerformanceChart = ({ data }) => {
-  const options = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Student Performance Over Time',
-      },
-    },
-  };
+  const rechartsData =
+    data?.labels?.map((name, i) => {
+      const point = { name };
+      data.datasets?.forEach((ds) => {
+        point[ds.label] = ds.data[i];
+      });
+      return point;
+    }) ?? [];
 
-  return <Line options={options} data={data} />;
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <LineChart data={rechartsData}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        {data?.datasets?.map((ds, i) => (
+          <Line
+            key={ds.label}
+            type="monotone"
+            dataKey={ds.label}
+            stroke={['#4bc0c0', '#ff6384', '#ffce56'][i % 3]}
+            strokeWidth={2}
+            dot={{ r: 4 }}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
+  );
 };
