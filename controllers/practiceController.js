@@ -6,6 +6,7 @@ import PracticeIntegrityEvent from "../models/PracticeIntegrityEvent.js";
 import MasteryRecord from "../models/MasteryRecord.js";
 import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
+import { logAIUsage } from "../utils/aiUsageTracker.js";
 import {
   QUESTION_TYPES,
   DIFFICULTIES,
@@ -66,7 +67,7 @@ const isWithinAvailability = (availability) => {
 const calculateTimeRemaining = (session) => {
   if (!session?.timeLimitSeconds) return null;
   const elapsedSeconds = Math.floor(
-    (Date.now() - new Date(session.startedAt).getTime()) / 1000,
+    (Date.now() - new Date(session.startedAt).getTime()) / 1000
   );
   return Math.max(session.timeLimitSeconds - elapsedSeconds, 0);
 };
@@ -91,7 +92,7 @@ const resolveDisplayAnswer = (correctAnswer, questionOptions = []) => {
   const option =
     Array.isArray(questionOptions) &&
     questionOptions.find(
-      (item) => (item?.label || "").trim().toUpperCase() === normalized,
+      (item) => (item?.label || "").trim().toUpperCase() === normalized
     );
 
   if (option?.text) {
@@ -134,7 +135,7 @@ const upsertMasteryRecord = async (
   studentId,
   standardId,
   mastery,
-  recentDifficulty,
+  recentDifficulty
 ) => {
   const query = {
     school: schoolId,
@@ -156,7 +157,7 @@ const upsertMasteryRecord = async (
     : existing?.masteredAt || null;
   const highestDifficultyPassed = resolveHighestDifficulty(
     existing?.highestDifficultyPassed,
-    isMastered ? recentDifficulty : null,
+    isMastered ? recentDifficulty : null
   );
 
   await MasteryRecord.findOneAndUpdate(
@@ -186,7 +187,7 @@ const upsertMasteryRecord = async (
       new: true,
       upsert: true,
       setDefaultsOnInsert: true,
-    },
+    }
   );
 };
 
@@ -204,7 +205,11 @@ const getNextDifficulty = (current, allowed, recentAttempts) => {
   if (order.length === 0) return current || "medium";
 
   const recent = recentAttempts.slice(0, ACCURACY_WINDOW);
-  const byDifficulty = { easy: { total: 0, correct: 0 }, medium: { total: 0, correct: 0 }, hard: { total: 0, correct: 0 } };
+  const byDifficulty = {
+    easy: { total: 0, correct: 0 },
+    medium: { total: 0, correct: 0 },
+    hard: { total: 0, correct: 0 },
+  };
   recent.forEach((a) => {
     if (byDifficulty[a.difficulty]) {
       byDifficulty[a.difficulty].total += 1;
@@ -216,7 +221,8 @@ const getNextDifficulty = (current, allowed, recentAttempts) => {
   if (index === -1) index = Math.floor(order.length / 2);
   const level = order[index];
   const stats = byDifficulty[level];
-  const accuracy = stats.total >= 3 ? (stats.correct / stats.total) * 100 : null;
+  const accuracy =
+    stats.total >= 3 ? (stats.correct / stats.total) * 100 : null;
 
   if (stats.total >= 3 && accuracy !== null) {
     if (accuracy >= ACCURACY_TO_PROGRESS && index < order.length - 1) {
@@ -299,7 +305,7 @@ const resolveQuestionSettings = ({
   const difficulty = getNextDifficulty(
     baseDifficulty,
     allowedDifficulties,
-    recentAttempts,
+    recentAttempts
   );
   const order = DIFFICULTIES.filter((d) => allowedDifficulties.includes(d));
   const wasRemediated =
@@ -412,13 +418,13 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
         a.standard.masteryThreshold,
         a.standard.masteryMinQuestions,
         3,
-        req.schoolId,
+        req.schoolId
       );
       return {
         ...a.toObject(),
         mastery,
       };
-    }),
+    })
   );
 
   res.json({
@@ -468,17 +474,13 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   const isAssigned =
     assignmentStudents.length === 0
       ? student.currentClass?.toString() === assignment.class.toString()
-      : assignmentStudents.some(
-          (s) => s.toString() === student._id.toString(),
-        );
+      : assignmentStudents.some((s) => s.toString() === student._id.toString());
 
   if (!isAssigned) {
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "You are not assigned to this standard",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "You are not assigned to this standard",
+    });
   }
 
   const practiceConfig = getAssignmentPracticeConfig(assignment);
@@ -496,7 +498,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     assignment.standard.masteryThreshold,
     assignment.standard.masteryMinQuestions,
     3,
-    req.schoolId,
+    req.schoolId
   );
 
   if (mastery.isMastered) {
@@ -609,6 +611,29 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     previousQuestions,
   });
 
+  // Log AI usage
+  if (question.tokenUsage && question.tokenUsage.total > 0) {
+    await logAIUsage({
+      model: "gemini-2.5-flash-lite",
+      feature: "practice_question",
+      schoolId: req.schoolId,
+      userId: req.user._id,
+      studentId: student._id,
+      entityType: "StandardAssignment",
+      entityId: assignment._id,
+      metadata: {
+        questionType: effectiveQuestionType,
+        difficulty: effectiveDifficulty,
+        standardId: assignment.standard._id,
+      },
+      response: {
+        inputtokenCount: question.tokenUsage.input,
+        outputtokenCount: question.tokenUsage.output,
+        totalTokenCount: question.tokenUsage.total,
+      },
+    });
+  }
+
   // Save the attempt (pending answer)
   const attempt = await PracticeAttempt.create({
     school: req.schoolId,
@@ -666,7 +691,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   const attempt = await PracticeAttempt.findById(attemptId)
     .populate(
       "standard",
-      "code name description gradeLevel masteryThreshold masteryMinQuestions",
+      "code name description gradeLevel masteryThreshold masteryMinQuestions"
     )
     .populate({
       path: "assignment",
@@ -683,12 +708,10 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   }
 
   if (attempt.status !== "pending") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "This question has already been answered",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "This question has already been answered",
+    });
   }
 
   // Verify ownership
@@ -725,6 +748,29 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     recentPerformance,
   });
 
+  if (evaluation.tokenUsage && evaluation.tokenUsage.total > 0) {
+    await logAIUsage({
+      model: "gemini-2.5-flash-lite",
+      feature: "practice_evaluate_answer",
+      schoolId: req.schoolId,
+      userId: req.user._id,
+      studentId: student._id,
+      entityType: "PracticeAttempt",
+      entityId: attempt._id,
+      metadata: {
+        questionType: attempt.questionType,
+        difficulty: attempt.difficulty,
+        isCorrect: evaluation.isCorrect,
+        standardId: attempt.standard._id,
+      },
+      response: {
+        inputtokenCount: evaluation.tokenUsage.input,
+        outputtokenCount: evaluation.tokenUsage.output,
+        totalTokenCount: evaluation.tokenUsage.total,
+      },
+    });
+  }
+
   // Update the attempt
   attempt.studentAnswer = answer;
   attempt.isCorrect = evaluation.isCorrect;
@@ -743,7 +789,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     attempt.standard.masteryThreshold,
     attempt.standard.masteryMinQuestions,
     3,
-    req.schoolId,
+    req.schoolId
   );
   const recordBefore = await MasteryRecord.findOne({
     school: req.schoolId,
@@ -757,7 +803,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     student._id,
     attempt.standard._id,
     mastery,
-    attempt.difficulty,
+    attempt.difficulty
   );
   const newlyMastered = mastery.isMastered && !recordBefore?.isMastered;
 
@@ -790,7 +836,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
 
   const correctAnswerDisplay = resolveDisplayAnswer(
     attempt.correctAnswer,
-    attempt.options || [],
+    attempt.options || []
   );
   const payload = submitAnswerResponseSchema.parse({
     isCorrect: evaluation.isCorrect,
@@ -832,7 +878,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
 
   const attemptsRaw = await PracticeAttempt.find(query)
     .select(
-      "questionText questionType studentAnswer correctAnswer options isCorrect explanation feedback feedbackParts difficulty attemptNumber answeredAt timeSpentSeconds",
+      "questionText questionType studentAnswer correctAnswer options isCorrect explanation feedback feedbackParts difficulty attemptNumber answeredAt timeSpentSeconds"
     )
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
@@ -856,7 +902,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
     80,
     5,
     3,
-    req.schoolId,
+    req.schoolId
   );
 
   res.json({
@@ -883,7 +929,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
 
   const student = await Student.findById(studentId).select(
-    "firstName lastName studentId currentClass",
+    "firstName lastName studentId currentClass"
   );
   if (!student) {
     return res
@@ -901,7 +947,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
   })
     .populate(
       "standard",
-      "code name description masteryThreshold masteryMinQuestions",
+      "code name description masteryThreshold masteryMinQuestions"
     )
     .populate("subject", "name code");
 
@@ -913,7 +959,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
         a.standard.masteryThreshold,
         a.standard.masteryMinQuestions,
         3,
-        req.schoolId,
+        req.schoolId
       );
 
       // Get total attempts count
@@ -934,7 +980,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
         mastery,
         totalAllAttempts,
       };
-    }),
+    })
   );
 
   res.json({
@@ -946,7 +992,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
         totalAssigned: progressData.length,
         mastered: progressData.filter((p) => p.mastery.isMastered).length,
         inProgress: progressData.filter(
-          (p) => !p.mastery.isMastered && p.mastery.totalAttempts > 0,
+          (p) => !p.mastery.isMastered && p.mastery.totalAttempts > 0
         ).length,
         notStarted: progressData.filter((p) => p.mastery.totalAttempts === 0)
           .length,
@@ -997,7 +1043,7 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         assignment.standard.masteryThreshold,
         assignment.standard.masteryMinQuestions,
         3,
-        req.schoolId,
+        req.schoolId
       );
       const totalAttempts = await PracticeAttempt.countDocuments({
         student: student._id,
@@ -1009,11 +1055,11 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         mastery,
         totalAttempts,
       };
-    }),
+    })
   );
 
   const masteredCount = studentsProgress.filter(
-    (s) => s.mastery.isMastered,
+    (s) => s.mastery.isMastered
   ).length;
 
   res.json({
@@ -1025,10 +1071,10 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         totalStudents: studentsProgress.length,
         mastered: masteredCount,
         inProgress: studentsProgress.filter(
-          (s) => !s.mastery.isMastered && s.mastery.totalAttempts > 0,
+          (s) => !s.mastery.isMastered && s.mastery.totalAttempts > 0
         ).length,
         notStarted: studentsProgress.filter(
-          (s) => s.mastery.totalAttempts === 0,
+          (s) => s.mastery.totalAttempts === 0
         ).length,
         masteryRate:
           studentsProgress.length > 0
@@ -1073,7 +1119,7 @@ export const logIntegrityEvent = asyncHandler(async (req, res) => {
   }
 
   const assignment = await StandardAssignment.findById(
-    parsed.data.assignmentId,
+    parsed.data.assignmentId
   ).populate("standard");
 
   if (!assignment || !assignment.isActive) {
@@ -1088,17 +1134,13 @@ export const logIntegrityEvent = asyncHandler(async (req, res) => {
   const isAssigned =
     assignmentStudents.length === 0
       ? student.currentClass?.toString() === assignment.class.toString()
-      : assignmentStudents.some(
-          (s) => s.toString() === student._id.toString(),
-        );
+      : assignmentStudents.some((s) => s.toString() === student._id.toString());
 
   if (!isAssigned) {
-    return res
-      .status(403)
-      .json({
-        success: false,
-        message: "You are not assigned to this standard",
-      });
+    return res.status(403).json({
+      success: false,
+      message: "You are not assigned to this standard",
+    });
   }
 
   const session = await PracticeSession.findOne({
@@ -1222,7 +1264,7 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
   const { assignmentId } = req.query;
 
   const student = await Student.findById(studentId).select(
-    "firstName lastName studentId currentClass",
+    "firstName lastName studentId currentClass"
   );
   if (!student) {
     return res

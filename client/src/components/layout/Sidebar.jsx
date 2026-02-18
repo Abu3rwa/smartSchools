@@ -219,6 +219,13 @@ const Sidebar = () => {
       section: "attendance",
     },
     {
+      path: "/portal/behavior-analytics",
+      icon: HiOutlineChartBar,
+      label: "Behavior Analytics",
+      roles: ["admin", "department_principal", "super_admin"],
+      section: "attendance",
+    },
+    {
       path: "/portal/attendance-requests",
       icon: HiOutlineClipboardList,
       label: "Attendance Requests",

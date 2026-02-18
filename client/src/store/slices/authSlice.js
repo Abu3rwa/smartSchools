@@ -79,6 +79,73 @@ export const googleLoginCallback = createAsyncThunk(
   }
 );
 
+export const impersonateUser = createAsyncThunk(
+  'auth/impersonateUser',
+  async (userId, { rejectWithValue, dispatch }) => {
+    try {
+      // 1. Store the current super_admin token
+      const adminToken = localStorage.getItem('token');
+      if (adminToken) {
+        localStorage.setItem('adminToken', adminToken);
+      }
+
+      // 2. Call the impersonation endpoint
+      const response = await api.post('/auth/impersonate', { userId });
+
+      if (response.data.success) {
+        const { user, token } = response.data.data;
+        
+        // 3. Set the new user and token in localStorage and state
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        // 4. Dispatch setCredentials to update the store immediately
+        dispatch(setCredentials({ user, token }));
+        
+        return { user, token };
+      }
+    } catch (error) {
+      // If it fails, remove the stored adminToken
+      localStorage.removeItem('adminToken');
+      return rejectWithValue(error.response?.data?.message || 'Impersonation failed');
+    }
+  }
+);
+
+export const stopImpersonation = createAsyncThunk(
+  'auth/stopImpersonation',
+  async (_, { rejectWithValue, dispatch }) => {
+    try {
+      const adminToken = localStorage.getItem('adminToken');
+      if (!adminToken) {
+        // If there's no admin token, just log out to be safe
+        dispatch(logout());
+        return;
+      }
+
+      // 1. Restore the admin token
+      localStorage.setItem('token', adminToken);
+      localStorage.removeItem('adminToken');
+
+      // 2. Fetch the admin's user data
+      const response = await api.get('/auth/me', {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+
+      if (response.data.success) {
+        const { user } = response.data.data;
+        localStorage.setItem('user', JSON.stringify(user));
+        dispatch(setCredentials({ user, token: adminToken }));
+        return { user, token: adminToken };
+      }
+    } catch (error) {
+      // If fetching the user fails, log out completely
+      dispatch(logout());
+      return rejectWithValue('Could not restore admin session. Please log in again.');
+    }
+  }
+);
+
 
 export const fetchCurrentUser = createAsyncThunk(
   'auth/fetchCurrentUser',
@@ -113,11 +180,13 @@ export const updateProfile = createAsyncThunk(
 const getInitialState = () => {
   const token = localStorage.getItem('token');
   const user = localStorage.getItem('user');
+  const adminToken = localStorage.getItem('adminToken');
   return {
     user: user ? JSON.parse(user) : null,
     teacherProfile: null,
     token: token || null,
     isAuthenticated: !!token,
+    isImpersonating: !!adminToken,
     loading: false,
     error: null
   };
@@ -130,10 +199,12 @@ const authSlice = createSlice({
     logout: (state) => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('adminToken');
       state.user = null;
       state.teacherProfile = null;
       state.token = null;
       state.isAuthenticated = false;
+      state.isImpersonating = false;
       state.error = null;
     },
     clearError: (state) => {
@@ -143,6 +214,7 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.isAuthenticated = true;
+      state.isImpersonating = !!localStorage.getItem('adminToken');
     }
   },
   extraReducers: (builder) => {
@@ -206,6 +278,30 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
+      // Impersonation
+      .addCase(impersonateUser.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(impersonateUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isImpersonating = true;
+      })
+      .addCase(impersonateUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Stop Impersonation
+      .addCase(stopImpersonation.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(stopImpersonation.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isImpersonating = false;
+      })
+      .addCase(stopImpersonation.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
       // Fetch current user
       .addCase(fetchCurrentUser.pending, (state) => {
         state.loading = true;
@@ -236,6 +332,7 @@ export const { logout, clearError, setCredentials, } = authSlice.actions;
 export const selectAuth = (state) => state.auth;
 export const selectUser = (state) => state.auth.user;
 export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
+export const selectIsImpersonating = (state) => state.auth.isImpersonating;
 export const selectIsAdmin = (state) => state.auth.user?.role === 'admin';
 export const selectIsTeacher = (state) => state.auth.user?.role === 'teacher';
 export const selectCanEditClass = (state) =>

@@ -1,10 +1,253 @@
 import mongoose from 'mongoose';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Behavior from '../models/Behavior.js';
-import { protect } from '../middleware/auth.js';
-import { superAdminOnly } from '../middleware/tenantIsolation.js';
+import BehaviorSession from '../models/BehaviorSession.js';
 import School from '../models/School.js';
 import User from '../models/User.js';
+import {
+    buildBehaviorFilters,
+    createBehaviorSession,
+    endBehaviorSession,
+    getBehaviorDashboardMetrics,
+    heartbeatBehaviorSession,
+    listBehaviorEvents as listBehaviorEventsService,
+    resolveStartDateFromPeriod,
+    sanitizeMetadata
+} from '../services/behaviorAnalyticsService.js';
+
+const getClientIP = (req) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) return forwarded.split(',')[0].trim();
+    return req.headers['x-real-ip'] || req.ip || '127.0.0.1';
+};
+
+const toValidObjectId = (value) => (mongoose.Types.ObjectId.isValid(value)
+    ? new mongoose.Types.ObjectId(value)
+    : undefined);
+
+// @desc    Track a custom behavior event
+// @route   POST /api/behavior/events
+// @access  Private
+export const trackBehaviorEvent = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;
+    const schoolId = req.school?._id;
+
+    if (!userId || !schoolId) {
+        return res.status(400).json({ success: false, message: 'User and school context required' });
+    }
+
+    const {
+        eventType = 'feature_used',
+        action,
+        description,
+        resourceType,
+        resourceId,
+        metadata = {},
+        statusCode,
+        responseTime
+    } = req.body;
+
+    const event = await Behavior.logEvent({
+        user: userId,
+        school: schoolId,
+        eventType,
+        action,
+        description: description || action,
+        resourceType: resourceType || 'system',
+        resourceId: toValidObjectId(resourceId),
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'] || 'unknown',
+        sessionId: req.headers['x-session-id'] || 'unknown',
+        statusCode: statusCode || 200,
+        responseTime,
+        metadata: sanitizeMetadata(metadata)
+    });
+
+    return res.status(201).json({
+        success: true,
+        data: event
+    });
+});
+
+// @desc    List behavior events with pagination and filtering
+// @route   GET /api/behavior/events
+// @access  Private/Admin+Department Principal
+export const listBehaviorEvents = asyncHandler(async (req, res) => {
+    const {
+        page = 1,
+        limit = 50,
+        school,
+        user,
+        eventType,
+        statusCode,
+        period,
+        startDate,
+        endDate
+    } = req.query;
+
+    const resolvedStartDate = startDate || (period ? resolveStartDateFromPeriod(period) : undefined);
+    const resolvedSchool = req.user.role === 'super_admin' ? school : req.school?._id;
+
+    const filters = buildBehaviorFilters({
+        school: resolvedSchool,
+        user,
+        eventType,
+        statusCode,
+        startDate: resolvedStartDate,
+        endDate
+    });
+
+    const result = await listBehaviorEventsService({
+        filters,
+        page,
+        limit
+    });
+
+    res.json({
+        success: true,
+        data: result.events,
+        pagination: result.pagination
+    });
+});
+
+// @desc    Start a tracked behavior session
+// @route   POST /api/behavior/sessions/start
+// @access  Private
+export const startBehaviorSession = asyncHandler(async (req, res) => {
+    const session = await createBehaviorSession({
+        userId: req.user._id,
+        schoolId: req.school._id,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'] || 'unknown',
+        metadata: req.body.metadata || {}
+    });
+
+    res.status(201).json({
+        success: true,
+        data: {
+            sessionId: session.sessionId,
+            startedAt: session.startedAt,
+            isActive: session.isActive
+        }
+    });
+});
+
+// @desc    Keep a session alive
+// @route   PATCH /api/behavior/sessions/:sessionId/heartbeat
+// @access  Private
+export const heartbeatSession = asyncHandler(async (req, res) => {
+    const { sessionId } = req.params;
+    const session = await heartbeatBehaviorSession({ sessionId, userId: req.user._id });
+
+    if (!session) {
+        return res.status(404).json({ success: false, message: 'Active session not found' });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            sessionId: session.sessionId,
+            lastSeenAt: session.lastSeenAt,
+            isActive: session.isActive
+        }
+    });
+});
+
+// @desc    End a tracked behavior session
+// @route   POST /api/behavior/sessions/:sessionId/end
+// @access  Private
+export const endSession = asyncHandler(async (req, res) => {
+    const { sessionId } = req.params;
+    const session = await endBehaviorSession({
+        sessionId,
+        userId: req.user._id,
+        schoolId: req.school._id,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'] || 'unknown'
+    });
+
+    if (!session) {
+        return res.status(404).json({ success: false, message: 'Active session not found' });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            sessionId: session.sessionId,
+            endedAt: session.endedAt,
+            durationSeconds: session.durationSeconds,
+            isActive: session.isActive
+        }
+    });
+});
+
+// @desc    List active sessions
+// @route   GET /api/behavior/sessions/active
+// @access  Private/Admin+Department Principal
+export const getActiveBehaviorSessions = asyncHandler(async (req, res) => {
+    const schoolFilter = req.user.role === 'super_admin'
+        ? (req.query.school ? { school: req.query.school } : {})
+        : { school: req.school._id };
+
+    const sessions = await BehaviorSession.find({
+        ...schoolFilter,
+        isActive: true
+    })
+        .populate('user', 'firstName lastName email role')
+        .sort({ lastSeenAt: -1 })
+        .limit(200)
+        .lean();
+
+    res.json({
+        success: true,
+        data: sessions
+    });
+});
+
+// @desc    Get behavior dashboard metrics + actionable insights
+// @route   GET /api/behavior/dashboard
+// @access  Private/Admin+Department Principal
+export const getBehaviorDashboard = asyncHandler(async (req, res) => {
+    const { period = 'month', school, eventType } = req.query;
+    const resolvedSchool = req.user.role === 'super_admin' ? school : req.school?._id;
+    const data = await getBehaviorDashboardMetrics({ period, school: resolvedSchool, eventType });
+
+    res.json({
+        success: true,
+        data
+    });
+});
+
+// @desc    Lightweight live snapshot for near real-time dashboard updates
+// @route   GET /api/behavior/live
+// @access  Private/Admin+Department Principal
+export const getBehaviorLiveSnapshot = asyncHandler(async (req, res) => {
+    const school = req.user.role === 'super_admin' ? req.query.school : req.school?._id;
+    const lastMinutes = Math.min(Math.max(Number(req.query.minutes) || 15, 1), 120);
+    const startDate = new Date(Date.now() - lastMinutes * 60 * 1000);
+    const filters = buildBehaviorFilters({ school, startDate });
+
+    const [eventsLastWindow, activeSessions, errorsLastWindow] = await Promise.all([
+        Behavior.countDocuments(filters),
+        BehaviorSession.countDocuments({ ...(school ? { school } : {}), isActive: true }),
+        Behavior.countDocuments({
+            ...filters,
+            statusCode: { $gte: 400 }
+        })
+    ]);
+
+    res.json({
+        success: true,
+        data: {
+            windowMinutes: lastMinutes,
+            eventsLastWindow,
+            activeSessions,
+            errorsLastWindow,
+            errorRate: eventsLastWindow ? (errorsLastWindow / eventsLastWindow) * 100 : 0,
+            generatedAt: new Date().toISOString()
+        }
+    });
+});
 
 // @desc    Get behavior analytics dashboard
 // @route   GET /api/behavior/analytics

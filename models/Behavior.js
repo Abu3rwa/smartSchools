@@ -72,7 +72,14 @@ const behaviorSchema = new mongoose.Schema({
             'feature_used',
             'search_performed',
             'filter_applied',
-            'export_downloaded'
+            'export_downloaded',
+
+            // Behavior Tracking Events
+            'api_request',
+            'custom_event',
+            'session_started',
+            'session_heartbeat',
+            'session_ended'
         ]
     },
     
@@ -120,7 +127,10 @@ const behaviorSchema = new mongoose.Schema({
     
     // Device Information
     device: {
-        type: String,
+        type: {
+            type: String,
+            default: 'unknown'
+        },
         browser: String,
         os: String,
         platform: String,
@@ -230,7 +240,7 @@ behaviorSchema.statics.getEventStats = function(filters = {}) {
                     }
                 },
                 totalCount: { $sum: '$count' },
-                totalUniqueUsers: { $addToSet: '$user' }
+                userBuckets: { $push: '$uniqueUsers' }
             }
         },
         {
@@ -238,7 +248,15 @@ behaviorSchema.statics.getEventStats = function(filters = {}) {
                 eventType: '$_id',
                 dailyStats: 1,
                 totalCount: 1,
-                totalUniqueUsers: { $size: '$totalUniqueUsers' }
+                totalUniqueUsers: {
+                    $size: {
+                        $reduce: {
+                            input: '$userBuckets',
+                            initialValue: [],
+                            in: { $setUnion: ['$$value', '$$this'] }
+                        }
+                    }
+                }
             }
         },
         { $sort: { totalCount: -1 } }
@@ -303,8 +321,11 @@ behaviorSchema.statics.getSecurityEvents = function(filters = {}) {
     };
     
     if (filters.school) matchStage.school = filters.school;
-    if (filters.startDate) matchStage.timestamp.$gte = filters.startDate;
-    if (filters.endDate) matchStage.timestamp.$lte = filters.endDate;
+    if (filters.startDate || filters.endDate) {
+        matchStage.timestamp = {};
+        if (filters.startDate) matchStage.timestamp.$gte = filters.startDate;
+        if (filters.endDate) matchStage.timestamp.$lte = filters.endDate;
+    }
     
     return this.find(matchStage)
         .populate('user', 'firstName lastName email')

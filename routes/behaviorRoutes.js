@@ -1,25 +1,45 @@
 import express from 'express';
-import { asyncHandler } from '../middleware/errorHandler.js';
 import {
     getBehaviorAnalytics,
     getUserBehavior,
     getSecurityEvents,
     getUsageStatistics,
     exportBehaviorData,
-    cleanupBehaviorData
+    cleanupBehaviorData,
+    trackBehaviorEvent,
+    listBehaviorEvents,
+    startBehaviorSession,
+    heartbeatSession,
+    endSession,
+    getActiveBehaviorSessions,
+    getBehaviorDashboard,
+    getBehaviorLiveSnapshot
 } from '../controllers/behaviorController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, authorize } from '../middleware/auth.js';
 import { superAdminOnly } from '../middleware/tenantIsolation.js';
+import { validate } from '../middleware/validator.js';
+import { behaviorValidationRules } from '../validators/behaviorValidators.js';
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(protect);
 
+router.post('/events', behaviorValidationRules.trackEvent, validate, trackBehaviorEvent);
+router.get('/events', authorize('admin', 'department_principal', 'super_admin'), behaviorValidationRules.listEvents, validate, listBehaviorEvents);
+
+router.post('/sessions/start', behaviorValidationRules.sessionStart, validate, startBehaviorSession);
+router.patch('/sessions/:sessionId/heartbeat', behaviorValidationRules.sessionIdParam, validate, heartbeatSession);
+router.post('/sessions/:sessionId/end', behaviorValidationRules.sessionIdParam, validate, endSession);
+router.get('/sessions/active', authorize('admin', 'department_principal', 'super_admin'), getActiveBehaviorSessions);
+
+router.get('/dashboard', authorize('admin', 'department_principal', 'super_admin'), behaviorValidationRules.dashboardQuery, validate, getBehaviorDashboard);
+router.get('/live', authorize('admin', 'department_principal', 'super_admin'), getBehaviorLiveSnapshot);
+
 // @route   GET /api/behavior/analytics
 // @desc    Get behavior analytics dashboard
 // @access  Private/Super Admin
-router.get('/analytics', superAdminOnly, getBehaviorAnalytics);
+router.get('/analytics', authorize('admin', 'super_admin'), getBehaviorAnalytics);
 
 // @route   GET /api/behavior/users/:userId
 // @desc    Get user behavior details
@@ -44,6 +64,6 @@ router.get('/export', superAdminOnly, exportBehaviorData);
 // @route   DELETE /api/behavior/cleanup
 // @desc    Clean up old behavior data
 // @access  Private/Super Admin
-router.delete('/cleanup', superAdminOnly, cleanupBehaviorData);
+router.delete('/cleanup', authorize('admin', 'super_admin'), cleanupBehaviorData);
 
 export default router;

@@ -406,6 +406,55 @@ export const logout = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Impersonate a user (Super Admin only)
+ * @route   POST /api/auth/impersonate
+ * @access  Private (Super Admin)
+ */
+export const impersonateUser = asyncHandler(async (req, res) => {
+    const { userId } = req.body;
+
+    // This is a super admin only function, but the authorization is handled in the route middleware.
+    // We can add an extra check here for safety.
+    if (req.user.role !== 'super_admin') {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    if (!userId) {
+        return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
+
+    const userToImpersonate = await User.findById(userId).populate('school');
+
+    if (!userToImpersonate) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Log the impersonation action for auditing
+    console.log(`AUDIT: Super Admin '${req.user.email}' is impersonating user '${userToImpersonate.email}' (ID: ${userToImpersonate._id})`);
+
+    // Generate token for the target user
+    const token = generateToken(userToImpersonate._id, userToImpersonate.school?._id);
+
+    res.json({
+        success: true,
+        message: `Successfully impersonating ${userToImpersonate.fullName}`,
+        data: {
+            user: {
+                id: userToImpersonate._id,
+                email: userToImpersonate.email,
+                firstName: userToImpersonate.firstName,
+                lastName: userToImpersonate.lastName,
+                fullName: userToImpersonate.fullName,
+                role: userToImpersonate.role,
+                school: userToImpersonate.school,
+                // We don't want to leak sensitive info during impersonation
+            },
+            token
+        }
+    });
+});
+
+/**
  * @desc    Get Google OAuth URL for login/register (includes Gmail scopes)
  * @route   GET /api/auth/google/url
  * @access  Public

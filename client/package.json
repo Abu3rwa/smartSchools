@@ -27,7 +27,12 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.13.0",
     "recharts": "^3.7.0",
+    "chart.js": "^4.5.1",
+    "react-chartjs-2": "^5.3.1",
     "vite": "^7.3.1"
+  },
+  "peerDependencies": {
+    "chart.js": "^4.5.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

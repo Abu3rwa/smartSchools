@@ -1,6 +1,6 @@
-import { asyncHandler } from '../middleware/errorHandler.js';
-import * as readingAssistantService from '../services/readingAssistantService.js';
-import Student from '../models/Student.js';
+import { asyncHandler } from "../middleware/errorHandler.js";
+import * as readingAssistantService from "../services/readingAssistantService.js";
+import Student from "../models/Student.js";
 
 /**
  * @desc    Upload text and optionally generate simplified versions
@@ -22,19 +22,27 @@ export const uploadText = asyncHandler(async (req, res) => {
   if (!title || !originalText) {
     return res.status(400).json({
       success: false,
-      message: 'title and originalText are required',
+      message: "title and originalText are required",
     });
   }
 
   const text = await readingAssistantService.uploadText(
     req.schoolId,
     { title, originalText, sourceDocument, subjectArea, topicTags, classId },
-    { generateVersions: generateVersions !== false, targetLevels }
+    {
+      generateVersions: generateVersions !== false,
+      targetLevels,
+      tracking: {
+        schoolId: req.schoolId,
+        userId: req.user._id,
+        entityType: "SimplifiedText",
+      },
+    }
   );
 
   res.status(201).json({
     success: true,
-    message: 'Text uploaded successfully',
+    message: "Text uploaded successfully",
     data: text,
   });
 });
@@ -76,7 +84,7 @@ export const getSimplifiedForCurrentStudent = asyncHandler(async (req, res) => {
   if (!student) {
     return res.status(404).json({
       success: false,
-      message: 'Student not found',
+      message: "Student not found",
     });
   }
 
@@ -116,7 +124,7 @@ export const assessLevel = asyncHandler(async (req, res) => {
   if (!student) {
     return res.status(404).json({
       success: false,
-      message: 'Student not found',
+      message: "Student not found",
     });
   }
 
@@ -127,7 +135,7 @@ export const assessLevel = asyncHandler(async (req, res) => {
   );
   res.status(200).json({
     success: true,
-    message: 'Level updated',
+    message: "Level updated",
     data: profile,
   });
 });
@@ -140,7 +148,7 @@ export const assessLevel = asyncHandler(async (req, res) => {
 export const getStudentLevel = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
 
-  if (req.user.role === 'student') {
+  if (req.user.role === "student") {
     const student = await Student.findOne({
       user: req.user._id,
       school: req.schoolId,
@@ -148,7 +156,7 @@ export const getStudentLevel = asyncHandler(async (req, res) => {
     if (!student || student._id.toString() !== studentId) {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to view this student level',
+        message: "Not authorized to view this student level",
       });
     }
   }
@@ -173,7 +181,7 @@ export const updateProgress = asyncHandler(async (req, res) => {
   if (!student) {
     return res.status(404).json({
       success: false,
-      message: 'Student not found',
+      message: "Student not found",
     });
   }
 
@@ -181,7 +189,7 @@ export const updateProgress = asyncHandler(async (req, res) => {
   if (!textId || correctCount === undefined || totalCount === undefined) {
     return res.status(400).json({
       success: false,
-      message: 'textId, correctCount, and totalCount are required',
+      message: "textId, correctCount, and totalCount are required",
     });
   }
 
@@ -195,7 +203,7 @@ export const updateProgress = asyncHandler(async (req, res) => {
   );
   res.status(200).json({
     success: true,
-    message: 'Progress updated',
+    message: "Progress updated",
     data: profile,
   });
 });
@@ -211,13 +219,32 @@ export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
   if (!question || studentAnswer === undefined) {
     return res.status(400).json({
       success: false,
-      message: 'question and studentAnswer are required',
+      message: "question and studentAnswer are required",
     });
   }
 
+  const student = await Student.findOne({
+    user: req.user._id,
+    school: req.schoolId,
+  })
+    .select("_id")
+    .lean();
+
   const result = await readingAssistantService.evaluateCriticalThinkingAnswer(
     req.schoolId,
-    { textId, question, studentAnswer: String(studentAnswer || ''), textExcerpt }
+    {
+      textId,
+      question,
+      studentAnswer: String(studentAnswer || ""),
+      textExcerpt,
+      tracking: {
+        schoolId: req.schoolId,
+        userId: req.user._id,
+        studentId: student?._id,
+        entityType: "SimplifiedText",
+        entityId: textId || undefined,
+      },
+    }
   );
   res.status(200).json({ success: true, data: result });
 });
@@ -233,7 +260,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
   if (!textId) {
     return res.status(400).json({
       success: false,
-      message: 'textId is required',
+      message: "textId is required",
     });
   }
 
@@ -244,7 +271,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
   );
   res.status(201).json({
     success: true,
-    message: 'Assignment created',
+    message: "Assignment created",
     data: assignment,
   });
 });
@@ -262,7 +289,7 @@ export const myAssignments = asyncHandler(async (req, res) => {
   if (!student) {
     return res.status(404).json({
       success: false,
-      message: 'Student not found',
+      message: "Student not found",
     });
   }
 

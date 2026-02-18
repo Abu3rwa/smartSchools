@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { impersonateUser } from '../../store/slices/authSlice';
 import api from '../../config/api';
 import toast from 'react-hot-toast';
 import {
@@ -8,12 +10,14 @@ import {
     HiOutlineSearch,
     HiOutlineEye,
     HiOutlinePencil,
-    HiOutlineX
+    HiOutlineX,
+    HiOutlineLogin
 } from 'react-icons/hi';
 import './AdminDashboardPage.css';
 
 const AdminSchoolsPage = () => {
     const navigate = useNavigate();
+    const dispatch = useDispatch();
     const [schools, setSchools] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -56,6 +60,19 @@ const AdminSchoolsPage = () => {
             toast.error(error.response?.data?.message || 'Failed to create school');
         } finally {
             setCreating(false);
+        }
+    };
+
+    const handleImpersonate = async (userId) => {
+        if (!window.confirm('Are you sure you want to log in as this school\'s admin?')) return;
+
+        const toastId = toast.loading('Initiating impersonation...');
+        try {
+            await dispatch(impersonateUser(userId)).unwrap();
+            toast.success('Redirecting to school dashboard...', { id: toastId });
+            navigate('/'); // Redirect to the main dashboard, which will now be the impersonated user's dashboard
+        } catch (error) {
+            toast.error(error, { id: toastId });
         }
     };
 
@@ -131,10 +148,13 @@ const AdminSchoolsPage = () => {
                                     </td>
                                     <td>
                                         <div className="admin-actions">
-                                            <button className="admin-action-btn" onClick={() => navigate(`/admin/schools/${school._id}`)}>
+                                            <button className="admin-action-btn" title="Login As Admin" onClick={() => handleImpersonate(school.adminId)}>
+                                                <HiOutlineLogin size={14} />
+                                            </button>
+                                            <button className="admin-action-btn" title="View Details" onClick={() => navigate(`/admin/schools/${school._id}`)}>
                                                 <HiOutlineEye size={14} />
                                             </button>
-                                            <button className="admin-action-btn">
+                                            <button className="admin-action-btn" title="Edit School">
                                                 <HiOutlinePencil size={14} />
                                             </button>
                                         </div>

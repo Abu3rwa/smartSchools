@@ -1,21 +1,54 @@
 import { asyncHandler } from './errorHandler.js';
 import Behavior from '../models/Behavior.js';
 import logger from '../utils/logger.js';
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
-// Optional dependencies - will be used if available
-let geoip, useragent;
+let geoip;
+let useragent;
+const userContextCache = new Map();
 
+// Optional dependencies - loaded lazily in ESM-safe way
 try {
-    geoip = require('geoip-lite');
+    const geo = await import('geoip-lite');
+    geoip = geo.default || geo;
 } catch (error) {
-    console.warn('geoip-lite not available, location tracking disabled');
+    logger.warn('geoip-lite not available, location tracking disabled');
 }
 
 try {
-    useragent = require('useragent');
+    const uaLib = await import('useragent');
+    useragent = uaLib.default || uaLib;
 } catch (error) {
-    console.warn('useragent not available, device tracking disabled');
+    logger.warn('useragent not available, device tracking disabled');
 }
+
+const resolveAuthContext = async (req) => {
+    if (req.user && req.school) {
+        return { user: req.user, school: req.school };
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+    const token = authHeader.split(' ')[1];
+    if (!token) return null;
+
+    const cached = userContextCache.get(token);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.context;
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id).populate('school').setOptions({ skipTenantFilter: true });
+        if (!user || !user.school) return null;
+        const context = { user, school: user.school };
+        userContextCache.set(token, { context, expiresAt: Date.now() + (2 * 60 * 1000) });
+        return context;
+    } catch {
+        return null;
+    }
+};
 
 // Helper function to extract device information
 const extractDeviceInfo = (userAgentString) => {
@@ -121,7 +154,8 @@ const behaviorTracker = asyncHandler(async (req, res, next) => {
     }
     
     // Only track authenticated users
-    if (!req.user) {
+    const authContext = await resolveAuthContext(req);
+    if (!authContext?.user || !authContext?.school) {
         return next();
     }
     
@@ -145,6 +179,7 @@ const behaviorTracker = asyncHandler(async (req, res, next) => {
             // Log the behavior event after response is sent
             setImmediate(() => {
                 logBehaviorEvent(req, {
+                    authContext,
                     ipAddress,
                     userAgent: userAgentString,
                     device,
@@ -165,8 +200,14 @@ const behaviorTracker = asyncHandler(async (req, res, next) => {
 // Function to log behavior events
 const logBehaviorEvent = async (req, additionalData = {}) => {
     try {
-        const { user, school, method, originalUrl, path } = req;
-        const { ipAddress, userAgent, device, location, statusCode, responseTime } = additionalData;
+        const { method, originalUrl, path } = req;
+        const { authContext, ipAddress, userAgent, device, location, statusCode, responseTime } = additionalData;
+        const user = authContext?.user;
+        const school = authContext?.school;
+
+        if (!user || !school) {
+            return;
+        }
         
         // Determine event type and action based on request
         let eventType = 'api_request';
@@ -233,6 +274,9 @@ const logBehaviorEvent = async (req, additionalData = {}) => {
         } else if (path.includes('/export')) {
             eventType = 'data_exported';
             action = 'export_data';
+        } else if (path.includes('/behavior/events')) {
+            eventType = 'custom_event';
+            action = 'track_custom_event';
         }
         
         // Check for security events
@@ -284,7 +328,7 @@ const logBehaviorEvent = async (req, additionalData = {}) => {
         };
         
         // Log the event asynchronously (don't wait)
-        Behavior.logEvent(behaviorData);
+        await Behavior.logEvent(behaviorData);
         
     } catch (error) {
         logger.error('Error logging behavior event:', error);
@@ -294,7 +338,9 @@ const logBehaviorEvent = async (req, additionalData = {}) => {
 // Helper function to manually log custom events
 const logCustomEvent = async (req, eventData) => {
     try {
-        const { user, school } = req;
+        const authContext = await resolveAuthContext(req);
+        const user = req.user || authContext?.user;
+        const school = req.school || authContext?.school;
         if (!user || !school) return;
         
         const ipAddress = getClientIP(req);

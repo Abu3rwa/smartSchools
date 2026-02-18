@@ -52,6 +52,8 @@ import LessonPlanPage from "./pages/LessonPlanPage";
 import AdminNewslettersPage from "./pages/admin/AdminNewslettersPage";
 import AttendanceRemindersPage from "./pages/admin/AttendanceRemindersPage";
 import BehaviorManagementPage from "./pages/BehaviorManagementPage";
+import BehaviorTrackingDashboardPage from "./pages/BehaviorTrackingDashboardPage";
+import BehaviorAutoTracker from "./components/behavior/BehaviorAutoTracker";
 
 // Report Pages
 import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator";
@@ -181,6 +183,7 @@ function App() {
   return (
     <ThemeProvider theme={muiTheme}>
       <CssBaseline />
+      <BehaviorAutoTracker />
       <Routes>
       {/* Public Routes */}
       <Route path="/" element={<LandingPage />} />
@@ -366,6 +369,14 @@ function App() {
           element={
             <RoleRoute roles={["admin", "department_principal", "teacher"]}>
               <BehaviorManagementPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="behavior-analytics"
+          element={
+            <RoleRoute roles={["admin", "department_principal", "super_admin"]}>
+              <BehaviorTrackingDashboardPage />
             </RoleRoute>
           }
         />
@@ -652,10 +663,11 @@ function App() {
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
         <Route
-          path="subscriptions/:id"
-          element={<AdminSubscriptionDetailsPage />}
-        />
-      </Route>
+                    path="subscriptions/:id"
+                    element={<AdminSubscriptionDetailsPage />}
+                  />
+                  <Route path="analytics" element={<AdminAnalyticsPage />} />
+                </Route>
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />

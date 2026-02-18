@@ -270,7 +270,16 @@ router.get('/', superAdminOnly, asyncHandler(async (req, res) => {
         schools.map(async (school) => {
             const studentCount = await Student.countDocuments({ school: school._id, status: 'active' });
             const userCount = await User.countDocuments({ school: school._id });
-            return { ...school.toObject(), studentCount, userCount };
+            
+            // Find the primary admin for this school to enable impersonation
+            const admin = await User.findOne({ school: school._id, role: 'admin' }).select('_id').lean();
+
+            return { 
+                ...school.toObject(), 
+                studentCount, 
+                userCount,
+                adminId: admin ? admin._id : null // Pass adminId for the "Login As" button
+            };
         })
     );
 

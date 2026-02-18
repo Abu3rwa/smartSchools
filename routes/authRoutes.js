@@ -11,9 +11,10 @@ import {
     googleCallback,
     sendTestEmail,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    impersonateUser
 } from '../controllers/authController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, authorize } from '../middleware/auth.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
 const router = express.Router();
@@ -35,6 +36,9 @@ router.post('/login', validationRules.login, validate, login);
 // Password reset routes (public) with rate limiting
 router.post('/forgot-password', passwordResetLimiter, forgotPassword);
 router.post('/reset-password', passwordResetLimiter, resetPassword);
+
+// Super Admin Impersonation
+router.post('/impersonate', protect, authorize('super_admin'), impersonateUser);
 
 // Google OAuth routes (login/register with Gmail tokens)
 router.get('/google/url', getGoogleAuthUrl);
