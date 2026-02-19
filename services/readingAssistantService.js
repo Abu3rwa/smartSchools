@@ -11,6 +11,7 @@ import ReadingAssignment from "../models/ReadingAssignment.js";
 import ReadingCompletion from "../models/ReadingCompletion.js";
 import Student from "../models/Student.js";
 import Class from "../models/Class.js";
+import { getAcademicYearDateRange } from "../utils/academicYear.js";
 
 /** Approximate syllables in a word (vowel groups). */
 function countSyllables(word) {
@@ -44,7 +45,7 @@ function parseJsonFromResponse(text) {
   if (jsonMatch) {
     try {
       return JSON.parse(jsonMatch[0]);
-    } catch (_) {
+    } catch {
       return null;
     }
   }
@@ -426,9 +427,35 @@ export async function uploadText(schoolId, payload, options = {}) {
 /**
  * Get simplified version for a student (by reading level); fallback to closest level.
  */
-export async function getSimplifiedForStudent(textId, studentId, schoolId) {
-  const text = await SimplifiedText.findById(textId);
+export async function getSimplifiedForStudent(
+  textId,
+  studentId,
+  schoolId,
+  academicYear = null,
+  options = {}
+) {
+  const { requireAssignment = false } = options;
+
+  const text = await SimplifiedText.findOne({ _id: textId, school: schoolId });
   if (!text) throw new Error("Text not found");
+
+  if (requireAssignment) {
+    const assignmentQuery = {
+      school: schoolId,
+      text: textId,
+      students: studentId,
+      isActive: true,
+    };
+    if (academicYear) {
+      assignmentQuery.academicYear = academicYear;
+    }
+    const hasAssignment = await ReadingAssignment.exists(assignmentQuery);
+    if (!hasAssignment) {
+      const error = new Error("No active assignment found for this reading");
+      error.statusCode = 403;
+      throw error;
+    }
+  }
 
   let targetLevel = 8;
   const profile = await StudentReadingProfile.findOne({
@@ -530,7 +557,8 @@ export async function updateProgress(
   correctCount,
   totalCount,
   schoolId,
-  assignmentId = null
+  assignmentId = null,
+  academicYear = null
 ) {
   const accuracy = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
 
@@ -549,6 +577,22 @@ export async function updateProgress(
   );
 
   if (assignmentId) {
+    const assignmentQuery = {
+      _id: assignmentId,
+      school: schoolId,
+      students: studentId,
+      isActive: true,
+    };
+    if (academicYear) {
+      assignmentQuery.academicYear = academicYear;
+    }
+    const assignment = await ReadingAssignment.findOne(assignmentQuery).select("_id text");
+    if (!assignment) {
+      const error = new Error("Assignment not found for current academic year");
+      error.statusCode = 404;
+      throw error;
+    }
+
     await ReadingCompletion.findOneAndUpdate(
       { school: schoolId, student: studentId, assignment: assignmentId },
       {
@@ -623,7 +667,13 @@ Respond with ONLY the feedback text. No labels, no "Feedback:" prefix. Write dir
 /**
  * Create assignment: teacher assigns text to a class or specific students.
  */
-export async function createAssignment(schoolId, payload, assignedByUserId) {
+export async function createAssignment(
+  schoolId,
+  payload,
+  assignedByUserId,
+  academicYear = null,
+  schoolStartMonth = null
+) {
   const { textId, classId, studentIds, dueDate, instructions } = payload;
 
   if (!textId) throw new Error("textId is required");
@@ -632,12 +682,35 @@ export async function createAssignment(schoolId, payload, assignedByUserId) {
 
   let students = [];
   if (studentIds?.length) {
-    students = studentIds;
+    const studentQuery = {
+      school: schoolId,
+      _id: { $in: studentIds },
+      status: "active",
+    };
+    if (academicYear) {
+      studentQuery.academicYear = academicYear;
+    }
+    const selectedStudents = await Student.find(studentQuery).select("_id").lean();
+    students = selectedStudents.map((s) => s._id);
   } else if (classId) {
+    const classQuery = { _id: classId, school: schoolId };
+    if (academicYear) {
+      classQuery.academicYear = academicYear;
+    }
+    const classDoc = await Class.findOne(classQuery).select("_id");
+    if (!classDoc) {
+      throw new Error(
+        academicYear
+          ? `Class not found in academic year ${academicYear}`
+          : "Class not found"
+      );
+    }
+
     const inClass = await Student.find({
       school: schoolId,
       currentClass: classId,
       status: "active",
+      ...(academicYear ? { academicYear } : {}),
     }).select("_id");
     students = inClass.map((s) => s._id);
   }
@@ -645,8 +718,17 @@ export async function createAssignment(schoolId, payload, assignedByUserId) {
     throw new Error("Specify either classId or at least one studentId");
   }
 
+  if (dueDate && academicYear) {
+    const range = getAcademicYearDateRange(academicYear, schoolStartMonth);
+    const due = new Date(dueDate);
+    if (range && (due < range.startDate || due > range.endDate)) {
+      throw new Error(`Due date must be inside academic year ${academicYear}`);
+    }
+  }
+
   const assignment = await ReadingAssignment.create({
     school: schoolId,
+    academicYear: academicYear || undefined,
     text: textId,
     assignedBy: assignedByUserId,
     class: classId || undefined,
@@ -660,12 +742,17 @@ export async function createAssignment(schoolId, payload, assignedByUserId) {
 /**
  * List assignments for a student (assigned to them).
  */
-export async function getAssignmentsForStudent(studentId, schoolId) {
-  const assignments = await ReadingAssignment.find({
+export async function getAssignmentsForStudent(studentId, schoolId, academicYear = null) {
+  const assignmentQuery = {
     school: schoolId,
     students: studentId,
     isActive: true,
-  })
+  };
+  if (academicYear) {
+    assignmentQuery.academicYear = academicYear;
+  }
+
+  const assignments = await ReadingAssignment.find(assignmentQuery)
     .populate("text", "title subjectArea originalComplexity topicTags")
     .sort({ createdAt: -1 })
     .lean();
@@ -714,8 +801,9 @@ export async function getTextById(textId, schoolId) {
 /**
  * List assignments created by teacher or for a class.
  */
-export async function getAssignmentsForTeacher(schoolId, filters = {}) {
+export async function getAssignmentsForTeacher(schoolId, filters = {}, academicYear = null) {
   const query = { school: schoolId };
+  if (academicYear) query.academicYear = academicYear;
   if (filters.classId) query.class = filters.classId;
   if (filters.textId) query.text = filters.textId;
   const assignments = await ReadingAssignment.find(query)

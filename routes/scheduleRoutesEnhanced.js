@@ -15,7 +15,7 @@ import {
     resolveConflict,
     getScheduleTemplates,
     createScheduleTemplate
-} from '../controllers/scheduleControllerEnhanced.js';
+} from '../controllers/advancedScheduleController.js';
 
 const router = express.Router();
 

@@ -49,7 +49,7 @@ import roomRoutes from "./routes/roomRoutes.js";
 import advancedReportRoutes from "./routes/advancedReportRoutes.js";
 import { registerApiDocsRoute } from "./routes/apiDocsRoute.js";
 import { behaviorTracker } from "./middleware/behaviorTracker.js";
-import { processAttendanceReminders } from "./controllers/attendanceTakingReminderController.js";
+import { processAttendanceReminders } from "./controllers/attendanceReminderController.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
 import revisionRoutes from "./routes/revisionRoutes.js";
 import readingRoutes from "./routes/readingRoutes.js";
@@ -59,8 +59,11 @@ import attendanceRequestRoutes from "./routes/attendanceRequestRoutes.js";
 import substitutionRoutes from "./routes/substitutionRoutes.js";
 import lessonPlanCriteriaRoutes from "./routes/lessonPlanCriteriaRoutes.js";
 import apiDocsRoutes from "./routes/apiDocsRoutes.js";
+import reviewRoutes from "./routes/reviewRoutes.js";
+import interventionRoutes from "./routes/interventionRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
+import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 
 // Validate environment variables
 validateEnvironment();
@@ -86,7 +89,14 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Session-Id",
+      "x-session-id",
+      "X-Academic-Year",
+      "x-academic-year",
+    ],
   }),
 );
 
@@ -123,9 +133,12 @@ const authLimiter = rateLimit({
     message: "Too many attempts, please try again later",
   },
 });
+
+const isProduction = process.env.NODE_ENV === "production";
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: isProduction ? 1000 : 10000,
   message: {
     success: false,
     message: "Too many requests, please try again later",
@@ -171,7 +184,9 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/public/register-school", authLimiter);
 app.use("/api/ai", aiLimiter);
-app.use("/api", apiLimiter);
+if (isProduction) {
+  app.use("/api", apiLimiter);
+}
 
 // AI test endpoint (with rate limiting)
 app.get("/api/ai/test", async (req, res) => {
@@ -228,6 +243,8 @@ app.use("/api/practice", practiceRoutes);
 app.use("/api/revision", revisionRoutes);
 app.use("/api/reading", readingRoutes);
 app.use("/api/substitutions", substitutionRoutes);
+app.use("/api/review", reviewRoutes);
+app.use("/api/interventions", interventionRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);
@@ -263,6 +280,7 @@ const PORT = process.env.PORT || 5000;
 
 const REMINDER_JOB_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const REVIEW_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 const server = app.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`);
@@ -314,6 +332,20 @@ const server = app.listen(PORT, () => {
         logger.error("Newsletter issue scheduler error:", err?.message || err);
       }
     }, NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS);
+  }
+
+  if (process.env.RUN_REVIEW_SCHEDULER_JOB !== "false") {
+    runReviewSchedulerJob().catch((err) => {
+      logger.error("Review scheduler startup error:", err?.message || err);
+    });
+
+    setInterval(async () => {
+      try {
+        await runReviewSchedulerJob();
+      } catch (err) {
+        logger.error("Review scheduler job error:", err?.message || err);
+      }
+    }, REVIEW_SCHEDULER_INTERVAL_MS);
   }
 });
 

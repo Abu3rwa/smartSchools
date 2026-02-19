@@ -23,6 +23,7 @@ import { fetchSubjects } from '../store/slices/subjectSlice';
 import { fetchStudents } from '../store/slices/studentSlice';
 import { selectSubjects } from '../store/slices/subjectSlice';
 import { selectStudents } from '../store/slices/studentSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import toast from 'react-hot-toast';
 
 const RevisionPlanCreatePage = () => {
@@ -31,6 +32,7 @@ const RevisionPlanCreatePage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
+  const academicYear = useSelector(selectCurrentAcademicYear);
   const subjects = useSelector(selectSubjects) || [];
   const students = useSelector(selectStudents) || [];
   const generating = useSelector(selectRevisionGenerating);
@@ -101,6 +103,7 @@ const RevisionPlanCreatePage = () => {
         {isTeacher
           ? 'Generate a personalized revision plan for a student.'
           : 'Get a study schedule based on your weak areas.'}
+        {academicYear ? ` Academic Year: ${academicYear}.` : ''}
       </Typography>
 
       <Paper sx={{ p: { xs: 2, sm: 3 }, border: `1px solid ${theme.palette.divider}` }}>

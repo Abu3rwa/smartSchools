@@ -3,14 +3,22 @@ import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
   fetchMyAssignments,
+  fetchReviewQueue,
   selectMyAssignments,
-  selectPracticeLoading,
+  selectPracticeAssignmentsLoading,
+  selectPracticeError,
+  selectReviewQueue,
+  selectReviewFeatureEnabled,
+  selectReviewQueueLoading,
+  selectReviewQueueError,
 } from "../store/slices/practiceSlice";
+import { selectCurrentAcademicYear } from "../store/slices/uiSlice";
 import {
   HiOutlineAcademicCap,
   HiOutlinePlay,
   HiOutlineEye,
   HiOutlineRefresh,
+  HiOutlineExclamationCircle,
 } from "react-icons/hi";
 import "./PracticeDashboardPage.css";
 
@@ -19,11 +27,25 @@ const PracticeDashboardPage = () => {
   const navigate = useNavigate();
   const rawAssignments = useSelector(selectMyAssignments);
   const assignments = rawAssignments.filter((a) => a.standard);
-  const loading = useSelector(selectPracticeLoading);
+  const loading = useSelector(selectPracticeAssignmentsLoading);
+  const error = useSelector(selectPracticeError);
+  const reviewQueue = useSelector(selectReviewQueue);
+  const academicYear = useSelector(selectCurrentAcademicYear);
+  const reviewFeatureEnabled = useSelector(selectReviewFeatureEnabled);
+  const reviewQueueLoading = useSelector(selectReviewQueueLoading);
+  const reviewQueueError = useSelector(selectReviewQueueError);
 
   useEffect(() => {
     dispatch(fetchMyAssignments());
-  }, [dispatch]);
+    dispatch(fetchReviewQueue({ limit: 5 }));
+  }, [dispatch, academicYear]);
+
+  const dueNowCount = reviewQueue.filter((task) => task.status === "scheduled").length;
+
+  const formatTaskDate = (value) => {
+    if (!value) return "—";
+    return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  };
 
   const mastered = assignments.filter((a) => a.mastery?.isMastered && !a.mastery?.needsReview);
   const needsReview = assignments.filter(
@@ -59,9 +81,18 @@ const PracticeDashboardPage = () => {
         <div>
           <h1>Standards Practice</h1>
           <p className="text-muted">
-            Practice and master your assigned standards
+            Personalized questions, adaptive difficulty, and clear next steps.
           </p>
         </div>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => dispatch(fetchMyAssignments())}
+          disabled={loading}
+        >
+          <HiOutlineRefresh size={16} />
+          <span>{loading ? "Refreshing..." : "Refresh"}</span>
+        </button>
       </div>
 
       <div className="practice-stats">
@@ -87,15 +118,113 @@ const PracticeDashboardPage = () => {
         </div>
       </div>
 
+      {reviewFeatureEnabled && (
+        <div className="card" style={{ marginBottom: "var(--spacing-lg)" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "var(--spacing-md)",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h3 style={{ marginBottom: 4 }}>Review Queue</h3>
+              <p className="text-muted" style={{ margin: 0 }}>
+                Due now: {dueNowCount} · Upcoming: {Math.max(reviewQueue.length - dueNowCount, 0)}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => dispatch(fetchReviewQueue({ limit: 5 }))}
+              disabled={reviewQueueLoading}
+            >
+              <HiOutlineRefresh size={16} />
+              <span>{reviewQueueLoading ? "Refreshing..." : "Refresh Queue"}</span>
+            </button>
+          </div>
+
+          {reviewQueueLoading && reviewQueue.length === 0 ? (
+            <p className="text-muted" style={{ marginTop: "var(--spacing-md)", marginBottom: 0 }}>
+              Loading review queue...
+            </p>
+          ) : reviewQueueError && reviewQueue.length === 0 ? (
+            <p className="text-muted" style={{ marginTop: "var(--spacing-md)", marginBottom: 0 }}>
+              Unable to load review queue right now.
+            </p>
+          ) : reviewQueue.length === 0 ? (
+            <p className="text-muted" style={{ marginTop: "var(--spacing-md)", marginBottom: 0 }}>
+              No review tasks due right now. Keep your streak going.
+            </p>
+          ) : (
+            <div style={{ marginTop: "var(--spacing-md)", display: "grid", gap: "var(--spacing-sm)" }}>
+              {reviewQueue.map((task) => (
+                <div
+                  key={task._id}
+                  style={{
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "var(--radius-md)",
+                    padding: "0.75rem 1rem",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "var(--spacing-sm)",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600 }}>
+                      {task.standard?.code || "Standard"}
+                      {task.standard?.name ? ` · ${task.standard.name}` : ""}
+                    </div>
+                    <div className="text-muted" style={{ fontSize: "0.82rem" }}>
+                      Stage {task.intervalStage} · Due {formatTaskDate(task.scheduledFor)} · Priority {task.priorityScore}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={!task.assignment}
+                    onClick={() =>
+                      task.assignment &&
+                      navigate(`/portal/practice/${task.assignment?._id || task.assignment}`)
+                    }
+                  >
+                    <HiOutlinePlay size={16} />
+                    <span>Start Review</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="loading-container">
           <div className="spinner"></div>
+          <p>Loading your current standards...</p>
+        </div>
+      ) : error && assignments.length === 0 ? (
+        <div className="practice-empty error">
+          <HiOutlineExclamationCircle size={56} />
+          <h3>Unable to load standards</h3>
+          <p>{error}</p>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => dispatch(fetchMyAssignments())}
+          >
+            <HiOutlineRefresh size={16} />
+            <span>Try Again</span>
+          </button>
         </div>
       ) : assignments.length === 0 ? (
         <div className="practice-empty">
           <HiOutlineAcademicCap size={56} />
           <h3>No standards assigned yet</h3>
-          <p>Your teacher will assign standards for you to practice.</p>
+          <p>Your teacher will assign standards soon. Check back later.</p>
         </div>
       ) : (
         <div className="table-container">
@@ -195,7 +324,7 @@ const PracticeDashboardPage = () => {
                                 <>
                                   <HiOutlinePlay size={16} />
                                   <span>
-                                    {lifetimeTotal > 0 ? "Continue" : "Start"}
+                                    {lifetimeTotal > 0 ? "Continue Practice" : "Start Practice"}
                                   </span>
                                 </>
                               )}

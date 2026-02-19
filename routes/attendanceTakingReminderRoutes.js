@@ -2,7 +2,7 @@ import express from 'express';
 import { protect, authorize, authorizeWithPermission, resolveDepartmentScope } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
-import { runReminderJob, getReminders } from '../controllers/attendanceTakingReminderController.js';
+import { runReminderJob, getReminders } from '../controllers/attendanceReminderController.js';
 
 const router = express.Router();
 

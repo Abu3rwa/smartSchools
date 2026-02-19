@@ -104,6 +104,13 @@
     color: var(--text-muted);
 }
 
+.actions-cell {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+}
+
 /* Classes Grid */
 .classes-grid {
     display: grid;

@@ -70,6 +70,18 @@ const AttendanceRequestFormPage = () => {
     const requiresProof = selectedType?.requiresProof === true;
     const useDateRange = selectedType?.useDateRange === true;
 
+    useEffect(() => {
+        if (!requiresProof) {
+            setFileError('');
+            setErrors((prev) => {
+                if (!prev.attachment) return prev;
+                const next = { ...prev };
+                delete next.attachment;
+                return next;
+            });
+        }
+    }, [requiresProof]);
+
     const validate = () => {
         const next = {};
         if (!formData.requestType) next.requestType = 'Type of request is required';

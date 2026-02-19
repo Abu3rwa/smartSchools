@@ -181,8 +181,14 @@ practiceAttemptSchema.statics.calculateMastery = async function (
   minQuestions = 5,
   streakRequired = DEFAULT_STREAK_REQUIRED,
   schoolId = null,
+  assignmentIds = null,
 ) {
   const MasteryRecord = (await import("./MasteryRecord.js")).default;
+
+  const scopedAssignmentIds = Array.isArray(assignmentIds)
+    ? assignmentIds.filter(Boolean)
+    : [];
+  const hasAssignmentScope = scopedAssignmentIds.length > 0;
 
   const attemptQuery = {
     student: studentId,
@@ -190,6 +196,7 @@ practiceAttemptSchema.statics.calculateMastery = async function (
     status: "answered",
   };
   if (schoolId) attemptQuery.school = schoolId;
+  if (hasAssignmentScope) attemptQuery.assignment = { $in: scopedAssignmentIds };
 
   const allAnswered = await this.find(attemptQuery)
     .sort({ createdAt: -1 })
@@ -245,9 +252,12 @@ practiceAttemptSchema.statics.calculateMastery = async function (
   };
 
   // Persisted record (for sticky mastery and decay)
-  const recordQuery = { student: studentId, standard: standardId };
-  if (schoolId) recordQuery.school = schoolId;
-  let record = await MasteryRecord.findOne(recordQuery).lean();
+  let record = null;
+  if (!hasAssignmentScope) {
+    const recordQuery = { student: studentId, standard: standardId };
+    if (schoolId) recordQuery.school = schoolId;
+    record = await MasteryRecord.findOne(recordQuery).lean();
+  }
   const now = new Date();
   const lastPracticed = record?.lastPracticedAt
     ? new Date(record.lastPracticedAt)

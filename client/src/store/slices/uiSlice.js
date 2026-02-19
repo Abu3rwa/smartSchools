@@ -1,11 +1,50 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../config/api';
+
+const DEFAULT_ACADEMIC_YEAR_START_MONTH = 8;
+const inferAcademicYear = () => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const startYear = currentMonth >= DEFAULT_ACADEMIC_YEAR_START_MONTH
+        ? now.getFullYear()
+        : now.getFullYear() - 1;
+    return `${startYear}-${startYear + 1}`;
+};
+
+const getInitialAcademicYear = () => localStorage.getItem('currentAcademicYear') || inferAcademicYear();
+
+export const fetchSchoolAcademicYear = createAsyncThunk(
+    'ui/fetchSchoolAcademicYear',
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/schools/me/current-academic-year');
+            return response.data?.data?.academicYear;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to load school academic year');
+        }
+    }
+);
+
+export const updateSchoolAcademicYear = createAsyncThunk(
+    'ui/updateSchoolAcademicYear',
+    async (academicYear, { rejectWithValue }) => {
+        try {
+            const response = await api.put('/schools/me/current-academic-year', { academicYear });
+            return response.data?.data?.academicYear;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to update school academic year');
+        }
+    }
+);
 
 const uiSlice = createSlice({
     name: 'ui',
     initialState: {
         sidebarOpen: true,
         theme: localStorage.getItem('theme') || 'dark',
-        currentAcademicYear: '2025-2026',
+        currentAcademicYear: getInitialAcademicYear(),
+        academicYearLoading: false,
+        academicYearError: null,
         selectedClass: null,
         selectedSubject: null,
         selectedMonth: new Date().getMonth() + 1,
@@ -26,6 +65,8 @@ const uiSlice = createSlice({
         },
         setCurrentAcademicYear: (state, action) => {
             state.currentAcademicYear = action.payload;
+            localStorage.setItem('currentAcademicYear', action.payload);
+            state.academicYearError = null;
         },
         setSelectedClass: (state, action) => {
             state.selectedClass = action.payload;
@@ -48,6 +89,39 @@ const uiSlice = createSlice({
         setLoading: (state, action) => {
             state.loading[action.payload.key] = action.payload.value;
         }
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(fetchSchoolAcademicYear.pending, (state) => {
+                state.academicYearLoading = true;
+                state.academicYearError = null;
+            })
+            .addCase(fetchSchoolAcademicYear.fulfilled, (state, action) => {
+                state.academicYearLoading = false;
+                if (action.payload) {
+                    state.currentAcademicYear = action.payload;
+                    localStorage.setItem('currentAcademicYear', action.payload);
+                }
+            })
+            .addCase(fetchSchoolAcademicYear.rejected, (state, action) => {
+                state.academicYearLoading = false;
+                state.academicYearError = action.payload;
+            })
+            .addCase(updateSchoolAcademicYear.pending, (state) => {
+                state.academicYearLoading = true;
+                state.academicYearError = null;
+            })
+            .addCase(updateSchoolAcademicYear.fulfilled, (state, action) => {
+                state.academicYearLoading = false;
+                if (action.payload) {
+                    state.currentAcademicYear = action.payload;
+                    localStorage.setItem('currentAcademicYear', action.payload);
+                }
+            })
+            .addCase(updateSchoolAcademicYear.rejected, (state, action) => {
+                state.academicYearLoading = false;
+                state.academicYearError = action.payload;
+            });
     }
 });
 
@@ -69,6 +143,8 @@ export const {
 export const selectSidebarOpen = (state) => state.ui.sidebarOpen;
 export const selectTheme = (state) => state.ui.theme;
 export const selectCurrentAcademicYear = (state) => state.ui.currentAcademicYear;
+export const selectAcademicYearLoading = (state) => state.ui.academicYearLoading;
+export const selectAcademicYearError = (state) => state.ui.academicYearError;
 export const selectSelectedClass = (state) => state.ui.selectedClass;
 export const selectSelectedSubject = (state) => state.ui.selectedSubject;
 export const selectSelectedMonth = (state) => state.ui.selectedMonth;

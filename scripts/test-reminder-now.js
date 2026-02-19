@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import connectDB from '../config/db.js';
-import { processAttendanceReminders } from '../controllers/attendanceTakingReminderController.js';
+import { processAttendanceReminders } from '../controllers/attendanceReminderController.js';
 import '../models/User.js';
 import '../models/Class.js';
 import '../models/Subject.js';

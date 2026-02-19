@@ -2,6 +2,7 @@ import notificationService from '../services/notificationService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import Student from '../models/Student.js';
+import { resolveRequestedAcademicYear } from '../utils/academicYear.js';
 
 /**
  * Verify teacher has access to a student (student is in one of teacher's assigned classes)
@@ -89,6 +90,7 @@ export const sendDailyReport = asyncHandler(async (req, res) => {
 export const sendMonthlyReport = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const { month, academicYear } = req.body;
+    const effectiveAcademicYear = resolveRequestedAcademicYear(academicYear, req.school);
 
     if (!(await verifyTeacherStudentAccess(req, studentId))) {
         return res.status(403).json({ success: false, message: 'Not authorized for this student' });
@@ -97,7 +99,7 @@ export const sendMonthlyReport = asyncHandler(async (req, res) => {
     const notification = await notificationService.sendMonthlyReport(
         studentId,
         month || new Date().getMonth() + 1,
-        academicYear || '2025-2026',
+        effectiveAcademicYear,
         req.user._id
     );
 

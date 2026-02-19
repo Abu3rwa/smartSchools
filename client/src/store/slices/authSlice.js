@@ -8,6 +8,7 @@ export const login = createAsyncThunk(
     try {
       const response = await api.post('/auth/login', { email, password });
       if (response.data.success) {
+        localStorage.removeItem('behavior_session_id');
         localStorage.setItem('token', response.data.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
         return response.data.data;
@@ -24,6 +25,7 @@ export const register = createAsyncThunk(
     try {
       const response = await api.post('/auth/register', userData);
       if (response.data.success) {
+        localStorage.removeItem('behavior_session_id');
         localStorage.setItem('token', response.data.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
         return response.data.data;
@@ -58,6 +60,7 @@ export const googleLoginCallback = createAsyncThunk(
   async (token, { rejectWithValue }) => {
     try {
       // Save token to localStorage
+      localStorage.removeItem('behavior_session_id');
       localStorage.setItem('token', token);
 
       // Fetch user data with the new token
@@ -96,6 +99,7 @@ export const impersonateUser = createAsyncThunk(
         const { user, token } = response.data.data;
         
         // 3. Set the new user and token in localStorage and state
+        localStorage.removeItem('behavior_session_id');
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
         
@@ -124,6 +128,7 @@ export const stopImpersonation = createAsyncThunk(
       }
 
       // 1. Restore the admin token
+      localStorage.removeItem('behavior_session_id');
       localStorage.setItem('token', adminToken);
       localStorage.removeItem('adminToken');
 
@@ -200,6 +205,7 @@ const authSlice = createSlice({
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('adminToken');
+      localStorage.removeItem('behavior_session_id');
       state.user = null;
       state.teacherProfile = null;
       state.token = null;
@@ -318,6 +324,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        localStorage.removeItem('behavior_session_id');
       })
       // Update profile
       .addCase(updateProfile.fulfilled, (state, action) => {

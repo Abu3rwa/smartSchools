@@ -17,7 +17,7 @@ import {
     HiOutlineArrowRight,
     HiOutlineChevronDown,
     HiOutlineMenu,
-    HiOutlineMail,
+    HiOutlineX,
     HiOutlineClipboardCheck,
     HiOutlineOfficeBuilding,
     HiOutlineUserAdd,
@@ -38,24 +38,35 @@ import AccordionDetails from '@mui/material/AccordionDetails';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import CircularProgress from '@mui/material/CircularProgress';
+import Chip from '@mui/material/Chip';
+import { getLandingContent } from '../services/landingContentService';
+import { landingPageDefaults, resolveLandingTemplate } from '../config/landingPageDefaults';
 import './LandingPage.css';
 
-const FAQ_ITEMS = [
-    { q: 'How does the free trial work?', a: 'Start with our Free plan—no credit card required. You get up to 50 students, full gradebook, attendance, teacher substitution, and parent notifications. Upgrade to Growth anytime when you need more capacity or premium features.' },
-    { q: 'What is teacher substitution?', a: 'When a teacher is absent, department principals create a sub request, select available substitutes from the system, and teachers receive an email with a secure link to confirm or decline. The system prevents double-booking and keeps a full audit trail.' },
-    { q: 'Is my school data secure?', a: 'Yes. We use bank-level encryption, secure cloud hosting, and are designed for GDPR compliance. Each school\'s data is fully isolated—no other institution can access your information.' },
-    { q: 'Can we use our own branding?', a: 'Growth and Enterprise plans support white-label options: custom logo, colors, and domain so parents and staff see your school\'s brand when they log in.' },
-    { q: 'Do you integrate with existing systems?', a: 'We offer CSV import for students and grades. Enterprise plans can include API access and custom integrations—contact us to discuss your needs.' },
-    { q: 'What kind of support do you offer?', a: 'All plans include email support. Growth adds priority support; Enterprise includes a dedicated success manager and optional training for your staff.' },
-];
+const featureIconMap = {
+    gradebook: HiOutlineClipboardCheck,
+    attendance: HiOutlineUserGroup,
+    substitute: HiOutlineUserAdd,
+    analytics: HiOutlineChartBar,
+    security: HiOutlineShieldCheck,
+    mobile: HiOutlineDeviceMobile,
+};
 
-const navLinks = [
-    { label: 'Features', id: 'features' },
-    { label: 'Pricing', id: 'pricing' },
-    { label: 'Testimonials', id: 'testimonials' },
-    { label: 'FAQ', id: 'faq' },
-    { label: 'Find your school', id: 'find-school' },
-];
+const trustIconMap = {
+    shield: HiOutlineShieldCheck,
+    cloud: HiOutlineCloud,
+    schools: HiOutlineOfficeBuilding,
+    uptime: HiOutlineCheckCircle,
+};
+
+const featureMetaMap = {
+    gradebook: { audience: 'For teachers', highlight: 'Faster grading cycles', tint: 'rgba(32,59,180,0.22)' },
+    attendance: { audience: 'For operations', highlight: 'Cleaner daily routines', tint: 'rgba(14,165,233,0.2)' },
+    substitute: { audience: 'For principals', highlight: 'Less scheduling friction', tint: 'rgba(245,158,11,0.2)' },
+    analytics: { audience: 'For leadership', highlight: 'Data-backed decisions', tint: 'rgba(16,185,129,0.2)' },
+    security: { audience: 'For admins', highlight: 'Safer school data', tint: 'rgba(99,102,241,0.2)' },
+    mobile: { audience: 'For everyone', highlight: 'Work from anywhere', tint: 'rgba(147,63,231,0.2)' },
+};
 
 const LandingPage = () => {
     const dispatch = useDispatch();
@@ -65,13 +76,44 @@ const LandingPage = () => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     const [searchTerm, setSearchTerm] = useState('');
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [content, setContent] = useState(landingPageDefaults);
+    const [contentLoading, setContentLoading] = useState(true);
+    const [contentError, setContentError] = useState('');
 
     useEffect(() => {
+        let mounted = true;
         if (isAuthenticated) {
             navigate('/portal', { replace: true });
-            return;
+            return undefined;
         }
+
         dispatch(fetchSchools());
+
+        const loadLandingContent = async () => {
+            setContentLoading(true);
+            try {
+                const response = await getLandingContent();
+                if (mounted && response?.content) {
+                    setContent(response.content);
+                    setContentError('');
+                }
+            } catch (error) {
+                if (mounted) {
+                    setContentError(
+                        error?.response?.data?.message || 'Unable to load latest landing content. Showing defaults.'
+                    );
+                }
+            } finally {
+                if (mounted) {
+                    setContentLoading(false);
+                }
+            }
+        };
+
+        loadLandingContent();
+        return () => {
+            mounted = false;
+        };
     }, [dispatch, isAuthenticated, navigate]);
 
     useEffect(() => {
@@ -80,13 +122,13 @@ const LandingPage = () => {
         script.textContent = JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'Organization',
-            name: 'GradeBook Pro',
-            description: 'School management platform for grades, attendance, timetables, and parent communication.',
+            name: content?.seo?.organizationName || content?.brand?.name || 'GradeBook Pro',
+            description: content?.seo?.description || 'School management platform for grades, attendance, timetables, and parent communication.',
             url: window.location.origin
         });
         document.head.appendChild(script);
         return () => script.remove();
-    }, []);
+    }, [content]);
 
     const searchTrimmed = searchTerm.trim().toLowerCase();
     const filtered = searchTrimmed
@@ -104,26 +146,89 @@ const LandingPage = () => {
         setMobileOpen(false);
     };
 
-    if (loading) {
+    const handleAction = (action) => {
+        if (!action || typeof action !== 'string') return;
+        if (action === '#') return;
+        if (action === 'register') {
+            navigate('/register-school');
+            return;
+        }
+        if (action === 'login') {
+            navigate('/login');
+            return;
+        }
+        if (action.startsWith('scroll:')) {
+            scrollTo(action.replace('scroll:', ''));
+            return;
+        }
+        if (action.startsWith('mailto:')) {
+            window.location.href = action;
+            return;
+        }
+        if (action.startsWith('#')) {
+            scrollTo(action.slice(1));
+            return;
+        }
+        if (action.startsWith('http://') || action.startsWith('https://') || action === '/') {
+            window.location.href = action;
+        }
+    };
+
+    const heroBadge = schools.length > 0
+        ? resolveLandingTemplate(content.hero.badgeTemplate, { schoolCount: schools.length })
+        : content.hero.badgeFallback;
+
+    const trustItems = (content.trustStrip || [])
+        .map((item) => ({
+            ...item,
+            text: resolveLandingTemplate(item.text, { schoolCount: schools.length })
+        }))
+        .filter((item) => Boolean(item.text));
+
+    const noMatchMessage = resolveLandingTemplate(content.findSchool.noMatchTemplate, { searchTerm });
+    const matchingLabel = resolveLandingTemplate(content.findSchool.matchingLabelTemplate, { searchTerm });
+    const showingLimitText = resolveLandingTemplate(content.findSchool.showingLimitTemplate, {
+        shownCount: schoolsToShow.length,
+        totalCount: filtered.length
+    });
+    const totalSchoolCountLabel = `${schools.length} ${schools.length === 1 ? 'school' : 'schools'} available`;
+    const filteredSchoolCountLabel = `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}`;
+    const copyrightText = resolveLandingTemplate(content.footer.copyrightTemplate, {
+        year: new Date().getFullYear(),
+        copyrightName: content.brand.copyrightName
+    });
+
+    if (loading || contentLoading) {
         return (
-            <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default' }}>
-                <CircularProgress />
+            <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
+                <Paper className="landing-loading-shell" variant="outlined">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                        <Box className="landing-loading-logo">
+                            <HiOutlineAcademicCap size={20} />
+                        </Box>
+                        <Typography variant="h6" sx={{ fontWeight: 700 }}>{content.brand.name}</Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Loading school experience...
+                    </Typography>
+                    <CircularProgress size={24} />
+                </Paper>
             </Box>
         );
     }
 
     const navContent = (
         <>
-            {navLinks.map(({ label, id }) => (
+            {(content.navigation || []).map(({ label, id }) => (
                 <Button key={id} href={`#${id}`} onClick={() => scrollTo(id)} sx={{ color: 'text.secondary', fontWeight: 500 }}>
                     {label}
                 </Button>
             ))}
-            <Button onClick={() => navigate('/login')} sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                Log in
+            <Button onClick={() => handleAction('login')} sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                {content.header.loginLabel}
             </Button>
-            <Button variant="contained" onClick={() => navigate('/register-school')} sx={{ fontWeight: 600, bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
-                Start free
+            <Button variant="contained" onClick={() => handleAction('register')} sx={{ fontWeight: 600, bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
+                {content.header.startLabel}
             </Button>
         </>
     );
@@ -141,7 +246,7 @@ const LandingPage = () => {
                         </Box>
                     }>
                         <Typography variant="h6" sx={{ fontWeight: 700, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', backgroundClip: 'text', color: 'transparent' }}>
-                            GradeBook Pro
+                            {content.brand.name}
                         </Typography>
                     </Button>
                     <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 1 }}>
@@ -155,38 +260,46 @@ const LandingPage = () => {
 
             <Drawer anchor="right" open={mobileOpen} onClose={() => setMobileOpen(false)} PaperProps={{ sx: { width: 280, bgcolor: 'background.default' } }}>
                 <Box sx={{ p: 3, pt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {navLinks.map(({ label, id }) => (
+                    {(content.navigation || []).map(({ label, id }) => (
                         <Button key={id} href={`#${id}`} fullWidth onClick={() => scrollTo(id)} sx={{ justifyContent: 'flex-start', color: 'text.primary' }}>
                             {label}
                         </Button>
                     ))}
-                    <Button fullWidth onClick={() => { setMobileOpen(false); navigate('/login'); }} sx={{ color: 'text.secondary' }}>Log in</Button>
-                    <Button variant="contained" fullWidth onClick={() => { setMobileOpen(false); navigate('/register-school'); }} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>Start free</Button>
+                    <Button fullWidth onClick={() => { setMobileOpen(false); handleAction('login'); }} sx={{ color: 'text.secondary' }}>{content.header.loginLabel}</Button>
+                    <Button variant="contained" fullWidth onClick={() => { setMobileOpen(false); handleAction('register'); }} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>{content.header.startLabel}</Button>
                 </Box>
             </Drawer>
 
             {/* Hero */}
             <Box component="section" sx={{ position: 'relative', zIndex: 1, pt: { xs: 14, md: 16 }, pb: { xs: 6, md: 10 }, px: 2 }}>
                 <Container maxWidth="lg">
+                    {contentError ? (
+                        <Paper
+                            variant="outlined"
+                            sx={{ mb: 3, p: 2, borderColor: 'warning.main', bgcolor: 'rgba(245,158,11,0.1)' }}
+                        >
+                            <Typography variant="body2" color="warning.main">{contentError}</Typography>
+                        </Paper>
+                    ) : null}
                     <Grid container spacing={6} alignItems="center">
                         <Grid item xs={12} lg={6}>
                             <Paper variant="outlined" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 2, py: 1, mb: 3, borderRadius: 10, borderColor: 'primary.main', bgcolor: 'rgba(90,174,238,0.1)' }}>
                                 <HiOutlineSparkles size={16} />
                                 <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, color: 'primary.main' }}>
-                                    {schools.length > 0 ? `Used by ${schools.length}+ schools` : 'Trusted by schools worldwide'}
+                                    {heroBadge}
                                 </Typography>
                             </Paper>
                             <Typography variant="h3" component="h1" sx={{ fontWeight: 800, mb: 2, lineHeight: 1.15 }}>
-                                The gradebook that runs your school—not the other way around
+                                {content.hero.title}
                             </Typography>
                             <Typography color="text.secondary" sx={{ fontSize: '1.125rem', mb: 3, maxWidth: 520 }}>
-                                Daily grades, attendance, timetables, and parent communication in one place. Start free with up to 50 students—no credit card required.
+                                {content.hero.subtitle}
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
-                                <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={18} />} onClick={() => navigate('/register-school')} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
-                                    Start free trial
+                                <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={18} />} onClick={() => handleAction(content.hero.primaryCta.action)} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
+                                    {content.hero.primaryCta.label}
                                 </Button>
-                                <Button variant="outlined" size="large" onClick={() => scrollTo('pricing')}>See pricing</Button>
+                                <Button variant="outlined" size="large" onClick={() => handleAction(content.hero.secondaryCta.action)}>{content.hero.secondaryCta.label}</Button>
                             </Box>
                             <Typography
                                 variant="caption"
@@ -198,10 +311,10 @@ const LandingPage = () => {
                                     '@media (prefers-reduced-motion: reduce)': { animation: 'none' }
                                 }}
                             >
-                                Scroll to explore
+                                {content.hero.scrollHint}
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, color: 'text.secondary', typography: 'body2' }}>
-                                {['Free up to 50 students', 'No credit card', 'Cancel anytime'].map((t) => (
+                                {(content.hero.highlights || []).map((t) => (
                                     <Box key={t} component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                                         <HiOutlineCheckCircle size={16} style={{ color: '#10b981' }} /> {t}
                                     </Box>
@@ -209,7 +322,7 @@ const LandingPage = () => {
                             </Box>
                         </Grid>
                         <Grid item xs={12} lg={6} sx={{ display: 'flex', justifyContent: { lg: 'flex-end' } }}>
-                            <Paper sx={{ width: '100%', maxWidth: 440, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <Paper className="landing-elevated-card" sx={{ width: '100%', maxWidth: 440, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
                                 <Box sx={{ display: 'flex', gap: 1, p: 1.5, bgcolor: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                                     <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#ff5f56' }} />
                                     <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#ffbd2e' }} />
@@ -217,20 +330,20 @@ const LandingPage = () => {
                                 </Box>
                                 <Box sx={{ p: 2 }}>
                                     <Grid container spacing={1.5} sx={{ mb: 2 }}>
-                                        {[[245, 'Students'], [18, 'Classes'], ['92%', 'Attendance']].map(([num, label]) => (
-                                            <Grid item xs={4} key={label}>
+                                        {(content.hero.preview.metrics || []).map(({ value, label }) => (
+                                            <Grid item xs={4} key={label || value}>
                                                 <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.06)' }}>
-                                                    <Typography variant="h6">{num}</Typography>
+                                                    <Typography variant="h6">{value}</Typography>
                                                     <Typography variant="caption" color="text.secondary">{label}</Typography>
                                                 </Paper>
                                             </Grid>
                                         ))}
                                     </Grid>
                                     <Grid container sx={{ typography: 'caption', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                        {['Class', 'Subject', 'Grades today'].map((h) => (
+                                        {(content.hero.preview.tableHeaders || []).map((h) => (
                                             <Grid item xs={4} key={h} sx={{ py: 1, px: 1.5, color: 'text.secondary', fontWeight: 600 }}>{h}</Grid>
                                         ))}
-                                        {[['10-A', 'Math', '24'], ['10-B', 'Science', '22'], ['11-A', 'English', '20']].map((row, i) => (
+                                        {(content.hero.preview.tableRows || []).map((row, i) => (
                                             row.map((cell, j) => (
                                                 <Grid item xs={4} key={`${i}-${j}`} sx={{ py: 1, px: 1.5, color: j === 0 ? 'text.primary' : 'text.secondary' }}>{cell}</Grid>
                                             ))
@@ -247,14 +360,15 @@ const LandingPage = () => {
             <Box sx={{ py: 2, borderTop: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.1)', bgcolor: 'rgba(255,255,255,0.02)' }}>
                 <Container maxWidth="lg">
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: { xs: 2, sm: 4 }, color: 'text.secondary', typography: 'body2', fontWeight: 500 }}>
-                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}><HiOutlineShieldCheck size={18} aria-hidden /> Secure & compliant</Box>
-                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}><HiOutlineCloud size={18} aria-hidden /> Cloud-based</Box>
-                        {schools.length > 0 && (
-                            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                                {schools.length}+ schools
-                            </Box>
-                        )}
-                        <Box component="span">99.9% uptime</Box>
+                        {trustItems.map((item) => {
+                            const TrustIcon = trustIconMap[item.iconKey] || HiOutlineCheckCircle;
+                            return (
+                                <Box key={`${item.iconKey}-${item.text}`} component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                                    <TrustIcon size={18} aria-hidden />
+                                    {item.text}
+                                </Box>
+                            );
+                        })}
                     </Box>
                 </Container>
             </Box>
@@ -262,22 +376,18 @@ const LandingPage = () => {
             {/* How it works */}
             <Box component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper' }}>
                 <Container maxWidth="lg">
-                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>How it works</Typography>
-                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>Get started in minutes</Typography>
+                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.howItWorks.overline}</Typography>
+                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.howItWorks.title}</Typography>
                     <Typography color="text.secondary" align="center" sx={{ maxWidth: 580, mx: 'auto', mb: 4 }}>
-                        Register your school, add classes and teachers, then start recording grades and attendance.
+                        {content.howItWorks.subtitle}
                     </Typography>
                     <Grid container spacing={3}>
-                        {[
-                            { n: 1, title: 'Create your school', desc: 'Sign up with your school details. No credit card required for the Free plan.' },
-                            { n: 2, title: 'Add classes & teachers', desc: 'Set up grades, subjects, and assign teachers. Import students via CSV if you like.' },
-                            { n: 3, title: 'Start managing', desc: 'Enter daily grades, take attendance, and send reports to parents—all from one dashboard.' },
-                        ].map(({ n, title, desc }) => (
-                            <Grid item xs={12} md={4} key={n}>
-                                <Paper variant="outlined" sx={{ p: 3, textAlign: 'center', height: '100%', '&:hover': { borderColor: 'primary.main' } }}>
-                                    <Box sx={{ width: 48, height: 48, borderRadius: 2, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, mx: 'auto', mb: 2 }}>{n}</Box>
+                        {(content.howItWorks.steps || []).map(({ title, description }, index) => (
+                            <Grid item xs={12} md={4} key={title || index}>
+                                <Paper className="landing-lift-card" variant="outlined" sx={{ p: 3, textAlign: 'center', height: '100%', '&:hover': { borderColor: 'primary.main' } }}>
+                                    <Box sx={{ width: 48, height: 48, borderRadius: 2, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, mx: 'auto', mb: 2 }}>{index + 1}</Box>
                                     <Typography variant="h6" sx={{ mb: 1 }}>{title}</Typography>
-                                    <Typography variant="body2" color="text.secondary">{desc}</Typography>
+                                    <Typography variant="body2" color="text.secondary">{description}</Typography>
                                 </Paper>
                             </Grid>
                         ))}
@@ -288,31 +398,50 @@ const LandingPage = () => {
             {/* Features */}
             <Box id="features" component="section" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: 80 }}>
                 <Container maxWidth="lg">
-                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>Features</Typography>
-                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>Built for how schools actually work</Typography>
+                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.features.overline}</Typography>
+                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.features.title}</Typography>
                     <Typography color="text.secondary" align="center" sx={{ maxWidth: 580, mx: 'auto', mb: 4 }}>
-                        One platform for grades, attendance, timetables, and parent communication.
+                        {content.features.subtitle}
                     </Typography>
                     <Grid container spacing={3}>
-                        {[
-                            { icon: HiOutlineClipboardCheck, title: 'Daily gradebook', desc: 'Bulk entry by class, automatic averages, and report generation. Configure max marks and passing criteria per subject.' },
-                            { icon: HiOutlineUserGroup, title: 'Attendance & timetable', desc: 'Period-based timetables and attendance. Teachers see their day at a glance and record attendance in one click.' },
-                            { icon: HiOutlineUserAdd, title: 'Teacher substitution', desc: 'When a teacher is absent, principals create sub requests, see available substitutes, and teachers confirm or decline via secure links. Full audit trail and no double-booking.' },
-                            { icon: HiOutlineMail, title: 'Parent notifications', desc: 'Send grade updates and reports on demand. Optional Gmail integration for a professional sender address.' },
-                            { icon: HiOutlineChartBar, title: 'Analytics & reports', desc: 'Dashboards, monthly and semester averages, and AI-powered report generation for parents and admins.' },
-                            { icon: HiOutlineShieldCheck, title: 'Multi-tenant & secure', desc: 'Each school\'s data is isolated. Role-based access, secure auth, and white-label options on paid plans.' },
-                            { icon: HiOutlineDeviceMobile, title: 'Works everywhere', desc: 'Responsive web app—use it on desktop, tablet, or phone. No separate app install required.' },
-                        ].map(({ icon: Icon, title, desc }) => (
-                            <Grid item xs={12} sm={6} lg={4} key={title}>
-                                <Paper variant="outlined" sx={{ p: 3, height: '100%', '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(90,174,238,0.04)' } }}>
-                                    <Box sx={{ width: 48, height: 48, borderRadius: 2, bgcolor: 'rgba(90,174,238,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main', mb: 2 }}>
-                                        <Icon size={26} />
+                        {(content.features.items || []).map(({ iconKey, title, description }, index) => {
+                            const Icon = featureIconMap[iconKey] || HiOutlineSparkles;
+                            const featureMeta = featureMetaMap[iconKey] || {
+                                audience: 'For schools',
+                                highlight: `Feature ${index + 1}`,
+                                tint: 'rgba(90,174,238,0.2)'
+                            };
+                            return (
+                            <Grid item xs={12} sm={6} lg={4} key={title} sx={{ display: 'flex' }}>
+                                <Paper
+                                    className="landing-feature-card landing-lift-card"
+                                    variant="outlined"
+                                    sx={{ p: 3, height: '100%', width: '100%', '--feature-tint': featureMeta.tint }}
+                                >
+                                    <Box className="landing-feature-card-accent" aria-hidden="true" />
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2 }}>
+                                        <Box className="landing-feature-card-icon" sx={{ width: 48, height: 48, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
+                                            <Icon size={26} />
+                                        </Box>
+                                        <Chip
+                                            size="small"
+                                            label={featureMeta.audience}
+                                            className="landing-feature-chip"
+                                            sx={{ alignSelf: 'center' }}
+                                        />
                                     </Box>
-                                    <Typography variant="h6" sx={{ mb: 1 }}>{title}</Typography>
-                                    <Typography variant="body2" color="text.secondary">{desc}</Typography>
+                                    <Typography variant="h6" sx={{ mb: 1.25 }}>{title}</Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>{description}</Typography>
+                                    <Box className="landing-feature-card-footer" sx={{ mt: 2.25 }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {featureMeta.highlight}
+                                        </Typography>
+                                        <HiOutlineArrowRight size={15} />
+                                    </Box>
                                 </Paper>
                             </Grid>
-                        ))}
+                            );
+                        })}
                     </Grid>
                 </Container>
             </Box>
@@ -320,25 +449,21 @@ const LandingPage = () => {
             {/* Pricing */}
             <Box id="pricing" component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper', scrollMarginTop: 80 }}>
                 <Container maxWidth="lg">
-                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>Pricing</Typography>
-                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>Simple, transparent pricing</Typography>
-                    <Typography color="text.secondary" align="center" sx={{ mb: 4 }}>Start free. Scale when you grow. No hidden fees.</Typography>
+                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.pricing.overline}</Typography>
+                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.pricing.title}</Typography>
+                    <Typography color="text.secondary" align="center" sx={{ mb: 4 }}>{content.pricing.subtitle}</Typography>
                     <Grid container spacing={3} justifyContent="center">
-                        {[
-                            { name: 'Starter', price: '$0', period: '/month', desc: 'Up to 50 students', features: ['Full gradebook', 'Attendance & timetable', 'Teacher substitution', 'Parent notifications', 'Email support'], featured: false, cta: 'Start free', ctaAction: 'register' },
-                            { name: 'Growth', price: '$2', period: '/student/mo', desc: 'Unlimited students + premium features', features: ['Everything in Starter', 'White-label branding', 'Priority support', 'Usage analytics'], featured: true, cta: 'Get started', ctaAction: 'register' },
-                            { name: 'Enterprise', price: 'Custom', period: '', desc: 'Advanced features & dedicated support', features: ['Everything in Growth', 'Custom integrations', 'Dedicated success manager', 'SLA & training'], featured: false, cta: 'Contact sales', ctaAction: 'contact' },
-                        ].map((plan) => (
-                            <Grid item xs={12} md={4} key={plan.name}>
-                                <Paper variant="outlined" sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', borderColor: plan.featured ? 'primary.main' : undefined, boxShadow: plan.featured ? 4 : 0 }}>
+                        {(content.pricing.plans || []).map((plan) => (
+                            <Grid item xs={12} md={4} key={`${plan.name}-${plan.price}`}>
+                                <Paper className="landing-lift-card" variant="outlined" sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', borderColor: plan.featured ? 'primary.main' : undefined, boxShadow: plan.featured ? 4 : 0 }}>
                                     {plan.featured && (
                                         <Typography variant="caption" sx={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', px: 1.5, py: 0.5, borderRadius: 10, bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>Most popular</Typography>
                                     )}
                                     <Typography variant="h6" sx={{ mb: 0.5 }}>{plan.name}</Typography>
                                     <Typography variant="h5" sx={{ fontWeight: 700 }}>{plan.price}<Typography component="span" variant="body2" color="text.secondary">{plan.period}</Typography></Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{plan.desc}</Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{plan.description}</Typography>
                                     <Box sx={{ flex: 1 }}>
-                                        {plan.features.map((f) => (
+                                        {(plan.features || []).map((f) => (
                                             <Box key={f} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, typography: 'body2', color: 'text.secondary' }}>
                                                 <HiOutlineCheckCircle size={16} style={{ color: '#10b981', flexShrink: 0 }} /> {f}
                                             </Box>
@@ -349,13 +474,11 @@ const LandingPage = () => {
                                         variant={plan.featured ? 'contained' : 'outlined'}
                                         sx={{
                                             mt: 2,
-                                            ...(plan.ctaAction !== 'contact' && {
-                                                ...(plan.featured ? { bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } } : {})
-                                            })
+                                            ...(plan.featured ? { bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } } : {})
                                         }}
-                                        onClick={() => plan.ctaAction === 'contact' ? window.location.href = 'mailto:support@gradebookpro.com?subject=Enterprise%20inquiry' : navigate('/register-school')}
+                                        onClick={() => handleAction(plan.ctaAction)}
                                     >
-                                        {plan.cta}
+                                        {plan.ctaLabel}
                                     </Button>
                                 </Paper>
                             </Grid>
@@ -367,17 +490,13 @@ const LandingPage = () => {
             {/* Testimonials */}
             <Box id="testimonials" component="section" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: 80 }}>
                 <Container maxWidth="lg">
-                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>Testimonials</Typography>
-                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>Loved by educators</Typography>
-                    <Typography color="text.secondary" align="center" sx={{ mb: 4 }}>See what admins and teachers say about GradeBook Pro.</Typography>
+                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.testimonials.overline}</Typography>
+                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.testimonials.title}</Typography>
+                    <Typography color="text.secondary" align="center" sx={{ mb: 4 }}>{content.testimonials.subtitle}</Typography>
                     <Grid container spacing={3}>
-                        {[
-                            { quote: 'The analytics dashboard alone has saved us hours each week. Parents love the real-time grade updates.', name: 'Dr. Jane Davis', role: 'Principal, Lincoln High School', initials: 'JD' },
-                            { quote: 'We switched from spreadsheets last year. Setup was quick, and our teachers actually use it every day.', name: 'Mark Stevens', role: 'IT Director, Riverside Academy', initials: 'MS' },
-                            { quote: 'I can update grades and take attendance from my phone between classes. Game-changer.', name: 'Sarah Chen', role: 'Math Teacher, Oak Valley School', initials: 'SC' },
-                        ].map((t) => (
-                            <Grid item xs={12} md={4} key={t.initials}>
-                                <Paper variant="outlined" sx={{ p: 3, height: '100%' }}>
+                        {(content.testimonials.items || []).map((t, index) => (
+                            <Grid item xs={12} md={4} key={`${t.initials || 't'}-${index}`}>
+                                <Paper className="landing-lift-card" variant="outlined" sx={{ p: 3, height: '100%' }}>
                                     <Typography color="text.secondary" sx={{ mb: 2, fontStyle: 'italic' }}>&ldquo;{t.quote}&rdquo;</Typography>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                         <Box sx={{ width: 40, height: 40, borderRadius: '50%', bgcolor: 'primary.main', opacity: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -398,15 +517,15 @@ const LandingPage = () => {
             {/* FAQ */}
             <Box id="faq" component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper', scrollMarginTop: 80 }}>
                 <Container maxWidth="md">
-                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>FAQ</Typography>
-                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 4 }}>Frequently asked questions</Typography>
-                    {FAQ_ITEMS.map((item, i) => (
-                        <Accordion key={i} sx={{ bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', '&:before': { display: 'none' }, mb: 1 }}>
+                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.faq.overline}</Typography>
+                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 4 }}>{content.faq.title}</Typography>
+                    {(content.faq.items || []).map((item, i) => (
+                        <Accordion className="landing-lift-card" key={`${item.question || 'faq'}-${i}`} sx={{ bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', '&:before': { display: 'none' }, mb: 1 }}>
                             <AccordionSummary expandIcon={<HiOutlineChevronDown size={20} />}>
-                                <Typography fontWeight={500}>{item.q}</Typography>
+                                <Typography fontWeight={500}>{item.question}</Typography>
                             </AccordionSummary>
                             <AccordionDetails>
-                                <Typography color="text.secondary">{item.a}</Typography>
+                                <Typography color="text.secondary">{item.answer}</Typography>
                             </AccordionDetails>
                         </Accordion>
                     ))}
@@ -416,11 +535,11 @@ const LandingPage = () => {
             {/* CTA */}
             <Box component="section" sx={{ py: { xs: 8, md: 10 } }}>
                 <Container maxWidth="sm">
-                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>Ready to simplify your school?</Typography>
-                    <Typography color="text.secondary" align="center" sx={{ mb: 3 }}>Join schools that switched from spreadsheets and paperwork to one clear system.</Typography>
+                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.finalCta.title}</Typography>
+                    <Typography color="text.secondary" align="center" sx={{ mb: 3 }}>{content.finalCta.subtitle}</Typography>
                     <Box sx={{ textAlign: 'center' }}>
-                        <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={20} />} onClick={() => navigate('/register-school')} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
-                            Start free trial
+                        <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={20} />} onClick={() => handleAction(content.finalCta.button.action)} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
+                            {content.finalCta.button.label}
                         </Button>
                     </Box>
                 </Container>
@@ -429,12 +548,18 @@ const LandingPage = () => {
             {/* Find school */}
             <Box id="find-school" component="section" sx={{ py: { xs: 8, md: 10 }, bgcolor: 'background.paper', scrollMarginTop: 80 }}>
                 <Container maxWidth="md">
-                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>Find your school</Typography>
-                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>Log in to your institution</Typography>
-                    <Typography color="text.secondary" align="center" sx={{ mb: 3 }}>Search for your school to log in, or register a new one.</Typography>
+                    <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.findSchool.overline}</Typography>
+                    <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.findSchool.title}</Typography>
+                    <Typography color="text.secondary" align="center" sx={{ mb: 3 }}>{content.findSchool.subtitle}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                        <Chip size="small" label={totalSchoolCountLabel} sx={{ bgcolor: 'rgba(90,174,238,0.15)', color: 'primary.main' }} />
+                        {hasSearchFilter ? (
+                            <Chip size="small" label={filteredSchoolCountLabel} variant="outlined" />
+                        ) : null}
+                    </Box>
                     <TextField
                         fullWidth
-                        placeholder="Search by school name..."
+                        placeholder={content.findSchool.searchPlaceholder}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         InputProps={{
@@ -443,30 +568,44 @@ const LandingPage = () => {
                                     <HiOutlineSearch size={20} />
                                 </InputAdornment>
                             ),
+                            endAdornment: hasSearchFilter ? (
+                                <InputAdornment position="end">
+                                    <IconButton
+                                        size="small"
+                                        aria-label="Clear search"
+                                        onClick={() => setSearchTerm('')}
+                                    >
+                                        <HiOutlineX size={16} />
+                                    </IconButton>
+                                </InputAdornment>
+                            ) : null,
                         }}
-                        sx={{ mb: 3 }}
+                        sx={{ mb: 1.5 }}
                     />
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2.5 }}>
+                        Type at least 2 letters to quickly find your school.
+                    </Typography>
                     <Box sx={{ mb: 3 }}>
                         {hasSearchFilter && filtered.length === 0 ? (
                             <Paper variant="outlined" sx={{ py: 6, textAlign: 'center', borderStyle: 'dashed' }}>
                                 <HiOutlineSearch size={48} style={{ opacity: 0.5, marginBottom: 8 }} aria-hidden />
-                                <Typography color="text.secondary">No schools match &quot;{searchTerm}&quot;. Try a different search or register your school.</Typography>
+                                <Typography color="text.secondary">{noMatchMessage}</Typography>
                             </Paper>
                         ) : schoolsToShow.length > 0 ? (
                             <>
                                 {!hasSearchFilter ? (
                                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                        Schools on GradeBook Pro
+                                        {content.findSchool.schoolsLabel}
                                     </Typography>
                                 ) : (
                                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                        Matching &quot;{searchTerm}&quot;
+                                        {matchingLabel}
                                     </Typography>
                                 )}
                                 <Grid container spacing={2}>
                                 {schoolsToShow.map((school) => (
                                     <Grid item xs={12} sm={6} key={school._id}>
-                                        <Button fullWidth variant="outlined" sx={{ justifyContent: 'flex-start', textAlign: 'left', py: 2, px: 2 }} onClick={() => navigate(`/login/${school.slug}`)}>
+                                        <Button className="landing-school-item" fullWidth variant="outlined" sx={{ justifyContent: 'flex-start', textAlign: 'left', py: 2, px: 2 }} onClick={() => navigate(`/login/${school.slug}`)}>
                                             <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: 'primary.main', opacity: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 1.5 }}>
                                                 <HiOutlineOfficeBuilding size={22} style={{ color: 'var(--mui-palette-primary-main)' }} />
                                             </Box>
@@ -474,30 +613,27 @@ const LandingPage = () => {
                                                 <Typography variant="body1" fontWeight={600} noWrap>{school.name}</Typography>
                                                 <Typography variant="caption" color="text.secondary">Up to {school.settings?.maxStudents || 50} students</Typography>
                                             </Box>
-                                            {school.contact?.adminEmail && (
-                                                <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}><HiOutlineMail size={14} /> {school.contact.adminEmail}</Typography>
-                                            )}
                                         </Button>
                                     </Grid>
                                 ))}
                                 </Grid>
                                 {filtered.length > 8 && (
                                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-                                        Showing 8 of {filtered.length} schools. Narrow your search to find your school.
+                                        {showingLimitText}
                                     </Typography>
                                 )}
                             </>
                         ) : (
                             <Paper variant="outlined" sx={{ py: 6, textAlign: 'center', borderStyle: 'dashed' }}>
                                 <HiOutlineAcademicCap size={48} style={{ opacity: 0.5, marginBottom: 8 }} aria-hidden />
-                                <Typography color="text.secondary">No schools yet. Be the first—register your school.</Typography>
+                                <Typography color="text.secondary">{content.findSchool.noSchoolsMessage}</Typography>
                             </Paper>
                         )}
                     </Box>
-                    <Typography color="text.secondary" align="center" sx={{ mb: 1.5 }}>Don&apos;t see your school?</Typography>
+                    <Typography color="text.secondary" align="center" sx={{ mb: 1.5 }}>{content.findSchool.registerPrompt}</Typography>
                     <Box sx={{ textAlign: 'center' }}>
-                        <Button variant="contained" startIcon={<HiOutlinePlus size={18} />} onClick={() => navigate('/register-school')} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
-                            Register your school
+                        <Button variant="contained" startIcon={<HiOutlinePlus size={18} />} onClick={() => handleAction('register')} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
+                            {content.findSchool.registerCtaLabel}
                         </Button>
                     </Box>
                 </Container>
@@ -512,39 +648,41 @@ const LandingPage = () => {
                                 <Box sx={{ width: 40, height: 40, borderRadius: 2, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <HiOutlineAcademicCap size={22} style={{ color: 'white' }} />
                                 </Box>
-                                <Typography variant="h6" sx={{ fontWeight: 700, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', backgroundClip: 'text', color: 'transparent' }}>GradeBook Pro</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 700, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', backgroundClip: 'text', color: 'transparent' }}>{content.brand.name}</Typography>
                             </Box>
-                            <Typography variant="body2" color="text.secondary">School management for the digital age.</Typography>
+                            <Typography variant="body2" color="text.secondary">{content.brand.tagline}</Typography>
                         </Grid>
                         <Grid item xs={12} md={8}>
                             <Grid container spacing={4}>
                                 <Grid item xs={6} sm={4}>
-                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Product</Typography>
+                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>{content.footer.productTitle}</Typography>
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                        <Button href="#features" size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }}>Features</Button>
-                                        <Button href="#pricing" size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }}>Pricing</Button>
-                                        <Button href="#faq" size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }}>FAQ</Button>
+                                        {(content.footer.productLinks || []).map((link, index) => (
+                                            <Button key={`product-link-${index}-${link.label}`} size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }} onClick={() => handleAction(link.action)}>{link.label}</Button>
+                                        ))}
                                     </Box>
                                 </Grid>
                                 <Grid item xs={6} sm={4}>
-                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Company</Typography>
+                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>{content.footer.companyTitle}</Typography>
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                        <Button href="#features" size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }}>About</Button>
-                                        <Button href="mailto:support@gradebookpro.com" size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }}>Contact</Button>
+                                        {(content.footer.companyLinks || []).map((link, index) => (
+                                            <Button key={`company-link-${index}-${link.label}`} size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }} onClick={() => handleAction(link.action)}>{link.label}</Button>
+                                        ))}
                                     </Box>
                                 </Grid>
                                 <Grid item xs={6} sm={4}>
-                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Legal</Typography>
+                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>{content.footer.legalTitle}</Typography>
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                        <Button href="#" size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }}>Privacy</Button>
-                                        <Button href="#" size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }}>Terms</Button>
+                                        {(content.footer.legalLinks || []).map((link, index) => (
+                                            <Button key={`legal-link-${index}-${link.label}`} size="small" sx={{ justifyContent: 'flex-start', color: 'text.secondary' }} onClick={() => handleAction(link.action)}>{link.label}</Button>
+                                        ))}
                                     </Box>
                                 </Grid>
                             </Grid>
                         </Grid>
                     </Grid>
                     <Typography variant="body2" color="text.secondary" sx={{ pt: 2, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                        &copy; {new Date().getFullYear()} GradeBook Pro. All rights reserved.
+                        {copyrightText}
                     </Typography>
                 </Container>
             </Box>

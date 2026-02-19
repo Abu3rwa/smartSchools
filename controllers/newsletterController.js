@@ -7,6 +7,7 @@ import Class from "../models/Class.js";
 import Subject from "../models/Subject.js";
 import LessonPlan from "../models/LessonPlan.js";
 import { getWeekRange } from "../utils/newsletterWeek.js";
+import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
 import { generateNewsletterSection } from "../services/newsletterAiService.js";
 import {
   computeIssueReadiness,
@@ -73,8 +74,7 @@ export const ensureNewsletterIssue = asyncHandler(async (req, res) => {
 
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
   const { weekStart, weekEnd } = getWeekRange(referenceDate);
-  const academicYearValue =
-    academicYear || new Date().getFullYear() + "-" + (new Date().getFullYear() + 1);
+  const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
   const issue = await ensureIssue({
     schoolId: req.schoolId,
@@ -100,8 +100,7 @@ export const getNewsletterIssue = asyncHandler(async (req, res) => {
 
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
   const { weekStart, weekEnd } = getWeekRange(referenceDate);
-  const academicYearValue =
-    academicYear || new Date().getFullYear() + "-" + (new Date().getFullYear() + 1);
+  const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
   const issue = await ensureIssue({
     schoolId: req.schoolId,
@@ -160,8 +159,7 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
 
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
   const { weekStart, weekEnd } = getWeekRange(referenceDate);
-  const academicYearValue =
-    academicYear || new Date().getFullYear() + "-" + (new Date().getFullYear() + 1);
+  const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
   const [classDoc, subjectDoc] = await Promise.all([
     Class.findById(classId).lean(),
@@ -314,8 +312,7 @@ export const listAdminIssues = asyncHandler(async (req, res) => {
   const { classId, academicYear, weekStart: requestedWeekStart } = req.query;
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
   const { weekStart, weekEnd } = getWeekRange(referenceDate);
-  const academicYearValue =
-    academicYear || new Date().getFullYear() + "-" + (new Date().getFullYear() + 1);
+  const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
   const query = { academicYear: academicYearValue, weekStart };
   if (classId) query.class = classId;
@@ -389,4 +386,3 @@ export const sendIssueToParents = asyncHandler(async (req, res) => {
  * Use in routes where needed.
  */
 export const requireAdmin = authorize("admin", "super_admin");
-

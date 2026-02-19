@@ -9,7 +9,7 @@ import {
     logIntegrityEvent,
     getIntegrityByAssignment,
     getIntegrityByStudent
-} from '../controllers/practiceController.js';
+} from '../controllers/standardsPracticeController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { validate, validationRules } from '../middleware/validator.js';
 

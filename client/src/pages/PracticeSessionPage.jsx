@@ -5,13 +5,14 @@ import {
     generateQuestion, submitAnswer,
     selectCurrentQuestion, selectLastResult, selectGenerating, selectSubmitting,
     selectPracticeStatus, selectPracticeSessionInfo, selectPracticeStatusMessage,
-    selectPracticeStudentFirstName, selectPracticeSuggestRemediation,
+    selectPracticeStudentFirstName, selectPracticeSuggestRemediation, selectPracticeSessionContext,
+    selectPracticeError,
     clearCurrentQuestion, clearLastResult
 } from '../store/slices/practiceSlice';
 import { selectUser } from '../store/slices/authSlice';
 import {
     HiOutlineArrowLeft, HiOutlineCheckCircle, HiOutlineXCircle,
-    HiOutlineLightningBolt, HiOutlineRefresh
+    HiOutlineLightningBolt, HiOutlineRefresh, HiOutlineChartBar, HiOutlineFire, HiOutlineLightBulb
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import api from '../config/api';
@@ -31,6 +32,8 @@ const PracticeSessionPage = () => {
     const statusMessage = useSelector(selectPracticeStatusMessage);
     const studentFirstName = useSelector(selectPracticeStudentFirstName);
     const suggestRemediation = useSelector(selectPracticeSuggestRemediation);
+    const sessionContext = useSelector(selectPracticeSessionContext);
+    const practiceError = useSelector(selectPracticeError);
     const user = useSelector(selectUser);
 
     const [selectedAnswer, setSelectedAnswer] = useState('');
@@ -114,8 +117,9 @@ const PracticeSessionPage = () => {
     };
 
     const handleSubmit = async () => {
+        const normalizedShortAnswer = shortAnswer.trim();
         const answer = currentQuestion?.questionType === 'short_answer'
-            ? shortAnswer
+            ? normalizedShortAnswer
             : selectedAnswer;
 
         if (!answer) {
@@ -149,19 +153,101 @@ const PracticeSessionPage = () => {
     const answerDisplay = resultParts.displayAnswer || lastResult?.correctAnswerDisplay || lastResult?.correctAnswer;
     const quickExplanation = resultParts.explanation || resultParts.reasonSummary || lastResult?.explanation;
     const resultHeading = resultParts.headline || (lastResult?.isCorrect ? 'Correct!' : 'Keep Going');
+    const combinedAsked = Math.max(
+        sessionStats.asked,
+        sessionInfo?.questionsAnswered || 0,
+    );
+    const combinedCorrect = Math.max(
+        sessionStats.correct,
+        sessionInfo?.correctCount || 0,
+    );
+    const sessionProgressPercent = sessionInfo?.questionLimit
+        ? Math.min(100, Math.round(((sessionInfo.questionsAnswered || 0) / sessionInfo.questionLimit) * 100))
+        : null;
+    const sessionAccuracy = combinedAsked > 0
+        ? Math.round((combinedCorrect / combinedAsked) * 100)
+        : (sessionContext?.recentAccuracy || 0);
+    const streakValue = Math.max(
+        sessionContext?.correctStreak || 0,
+        sessionContext?.incorrectStreak || 0,
+    );
+    const streakLabel = (sessionContext?.incorrectStreak || 0) > (sessionContext?.correctStreak || 0)
+        ? 'Learning Streak'
+        : 'Correct Streak';
+    const showContextHints = (sessionContext?.recentTopics?.length || 0) > 0 || (sessionContext?.recentMistakes?.length || 0) > 0;
+    const questionLimit = Number(sessionInfo?.questionLimit || 0);
+    const answeredCount = Number(sessionInfo?.questionsAnswered || 0);
+    const currentSessionStep = questionLimit > 0
+        ? Math.min(questionLimit, answeredCount + 1)
+        : null;
 
     return (
         <div className="practice-session">
             <button className="back-link" onClick={() => navigate('/portal/practice')}>
-                <HiOutlineArrowLeft size={16} /> Back to Practice Dashboard
+                <HiOutlineArrowLeft size={16} /> Back to Standards Practice
             </button>
+
+            <div className="session-overview">
+                <div className="session-overview-item">
+                    <div className="overview-label">
+                        <HiOutlineChartBar size={16} />
+                        Session Progress
+                    </div>
+                    <div className="overview-value">
+                        {sessionInfo?.questionLimit
+                            ? `${sessionInfo.questionsAnswered || 0}/${sessionInfo.questionLimit}`
+                            : `${combinedAsked} answered`}
+                    </div>
+                    {sessionInfo?.questionLimit && (
+                        <div className="overview-progress">
+                            <div
+                                className="overview-progress-fill"
+                                style={{ width: `${sessionProgressPercent || 0}%` }}
+                            />
+                        </div>
+                    )}
+                </div>
+                <div className="session-overview-item">
+                    <div className="overview-label">
+                        <HiOutlineFire size={16} />
+                        {streakLabel}
+                    </div>
+                    <div className="overview-value">{streakValue || 0}</div>
+                    <div className="overview-subtext">
+                        {sessionContext?.confidenceHint || 'Keep a steady pace and focus on clear reasoning.'}
+                    </div>
+                </div>
+                <div className="session-overview-item">
+                    <div className="overview-label">
+                        <HiOutlineLightBulb size={16} />
+                        Confidence
+                    </div>
+                    <div className="overview-value">{sessionAccuracy}%</div>
+                    <div className="overview-subtext">
+                        {combinedAsked > 0
+                            ? `${combinedCorrect} correct out of ${combinedAsked}`
+                            : 'Start with one question to build momentum.'}
+                    </div>
+                </div>
+            </div>
+
+            {practiceError && !generating && (
+                <div className="practice-inline-error">
+                    <p>{practiceError}</p>
+                    {!currentQuestion && (
+                        <button className="btn btn-secondary btn-sm" onClick={handleGenerate}>
+                            Try Again
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Difficulty & Type Selector */}
             {!currentQuestion && !lastResult && !isSessionComplete && !isMasteredResult && (
                 <div className="question-card">
-                    <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Start Practicing, {displayName}</h3>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
-                        Choose your preferred difficulty and question type, then generate a question.
+                    <h3 style={{ marginBottom: 'var(--spacing-sm)' }}>Ready for Practice, {displayName}?</h3>
+                    <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                        Pick a challenge level and question type. The next question will adapt to your current session progress.
                     </p>
 
                     <div style={{ marginBottom: 'var(--spacing-md)' }}>
@@ -211,11 +297,11 @@ const PracticeSessionPage = () => {
                         </div>
                     )}
 
-                    {sessionStats.asked > 0 && (
+                    {combinedAsked > 0 && (
                         <div className="progress-today">
                             <div className="progress-today-title">Progress Today</div>
                             <div className="progress-today-copy">
-                                {displayName}, you got {sessionStats.correct} out of {sessionStats.asked} correct ({sessionStats.asked > 0 ? Math.round((sessionStats.correct / sessionStats.asked) * 100) : 0}%).
+                                {displayName}, you got {combinedCorrect} out of {combinedAsked} correct ({sessionAccuracy}%).
                             </div>
                         </div>
                     )}
@@ -227,7 +313,7 @@ const PracticeSessionPage = () => {
                         style={{ width: '100%' }}
                     >
                         <HiOutlineLightningBolt size={18} style={{ marginRight: 6 }} />
-                        {generating ? 'Loading...' : 'Get Question'}
+                        {generating ? 'Loading...' : 'Start Question'}
                     </button>
                 </div>
             )}
@@ -236,7 +322,7 @@ const PracticeSessionPage = () => {
             {generating && (
                 <div className="generating-state">
                     <div className="spinner"></div>
-                    <p>Preparing your next question...</p>
+                    <p>Preparing a personalized question for you...</p>
                 </div>
             )}
 
@@ -251,7 +337,7 @@ const PracticeSessionPage = () => {
                         onClick={() => navigate('/portal/practice')}
                         style={{ marginTop: 'var(--spacing-lg)' }}
                     >
-                        Back to Dashboard
+                        Return to Dashboard
                     </button>
                 </div>
             )}
@@ -272,7 +358,7 @@ const PracticeSessionPage = () => {
                         onClick={() => navigate('/portal/practice')}
                         style={{ marginTop: 'var(--spacing-lg)' }}
                     >
-                        Back to Dashboard
+                        Return to Dashboard
                     </button>
                 </div>
             )}
@@ -286,8 +372,10 @@ const PracticeSessionPage = () => {
                             {currentQuestion.difficulty}
                         </span>
                         <span className="badge">{currentQuestion.questionType?.replace('_', ' ')}</span>
-                        {sessionInfo?.questionLimit && (
-                            <span className="badge">Session {sessionInfo.questionsAnswered + 1}/{sessionInfo.questionLimit}</span>
+                        <span className="badge">{streakLabel}: {streakValue || 0}</span>
+                        <span className="badge">Confidence: {sessionAccuracy}%</span>
+                        {currentSessionStep && questionLimit > 0 && (
+                            <span className="badge">Session {currentSessionStep}/{questionLimit}</span>
                         )}
                     </div>
 
@@ -295,6 +383,21 @@ const PracticeSessionPage = () => {
                     {suggestRemediation && (
                         <div className="remediation-tip">
                             Quick Tip: Let’s strengthen the foundation first. Focus on accuracy, then move up in difficulty.
+                        </div>
+                    )}
+                    {showContextHints && (
+                        <div className="context-hints">
+                            <p className="context-hints-title">Recent Focus</p>
+                            {sessionContext?.recentTopics?.length > 0 && (
+                                <p className="context-hints-line">
+                                    Topics: {sessionContext.recentTopics.slice(0, 3).join(', ')}
+                                </p>
+                            )}
+                            {sessionContext?.recentMistakes?.length > 0 && (
+                                <p className="context-hints-line">
+                                    Improve next: {sessionContext.recentMistakes.slice(0, 2).join(', ')}
+                                </p>
+                            )}
                         </div>
                     )}
 
@@ -322,7 +425,7 @@ const PracticeSessionPage = () => {
                             className="short-answer-input"
                             value={shortAnswer}
                             onChange={(e) => setShortAnswer(e.target.value)}
-                            placeholder="Type your answer here..."
+                            placeholder="Type your answer clearly and explain your thinking..."
                             disabled={submittingAnswer}
                         />
                     )}
@@ -331,7 +434,12 @@ const PracticeSessionPage = () => {
                         <button
                             className="btn btn-primary"
                             onClick={handleSubmit}
-                            disabled={submittingAnswer || (!selectedAnswer && !shortAnswer)}
+                            disabled={
+                                submittingAnswer ||
+                                (currentQuestion?.questionType === 'short_answer'
+                                    ? !shortAnswer.trim()
+                                    : !selectedAnswer)
+                            }
                         >
                             {submittingAnswer ? 'Submitting...' : 'Submit Answer'}
                         </button>
@@ -385,6 +493,13 @@ const PracticeSessionPage = () => {
                                 </div>
                             )}
 
+                            {sessionContext?.recentMistakes?.length > 0 && (
+                                <div className="result-section">
+                                    <p><span className="label">What to Improve Next</span></p>
+                                    <p>{sessionContext.recentMistakes.slice(0, 2).join(', ')}</p>
+                                </div>
+                            )}
+
                             {(resultParts.reviewTag || resultParts.confidenceLevel) && (
                                 <div className="result-section">
                                     <p><span className="label">Focus for Review</span></p>
@@ -434,7 +549,7 @@ const PracticeSessionPage = () => {
                             ) : (
                                 <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
                                     <HiOutlineRefresh size={18} style={{ marginRight: 6 }} />
-                                    Try Another Challenge
+                                    Next Question
                                 </button>
                             )}
                         </div>

@@ -17,6 +17,11 @@ const studentBehaviorSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Class'
     },
+    academicYear: {
+        type: String,
+        trim: true,
+        match: [/^\d{4}-\d{4}$/, 'Academic year must be in YYYY-YYYY format']
+    },
     
     // Incident Details
     incidentType: {
@@ -263,6 +268,8 @@ studentBehaviorSchema.plugin(tenantIsolationPlugin);
 // Indexes
 studentBehaviorSchema.index({ student: 1, incidentDate: -1 });
 studentBehaviorSchema.index({ school: 1, incidentDate: -1 });
+studentBehaviorSchema.index({ school: 1, academicYear: 1, incidentDate: -1 });
+studentBehaviorSchema.index({ student: 1, academicYear: 1, incidentDate: -1 });
 studentBehaviorSchema.index({ class: 1, incidentDate: -1 });
 studentBehaviorSchema.index({ incidentType: 1, status: 1 });
 studentBehaviorSchema.index({ category: 1, severity: 1 });
@@ -344,13 +351,16 @@ studentBehaviorSchema.statics.getClassBehaviorStats = async function(classId, st
     ]);
 };
 
-studentBehaviorSchema.statics.getPendingFollowUps = async function(schoolId) {
-    return this.find({
+studentBehaviorSchema.statics.getPendingFollowUps = async function(schoolId, academicYear = null) {
+    const query = {
         school: schoolId,
         followUpRequired: true,
         followUpCompletedAt: null,
         followUpDate: { $lte: new Date() }
-    })
+    };
+    if (academicYear) query.academicYear = academicYear;
+
+    return this.find(query)
     .populate('student', 'firstName lastName studentId')
     .populate('reportedBy', 'firstName lastName')
     .sort({ followUpDate: 1 });

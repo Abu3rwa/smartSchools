@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchClasses, selectClasses, selectClassesLoading, selectClassesError, createClass } from '../store/slices/classSlice';
+import { fetchClasses, selectClasses, selectClassesLoading, selectClassesError, createClass, updateClass, deleteClass } from '../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
-import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap, HiOutlineTrash } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './ClassesPage.css';
 
@@ -54,6 +54,38 @@ const ClassesPage = () => {
             }
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleToggleActive = async (cls) => {
+        const willActivate = cls.isActive === false;
+        const actionLabel = willActivate ? 'activate' : 'deactivate';
+        if (!window.confirm(`Are you sure you want to ${actionLabel} ${cls.name}?`)) {
+            return;
+        }
+
+        const result = await dispatch(updateClass({
+            id: cls._id,
+            data: { isActive: willActivate }
+        }));
+
+        if (updateClass.fulfilled.match(result)) {
+            toast.success(`Class ${willActivate ? 'activated' : 'deactivated'} successfully`);
+        } else {
+            toast.error(result.payload || `Failed to ${actionLabel} class`);
+        }
+    };
+
+    const handleDeleteClass = async (cls) => {
+        if (!window.confirm(`Delete ${cls.name}? This will deactivate the class and hide it from active workflows.`)) {
+            return;
+        }
+
+        const result = await dispatch(deleteClass(cls._id));
+        if (deleteClass.fulfilled.match(result)) {
+            toast.success('Class deleted successfully');
+        } else {
+            toast.error(result.payload || 'Failed to delete class');
         }
     };
 
@@ -143,9 +175,30 @@ const ClassesPage = () => {
                                         </div>
                                     </td>
                                     <td>
-                                        <Link to={`/portal/classes/${cls._id}`} className="btn btn-sm btn-ghost">
-                                            View
-                                        </Link>
+                                        <div className="actions-cell">
+                                            <Link to={`/portal/classes/${cls._id}`} className="btn btn-sm btn-ghost">
+                                                View
+                                            </Link>
+                                            {isAdmin && (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-secondary"
+                                                        onClick={() => handleToggleActive(cls)}
+                                                    >
+                                                        {cls.isActive === false ? 'Activate' : 'Deactivate'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-danger"
+                                                        onClick={() => handleDeleteClass(cls)}
+                                                    >
+                                                        <HiOutlineTrash size={14} />
+                                                        Delete
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

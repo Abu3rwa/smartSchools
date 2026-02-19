@@ -14,7 +14,7 @@ import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
 import Room from '../models/Room.js';
 import Schedule from '../models/Schedule.js';
-import { processAttendanceReminders } from '../controllers/attendanceTakingReminderController.js';
+import { processAttendanceReminders } from '../controllers/attendanceReminderController.js';
 
 async function run() {
   const now = new Date();

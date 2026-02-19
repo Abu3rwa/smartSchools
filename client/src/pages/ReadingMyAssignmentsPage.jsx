@@ -7,6 +7,7 @@ import {
   selectReadingLoading,
   selectReadingError,
 } from '../store/slices/readingSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { HiOutlineBookOpen, HiOutlineArrowRight, HiOutlineCheck } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './ReadingMyAssignmentsPage.css';
@@ -14,6 +15,7 @@ import './ReadingMyAssignmentsPage.css';
 const ReadingMyAssignmentsPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const academicYear = useSelector(selectCurrentAcademicYear);
   const assignments = useSelector(selectMyReadingAssignments) || [];
   const loading = useSelector(selectReadingLoading);
   const error = useSelector(selectReadingError);
@@ -43,6 +45,7 @@ const ReadingMyAssignmentsPage = () => {
         <p className="subtitle">
           Texts assigned by your teacher. Build vocabulary and critical thinking
           with level-appropriate readings.
+          {academicYear ? ` Academic Year: ${academicYear}.` : ''}
         </p>
       </div>
 

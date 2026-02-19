@@ -10,7 +10,11 @@ import {
   selectUser,
   fetchCurrentUser,
 } from "./store/slices/authSlice";
-import { selectTheme } from "./store/slices/uiSlice";
+import {
+  fetchSchoolAcademicYear,
+  selectTheme,
+  setCurrentAcademicYear,
+} from "./store/slices/uiSlice";
 
 // Layouts
 import MainLayout from "./components/layout/MainLayout";
@@ -67,6 +71,7 @@ import StandardAssignPage from "./pages/StandardAssignPage";
 import PracticeDashboardPage from "./pages/PracticeDashboardPage";
 import PracticeSessionPage from "./pages/PracticeSessionPage";
 import PracticeHistoryPage from "./pages/PracticeHistoryPage";
+import InterventionQueuePage from "./pages/InterventionQueuePage";
 import StudentGradesPage from "./pages/StudentGradesPage";
 import StudentAttendancePage from "./pages/StudentAttendancePage";
 import AttendanceRequestFormPage from "./pages/AttendanceRequestFormPage";
@@ -94,6 +99,7 @@ import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import AdminSubscriptionsPage from "./pages/admin/AdminSubscriptionsPage";
 import AdminSubscriptionDetailsPage from "./pages/admin/AdminSubscriptionDetailsPage";
 import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage";
+import AdminLandingPageEditor from "./pages/admin/AdminLandingPageEditor";
 import ApiDocsPage from "./pages/ApiDocsPage";
 
 // Protected Route - requires authentication
@@ -167,6 +173,7 @@ function App() {
   const dispatch = useDispatch();
   const themeMode = useSelector(selectTheme);
   const isAuthenticated = useSelector(selectIsAuthenticated);
+  const user = useSelector(selectUser);
   const muiTheme = useMemo(() => getTheme(themeMode), [themeMode]);
 
   useEffect(() => {
@@ -179,6 +186,17 @@ function App() {
       dispatch(fetchCurrentUser());
     }
   }, [dispatch, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user || user.role === "super_admin") return;
+
+    const configuredYear = user?.school?.settings?.currentAcademicYear;
+    if (configuredYear) {
+      dispatch(setCurrentAcademicYear(configuredYear));
+    }
+
+    dispatch(fetchSchoolAcademicYear());
+  }, [dispatch, isAuthenticated, user?.id, user?.role, user?.school?.settings?.currentAcademicYear]);
 
   return (
     <ThemeProvider theme={muiTheme}>
@@ -544,7 +562,7 @@ function App() {
         <Route
           path="practice"
           element={
-            <RoleRoute roles={["student", "admin", "teacher"]}>
+            <RoleRoute roles={["student"]}>
               <PracticeDashboardPage />
             </RoleRoute>
           }
@@ -552,7 +570,7 @@ function App() {
         <Route
           path="practice/:assignmentId"
           element={
-            <RoleRoute roles={["student", "admin", "teacher"]}>
+            <RoleRoute roles={["student"]}>
               <PracticeSessionPage />
             </RoleRoute>
           }
@@ -560,8 +578,16 @@ function App() {
         <Route
           path="practice/:assignmentId/history"
           element={
-            <RoleRoute roles={["student", "admin", "teacher"]}>
+            <RoleRoute roles={["student"]}>
               <PracticeHistoryPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="interventions"
+          element={
+            <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+              <InterventionQueuePage />
             </RoleRoute>
           }
         />
@@ -660,6 +686,7 @@ function App() {
         <Route path="schools/:id" element={<AdminSchoolDetailsPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="landing" element={<AdminLandingPageEditor />} />
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
         <Route

@@ -13,7 +13,11 @@ import {
     deleteDepartment
 } from '../store/slices/departmentSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
-import { setCurrentAcademicYear } from '../store/slices/uiSlice';
+import {
+    selectCurrentAcademicYear,
+    updateSchoolAcademicYear,
+    selectAcademicYearLoading
+} from '../store/slices/uiSlice';
 import {
     HiOutlineOfficeBuilding,
     HiOutlinePlus,
@@ -55,6 +59,8 @@ const SchoolSettingsPage = () => {
     const departments = useSelector(selectDepartments);
     const departmentsLoading = useSelector(selectDepartmentsLoading);
     const departmentsError = useSelector(selectDepartmentsError);
+    const currentAcademicYear = useSelector(selectCurrentAcademicYear);
+    const academicYearSaving = useSelector(selectAcademicYearLoading);
 
     const [activeTab, setActiveTab] = useState('departments');
     const [showDeptModal, setShowDeptModal] = useState(false);
@@ -81,7 +87,12 @@ const SchoolSettingsPage = () => {
     const [classesCreated, setClassesCreated] = useState(null);
     const [deactivateCount, setDeactivateCount] = useState(null);
     const [promoteResult, setPromoteResult] = useState(null);
-    const currentAcademicYear = useSelector((state) => state.ui.currentAcademicYear);
+    const isValidAcademicYear = (value) => /^\d{4}-\d{4}$/.test(value || '');
+    const isConsecutiveAcademicYear = (value) => {
+        if (!isValidAcademicYear(value)) return false;
+        const [start, end] = value.split('-').map(Number);
+        return end === start + 1;
+    };
 
     useEffect(() => {
         if (!isAdmin) {
@@ -189,10 +200,20 @@ const SchoolSettingsPage = () => {
         }
     };
 
-    const handleSwitchToNewYear = () => {
-        if (toYear) {
-            dispatch(setCurrentAcademicYear(toYear));
-            toast.success(`Switched to ${toYear}`);
+    const handleSwitchToNewYear = async () => {
+        if (!toYear || !isConsecutiveAcademicYear(toYear)) {
+            toast.error('Enter a valid academic year like 2026-2027');
+            return;
+        }
+
+        const result = await dispatch(updateSchoolAcademicYear(toYear));
+        if (updateSchoolAcademicYear.fulfilled.match(result)) {
+            toast.success(`School academic year set to ${result.payload}`);
+            setAcademicYears((prev) => (
+                prev.includes(result.payload) ? prev : [...prev, result.payload].sort()
+            ));
+        } else {
+            toast.error(result.payload || 'Failed to update school academic year');
         }
     };
 
@@ -523,9 +544,9 @@ const SchoolSettingsPage = () => {
                         </div>
                         <div className="wizard-step">
                             <h4>5. Switch to new year</h4>
-                            <p className="text-muted">Current academic year in the app: <strong>{currentAcademicYear}</strong></p>
-                            <button className="btn btn-primary" onClick={handleSwitchToNewYear} disabled={!toYear}>
-                                Switch to {toYear || 'new year'}
+                            <p className="text-muted">Current school academic year: <strong>{currentAcademicYear}</strong></p>
+                            <button className="btn btn-primary" onClick={handleSwitchToNewYear} disabled={!toYear || academicYearSaving}>
+                                {academicYearSaving ? 'Switching...' : `Switch to ${toYear || 'new year'}`}
                             </button>
                         </div>
                         <div className="wizard-step">

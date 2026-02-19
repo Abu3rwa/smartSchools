@@ -16,8 +16,20 @@ const api = axios.create({
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
+        const behaviorSessionId = localStorage.getItem('behavior_session_id');
+        const currentAcademicYear = localStorage.getItem('currentAcademicYear');
+        const requestUrl = config.url || '';
+        const isAuthRequest = requestUrl.startsWith('/auth/') || requestUrl.includes('/auth/');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+        }
+        if (behaviorSessionId) {
+            config.headers['x-session-id'] = behaviorSessionId;
+        }
+        if (currentAcademicYear && !isAuthRequest) {
+            config.headers['x-academic-year'] = currentAcademicYear;
+        } else if (isAuthRequest && config.headers['x-academic-year']) {
+            delete config.headers['x-academic-year'];
         }
         return config;
     },

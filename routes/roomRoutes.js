@@ -6,7 +6,7 @@ import {
     createRoom,
     updateRoom,
     deleteRoom
-} from '../controllers/roomController.js';
+} from '../controllers/classroomController.js';
 
 const router = express.Router();
 

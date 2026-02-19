@@ -150,6 +150,7 @@ const standardSlice = createSlice({
         assignmentsPagination: null,
         currentAssignment: null,
         assignmentProgress: null,
+        assignmentProgressLoading: false,
         studentProgress: null,
         loading: false,
         error: null,
@@ -159,7 +160,10 @@ const standardSlice = createSlice({
         clearError: (state) => { state.error = null; },
         clearImportResult: (state) => { state.importResult = null; },
         clearCurrentAssignment: (state) => { state.currentAssignment = null; },
-        clearAssignmentProgress: (state) => { state.assignmentProgress = null; },
+        clearAssignmentProgress: (state) => {
+            state.assignmentProgress = null;
+            state.assignmentProgressLoading = false;
+        },
         clearStudentProgress: (state) => { state.studentProgress = null; }
     },
     extraReducers: (builder) => {
@@ -228,13 +232,17 @@ const standardSlice = createSlice({
                 state.assignments = state.assignments.filter(a => a._id !== action.payload);
             })
             // Assignment progress
-            .addCase(fetchAssignmentProgress.pending, (state) => { state.loading = true; })
+            .addCase(fetchAssignmentProgress.pending, (state) => {
+                state.assignmentProgressLoading = true;
+                state.assignmentProgress = null;
+                state.error = null;
+            })
             .addCase(fetchAssignmentProgress.fulfilled, (state, action) => {
-                state.loading = false;
+                state.assignmentProgressLoading = false;
                 state.assignmentProgress = action.payload;
             })
             .addCase(fetchAssignmentProgress.rejected, (state, action) => {
-                state.loading = false;
+                state.assignmentProgressLoading = false;
                 state.error = action.payload;
             })
             // Student progress
@@ -258,6 +266,7 @@ export const selectStandardsPagination = (state) => state.standards?.pagination;
 export const selectAssignments = (state) => state.standards?.assignments || [];
 export const selectCurrentAssignment = (state) => state.standards?.currentAssignment;
 export const selectAssignmentProgress = (state) => state.standards?.assignmentProgress;
+export const selectAssignmentProgressLoading = (state) => state.standards?.assignmentProgressLoading;
 export const selectStudentStandardsProgress = (state) => state.standards?.studentProgress;
 export const selectStandardsLoading = (state) => state.standards?.loading;
 export const selectStandardsError = (state) => state.standards?.error;

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import api from '../config/api';
 import { HiOutlineClipboardList } from 'react-icons/hi';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import './StudentGradesPage.css';
 
 const MONTHS = [
@@ -12,6 +14,7 @@ const MONTHS = [
 ];
 
 const StudentGradesPage = () => {
+    const academicYear = useSelector(selectCurrentAcademicYear);
     const [grades, setGrades] = useState([]);
     const [bySubject, setBySubject] = useState([]);
     const [subjects, setSubjects] = useState([]);
@@ -26,6 +29,7 @@ const StudentGradesPage = () => {
         if (subjectId) params.set('subjectId', subjectId);
         if (month) params.set('month', month);
         if (semester) params.set('semester', semester);
+        if (academicYear) params.set('academicYear', academicYear);
         api.get(`/grades/my-grades?${params.toString()}`)
             .then((res) => {
                 const data = res.data?.data || {};
@@ -44,7 +48,7 @@ const StudentGradesPage = () => {
 
     useEffect(() => {
         fetchGrades();
-    }, [subjectId, month, semester]);
+    }, [subjectId, month, semester, academicYear]);
 
     const formatDate = (d) =>
         d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
@@ -55,7 +59,10 @@ const StudentGradesPage = () => {
         <div className="student-grades-page">
             <header className="page-header">
                 <h1><HiOutlineClipboardList className="header-icon" /> My Grades</h1>
-                <p className="page-subtitle">View your grades by subject and period.</p>
+                <p className="page-subtitle">
+                    View your grades by subject and period.
+                    {academicYear ? ` Academic Year: ${academicYear}.` : ''}
+                </p>
             </header>
 
             <div className="filters-bar">

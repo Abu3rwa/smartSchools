@@ -13,8 +13,9 @@ import {
     forgotPassword,
     resetPassword,
     impersonateUser
-} from '../controllers/authController.js';
+} from '../controllers/authenticationController.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
 const router = express.Router();
@@ -29,8 +30,8 @@ const passwordResetLimiter = rateLimit({
     }
 });
 
-// Public routes
-router.post('/register', validationRules.register, validate, register);
+// School-scoped user creation (admin only)
+router.post('/register', protect, requireSchoolContext, authorize('admin'), validationRules.register, validate, register);
 router.post('/login', validationRules.login, validate, login);
 
 // Password reset routes (public) with rate limiting

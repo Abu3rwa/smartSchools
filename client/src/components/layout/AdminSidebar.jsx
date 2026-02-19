@@ -15,8 +15,8 @@ import {
     HiOutlineMenu,
     HiOutlineLogout,
     HiOutlineShieldCheck,
-    HiOutlineAcademicCap,
-    HiOutlineChartBar
+    HiOutlineChartBar,
+    HiOutlineDocumentText
 } from 'react-icons/hi';
 import './Sidebar.css';
 
@@ -45,6 +45,7 @@ const AdminSidebar = () => {
         { path: '/admin/users', icon: HiOutlineUserGroup, label: 'Users' },
         { path: '/admin/subscriptions', icon: HiOutlineCreditCard, label: 'Subscriptions' },
         { path: '/admin/analytics', icon: HiOutlineChartBar, label: 'Analytics' },
+        { path: '/admin/landing', icon: HiOutlineDocumentText, label: 'Landing CMS' },
         { path: '/admin/settings', icon: HiOutlineCog, label: 'Settings' },
     ];
 

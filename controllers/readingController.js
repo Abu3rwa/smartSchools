@@ -1,6 +1,7 @@
 import { asyncHandler } from "../middleware/errorHandler.js";
 import * as readingAssistantService from "../services/readingAssistantService.js";
 import Student from "../models/Student.js";
+import { resolveAcademicYearForRequest } from "../helpers/academicYearScope.js";
 
 /**
  * @desc    Upload text and optionally generate simplified versions
@@ -77,21 +78,25 @@ export const getTextById = asyncHandler(async (req, res) => {
  * @access  Private (Student)
  */
 export const getSimplifiedForCurrentStudent = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const student = await Student.findOne({
     user: req.user._id,
     school: req.schoolId,
+    academicYear: effectiveAcademicYear,
   });
   if (!student) {
     return res.status(404).json({
       success: false,
-      message: "Student not found",
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
     });
   }
 
   const result = await readingAssistantService.getSimplifiedForStudent(
     req.params.textId,
     student._id,
-    req.schoolId
+    req.schoolId,
+    effectiveAcademicYear,
+    { requireAssignment: true }
   );
   res.status(200).json({ success: true, data: result });
 });
@@ -103,10 +108,24 @@ export const getSimplifiedForCurrentStudent = asyncHandler(async (req, res) => {
  */
 export const getSimplified = asyncHandler(async (req, res) => {
   const { textId, studentId } = req.params;
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const student = await Student.findOne({
+    _id: studentId,
+    school: req.schoolId,
+    academicYear: effectiveAcademicYear,
+  }).select("_id");
+  if (!student) {
+    return res.status(404).json({
+      success: false,
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
+
   const result = await readingAssistantService.getSimplifiedForStudent(
     textId,
     studentId,
-    req.schoolId
+    req.schoolId,
+    effectiveAcademicYear
   );
   res.status(200).json({ success: true, data: result });
 });
@@ -117,14 +136,16 @@ export const getSimplified = asyncHandler(async (req, res) => {
  * @access  Private (Student)
  */
 export const assessLevel = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const student = await Student.findOne({
     user: req.user._id,
     school: req.schoolId,
+    academicYear: effectiveAcademicYear,
   });
   if (!student) {
     return res.status(404).json({
       success: false,
-      message: "Student not found",
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
     });
   }
 
@@ -147,16 +168,30 @@ export const assessLevel = asyncHandler(async (req, res) => {
  */
 export const getStudentLevel = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
 
   if (req.user.role === "student") {
     const student = await Student.findOne({
       user: req.user._id,
       school: req.schoolId,
+      academicYear: effectiveAcademicYear,
     });
     if (!student || student._id.toString() !== studentId) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to view this student level",
+      });
+    }
+  } else {
+    const student = await Student.findOne({
+      _id: studentId,
+      school: req.schoolId,
+      academicYear: effectiveAcademicYear,
+    }).select("_id");
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: `Student not found for academic year ${effectiveAcademicYear}`,
       });
     }
   }
@@ -174,14 +209,16 @@ export const getStudentLevel = asyncHandler(async (req, res) => {
  * @access  Private (Student)
  */
 export const updateProgress = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const student = await Student.findOne({
     user: req.user._id,
     school: req.schoolId,
+    academicYear: effectiveAcademicYear,
   });
   if (!student) {
     return res.status(404).json({
       success: false,
-      message: "Student not found",
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
     });
   }
 
@@ -199,7 +236,8 @@ export const updateProgress = asyncHandler(async (req, res) => {
     Number(correctCount),
     Number(totalCount),
     req.schoolId,
-    assignmentId || null
+    assignmentId || null,
+    effectiveAcademicYear
   );
   res.status(200).json({
     success: true,
@@ -215,6 +253,7 @@ export const updateProgress = asyncHandler(async (req, res) => {
  */
 export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
   const { textId, question, studentAnswer, textExcerpt } = req.body;
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
 
   if (!question || studentAnswer === undefined) {
     return res.status(400).json({
@@ -226,6 +265,7 @@ export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
   const student = await Student.findOne({
     user: req.user._id,
     school: req.schoolId,
+    academicYear: effectiveAcademicYear,
   })
     .select("_id")
     .lean();
@@ -256,6 +296,8 @@ export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
  */
 export const createAssignment = asyncHandler(async (req, res) => {
   const { textId, classId, studentIds, dueDate, instructions } = req.body;
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const schoolStartMonth = req.school?.settings?.academicYearStartMonth;
 
   if (!textId) {
     return res.status(400).json({
@@ -267,7 +309,9 @@ export const createAssignment = asyncHandler(async (req, res) => {
   const assignment = await readingAssistantService.createAssignment(
     req.schoolId,
     { textId, classId, studentIds, dueDate, instructions },
-    req.user._id
+    req.user._id,
+    effectiveAcademicYear,
+    schoolStartMonth
   );
   res.status(201).json({
     success: true,
@@ -282,20 +326,23 @@ export const createAssignment = asyncHandler(async (req, res) => {
  * @access  Private (Student)
  */
 export const myAssignments = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const student = await Student.findOne({
     user: req.user._id,
     school: req.schoolId,
+    academicYear: effectiveAcademicYear,
   });
   if (!student) {
     return res.status(404).json({
       success: false,
-      message: "Student not found",
+      message: `Student not found for academic year ${effectiveAcademicYear}`,
     });
   }
 
   const assignments = await readingAssistantService.getAssignmentsForStudent(
     student._id,
-    req.schoolId
+    req.schoolId,
+    effectiveAcademicYear
   );
   res.status(200).json({ success: true, data: assignments });
 });
@@ -306,10 +353,12 @@ export const myAssignments = asyncHandler(async (req, res) => {
  * @access  Private (Teacher, Admin)
  */
 export const getTeacherAssignments = asyncHandler(async (req, res) => {
-  const { classId, textId } = req.query;
+  const { classId, textId, academicYear } = req.query;
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req, academicYear);
   const list = await readingAssistantService.getAssignmentsForTeacher(
     req.schoolId,
-    { classId, textId }
+    { classId, textId },
+    effectiveAcademicYear
   );
-  res.status(200).json({ success: true, data: list });
+  res.status(200).json({ success: true, data: list, academicYear: effectiveAcademicYear });
 });

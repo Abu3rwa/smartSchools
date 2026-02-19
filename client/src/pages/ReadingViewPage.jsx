@@ -9,6 +9,7 @@ import {
   selectReadingLoading,
   selectReadingError,
 } from '../store/slices/readingSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import readingService from '../services/readingService';
 import { HiOutlineArrowLeft, HiOutlineLightBulb, HiOutlineQuestionMarkCircle } from 'react-icons/hi';
 import toast from 'react-hot-toast';
@@ -21,6 +22,7 @@ const ReadingViewPage = () => {
   const assignmentId = location.state?.assignmentId;
 
   const dispatch = useDispatch();
+  const academicYear = useSelector(selectCurrentAcademicYear);
   const content = useSelector(selectSimplifiedContent);
   const loading = useSelector(selectReadingLoading);
   const error = useSelector(selectReadingError);
@@ -176,6 +178,9 @@ const ReadingViewPage = () => {
         <h1>{content.text?.title}</h1>
         {content.targetLevel != null && (
           <span className="level-badge">Grade level {content.targetLevel}</span>
+        )}
+        {academicYear && (
+          <span className="level-badge">AY {academicYear}</span>
         )}
       </header>
 

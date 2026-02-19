@@ -264,8 +264,11 @@ export const getBehaviorAnalytics = asyncHandler(async (req, res) => {
         default: startDate.setMonth(startDate.getMonth() - 1);
     }
     
+    const resolvedSchool = req.user.role === 'super_admin' ? school : req.school?._id;
+    const schoolObjectId = toValidObjectId(resolvedSchool);
+
     const filters = { startDate };
-    if (school) filters.school = school;
+    if (schoolObjectId) filters.school = schoolObjectId;
     if (eventType) filters.eventType = eventType;
     
     // Get event statistics
@@ -276,7 +279,7 @@ export const getBehaviorAnalytics = asyncHandler(async (req, res) => {
         {
             $match: {
                 timestamp: { $gte: startDate },
-                ...(school && { school: mongoose.Types.ObjectId(school) }),
+                ...(schoolObjectId && { school: schoolObjectId }),
                 ...(eventType && { eventType })
             }
         },
@@ -326,7 +329,7 @@ export const getBehaviorAnalytics = asyncHandler(async (req, res) => {
         {
             $match: {
                 timestamp: { $gte: startDate },
-                ...(school && { school: mongoose.Types.ObjectId(school) })
+                ...(schoolObjectId && { school: schoolObjectId })
             }
         },
         {
@@ -365,7 +368,7 @@ export const getBehaviorAnalytics = asyncHandler(async (req, res) => {
         {
             $match: {
                 timestamp: { $gte: startDate },
-                ...(school && { school: mongoose.Types.ObjectId(school) })
+                ...(schoolObjectId && { school: schoolObjectId })
             }
         },
         {
@@ -444,16 +447,32 @@ export const getUserBehavior = asyncHandler(async (req, res) => {
         {
             $match: {
                 user: mongoose.Types.ObjectId(userId),
-                eventType: 'login'
+                eventType: { $in: ['login', 'logout', 'session_started', 'session_ended'] }
             }
         },
         {
             $group: {
                 _id: null,
-                totalLogins: { $sum: 1 },
+                totalLogins: {
+                    $sum: {
+                        $cond: [
+                            { $in: ['$eventType', ['login', 'session_started']] },
+                            1,
+                            0
+                        ]
+                    }
+                },
                 uniqueIPs: { $addToSet: '$ipAddress' },
                 uniqueDevices: { $addToSet: '$device.platform' },
-                avgSessionDuration: { $avg: '$sessionDuration' }
+                avgSessionDuration: {
+                    $avg: {
+                        $cond: [
+                            { $in: ['$eventType', ['logout', 'session_ended']] },
+                            '$sessionDuration',
+                            null
+                        ]
+                    }
+                }
             }
         }
     ]);
@@ -487,6 +506,7 @@ export const getUserBehavior = asyncHandler(async (req, res) => {
 // @access  Private/Super Admin
 export const getSecurityEvents = asyncHandler(async (req, res) => {
     const { period = 'week', riskLevel, school } = req.query;
+    const schoolObjectId = toValidObjectId(school);
     
     let startDate = new Date();
     switch (period) {
@@ -497,7 +517,7 @@ export const getSecurityEvents = asyncHandler(async (req, res) => {
     }
     
     const filters = { startDate };
-    if (school) filters.school = school;
+    if (schoolObjectId) filters.school = schoolObjectId;
     
     const securityEvents = await Behavior.getSecurityEvents(filters);
     
@@ -515,39 +535,57 @@ export const getSecurityEvents = asyncHandler(async (req, res) => {
     }
     
     // Get security statistics
-    const securityStats = await Behavior.aggregate([
+    const securityStatsRows = await Behavior.aggregate([
         {
             $match: {
                 timestamp: { $gte: startDate },
                 eventType: { $in: ['login_failed', 'suspicious_login', 'permission_denied', 'data_access_attempt'] },
-                ...(school && { school: mongoose.Types.ObjectId(school) })
+                ...(schoolObjectId && { school: schoolObjectId })
             }
         },
         {
-            $group: {
-                _id: '$eventType',
-                count: { $sum: 1 },
-                uniqueIPs: { $addToSet: '$ipAddress' },
-                uniqueUsers: { $addToSet: '$user' }
-            }
-        },
-        {
-            $group: {
-                _id: null,
-                events: {
-                    $push: {
-                        eventType: '$_id',
-                        count: '$count',
-                        uniqueIPs: { $size: '$uniqueIPs' },
-                        uniqueUsers: { $size: '$uniqueUsers' }
+            $facet: {
+                events: [
+                    {
+                        $group: {
+                            _id: '$eventType',
+                            count: { $sum: 1 },
+                            uniqueIPs: { $addToSet: '$ipAddress' },
+                            uniqueUsers: { $addToSet: '$user' }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            eventType: '$_id',
+                            count: 1,
+                            uniqueIPs: { $size: '$uniqueIPs' },
+                            uniqueUsers: { $size: '$uniqueUsers' }
+                        }
                     }
-                },
-                totalSecurityEvents: { $sum: '$count' },
-                totalUniqueIPs: { $addToSet: '$ipAddress' },
-                totalUniqueUsers: { $addToSet: '$user' }
+                ],
+                totals: [
+                    {
+                        $group: {
+                            _id: null,
+                            totalSecurityEvents: { $sum: 1 },
+                            totalUniqueIPs: { $addToSet: '$ipAddress' },
+                            totalUniqueUsers: { $addToSet: '$user' }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            totalSecurityEvents: 1,
+                            totalUniqueIPs: { $size: '$totalUniqueIPs' },
+                            totalUniqueUsers: { $size: '$totalUniqueUsers' }
+                        }
+                    }
+                ]
             }
         }
     ]);
+    const securityStats = securityStatsRows[0];
     
     // Get high risk activities
     const highRiskActivities = await Behavior.aggregate([
@@ -559,7 +597,7 @@ export const getSecurityEvents = asyncHandler(async (req, res) => {
                     { eventType: 'suspicious_login' },
                     { eventType: 'permission_denied' }
                 ],
-                ...(school && { school: mongoose.Types.ObjectId(school) })
+                ...(schoolObjectId && { school: schoolObjectId })
             }
         },
         {
@@ -582,11 +620,11 @@ export const getSecurityEvents = asyncHandler(async (req, res) => {
         success: true,
         data: {
             securityEvents: filteredEvents,
-            securityStats: securityStats[0] || {
-                events: [],
-                totalSecurityEvents: 0,
-                totalUniqueIPs: 0,
-                totalUniqueUsers: 0
+            securityStats: {
+                events: securityStats?.events || [],
+                totalSecurityEvents: securityStats?.totals?.[0]?.totalSecurityEvents || 0,
+                totalUniqueIPs: securityStats?.totals?.[0]?.totalUniqueIPs || 0,
+                totalUniqueUsers: securityStats?.totals?.[0]?.totalUniqueUsers || 0
             },
             highRiskActivities,
             period,
@@ -823,19 +861,28 @@ export const exportBehaviorData = asyncHandler(async (req, res) => {
 // @route   DELETE /api/behavior/cleanup
 // @access  Private/Super Admin
 export const cleanupBehaviorData = asyncHandler(async (req, res) => {
-    const { days = 730 } = req.query; // Default to 2 years
+    const { days = 730, school } = req.query; // Default to 2 years
+    const retentionDays = Math.min(Math.max(parseInt(days, 10) || 730, 30), 3650);
     
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+    const resolvedSchool = req.user.role === 'super_admin' ? school : req.school?._id;
+    const schoolObjectId = toValidObjectId(resolvedSchool);
     
-    const result = await Behavior.deleteMany({
+    const deleteFilter = {
         timestamp: { $lt: cutoffDate }
-    });
+    };
+    if (schoolObjectId) {
+        deleteFilter.school = schoolObjectId;
+    }
+
+    const result = await Behavior.deleteMany(deleteFilter);
     
     res.json({
         success: true,
-        message: `Deleted ${result.deletedCount} behavior records older than ${days} days`,
+        message: `Deleted ${result.deletedCount} behavior records older than ${retentionDays} days`,
         deletedCount: result.deletedCount,
-        cutoffDate
+        cutoffDate,
+        scope: schoolObjectId ? 'school' : 'global'
     });
 });

@@ -22,6 +22,7 @@ const VALID_SUGGEST_FIELDS = [
  */
 export const getLessonPlans = asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, class: classId, subject, startDate, endDate, academicYear } = req.query;
+    const effectiveAcademicYear = academicYear || req.academicYear;
     const query = {};
 
     // Check if user can view all lesson plans
@@ -41,11 +42,33 @@ export const getLessonPlans = asyncHandler(async (req, res) => {
     }
     if (classId) {
         if (req.departmentId && departmentClassIds && !departmentClassIds.some((c) => c._id.toString() === classId)) {
-            query.class = null; // class not in department: no results
+            query.class = { $in: [] }; // class not in department: no results
         } else {
             query.class = classId;
         }
     }
+
+    if (effectiveAcademicYear) {
+        const yearClasses = await Class.find({
+            school: req.schoolId,
+            academicYear: effectiveAcademicYear,
+        }).select('_id').lean();
+        const yearClassIdSet = new Set(yearClasses.map((item) => item._id.toString()));
+
+        if (classId) {
+            if (!yearClassIdSet.has(classId.toString())) {
+                query.class = { $in: [] };
+            }
+        } else if (query.class?.$in) {
+            const scopedIds = query.class.$in
+                .map((item) => item.toString())
+                .filter((id) => yearClassIdSet.has(id));
+            query.class = { $in: scopedIds };
+        } else {
+            query.class = { $in: Array.from(yearClassIdSet) };
+        }
+    }
+
     if (subject) query.subject = subject;
     if (startDate || endDate) {
         query.date = {};
@@ -741,6 +764,39 @@ export const getLessonPlanStats = asyncHandler(async (req, res) => {
                         $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
                     },
                     avgScore: { $avg: '$aiEvaluation.overallScore' }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'teacherInfo'
+                }
+            },
+            {
+                $unwind: {
+                    path: '$teacherInfo',
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    teacherId: '$_id',
+                    teacherName: {
+                        $trim: {
+                            input: {
+                                $concat: [
+                                    { $ifNull: ['$teacherInfo.firstName', ''] },
+                                    ' ',
+                                    { $ifNull: ['$teacherInfo.lastName', ''] }
+                                ]
+                            }
+                        }
+                    },
+                    submitted: 1,
+                    approved: 1,
+                    avgScore: 1
                 }
             },
             { $sort: { submitted: -1 } },

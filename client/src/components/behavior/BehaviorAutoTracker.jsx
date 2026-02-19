@@ -13,30 +13,58 @@ const BehaviorAutoTracker = () => {
     const sessionIdRef = useRef(localStorage.getItem(STORAGE_KEY) || null);
 
     useEffect(() => {
-        if (!isAuthenticated) return;
+        const clearSession = () => {
+            sessionIdRef.current = null;
+            localStorage.removeItem(STORAGE_KEY);
+        };
+
+        if (!isAuthenticated) {
+            clearSession();
+            return;
+        }
 
         let intervalId;
-        const initializeSession = async () => {
-            try {
-                if (!sessionIdRef.current) {
-                    const response = await behaviorTrackingService.startSession({
-                        source: 'web_client'
-                    });
-                    const nextSessionId = response?.data?.data?.sessionId;
-                    if (nextSessionId) {
-                        sessionIdRef.current = nextSessionId;
-                        localStorage.setItem(STORAGE_KEY, nextSessionId);
-                    }
-                }
+        let isDisposed = false;
 
-                if (sessionIdRef.current) {
-                    intervalId = setInterval(() => {
-                        behaviorTrackingService.heartbeatSession(sessionIdRef.current).catch(() => {});
-                    }, HEARTBEAT_INTERVAL_MS);
+        const startNewSession = async () => {
+            try {
+                const response = await behaviorTrackingService.startSession({
+                    source: 'web_client'
+                });
+                const nextSessionId = response?.data?.data?.sessionId;
+                if (nextSessionId && !isDisposed) {
+                    sessionIdRef.current = nextSessionId;
+                    localStorage.setItem(STORAGE_KEY, nextSessionId);
                 }
             } catch {
                 // best-effort tracking
             }
+        };
+
+        const sendHeartbeat = async () => {
+            if (!sessionIdRef.current) return;
+            try {
+                await behaviorTrackingService.heartbeatSession(sessionIdRef.current);
+            } catch (error) {
+                const status = error?.response?.status;
+                if (status === 404 || status === 401) {
+                    clearSession();
+                    await startNewSession();
+                }
+            }
+        };
+
+        const initializeSession = async () => {
+            if (!sessionIdRef.current) {
+                await startNewSession();
+            } else {
+                await sendHeartbeat();
+            }
+
+            if (!sessionIdRef.current || isDisposed) return;
+            intervalId = setInterval(() => {
+                sendHeartbeat().catch(() => {});
+            }, HEARTBEAT_INTERVAL_MS);
         };
 
         initializeSession();
@@ -44,14 +72,19 @@ const BehaviorAutoTracker = () => {
         const handleBeforeUnload = () => {
             if (sessionIdRef.current) {
                 behaviorTrackingService.endSession(sessionIdRef.current).catch(() => {});
-                localStorage.removeItem(STORAGE_KEY);
+                clearSession();
             }
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => {
+            isDisposed = true;
             window.removeEventListener('beforeunload', handleBeforeUnload);
             if (intervalId) clearInterval(intervalId);
+            if (sessionIdRef.current) {
+                behaviorTrackingService.endSession(sessionIdRef.current).catch(() => {});
+                clearSession();
+            }
         };
     }, [isAuthenticated]);
 

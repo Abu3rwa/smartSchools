@@ -2,9 +2,94 @@ import mongoose from 'mongoose';
 import StudentLearningProfile from '../models/StudentLearningProfile.js';
 import RevisionPlan from '../models/RevisionPlan.js';
 import MasteryRecord from '../models/MasteryRecord.js';
+import PracticeAttempt from '../models/PracticeAttempt.js';
 import Standard from '../models/Standard.js';
 import Student from '../models/Student.js';
-import Subject from '../models/Subject.js';
+import { getAcademicYearDateRange } from '../utils/academicYear.js';
+
+const NO_PRACTICED_TOPICS_ERROR =
+  'No practiced topics found for this subject yet. Ask the student to complete practice first.';
+
+const toUniqueIdStrings = (ids = []) => (
+  Array.from(new Set(ids.filter(Boolean).map((id) => id.toString())))
+);
+
+const toUniqueObjectIds = (ids = []) => (
+  toUniqueIdStrings(ids)
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id))
+);
+
+const intersectIdStrings = (baseIds = [], scopedIds = []) => {
+  const normalizedBase = toUniqueIdStrings(baseIds);
+  if (!Array.isArray(scopedIds) || scopedIds.length === 0) {
+    return normalizedBase;
+  }
+  const scopedSet = new Set(toUniqueIdStrings(scopedIds));
+  return normalizedBase.filter((id) => scopedSet.has(id));
+};
+
+const buildAcademicYearDateFilter = (academicYear, schoolStartMonth) => {
+  if (!academicYear) return null;
+  const range = getAcademicYearDateRange(academicYear, schoolStartMonth);
+  if (!range) return null;
+  return { $gte: range.startDate, $lte: range.endDate };
+};
+
+const buildRevisionPlanYearQuery = (academicYear, schoolStartMonth) => {
+  if (!academicYear) return {};
+
+  const dateFilter = buildAcademicYearDateFilter(academicYear, schoolStartMonth);
+  if (!dateFilter) return { academicYear };
+
+  return {
+    $or: [
+      { academicYear },
+      { academicYear: { $exists: false }, examDate: dateFilter },
+      { academicYear: null, examDate: dateFilter }
+    ]
+  };
+};
+
+const getPracticedSubjectStandards = async ({
+  schoolId,
+  studentId,
+  subjectId,
+  syllabusStandardIds = [],
+  createdAtFilter = null
+}) => {
+  const practiceAttemptQuery = {
+    school: schoolId,
+    student: studentId,
+    status: 'answered'
+  };
+  if (createdAtFilter) {
+    practiceAttemptQuery.createdAt = createdAtFilter;
+  }
+
+  const [attemptStandardIds, masteryStandardIds] = await Promise.all([
+    PracticeAttempt.distinct('standard', practiceAttemptQuery),
+    MasteryRecord.distinct('standard', {
+      school: schoolId,
+      student: studentId
+    })
+  ]);
+
+  const practicedStandardIds = intersectIdStrings(
+    [...attemptStandardIds, ...masteryStandardIds],
+    syllabusStandardIds
+  );
+
+  if (practicedStandardIds.length === 0) {
+    return [];
+  }
+
+  return Standard.find({
+    school: schoolId,
+    subject: subjectId,
+    _id: { $in: toUniqueObjectIds(practicedStandardIds) }
+  }).select('_id');
+};
 
 /**
  * Compute or update StudentLearningProfile from MasteryRecord.
@@ -79,7 +164,16 @@ export async function computeStudentLearningProfile(studentId, schoolId) {
  * 5) Add spaced repetition
  * 6) Save RevisionPlan
  */
-export async function generatePlan(studentId, subjectId, examDate, options = {}, schoolId, createdByUserId) {
+export async function generatePlan(
+  studentId,
+  subjectId,
+  examDate,
+  options = {},
+  schoolId,
+  createdByUserId,
+  academicYear = null,
+  schoolStartMonth = null
+) {
   const { examLabel, syllabusStandardIds } = options;
 
   // Validate exam date
@@ -91,8 +185,20 @@ export async function generatePlan(studentId, subjectId, examDate, options = {},
   if (exam <= today) {
     throw new Error('Exam date must be in the future');
   }
+  const academicYearDateFilter = buildAcademicYearDateFilter(academicYear, schoolStartMonth);
+  if (academicYearDateFilter && (exam < academicYearDateFilter.$gte || exam > academicYearDateFilter.$lte)) {
+    throw new Error(`Exam date must be inside academic year ${academicYear}`);
+  }
 
   const daysUntilExam = Math.ceil((exam - today) / (1000 * 60 * 60 * 24));
+
+  const student = await Student.findOne({ _id: studentId, school: schoolId }).select('academicYear');
+  if (!student) {
+    throw new Error('Student not found');
+  }
+  if (academicYear && student.academicYear && student.academicYear.toString() !== academicYear.toString()) {
+    throw new Error(`Student is not in academic year ${academicYear}`);
+  }
 
   // Get or compute learning profile
   let profile = await StudentLearningProfile.findOne({
@@ -105,30 +211,48 @@ export async function generatePlan(studentId, subjectId, examDate, options = {},
     profile = await computeStudentLearningProfile(studentId, schoolId);
   }
 
-  // Get weak areas for this subject
-  let weakStandards = profile.weaknesses || [];
+  const practicedSubjectStandards = await getPracticedSubjectStandards({
+    schoolId,
+    studentId,
+    subjectId,
+    syllabusStandardIds,
+    createdAtFilter: academicYearDateFilter
+  });
+  const practicedStandardIdSet = new Set(
+    practicedSubjectStandards.map((standard) => standard._id.toString())
+  );
 
-  if (syllabusStandardIds && syllabusStandardIds.length > 0) {
-    // Filter to only syllabus standards
-    const syllabusIds = syllabusStandardIds.map(id => new mongoose.Types.ObjectId(id));
-    weakStandards = weakStandards.filter(w => 
-      syllabusIds.some(sid => sid.toString() === w.standard.toString())
-    );
-  } else {
-    // Get all standards for this subject
-    const subjectStandards = await Standard.find({
-      school: schoolId,
-      subject: subjectId
-    }).select('_id');
-
-    const subjectStandardIds = subjectStandards.map(s => s._id.toString());
-    weakStandards = weakStandards.filter(w => 
-      subjectStandardIds.includes(w.standard.toString())
-    );
+  if (practicedStandardIdSet.size === 0) {
+    throw new Error(NO_PRACTICED_TOPICS_ERROR);
   }
 
+  // Get weak areas from practiced topics only (subject + optional syllabus scope)
+  let weakStandards = profile.weaknesses || [];
+  weakStandards = weakStandards.filter(w =>
+    practicedStandardIdSet.has(w.standard.toString())
+  );
+
   if (weakStandards.length === 0) {
-    throw new Error('No weak areas found for this subject. Student may already be strong in this area.');
+    const strengths = profile.strengths || [];
+    const strongStandards = strengths.filter(s =>
+      practicedStandardIdSet.has(s.standard.toString())
+    );
+
+    if (strongStandards.length > 0) {
+      weakStandards = strongStandards.map(s => ({
+        standard: s.standard,
+        masteryLevel: s.masteryLevel,
+        severity: 1
+      }));
+    } else if (practicedSubjectStandards.length > 0) {
+      weakStandards = practicedSubjectStandards.map(s => ({
+        standard: s._id,
+        masteryLevel: 85,
+        severity: 1
+      }));
+    } else {
+      throw new Error(NO_PRACTICED_TOPICS_ERROR);
+    }
   }
 
   // Calculate priority and allocate time
@@ -293,6 +417,7 @@ export async function generatePlan(studentId, subjectId, examDate, options = {},
     school: schoolId,
     student: studentId,
     subject: subjectId,
+    academicYear: academicYear || undefined,
     examDate: exam,
     examLabel: examLabel || 'Exam',
     generatedDate: new Date(),
@@ -314,10 +439,12 @@ export async function generatePlan(studentId, subjectId, examDate, options = {},
 /**
  * Get plan by id (ensure student or teacher/admin and school).
  */
-export async function getPlan(planId, schoolId) {
+export async function getPlan(planId, schoolId, academicYear = null, schoolStartMonth = null) {
+  const yearQuery = buildRevisionPlanYearQuery(academicYear, schoolStartMonth);
   const plan = await RevisionPlan.findOne({
     _id: planId,
-    school: schoolId
+    school: schoolId,
+    ...yearQuery
   })
     .populate('student', 'firstName lastName studentId currentClass')
     .populate('subject', 'name code')
@@ -328,13 +455,11 @@ export async function getPlan(planId, schoolId) {
   return plan;
 }
 
-/**
- * Get all plans for a student.
- */
-export async function getStudentPlans(studentId, schoolId, status = null) {
+export async function getStudentPlans(studentId, schoolId, status = null, academicYear = null, schoolStartMonth = null) {
   const query = {
     school: schoolId,
-    student: studentId
+    student: studentId,
+    ...buildRevisionPlanYearQuery(academicYear, schoolStartMonth)
   };
 
   if (status) {
@@ -352,7 +477,7 @@ export async function getStudentPlans(studentId, schoolId, status = null) {
  * Get all plans for students in a teacher's classes.
  */
 export async function getTeacherStudentPlans(teacherId, schoolId, options = {}) {
-  const { classId, subjectId, status } = options;
+  const { classId, subjectId, status, academicYear, schoolStartMonth } = options;
 
   // Get classes this teacher teaches
   const Teacher = (await import('../models/Teacher.js')).default;
@@ -361,28 +486,32 @@ export async function getTeacherStudentPlans(teacherId, schoolId, options = {}) 
     user: teacherId
   }).populate('assignedClasses.class');
 
-  if (!teacher) {
-    throw new Error('Teacher not found');
-  }
+  const classIds = teacher
+    ? teacher.assignedClasses
+        .map((ac) => ac.class?._id)
+        .filter(Boolean)
+    : [];
 
-  // Get student IDs from teacher's classes
-  const classIds = teacher.assignedClasses.map(ac => ac.class._id);
-  
-  if (classId && !classIds.some(cid => cid.toString() === classId.toString())) {
-    throw new Error('Teacher does not teach this class');
+  const studentQuery = { school: schoolId };
+  if (teacher) {
+    if (classId && !classIds.some((cid) => cid.toString() === classId.toString())) {
+      throw new Error('Teacher does not teach this class');
+    }
+    studentQuery.currentClass = classId || { $in: classIds };
+  } else if (classId) {
+    studentQuery.currentClass = classId;
   }
-
-  const studentQuery = {
-    school: schoolId,
-    currentClass: classId || { $in: classIds }
-  };
+  if (academicYear) {
+    studentQuery.academicYear = academicYear;
+  }
 
   const students = await Student.find(studentQuery).select('_id');
   const studentIds = students.map(s => s._id);
 
   const planQuery = {
     school: schoolId,
-    student: { $in: studentIds }
+    student: { $in: studentIds },
+    ...buildRevisionPlanYearQuery(academicYear, schoolStartMonth)
   };
 
   if (subjectId) {
@@ -405,10 +534,11 @@ export async function getTeacherStudentPlans(teacherId, schoolId, options = {}) 
 /**
  * Update progress: mark topic or daily slot as completed.
  */
-export async function updateProgress(planId, updates, schoolId) {
+export async function updateProgress(planId, updates, schoolId, academicYear = null, schoolStartMonth = null) {
   const plan = await RevisionPlan.findOne({
     _id: planId,
-    school: schoolId
+    school: schoolId,
+    ...buildRevisionPlanYearQuery(academicYear, schoolStartMonth)
   });
 
   if (!plan) {
@@ -479,7 +609,7 @@ export async function updateProgress(planId, updates, schoolId) {
 
   await plan.save();
 
-  return await getPlan(planId, schoolId);
+  return await getPlan(planId, schoolId, academicYear, schoolStartMonth);
 }
 
 /**

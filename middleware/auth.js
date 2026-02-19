@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import { runInTenantContext } from './tenantIsolation.js';
 import logger from '../utils/logger.js';
 import { hasPermission, hasAnyPermission, hasAllPermissions } from '../config/permissions.js';
+import { isValidAcademicYear, resolveSchoolAcademicYear } from '../utils/academicYear.js';
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -46,6 +47,18 @@ export const protect = async (req, res, next) => {
         if (user.school) {
             req.schoolId = user.school._id;
             req.school = user.school;
+            const schoolAcademicYear = resolveSchoolAcademicYear(user.school);
+            const headerAcademicYear = typeof req.headers['x-academic-year'] === 'string'
+                ? req.headers['x-academic-year'].trim()
+                : '';
+            const isHeaderMatchingSchoolYear = isValidAcademicYear(headerAcademicYear)
+                && headerAcademicYear === schoolAcademicYear;
+            req.academicYear = isHeaderMatchingSchoolYear
+                ? headerAcademicYear
+                : schoolAcademicYear;
+            if (req.school?.settings) {
+                req.school.settings.currentAcademicYear = req.academicYear;
+            }
         }
 
         // Run the rest of the request in tenant context so ALL Mongoose queries are

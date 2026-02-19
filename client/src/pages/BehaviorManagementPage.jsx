@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { selectUser } from '../store/slices/authSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import api from '../config/api';
 import toast from 'react-hot-toast';
 import {
@@ -18,6 +19,7 @@ import './BehaviorManagementPage.css';
 
 const BehaviorManagementPage = () => {
     const user = useSelector(selectUser);
+    const academicYear = useSelector(selectCurrentAcademicYear);
     const [incidents, setIncidents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -51,12 +53,13 @@ const BehaviorManagementPage = () => {
         parentNotified: false,
         parentNotificationMethod: 'phone'
     });
+    const selectedStudentProfile = students.find((student) => student._id === formData.student);
 
     useEffect(() => {
         fetchIncidents();
         fetchStudents();
         fetchClasses();
-    }, [filters]);
+    }, [filters, academicYear]);
 
     const fetchIncidents = async () => {
         try {
@@ -65,6 +68,9 @@ const BehaviorManagementPage = () => {
             Object.entries(filters).forEach(([key, value]) => {
                 if (value) params.append(key, value);
             });
+            if (!filters.startDate && !filters.endDate && academicYear) {
+                params.append('academicYear', academicYear);
+            }
             
             const response = await api.get(`/student-behavior?${params}`);
             if (response.data.success) {
@@ -79,7 +85,13 @@ const BehaviorManagementPage = () => {
 
     const fetchStudents = async () => {
         try {
-            const response = await api.get('/students');
+            const response = await api.get('/students', {
+                params: {
+                    status: 'active',
+                    limit: 500,
+                    academicYear
+                }
+            });
             if (response.data.success) {
                 setStudents(response.data.data.students);
             }
@@ -88,9 +100,43 @@ const BehaviorManagementPage = () => {
         }
     };
 
+    const getStudentClassId = (student) => {
+        if (!student?.currentClass) return '';
+        return typeof student.currentClass === 'object'
+            ? student.currentClass._id
+            : student.currentClass;
+    };
+
+    const formatStudentClassLabel = (student) => {
+        const studentClass = student?.currentClass;
+        if (!studentClass || typeof studentClass !== 'object') return 'Not assigned';
+        const parts = [
+            studentClass.name,
+            studentClass.grade ? `Grade ${studentClass.grade}` : null,
+            studentClass.section ? `Section ${studentClass.section}` : null
+        ].filter(Boolean);
+        return parts.join(' • ');
+    };
+
+    const handleStudentChange = (event) => {
+        const nextStudentId = event.target.value;
+        const nextStudent = students.find((student) => student._id === nextStudentId);
+        const nextClassId = getStudentClassId(nextStudent);
+
+        setFormData((prev) => ({
+            ...prev,
+            student: nextStudentId,
+            class: nextClassId || ''
+        }));
+    };
+
     const fetchClasses = async () => {
         try {
-            const response = await api.get('/classes');
+            const response = await api.get('/classes', {
+                params: {
+                    academicYear
+                }
+            });
             if (response.data.success) {
                 setClasses(response.data.data.classes);
             }
@@ -453,7 +499,7 @@ const BehaviorManagementPage = () => {
                                             <label>Student *</label>
                                             <select
                                                 value={formData.student}
-                                                onChange={(e) => setFormData({ ...formData, student: e.target.value })}
+                                                onChange={handleStudentChange}
                                                 required
                                             >
                                                 <option value="">Select Student</option>
@@ -475,10 +521,23 @@ const BehaviorManagementPage = () => {
                                                 {classes.map((c) => (
                                                     <option key={c._id} value={c._id}>
                                                         {c.name}
+                                                        {c.grade ? ` - Grade ${c.grade}` : ''}
+                                                        {c.section ? ` (${c.section})` : ''}
                                                     </option>
                                                 ))}
                                             </select>
+                                            {formData.student && (
+                                                <p className="field-hint">Auto-filled from student profile. You can still adjust if needed.</p>
+                                            )}
                                         </div>
+
+                                        {formData.student && (
+                                            <div className="student-profile-summary">
+                                                <span><strong>Student ID:</strong> {selectedStudentProfile?.studentId || 'N/A'}</span>
+                                                <span><strong>Current Class:</strong> {formatStudentClassLabel(selectedStudentProfile)}</span>
+                                                <span><strong>Academic Year:</strong> {selectedStudentProfile?.academicYear || 'N/A'}</span>
+                                            </div>
+                                        )}
 
                                         <div className="form-group">
                                             <label>Incident Type *</label>

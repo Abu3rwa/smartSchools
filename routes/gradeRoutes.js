@@ -15,7 +15,7 @@ import {
     deleteGrade,
     getClassStatistics,
     getDashboardStats
-} from '../controllers/gradeController.js';
+} from '../controllers/gradebookController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { validate, validationRules } from '../middleware/validator.js';
 

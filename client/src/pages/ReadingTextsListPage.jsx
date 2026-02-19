@@ -11,6 +11,7 @@ import {
   selectReadingError,
 } from '../store/slices/readingSlice';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { HiOutlineArrowLeft, HiOutlineDocumentAdd, HiOutlineUserGroup, HiOutlineBookOpen } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './ReadingTextsListPage.css';
@@ -21,6 +22,7 @@ const ReadingTextsListPage = () => {
   const texts = useSelector(selectReadingTexts) || [];
   const assignments = useSelector(selectReadingAssignments) || [];
   const classes = useSelector(selectClasses) || [];
+  const academicYear = useSelector(selectCurrentAcademicYear);
   const loading = useSelector(selectReadingLoading);
   const error = useSelector(selectReadingError);
 
@@ -32,9 +34,9 @@ const ReadingTextsListPage = () => {
 
   useEffect(() => {
     dispatch(fetchTexts());
-    dispatch(fetchTeacherAssignments());
+    dispatch(fetchTeacherAssignments({ academicYear }));
     dispatch(fetchClasses());
-  }, [dispatch]);
+  }, [dispatch, academicYear]);
 
   useEffect(() => {
     if (error) toast.error(error);
@@ -93,6 +95,7 @@ const ReadingTextsListPage = () => {
           <p className="text-muted">
             Upload texts and assign them to classes. Students get level-appropriate
             versions with vocabulary and critical thinking.
+            {academicYear ? ` Academic Year: ${academicYear}.` : ''}
           </p>
         </div>
         <button

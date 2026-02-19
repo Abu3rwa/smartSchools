@@ -9,6 +9,7 @@ import Student from '../models/Student.js';
 import Grade from '../models/Grade.js';
 import Attendance from '../models/Attendance.js';
 import Subject from '../models/Subject.js';
+import { inferAcademicYear } from '../utils/academicYear.js';
 
 const GRADE_AT_RISK_THRESHOLD = 60;
 const ATTENDANCE_AT_RISK_THRESHOLD = 80;
@@ -58,7 +59,7 @@ export async function getAnalytics(classId, schoolId, options = {}) {
     const yearDates = getAcademicYearDates(academicYear);
     const startDate = optStart ? new Date(optStart) : yearDates.startDate;
     const endDate = optEnd ? new Date(optEnd) : yearDates.endDate;
-    const effectiveAcademicYear = academicYear || classDoc.academicYear || '2025-2026';
+    const effectiveAcademicYear = academicYear || classDoc.academicYear || inferAcademicYear();
 
     // --- Grades: per-subject stats and per-student averages for at-risk ---
     const gradeMatch = {

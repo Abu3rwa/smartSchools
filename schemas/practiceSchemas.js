@@ -55,6 +55,15 @@ export const sessionSchema = z.object({
     correctCount: z.number()
 });
 
+export const sessionContextSchema = z.object({
+    recentTopics: z.array(z.string()).optional(),
+    recentMistakes: z.array(z.string()).optional(),
+    confidenceHint: z.string().optional(),
+    recentAccuracy: z.number().optional(),
+    correctStreak: z.number().optional(),
+    incorrectStreak: z.number().optional()
+}).optional();
+
 export const feedbackPartsSchema = z.object({
     headline: z.string().optional(),
     personalGreeting: z.string().optional(),
@@ -79,6 +88,7 @@ export const generateQuestionResponseSchema = z.object({
     studentFirstName: z.string().nullable().optional(),
     mastery: masterySchema.optional(),
     suggestRemediation: z.boolean().optional(),
+    sessionContext: sessionContextSchema,
     question: z.object({
         attemptId: z.string(),
         questionText: z.string(),
@@ -101,6 +111,7 @@ export const submitAnswerResponseSchema = z.object({
     feedback: z.string().nullable().optional(),
     feedbackParts: feedbackPartsSchema.nullable().optional(),
     studentFirstName: z.string().nullable().optional(),
+    sessionContext: sessionContextSchema,
     mastery: masterySchema.optional(),
     newlyMastered: z.boolean().optional(),
     sessionComplete: z.boolean().optional(),

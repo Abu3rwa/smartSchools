@@ -222,6 +222,26 @@
     font-family: inherit;
 }
 
+.field-hint {
+    margin: var(--spacing-xs) 0 0 0;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.student-profile-summary {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary, #f8fafc);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
 .checkbox-group label {
     display: flex;
     align-items: center;
@@ -299,6 +319,10 @@
     }
 
     .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .student-profile-summary {
         grid-template-columns: 1fr;
     }
 

@@ -5,6 +5,7 @@ import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
+import { resolveSchoolAcademicYear } from '../utils/academicYear.js';
 
 /**
  * Generate a human-readable temporary password.
@@ -34,6 +35,7 @@ function generateTempPassword() {
  */
 export const getStudents = asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, search, classId, status, academicYear } = req.query;
+    const effectiveAcademicYear = academicYear || req.academicYear;
 
     const query = {};
 
@@ -47,7 +49,7 @@ export const getStudents = asyncHandler(async (req, res) => {
 
     if (classId) query.currentClass = classId;
     if (status) query.status = status;
-    if (academicYear) query.academicYear = academicYear;
+    if (effectiveAcademicYear) query.academicYear = effectiveAcademicYear;
 
     applyDepartmentScope(query, req.departmentId);
     if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
@@ -140,6 +142,9 @@ export const createStudent = asyncHandler(async (req, res) => {
 
     // Inject school context
     studentData.school = req.schoolId;
+    if (!studentData.academicYear && req.academicYear) {
+        studentData.academicYear = req.academicYear;
+    }
     
     // Generate student ID if not provided
     if (!studentData.studentId) {
@@ -373,6 +378,7 @@ export const importStudents = asyncHandler(async (req, res) => {
     // Validate class exists and get its department and academic year for assignment
     let classDepartment = null;
     let classAcademicYear = null;
+    const defaultSchoolAcademicYear = resolveSchoolAcademicYear(req.school);
     if (classId) {
         const cls = await Class.findById(classId).select('department academicYear');
         if (!cls) {
@@ -425,7 +431,7 @@ export const importStudents = asyncHandler(async (req, res) => {
             lastName: row.lastName.trim(),
             dateOfBirth: dob,
             gender,
-            academicYear: row.academicYear || classAcademicYear || '2025-2026',
+            academicYear: row.academicYear || classAcademicYear || defaultSchoolAcademicYear,
             status: 'active'
         };
 

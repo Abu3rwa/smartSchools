@@ -6,6 +6,11 @@ import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { practiceConfigSchema } from '../schemas/practiceSchemas.js';
+import {
+    getClassIdsForAcademicYear,
+    isClassInAcademicYear,
+    resolveAcademicYearForRequest
+} from '../helpers/academicYearScope.js';
 
 /**
  * @desc    Get assignments (teacher sees own, admin sees all)
@@ -13,9 +18,30 @@ import { practiceConfigSchema } from '../schemas/practiceSchemas.js';
  * @access  Private (Admin, Teacher)
  */
 export const getAssignments = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 50, classId, subjectId, standardId } = req.query;
+    const { page = 1, limit = 50, classId, subjectId, standardId, academicYear } = req.query;
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req, academicYear);
 
     const query = {};
+    const schoolScopedClassIds = await getClassIdsForAcademicYear({
+        schoolId: req.schoolId,
+        academicYear: effectiveAcademicYear,
+        candidateClassIds: classId ? [classId] : null
+    });
+
+    if (schoolScopedClassIds.length === 0) {
+        return res.json({
+            success: true,
+            data: {
+                assignments: [],
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: 0,
+                    pages: 0
+                }
+            }
+        });
+    }
 
     // Teacher scoping: see own assignments + admin-assigned ones for their classes
     if (req.user.role === 'teacher') {
@@ -24,13 +50,29 @@ export const getAssignments = asyncHandler(async (req, res) => {
             return res.status(403).json({ success: false, message: 'Teacher profile not found' });
         }
         const teacherClassIds = await getTeacherClassIds(teacher._id);
-        query.$or = [
-            { teacher: teacher._id },                      // created by this teacher
-            { class: { $in: teacherClassIds } }             // for any of their classes (e.g. admin-assigned)
-        ];
+        const teacherClassIdSet = new Set(teacherClassIds.map((id) => id.toString()));
+        const allowedClassIds = schoolScopedClassIds.filter((id) => teacherClassIdSet.has(id));
+
+        if (allowedClassIds.length === 0) {
+            return res.json({
+                success: true,
+                data: {
+                    assignments: [],
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total: 0,
+                        pages: 0
+                    }
+                }
+            });
+        }
+
+        query.class = { $in: allowedClassIds };
+    } else {
+        query.class = { $in: schoolScopedClassIds };
     }
 
-    if (classId) query.class = classId;
     if (subjectId) query.subject = subjectId;
     if (standardId) query.standard = standardId;
 
@@ -70,9 +112,10 @@ export const getAssignments = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const getAssignment = asyncHandler(async (req, res) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const assignment = await StandardAssignment.findById(req.params.id)
         .populate('standard')
-        .populate('class', 'name grade section')
+        .populate('class', 'name grade section academicYear')
         .populate('subject', 'name code')
         .populate('teacher', 'employeeId')
         .populate({
@@ -87,6 +130,12 @@ export const getAssignment = asyncHandler(async (req, res) => {
             message: 'Assignment not found'
         });
     }
+    if (!isClassInAcademicYear(assignment.class, effectiveAcademicYear)) {
+        return res.status(404).json({
+            success: false,
+            message: `Assignment not found for academic year ${effectiveAcademicYear}`
+        });
+    }
 
     // Get students who are part of this assignment
     let studentList;
@@ -96,7 +145,8 @@ export const getAssignment = asyncHandler(async (req, res) => {
         // All students in the class
         studentList = await Student.find({
             currentClass: assignment.class._id,
-            status: 'active'
+            status: 'active',
+            academicYear: effectiveAcademicYear
         }).select('firstName lastName studentId');
     }
 
@@ -109,7 +159,8 @@ export const getAssignment = asyncHandler(async (req, res) => {
                 assignment.standard.masteryThreshold,
                 assignment.standard.masteryMinQuestions,
                 3,
-                req.schoolId
+                req.schoolId,
+                [assignment._id]
             );
             return {
                 student: student.toObject ? student.toObject() : student,
@@ -134,6 +185,7 @@ export const getAssignment = asyncHandler(async (req, res) => {
  */
 export const createAssignment = asyncHandler(async (req, res) => {
     const { standardId, classId, subjectId, students, dueDate, instructions, practiceConfig } = req.body;
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
 
     if (!standardId || !classId || !subjectId) {
         return res.status(400).json({
@@ -152,6 +204,12 @@ export const createAssignment = asyncHandler(async (req, res) => {
     const classDoc = await Class.findById(classId);
     if (!classDoc) {
         return res.status(404).json({ success: false, message: 'Class not found' });
+    }
+    if (!isClassInAcademicYear(classDoc, effectiveAcademicYear)) {
+        return res.status(400).json({
+            success: false,
+            message: `Selected class is not in academic year ${effectiveAcademicYear}`
+        });
     }
 
     // Ensure the assignment is truly connected to the selected class:
@@ -210,7 +268,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
         const count = await Student.countDocuments({
             _id: { $in: studentIds },
             currentClass: classId,
-            status: 'active'
+            status: 'active',
+            academicYear: classDoc.academicYear
         });
         if (count !== studentIds.length) {
             return res.status(400).json({
@@ -280,10 +339,18 @@ export const createAssignment = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Teacher)
  */
 export const updateAssignment = asyncHandler(async (req, res) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     let assignment = await StandardAssignment.findById(req.params.id);
 
     if (!assignment) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+    const assignmentClass = await Class.findById(assignment.class).select('academicYear');
+    if (!isClassInAcademicYear(assignmentClass, effectiveAcademicYear)) {
+        return res.status(404).json({
+            success: false,
+            message: `Assignment not found for academic year ${effectiveAcademicYear}`
+        });
     }
 
     // Teacher can only update their own
@@ -346,10 +413,18 @@ export const updateAssignment = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Teacher)
  */
 export const deleteAssignment = asyncHandler(async (req, res) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const assignment = await StandardAssignment.findById(req.params.id);
 
     if (!assignment) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+    const assignmentClass = await Class.findById(assignment.class).select('academicYear');
+    if (!isClassInAcademicYear(assignmentClass, effectiveAcademicYear)) {
+        return res.status(404).json({
+            success: false,
+            message: `Assignment not found for academic year ${effectiveAcademicYear}`
+        });
     }
 
     if (req.user.role === 'teacher') {

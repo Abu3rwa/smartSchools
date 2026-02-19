@@ -6,7 +6,7 @@ import {
     upsertSchoolCalendarConfig,
     upsertSchoolDayException,
     deleteSchoolDayException
-} from '../controllers/schoolCalendarController.js';
+} from '../controllers/academicCalendarController.js';
 
 const router = express.Router();
 

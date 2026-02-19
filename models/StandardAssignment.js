@@ -61,7 +61,7 @@ const standardAssignmentSchema = new mongoose.Schema({
         },
         allowedQuestionTypes: [{
             type: String,
-            enum: ['multiple_choice', 'short_answer', 'true_false']
+            enum: ['multiple_choice', 'short_answer', 'true_false', 'fill_in_the_blank', 'essay' ]
         }],
         allowedDifficulties: [{
             type: String,

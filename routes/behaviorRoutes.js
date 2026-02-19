@@ -44,7 +44,7 @@ router.get('/analytics', authorize('admin', 'super_admin'), getBehaviorAnalytics
 // @route   GET /api/behavior/users/:userId
 // @desc    Get user behavior details
 // @access  Private/Super Admin or School Admin
-router.get('/users/:userId', getUserBehavior);
+router.get('/users/:userId', authorize('admin', 'super_admin'), getUserBehavior);
 
 // @route   GET /api/behavior/security
 // @desc    Get security events

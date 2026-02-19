@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { inferAcademicYear, isValidAcademicYear } from '../utils/academicYear.js';
 
 const schoolSchema = new mongoose.Schema({
     name: {
@@ -34,6 +35,20 @@ const schoolSchema = new mongoose.Schema({
         }
     },
     settings: {
+        currentAcademicYear: {
+            type: String,
+            default: () => inferAcademicYear(),
+            validate: {
+                validator: (value) => isValidAcademicYear(value),
+                message: 'Academic year must be in YYYY-YYYY format (consecutive years)'
+            }
+        },
+        academicYearStartMonth: {
+            type: Number,
+            min: 1,
+            max: 12,
+            default: 8
+        },
         maxStudents: {
             type: Number,
             default: 50

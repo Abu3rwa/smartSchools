@@ -50,6 +50,38 @@ const resolveAuthContext = async (req) => {
     }
 };
 
+const REDACTED_VALUE = '[REDACTED]';
+const SENSITIVE_KEY_PATTERN = /(pass(word)?|token|secret|authorization|cookie|api[_-]?key|refresh|access|reset|otp|pin|code)/i;
+const MAX_STRING_LENGTH = 1000;
+const MAX_ARRAY_ITEMS = 50;
+
+const sanitizeForTelemetry = (value, depth = 0) => {
+    if (value === null || value === undefined) return value;
+    if (depth > 6) return '[TRUNCATED]';
+
+    if (typeof value === 'string') {
+        return value.length > MAX_STRING_LENGTH ? `${value.slice(0, MAX_STRING_LENGTH)}...[TRUNCATED]` : value;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return value;
+    }
+    if (Array.isArray(value)) {
+        return value.slice(0, MAX_ARRAY_ITEMS).map((item) => sanitizeForTelemetry(item, depth + 1));
+    }
+    if (typeof value === 'object') {
+        return Object.entries(value).reduce((acc, [key, nestedValue]) => {
+            if (SENSITIVE_KEY_PATTERN.test(key)) {
+                acc[key] = REDACTED_VALUE;
+            } else {
+                acc[key] = sanitizeForTelemetry(nestedValue, depth + 1);
+            }
+            return acc;
+        }, {});
+    }
+
+    return '[UNSUPPORTED]';
+};
+
 // Helper function to extract device information
 const extractDeviceInfo = (userAgentString) => {
     try {
@@ -298,8 +330,8 @@ const logBehaviorEvent = async (req, additionalData = {}) => {
             path: originalUrl,
             statusCode,
             responseTime,
-            query: req.query,
-            body: method !== 'GET' ? req.body : undefined,
+            query: sanitizeForTelemetry(req.query),
+            body: method !== 'GET' ? sanitizeForTelemetry(req.body) : undefined,
             headers: {
                 'content-type': req.headers['content-type'],
                 'accept': req.headers['accept'],

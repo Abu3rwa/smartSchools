@@ -14,7 +14,7 @@ import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
 import Room from '../models/Room.js';
 import User from '../models/User.js';
-import { processAttendanceReminders } from '../controllers/attendanceTakingReminderController.js';
+import { processAttendanceReminders } from '../controllers/attendanceReminderController.js';
 
 async function diagnose() {
   await connectDB();

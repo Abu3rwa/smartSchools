@@ -1,6 +1,44 @@
 import StudentBehavior from '../models/StudentBehavior.js';
 import Student from '../models/Student.js';
+import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { inferAcademicYear } from '../utils/academicYear.js';
+import { buildAcademicYearDateFilter, resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
+
+const resolveBehaviorRange = (req, startDate, endDate, requestedAcademicYear = null) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req, requestedAcademicYear);
+    const hasExplicitRange = Boolean(startDate || endDate);
+    if (hasExplicitRange) {
+        return {
+            effectiveAcademicYear,
+            start: startDate ? new Date(startDate) : null,
+            end: endDate ? new Date(endDate) : null
+        };
+    }
+
+    const filter = buildAcademicYearDateFilter(effectiveAcademicYear, req.school);
+    return {
+        effectiveAcademicYear,
+        start: filter?.$gte || null,
+        end: filter?.$lte || null
+    };
+};
+
+const applyBehaviorYearScope = (query, req, requestedAcademicYear = null) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req, requestedAcademicYear);
+    const yearDateFilter = buildAcademicYearDateFilter(effectiveAcademicYear, req.school);
+    if (!yearDateFilter) {
+        query.academicYear = effectiveAcademicYear;
+        return effectiveAcademicYear;
+    }
+
+    query.$or = [
+        { academicYear: effectiveAcademicYear },
+        { academicYear: { $exists: false }, incidentDate: yearDateFilter },
+        { academicYear: null, incidentDate: yearDateFilter }
+    ];
+    return effectiveAcademicYear;
+};
 
 /**
  * @desc    Create a new behavior incident
@@ -39,16 +77,32 @@ export const createBehaviorIncident = asyncHandler(async (req, res) => {
         });
     }
 
+    const resolvedIncidentDate = incidentDate ? new Date(incidentDate) : new Date();
+    const resolvedClassId = classId || studentDoc.currentClass || undefined;
+    let classAcademicYear = null;
+
+    if (resolvedClassId) {
+        const classDoc = await Class.findById(resolvedClassId).select('academicYear');
+        classAcademicYear = classDoc?.academicYear || null;
+    }
+
+    const resolvedAcademicYear =
+        classAcademicYear ||
+        studentDoc.academicYear ||
+        resolveAcademicYearForRequest(req) ||
+        inferAcademicYear(resolvedIncidentDate, req.school?.settings?.academicYearStartMonth);
+
     const behaviorIncident = await StudentBehavior.create({
         student,
         school: req.schoolId,
-        class: classId,
+        class: resolvedClassId,
+        academicYear: resolvedAcademicYear,
         incidentType,
         category,
         severity,
         title,
         description,
-        incidentDate: incidentDate || new Date(),
+        incidentDate: resolvedIncidentDate,
         location,
         locationDetails,
         reportedBy: req.user._id,
@@ -71,7 +125,7 @@ export const createBehaviorIncident = asyncHandler(async (req, res) => {
     res.status(201).json({
         success: true,
         message: 'Behavior incident created successfully',
-        data: { incident: populated }
+        data: { incident: populated, academicYear: resolvedAcademicYear }
     });
 });
 
@@ -88,6 +142,7 @@ export const getBehaviorIncidents = asyncHandler(async (req, res) => {
         category,
         severity,
         status,
+        academicYear,
         startDate,
         endDate,
         page = 1,
@@ -107,6 +162,8 @@ export const getBehaviorIncidents = asyncHandler(async (req, res) => {
         query.incidentDate = {};
         if (startDate) query.incidentDate.$gte = new Date(startDate);
         if (endDate) query.incidentDate.$lte = new Date(endDate);
+    } else {
+        applyBehaviorYearScope(query, req, academicYear);
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -132,7 +189,8 @@ export const getBehaviorIncidents = asyncHandler(async (req, res) => {
                 limit: parseInt(limit),
                 total,
                 pages: Math.ceil(total / parseInt(limit))
-            }
+            },
+            academicYear: resolveAcademicYearForRequest(req, academicYear)
         }
     });
 });
@@ -143,6 +201,8 @@ export const getBehaviorIncidents = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const getBehaviorIncident = asyncHandler(async (req, res) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const yearDateFilter = buildAcademicYearDateFilter(effectiveAcademicYear, req.school);
     const incident = await StudentBehavior.findOne({
         _id: req.params.id,
         school: req.schoolId
@@ -162,10 +222,20 @@ export const getBehaviorIncident = asyncHandler(async (req, res) => {
             message: 'Behavior incident not found'
         });
     }
+    const isLegacyInYear = !incident.academicYear && yearDateFilter
+        ? incident.incidentDate >= yearDateFilter.$gte && incident.incidentDate <= yearDateFilter.$lte
+        : false;
+    const isInYear = incident.academicYear === effectiveAcademicYear || isLegacyInYear;
+    if (!isInYear) {
+        return res.status(404).json({
+            success: false,
+            message: `Behavior incident not found for academic year ${effectiveAcademicYear}`
+        });
+    }
 
     res.json({
         success: true,
-        data: { incident }
+        data: { incident, academicYear: effectiveAcademicYear }
     });
 });
 
@@ -175,10 +245,12 @@ export const getBehaviorIncident = asyncHandler(async (req, res) => {
  * @access  Private (admin, behavior_manager, reporter)
  */
 export const updateBehaviorIncident = asyncHandler(async (req, res) => {
-    let incident = await StudentBehavior.findOne({
+    const scopedQuery = {
         _id: req.params.id,
         school: req.schoolId
-    });
+    };
+    applyBehaviorYearScope(scopedQuery, req);
+    let incident = await StudentBehavior.findOne(scopedQuery);
 
     if (!incident) {
         return res.status(404).json({
@@ -206,7 +278,7 @@ export const updateBehaviorIncident = asyncHandler(async (req, res) => {
         'otherStudentsInvolved', 'actionTaken', 'actionDetails',
         'followUpRequired', 'followUpDate', 'followUpNotes',
         'parentNotified', 'parentNotificationMethod', 'parentResponse',
-        'status', 'tags'
+        'status', 'tags', 'academicYear'
     ];
 
     allowedFields.forEach(field => {
@@ -214,6 +286,12 @@ export const updateBehaviorIncident = asyncHandler(async (req, res) => {
             incident[field] = req.body[field];
         }
     });
+    if (req.body.incidentDate !== undefined && req.body.academicYear === undefined) {
+        incident.academicYear = inferAcademicYear(
+            new Date(incident.incidentDate),
+            req.school?.settings?.academicYearStartMonth
+        );
+    }
 
     await incident.save();
 
@@ -235,10 +313,12 @@ export const updateBehaviorIncident = asyncHandler(async (req, res) => {
  * @access  Private (admin only)
  */
 export const deleteBehaviorIncident = asyncHandler(async (req, res) => {
-    const incident = await StudentBehavior.findOne({
+    const scopedQuery = {
         _id: req.params.id,
         school: req.schoolId
-    });
+    };
+    applyBehaviorYearScope(scopedQuery, req);
+    const incident = await StudentBehavior.findOne(scopedQuery);
 
     if (!incident) {
         return res.status(404).json({
@@ -270,10 +350,12 @@ export const addNote = asyncHandler(async (req, res) => {
         });
     }
 
-    const incident = await StudentBehavior.findOne({
+    const scopedQuery = {
         _id: req.params.id,
         school: req.schoolId
-    });
+    };
+    applyBehaviorYearScope(scopedQuery, req);
+    const incident = await StudentBehavior.findOne(scopedQuery);
 
     if (!incident) {
         return res.status(404).json({
@@ -300,10 +382,12 @@ export const addNote = asyncHandler(async (req, res) => {
  * @access  Private (admin, behavior_manager)
  */
 export const resolveIncident = asyncHandler(async (req, res) => {
-    const incident = await StudentBehavior.findOne({
+    const scopedQuery = {
         _id: req.params.id,
         school: req.schoolId
-    });
+    };
+    applyBehaviorYearScope(scopedQuery, req);
+    const incident = await StudentBehavior.findOne(scopedQuery);
 
     if (!incident) {
         return res.status(404).json({
@@ -332,7 +416,7 @@ export const resolveIncident = asyncHandler(async (req, res) => {
  */
 export const getStudentBehaviorSummary = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, academicYear } = req.query;
 
     // Verify student exists
     const student = await Student.findOne({ _id: studentId, school: req.schoolId });
@@ -343,8 +427,12 @@ export const getStudentBehaviorSummary = asyncHandler(async (req, res) => {
         });
     }
 
-    const start = startDate ? new Date(startDate) : null;
-    const end = endDate ? new Date(endDate) : null;
+    const { effectiveAcademicYear, start, end } = resolveBehaviorRange(
+        req,
+        startDate,
+        endDate,
+        academicYear
+    );
 
     const summary = await StudentBehavior.getStudentBehaviorSummary(studentId, start, end);
 
@@ -370,7 +458,8 @@ export const getStudentBehaviorSummary = asyncHandler(async (req, res) => {
                 studentId: student.studentId
             },
             summary,
-            recentIncidents
+            recentIncidents,
+            academicYear: effectiveAcademicYear
         }
     });
 });
@@ -382,16 +471,29 @@ export const getStudentBehaviorSummary = asyncHandler(async (req, res) => {
  */
 export const getClassBehaviorStats = asyncHandler(async (req, res) => {
     const { classId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, academicYear } = req.query;
+    const { effectiveAcademicYear, start, end } = resolveBehaviorRange(
+        req,
+        startDate,
+        endDate,
+        academicYear
+    );
 
-    const start = startDate ? new Date(startDate) : null;
-    const end = endDate ? new Date(endDate) : null;
+    if (academicYear || (!startDate && !endDate)) {
+        const classDoc = await Class.findById(classId).select('academicYear');
+        if (!classDoc || classDoc.academicYear !== effectiveAcademicYear) {
+            return res.status(404).json({
+                success: false,
+                message: `Class not found for academic year ${effectiveAcademicYear}`
+            });
+        }
+    }
 
     const stats = await StudentBehavior.getClassBehaviorStats(classId, start, end);
 
     res.json({
         success: true,
-        data: { stats }
+        data: { stats, academicYear: effectiveAcademicYear }
     });
 });
 
@@ -401,11 +503,23 @@ export const getClassBehaviorStats = asyncHandler(async (req, res) => {
  * @access  Private (admin, behavior_manager)
  */
 export const getPendingFollowUps = asyncHandler(async (req, res) => {
-    const followUps = await StudentBehavior.getPendingFollowUps(req.schoolId);
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const query = {
+        school: req.schoolId,
+        followUpRequired: true,
+        followUpCompletedAt: null,
+        followUpDate: { $lte: new Date() }
+    };
+    applyBehaviorYearScope(query, req, effectiveAcademicYear);
+
+    const followUps = await StudentBehavior.find(query)
+        .populate('student', 'firstName lastName studentId')
+        .populate('reportedBy', 'firstName lastName')
+        .sort({ followUpDate: 1 });
 
     res.json({
         success: true,
-        data: { followUps }
+        data: { followUps, academicYear: effectiveAcademicYear }
     });
 });
 
@@ -417,10 +531,12 @@ export const getPendingFollowUps = asyncHandler(async (req, res) => {
 export const completeFollowUp = asyncHandler(async (req, res) => {
     const { followUpNotes } = req.body;
 
-    const incident = await StudentBehavior.findOne({
+    const scopedQuery = {
         _id: req.params.id,
         school: req.schoolId
-    });
+    };
+    applyBehaviorYearScope(scopedQuery, req);
+    const incident = await StudentBehavior.findOne(scopedQuery);
 
     if (!incident) {
         return res.status(404).json({

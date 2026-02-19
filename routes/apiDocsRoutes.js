@@ -1,5 +1,5 @@
 import express from 'express';
-import { getApiDocumentation } from '../controllers/apiDocsController.js';
+import { getApiDocumentation } from '../controllers/apiDocumentationController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();

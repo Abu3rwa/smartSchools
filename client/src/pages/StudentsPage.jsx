@@ -35,7 +35,7 @@ const StudentsPage = () => {
         gender: '',
         currentClass: '',
         department: '',
-        academicYear: '2025-2026',
+        academicYear,
         parentInfo: {
             fatherName: '',
             fatherPhone: '',
@@ -117,7 +117,7 @@ const StudentsPage = () => {
             gender: student.gender || '',
             currentClass: student.currentClass?._id || '',
             department: student.department?._id || student.department || '',
-            academicYear: student.academicYear || '2025-2026',
+            academicYear: student.academicYear || academicYear,
             parentInfo: {
                 fatherName: student.parentInfo?.fatherName || '',
                 fatherPhone: student.parentInfo?.fatherPhone || '',
@@ -150,7 +150,7 @@ const StudentsPage = () => {
             gender: '',
             currentClass: '',
             department: '',
-            academicYear: '2025-2026',
+            academicYear,
             parentInfo: {
                 fatherName: '',
                 fatherPhone: '',

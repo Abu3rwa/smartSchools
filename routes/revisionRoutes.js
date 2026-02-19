@@ -8,7 +8,7 @@ import {
   updateProgress,
   getRecommendations,
   computeProfile
-} from '../controllers/revisionController.js';
+} from '../controllers/revisionPlanController.js';
 
 const router = express.Router();
 

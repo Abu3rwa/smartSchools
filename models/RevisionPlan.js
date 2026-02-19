@@ -17,6 +17,10 @@ const revisionPlanSchema = new mongoose.Schema({
         ref: 'Subject', 
         required: true 
     },
+    academicYear: {
+        type: String,
+        trim: true
+    },
     examDate: { 
         type: Date, 
         required: true 
@@ -94,6 +98,7 @@ const revisionPlanSchema = new mongoose.Schema({
 revisionPlanSchema.index({ school: 1, student: 1, status: 1 });
 revisionPlanSchema.index({ school: 1, student: 1, examDate: 1 });
 revisionPlanSchema.index({ school: 1, subject: 1 });
+revisionPlanSchema.index({ school: 1, academicYear: 1, student: 1, status: 1 });
 revisionPlanSchema.plugin(tenantIsolationPlugin);
 
 const RevisionPlan = mongoose.model('RevisionPlan', revisionPlanSchema);

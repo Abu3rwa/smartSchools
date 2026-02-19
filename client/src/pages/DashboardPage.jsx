@@ -6,6 +6,7 @@ import { selectUser } from '../store/slices/authSlice';
 import StudentDashboardPage from './StudentDashboardPage';
 import TeacherDashboardPage from './TeacherDashboardPage';
 import ParentDashboardPage from './ParentDashboardPage';
+import SchoolAdminDashboard from './admin/SchoolAdminDashboard';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
 import { fetchStudents, selectStudents } from '../store/slices/studentSlice';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
@@ -47,6 +48,9 @@ const DashboardPage = () => {
     }
     if (user?.role === 'parent') {
         return <ParentDashboardPage />;
+    }
+    if (user?.role === 'admin' || user?.role === 'department_principal') {
+        return <SchoolAdminDashboard />;
     }
 
     const stats = [

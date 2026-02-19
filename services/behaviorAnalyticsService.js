@@ -73,7 +73,7 @@ export const createBehaviorSession = async ({ userId, schoolId, ipAddress, userA
     await Behavior.logEvent({
         user: userId,
         school: schoolId,
-        eventType: 'login',
+        eventType: 'session_started',
         action: 'session_start',
         description: 'Behavior session started',
         resourceType: 'system',
@@ -92,6 +92,19 @@ export const heartbeatBehaviorSession = async ({ sessionId, userId }) => {
 
     session.lastSeenAt = new Date();
     await session.save();
+
+    await Behavior.logEvent({
+        user: session.user,
+        school: session.school,
+        eventType: 'session_heartbeat',
+        action: 'session_keepalive',
+        description: 'Behavior session heartbeat received',
+        resourceType: 'system',
+        ipAddress: session.ipAddress || '127.0.0.1',
+        userAgent: session.userAgent || 'unknown',
+        sessionId: session.sessionId
+    });
+
     return session;
 };
 
@@ -104,7 +117,7 @@ export const endBehaviorSession = async ({ sessionId, userId, schoolId, ipAddres
     await Behavior.logEvent({
         user: userId,
         school: schoolId,
-        eventType: 'logout',
+        eventType: 'session_ended',
         action: 'session_end',
         description: 'Behavior session ended',
         resourceType: 'system',

@@ -11,7 +11,7 @@ import {
     getEmailStatus,
     retryFailedEmails,
     testEmailConfiguration
-} from '../controllers/advancedReportController.js';
+} from '../controllers/advancedReportingController.js';
 import { protect, authorize, authorizeWithPermission } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/permissions.js';
 
@@ -21,7 +21,10 @@ const router = express.Router();
 router.use(protect);
 
 // Advanced report generation
-router.post('/generate-advanced', generateAdvancedReport);
+router.post('/generate-advanced', authorizeWithPermission(
+    ['teacher', 'admin', 'report_viewer'],
+    [PERMISSIONS.VIEW_ALL_REPORTS]
+), generateAdvancedReport);
 
 // Report templates
 router.get('/templates', authorizeWithPermission(
@@ -53,7 +56,7 @@ router.get('/email-status/:reportId', authorizeWithPermission(
     ['teacher', 'admin', 'report_viewer'],
     [PERMISSIONS.VIEW_ALL_REPORTS]
 ), getEmailStatus);
-router.post('/retry-emails/:reportId', retryFailedEmails);
+router.post('/retry-emails/:reportId', authorize('teacher', 'admin'), retryFailedEmails);
 
 // Email configuration test (admin only)
 router.get('/test-email', authorize('admin'), testEmailConfiguration);

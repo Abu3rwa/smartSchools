@@ -101,11 +101,25 @@ export const generateSection = createAsyncThunk(
     }
 );
 
+export const fetchLessonPlanStats = createAsyncThunk(
+    'lessons/fetchStats',
+    async (params = {}, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/lessons/stats', { params });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to fetch lesson plan stats');
+        }
+    }
+);
+
 const lessonSlice = createSlice({
     name: 'lessons',
     initialState: {
         lessons: [],
         currentLesson: null,
+        stats: null,
+        statsLoading: false,
         loading: false,
         error: null
     },
@@ -151,6 +165,18 @@ const lessonSlice = createSlice({
             })
             .addCase(fetchLessonById.rejected, (state) => {
                 state.currentLesson = null;
+            })
+            .addCase(fetchLessonPlanStats.pending, (state) => {
+                state.statsLoading = true;
+                state.error = null;
+            })
+            .addCase(fetchLessonPlanStats.fulfilled, (state, action) => {
+                state.statsLoading = false;
+                state.stats = action.payload;
+            })
+            .addCase(fetchLessonPlanStats.rejected, (state, action) => {
+                state.statsLoading = false;
+                state.error = action.payload;
             });
     }
 });
@@ -161,5 +187,7 @@ export const { clearError, setCurrentLesson, clearCurrentLesson } = lessonSlice.
 export const selectLessons = (state) => state.lessons.lessons;
 export const selectLessonsLoading = (state) => state.lessons.loading;
 export const selectCurrentLesson = (state) => state.lessons.currentLesson;
+export const selectLessonPlanStats = (state) => state.lessons.stats;
+export const selectLessonPlanStatsLoading = (state) => state.lessons.statsLoading;
 
 export default lessonSlice.reducer;

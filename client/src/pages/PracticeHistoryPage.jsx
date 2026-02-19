@@ -6,6 +6,7 @@ import {
     selectPracticeHistory, selectHistoryMastery, selectMyAssignments, selectPracticeLoading,
     clearPracticeHistory
 } from '../store/slices/practiceSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { HiOutlineArrowLeft, HiOutlineCheckCircle, HiOutlineXCircle } from 'react-icons/hi';
 import './PracticeHistoryPage.css';
 
@@ -18,6 +19,7 @@ const PracticeHistoryPage = () => {
     const mastery = useSelector(selectHistoryMastery);
     const assignments = useSelector(selectMyAssignments);
     const loading = useSelector(selectPracticeLoading);
+    const academicYear = useSelector(selectCurrentAcademicYear);
 
     const [assignment, setAssignment] = useState(null);
 
@@ -25,7 +27,7 @@ const PracticeHistoryPage = () => {
         if (!assignments.length) {
             dispatch(fetchMyAssignments());
         }
-    }, [dispatch, assignments.length]);
+    }, [dispatch, assignments.length, academicYear]);
 
     useEffect(() => {
         if (assignments.length) {
@@ -36,7 +38,7 @@ const PracticeHistoryPage = () => {
             }
         }
         return () => { dispatch(clearPracticeHistory()); };
-    }, [dispatch, assignmentId, assignments]);
+    }, [dispatch, assignmentId, assignments, academicYear]);
 
     return (
         <div className="practice-history">

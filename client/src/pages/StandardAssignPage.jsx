@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
     fetchStandards, fetchAssignments, createAssignment, deleteAssignment, fetchAssignmentProgress,
-    selectStandards, selectAssignments, selectAssignmentProgress, selectStandardsLoading,
+    selectStandards, selectAssignments, selectAssignmentProgress, selectAssignmentProgressLoading, selectStandardsLoading, selectStandardsError,
     clearAssignmentProgress
 } from '../store/slices/standardSlice';
 import { fetchSubjects, selectSubjects } from '../store/slices/subjectSlice';
 import { selectUser } from '../store/slices/authSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import api from '../config/api';
 import {
     HiOutlinePlus, HiOutlineTrash, HiOutlineEye,
@@ -20,12 +21,16 @@ const StandardAssignPage = () => {
     const standards = useSelector(selectStandards);
     const assignments = useSelector(selectAssignments);
     const assignmentProgress = useSelector(selectAssignmentProgress);
+    const assignmentProgressLoading = useSelector(selectAssignmentProgressLoading);
     const loading = useSelector(selectStandardsLoading);
+    const standardsError = useSelector(selectStandardsError);
     const subjects = useSelector(selectSubjects);
     const user = useSelector(selectUser);
+    const academicYear = useSelector(selectCurrentAcademicYear);
 
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showProgressModal, setShowProgressModal] = useState(false);
+    const [progressAssignmentId, setProgressAssignmentId] = useState(null);
     const [classes, setClasses] = useState([]);
     const [students, setStudents] = useState([]);
     const [submitting, setSubmitting] = useState(false);
@@ -52,37 +57,52 @@ const StandardAssignPage = () => {
     const isAdmin = user?.role === 'admin';
     const isTeacher = user?.role === 'teacher';
 
+    const getEntityId = (entity) => (entity?._id || entity || '').toString();
+    const getTeacherUserId = (subjectEntry) =>
+        (subjectEntry?.teacher?.user?._id || subjectEntry?.teacher?.user || subjectEntry?.teacher || '').toString();
+
+    const getScopedClassSubjects = (schoolClass) => {
+        const classSubjectsRaw = Array.isArray(schoolClass?.subjects) ? schoolClass.subjects : [];
+        const scopedEntries = classSubjectsRaw.filter((entry) => {
+            if (!entry?.subject) return false;
+            if (!isTeacher) return true;
+            return getTeacherUserId(entry) === getEntityId(user?._id);
+        });
+
+        const seen = new Set();
+        return scopedEntries
+            .map((entry) => entry.subject)
+            .filter((subject) => {
+                const subjectId = getEntityId(subject);
+                if (!subjectId || seen.has(subjectId)) return false;
+                seen.add(subjectId);
+                return true;
+            });
+    };
+
     const selectedClass = classes.find(c => c._id === formData.classId);
-    // For teachers: only show subjects they are assigned to teach in this class
-    // For admins: show all subjects configured for the class
-    const classSubjectEntries = (selectedClass?.subjects || []).filter(s => {
-        if (!s.subject) return false;
-        if (isTeacher) {
-            const teacherUserId = s.teacher?.user?._id || s.teacher?.user;
-            return teacherUserId === user?._id;
-        }
-        return true;
-    });
-    const classSubjects = classSubjectEntries.map(s => s.subject).filter(Boolean);
-    const subjectOptions = classSubjects.length > 0 ? classSubjects : subjects;
+    const classSubjects = getScopedClassSubjects(selectedClass);
+    const subjectOptions = selectedClass
+        ? (classSubjects.length > 0 ? classSubjects : (isTeacher ? [] : subjects))
+        : (isTeacher ? [] : subjects);
 
     const availableStandards = standards.filter(s => {
         if (selectedClass?.grade && s.gradeLevel !== selectedClass.grade) return false;
-        const subjId = s.subject?._id || s.subject;
-        if (formData.subjectId && subjId !== formData.subjectId) return false;
+        const subjId = getEntityId(s.subject);
+        if (formData.subjectId && subjId !== getEntityId(formData.subjectId)) return false;
         return true;
     });
 
     useEffect(() => {
         dispatch(fetchStandards());
-        dispatch(fetchAssignments());
+        dispatch(fetchAssignments({ academicYear }));
         dispatch(fetchSubjects());
         loadClasses();
-    }, [dispatch]);
+    }, [dispatch, academicYear]);
 
     const loadClasses = async () => {
         try {
-            const response = await api.get('/classes');
+            const response = await api.get('/classes', { params: { academicYear } });
             setClasses(response.data.data?.classes || []);
         } catch (err) {
             console.error('Failed to load classes', err);
@@ -92,7 +112,7 @@ const StandardAssignPage = () => {
     const loadStudents = async (classId) => {
         if (!classId) { setStudents([]); return; }
         try {
-            const response = await api.get(`/students?classId=${classId}`);
+            const response = await api.get('/students', { params: { classId, academicYear } });
             setStudents(response.data.data?.students || []);
         } catch (err) {
             console.error('Failed to load students', err);
@@ -101,8 +121,8 @@ const StandardAssignPage = () => {
 
     const handleClassChange = (classId) => {
         const cls = classes.find(c => c._id === classId);
-        const clsSubjects = (cls?.subjects || []).map(s => s.subject).filter(Boolean);
-        const autoSubjectId = clsSubjects.length === 1 ? (clsSubjects[0]._id || clsSubjects[0]) : '';
+        const clsSubjects = getScopedClassSubjects(cls);
+        const autoSubjectId = clsSubjects.length === 1 ? getEntityId(clsSubjects[0]) : '';
 
         setFormData({
             ...formData,
@@ -117,6 +137,25 @@ const StandardAssignPage = () => {
     const handleAssign = async (e) => {
         e.preventDefault();
         setSubmitting(true);
+
+        if (!formData.subjectId) {
+            toast.error('Select a subject before assigning.');
+            setSubmitting(false);
+            return;
+        }
+
+        if (isTeacher && formData.classId && subjectOptions.length === 0) {
+            toast.error('No subject mapping found for this class. Contact admin to update class subjects.');
+            setSubmitting(false);
+            return;
+        }
+
+        const isSubjectAllowed = subjectOptions.some((subject) => getEntityId(subject) === getEntityId(formData.subjectId));
+        if (!isSubjectAllowed) {
+            toast.error('Selected subject is not available for this class.');
+            setSubmitting(false);
+            return;
+        }
 
         const payload = {
             ...formData,
@@ -149,7 +188,7 @@ const StandardAssignPage = () => {
                     }
                 });
                 setShowAdvanced(false);
-                dispatch(fetchAssignments());
+                dispatch(fetchAssignments({ academicYear }));
             } else {
                 toast.error(result.payload || 'Failed to assign');
             }
@@ -170,6 +209,7 @@ const StandardAssignPage = () => {
     };
 
     const handleViewProgress = async (assignmentId) => {
+        setProgressAssignmentId(assignmentId);
         dispatch(fetchAssignmentProgress(assignmentId));
         setShowProgressModal(true);
     };
@@ -292,18 +332,38 @@ const StandardAssignPage = () => {
                                         <select
                                             value={formData.subjectId}
                                             onChange={(e) => setFormData({ ...formData, subjectId: e.target.value, standardId: '' })}
+                                            disabled={!formData.classId || subjectOptions.length === 0}
                                             required
                                         >
                                             <option value="">Select Subject</option>
-                                            {subjectOptions.map(s => (
-                                                <option key={s._id} value={s._id}>{s.name}</option>
-                                            ))}
+                                            {subjectOptions.map((subject) => {
+                                                const subjectId = getEntityId(subject);
+                                                const subjectName =
+                                                    subject?.name ||
+                                                    subjects.find((item) => getEntityId(item) === subjectId)?.name ||
+                                                    'Subject';
+                                                return (
+                                                    <option key={subjectId} value={subjectId}>
+                                                        {subjectName}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
+                                        {!selectedClass && isTeacher && (
+                                            <small className="text-muted">
+                                                Select a class to view your assigned subjects.
+                                            </small>
+                                        )}
                                         {selectedClass && classSubjects.length > 0 && (
                                             <small className="text-muted">
                                                 {isTeacher
                                                     ? 'Showing only subjects you teach in this class.'
                                                     : 'Subjects limited to this class configuration.'}
+                                            </small>
+                                        )}
+                                        {selectedClass && isTeacher && classSubjects.length === 0 && (
+                                            <small className="text-danger">
+                                                No subjects are mapped to you for this class yet.
                                             </small>
                                         )}
                                     </div>
@@ -484,15 +544,27 @@ const StandardAssignPage = () => {
 
             {/* Progress Modal */}
             {showProgressModal && (
-                <div className="modal-overlay" onClick={() => { setShowProgressModal(false); dispatch(clearAssignmentProgress()); }}>
+                <div className="modal-overlay" onClick={() => { setShowProgressModal(false); setProgressAssignmentId(null); dispatch(clearAssignmentProgress()); }}>
                     <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 650 }}>
                         <div className="modal-header">
                             <h3>Student Progress</h3>
-                            <button className="modal-close" onClick={() => { setShowProgressModal(false); dispatch(clearAssignmentProgress()); }}>&times;</button>
+                            <button className="modal-close" onClick={() => { setShowProgressModal(false); setProgressAssignmentId(null); dispatch(clearAssignmentProgress()); }}>&times;</button>
                         </div>
                         <div className="modal-body">
-                            {!assignmentProgress ? (
+                            {assignmentProgressLoading ? (
                                 <div className="loading-container"><div className="spinner"></div></div>
+                            ) : !assignmentProgress ? (
+                                <div className="assign-empty" style={{ padding: 'var(--spacing-lg) 0' }}>
+                                    <p>{standardsError || 'Unable to load progress for this assignment.'}</p>
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => progressAssignmentId && dispatch(fetchAssignmentProgress(progressAssignmentId))}
+                                        disabled={!progressAssignmentId}
+                                    >
+                                        Retry
+                                    </button>
+                                </div>
                             ) : (
                                 <>
                                     <div style={{ marginBottom: 'var(--spacing-md)' }}>

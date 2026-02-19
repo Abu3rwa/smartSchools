@@ -34,6 +34,7 @@ import {
   selectRevisionError,
 } from '../store/slices/revisionSlice';
 import { selectUser } from '../store/slices/authSlice';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import toast from 'react-hot-toast';
 
 const RevisionPlansListPage = () => {
@@ -43,6 +44,7 @@ const RevisionPlansListPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
+  const academicYear = useSelector(selectCurrentAcademicYear);
   const plans = useSelector(selectRevisionPlans);
   const loading = useSelector(selectRevisionLoading);
   const error = useSelector(selectRevisionError);
@@ -56,9 +58,9 @@ const RevisionPlansListPage = () => {
     if (isStudent) {
       dispatch(fetchMyPlans(statusFilter || undefined));
     } else if (isTeacher) {
-      dispatch(fetchTeacherPlans({ status: statusFilter || undefined }));
+      dispatch(fetchTeacherPlans({ status: statusFilter || undefined, academicYear }));
     }
-  }, [dispatch, isStudent, isTeacher, statusFilter]);
+  }, [dispatch, isStudent, isTeacher, statusFilter, academicYear]);
 
   useEffect(() => {
     if (error) toast.error(error);
@@ -96,6 +98,7 @@ const RevisionPlansListPage = () => {
             {isStudent
               ? 'Your personalized exam revision plans'
               : 'View and manage revision plans for your students'}
+            {academicYear ? ` (${academicYear})` : ''}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>

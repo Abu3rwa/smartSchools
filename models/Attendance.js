@@ -259,7 +259,7 @@ attendanceSchema.statics.findByTeacherAndDate = function(teacherId, date) {
 };
 
 // Missed attendance is schedule-centric; period-based expectations not included.
-attendanceSchema.statics.findMissedAttendance = async function(schoolId, date) {
+attendanceSchema.statics.findMissedAttendance = async function(schoolId, date, filters = {}) {
     const targetDate = date ? new Date(date) : new Date();
     const config = await SchoolCalendarConfig.findOne({ school: schoolId, isActive: true })
         .select('timezone')
@@ -267,15 +267,22 @@ attendanceSchema.statics.findMissedAttendance = async function(schoolId, date) {
     const timeZone = resolveTimeZone(config?.timezone) || DEFAULT_SCHOOL_TIMEZONE;
     const dayRange = getSchoolDayRange(targetDate, timeZone);
 
+    const matchStage = {
+        school: new mongoose.Types.ObjectId(schoolId),
+        date: {
+            $gte: dayRange.start,
+            $lte: dayRange.end
+        }
+    };
+    if (Array.isArray(filters.classIds) && filters.classIds.length > 0) {
+        matchStage.class = {
+            $in: filters.classIds.map((id) => new mongoose.Types.ObjectId(id))
+        };
+    }
+
     return this.aggregate([
         {
-            $match: {
-                school: new mongoose.Types.ObjectId(schoolId),
-                date: {
-                    $gte: dayRange.start,
-                    $lte: dayRange.end
-                }
-            }
+            $match: matchStage
         },
         {
             $lookup: {
@@ -335,6 +342,11 @@ attendanceSchema.statics.getAttendanceAnalytics = async function(schoolId, start
     
     if (filters.teacher) {
         matchStage.teacher = new mongoose.Types.ObjectId(filters.teacher);
+    }
+    if (Array.isArray(filters.classIds) && filters.classIds.length > 0) {
+        matchStage.class = {
+            $in: filters.classIds.map((id) => new mongoose.Types.ObjectId(id))
+        };
     }
     if (filters.class) {
         matchStage.class = new mongoose.Types.ObjectId(filters.class);

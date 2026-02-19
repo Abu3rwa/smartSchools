@@ -6,6 +6,7 @@ import Subject from '../models/Subject.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Room from '../models/Room.js';
+import { getClassIdsForAcademicYear, resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 
 // @desc    List periods
 // @route   GET /api/timetable/periods
@@ -165,6 +166,13 @@ export const createAssignment = asyncHandler(async (req, res) => {
     if (!classDoc || classDoc.school.toString() !== req.schoolId.toString()) {
         return res.status(400).json({ success: false, message: 'Invalid class' });
     }
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    if ((classDoc.academicYear || '').toString() !== effectiveAcademicYear) {
+        return res.status(400).json({
+            success: false,
+            message: `Class must belong to academic year ${effectiveAcademicYear}`
+        });
+    }
 
     if (subject) {
         const subjectDoc = await Subject.findById(subject);
@@ -235,11 +243,21 @@ export const createAssignment = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const listAssignments = asyncHandler(async (req, res) => {
     const { teacher, class: classId, period, activeOnly = 'true' } = req.query;
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const yearScopedClassIds = await getClassIdsForAcademicYear({
+        schoolId: req.schoolId,
+        academicYear: effectiveAcademicYear,
+        candidateClassIds: classId ? [classId] : null
+    });
+
+    if (yearScopedClassIds.length === 0) {
+        return res.json({ success: true, data: { assignments: [], academicYear: effectiveAcademicYear } });
+    }
 
     const query = { school: req.schoolId };
     if (activeOnly === 'true') query.isActive = true;
     if (teacher) query.teacher = teacher;
-    if (classId) query.class = classId;
+    query.class = classId ? classId : { $in: yearScopedClassIds };
     if (period) query.period = period;
 
     const assignments = await TeacherPeriodAssignment.find(query)
@@ -250,18 +268,22 @@ export const listAssignments = asyncHandler(async (req, res) => {
         .populate('period', 'name startTime endTime order')
         .sort({ startDate: 1 });
 
-    res.json({ success: true, data: { assignments } });
+    res.json({ success: true, data: { assignments, academicYear: effectiveAcademicYear } });
 });
 
 // @desc    Get student's today schedule (by currentClass)
 // @route   GET /api/timetable/my-schedule
 // @access  Private (Student)
 export const getStudentTimetable = asyncHandler(async (req, res) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const student = await Student.findOne({ user: req.user._id, status: 'active' })
         .select('currentClass')
-        .populate('currentClass', 'name grade section');
+        .populate('currentClass', 'name grade section academicYear');
     if (!student || !student.currentClass) {
         return res.json({ success: true, data: { schedule: [] } });
+    }
+    if ((student.currentClass.academicYear || '').toString() !== effectiveAcademicYear) {
+        return res.json({ success: true, data: { schedule: [], academicYear: effectiveAcademicYear } });
     }
 
     const today = new Date();
@@ -296,18 +318,28 @@ export const getStudentTimetable = asyncHandler(async (req, res) => {
         teacher: a.teacher
     }));
 
-    res.json({ success: true, data: { schedule } });
+    res.json({ success: true, data: { schedule, academicYear: effectiveAcademicYear } });
 });
 
 // @desc    Get current teacher's timetable (periods + their assignments)
 // @route   GET /api/timetable/my-timetable
 // @access  Private (Teacher)
 export const getMyTimetable = asyncHandler(async (req, res) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const yearScopedClassIds = await getClassIdsForAcademicYear({
+        schoolId: req.schoolId,
+        academicYear: effectiveAcademicYear
+    });
     const periods = await TimetablePeriod.find({ school: req.schoolId, isActive: true }).sort({ order: 1 });
+
+    if (yearScopedClassIds.length === 0) {
+        return res.json({ success: true, data: { periods, assignments: [], academicYear: effectiveAcademicYear } });
+    }
 
     const assignments = await TeacherPeriodAssignment.find({
         school: req.schoolId,
         teacher: req.user._id,
+        class: { $in: yearScopedClassIds },
         isActive: true
     })
         .populate('class', 'name grade section')
@@ -316,13 +348,14 @@ export const getMyTimetable = asyncHandler(async (req, res) => {
         .populate('period', 'name startTime endTime order')
         .sort({ 'period.order': 1 });
 
-    res.json({ success: true, data: { periods, assignments } });
+    res.json({ success: true, data: { periods, assignments, academicYear: effectiveAcademicYear } });
 });
 
 // @desc    Update assignment
 // @route   PUT /api/timetable/assignments/:id
 // @access  Private (Admin)
 export const updateAssignment = asyncHandler(async (req, res) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const assignment = await TeacherPeriodAssignment.findById(req.params.id);
     if (!assignment) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
@@ -330,6 +363,13 @@ export const updateAssignment = asyncHandler(async (req, res) => {
 
     if (assignment.school.toString() !== req.schoolId.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    const existingClassDoc = await Class.findById(assignment.class).select('academicYear');
+    if (!existingClassDoc || (existingClassDoc.academicYear || '').toString() !== effectiveAcademicYear) {
+        return res.status(404).json({
+            success: false,
+            message: `Assignment not found for academic year ${effectiveAcademicYear}`
+        });
     }
 
     const {
@@ -352,6 +392,12 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         const classDoc = await Class.findById(classId);
         if (!classDoc || classDoc.school.toString() !== req.schoolId.toString()) {
             return res.status(400).json({ success: false, message: 'Invalid class' });
+        }
+        if ((classDoc.academicYear || '').toString() !== effectiveAcademicYear) {
+            return res.status(400).json({
+                success: false,
+                message: `Class must belong to academic year ${effectiveAcademicYear}`
+            });
         }
         assignment.class = classId;
         assignment.grade = classDoc.grade;
@@ -402,6 +448,7 @@ export const updateAssignment = asyncHandler(async (req, res) => {
 // @route   DELETE /api/timetable/assignments/:id
 // @access  Private (Admin)
 export const deleteAssignment = asyncHandler(async (req, res) => {
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const assignment = await TeacherPeriodAssignment.findById(req.params.id);
     if (!assignment) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
@@ -409,6 +456,13 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
 
     if (assignment.school.toString() !== req.schoolId.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    const classDoc = await Class.findById(assignment.class).select('academicYear');
+    if (!classDoc || (classDoc.academicYear || '').toString() !== effectiveAcademicYear) {
+        return res.status(404).json({
+            success: false,
+            message: `Assignment not found for academic year ${effectiveAcademicYear}`
+        });
     }
 
     await assignment.deleteOne();

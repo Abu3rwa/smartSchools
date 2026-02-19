@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import api from '../config/api';
 import { HiOutlineClipboardCheck } from 'react-icons/hi';
+import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import './StudentAttendancePage.css';
 
-const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 3 }, (_, i) => CURRENT_YEAR - i);
 const MONTHS = [
     { value: '', label: 'All months' },
     ...Array.from({ length: 12 }, (_, i) => ({
@@ -25,17 +25,16 @@ const statusLabel = (status) => {
 };
 
 const StudentAttendancePage = () => {
+    const academicYear = useSelector(selectCurrentAcademicYear);
     const [records, setRecords] = useState([]);
     const [summary, setSummary] = useState({ total: 0, present: 0, late: 0, absent: 0, percentage: 0 });
     const [loading, setLoading] = useState(true);
     const [month, setMonth] = useState('');
-    const [year, setYear] = useState(String(CURRENT_YEAR));
 
     const fetchAttendance = () => {
         setLoading(true);
         const params = new URLSearchParams();
         if (month) params.set('month', month);
-        if (year) params.set('year', year);
         api.get(`/attendance/my-attendance?${params.toString()}`)
             .then((res) => {
                 const data = res.data?.data || {};
@@ -51,7 +50,7 @@ const StudentAttendancePage = () => {
 
     useEffect(() => {
         fetchAttendance();
-    }, [month, year]);
+    }, [month, academicYear]);
 
     const formatDate = (d) =>
         d ? new Date(d).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '—';
@@ -60,7 +59,10 @@ const StudentAttendancePage = () => {
         <div className="student-attendance-page">
             <header className="page-header">
                 <h1><HiOutlineClipboardCheck className="header-icon" /> My Attendance</h1>
-                <p className="page-subtitle">View your attendance records.</p>
+                <p className="page-subtitle">
+                    View your attendance records.
+                    {academicYear ? ` Academic Year: ${academicYear}.` : ''}
+                </p>
             </header>
 
             <div className="filters-bar">
@@ -73,18 +75,6 @@ const StudentAttendancePage = () => {
                     >
                         {MONTHS.map((m) => (
                             <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
-                    </select>
-                </label>
-                <label className="filter-group">
-                    <span className="filter-label">Year</span>
-                    <select
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        className="filter-select"
-                    >
-                        {YEARS.map((y) => (
-                            <option key={y} value={y}>{y}</option>
                         ))}
                     </select>
                 </label>

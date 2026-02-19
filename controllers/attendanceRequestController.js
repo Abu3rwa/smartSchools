@@ -7,6 +7,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import notificationService from '../services/notificationService.js';
 import { getAttachmentUrl } from '../middleware/uploadAttendanceRequest.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
+import { resolveAcademicYearDateRangeForRequest, clampDateRangeToAcademicYear, isDateInAcademicYear } from '../helpers/academicYearScope.js';
 
 /**
  * Resolve principals to notify: school admins + department principals for request.department
@@ -21,6 +22,8 @@ async function getPrincipalsForRequest(schoolId, departmentId) {
         .setOptions({ skipTenantFilter: true });
     return principals;
 }
+
+const getAttendanceRequestYearScope = (req) => resolveAcademicYearDateRangeForRequest(req);
 
 /**
  * @desc    Get requester context for form prefill (e.g. teacher: department + direct supervisor)
@@ -63,10 +66,12 @@ export const getRequesterContext = asyncHandler(async (req, res) => {
  */
 export const getEligibleStudents = asyncHandler(async (req, res) => {
     const user = req.user;
+    const { academicYear } = getAttendanceRequestYearScope(req);
     if (user.role === 'parent') {
         const email = user.email?.toLowerCase();
         const students = await Student.find({
             school: req.schoolId,
+            academicYear,
             $or: [
                 { 'parentInfo.fatherEmail': new RegExp(`^${(email || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
                 { 'parentInfo.motherEmail': new RegExp(`^${(email || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
@@ -78,7 +83,7 @@ export const getEligibleStudents = asyncHandler(async (req, res) => {
         return res.status(200).json({ success: true, data: students });
     }
     if (user.role === 'student') {
-        const student = await Student.findOne({ school: req.schoolId, user: user._id })
+        const student = await Student.findOne({ school: req.schoolId, user: user._id, academicYear })
             .select('_id firstName lastName studentId currentClass')
             .populate('currentClass', 'name');
         return res.status(200).json({ success: true, data: student ? [student] : [] });
@@ -94,6 +99,7 @@ export const getEligibleStudents = asyncHandler(async (req, res) => {
 export const createAttendanceRequest = asyncHandler(async (req, res) => {
     const schoolId = req.schoolId;
     const user = req.user;
+    const { academicYear, dateFilter } = getAttendanceRequestYearScope(req);
     const { requestType: requestTypeId, requestDate, fromTime, toTime, startDate, endDate, departmentOrSupervisor, notes, student: studentId } = req.body;
     const role = user.role === 'department_principal' ? 'teacher' : user.role;
     const allowedRequesterRoles = ['teacher', 'parent', 'student', 'admin'];
@@ -127,12 +133,18 @@ export const createAttendanceRequest = asyncHandler(async (req, res) => {
         if (isNaN(parsedStartDate.getTime())) return res.status(400).json({ success: false, message: 'Invalid start date' });
         if (isNaN(parsedEndDate.getTime())) return res.status(400).json({ success: false, message: 'Invalid end date' });
         if (parsedEndDate < parsedStartDate) return res.status(400).json({ success: false, message: 'End date must be on or after start date' });
+        if (!isDateInAcademicYear(parsedStartDate, dateFilter) || !isDateInAcademicYear(parsedEndDate, dateFilter)) {
+            return res.status(400).json({ success: false, message: `Date range must be inside academic year ${academicYear}` });
+        }
     } else {
         if (!requestDate) return res.status(400).json({ success: false, message: 'Date is required' });
         if (!fromTime || !fromTime.trim()) return res.status(400).json({ success: false, message: 'From time is required' });
         if (!toTime || !toTime.trim()) return res.status(400).json({ success: false, message: 'To time is required' });
         parsedRequestDate = new Date(requestDate);
         if (isNaN(parsedRequestDate.getTime())) return res.status(400).json({ success: false, message: 'Invalid date' });
+        if (!isDateInAcademicYear(parsedRequestDate, dateFilter)) {
+            return res.status(400).json({ success: false, message: `Date must be inside academic year ${academicYear}` });
+        }
     }
 
     const needsDepartment = ['teacher', 'admin'].includes(role) || (role === 'department_principal');
@@ -147,6 +159,9 @@ export const createAttendanceRequest = asyncHandler(async (req, res) => {
         const studentDoc = await Student.findById(studentId).setOptions({ skipTenantFilter: true });
         if (!studentDoc || studentDoc.school.toString() !== schoolId.toString()) {
             return res.status(400).json({ success: false, message: 'Invalid student' });
+        }
+        if ((studentDoc.academicYear || '').toString() !== academicYear) {
+            return res.status(400).json({ success: false, message: `Student must belong to academic year ${academicYear}` });
         }
         if (role === 'parent') {
             const parentEmail = user.email?.toLowerCase();
@@ -207,7 +222,7 @@ export const createAttendanceRequest = asyncHandler(async (req, res) => {
     res.status(201).json({
         success: true,
         message: 'Attendance request submitted. You will be notified when it is reviewed.',
-        data: created,
+        data: { ...created.toObject(), academicYear },
     });
 });
 
@@ -220,6 +235,7 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
     const { status, startDate, endDate, requester } = req.query;
     const user = req.user;
     const schoolId = req.schoolId;
+    const { academicYear, dateFilter } = getAttendanceRequestYearScope(req);
 
     const isPrincipal = ['admin', 'department_principal'].includes(user.role);
     const query = { school: schoolId };
@@ -233,11 +249,14 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
 
     if (status) query.status = status;
     if (isPrincipal && requester) query.requester = requester;
-    if (startDate || endDate) {
-        query.createdAt = {};
-        if (startDate) query.createdAt.$gte = new Date(startDate);
-        if (endDate) query.createdAt.$lte = new Date(endDate);
+    const requestedRange = {};
+    if (startDate) requestedRange.$gte = new Date(startDate);
+    if (endDate) requestedRange.$lte = new Date(endDate);
+    const scopedRange = clampDateRangeToAcademicYear(requestedRange, dateFilter);
+    if (!scopedRange) {
+        return res.status(200).json({ success: true, data: [], academicYear });
     }
+    query.requestDate = scopedRange;
 
     const requests = await AttendanceRequest.find(query)
         .populate('requestType', 'labelEn labelAr requiresProof')
@@ -248,6 +267,7 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         data: requests,
+        academicYear
     });
 });
 
@@ -257,6 +277,7 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
  * @access  Private (requester or principal in scope)
  */
 export const getAttendanceRequest = asyncHandler(async (req, res) => {
+    const { academicYear, dateFilter } = getAttendanceRequestYearScope(req);
     const request = await AttendanceRequest.findById(req.params.id)
         .populate('requestType', 'labelEn labelAr requiresProof')
         .populate('student', 'firstName lastName studentId')
@@ -264,6 +285,9 @@ export const getAttendanceRequest = asyncHandler(async (req, res) => {
         .populate('reviewedBy', 'firstName lastName');
     if (!request) {
         return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+    if (!isDateInAcademicYear(request.requestDate || request.createdAt, dateFilter)) {
+        return res.status(404).json({ success: false, message: `Request not found for academic year ${academicYear}` });
     }
     const user = req.user;
     const isPrincipal = ['admin', 'department_principal'].includes(user.role);
@@ -279,7 +303,7 @@ export const getAttendanceRequest = asyncHandler(async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not in your department' });
         }
     }
-    res.status(200).json({ success: true, data: request });
+    res.status(200).json({ success: true, data: { ...request.toObject(), academicYear } });
 });
 
 /**
@@ -289,12 +313,17 @@ export const getAttendanceRequest = asyncHandler(async (req, res) => {
  */
 export const reviewAttendanceRequest = asyncHandler(async (req, res) => {
     const { status, reviewNote } = req.body;
+    const user = req.user;
+    const { academicYear, dateFilter } = getAttendanceRequestYearScope(req);
     if (!status || !['approved', 'rejected'].includes(status)) {
         return res.status(400).json({ success: false, message: 'status must be approved or rejected' });
     }
     const request = await AttendanceRequest.findById(req.params.id).populate('requestType', 'labelEn labelAr');
     if (!request) {
         return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+    if (!isDateInAcademicYear(request.requestDate || request.createdAt, dateFilter)) {
+        return res.status(404).json({ success: false, message: `Request not found for academic year ${academicYear}` });
     }
     if (request.status !== 'pending') {
         return res.status(400).json({ success: false, message: 'Request has already been reviewed' });
@@ -324,6 +353,6 @@ export const reviewAttendanceRequest = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         message: `Request ${status}`,
-        data: updated,
+        data: { ...updated.toObject(), academicYear },
     });
 });

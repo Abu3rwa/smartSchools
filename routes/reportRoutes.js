@@ -1,7 +1,7 @@
 import express from 'express';
 import { protect, authorizeWithPermission } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/permissions.js';
-import { generateAIReport, generateAIReportByDateRange, generatePredefinedReport } from '../controllers/reportController.js';
+import { generateAIReport, generateAIReportByDateRange, generatePredefinedReport } from '../controllers/academicReportController.js';
 
 const router = express.Router();
 

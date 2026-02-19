@@ -13,7 +13,7 @@ import Subject from '../models/Subject.js';
 import Room from '../models/Room.js';
 import Schedule from '../models/Schedule.js';
 import AttendanceTakingReminder from '../models/AttendanceTakingReminder.js';
-import { processAttendanceReminders } from '../controllers/attendanceTakingReminderController.js';
+import { processAttendanceReminders } from '../controllers/attendanceReminderController.js';
 import gmailOAuthService from '../services/gmailOAuthService.js';
 
 async function testMultipleReminders() {

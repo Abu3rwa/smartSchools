@@ -13,7 +13,7 @@ import {
     cancelRequestHandler,
     respondHandler,
     respondAuthHandler
-} from '../controllers/substitutionController.js';
+} from '../controllers/substitutionRequestController.js';
 import {
     getCandidatesRules,
     createRequestRules,

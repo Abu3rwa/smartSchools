@@ -8,6 +8,10 @@
 
 .practice-dashboard .page-header {
     margin-bottom: var(--spacing-lg);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
 }
 
 .practice-stats {
@@ -38,8 +42,8 @@
 }
 
 .practice-stat-card.mastered .stat-value { color: var(--warning-600); }
-.practice-stat-card.needs-review .stat-value { color: var(--warning-500); }
-.practice-stat-card.in-progress .stat-value { color: var(--warning-500); }
+.practice-stat-card.needs-review .stat-value { color: var(--error-500); }
+.practice-stat-card.in-progress .stat-value { color: var(--primary-500); }
 .practice-stat-card.not-started .stat-value { color: var(--text-muted); }
 
 /* Table Styles */
@@ -49,6 +53,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .practice-table {
@@ -118,12 +123,14 @@
     color: var(--warning-700);
 }
 .status-needs-review {
-    background: var(--warning-100);
-    color: var(--warning-700);
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--error-500);
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
 .status-in-progress {
-    background: var(--warning-100);
-    color: var(--warning-700);
+    background: rgba(61, 159, 235, 0.12);
+    color: var(--primary-500);
+    border: 1px solid rgba(61, 159, 235, 0.35);
 }
 .status-not-started {
     background: var(--bg-secondary);
@@ -165,6 +172,7 @@
 .actions-cell {
     display: flex;
     gap: var(--spacing-sm);
+    flex-wrap: wrap;
 }
 
 .actions-cell .btn {
@@ -180,7 +188,7 @@
     color: var(--text-secondary);
 }
 .needs-review-row {
-    background-color: var(--warning-50);
+    background-color: rgba(239, 68, 68, 0.05);
 }
 .lifetime-recent-cell {
     display: flex;
@@ -206,7 +214,31 @@
     color: var(--on-accent);
 }
 
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    min-height: 200px;
+    color: var(--text-secondary);
+}
+
+.practice-empty.error {
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.practice-empty.error h3 {
+    color: var(--text-primary);
+}
+
 @media (max-width: 768px) {
+    .practice-dashboard .page-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
     .practice-stats {
         grid-template-columns: repeat(2, 1fr);
     }

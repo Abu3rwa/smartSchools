@@ -10,8 +10,9 @@ function AuthCallbackPage() {
     const [searchParams] = useSearchParams();
 
     useEffect(() => {
-        const token = searchParams.get('token');
-        const isNew = searchParams.get('isNew');
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const token = hashParams.get('token') || searchParams.get('token');
+        const isNew = hashParams.get('isNew') || searchParams.get('isNew');
         const error = searchParams.get('error');
 
         if (error) {

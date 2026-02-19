@@ -3,11 +3,17 @@ import logger from '../utils/logger.js';
 import Attendance from '../models/Attendance.js';
 import Schedule from '../models/Schedule.js';
 import Student from '../models/Student.js';
-import User from '../models/User.js';
 import Room from '../models/Room.js';
+import Class from '../models/Class.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import TimetablePeriod from '../models/TimetablePeriod.js';
 import { generateNotification } from '../utils/notificationService.js';
+import {
+    getClassIdsForAcademicYear,
+    resolveAcademicYearDateRangeForRequest,
+    clampDateRangeToAcademicYear,
+    isDateInAcademicYear
+} from '../helpers/academicYearScope.js';
 import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule, getSchoolTimeZone } from '../helpers/attendanceEligibility.js';
 import {
     getViewRangeInTimeZone,
@@ -30,26 +36,74 @@ async function getRoomName(roomId) {
     }
 }
 
+async function getYearScopedClassIds(req, candidateClassIds = null) {
+    const { academicYear, dateFilter } = resolveAcademicYearDateRangeForRequest(req);
+    const classIds = await getClassIdsForAcademicYear({
+        schoolId: req.schoolId,
+        academicYear,
+        candidateClassIds
+    });
+    return { academicYear, classIds, dateFilter };
+}
+
 // @desc    Get current student's own attendance records
 // @route   GET /api/attendance/my-attendance
 // @access  Private (Student)
 export const getMyAttendance = asyncHandler(async (req, res) => {
+    const { academicYear, classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req);
+    if (yearClassIds.length === 0) {
+        return res.json({
+            success: true,
+            data: {
+                records: [],
+                summary: { total: 0, present: 0, late: 0, absent: 0, percentage: 0 },
+                academicYear
+            }
+        });
+    }
+
     const student = await Student.findOne({ user: req.user._id, status: 'active' });
     if (!student) {
         return res.status(404).json({ success: false, message: 'Student profile not found' });
     }
 
     const { month, year } = req.query;
-    const query = { school: req.schoolId, 'studentAttendance.student': student._id };
+    const query = {
+        school: req.schoolId,
+        class: { $in: yearClassIds },
+        'studentAttendance.student': student._id
+    };
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
 
-    if (month && year) {
-        const y = parseInt(year, 10);
-        const m = parseInt(month, 10) - 1;
+    if (month) {
+        const requestedMonth = parseInt(month, 10);
+        if (Number.isNaN(requestedMonth) || requestedMonth < 1 || requestedMonth > 12) {
+            return res.status(400).json({ success: false, message: 'month must be between 1 and 12' });
+        }
+        const startYear = dateFilter?.$gte ? new Date(dateFilter.$gte).getUTCFullYear() : new Date().getUTCFullYear();
+        const endYear = dateFilter?.$lte ? new Date(dateFilter.$lte).getUTCFullYear() : startYear;
+        const startMonth = dateFilter?.$gte ? (new Date(dateFilter.$gte).getUTCMonth() + 1) : 1;
+        const y = year
+            ? parseInt(year, 10)
+            : (requestedMonth >= startMonth ? startYear : endYear);
+        const m = requestedMonth - 1;
         const monthEndDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
         const start = zonedDateTimeToUtc({ year: y, month: m + 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0 }, schoolTimeZone);
         const end = zonedDateTimeToUtc({ year: y, month: m + 1, day: monthEndDay, hour: 23, minute: 59, second: 59, millisecond: 999 }, schoolTimeZone);
-        query.date = { $gte: start, $lte: end };
+        const scopedRange = clampDateRangeToAcademicYear({ $gte: start, $lte: end }, dateFilter);
+        if (!scopedRange) {
+            return res.json({
+                success: true,
+                data: {
+                    records: [],
+                    summary: { total: 0, present: 0, late: 0, absent: 0, percentage: 0 },
+                    academicYear
+                }
+            });
+        }
+        query.date = scopedRange;
+    } else if (dateFilter) {
+        query.date = dateFilter;
     }
 
     const records = await Attendance.find(query)
@@ -81,7 +135,8 @@ export const getMyAttendance = asyncHandler(async (req, res) => {
         success: true,
         data: {
             records: myRecords,
-            summary: { total, present, late, absent, percentage }
+            summary: { total, present, late, absent, percentage },
+            academicYear
         }
     });
 });
@@ -92,20 +147,52 @@ export const getMyAttendance = asyncHandler(async (req, res) => {
 export const getTeacherAttendance = asyncHandler(async (req, res) => {
     const { startDate, endDate, viewMode = 'today' } = req.query;
     const teacherId = req.user.role === 'teacher' ? req.user._id : req.query.teacherId;
-    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
+    const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
+    const { academicYear, classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req);
     
     if (!teacherId) {
         return res.status(400).json({ message: 'Teacher ID is required' });
     }
+    if (yearClassIds.length === 0) {
+        return res.json({
+            attendanceRecords: [],
+            missedSchedules: [],
+            summary: {
+                totalClasses: 0,
+                recordedClasses: 0,
+                missedClasses: 0,
+                attendanceRate: 0
+            },
+            academicYear
+        });
+    }
     
     const dateRange = getViewRangeInTimeZone({ viewMode, startDate, endDate, now: new Date(), timeZone: schoolTimeZone });
-    const start = dateRange.start;
-    const end = dateRange.end;
+    const scopedDateRange = clampDateRangeToAcademicYear(
+        { $gte: dateRange.start, $lte: dateRange.end },
+        dateFilter
+    );
+    if (!scopedDateRange) {
+        return res.json({
+            attendanceRecords: [],
+            missedSchedules: [],
+            summary: {
+                totalClasses: 0,
+                recordedClasses: 0,
+                missedClasses: 0,
+                attendanceRate: 0
+            },
+            academicYear
+        });
+    }
+    const start = scopedDateRange.$gte;
+    const end = scopedDateRange.$lte;
     
     // Get attendance records (include period for period-based rows)
     const attendanceRecords = await Attendance.find({
-        school: req.user.school,
+        school: req.schoolId,
         teacher: teacherId,
+        class: { $in: yearClassIds },
         date: { $gte: start, $lte: end }
     })
     .populate('schedule class subject')
@@ -116,8 +203,9 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
     
     // Get schedules for the period to identify missed attendance
     const schedules = await Schedule.find({
-        school: req.user.school,
+        school: req.schoolId,
         teacher: teacherId,
+        class: { $in: yearClassIds },
         startTime: { $gte: start, $lte: end },
         requiresAttendance: true,
         status: { $ne: 'cancelled' }
@@ -126,7 +214,9 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
     .sort({ startTime: 1 });
     
     // Identify missed attendance
-    const attendedScheduleIds = attendanceRecords.map(r => r.schedule.toString());
+    const attendedScheduleIds = attendanceRecords
+        .map((record) => record.schedule?.toString())
+        .filter(Boolean);
     const missedSchedules = schedules.filter(schedule => 
         !attendedScheduleIds.includes(schedule._id.toString()) && 
         new Date(schedule.endTime) < new Date()
@@ -141,7 +231,8 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
             missedClasses: missedSchedules.length,
             attendanceRate: attendanceRecords.length > 0 ? 
                 Math.round((attendanceRecords.reduce((sum, r) => sum + r.attendanceRate, 0) / attendanceRecords.length)) : 0
-        }
+        },
+        academicYear
     });
 });
 
@@ -150,21 +241,53 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const getAdminAttendance = asyncHandler(async (req, res) => {
     const { startDate, endDate, viewMode = 'today', teacher, class: classId, subject, status } = req.query;
-    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
+    const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
+    const { academicYear, classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req, classId ? [classId] : null);
+
+    if (yearClassIds.length === 0) {
+        return res.json({
+            attendanceRecords: [],
+            missedAttendance: [],
+            summary: {
+                totalClasses: 0,
+                recordedClasses: 0,
+                missedClasses: 0,
+                overallAttendanceRate: 0
+            },
+            academicYear
+        });
+    }
     
     const dateRange = getViewRangeInTimeZone({ viewMode, startDate, endDate, now: new Date(), timeZone: schoolTimeZone });
-    const start = dateRange.start;
-    const end = dateRange.end;
+    const scopedDateRange = clampDateRangeToAcademicYear(
+        { $gte: dateRange.start, $lte: dateRange.end },
+        dateFilter
+    );
+    if (!scopedDateRange) {
+        return res.json({
+            attendanceRecords: [],
+            missedAttendance: [],
+            summary: {
+                totalClasses: 0,
+                recordedClasses: 0,
+                missedClasses: 0,
+                overallAttendanceRate: 0
+            },
+            academicYear
+        });
+    }
+    const start = scopedDateRange.$gte;
+    const end = scopedDateRange.$lte;
     const today = new Date();
     
     // Build query
     const query = {
-        school: req.user.school,
+        school: req.schoolId,
+        class: classId ? classId : { $in: yearClassIds },
         date: { $gte: start, $lte: end }
     };
     
     if (teacher) query.teacher = teacher;
-    if (classId) query.class = classId;
     if (subject) query.subject = subject;
     if (status === 'recorded') {
         query.status = { $in: ['submitted', 'locked'] };
@@ -180,7 +303,7 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
     .sort({ date: 1, startTime: 1 });
     
     // Get missed attendance
-    const missedAttendance = await Attendance.findMissedAttendance(req.user.school, today);
+    const missedAttendance = await Attendance.findMissedAttendance(req.schoolId, today, { classIds: yearClassIds });
     
     res.json({
         attendanceRecords,
@@ -191,7 +314,8 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
             missedClasses: missedAttendance.reduce((sum, m) => sum + m.totalMissed, 0),
             overallAttendanceRate: attendanceRecords.length > 0 ? 
                 Math.round((attendanceRecords.reduce((sum, r) => sum + r.attendanceRate, 0) / attendanceRecords.length)) : 0
-        }
+        },
+        academicYear
     });
 });
 
@@ -199,7 +323,8 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
 // @route   POST /api/attendance
 // @access  Private (Teacher, Admin)
 export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
-    const { scheduleId, studentAttendance, notes } = req.body;
+    const { scheduleId, studentAttendance } = req.body;
+    const { academicYear: effectiveAcademicYear } = resolveAcademicYearDateRangeForRequest(req);
     
     // Get schedule information
     const schedule = await Schedule.findById(scheduleId)
@@ -209,8 +334,14 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: 'Schedule not found' });
     }
     
-    if (schedule.school.toString() !== req.user.school.toString()) {
+    if (schedule.school.toString() !== req.schoolId.toString()) {
         return res.status(403).json({ message: 'Access denied' });
+    }
+    const scheduleClassYear = schedule.class?.academicYear;
+    if (!schedule.class || (scheduleClassYear || '').toString() !== effectiveAcademicYear) {
+        return res.status(400).json({
+            message: `Attendance can only be recorded for classes in academic year ${effectiveAcademicYear}`
+        });
     }
     
     // Check permissions
@@ -220,15 +351,15 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
 
     // Attendance eligibility enforcement (teacher only; admin can override)
     if (req.user.role === 'teacher') {
-        const isWorkingDay = await isWorkingDayForSchool(req.user.school, schedule.startTime);
+        const isWorkingDay = await isWorkingDayForSchool(req.schoolId, schedule.startTime);
         if (!isWorkingDay) {
             return res.status(400).json({ message: 'Attendance is disabled for non-working days' });
         }
 
-        const period = await resolvePeriodForSchedule(req.user.school, schedule);
+        const period = await resolvePeriodForSchedule(req.schoolId, schedule);
         if (period) {
             const hasAssignment = await hasTeacherAssignmentForSchedule(
-                req.user.school,
+                req.schoolId,
                 schedule,
                 req.user._id,
                 period._id
@@ -239,7 +370,7 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
         }
     }
     
-    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
+    const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const scheduleDayRange = getSchoolDayRange(schedule.startTime, schoolTimeZone);
     const attendanceDate = localYmdToServerMidnightDate(scheduleDayRange.localYmd);
 
@@ -279,7 +410,7 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
     } else {
         // Create new attendance record
         attendance = new Attendance({
-            school: req.user.school,
+            school: req.schoolId,
             schedule: scheduleId,
             teacher: schedule.teacher._id,
             class: schedule.class._id,
@@ -329,6 +460,7 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/my-today
 // @access  Private (Teacher)
 export const getMyTodayPeriods = asyncHandler(async (req, res) => {
+    const { academicYear, classIds: yearClassIds } = await getYearScopedClassIds(req);
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const now = new Date();
     const todayRange = getSchoolDayRange(now, schoolTimeZone);
@@ -336,10 +468,22 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
     const startOfDay = todayRange.start;
     const endOfDay = todayRange.end;
 
+    if (yearClassIds.length === 0) {
+        const allPeriodsEmpty = await TimetablePeriod.find({ school: req.schoolId, isActive: true }).sort({ order: 1 });
+        const periodsWithStatus = allPeriodsEmpty.map(period => ({
+            period,
+            assignment: null,
+            hasClass: false,
+            attendanceStatus: null
+        }));
+        return res.json({ success: true, data: { periods: periodsWithStatus, date: startOfDay, academicYear } });
+    }
+
     // Get all active assignments for today's day of week
     const assignments = await TeacherPeriodAssignment.find({
         school: req.schoolId,
         teacher: req.user._id,
+        class: { $in: yearClassIds },
         isActive: true,
         daysOfWeek: dayOfWeek,
         startDate: { $lte: endOfDay },
@@ -357,6 +501,7 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
     const existingAttendance = await Attendance.find({
         school: req.schoolId,
         teacher: req.user._id,
+        class: { $in: yearClassIds },
         date: { $gte: startOfDay, $lte: endOfDay },
         period: { $in: allPeriods.map(p => p._id) }
     }).select('period status studentAttendance');
@@ -383,7 +528,7 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
         };
     });
 
-    res.json({ success: true, data: { periods: periodsWithStatus, date: startOfDay } });
+    res.json({ success: true, data: { periods: periodsWithStatus, date: startOfDay, academicYear } });
 });
 
 // @desc    Take attendance for a timetable period
@@ -391,9 +536,16 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
 // @access  Private (Teacher)
 export const takePeriodAttendance = asyncHandler(async (req, res) => {
     const { periodId, classId, subjectId, studentAttendance } = req.body;
+    const { academicYear, classIds: yearClassIds } = await getYearScopedClassIds(req, classId ? [classId] : null);
 
     if (!periodId || !classId || !Array.isArray(studentAttendance) || studentAttendance.length === 0) {
         return res.status(400).json({ success: false, message: 'periodId, classId, and studentAttendance are required' });
+    }
+    if (yearClassIds.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: `Class must belong to academic year ${academicYear}`
+        });
     }
 
     // Validate period
@@ -496,13 +648,14 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
 
     await attendance.save();
 
-    res.json({ success: true, data: { attendance }, message: 'Attendance saved successfully' });
+    res.json({ success: true, data: { attendance, academicYear }, message: 'Attendance saved successfully' });
 });
 
 // @desc    Get attendance details
 // @route   GET /api/attendance/:id
 // @access  Private (Teacher, Admin)
 export const getAttendanceDetails = asyncHandler(async (req, res) => {
+    const { academicYear: effectiveAcademicYear } = resolveAcademicYearDateRangeForRequest(req);
     const attendance = await Attendance.findById(req.params.id)
         .populate('schedule class subject teacher')
         .populate('studentAttendance.student', 'firstName lastName email parentContact')
@@ -516,13 +669,16 @@ export const getAttendanceDetails = asyncHandler(async (req, res) => {
     if (attendance.school.toString() !== req.user.school.toString()) {
         return res.status(403).json({ message: 'Access denied' });
     }
+    if ((attendance.class?.academicYear || '').toString() !== effectiveAcademicYear) {
+        return res.status(404).json({ message: `Attendance record not found for academic year ${effectiveAcademicYear}` });
+    }
     
     // Check permissions
     if (req.user.role === 'teacher' && attendance.teacher._id.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: 'Access denied' });
     }
     
-    res.json(attendance);
+    res.json({ ...attendance.toObject(), academicYear: effectiveAcademicYear });
 });
 
 // @desc    Get attendance analytics
@@ -530,12 +686,27 @@ export const getAttendanceDetails = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const getAttendanceAnalytics = asyncHandler(async (req, res) => {
     const { startDate, endDate, teacher, class: classId, subject } = req.query;
+    const { classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req, classId ? [classId] : null);
+
+    if (yearClassIds.length === 0) {
+        return res.json([]);
+    }
+    const scopedDateRange = clampDateRangeToAcademicYear(
+        {
+            $gte: startDate ? new Date(startDate) : undefined,
+            $lte: endDate ? new Date(endDate) : undefined
+        },
+        dateFilter
+    );
+    if (!scopedDateRange) {
+        return res.json([]);
+    }
     
     const analytics = await Attendance.getAttendanceAnalytics(
-        req.user.school,
-        startDate,
-        endDate,
-        { teacher, class: classId, subject }
+        req.schoolId,
+        scopedDateRange.$gte,
+        scopedDateRange.$lte,
+        { teacher, class: classId, subject, classIds: yearClassIds }
     );
     
     res.json(analytics);
@@ -547,14 +718,20 @@ export const getAttendanceAnalytics = asyncHandler(async (req, res) => {
 export const getMissedAttendance = asyncHandler(async (req, res) => {
     const { date } = req.query;
     const targetDate = date ? new Date(date) : new Date();
-    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
+    const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
+    const { classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req);
+
+    if (yearClassIds.length === 0) {
+        return res.json([]);
+    }
+    if (!isDateInAcademicYear(targetDate, dateFilter)) {
+        return res.json([]);
+    }
     
-    const missedAttendance = await Attendance.findMissedAttendance(req.user.school, targetDate);
+    const missedAttendance = await Attendance.findMissedAttendance(req.schoolId, targetDate, { classIds: yearClassIds });
     
     // Generate notifications for teachers who missed attendance
     for (const missed of missedAttendance) {
-        const teacher = await User.findById(missed._id);
-        
         for (const missedClass of missed.missedClasses) {
             await generateNotification({
                 type: 'missed_attendance_reminder',
@@ -579,17 +756,38 @@ export const getMissedAttendance = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const exportAttendanceData = asyncHandler(async (req, res) => {
     const { startDate, endDate, format = 'csv', teacher, class: classId, subject } = req.query;
-    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
+    const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
+    const { classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req, classId ? [classId] : null);
+    if (yearClassIds.length === 0) {
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename=attendance_${startDate}_to_${endDate}.csv`);
+            return res.send('Date,Teacher,Class,Subject,Room,Total Students,Present,Absent,Late,Attendance Rate,Recorded By,Recorded At\n');
+        }
+        return res.json([]);
+    }
     const dateRange = getViewRangeInTimeZone({ viewMode: 'range', startDate, endDate, now: new Date(), timeZone: schoolTimeZone });
+    const scopedDateRange = clampDateRangeToAcademicYear(
+        { $gte: dateRange.start, $lte: dateRange.end },
+        dateFilter
+    );
+    if (!scopedDateRange) {
+        if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename=attendance_${startDate}_to_${endDate}.csv`);
+            return res.send('Date,Teacher,Class,Subject,Room,Total Students,Present,Absent,Late,Attendance Rate,Recorded By,Recorded At\n');
+        }
+        return res.json([]);
+    }
     
     // Build query
     const query = {
-        school: req.user.school,
-        date: { $gte: dateRange.start, $lte: dateRange.end }
+        school: req.schoolId,
+        class: classId ? classId : { $in: yearClassIds },
+        date: { $gte: scopedDateRange.$gte, $lte: scopedDateRange.$lte }
     };
     
     if (teacher) query.teacher = teacher;
-    if (classId) query.class = classId;
     if (subject) query.subject = subject;
     
     const attendanceRecords = await Attendance.find(query)
@@ -631,14 +829,20 @@ export const exportAttendanceData = asyncHandler(async (req, res) => {
 // @route   POST /api/attendance/:id/lock
 // @access  Private (Admin)
 export const lockAttendance = asyncHandler(async (req, res) => {
+    const { academicYear: effectiveAcademicYear } = resolveAcademicYearDateRangeForRequest(req);
     const attendance = await Attendance.findById(req.params.id);
     
     if (!attendance) {
         return res.status(404).json({ message: 'Attendance record not found' });
     }
     
-    if (attendance.school.toString() !== req.user.school.toString()) {
+    if (attendance.school.toString() !== req.schoolId.toString()) {
         return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const classDoc = await Class.findById(attendance.class).select('academicYear');
+    if (!classDoc || (classDoc.academicYear || '').toString() !== effectiveAcademicYear) {
+        return res.status(404).json({ message: `Attendance record not found for academic year ${effectiveAcademicYear}` });
     }
     
     attendance.status = 'locked';

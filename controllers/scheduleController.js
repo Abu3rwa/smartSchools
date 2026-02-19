@@ -2,11 +2,56 @@ import mongoose from 'mongoose';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Schedule from '../models/Schedule.js';
 import Class from '../models/Class.js';
-import Subject from '../models/Subject.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Room from '../models/Room.js';
 import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule } from '../helpers/attendanceEligibility.js';
+import {
+    getClassIdsForAcademicYear,
+    resolveAcademicYearDateRangeForRequest,
+    clampDateRangeToAcademicYear,
+    isDateInAcademicYear
+} from '../helpers/academicYearScope.js';
+
+const buildScheduleYearOrConditions = (classIds = [], dateFilter = null) => {
+    const conditions = [];
+
+    if (classIds.length > 0) {
+        conditions.push({ class: { $in: classIds } });
+    }
+    if (dateFilter?.$gte && dateFilter?.$lte) {
+        conditions.push(
+            { class: { $exists: false }, startTime: dateFilter },
+            { class: null, startTime: dateFilter }
+        );
+    }
+
+    return conditions;
+};
+
+const resolveScheduleYearScope = async (req, candidateClassIds = null) => {
+    const { academicYear, dateFilter } = resolveAcademicYearDateRangeForRequest(req);
+    const classIds = await getClassIdsForAcademicYear({
+        schoolId: req.schoolId,
+        academicYear,
+        candidateClassIds
+    });
+
+    return {
+        academicYear,
+        dateFilter,
+        classIds,
+        classIdSet: new Set(classIds.map((id) => id.toString()))
+    };
+};
+
+const isScheduleInAcademicYearScope = (schedule, scope) => {
+    const scheduleClassId = schedule?.class?._id || schedule?.class;
+    if (scheduleClassId) {
+        return scope.classIdSet.has(scheduleClassId.toString());
+    }
+    return isDateInAcademicYear(schedule?.startTime, scope.dateFilter);
+};
 
 // @desc    Get all schedules for a school
 // @route   GET /api/schedules
@@ -25,48 +70,113 @@ export const getSchedules = asyncHandler(async (req, res) => {
         search
     } = req.query;
 
-    // Build query
+    const candidateClassIds = classId ? [classId] : null;
+    const yearScope = await resolveScheduleYearScope(req, candidateClassIds);
+    const yearScopeOrConditions = buildScheduleYearOrConditions(yearScope.classIds, yearScope.dateFilter);
+
+    if (yearScopeOrConditions.length === 0) {
+        return res.json({
+            success: true,
+            data: {
+                schedules: [],
+                pagination: {
+                    page: parseInt(page, 10),
+                    limit: parseInt(limit, 10),
+                    total: 0,
+                    pages: 0
+                },
+                academicYear: yearScope.academicYear
+            }
+        });
+    }
+
+    const andConditions = [{ $or: yearScopeOrConditions }];
     const query = { school: req.school._id };
 
-    // Apply filters
     if (type) query.type = type;
-    if (teacher) query.teacher = teacher;
-    if (classId) query.class = classId;
     if (status) query.status = status;
     if (tags) {
         const tagArray = Array.isArray(tags) ? tags : [tags];
         query.tags = { $in: tagArray };
     }
 
-    // Date range filter
-    if (startDate || endDate) {
-        query.startTime = {};
-        if (startDate) query.startTime.$gte = new Date(startDate);
-        if (endDate) query.startTime.$lte = new Date(endDate);
+    if (classId) {
+        if (!yearScope.classIdSet.has(classId.toString())) {
+            return res.json({
+                success: true,
+                data: {
+                    schedules: [],
+                    pagination: {
+                        page: parseInt(page, 10),
+                        limit: parseInt(limit, 10),
+                        total: 0,
+                        pages: 0
+                    },
+                    academicYear: yearScope.academicYear
+                }
+            });
+        }
+        query.class = classId;
     }
 
-    // Search functionality
     if (search) {
-        query.$or = [
-            { title: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } },
-            { room: { $regex: search, $options: 'i' } },
-            { location: { $regex: search, $options: 'i' } }
-        ];
+        andConditions.push({
+            $or: [
+                { title: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+                { location: { $regex: search, $options: 'i' } }
+            ]
+        });
     }
 
-    // Role-based filtering
+    if (startDate || endDate) {
+        const requestedRange = {};
+        if (startDate) requestedRange.$gte = new Date(startDate);
+        if (endDate) requestedRange.$lte = new Date(endDate);
+        const scopedRange = clampDateRangeToAcademicYear(requestedRange, yearScope.dateFilter);
+        if (!scopedRange) {
+            return res.json({
+                success: true,
+                data: {
+                    schedules: [],
+                    pagination: {
+                        page: parseInt(page, 10),
+                        limit: parseInt(limit, 10),
+                        total: 0,
+                        pages: 0
+                    },
+                    academicYear: yearScope.academicYear
+                }
+            });
+        }
+        query.startTime = scopedRange;
+    }
+
     if (req.user.role === 'teacher') {
         query.teacher = req.user._id;
-    } else if (req.user.role === 'student') {
-        // For students, show schedules they're participants in or their class schedules
-        query.$or = [
-            { 'participants.user': req.user._id },
-            { class: req.user.class }
-        ];
+    } else if (teacher) {
+        query.teacher = teacher;
     }
 
-    const skip = (page - 1) * limit;
+    if (req.user.role === 'student') {
+        const studentProfile = await Student.findOne({ user: req.user._id, school: req.schoolId })
+            .select('currentClass')
+            .lean();
+        const studentClassId = studentProfile?.currentClass?.toString();
+        const studentAccessOr = [{ 'participants.user': req.user._id }];
+        if (studentClassId && yearScope.classIdSet.has(studentClassId)) {
+            studentAccessOr.push({ class: studentProfile.currentClass });
+        }
+        andConditions.push({ $or: studentAccessOr });
+    }
+
+    if (andConditions.length > 0) {
+        query.$and = andConditions;
+    }
+
+    const numericPage = parseInt(page, 10);
+    const numericLimit = parseInt(limit, 10);
+    const skip = (numericPage - 1) * numericLimit;
 
     const schedules = await Schedule.find(query)
         .populate('teacher', 'firstName lastName email')
@@ -75,7 +185,7 @@ export const getSchedules = asyncHandler(async (req, res) => {
         .populate('participants.user', 'firstName lastName email')
         .sort({ startTime: 1 })
         .skip(skip)
-        .limit(parseInt(limit));
+        .limit(numericLimit);
 
     const total = await Schedule.countDocuments(query);
 
@@ -84,11 +194,12 @@ export const getSchedules = asyncHandler(async (req, res) => {
         data: {
             schedules,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: numericPage,
+                limit: numericLimit,
                 total,
-                pages: Math.ceil(total / limit)
-            }
+                pages: Math.ceil(total / numericLimit)
+            },
+            academicYear: yearScope.academicYear
         }
     });
 });
@@ -115,11 +226,21 @@ export const getScheduleById = asyncHandler(async (req, res) => {
     if (schedule.school.toString() !== req.school._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
+    const yearScope = await resolveScheduleYearScope(req);
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
+    }
 
     // Role-based access control
     const isParticipant = schedule.participants.some(p => p.user._id.toString() === req.user._id.toString());
     const isTeacher = schedule.teacher?._id?.toString() === req.user._id.toString();
-    const isInClass = schedule.class?._id?.toString() === req.user.class?.toString();
+    const studentProfile = req.user.role === 'student'
+        ? await Student.findOne({ user: req.user._id, school: req.schoolId }).select('currentClass').lean()
+        : null;
+    const isInClass = schedule.class?._id?.toString() === studentProfile?.currentClass?.toString();
 
     if (req.user.role === 'student' && !isParticipant && !isInClass) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
@@ -131,7 +252,7 @@ export const getScheduleById = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { schedule }
+        data: { schedule, academicYear: yearScope.academicYear }
     });
 });
 
@@ -159,6 +280,7 @@ export const createSchedule = asyncHandler(async (req, res) => {
         tags,
         color
     } = req.body;
+    const yearScope = await resolveScheduleYearScope(req, classId ? [classId] : null);
 
     // Validate required fields
     if (!title || !type || !startTime || !endTime || !teacher || !room) {
@@ -170,6 +292,12 @@ export const createSchedule = asyncHandler(async (req, res) => {
     const end = new Date(endTime);
     if (start >= end) {
         return res.status(400).json({ success: false, message: 'End time must be after start time' });
+    }
+    if (!isDateInAcademicYear(start, yearScope.dateFilter) || !isDateInAcademicYear(end, yearScope.dateFilter)) {
+        return res.status(400).json({
+            success: false,
+            message: `Schedule time must be inside academic year ${yearScope.academicYear}`
+        });
     }
 
     // Validate teacher exists and belongs to school
@@ -185,6 +313,12 @@ export const createSchedule = asyncHandler(async (req, res) => {
         const classDoc = await Class.findById(classId);
         if (!classDoc || classDoc.school.toString() !== req.school._id.toString()) {
             return res.status(400).json({ success: false, message: 'Invalid class' });
+        }
+        if (!yearScope.classIdSet.has(classId.toString())) {
+            return res.status(400).json({
+                success: false,
+                message: `Class must belong to academic year ${yearScope.academicYear}`
+            });
         }
     }
 
@@ -251,7 +385,10 @@ export const createSchedule = asyncHandler(async (req, res) => {
 
     // If it's a class schedule, add all students as participants
     if (classId && type === 'class') {
-        const students = await Student.find({ currentClass: classId });
+        const students = await Student.find({
+            currentClass: classId,
+            academicYear: yearScope.academicYear
+        });
         const studentParticipants = students.map(student => ({
             user: student.user,
             role: 'required',
@@ -271,7 +408,7 @@ export const createSchedule = asyncHandler(async (req, res) => {
 
     res.status(201).json({
         success: true,
-        data: { schedule: populatedSchedule },
+        data: { schedule: populatedSchedule, academicYear: yearScope.academicYear },
         message: 'Schedule created successfully'
     });
 });
@@ -281,6 +418,7 @@ export const createSchedule = asyncHandler(async (req, res) => {
 // @access  Private (School Admin, Teacher)
 export const updateSchedule = asyncHandler(async (req, res) => {
     const schedule = await Schedule.findById(req.params.id);
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -293,6 +431,12 @@ export const updateSchedule = asyncHandler(async (req, res) => {
 
     if (req.user.role === 'teacher' && schedule.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized to update this schedule' });
+    }
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
     }
 
     const {
@@ -317,12 +461,34 @@ export const updateSchedule = asyncHandler(async (req, res) => {
         status
     } = req.body;
 
+    if (classId !== undefined && classId) {
+        const classDoc = await Class.findById(classId);
+        if (!classDoc || classDoc.school.toString() !== req.school._id.toString()) {
+            return res.status(400).json({ success: false, message: 'Invalid class' });
+        }
+        if ((classDoc.academicYear || '').toString() !== yearScope.academicYear) {
+            return res.status(400).json({
+                success: false,
+                message: `Class must belong to academic year ${yearScope.academicYear}`
+            });
+        }
+    }
+
     // Validate time range if provided
-    if (startTime && endTime) {
-        const start = new Date(startTime);
-        const end = new Date(endTime);
+    const nextStart = startTime ? new Date(startTime) : new Date(schedule.startTime);
+    const nextEnd = endTime ? new Date(endTime) : new Date(schedule.endTime);
+
+    if (startTime || endTime) {
+        const start = nextStart;
+        const end = nextEnd;
         if (start >= end) {
             return res.status(400).json({ success: false, message: 'End time must be after start time' });
+        }
+        if (!isDateInAcademicYear(start, yearScope.dateFilter) || !isDateInAcademicYear(end, yearScope.dateFilter)) {
+            return res.status(400).json({
+                success: false,
+                message: `Schedule time must be inside academic year ${yearScope.academicYear}`
+            });
         }
 
         const nextTeacher = teacher !== undefined ? teacher : schedule.teacher;
@@ -379,7 +545,7 @@ export const updateSchedule = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { schedule: updatedSchedule },
+        data: { schedule: updatedSchedule, academicYear: yearScope.academicYear },
         message: 'Schedule updated successfully'
     });
 });
@@ -389,6 +555,7 @@ export const updateSchedule = asyncHandler(async (req, res) => {
 // @access  Private (School Admin, Teacher)
 export const deleteSchedule = asyncHandler(async (req, res) => {
     const schedule = await Schedule.findById(req.params.id);
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -402,12 +569,19 @@ export const deleteSchedule = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher' && schedule.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized to delete this schedule' });
     }
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
+    }
 
     await Schedule.findByIdAndDelete(req.params.id);
 
     res.json({
         success: true,
-        message: 'Schedule deleted successfully'
+        message: 'Schedule deleted successfully',
+        data: { academicYear: yearScope.academicYear }
     });
 });
 
@@ -417,6 +591,7 @@ export const deleteSchedule = asyncHandler(async (req, res) => {
 export const cancelSchedule = asyncHandler(async (req, res) => {
     const { reason } = req.body;
     const schedule = await Schedule.findById(req.params.id);
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -430,6 +605,12 @@ export const cancelSchedule = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher' && schedule.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized to cancel this schedule' });
     }
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
+    }
 
     schedule.status = 'cancelled';
     schedule.cancelledAt = new Date();
@@ -440,7 +621,7 @@ export const cancelSchedule = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { schedule },
+        data: { schedule, academicYear: yearScope.academicYear },
         message: 'Schedule cancelled successfully'
     });
 });
@@ -450,6 +631,7 @@ export const cancelSchedule = asyncHandler(async (req, res) => {
 // @access  Private
 export const getSchedulesByDateRange = asyncHandler(async (req, res) => {
     const { startDate, endDate, type, teacher, class: classId } = req.query;
+    const yearScope = await resolveScheduleYearScope(req, classId ? [classId] : null);
 
     if (!startDate || !endDate) {
         return res.status(400).json({ success: false, message: 'Start date and end date are required' });
@@ -457,8 +639,26 @@ export const getSchedulesByDateRange = asyncHandler(async (req, res) => {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
+    const scopedRange = clampDateRangeToAcademicYear({ $gte: start, $lte: end }, yearScope.dateFilter);
+    if (!scopedRange) {
+        return res.json({
+            success: true,
+            data: { schedules: [], academicYear: yearScope.academicYear }
+        });
+    }
+    if (classId && !yearScope.classIdSet.has(classId.toString())) {
+        return res.json({
+            success: true,
+            data: { schedules: [], academicYear: yearScope.academicYear }
+        });
+    }
 
-    const filters = {};
+    const filters = {
+        school: req.school._id,
+        startTime: scopedRange,
+        status: { $ne: 'cancelled' },
+        $and: [{ $or: buildScheduleYearOrConditions(yearScope.classIds, yearScope.dateFilter) }]
+    };
     if (type) filters.type = type;
     if (teacher) filters.teacher = teacher;
     if (classId) filters.class = classId;
@@ -467,32 +667,26 @@ export const getSchedulesByDateRange = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher') {
         filters.teacher = req.user._id;
     } else if (req.user.role === 'student') {
-        // For students, get schedules they're participants in or their class schedules
-        const studentSchedules = await Schedule.find({
-            school: req.school._id,
-            startTime: { $gte: start },
-            endTime: { $lte: end },
-            $or: [
-                { 'participants.user': req.user._id },
-                { class: req.user.class }
-            ],
-            ...filters
-        }).populate('teacher', 'firstName lastName')
-         .populate('class', 'name grade')
-         .populate('subject', 'name')
-         .sort({ startTime: 1 });
-
-        return res.json({
-            success: true,
-            data: { schedules: studentSchedules }
-        });
+        const studentProfile = await Student.findOne({ user: req.user._id, school: req.schoolId })
+            .select('currentClass')
+            .lean();
+        const studentClassId = studentProfile?.currentClass?.toString();
+        const accessOr = [{ 'participants.user': req.user._id }];
+        if (studentClassId && yearScope.classIdSet.has(studentClassId)) {
+            accessOr.push({ class: studentProfile.currentClass });
+        }
+        filters.$and.push({ $or: accessOr });
     }
-
-    const schedules = await Schedule.findByDateRange(req.school._id, start, end, filters);
+    const schedules = await Schedule.find(filters)
+        .populate('teacher', 'firstName lastName email')
+        .populate('class', 'name grade section')
+        .populate('subject', 'name code')
+        .populate('room', 'name')
+        .sort({ startTime: 1 });
 
     res.json({
         success: true,
-        data: { schedules }
+        data: { schedules, academicYear: yearScope.academicYear }
     });
 });
 
@@ -501,6 +695,7 @@ export const getSchedulesByDateRange = asyncHandler(async (req, res) => {
 // @access  Private (Admin, Teacher)
 export const getRoomAvailability = asyncHandler(async (req, res) => {
     const { startTime, endTime, excludeScheduleId } = req.query;
+    const { academicYear, dateFilter } = resolveAcademicYearDateRangeForRequest(req);
     if (!startTime || !endTime) {
         return res.status(400).json({ success: false, message: 'startTime and endTime are required (ISO strings)' });
     }
@@ -508,6 +703,12 @@ export const getRoomAvailability = asyncHandler(async (req, res) => {
     const end = new Date(endTime);
     if (start >= end) {
         return res.status(400).json({ success: false, message: 'End time must be after start time' });
+    }
+    if (!isDateInAcademicYear(start, dateFilter) || !isDateInAcademicYear(end, dateFilter)) {
+        return res.status(400).json({
+            success: false,
+            message: `Requested time must be inside academic year ${academicYear}`
+        });
     }
 
     const schoolId = req.school._id;
@@ -544,7 +745,7 @@ export const getRoomAvailability = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { rooms: availability }
+        data: { rooms: availability, academicYear }
     });
 });
 
@@ -554,6 +755,7 @@ export const getRoomAvailability = asyncHandler(async (req, res) => {
 export const getTeacherSchedule = asyncHandler(async (req, res) => {
     const { teacherId } = req.params;
     const { startDate, endDate } = req.query;
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!startDate || !endDate) {
         return res.status(400).json({ success: false, message: 'Start date and end date are required' });
@@ -563,15 +765,32 @@ export const getTeacherSchedule = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher' && req.user._id.toString() !== teacherId) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+        return res.status(400).json({ success: false, message: 'Invalid teacher ID' });
+    }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
+    const scopedRange = clampDateRangeToAcademicYear({ $gte: start, $lte: end }, yearScope.dateFilter);
+    if (!scopedRange) {
+        return res.json({ success: true, data: { schedules: [], academicYear: yearScope.academicYear } });
+    }
 
-    const schedules = await Schedule.getTeacherSchedule(teacherId, start, end);
+    const schedules = await Schedule.find({
+        school: req.school._id,
+        teacher: new mongoose.Types.ObjectId(teacherId),
+        startTime: scopedRange,
+        status: { $ne: 'cancelled' },
+        $and: [{ $or: buildScheduleYearOrConditions(yearScope.classIds, yearScope.dateFilter) }]
+    })
+        .populate('class', 'name grade section')
+        .populate('subject', 'name code')
+        .populate('room', 'name')
+        .sort({ startTime: 1 });
 
     res.json({
         success: true,
-        data: { schedules }
+        data: { schedules, academicYear: yearScope.academicYear }
     });
 });
 
@@ -581,24 +800,59 @@ export const getTeacherSchedule = asyncHandler(async (req, res) => {
 export const getStudentSchedule = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const { startDate, endDate } = req.query;
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!startDate || !endDate) {
         return res.status(400).json({ success: false, message: 'Start date and end date are required' });
     }
-
-    // Check permissions (only admin, the student themselves, or their teacher can view)
-    if (req.user.role === 'student' && req.user._id.toString() !== studentId) {
-        return res.status(403).json({ success: false, message: 'Not authorized' });
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ success: false, message: 'Invalid student ID' });
     }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
+    const scopedRange = clampDateRangeToAcademicYear({ $gte: start, $lte: end }, yearScope.dateFilter);
+    if (!scopedRange) {
+        return res.json({ success: true, data: { schedules: [], academicYear: yearScope.academicYear } });
+    }
 
-    const schedules = await Schedule.getStudentSchedule(studentId, start, end);
+    const studentProfile = await Student.findById(studentId).select('school currentClass user').lean();
+    if (!studentProfile || studentProfile.school.toString() !== req.schoolId.toString()) {
+        return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    if (req.user.role === 'student' && studentProfile.user?.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const studentAccessOr = [];
+    if (studentProfile.user) {
+        studentAccessOr.push({ 'participants.user': studentProfile.user });
+    }
+    if (studentProfile.currentClass && yearScope.classIdSet.has(studentProfile.currentClass.toString())) {
+        studentAccessOr.push({ class: studentProfile.currentClass });
+    }
+    if (studentAccessOr.length === 0) {
+        return res.json({ success: true, data: { schedules: [], academicYear: yearScope.academicYear } });
+    }
+
+    const schedules = await Schedule.find({
+        school: req.school._id,
+        startTime: scopedRange,
+        status: { $ne: 'cancelled' },
+        $and: [
+            { $or: buildScheduleYearOrConditions(yearScope.classIds, yearScope.dateFilter) },
+            { $or: studentAccessOr }
+        ]
+    })
+        .populate('teacher', 'firstName lastName email')
+        .populate('class', 'name grade section')
+        .populate('subject', 'name code')
+        .populate('room', 'name')
+        .sort({ startTime: 1 });
 
     res.json({
         success: true,
-        data: { schedules }
+        data: { schedules, academicYear: yearScope.academicYear }
     });
 });
 
@@ -608,6 +862,7 @@ export const getStudentSchedule = asyncHandler(async (req, res) => {
 export const recordAttendance = asyncHandler(async (req, res) => {
     const { attendance } = req.body; // Array of { student, status, notes }
     const schedule = await Schedule.findById(req.params.id);
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -624,6 +879,12 @@ export const recordAttendance = asyncHandler(async (req, res) => {
 
     if (req.user.role === 'teacher' && schedule.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized to record attendance' });
+    }
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
     }
 
     // Attendance eligibility enforcement (teacher only; admin can override)
@@ -683,7 +944,8 @@ export const recordAttendance = asyncHandler(async (req, res) => {
         success: true,
         data: {
             schedule,
-            attendanceStats
+            attendanceStats,
+            academicYear: yearScope.academicYear
         },
         message: 'Attendance recorded successfully'
     });
@@ -695,6 +957,7 @@ export const recordAttendance = asyncHandler(async (req, res) => {
 export const getAttendanceStats = asyncHandler(async (req, res) => {
     const schedule = await Schedule.findById(req.params.id)
         .populate('attendance.student', 'firstName lastName');
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -704,6 +967,12 @@ export const getAttendanceStats = asyncHandler(async (req, res) => {
     if (schedule.school.toString() !== req.school._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
+    }
 
     const attendanceStats = schedule.checkAttendance();
 
@@ -711,7 +980,8 @@ export const getAttendanceStats = asyncHandler(async (req, res) => {
         success: true,
         data: {
             attendance: schedule.attendance,
-            stats: attendanceStats
+            stats: attendanceStats,
+            academicYear: yearScope.academicYear
         }
     });
 });
@@ -722,6 +992,7 @@ export const getAttendanceStats = asyncHandler(async (req, res) => {
 export const addParticipant = asyncHandler(async (req, res) => {
     const { user, role } = req.body;
     const schedule = await Schedule.findById(req.params.id);
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -734,6 +1005,12 @@ export const addParticipant = asyncHandler(async (req, res) => {
 
     if (req.user.role === 'teacher' && schedule.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
     }
 
     // Check if user is already a participant
@@ -754,7 +1031,7 @@ export const addParticipant = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { schedule: updatedSchedule },
+        data: { schedule: updatedSchedule, academicYear: yearScope.academicYear },
         message: 'Participant added successfully'
     });
 });
@@ -765,6 +1042,7 @@ export const addParticipant = asyncHandler(async (req, res) => {
 export const removeParticipant = asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const schedule = await Schedule.findById(req.params.id);
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -777,6 +1055,12 @@ export const removeParticipant = asyncHandler(async (req, res) => {
 
     if (req.user.role === 'teacher' && schedule.teacher.toString() !== req.user._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
     }
 
     schedule.participants = schedule.participants.filter(
@@ -798,9 +1082,19 @@ export const updateParticipantStatus = asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const { status } = req.body;
     const schedule = await Schedule.findById(req.params.id);
+    const yearScope = await resolveScheduleYearScope(req);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
+    }
+    if (schedule.school.toString() !== req.school._id.toString()) {
+        return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (!isScheduleInAcademicYearScope(schedule, yearScope)) {
+        return res.status(404).json({
+            success: false,
+            message: `Schedule not found for academic year ${yearScope.academicYear}`
+        });
     }
 
     // Check permissions (user can update their own status, or admin/teacher can update any)

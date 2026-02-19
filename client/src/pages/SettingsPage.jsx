@@ -1,7 +1,7 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { Box, Grid } from '@mui/material';
 import { selectUser, updateProfile, logout } from '../store/slices/authSlice';
-import { selectTheme, setTheme, selectCurrentAcademicYear, setCurrentAcademicYear } from '../store/slices/uiSlice';
+import { selectTheme, setTheme, selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { HiOutlineMoon, HiOutlineSun, HiOutlineLogout, HiOutlineUser } from 'react-icons/hi';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -24,11 +24,7 @@ const SettingsPage = () => {
         navigate('/');
     };
 
-    const academicYears = [
-        '2024-2025',
-        '2025-2026',
-        '2026-2027'
-    ];
+    const isAdmin = user?.role === 'admin';
 
     return (
         <Box className="settings-page" sx={{ px: { xs: 0, sm: 0 } }}>
@@ -119,18 +115,26 @@ const SettingsPage = () => {
                     <div className="setting-item">
                         <div className="setting-info">
                             <span className="setting-label">Current Academic Year</span>
-                            <span className="setting-description">Select the active academic year</span>
+                            <span className="setting-description">School-wide academic year controlled by School Admin</span>
                         </div>
                         <select
                             value={academicYear}
-                            onChange={(e) => dispatch(setCurrentAcademicYear(e.target.value))}
                             className="academic-year-select"
+                            disabled
                         >
-                            {academicYears.map(year => (
-                                <option key={year} value={year}>{year}</option>
-                            ))}
+                            <option value={academicYear}>{academicYear}</option>
                         </select>
                     </div>
+                    {isAdmin && (
+                        <div className="setting-item" style={{ paddingTop: 0 }}>
+                            <div className="setting-info">
+                                <span className="setting-description">Need to change it for all users?</span>
+                            </div>
+                            <button className="btn btn-secondary" onClick={() => navigate('/portal/school-settings')}>
+                                Open School Settings
+                            </button>
+                        </div>
+                    )}
                 </div>
                 </Grid>
 

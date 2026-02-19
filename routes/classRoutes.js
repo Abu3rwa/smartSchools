@@ -8,8 +8,8 @@ import {
     addSubjectToClass,
     removeSubjectFromClass,
     getClassStats
-} from '../controllers/classController.js';
-import { getClassAnalytics, getClassInsights } from '../controllers/classAnaliticsController.js';
+} from '../controllers/classManagementController.js';
+import { getClassAnalytics, getClassInsights } from '../controllers/classAnalyticsController.js';
 import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';

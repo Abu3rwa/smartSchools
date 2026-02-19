@@ -12,7 +12,12 @@ import {
     copyClassesFromYear,
     deactivateYear,
     promoteStudents
-} from '../controllers/rolloverController.js';
+} from '../controllers/academicYearRolloverController.js';
+import {
+    isValidAcademicYear,
+    normalizeAcademicYear,
+    resolveSchoolAcademicYear
+} from '../utils/academicYear.js';
 
 const router = express.Router();
 
@@ -35,6 +40,55 @@ router.get('/me', requireSchoolContext, asyncHandler(async (req, res) => {
     res.json({
         success: true,
         data: { school, studentCount }
+    });
+}));
+
+/**
+ * @desc    Get current school-wide academic year
+ * @route   GET /api/schools/me/current-academic-year
+ * @access  Private (Any school user)
+ */
+router.get('/me/current-academic-year', requireSchoolContext, asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.currentAcademicYear settings.academicYearStartMonth');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const academicYear = resolveSchoolAcademicYear(school);
+    res.json({
+        success: true,
+        data: { academicYear }
+    });
+}));
+
+/**
+ * @desc    Update school-wide academic year
+ * @route   PUT /api/schools/me/current-academic-year
+ * @access  Private (Admin)
+ */
+router.put('/me/current-academic-year', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const inputYear = normalizeAcademicYear(req.body?.academicYear);
+    if (!isValidAcademicYear(inputYear)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Academic year must be in YYYY-YYYY format (consecutive years)'
+        });
+    }
+
+    const school = await School.findByIdAndUpdate(
+        req.schoolId,
+        { $set: { 'settings.currentAcademicYear': inputYear } },
+        { new: true, runValidators: true }
+    ).select('settings.currentAcademicYear settings.academicYearStartMonth');
+
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        message: `Academic year updated to ${inputYear}`,
+        data: { academicYear: school.settings?.currentAcademicYear || inputYear }
     });
 }));
 

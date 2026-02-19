@@ -123,6 +123,7 @@ const RevisionPlanViewPage = () => {
           {plan.student && (
             <> • {plan.student.firstName} {plan.student.lastName}</>
           )}
+          {plan.academicYear && <> • {plan.academicYear}</>}
         </Typography>
         {plan.daysUntilExam != null && plan.status === 'active' && (
           <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>

@@ -29,6 +29,12 @@ const lessonService = {
     deleteLesson: async (id) => {
         const response = await api.delete(`/lessons/${id}`);
         return response.data;
+    },
+
+    // Get lesson plan statistics (admin only)
+    getLessonPlanStats: async (params = {}) => {
+        const response = await api.get('/lessons/stats', { params });
+        return response.data;
     }
 };
 
