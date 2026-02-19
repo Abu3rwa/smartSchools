@@ -1,4 +1,11 @@
 import mongoose from 'mongoose';
+import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
+import {
+    DEFAULT_SCHOOL_TIMEZONE,
+    resolveTimeZone,
+    getSchoolDayRange,
+    getViewRangeInTimeZone
+} from '../utils/schoolTimezone.js';
 
 const attendanceSchema = new mongoose.Schema({
     school: {
@@ -252,20 +259,21 @@ attendanceSchema.statics.findByTeacherAndDate = function(teacherId, date) {
 };
 
 // Missed attendance is schedule-centric; period-based expectations not included.
-attendanceSchema.statics.findMissedAttendance = function(schoolId, date) {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-    
+attendanceSchema.statics.findMissedAttendance = async function(schoolId, date) {
+    const targetDate = date ? new Date(date) : new Date();
+    const config = await SchoolCalendarConfig.findOne({ school: schoolId, isActive: true })
+        .select('timezone')
+        .lean();
+    const timeZone = resolveTimeZone(config?.timezone) || DEFAULT_SCHOOL_TIMEZONE;
+    const dayRange = getSchoolDayRange(targetDate, timeZone);
+
     return this.aggregate([
         {
             $match: {
                 school: new mongoose.Types.ObjectId(schoolId),
                 date: {
-                    $gte: startOfDay,
-                    $lte: endOfDay
+                    $gte: dayRange.start,
+                    $lte: dayRange.end
                 }
             }
         },
@@ -304,12 +312,24 @@ attendanceSchema.statics.findMissedAttendance = function(schoolId, date) {
     ]);
 };
 
-attendanceSchema.statics.getAttendanceAnalytics = function(schoolId, startDate, endDate, filters = {}) {
+attendanceSchema.statics.getAttendanceAnalytics = async function(schoolId, startDate, endDate, filters = {}) {
+    const config = await SchoolCalendarConfig.findOne({ school: schoolId, isActive: true })
+        .select('timezone')
+        .lean();
+    const timeZone = resolveTimeZone(config?.timezone) || DEFAULT_SCHOOL_TIMEZONE;
+    const range = getViewRangeInTimeZone({
+        viewMode: 'range',
+        startDate,
+        endDate,
+        now: new Date(),
+        timeZone
+    });
+
     const matchStage = {
         school: new mongoose.Types.ObjectId(schoolId),
         date: {
-            $gte: new Date(startDate),
-            $lte: new Date(endDate)
+            $gte: range.start,
+            $lte: range.end
         }
     };
     

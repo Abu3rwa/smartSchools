@@ -1,28 +1,37 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import SchoolDayException from '../models/SchoolDayException.js';
+import {
+    DEFAULT_SCHOOL_TIMEZONE,
+    resolveTimeZone,
+    getSchoolDayRange,
+    getViewRangeInTimeZone,
+    localYmdToServerMidnightDate
+} from '../utils/schoolTimezone.js';
 
 // @desc    Get school calendar config + exceptions for a date range
 // @route   GET /api/school-calendar
 // @access  Private (Admin)
 export const getSchoolCalendar = asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.query;
-// Get school calendar config by the school Id
+    // Get school calendar config by the school Id
     const config = await SchoolCalendarConfig.findOne({ school: req.schoolId });
 
     const query = { school: req.schoolId };
     if (startDate || endDate) {
-        query.date = {};
-        if (startDate) {
-            const start = new Date(startDate);
-            start.setHours(0, 0, 0, 0);
-            query.date.$gte = start;
-        }
-        if (endDate) {
-            const end = new Date(endDate);
-            end.setHours(0, 0, 0, 0);
-            query.date.$lte = end;
-        }
+        const timeZone = resolveTimeZone(config?.timezone) || DEFAULT_SCHOOL_TIMEZONE;
+        const range = getViewRangeInTimeZone({
+            viewMode: 'range',
+            startDate,
+            endDate,
+            now: new Date(),
+            timeZone
+        });
+
+        query.date = {
+            $gte: range.start,
+            $lte: range.end
+        };
     }
 
     const exceptions = await SchoolDayException.find(query).sort({ date: 1 });
@@ -72,27 +81,35 @@ export const upsertSchoolDayException = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'isWorkingDay must be boolean' });
     }
 
-    const normalized = new Date(date);
-    if (Number.isNaN(normalized.getTime())) {
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) {
         return res.status(400).json({ success: false, message: 'Invalid date' });
     }
-    normalized.setHours(0, 0, 0, 0);
 
-    const exception = await SchoolDayException.findOneAndUpdate(
-        { school: req.schoolId, date: normalized },
-        {
-            $set: {
-                isWorkingDay,
-                reason
-            },
-            $setOnInsert: {
-                school: req.schoolId,
-                createdBy: req.user._id,
-                date: normalized
-            }
-        },
-        { new: true, upsert: true, runValidators: true }
-    );
+    const config = await SchoolCalendarConfig.findOne({ school: req.schoolId }).select('timezone');
+    const timeZone = resolveTimeZone(config?.timezone) || DEFAULT_SCHOOL_TIMEZONE;
+    const dayRange = getSchoolDayRange(parsed, timeZone);
+    const normalized = localYmdToServerMidnightDate(dayRange.localYmd);
+
+    const existing = await SchoolDayException.findOne({
+        school: req.schoolId,
+        date: { $gte: dayRange.start, $lte: dayRange.end }
+    });
+
+    let exception;
+    if (existing) {
+        existing.isWorkingDay = isWorkingDay;
+        existing.reason = reason;
+        exception = await existing.save();
+    } else {
+        exception = await SchoolDayException.create({
+            school: req.schoolId,
+            date: normalized,
+            isWorkingDay,
+            reason,
+            createdBy: req.user._id
+        });
+    }
 
     res.status(200).json({
         success: true,
@@ -106,15 +123,18 @@ export const upsertSchoolDayException = asyncHandler(async (req, res) => {
 export const deleteSchoolDayException = asyncHandler(async (req, res) => {
     const { date } = req.params;
 
-    const normalized = new Date(date);
-    if (Number.isNaN(normalized.getTime())) {
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) {
         return res.status(400).json({ success: false, message: 'Invalid date' });
     }
-    normalized.setHours(0, 0, 0, 0);
+
+    const config = await SchoolCalendarConfig.findOne({ school: req.schoolId }).select('timezone');
+    const timeZone = resolveTimeZone(config?.timezone) || DEFAULT_SCHOOL_TIMEZONE;
+    const dayRange = getSchoolDayRange(parsed, timeZone);
 
     const deleted = await SchoolDayException.findOneAndDelete({
         school: req.schoolId,
-        date: normalized
+        date: { $gte: dayRange.start, $lte: dayRange.end }
     });
 
     if (!deleted) {

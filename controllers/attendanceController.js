@@ -8,7 +8,14 @@ import Room from '../models/Room.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import TimetablePeriod from '../models/TimetablePeriod.js';
 import { generateNotification } from '../utils/notificationService.js';
-import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule } from '../helpers/attendanceEligibility.js';
+import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule, getSchoolTimeZone } from '../helpers/attendanceEligibility.js';
+import {
+    getViewRangeInTimeZone,
+    getSchoolDayRange,
+    getDatePartsInTimeZone,
+    localYmdToServerMidnightDate,
+    zonedDateTimeToUtc
+} from '../utils/schoolTimezone.js';
 
 // Helper function to get room name from roomId
 async function getRoomName(roomId) {
@@ -34,12 +41,14 @@ export const getMyAttendance = asyncHandler(async (req, res) => {
 
     const { month, year } = req.query;
     const query = { school: req.schoolId, 'studentAttendance.student': student._id };
+    const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
 
     if (month && year) {
         const y = parseInt(year, 10);
         const m = parseInt(month, 10) - 1;
-        const start = new Date(y, m, 1);
-        const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+        const monthEndDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+        const start = zonedDateTimeToUtc({ year: y, month: m + 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0 }, schoolTimeZone);
+        const end = zonedDateTimeToUtc({ year: y, month: m + 1, day: monthEndDay, hour: 23, minute: 59, second: 59, millisecond: 999 }, schoolTimeZone);
         query.date = { $gte: start, $lte: end };
     }
 
@@ -83,33 +92,15 @@ export const getMyAttendance = asyncHandler(async (req, res) => {
 export const getTeacherAttendance = asyncHandler(async (req, res) => {
     const { startDate, endDate, viewMode = 'today' } = req.query;
     const teacherId = req.user.role === 'teacher' ? req.user._id : req.query.teacherId;
+    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
     
     if (!teacherId) {
         return res.status(400).json({ message: 'Teacher ID is required' });
     }
     
-    // Calculate date range
-    let start, end;
-    const today = new Date();
-    
-    if (viewMode === 'today') {
-        start = new Date(today.setHours(0, 0, 0, 0));
-        end = new Date(today.setHours(23, 59, 59, 999));
-    } else if (viewMode === 'week') {
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay());
-        start = new Date(startOfWeek.setHours(0, 0, 0, 0));
-        end = new Date(startOfWeek);
-        end.setDate(startOfWeek.getDate() + 6);
-        end.setHours(23, 59, 59, 999);
-    } else if (viewMode === 'month') {
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        end.setHours(23, 59, 59, 999);
-    } else {
-        start = new Date(startDate);
-        end = new Date(endDate);
-    }
+    const dateRange = getViewRangeInTimeZone({ viewMode, startDate, endDate, now: new Date(), timeZone: schoolTimeZone });
+    const start = dateRange.start;
+    const end = dateRange.end;
     
     // Get attendance records (include period for period-based rows)
     const attendanceRecords = await Attendance.find({
@@ -159,33 +150,12 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const getAdminAttendance = asyncHandler(async (req, res) => {
     const { startDate, endDate, viewMode = 'today', teacher, class: classId, subject, status } = req.query;
+    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
     
-    // Calculate date range
-    let start, end;
+    const dateRange = getViewRangeInTimeZone({ viewMode, startDate, endDate, now: new Date(), timeZone: schoolTimeZone });
+    const start = dateRange.start;
+    const end = dateRange.end;
     const today = new Date();
-    
-    if (viewMode === 'today') {
-        start = new Date(today.setHours(0, 0, 0, 0));
-        end = new Date(today.setHours(23, 59, 59, 999));
-    } else if (viewMode === 'week') {
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay());
-        start = new Date(startOfWeek.setHours(0, 0, 0, 0));
-        end = new Date(startOfWeek);
-        end.setDate(startOfWeek.getDate() + 6);
-        end.setHours(23, 59, 59, 999);
-    } else if (viewMode === 'month') {
-        start = new Date(today.getFullYear(), today.getMonth(), 1);
-        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        end.setHours(23, 59, 59, 999);
-    } else if (viewMode === 'range' && startDate && endDate) {
-        start = new Date(startDate);
-        end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-    } else {
-        start = new Date(startDate);
-        end = new Date(endDate);
-    }
     
     // Build query
     const query = {
@@ -269,13 +239,14 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
         }
     }
     
-    const attendanceDate = new Date(schedule.startTime);
-    attendanceDate.setHours(0, 0, 0, 0);
+    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
+    const scheduleDayRange = getSchoolDayRange(schedule.startTime, schoolTimeZone);
+    const attendanceDate = localYmdToServerMidnightDate(scheduleDayRange.localYmd);
 
     // Check if attendance already exists
     let attendance = await Attendance.findOne({
         schedule: scheduleId,
-        date: attendanceDate
+        date: { $gte: scheduleDayRange.start, $lte: scheduleDayRange.end }
     });
     
     if (attendance) {
@@ -358,11 +329,12 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/my-today
 // @access  Private (Teacher)
 export const getMyTodayPeriods = asyncHandler(async (req, res) => {
-
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const startOfDay = new Date(today); startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today); endOfDay.setHours(23, 59, 59, 999);
+    const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
+    const now = new Date();
+    const todayRange = getSchoolDayRange(now, schoolTimeZone);
+    const dayOfWeek = todayRange.weekday;
+    const startOfDay = todayRange.start;
+    const endOfDay = todayRange.end;
 
     // Get all active assignments for today's day of week
     const assignments = await TeacherPeriodAssignment.find({
@@ -385,7 +357,7 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
     const existingAttendance = await Attendance.find({
         school: req.schoolId,
         teacher: req.user._id,
-        date: startOfDay,
+        date: { $gte: startOfDay, $lte: endOfDay },
         period: { $in: allPeriods.map(p => p._id) }
     }).select('period status studentAttendance');
 
@@ -431,10 +403,12 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
     }
 
     // Verify teacher has an assignment for this period + class today
+    const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const today = new Date();
-    const dayOfWeek = today.getDay();
-    const startOfDay = new Date(today); startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today); endOfDay.setHours(23, 59, 59, 999);
+    const todayRange = getSchoolDayRange(today, schoolTimeZone);
+    const dayOfWeek = todayRange.weekday;
+    const startOfDay = todayRange.start;
+    const endOfDay = todayRange.end;
 
     const assignment = await TeacherPeriodAssignment.findOne({
         school: req.schoolId,
@@ -456,7 +430,7 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
         school: req.schoolId,
         teacher: req.user._id,
         period: periodId,
-        date: startOfDay
+        date: { $gte: startOfDay, $lte: endOfDay }
     });
 
     const mappedStudents = studentAttendance.map(s => ({
@@ -466,6 +440,26 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
         recordedBy: req.user._id,
         recordedAt: new Date()
     }));
+
+    const todayLocal = getDatePartsInTimeZone(today, schoolTimeZone);
+    const periodStart = zonedDateTimeToUtc({
+        year: todayLocal.year,
+        month: todayLocal.month,
+        day: todayLocal.day,
+        hour: Number((period.startTime || '00:00').split(':')[0] || 0),
+        minute: Number((period.startTime || '00:00').split(':')[1] || 0),
+        second: 0,
+        millisecond: 0
+    }, schoolTimeZone);
+    const periodEnd = zonedDateTimeToUtc({
+        year: todayLocal.year,
+        month: todayLocal.month,
+        day: todayLocal.day,
+        hour: Number((period.endTime || '00:00').split(':')[0] || 0),
+        minute: Number((period.endTime || '00:00').split(':')[1] || 0),
+        second: 0,
+        millisecond: 0
+    }, schoolTimeZone);
 
     if (attendance) {
         attendance.studentAttendance = mappedStudents;
@@ -484,9 +478,9 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
             teacher: req.user._id,
             class: classId,
             subject: subjectId || assignment.subject,
-            date: startOfDay,
-            startTime: new Date(`${today.toISOString().slice(0, 10)}T${period.startTime}:00`),
-            endTime: new Date(`${today.toISOString().slice(0, 10)}T${period.endTime}:00`),
+            date: localYmdToServerMidnightDate(todayLocal),
+            startTime: periodStart,
+            endTime: periodEnd,
             room: await getRoomName(assignment.room),
             totalStudents: mappedStudents.length,
             studentAttendance: mappedStudents,
@@ -553,6 +547,7 @@ export const getAttendanceAnalytics = asyncHandler(async (req, res) => {
 export const getMissedAttendance = asyncHandler(async (req, res) => {
     const { date } = req.query;
     const targetDate = date ? new Date(date) : new Date();
+    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
     
     const missedAttendance = await Attendance.findMissedAttendance(req.user.school, targetDate);
     
@@ -564,7 +559,7 @@ export const getMissedAttendance = asyncHandler(async (req, res) => {
             await generateNotification({
                 type: 'missed_attendance_reminder',
                 recipient: missed._id,
-                message: `You missed taking attendance for ${missedClass.subjectName} - ${missedClass.className} at ${new Date(missedClass.startTime).toLocaleTimeString()}. Please record it as soon as possible.`,
+                message: `You missed taking attendance for ${missedClass.subjectName} - ${missedClass.className} at ${new Date(missedClass.startTime).toLocaleTimeString('en-US', { timeZone: schoolTimeZone })}. Please record it as soon as possible.`,
                 metadata: {
                     scheduleId: missedClass.scheduleId,
                     className: missedClass.className,
@@ -584,11 +579,13 @@ export const getMissedAttendance = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const exportAttendanceData = asyncHandler(async (req, res) => {
     const { startDate, endDate, format = 'csv', teacher, class: classId, subject } = req.query;
+    const schoolTimeZone = await getSchoolTimeZone(req.user.school);
+    const dateRange = getViewRangeInTimeZone({ viewMode: 'range', startDate, endDate, now: new Date(), timeZone: schoolTimeZone });
     
     // Build query
     const query = {
         school: req.user.school,
-        date: { $gte: new Date(startDate), $lte: new Date(endDate) }
+        date: { $gte: dateRange.start, $lte: dateRange.end }
     };
     
     if (teacher) query.teacher = teacher;

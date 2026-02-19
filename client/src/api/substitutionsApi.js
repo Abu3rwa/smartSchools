@@ -85,3 +85,14 @@ export async function respondToSubRequest({ token, action, note }) {
   if (!data.success) throw new Error(data.message || 'Failed to respond');
   return data.data;
 }
+
+/**
+ * Respond to a substitution request in portal as the logged-in teacher.
+ * @param {{ id: string, action: 'CONFIRM'|'DECLINE', note?: string }} payload
+ * @returns {Promise<Object>}
+ */
+export async function respondToSubRequestAuth({ id, action, note }) {
+  const { data } = await api.post(`${BASE}/${id}/respond-auth`, { action, note });
+  if (!data.success) throw new Error(data.message || 'Failed to respond');
+  return data.data;
+}

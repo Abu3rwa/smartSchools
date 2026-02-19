@@ -11,7 +11,8 @@ import {
     listRequestsHandler,
     getRequestHandler,
     cancelRequestHandler,
-    respondHandler
+    respondHandler,
+    respondAuthHandler
 } from '../controllers/substitutionController.js';
 import {
     getCandidatesRules,
@@ -19,6 +20,7 @@ import {
     createAbsenceRules,
     listRequestsRules,
     respondRules,
+    respondAuthRules,
     cancelRules,
     mongoIdParam
 } from '../validators/substitutionValidators.js';
@@ -102,6 +104,16 @@ router.get(
     mongoIdParam,
     validate,
     getRequestHandler
+);
+
+// Respond in portal: teacher
+router.post(
+    '/:id/respond-auth',
+    authorize('teacher'),
+    mongoIdParam,
+    respondAuthRules,
+    validate,
+    respondAuthHandler
 );
 
 // Cancel: department_principal, admin

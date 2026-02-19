@@ -4,22 +4,24 @@ import AttendanceTakingReminder from "../models/AttendanceTakingReminder.js";
 import Attendance from "../models/Attendance.js";
 import TeacherPeriodAssignment from "../models/TeacherPeriodAssignment.js";
 import Class from "../models/Class.js";
+import SchoolCalendarConfig from "../models/SchoolCalendarConfig.js";
 import Notification from "../models/Notification.js";
 import notificationService from "../services/notificationService.js";
+import {
+  DEFAULT_SCHOOL_TIMEZONE,
+  resolveTimeZone,
+  getDatePartsInTimeZone,
+  ymdKey,
+  shiftLocalYmd,
+  zonedDateTimeToUtc,
+  localYmdToServerMidnightDate,
+} from "../utils/schoolTimezone.js";
 
 /** Default: send reminder for classes that ended at least this many hours ago */
 const DEFAULT_REMINDER_HOURS = 1;
 /** How far back to look for missed classes (48h so we catch yesterday’s classes when job runs next day) */
 const REMINDER_LOOKBACK_HOURS = 48;
-
-/**
- * Build date at local midnight for schedule date (matches Attendance date storage).
- */
-function toAttendanceDate(d) {
-  const date = new Date(d);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
+const DEFAULT_TIMEZONE = DEFAULT_SCHOOL_TIMEZONE;
 
 /**
  * Build HTML table for email that matches the timetable: Period, Class, Subject, Room, Date, Start time, End time.
@@ -92,6 +94,20 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
     .populate("period", "name startTime endTime order")
     .lean();
 
+  const schoolIds = [...new Set(assignments.map((assignment) => String(assignment.school)).filter(Boolean))];
+  const schoolConfigs = schoolIds.length
+    ? await SchoolCalendarConfig.find({ school: { $in: schoolIds }, isActive: true })
+        .select("school timezone")
+        .setOptions({ skipTenantFilter: true })
+        .lean()
+    : [];
+  const timeZoneBySchool = new Map(
+    schoolConfigs.map((config) => {
+      const resolved = resolveTimeZone(config.timezone) || DEFAULT_TIMEZONE;
+      return [String(config.school), resolved];
+    })
+  );
+
   for (const assignment of assignments) {
     const period = assignment.period;
     const teacher = assignment.teacher;
@@ -100,33 +116,70 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
     const [startH, startM] = (period.startTime || "").split(":").map(Number);
     const [endH, endM] = (period.endTime || "").split(":").map(Number);
     const schoolId = assignment.school;
+    const schoolIdKey = String(schoolId);
+    const schoolTimeZone = timeZoneBySchool.get(schoolIdKey) || DEFAULT_TIMEZONE;
     const daysOfWeek = assignment.daysOfWeek && assignment.daysOfWeek.length > 0 ? assignment.daysOfWeek : [1, 2, 3, 4, 5];
-    const assignStart = new Date(assignment.startDate);
-    const assignEnd = new Date(assignment.endDate);
-    assignStart.setHours(0, 0, 0, 0);
-    assignEnd.setHours(23, 59, 59, 999);
+    const assignStartParts = getDatePartsInTimeZone(new Date(assignment.startDate), schoolTimeZone);
+    const assignEndParts = getDatePartsInTimeZone(new Date(assignment.endDate), schoolTimeZone);
+    const assignStartKey = ymdKey(assignStartParts);
+    const assignEndKey = ymdKey(assignEndParts);
+    const nowInSchoolTz = getDatePartsInTimeZone(now, schoolTimeZone);
 
     // Check last 3 days for an occurrence whose period end falls in the reminder window
     for (let d = 0; d <= 2; d++) {
-      const candidate = new Date(now);
-      candidate.setDate(candidate.getDate() - d);
-      candidate.setHours(0, 0, 0, 0);
-      const dayOfWeek = candidate.getDay();
+      const candidateLocal = shiftLocalYmd(
+        { year: nowInSchoolTz.year, month: nowInSchoolTz.month, day: nowInSchoolTz.day },
+        -d
+      );
+      const dayOfWeek = candidateLocal.weekday;
       if (!daysOfWeek.includes(dayOfWeek)) continue;
-      if (candidate < assignStart || candidate > assignEnd) continue;
+      const candidateKey = ymdKey(candidateLocal);
+      if (candidateKey < assignStartKey || candidateKey > assignEndKey) continue;
 
-      const periodEnd = new Date(candidate);
-      periodEnd.setHours(endH, endM || 0, 0, 0);
+      const periodEnd = zonedDateTimeToUtc(
+        {
+          year: candidateLocal.year,
+          month: candidateLocal.month,
+          day: candidateLocal.day,
+          hour: endH,
+          minute: endM || 0,
+        },
+        schoolTimeZone
+      );
       if (periodEnd < windowStart || periodEnd > windowEnd) continue;
 
       results.processed += 1;
-      const attendanceDate = toAttendanceDate(candidate);
+      const attendanceDate = localYmdToServerMidnightDate(candidateLocal);
+      const attendanceDayStart = zonedDateTimeToUtc(
+        {
+          year: candidateLocal.year,
+          month: candidateLocal.month,
+          day: candidateLocal.day,
+          hour: 0,
+          minute: 0,
+          second: 0,
+          millisecond: 0,
+        },
+        schoolTimeZone
+      );
+      const attendanceDayEnd = zonedDateTimeToUtc(
+        {
+          year: candidateLocal.year,
+          month: candidateLocal.month,
+          day: candidateLocal.day,
+          hour: 23,
+          minute: 59,
+          second: 59,
+          millisecond: 999,
+        },
+        schoolTimeZone
+      );
 
       const hasAttendance = await Attendance.findOne({
         school: schoolId,
         teacher: assignment.teacher._id,
         period: assignment.period._id,
-        date: attendanceDate,
+        date: { $gte: attendanceDayStart, $lte: attendanceDayEnd },
       }).setOptions({ skipTenantFilter: true });
 
       if (hasAttendance) {
@@ -138,7 +191,7 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
         school: schoolId,
         assignment: assignment._id,
         period: assignment.period._id,
-        attendanceDate,
+        attendanceDate: { $gte: attendanceDayStart, $lte: attendanceDayEnd },
       }).setOptions({ skipTenantFilter: true });
 
       if (alreadySent) {
@@ -157,13 +210,40 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
         year: "numeric",
         month: "long",
         day: "numeric",
+        timeZone: schoolTimeZone,
       });
-      const periodStartDate = new Date(candidate);
-      periodStartDate.setHours(startH, startM || 0, 0, 0);
-      const periodEndDate = new Date(candidate);
-      periodEndDate.setHours(endH, endM || 0, 0, 0);
-      const startTimeStr = periodStartDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-      const endTimeStr = periodEndDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+      const periodStartDate = zonedDateTimeToUtc(
+        {
+          year: candidateLocal.year,
+          month: candidateLocal.month,
+          day: candidateLocal.day,
+          hour: startH,
+          minute: startM || 0,
+        },
+        schoolTimeZone
+      );
+      const periodEndDate = zonedDateTimeToUtc(
+        {
+          year: candidateLocal.year,
+          month: candidateLocal.month,
+          day: candidateLocal.day,
+          hour: endH,
+          minute: endM || 0,
+        },
+        schoolTimeZone
+      );
+      const startTimeStr = periodStartDate.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: schoolTimeZone,
+      });
+      const endTimeStr = periodEndDate.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        timeZone: schoolTimeZone,
+      });
 
       const subject = `Reminder: Record attendance for ${className} - ${subjectName}`;
       const message = `Hi ${teacherName}, this is a friendly reminder that you haven't recorded attendance for ${periodName} — ${className} - ${subjectName} on ${classDate}. The class was scheduled from ${startTimeStr} to ${endTimeStr} in ${roomName}. Please record attendance as soon as possible.`;

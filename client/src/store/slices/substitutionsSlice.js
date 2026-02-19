@@ -6,6 +6,7 @@ import {
   fetchSubRequestById,
   cancelSubRequest,
   respondToSubRequest,
+  respondToSubRequestAuth,
   fetchSubPendingCount,
 } from '../../api/substitutionsApi';
 
@@ -86,12 +87,24 @@ export const respondToSubRequestThunk = createAsyncThunk(
   }
 );
 
+export const respondToSubRequestAuthThunk = createAsyncThunk(
+  'substitutions/respondToSubRequestAuth',
+  async ({ id, action, note }, { rejectWithValue }) => {
+    try {
+      return await respondToSubRequestAuth({ id, action, note });
+    } catch (err) {
+      return rejectWithValue(err.message || 'Failed to respond');
+    }
+  }
+);
+
 const initialState = {
   candidates: { loading: false, error: null, data: null },
   create: { loading: false, error: null, success: false, requestId: null },
   list: { loading: false, error: null, items: [], pagination: null },
   detail: { loading: false, error: null, item: null },
   respond: { loading: false, error: null, success: false, lastRequest: null },
+  respondInPortal: { loading: false, error: null, success: false, lastRequest: null },
   pendingCount: { loading: false, count: 0 },
 };
 
@@ -104,6 +117,7 @@ const substitutionsSlice = createSlice({
     },
     clearRespondState: (state) => {
       state.respond = initialState.respond;
+      state.respondInPortal = initialState.respondInPortal;
     },
   },
   extraReducers: (builder) => {
@@ -208,6 +222,32 @@ const substitutionsSlice = createSlice({
       })
       .addCase(fetchSubPendingCountThunk.rejected, (state) => {
         state.pendingCount.loading = false;
+      })
+      // respondToSubRequestAuth (in-portal)
+      .addCase(respondToSubRequestAuthThunk.pending, (state) => {
+        state.respondInPortal.loading = true;
+        state.respondInPortal.error = null;
+        state.respondInPortal.success = false;
+      })
+      .addCase(respondToSubRequestAuthThunk.fulfilled, (state, action) => {
+        state.respondInPortal.loading = false;
+        state.respondInPortal.success = true;
+        state.respondInPortal.error = null;
+        state.respondInPortal.lastRequest = action.payload ?? null;
+
+        const updated = action.payload;
+        if (!updated?._id) return;
+
+        if (state.detail.item?._id === updated._id) {
+          state.detail.item = updated;
+        }
+        const idx = state.list.items.findIndex((r) => r._id === updated._id);
+        if (idx >= 0) state.list.items[idx] = updated;
+      })
+      .addCase(respondToSubRequestAuthThunk.rejected, (state, action) => {
+        state.respondInPortal.loading = false;
+        state.respondInPortal.error = action.payload;
+        state.respondInPortal.success = false;
       });
   },
 });
@@ -219,6 +259,7 @@ export const selectCreate = (state) => state.substitutions.create;
 export const selectList = (state) => state.substitutions.list;
 export const selectDetail = (state) => state.substitutions.detail;
 export const selectRespond = (state) => state.substitutions.respond;
+export const selectRespondInPortal = (state) => state.substitutions.respondInPortal;
 export const selectPendingCount = (state) => state.substitutions.pendingCount;
 
 export default substitutionsSlice.reducer;

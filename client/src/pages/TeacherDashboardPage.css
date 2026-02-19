@@ -6,6 +6,41 @@
     margin-bottom: var(--spacing-2xl);
 }
 
+.summary-row {
+    margin-bottom: var(--spacing-xl);
+}
+
+.summary-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+}
+
+.summary-stat-icon {
+    color: var(--primary-400);
+    flex-shrink: 0;
+}
+
+.summary-stat-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.summary-stat-value {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.summary-stat-label {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
 .teacher-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -55,7 +90,7 @@
 
 .teacher-schedule-item {
     display: grid;
-    grid-template-columns: auto 1fr 1fr 1fr auto;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.2fr) auto;
     gap: var(--spacing-md);
     align-items: center;
     padding: var(--spacing-md);

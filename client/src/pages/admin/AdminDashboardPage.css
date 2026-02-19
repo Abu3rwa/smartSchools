@@ -4,17 +4,30 @@
     gap: var(--spacing-xl);
 }
 
+.admin-dashboard-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+}
+
 .admin-dashboard h1 {
     font-size: 1.5rem;
     font-weight: 700;
     color: var(--text-primary);
+    margin: 0;
 }
 
-.admin-dashboard h1 span {
+.admin-dashboard-subtitle {
     color: var(--text-muted);
     font-weight: 400;
     font-size: 0.9rem;
-    margin-left: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+}
+
+.admin-dashboard-date {
+    color: var(--text-muted);
+    font-size: 0.85rem;
 }
 
 /* Stats Grid */
@@ -83,6 +96,10 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     overflow: hidden;
+}
+
+.admin-chart-container {
+    padding: var(--spacing-lg);
 }
 
 .admin-section-header {

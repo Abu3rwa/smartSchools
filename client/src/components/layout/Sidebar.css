@@ -104,6 +104,9 @@
     cursor: pointer;
     transition: all var(--transition-fast);
     flex-shrink: 0;
+    line-height: 0;
+    position: relative;
+    z-index: 1;
 }
 
 /* Force icon visibility: Heroicons use stroke=currentColor */
@@ -113,8 +116,10 @@
     display: block;
     opacity: 1;
     color: inherit;
-    fill: currentColor;
+    fill: none;
     stroke: currentColor;
+    stroke-width: 2.2;
+    overflow: visible;
 }
 
 .toggle-btn:hover {
@@ -261,6 +266,20 @@
 /* Active state - icons become white/on-accent color */
 .nav-item.active .nav-icon {
     color: var(--on-accent);
+}
+
+/* Accessibility: in light theme, route-specific icon hues can fail contrast on white surfaces */
+[data-theme="light"] .sidebar .nav-item .nav-icon {
+    color: var(--text-secondary) !important;
+}
+
+[data-theme="light"] .sidebar .nav-item:hover .nav-icon {
+    color: var(--text-primary) !important;
+    filter: none;
+}
+
+[data-theme="light"] .sidebar .nav-item.active .nav-icon {
+    color: var(--on-accent) !important;
 }
 
 /* Hover state - brighten the icon slightly */

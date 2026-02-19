@@ -116,6 +116,9 @@ export const createRequestHandler = asyncHandler(async (req, res) => {
         .populate('assignments.substituteTeacherId', 'firstName lastName email')
         .populate('assignments.periodId', 'name startTime endTime')
         .populate('periods.periodId', 'name startTime endTime')
+        .populate('periods.classId', 'name grade section')
+        .populate('periods.roomId', 'name')
+        .populate('periods.subjectId', 'name code')
         .populate('createdBy', 'firstName lastName');
 
     res.status(201).json({
@@ -210,6 +213,9 @@ export const getRequestHandler = asyncHandler(async (req, res) => {
         .populate('assignments.substituteTeacherId', 'firstName lastName email')
         .populate('assignments.periodId', 'name startTime endTime')
         .populate('periods.periodId', 'name startTime endTime')
+        .populate('periods.classId', 'name grade section')
+        .populate('periods.roomId', 'name')
+        .populate('periods.subjectId', 'name code')
         .populate('createdBy', 'firstName lastName')
         .populate('timeline.by', 'firstName lastName');
 
@@ -321,4 +327,107 @@ export const respondHandler = asyncHandler(async (req, res) => {
         return res.status(200).type('text/html').send(html);
     }
     res.status(200).json(result);
+});
+
+/**
+ * @desc    Respond to substitution request (confirm/decline) in portal as the logged-in teacher
+ * @route   POST /api/substitutions/:id/respond-auth
+ * @access  Private (teacher)
+ */
+export const respondAuthHandler = asyncHandler(async (req, res) => {
+    const { action, note } = req.body;
+    const user = req.user;
+
+    if (user.role !== 'teacher') {
+        return res.status(403).json({ success: false, message: 'Only teachers can respond in portal' });
+    }
+
+    const request = await SubstitutionRequest.findById(req.params.id)
+        .populate('assignments.periodId', 'name startTime endTime')
+        .setOptions({ skipTenantFilter: true });
+
+    if (!request) {
+        return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+
+    if (request.school.toString() !== req.schoolId.toString()) {
+        return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (request.status !== 'SUBMITTED') {
+        return res.status(400).json({
+            success: false,
+            message: `Request is no longer pending (status: ${request.status})`
+        });
+    }
+
+    const teacherId = user._id;
+    const myAssignments = request.assignments.filter((a) => a.substituteTeacherId?.toString() === teacherId.toString());
+    if (myAssignments.length === 0) {
+        return res.status(403).json({ success: false, message: 'You are not assigned to this request' });
+    }
+
+    const trimmedNote = (note || '').trim();
+
+    if (action === 'CONFIRM') {
+        for (const assignment of myAssignments) {
+            assignment.status = 'CONFIRMED';
+            assignment.teacherResponseNote = trimmedNote;
+        }
+
+        if (request.coverageType === 'SINGLE_TEACHER_ALL_PERIODS') {
+            for (const a of request.assignments) {
+                a.status = 'CONFIRMED';
+                if (!a.teacherResponseNote) {
+                    a.teacherResponseNote = trimmedNote;
+                }
+            }
+            request.status = 'CONFIRMED';
+        } else {
+            const allConfirmed = request.assignments.every((a) => a.status === 'CONFIRMED');
+            request.status = allConfirmed ? 'CONFIRMED' : 'SUBMITTED';
+        }
+    } else if (action === 'DECLINE') {
+        for (const assignment of myAssignments) {
+            assignment.status = 'DECLINED';
+            assignment.teacherResponseNote = trimmedNote;
+        }
+
+        if (request.coverageType === 'SINGLE_TEACHER_ALL_PERIODS') {
+            for (const a of request.assignments) {
+                if (!myAssignments.some((m) => m._id.toString() === a._id.toString())) {
+                    a.status = 'DECLINED';
+                }
+            }
+        }
+        request.status = 'DECLINED';
+    } else {
+        return res.status(400).json({ success: false, message: 'Invalid action. Use CONFIRM or DECLINE.' });
+    }
+
+    request.timeline.push({
+        action: action === 'CONFIRM' ? 'CONFIRMED' : 'DECLINED',
+        by: teacherId,
+        at: new Date(),
+        meta: { note: trimmedNote || null, via: 'portal' }
+    });
+
+    await request.save();
+
+    const populated = await SubstitutionRequest.findById(request._id)
+        .populate('absentTeacherId', 'firstName lastName email')
+        .populate('assignments.substituteTeacherId', 'firstName lastName email')
+        .populate('assignments.periodId', 'name startTime endTime')
+        .populate('periods.periodId', 'name startTime endTime')
+        .populate('periods.classId', 'name grade section')
+        .populate('periods.roomId', 'name')
+        .populate('periods.subjectId', 'name code')
+        .populate('createdBy', 'firstName lastName')
+        .populate('timeline.by', 'firstName lastName');
+
+    res.status(200).json({
+        success: true,
+        message: action === 'CONFIRM' ? 'Substitution confirmed' : 'Substitution declined',
+        data: populated
+    });
 });

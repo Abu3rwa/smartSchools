@@ -8,7 +8,6 @@ import { fetchSubPendingCountThunk, selectPendingCount } from '../store/slices/s
 import timetableService from '../services/timetableService';
 import {
     HiOutlineCalendar,
-    HiOutlineAcademicCap,
     HiOutlineClipboardList,
     HiOutlineDocumentText,
     HiOutlineClock,
@@ -47,6 +46,29 @@ const formatTime = (val) => {
         return '—';
     }
 };
+
+const SectionCard = ({ title, icon: Icon, action, children, className }) => (
+    <div className={`teacher-card ${className || ''}`.trim()}>
+        <div className="card-header">
+            <h3 className="card-title">
+                {Icon && <Icon className="card-icon" size={20} />}
+                {title}
+            </h3>
+            {action}
+        </div>
+        {children}
+    </div>
+);
+
+const SummaryStat = ({ icon: Icon, label, value }) => (
+    <Box className="summary-stat">
+        {Icon && <Icon className="summary-stat-icon" size={18} />}
+        <div className="summary-stat-content">
+            <span className="summary-stat-value">{value}</span>
+            <span className="summary-stat-label">{label}</span>
+        </div>
+    </Box>
+);
 
 const TeacherDashboardPage = () => {
     const dispatch = useDispatch();
@@ -131,11 +153,18 @@ const TeacherDashboardPage = () => {
 
     const loading = timetableLoading;
     const firstName = user?.firstName ?? 'Teacher';
+    const todayLabel = new Intl.DateTimeFormat(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date());
+    const todayClassesCount = todaySchedule.length;
+    const pendingSubsCount = pendingCount?.count ?? 0;
 
     return (
         <Box className="teacher-dashboard" sx={{ p: { xs: 2, sm: 3 } }}>
             <header className="teacher-dashboard-header">
-                <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+                <Typography variant={isSm ? 'h5' : 'h4'} sx={{ fontWeight: 700, mb: 0.5 }}>
                     {getGreeting()}, {firstName}!
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -143,23 +172,48 @@ const TeacherDashboardPage = () => {
                 </Typography>
             </header>
 
+            <Grid container spacing={2} className="summary-row">
+                <Grid item xs={12} sm={4}>
+                    <SummaryStat icon={HiOutlineCalendar} label="Today" value={todayLabel} />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                    <SummaryStat icon={HiOutlineClock} label="Classes today" value={todayClassesCount || '—'} />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                    <SummaryStat icon={HiOutlineClipboardList} label="Pending sub requests" value={pendingSubsCount || '0'} />
+                </Grid>
+            </Grid>
+
             {loading ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 200, gap: 2 }}>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 200,
+                        gap: 2,
+                    }}
+                >
                     <div className="spinner" />
-                    <Typography variant="body2" color="text.secondary">Loading...</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Loading your dashboard...
+                    </Typography>
                 </Box>
             ) : (
                 <Grid container spacing={2}>
                     {/* Today's Schedule */}
                     <Grid item xs={12} lg={6}>
-                        <div className="teacher-card schedule-card">
-                            <div className="card-header">
-                                <h3 className="card-title">
-                                    <HiOutlineCalendar className="card-icon" size={20} />
-                                    Today&apos;s Schedule
-                                </h3>
-                                <Link to="/portal/my-timetable" className="btn btn-ghost btn-sm">Full timetable</Link>
-                            </div>
+                        <SectionCard
+                            className="schedule-card"
+                            title="Today's Schedule"
+                            icon={HiOutlineCalendar}
+                            action={
+                                <Link to="/portal/my-timetable" className="btn btn-ghost btn-sm">
+                                    Full timetable
+                                </Link>
+                            }
+                        >
                             {timetableError ? (
                                 <p className="empty-text">Could not load schedule.</p>
                             ) : todaySchedule.length === 0 ? (
@@ -171,7 +225,9 @@ const TeacherDashboardPage = () => {
                                             <span className="period-time">
                                                 {formatTime(a.startTime)} – {formatTime(a.endTime)}
                                             </span>
-                                            <span className="period-name">{a._periodObj?.name || a.period?.name || `Period ${i + 1}`}</span>
+                                            <span className="period-name">
+                                                {a._periodObj?.name || a.period?.name || `Period ${i + 1}`}
+                                            </span>
                                             <span className="subject-name">{a.subject?.name || '—'}</span>
                                             <span className="class-name">{a.class?.name || '—'}</span>
                                             <span className="room-name">{a.room?.name || a.room || '—'}</span>
@@ -179,73 +235,48 @@ const TeacherDashboardPage = () => {
                                     ))}
                                 </ul>
                             )}
-                        </div>
+                        </SectionCard>
                     </Grid>
 
                     {/* Pending Sub Requests */}
                     <Grid item xs={12} lg={6}>
-                        <div className="teacher-card my-classes-card">
-                            <div className="card-header">
-                                <h3 className="card-title">
-                                    <HiOutlineClipboardList className="card-icon" size={20} />
-                                    Sub Requests
-                                </h3>
-                                <Link to="/portal/substitutions" className="btn btn-ghost btn-sm">View all</Link>
-                            </div>
+                        <SectionCard
+                            className="sub-requests-card"
+                            title="Sub Requests"
+                            icon={HiOutlineClipboardList}
+                            action={
+                                <Link to="/portal/substitutions" className="btn btn-ghost btn-sm">
+                                    View all
+                                </Link>
+                            }
+                        >
                             {pendingCount.loading ? (
                                 <p className="empty-text">Loading...</p>
-                            ) : (pendingCount.count ?? 0) > 0 ? (
+                            ) : pendingSubsCount > 0 ? (
                                 <Box sx={{ py: 1 }}>
                                     <Typography variant="body1" fontWeight={600} color="primary.main">
-                                        {pendingCount.count} pending request{pendingCount.count !== 1 ? 's' : ''}
+                                        {pendingSubsCount} pending request{pendingSubsCount !== 1 ? 's' : ''}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                                         Please confirm or decline.
                                     </Typography>
-                                    <Link to="/portal/substitutions" className="btn btn-ghost btn-sm" style={{ marginTop: 8, display: 'inline-block' }}>
-                                        View & respond
+                                    <Link
+                                        to="/portal/substitutions"
+                                        className="btn btn-ghost btn-sm"
+                                        style={{ marginTop: 8, display: 'inline-block' }}
+                                    >
+                                        View &amp; respond
                                     </Link>
                                 </Box>
                             ) : (
                                 <p className="empty-text">No pending sub requests.</p>
                             )}
-                        </div>
-                    </Grid>
-
-                    {/* My Classes */}
-                    <Grid item xs={12} lg={6}>
-                        <div className="teacher-card my-classes-card">
-                            <div className="card-header">
-                                <h3 className="card-title">
-                                    <HiOutlineAcademicCap className="card-icon" size={20} />
-                                    My Classes
-                                </h3>
-                                <Link to="/portal/classes" className="btn btn-ghost btn-sm">View all</Link>
-                            </div>
-                            {!myClasses || myClasses.length === 0 ? (
-                                <p className="empty-text">No classes assigned yet.</p>
-                            ) : (
-                                <ul className="teacher-classes-list">
-                                    {myClasses.slice(0, 6).map((c) => (
-                                        <li key={c._id || c.class?._id}>
-                                            <Link to={`/portal/classes/${c.class?._id || c._id}`} className="teacher-class-item">
-                                                <span className="class-name">{c.class?.name || c.name || 'Class'}</span>
-                                                {c.studentCount != null && (
-                                                    <span className="class-count">{c.studentCount} students</span>
-                                                )}
-                                                <HiOutlineArrowRight className="action-arrow" size={18} />
-                                            </Link>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
+                        </SectionCard>
                     </Grid>
 
                     {/* Quick Actions */}
                     <Grid item xs={12}>
-                        <div className="teacher-card quick-actions-card">
-                            <h3 className="card-title">Quick Actions</h3>
+                        <SectionCard className="quick-actions-card" title="Quick Actions">
                             <Grid container spacing={1.5}>
                                 {quickActions.map((action, index) => (
                                     <Grid item xs={12} sm={6} md={4} key={index}>
@@ -257,7 +288,7 @@ const TeacherDashboardPage = () => {
                                     </Grid>
                                 ))}
                             </Grid>
-                        </div>
+                        </SectionCard>
                     </Grid>
                 </Grid>
             )}

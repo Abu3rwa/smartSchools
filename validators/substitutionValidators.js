@@ -48,6 +48,11 @@ export const respondRules = [
     body('note').optional().trim().isString()
 ];
 
+export const respondAuthRules = [
+    body('action').isIn(['CONFIRM', 'DECLINE']).withMessage('action must be CONFIRM or DECLINE'),
+    body('note').optional().trim().isString()
+];
+
 export const cancelRules = [
     body('note').optional().trim().isString()
 ];

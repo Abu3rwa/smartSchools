@@ -11,7 +11,7 @@
     "test": "node --test tests/**/*.test.js",
     "test:reminder": "node scripts/test-attendance-reminder.js",
     "test:newsletter": "node scripts/test-newsletter-utils.js",
-    "playground": "node scripts/playground.js",
+    "pl": "node  scripts/playground.js",
     "lint": "eslint .",
     "deploy": "git add . ; git commit -m \"Deployment\" ; git push heroku main",
     "heroku-postbuild": "cd client && npm install && npm run build"
@@ -46,7 +46,7 @@
     "mongoose": "^8.4.1",
     "multer": "^2.0.2",
     "nodemailer": "^6.9.13",
-    "openai": "^6.18.0",
+    "openai": "^6.22.0",
     "useragent": "^2.3.0",
     "xss": "^1.0.15",
     "zod": "^4.3.6"

@@ -28,7 +28,6 @@ import PageContainer from '../../components/layout/PageContainer';
 import StatusChip from '../../components/substitutions/StatusChip';
 import {
   fetchSubRequestsThunk,
-  cancelSubRequestThunk,
   selectList,
 } from '../../store/slices/substitutionsSlice';
 import {
@@ -73,9 +72,6 @@ const SubRequestsList = () => {
   const [endDate, setEndDate] = useState('');
   const [absentTeacherId, setAbsentTeacherId] = useState('');
   const [substituteTeacherId, setSubstituteTeacherId] = useState('');
-  const [cancelModal, setCancelModal] = useState(null);
-  const [cancelNote, setCancelNote] = useState('');
-  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (canCreate) dispatch(fetchTeachers());
@@ -99,23 +95,6 @@ const SubRequestsList = () => {
   const teacherOptions = teachers
     .filter((t) => t.user)
     .map((t) => ({ id: t.user._id, name: `${t.user.firstName || ''} ${t.user.lastName || ''}`.trim() }));
-
-  const handleCancel = () => {
-    if (!cancelModal) return;
-    setCancelling(true);
-    dispatch(cancelSubRequestThunk({ id: cancelModal._id, note: cancelNote }))
-      .then((result) => {
-        if (cancelSubRequestThunk.fulfilled.match(result)) {
-          toast.success('Request cancelled');
-          setCancelModal(null);
-          setCancelNote('');
-          loadRequests();
-        } else {
-          toast.error(result.payload || 'Failed to cancel');
-        }
-      })
-      .finally(() => setCancelling(false));
-  };
 
   return (
     <PageContainer>
@@ -253,19 +232,12 @@ const SubRequestsList = () => {
                     <TableCell>{getPersonName(r.createdBy)}</TableCell>
                     <TableCell>{formatDate(r.updatedAt)}</TableCell>
                     <TableCell>
-                      <Button size="small" onClick={() => navigate(`/portal/substitutions/${r._id}`)}>
+                      <Button
+                        size="small"
+                        onClick={() => navigate(`/portal/substitutions/${r._id}`)}
+                      >
                         View
                       </Button>
-                      {r.status === 'SUBMITTED' && (
-                        <Button
-                          size="small"
-                          color="error"
-                          onClick={() => setCancelModal(r)}
-                          sx={{ ml: 1 }}
-                        >
-                          Cancel
-                        </Button>
-                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -274,29 +246,6 @@ const SubRequestsList = () => {
           </TableContainer>
         )}
 
-        <Dialog open={!!cancelModal} onClose={() => !cancelling && setCancelModal(null)}>
-          <DialogTitle>Cancel Substitution Request</DialogTitle>
-          <DialogContent>
-            <TextField
-              fullWidth
-              multiline
-              rows={2}
-              label="Note (optional)"
-              value={cancelNote}
-              onChange={(e) => setCancelNote(e.target.value)}
-              disabled={cancelling}
-              sx={{ mt: 1 }}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => !cancelling && setCancelModal(null)} disabled={cancelling}>
-              Close
-            </Button>
-            <Button color="error" onClick={handleCancel} disabled={cancelling}>
-              {cancelling ? 'Cancelling...' : 'Cancel Request'}
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Box>
     </PageContainer>
   );
