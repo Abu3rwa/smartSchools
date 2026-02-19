@@ -19,6 +19,16 @@ const scheduleSchema = new mongoose.Schema({
         trim: true,
         maxlength: 1000
     },
+    location: {
+        type: String,
+        trim: true,
+        maxlength: 200
+    },
+    tags: [{
+        type: String,
+        trim: true,
+        maxlength: 50
+    }],
     
     // Schedule type
     type: {
@@ -293,6 +303,22 @@ const scheduleSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
+    updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    cancelledAt: {
+        type: Date
+    },
+    cancelledBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    cancellationReason: {
+        type: String,
+        trim: true,
+        maxlength: 500
+    },
     
     // Audit trail
     auditTrail: [{
@@ -526,10 +552,12 @@ scheduleSchema.statics.createFromTemplate = function(templateId, newDate, overri
 };
 
 scheduleSchema.statics.getTeacherSchedule = function(teacherId, startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
     return this.find({
         teacher: new mongoose.Types.ObjectId(teacherId),
-        startTime: { $gte: new Date(startDate) },
-        endTime: { $lte: new Date(endDate) },
+        startTime: { $lt: end },
+        endTime: { $gt: start },
         status: { $ne: 'cancelled' }
     })
     .populate('class subject room')
@@ -559,13 +587,46 @@ scheduleSchema.statics.getClassSchedule = function(classId, startDate, endDate) 
     .sort({ startTime: 1 });
 };
 
+/**
+ * Get schedules for a student by their class. studentId can be Student._id or User._id.
+ * Resolves student's currentClass and returns schedules for that class in the date range.
+ */
+scheduleSchema.statics.getStudentSchedule = async function(studentId, startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const student = await mongoose.model('Student').findOne({
+        $or: [
+            { _id: new mongoose.Types.ObjectId(studentId) },
+            { user: new mongoose.Types.ObjectId(studentId) }
+        ]
+    }).select('currentClass').lean();
+
+    if (!student || !student.currentClass) {
+        return [];
+    }
+
+    return this.find({
+        class: student.currentClass,
+        type: 'class',
+        startTime: { $lt: end },
+        endTime: { $gt: start },
+        status: { $ne: 'cancelled' }
+    })
+    .populate('teacher', 'firstName lastName email')
+    .populate('class', 'name grade section')
+    .populate('subject', 'name code')
+    .populate('room', 'name')
+    .sort({ startTime: 1 });
+};
+
 scheduleSchema.statics.findByDateRange = function(schoolId, startDate, endDate, filters = {}) {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
     const query = {
         school: new mongoose.Types.ObjectId(schoolId),
-        startTime: { $gte: start, $lte: end },
+        startTime: { $lt: end },
+        endTime: { $gt: start },
         status: { $ne: 'cancelled' },
         ...filters
     };

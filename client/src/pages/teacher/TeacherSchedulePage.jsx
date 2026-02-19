@@ -106,6 +106,12 @@ const TeacherSchedulePage = () => {
         })();
     };
 
+    const mapStatusForApi = (status) => {
+        if (status === 'late') return 'tardy';
+        if (status === 'excused') return 'absent_excused';
+        return status;
+    };
+
     const handleSaveAttendance = async () => {
         if (!selectedSchedule?._id) return;
         try {
@@ -114,8 +120,8 @@ const TeacherSchedulePage = () => {
                 scheduleId: selectedSchedule._id,
                 studentAttendance: attendanceData.map(r => ({
                     student: r.student?._id,
-                    status: r.status,
-                    notes: r.notes
+                    status: mapStatusForApi(r.status),
+                    notes: r.notes || ''
                 }))
             });
 

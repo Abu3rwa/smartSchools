@@ -1,12 +1,38 @@
 import mongoose from 'mongoose';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Schedule from '../models/Schedule.js';
+import Attendance from '../models/Attendance.js';
 import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Room from '../models/Room.js';
 import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule } from '../helpers/attendanceEligibility.js';
+
+/** Map UI status to Attendance schema enum: late->tardy, excused->absent_excused */
+function mapAttendanceStatus(status) {
+    if (status === 'late') return 'tardy';
+    if (status === 'excused') return 'absent_excused';
+    if (['present', 'absent', 'tardy', 'tardy_excused', 'absent_excused'].includes(status)) return status;
+    return 'present';
+}
+
+/** Enrich schedules with attendanceRecorded (from Attendance model) */
+async function enrichSchedulesWithAttendanceRecorded(schedules) {
+    if (!schedules || schedules.length === 0) return schedules;
+    const ids = schedules.map(s => s._id);
+    const attendanceRecords = await Attendance.find({ schedule: { $in: ids } }).select('schedule date').lean();
+    const recordedSet = new Set(
+        attendanceRecords.map(a => `${a.schedule}|${a.date ? new Date(a.date).toISOString().slice(0, 10) : ''}`)
+    );
+    return schedules.map(s => {
+        const d = s.startTime;
+        const dateKey = d ? new Date(d).toISOString().slice(0, 10) : '';
+        const key = `${s._id}|${dateKey}`;
+        const obj = s.toObject ? s.toObject() : (typeof s === 'object' && s !== null ? { ...s } : s);
+        return { ...obj, attendanceRecorded: recordedSet.has(key) };
+    });
+}
 
 // @desc    Get all schedules for a school
 // @route   GET /api/schedules
@@ -45,12 +71,11 @@ export const getSchedules = asyncHandler(async (req, res) => {
         if (endDate) query.startTime.$lte = new Date(endDate);
     }
 
-    // Search functionality
+    // Search functionality (title, description, location only - room is ObjectId)
     if (search) {
         query.$or = [
             { title: { $regex: search, $options: 'i' } },
             { description: { $regex: search, $options: 'i' } },
-            { room: { $regex: search, $options: 'i' } },
             { location: { $regex: search, $options: 'i' } }
         ];
     }
@@ -59,23 +84,29 @@ export const getSchedules = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher') {
         query.teacher = req.user._id;
     } else if (req.user.role === 'student') {
-        // For students, show schedules they're participants in or their class schedules
-        query.$or = [
-            { 'participants.user': req.user._id },
-            { class: req.user.class }
-        ];
+        // Resolve student's currentClass from Student model (User has no class field)
+        const student = await Student.findOne({ user: req.user._id }).select('currentClass').lean();
+        const studentClassId = student?.currentClass;
+        const orConditions = [{ 'participants.user': req.user._id }];
+        if (studentClassId) orConditions.push({ class: studentClassId });
+        query.$or = orConditions;
     }
 
     const skip = (page - 1) * limit;
 
-    const schedules = await Schedule.find(query)
+    let schedules = await Schedule.find(query)
         .populate('teacher', 'firstName lastName email')
         .populate('class', 'name grade')
         .populate('subject', 'name')
         .populate('participants.user', 'firstName lastName email')
+        .populate('room', 'name')
         .sort({ startTime: 1 })
         .skip(skip)
         .limit(parseInt(limit));
+
+    if (req.user.role === 'teacher' || req.user.role === 'admin' || req.user.role === 'school_admin') {
+        schedules = await enrichSchedulesWithAttendanceRecorded(schedules);
+    }
 
     const total = await Schedule.countDocuments(query);
 
@@ -101,10 +132,10 @@ export const getScheduleById = asyncHandler(async (req, res) => {
         .populate('teacher', 'firstName lastName email')
         .populate('class', 'name grade')
         .populate('subject', 'name')
+        .populate('room', 'name')
         .populate('participants.user', 'firstName lastName email')
-        .populate('attendance.student', 'firstName lastName')
-        .populate('materials.uploadedBy', 'firstName lastName')
         .populate('createdBy', 'firstName lastName')
+        .populate('lastModifiedBy', 'firstName lastName')
         .populate('updatedBy', 'firstName lastName');
 
     if (!schedule) {
@@ -467,19 +498,23 @@ export const getSchedulesByDateRange = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher') {
         filters.teacher = req.user._id;
     } else if (req.user.role === 'student') {
-        // For students, get schedules they're participants in or their class schedules
+        // Resolve student's currentClass from Student model
+        const student = await Student.findOne({ user: req.user._id }).select('currentClass').lean();
+        const studentClassId = student?.currentClass;
+        const orConditions = [{ 'participants.user': req.user._id }];
+        if (studentClassId) orConditions.push({ class: studentClassId });
+        // Use overlap query: schedule overlaps [start,end] when startTime < end AND endTime > start
         const studentSchedules = await Schedule.find({
             school: req.school._id,
-            startTime: { $gte: start },
-            endTime: { $lte: end },
-            $or: [
-                { 'participants.user': req.user._id },
-                { class: req.user.class }
-            ],
+            startTime: { $lt: end },
+            endTime: { $gt: start },
+            status: { $ne: 'cancelled' },
+            $or: orConditions,
             ...filters
         }).populate('teacher', 'firstName lastName')
          .populate('class', 'name grade')
          .populate('subject', 'name')
+         .populate('room', 'name')
          .sort({ startTime: 1 });
 
         return res.json({
@@ -488,7 +523,10 @@ export const getSchedulesByDateRange = asyncHandler(async (req, res) => {
         });
     }
 
-    const schedules = await Schedule.findByDateRange(req.school._id, start, end, filters);
+    let schedules = await Schedule.findByDateRange(req.school._id, start, end, filters);
+    if (req.user.role === 'teacher' || req.user.role === 'admin' || req.user.role === 'school_admin') {
+        schedules = await enrichSchedulesWithAttendanceRecorded(schedules);
+    }
 
     res.json({
         success: true,
@@ -567,7 +605,8 @@ export const getTeacherSchedule = asyncHandler(async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    const schedules = await Schedule.getTeacherSchedule(teacherId, start, end);
+    let schedules = await Schedule.getTeacherSchedule(teacherId, start, end);
+    schedules = await enrichSchedulesWithAttendanceRecorded(schedules);
 
     res.json({
         success: true,
@@ -617,6 +656,10 @@ export const recordAttendance = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'This schedule does not require attendance' });
     }
 
+    if (!schedule.class) {
+        return res.status(400).json({ success: false, message: 'Attendance can only be recorded for class schedules' });
+    }
+
     // Check permissions
     if (schedule.school.toString() !== req.school._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
@@ -627,16 +670,17 @@ export const recordAttendance = asyncHandler(async (req, res) => {
     }
 
     // Attendance eligibility enforcement (teacher only; admin can override)
+    const schoolId = req.schoolId || req.school?._id;
     if (req.user.role === 'teacher') {
-        const isWorkingDay = await isWorkingDayForSchool(req.schoolId, schedule.startTime);
+        const isWorkingDay = await isWorkingDayForSchool(schoolId, schedule.startTime);
         if (!isWorkingDay) {
             return res.status(400).json({ success: false, message: 'Attendance is disabled for non-working days' });
         }
 
-        const period = await resolvePeriodForSchedule(req.schoolId, schedule);
+        const period = await resolvePeriodForSchedule(schoolId, schedule);
         if (period) {
             const hasAssignment = await hasTeacherAssignmentForSchedule(
-                req.schoolId,
+                schoolId,
                 schedule,
                 req.user._id,
                 period._id
@@ -647,42 +691,62 @@ export const recordAttendance = asyncHandler(async (req, res) => {
         }
     }
 
-    // Update attendance records
-    attendance.forEach(record => {
-        const existingIndex = schedule.attendance.findIndex(
-            a => a.student.toString() === record.student
-        );
+    const schedulePopulated = await Schedule.findById(req.params.id)
+        .populate('class subject teacher room');
 
-        if (existingIndex !== -1) {
-            schedule.attendance[existingIndex] = {
-                ...schedule.attendance[existingIndex],
-                status: record.status,
-                notes: record.notes,
-                checkInTime: record.status === 'present' ? new Date() : schedule.attendance[existingIndex].checkInTime,
-                recordedBy: req.user._id,
-                recordedAt: new Date()
-            };
-        } else {
-            schedule.attendance.push({
-                student: record.student,
-                status: record.status,
-                notes: record.notes,
-                checkInTime: record.status === 'present' ? new Date() : undefined,
-                recordedBy: req.user._id,
-                recordedAt: new Date()
-            });
-        }
-    });
+    const attendanceDate = new Date(schedule.startTime);
+    attendanceDate.setHours(0, 0, 0, 0);
 
-    schedule.attendanceRecorded = true;
-    await schedule.save();
+    const studentAttendance = attendance.map(record => ({
+        student: record.student,
+        status: mapAttendanceStatus(record.status),
+        notes: record.notes || '',
+        checkInTime: record.status === 'present' ? new Date() : undefined,
+        recordedBy: req.user._id,
+        recordedAt: new Date()
+    }));
 
-    const attendanceStats = schedule.checkAttendance();
+    let attendanceDoc = await Attendance.findOne({ schedule: schedule._id, date: attendanceDate });
+
+    if (attendanceDoc) {
+        attendanceDoc.studentAttendance = studentAttendance;
+        attendanceDoc.lastModifiedBy = req.user._id;
+        attendanceDoc.lastModifiedAt = new Date();
+        await attendanceDoc.save();
+    } else {
+        const roomName = schedulePopulated?.room?.name || (await mongoose.model('Room').findById(schedule.room).select('name').lean())?.name || 'Unknown';
+        attendanceDoc = new Attendance({
+            school: req.school._id,
+            schedule: schedule._id,
+            teacher: schedule.teacher,
+            class: schedule.class,
+            subject: schedule.subject,
+            date: attendanceDate,
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+            room: roomName,
+            totalStudents: studentAttendance.length,
+            studentAttendance,
+            recordedBy: req.user._id,
+            status: 'submitted',
+            auditTrail: [{ action: 'created', performedBy: req.user._id, details: 'Attendance created' }]
+        });
+        await attendanceDoc.save();
+    }
+
+    const attendanceStats = {
+        present: attendanceDoc.present ?? 0,
+        absent: attendanceDoc.absent ?? 0,
+        late: attendanceDoc.late ?? 0,
+        excused: attendanceDoc.excused ?? 0,
+        totalStudents: attendanceDoc.totalStudents ?? 0,
+        attendanceRate: attendanceDoc.attendanceRate ?? 0
+    };
 
     res.json({
         success: true,
         data: {
-            schedule,
+            schedule: await Schedule.findById(schedule._id).populate('teacher class subject room'),
             attendanceStats
         },
         message: 'Attendance recorded successfully'
@@ -693,8 +757,7 @@ export const recordAttendance = asyncHandler(async (req, res) => {
 // @route   GET /api/schedules/:id/attendance
 // @access  Private
 export const getAttendanceStats = asyncHandler(async (req, res) => {
-    const schedule = await Schedule.findById(req.params.id)
-        .populate('attendance.student', 'firstName lastName');
+    const schedule = await Schedule.findById(req.params.id);
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -705,13 +768,26 @@ export const getAttendanceStats = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    const attendanceStats = schedule.checkAttendance();
+    const attendanceDate = new Date(schedule.startTime);
+    attendanceDate.setHours(0, 0, 0, 0);
+
+    const attendanceDoc = await Attendance.findOne({ schedule: schedule._id, date: attendanceDate })
+        .populate('studentAttendance.student', 'firstName lastName');
+
+    const stats = attendanceDoc ? {
+        present: attendanceDoc.present ?? 0,
+        absent: attendanceDoc.absent ?? 0,
+        late: attendanceDoc.late ?? 0,
+        excused: attendanceDoc.excused ?? 0,
+        totalStudents: attendanceDoc.totalStudents ?? 0,
+        attendanceRate: attendanceDoc.attendanceRate ?? 0
+    } : { present: 0, absent: 0, late: 0, excused: 0, totalStudents: 0, attendanceRate: 0 };
 
     res.json({
         success: true,
         data: {
-            attendance: schedule.attendance,
-            stats: attendanceStats
+            attendance: attendanceDoc?.studentAttendance ?? [],
+            stats
         }
     });
 });
