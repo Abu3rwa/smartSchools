@@ -72,6 +72,14 @@
     background:
         radial-gradient(circle at top right, var(--feature-tint, rgba(90, 174, 238, 0.14)), transparent 45%),
         var(--bg-card);
+    box-shadow: none !important;
+    border-radius: 12px !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    transition: transform 220ms ease, 
+                box-shadow 220ms ease, 
+                border-color 220ms ease, 
+                background-color 220ms ease;
 }
 
 .landing-feature-card-accent {
@@ -102,6 +110,7 @@
     color: var(--text-muted);
     border-top: 1px dashed color-mix(in srgb, var(--border-color) 75%, var(--primary) 25%);
     padding-top: 0.75rem;
+    margin-top: auto;
 }
 
 .landing-feature-card:hover {
@@ -130,7 +139,35 @@
 
     .landing-elevated-card:hover,
     .landing-lift-card:hover,
+    .landing-feature-card:hover,
     .landing-school-item:hover {
         transform: none;
+    }
+}
+
+/* Touch device optimizations for feature cards */
+@media (hover: none) and (pointer: coarse) {
+    .landing-feature-card {
+        transform: none;
+    }
+    
+    .landing-feature-card:hover {
+        /* Disable hover effects on touch devices */
+        transform: none;
+        box-shadow: none !important;
+    }
+}
+
+/* Print styles for feature cards */
+@media print {
+    .landing-feature-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+    }
+    
+    .landing-feature-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 }

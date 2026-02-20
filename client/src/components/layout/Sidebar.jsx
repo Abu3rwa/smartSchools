@@ -192,7 +192,7 @@ const Sidebar = () => {
       path: "/portal/schedules",
       icon: HiOutlineCalendar,
       label: "Schedule Management",
-      roles: ["admin", "department_principal"],
+      roles: ["admin"],
       section: "scheduling",
     },
     {
@@ -206,14 +206,14 @@ const Sidebar = () => {
       path: "/portal/school-calendar",
       icon: HiOutlineCalendar,
       label: "School Calendar",
-      roles: ["admin", "teacher", "department_principal"],
+      roles: ["admin"],
       section: "scheduling",
     },
     {
       path: "/portal/attendance",
       icon: HiOutlineUsers,
       label: "Attendance",
-      roles: ["admin", "teacher", "department_principal"],
+      roles: ["admin", "department_principal"],
       section: "attendance",
     },
     {

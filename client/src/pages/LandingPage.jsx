@@ -50,6 +50,12 @@ const featureIconMap = {
     analytics: HiOutlineChartBar,
     security: HiOutlineShieldCheck,
     mobile: HiOutlineDeviceMobile,
+    ai: HiOutlineSparkles,
+    automation: HiOutlineCloud,
+    reporting: HiOutlineChartBar,
+    communication: HiOutlineDeviceMobile,
+    planning: HiOutlineAcademicCap,
+    governance: HiOutlineShieldCheck,
 };
 
 const trustIconMap = {
@@ -66,6 +72,12 @@ const featureMetaMap = {
     analytics: { audience: 'For leadership', highlight: 'Data-backed decisions', tint: 'rgba(16,185,129,0.2)' },
     security: { audience: 'For admins', highlight: 'Safer school data', tint: 'rgba(99,102,241,0.2)' },
     mobile: { audience: 'For everyone', highlight: 'Work from anywhere', tint: 'rgba(147,63,231,0.2)' },
+    ai: { audience: 'For instruction', highlight: 'AI-powered support', tint: 'rgba(59,130,246,0.22)' },
+    automation: { audience: 'For operations', highlight: 'Less manual work', tint: 'rgba(14,165,233,0.18)' },
+    reporting: { audience: 'For leadership', highlight: 'Clear performance view', tint: 'rgba(16,185,129,0.18)' },
+    communication: { audience: 'For families', highlight: 'Stay informed', tint: 'rgba(244,114,182,0.2)' },
+    planning: { audience: 'For admins', highlight: 'Structured planning', tint: 'rgba(245,158,11,0.2)' },
+    governance: { audience: 'For platform', highlight: 'Secure oversight', tint: 'rgba(99,102,241,0.18)' },
 };
 
 const LandingPage = () => {
@@ -403,7 +415,7 @@ const LandingPage = () => {
                     <Typography color="text.secondary" align="center" sx={{ maxWidth: 580, mx: 'auto', mb: 4 }}>
                         {content.features.subtitle}
                     </Typography>
-                    <Grid container spacing={3}>
+                     <Grid sx={{ justifyContent: 'center' }} container spacing={3} alignItems="stretch"> 
                         {(content.features.items || []).map(({ iconKey, title, description }, index) => {
                             const Icon = featureIconMap[iconKey] || HiOutlineSparkles;
                             const featureMeta = featureMetaMap[iconKey] || {
@@ -412,11 +424,20 @@ const LandingPage = () => {
                                 tint: 'rgba(90,174,238,0.2)'
                             };
                             return (
-                            <Grid item xs={12} sm={6} lg={4} key={title} sx={{ display: 'flex' }}>
-                                <Paper
+                                 <Paper
                                     className="landing-feature-card landing-lift-card"
                                     variant="outlined"
-                                    sx={{ p: 3, height: '100%', width: '100%', '--feature-tint': featureMeta.tint }}
+                                    item xs={12} sm={6} md={4} key={title} 
+                                    sx={{
+                                        
+                                        p: 3,
+                                        width: "300px",
+                                        height: '100%',
+                                        minHeight: { xs: 260, sm: 290, md: 310, lg: 330 },
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        '--feature-tint': featureMeta.tint
+                                    }}
                                 >
                                     <Box className="landing-feature-card-accent" aria-hidden="true" />
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2 }}>
@@ -432,15 +453,15 @@ const LandingPage = () => {
                                     </Box>
                                     <Typography variant="h6" sx={{ mb: 1.25 }}>{title}</Typography>
                                     <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>{description}</Typography>
-                                    <Box className="landing-feature-card-footer" sx={{ mt: 2.25 }}>
+                                    <Box className="landing-feature-card-footer" sx={{ mt: 'auto', pt: 2 }}>
                                         <Typography variant="caption" color="text.secondary">
                                             {featureMeta.highlight}
                                         </Typography>
                                         <HiOutlineArrowRight size={15} />
                                     </Box>
                                 </Paper>
-                            </Grid>
-                            );
+                           
+                            ); 
                         })}
                     </Grid>
                 </Container>

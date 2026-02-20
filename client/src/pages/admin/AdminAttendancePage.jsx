@@ -183,6 +183,15 @@ const AdminAttendancePage = () => {
         setShowDetailsModal(true);
     };
 
+    const clearFilters = () => {
+        setFilters({
+            teacher: '',
+            class: '',
+            subject: '',
+            status: ''
+        });
+    };
+
     const navigateDate = (direction) => {
         const newDate = new Date(currentDate);
         
@@ -246,6 +255,7 @@ const AdminAttendancePage = () => {
     };
 
     const stats = getAttendanceStats();
+    const hasActiveFilters = Boolean(filters.teacher || filters.class || filters.subject || filters.status);
 
     if (loading) {
         return (
@@ -435,7 +445,16 @@ const AdminAttendancePage = () => {
                     <div className="empty-state">
                         <HiOutlineCalendar size={48} />
                         <h3>No attendance records found</h3>
-                        <p>No attendance data available for the selected period.</p>
+                        <p>
+                            {hasActiveFilters
+                                ? 'No attendance data matches the current filters for this period.'
+                                : 'No attendance data is available for the selected period.'}
+                        </p>
+                        {hasActiveFilters && (
+                            <button type="button" className="btn btn-secondary" onClick={clearFilters}>
+                                Clear Filters
+                            </button>
+                        )}
                     </div>
                 ) : (
                     attendanceData.map(record => (

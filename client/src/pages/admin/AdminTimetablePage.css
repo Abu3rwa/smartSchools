@@ -424,6 +424,12 @@
     font-size: 0.9rem;
 }
 
+.admin-timetable-page .modal-body .checkbox-field label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
 .admin-timetable-page .modal-footer {
     display: flex;
     justify-content: flex-end;

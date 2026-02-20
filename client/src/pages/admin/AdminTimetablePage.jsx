@@ -37,6 +37,13 @@ const ROOM_TYPES = [
     { value: 'other', label: 'Other' }
 ];
 
+const ROOM_STATUSES = [
+    { value: 'active', label: 'Active' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'renovation', label: 'Renovation' },
+    { value: 'closed', label: 'Closed' }
+];
+
 const AdminTimetablePage = () => {
     const dispatch = useDispatch();
 
@@ -73,7 +80,16 @@ const AdminTimetablePage = () => {
     });
 
     const [showRoomModal, setShowRoomModal] = useState(false);
-    const [newRoom, setNewRoom] = useState({ name: '', type: 'classroom', capacity: 40 });
+    const [newRoom, setNewRoom] = useState({
+        name: '',
+        type: 'classroom',
+        capacity: 40,
+        building: '',
+        floor: '',
+        number: '',
+        status: 'active',
+        isAvailable: true
+    });
     const [savingRoom, setSavingRoom] = useState(false);
 
     // Resolve the Teacher document _id from the selected User _id
@@ -275,10 +291,24 @@ const AdminTimetablePage = () => {
             await roomService.createRoom({
                 name: newRoom.name.trim(),
                 type: newRoom.type,
-                capacity: newRoom.capacity || 40
+                capacity: newRoom.capacity || 40,
+                building: newRoom.building?.trim() || undefined,
+                floor: newRoom.floor?.trim() || undefined,
+                number: newRoom.number?.trim() || undefined,
+                status: newRoom.status,
+                isAvailable: !!newRoom.isAvailable
             });
             setShowRoomModal(false);
-            setNewRoom({ name: '', type: 'classroom', capacity: 40 });
+            setNewRoom({
+                name: '',
+                type: 'classroom',
+                capacity: 40,
+                building: '',
+                floor: '',
+                number: '',
+                status: 'active',
+                isAvailable: true
+            });
             const rRes = await roomService.getRooms();
             setRooms(rRes?.data?.rooms || []);
         } catch (err) {
@@ -453,9 +483,24 @@ const AdminTimetablePage = () => {
                                     <option value="">(Optional)</option>
                                     {rooms.map(room => {
                                         const isOccupied = occupiedRoomIds.has(room._id);
+                                        const blockedByStatus = room.status && room.status !== 'active';
+                                        const blockedByAvailability = room.isAvailable === false;
+                                        const disabled = isOccupied || blockedByStatus || blockedByAvailability;
+                                        const roomLocation = [room.building, room.floor ? `Floor ${room.floor}` : null, room.number]
+                                            .filter(Boolean)
+                                            .join(' • ');
+                                        const unavailableReason = isOccupied
+                                            ? 'occupied'
+                                            : blockedByStatus
+                                                ? room.status
+                                                : blockedByAvailability
+                                                    ? 'unavailable'
+                                                    : '';
                                         return (
-                                            <option key={room._id} value={room._id} disabled={isOccupied}>
-                                                {room.name}{isOccupied ? ' (occupied)' : ''}
+                                            <option key={room._id} value={room._id} disabled={disabled}>
+                                                {room.name}
+                                                {roomLocation ? ` — ${roomLocation}` : ''}
+                                                {disabled ? ` (${unavailableReason})` : ''}
                                             </option>
                                         );
                                     })}
@@ -599,6 +644,51 @@ const AdminTimetablePage = () => {
                                         value={newRoom.capacity}
                                         onChange={(e) => setNewRoom(prev => ({ ...prev, capacity: parseInt(e.target.value, 10) || 40 }))}
                                     />
+                                </div>
+                                <div className="field">
+                                    <label>Building</label>
+                                    <input
+                                        type="text"
+                                        value={newRoom.building}
+                                        onChange={(e) => setNewRoom(prev => ({ ...prev, building: e.target.value }))}
+                                        placeholder="Optional"
+                                    />
+                                </div>
+                                <div className="field">
+                                    <label>Floor</label>
+                                    <input
+                                        type="text"
+                                        value={newRoom.floor}
+                                        onChange={(e) => setNewRoom(prev => ({ ...prev, floor: e.target.value }))}
+                                        placeholder="Optional"
+                                    />
+                                </div>
+                                <div className="field">
+                                    <label>Room number</label>
+                                    <input
+                                        type="text"
+                                        value={newRoom.number}
+                                        onChange={(e) => setNewRoom(prev => ({ ...prev, number: e.target.value }))}
+                                        placeholder="Optional"
+                                    />
+                                </div>
+                                <div className="field">
+                                    <label>Status</label>
+                                    <select value={newRoom.status} onChange={(e) => setNewRoom(prev => ({ ...prev, status: e.target.value }))}>
+                                        {ROOM_STATUSES.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="field checkbox-field">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!newRoom.isAvailable}
+                                            onChange={(e) => setNewRoom(prev => ({ ...prev, isAvailable: e.target.checked }))}
+                                        />
+                                        {' '}Available for scheduling
+                                    </label>
                                 </div>
                             </div>
                             <div className="modal-footer">

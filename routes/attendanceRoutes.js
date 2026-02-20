@@ -26,21 +26,21 @@ router.use(requireSchoolContext);
 router.get('/my-attendance', authorize('student'), getMyAttendance);
 
 // Teacher period-based attendance
-router.get('/my-today', getMyTodayPeriods);
-router.post('/take', takePeriodAttendance);
+router.get('/my-today', authorize('teacher'), getMyTodayPeriods);
+router.post('/take', authorize('teacher'), takePeriodAttendance);
 
 // Teacher attendance routes
-router.get('/teacher', getTeacherAttendance);
+router.get('/teacher', authorize('teacher', 'admin', 'department_principal'), getTeacherAttendance);
 
 // Admin attendance routes
-router.get('/admin', getAdminAttendance);
-router.get('/analytics', getAttendanceAnalytics);
-router.get('/missed', getMissedAttendance);
-router.get('/export', exportAttendanceData);
+router.get('/admin', authorize('admin', 'department_principal'), getAdminAttendance);
+router.get('/analytics', authorize('admin', 'department_principal'), getAttendanceAnalytics);
+router.get('/missed', authorize('admin', 'department_principal'), getMissedAttendance);
+router.get('/export', authorize('admin', 'department_principal'), exportAttendanceData);
 
 // Common routes
-router.post('/', createOrUpdateAttendance);
-router.get('/:id', getAttendanceDetails);
-router.post('/:id/lock', lockAttendance);
+router.post('/', authorize('teacher', 'admin', 'department_principal'), createOrUpdateAttendance);
+router.get('/:id', authorize('teacher', 'admin', 'department_principal'), getAttendanceDetails);
+router.post('/:id/lock', authorize('admin', 'department_principal'), lockAttendance);
 
 export default router;

@@ -7,6 +7,7 @@ import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Room from '../models/Room.js';
 import { getClassIdsForAcademicYear, resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
+import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
 
 // @desc    List periods
 // @route   GET /api/timetable/periods
@@ -190,6 +191,18 @@ export const createAssignment = asyncHandler(async (req, res) => {
         const roomDoc = await Room.findById(room);
         if (!roomDoc || roomDoc.school.toString() !== req.schoolId.toString()) {
             return res.status(400).json({ success: false, message: 'Invalid room' });
+        }
+        const roomReadiness = evaluateRoomOperationalState(roomDoc, {
+            startTime: startDate,
+            endTime: endDate,
+            checkAvailabilitySchedule: false
+        });
+        if (!roomReadiness.available) {
+            return res.status(400).json({
+                success: false,
+                message: roomReadiness.message || 'Selected room is unavailable for this assignment.',
+                code: roomReadiness.code
+            });
         }
     }
 
@@ -417,6 +430,25 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     const daysVal = assignment.daysOfWeek;
     const startVal = assignment.startDate ? new Date(assignment.startDate) : null;
     const endVal = assignment.endDate ? new Date(assignment.endDate) : null;
+
+    if (assignment.room && startVal && endVal) {
+        const roomDoc = await Room.findById(assignment.room);
+        if (!roomDoc || roomDoc.school.toString() !== req.schoolId.toString()) {
+            return res.status(400).json({ success: false, message: 'Invalid room' });
+        }
+        const roomReadiness = evaluateRoomOperationalState(roomDoc, {
+            startTime: startVal,
+            endTime: endVal,
+            checkAvailabilitySchedule: false
+        });
+        if (!roomReadiness.available) {
+            return res.status(400).json({
+                success: false,
+                message: roomReadiness.message || 'Selected room is unavailable for this assignment.',
+                code: roomReadiness.code
+            });
+        }
+    }
 
     if (periodVal && startVal && endVal) {
         const { hasConflict, conflicts } = await checkAssignmentConflicts(req.schoolId, {

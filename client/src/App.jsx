@@ -361,7 +361,7 @@ function App() {
         <Route
           path="attendance"
           element={
-            <RoleRoute roles={["admin"]}>
+            <RoleRoute roles={["admin", "department_principal"]}>
               <AdminAttendancePage />
             </RoleRoute>
           }

@@ -86,6 +86,14 @@ const SchoolAdminDashboard = () => {
         color: 'var(--text-primary, #1e293b)',
     };
 
+    const chartStyles = {
+        grid: 'var(--border-color, rgba(0, 0, 0, 0.08))',
+        axis: 'var(--text-secondary, #64748b)',
+        tooltipBg: 'var(--bg-card, #ffffff)',
+        tooltipBorder: 'var(--border-color, rgba(0, 0, 0, 0.1))',
+        tooltipText: 'var(--text-primary, #1e293b)',
+    };
+
     const [teachers, setTeachers] = useState([]);
     const [attendanceSummary, setAttendanceSummary] = useState(null);
     const [loadingAdditional, setLoadingAdditional] = useState(true);
@@ -111,22 +119,22 @@ const SchoolAdminDashboard = () => {
             const attendanceRes = await api.get('/attendance/admin', {
                 params: { viewMode: 'today' },
             });
-            if (attendanceRes.data.success) {
-                const records = attendanceRes.data.data?.attendanceRecords || [];
-                const totalStudents = records.reduce((sum, r) => sum + (r.totalStudents || 0), 0);
-                const totalPresent = records.reduce((sum, r) => sum + (r.present || 0), 0);
-                const totalAbsent = records.reduce((sum, r) => sum + (r.absent || 0), 0);
-                const attendanceRate =
-                    totalStudents > 0 ? ((totalPresent / totalStudents) * 100).toFixed(1) : 0;
 
-                setAttendanceSummary({
-                    totalClasses: records.length,
-                    totalStudents,
-                    totalPresent,
-                    totalAbsent,
-                    attendanceRate: parseFloat(attendanceRate),
-                });
-            }
+            const attendancePayload = attendanceRes.data?.data || attendanceRes.data || {};
+            const records = attendancePayload.attendanceRecords || [];
+            const totalStudents = records.reduce((sum, r) => sum + (r.totalStudents || 0), 0);
+            const totalPresent = records.reduce((sum, r) => sum + (r.present || 0), 0);
+            const totalAbsent = records.reduce((sum, r) => sum + (r.absent || 0), 0);
+            const attendanceRate =
+                totalStudents > 0 ? ((totalPresent / totalStudents) * 100).toFixed(1) : 0;
+
+            setAttendanceSummary({
+                totalClasses: records.length,
+                totalStudents,
+                totalPresent,
+                totalAbsent,
+                attendanceRate: parseFloat(attendanceRate),
+            });
         } catch (err) {
             console.error('Error fetching additional data:', err);
         } finally {
@@ -336,10 +344,13 @@ const SchoolAdminDashboard = () => {
                                         data={classDistributionData}
                                         margin={{ top: 8, right: isSm ? 8 : 16, left: isSm ? -16 : 0, bottom: isSm ? 8 : 24 }}
                                     >
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <CartesianGrid stroke={chartStyles.grid} strokeDasharray="3 3" vertical={false} />
                                         <XAxis
                                             dataKey="name"
                                             tick={{ fontSize: isSm ? 10 : 11 }}
+                                            stroke={chartStyles.axis}
+                                            tickLine={{ stroke: chartStyles.axis }}
+                                            axisLine={{ stroke: chartStyles.axis }}
                                             angle={isSm ? 0 : -30}
                                             textAnchor={isSm ? 'middle' : 'end'}
                                             height={isSm ? 36 : 60}
@@ -351,8 +362,23 @@ const SchoolAdminDashboard = () => {
                                                 return value.length > max ? `${value.slice(0, max - 1)}…` : value;
                                             }}
                                         />
-                                        <YAxis allowDecimals={false} width={isSm ? 28 : 36} />
-                                        <Tooltip />
+                                        <YAxis
+                                            allowDecimals={false}
+                                            width={isSm ? 28 : 36}
+                                            stroke={chartStyles.axis}
+                                            tickLine={{ stroke: chartStyles.axis }}
+                                            axisLine={{ stroke: chartStyles.axis }}
+                                            tick={{ fontSize: isSm ? 10 : 11, fill: chartStyles.axis }}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: chartStyles.tooltipBg,
+                                                border: `1px solid ${chartStyles.tooltipBorder}`,
+                                                borderRadius: 8,
+                                                color: chartStyles.tooltipText,
+                                            }}
+                                            labelStyle={{ color: chartStyles.tooltipText }}
+                                        />
                                         <Bar dataKey="students" fill="var(--primary, #5aaeee)" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -390,10 +416,32 @@ const SchoolAdminDashboard = () => {
                                     data={performanceTrendData}
                                     margin={{ top: 8, right: isSm ? 8 : 16, left: isSm ? -16 : 0, bottom: 8 }}
                                 >
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="month" tick={{ fontSize: isSm ? 10 : 11 }} minTickGap={8} />
-                                    <YAxis domain={[0, 100]} width={isSm ? 28 : 36} tick={{ fontSize: isSm ? 10 : 11 }} />
-                                    <Tooltip />
+                                    <CartesianGrid stroke={chartStyles.grid} strokeDasharray="3 3" vertical={false} />
+                                    <XAxis
+                                        dataKey="month"
+                                        tick={{ fontSize: isSm ? 10 : 11, fill: chartStyles.axis }}
+                                        minTickGap={8}
+                                        stroke={chartStyles.axis}
+                                        tickLine={{ stroke: chartStyles.axis }}
+                                        axisLine={{ stroke: chartStyles.axis }}
+                                    />
+                                    <YAxis
+                                        domain={[0, 100]}
+                                        width={isSm ? 28 : 36}
+                                        tick={{ fontSize: isSm ? 10 : 11, fill: chartStyles.axis }}
+                                        stroke={chartStyles.axis}
+                                        tickLine={{ stroke: chartStyles.axis }}
+                                        axisLine={{ stroke: chartStyles.axis }}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: chartStyles.tooltipBg,
+                                            border: `1px solid ${chartStyles.tooltipBorder}`,
+                                            borderRadius: 8,
+                                            color: chartStyles.tooltipText,
+                                        }}
+                                        labelStyle={{ color: chartStyles.tooltipText }}
+                                    />
                                     <Line
                                         type="monotone"
                                         dataKey="average"

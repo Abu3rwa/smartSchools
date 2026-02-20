@@ -6,6 +6,7 @@ import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Room from '../models/Room.js';
 import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule } from '../helpers/attendanceEligibility.js';
+import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
 import {
     getClassIdsForAcademicYear,
     resolveAcademicYearDateRangeForRequest,
@@ -323,10 +324,19 @@ export const createSchedule = asyncHandler(async (req, res) => {
     }
 
     // Validate room exists and belongs to school
+    let roomDoc = null;
     if (room) {
-        const roomDoc = await Room.findById(room);
+        roomDoc = await Room.findById(room);
         if (!roomDoc || roomDoc.school.toString() !== req.school._id.toString()) {
             return res.status(400).json({ success: false, message: 'Invalid room' });
+        }
+        const roomReadiness = evaluateRoomOperationalState(roomDoc, { startTime: start, endTime: end });
+        if (!roomReadiness.available) {
+            return res.status(400).json({
+                success: false,
+                message: roomReadiness.message || 'Selected room is unavailable for the requested time.',
+                code: roomReadiness.code
+            });
         }
     }
 
@@ -461,6 +471,15 @@ export const updateSchedule = asyncHandler(async (req, res) => {
         status
     } = req.body;
 
+    let nextTeacher = schedule.teacher;
+    if (teacher !== undefined) {
+        const teacherUser = await User.findById(teacher);
+        if (!teacherUser || teacherUser.school.toString() !== req.school._id.toString()) {
+            return res.status(400).json({ success: false, message: 'Invalid teacher' });
+        }
+        nextTeacher = teacher;
+    }
+
     if (classId !== undefined && classId) {
         const classDoc = await Class.findById(classId);
         if (!classDoc || classDoc.school.toString() !== req.school._id.toString()) {
@@ -472,6 +491,16 @@ export const updateSchedule = asyncHandler(async (req, res) => {
                 message: `Class must belong to academic year ${yearScope.academicYear}`
             });
         }
+    }
+    const nextClass = classId !== undefined ? classId : schedule.class;
+
+    let nextRoom = room !== undefined ? room : schedule.room;
+    if (room !== undefined) {
+        const roomDoc = await Room.findById(room);
+        if (!roomDoc || roomDoc.school.toString() !== req.school._id.toString()) {
+            return res.status(400).json({ success: false, message: 'Invalid room' });
+        }
+        nextRoom = roomDoc._id;
     }
 
     // Validate time range if provided
@@ -490,13 +519,34 @@ export const updateSchedule = asyncHandler(async (req, res) => {
                 message: `Schedule time must be inside academic year ${yearScope.academicYear}`
             });
         }
+    }
 
-        const nextTeacher = teacher !== undefined ? teacher : schedule.teacher;
-        const nextRoom = room !== undefined ? room : schedule.room;
-        const nextClass = classId !== undefined ? classId : schedule.class;
+    if (nextRoom) {
+        const roomDoc = await Room.findById(nextRoom);
+        if (!roomDoc || roomDoc.school.toString() !== req.school._id.toString()) {
+            return res.status(400).json({ success: false, message: 'Invalid room' });
+        }
+        const roomReadiness = evaluateRoomOperationalState(roomDoc, { startTime: nextStart, endTime: nextEnd });
+        if (!roomReadiness.available) {
+            return res.status(400).json({
+                success: false,
+                message: roomReadiness.message || 'Selected room is unavailable for the requested time.',
+                code: roomReadiness.code
+            });
+        }
+    }
 
+    if (startTime || endTime || teacher !== undefined || room !== undefined || classId !== undefined) {
         // Check for conflicts (excluding current schedule)
-        const conflicts = await Schedule.findConflicts(req.school._id, start, end, nextTeacher, nextRoom, nextClass, schedule._id);
+        const conflicts = await Schedule.findConflicts(
+            req.school._id,
+            nextStart,
+            nextEnd,
+            nextTeacher,
+            nextRoom,
+            nextClass,
+            schedule._id
+        );
         if (conflicts.length > 0) {
             return res.status(400).json({
                 success: false,
@@ -715,6 +765,25 @@ export const getRoomAvailability = asyncHandler(async (req, res) => {
     const rooms = await Room.find({ school: schoolId }).lean();
     const availability = await Promise.all(
         rooms.map(async (room) => {
+            const operationalState = evaluateRoomOperationalState(room, { startTime: start, endTime: end });
+            if (!operationalState.available) {
+                return {
+                    _id: room._id,
+                    name: room.name,
+                    type: room.type,
+                    capacity: room.capacity,
+                    status: room.status,
+                    isAvailable: room.isAvailable,
+                    building: room.building || null,
+                    floor: room.floor || null,
+                    number: room.number || null,
+                    available: false,
+                    unavailabilityCode: operationalState.code,
+                    unavailabilityReason: operationalState.message,
+                    conflictingWith: null
+                };
+            }
+
             let conflict = await Schedule.findOne({
                 school: schoolId,
                 room: room._id,
@@ -733,7 +802,14 @@ export const getRoomAvailability = asyncHandler(async (req, res) => {
                 name: room.name,
                 type: room.type,
                 capacity: room.capacity,
+                status: room.status,
+                isAvailable: room.isAvailable,
+                building: room.building || null,
+                floor: room.floor || null,
+                number: room.number || null,
                 available,
+                unavailabilityCode: available ? null : 'occupied',
+                unavailabilityReason: available ? null : 'Room is occupied during this time.',
                 conflictingWith: available ? null : {
                     title: conflict?.title,
                     startTime: conflict?.startTime,
@@ -1100,7 +1176,7 @@ export const updateParticipantStatus = asyncHandler(async (req, res) => {
     // Check permissions (user can update their own status, or admin/teacher can update any)
     if (req.user._id.toString() !== userId && 
         req.user.role !== 'admin' &&
-        req.user.role !== 'school_admin' && 
+        req.user.role !== 'department_principal' &&
         (req.user.role !== 'teacher' || schedule.teacher.toString() !== req.user._id.toString())) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }

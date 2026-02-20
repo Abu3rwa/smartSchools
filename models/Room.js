@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
 
 const roomSchema = new mongoose.Schema({
     school: {
@@ -337,11 +339,12 @@ roomSchema.statics.findAvailableRooms = function(schoolId, startTime, endTime, r
             // Filter rooms that don't have scheduling conflicts
             return Promise.all(rooms.map(async room => {
                 const hasConflict = await this.checkRoomConflict(room._id, startTime, endTime);
-                return { room, hasConflict };
+                const roomState = evaluateRoomOperationalState(room, { startTime, endTime });
+                return { room, hasConflict, roomState };
             }))
             .then(results => {
                 return results
-                    .filter(result => !result.hasConflict)
+                    .filter(result => !result.hasConflict && result.roomState.available)
                     .map(result => result.room);
             });
         });
@@ -402,6 +405,11 @@ roomSchema.methods.isAvailableAtTime = function(startTime, endTime) {
         return false;
     }
     
+    // If no schedule is configured, treat room as open unless blocked by status/maintenance/conflicts.
+    if (!this.availabilitySchedule || this.availabilitySchedule.length === 0) {
+        return true;
+    }
+
     // Check availability schedule for each day in the range
     const start = new Date(startTime);
     const end = new Date(endTime);
@@ -434,6 +442,8 @@ roomSchema.methods.isAvailableAtTime = function(startTime, endTime) {
     
     return true;
 };
+
+roomSchema.plugin(tenantIsolationPlugin);
 
 const Room = mongoose.model('Room', roomSchema);
 

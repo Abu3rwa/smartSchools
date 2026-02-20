@@ -32,6 +32,14 @@
   --bg-card-hover: #262650;
   --bg-input: #1a1a2e;
 
+  /* Base shadcn/ui style variables for dark theme */
+  --background: #0f0f1a;
+  --foreground: #ffffff;
+  --card: #1e1e35;
+  --card-foreground: #ffffff;
+  --popover: #1e1e35;
+  --popover-foreground: #ffffff;
+
   /* Text Colors */
   --text-primary: #ffffff;
   --text-secondary: #a0aec0;

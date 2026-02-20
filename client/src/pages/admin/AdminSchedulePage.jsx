@@ -338,6 +338,34 @@ const AdminSchedulePage = () => {
         return new Date(date).toLocaleString();
     };
 
+    const toIdString = (value) => {
+        if (!value) return '';
+        if (typeof value === 'string') return value;
+        return value._id ? value._id.toString() : value.toString();
+    };
+
+    const getRoomAvailabilityEntry = (roomId) => {
+        if (!roomAvailability || !roomId) return null;
+        const target = toIdString(roomId);
+        return roomAvailability.find((entry) => toIdString(entry?._id) === target) || null;
+    };
+
+    const getRoomOptionLabel = (room, availabilityEntry) => {
+        const locationParts = [room.building, room.floor ? `Floor ${room.floor}` : null, room.number]
+            .filter(Boolean)
+            .join(' • ');
+        const base = `${room.name}${locationParts ? ` — ${locationParts}` : ''}`;
+        const details = `${room.type}, Capacity: ${room.capacity}`;
+        if (!availabilityEntry) {
+            if (room.status && room.status !== 'active') return `${base} (${details}) — ${room.status}`;
+            if (room.isAvailable === false) return `${base} (${details}) — unavailable`;
+            return `${base} (${details})`;
+        }
+        if (availabilityEntry.available) return `${base} (${details}) ✓ Available`;
+        const reason = availabilityEntry.unavailabilityReason || 'Unavailable';
+        return `${base} (${details}) — ${reason}`;
+    };
+
     const getRoomDisplay = (schedule) => {
         if (!schedule?.room) return '—';
         if (typeof schedule.room === 'object' && schedule.room?.name) return schedule.room.name;
@@ -936,19 +964,21 @@ const AdminSchedulePage = () => {
                                     <select
                                         value={formData.room}
                                         onChange={(e) => setFormData(prev => ({ ...prev, room: e.target.value }))}
-                                        className={formData.room && roomAvailability ? (roomAvailability.find(r => r._id === formData.room)?.available ? 'room-available' : 'room-occupied') : ''}
+                                        className={(() => {
+                                            const selectedAvailability = getRoomAvailabilityEntry(formData.room);
+                                            if (!selectedAvailability) return '';
+                                            return selectedAvailability.available ? 'room-available' : 'room-occupied';
+                                        })()}
                                     >
                                         <option value="">Select Room</option>
                                         {rooms.map(room => {
-                                            const avail = roomAvailability?.find(r => r._id === room._id || r._id?.toString() === room._id?.toString());
-                                            const available = avail === undefined ? true : avail.available;
+                                            const avail = getRoomAvailabilityEntry(room._id);
+                                            const defaultAvailable = room.status === 'active' && room.isAvailable !== false;
+                                            const available = avail ? avail.available : defaultAvailable;
                                             const conflictingWith = avail?.conflictingWith;
-                                            const conflictShort = conflictingWith
-                                                ? `Occupied until ${new Date(conflictingWith.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                                : '';
                                             const conflictTitle = conflictingWith
                                                 ? `${conflictingWith.title || 'Event'} (${new Date(conflictingWith.startTime).toLocaleString()} – ${new Date(conflictingWith.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
-                                                : '';
+                                                : (avail?.unavailabilityReason || (defaultAvailable ? 'Available room' : 'Unavailable room'));
                                             return (
                                                 <option
                                                     key={room._id}
@@ -956,15 +986,17 @@ const AdminSchedulePage = () => {
                                                     disabled={!available}
                                                     title={available ? 'Available for this time' : conflictTitle}
                                                 >
-                                                    {room.name} ({room.type}, Capacity: {room.capacity})
-                                                    {roomAvailability && (available ? ' ✓ Available' : ` — ${conflictShort}`)}
+                                                    {getRoomOptionLabel(room, avail)}
                                                 </option>
                                             );
                                         })}
                                     </select>
-                                    {formData.room && roomAvailability && !roomAvailability.find(r => r._id === formData.room)?.available && (
+                                    {formData.room && (() => {
+                                        const selectedAvailability = getRoomAvailabilityEntry(formData.room);
+                                        return selectedAvailability && !selectedAvailability.available;
+                                    })() && (
                                         <span className="room-occupied-warning">
-                                            <HiOutlineExclamation size={14} /> This room is occupied for the selected time. Choose an available room or change the time.
+                                            <HiOutlineExclamation size={14} /> {getRoomAvailabilityEntry(formData.room)?.unavailabilityReason || 'This room is unavailable for the selected time.'}
                                         </span>
                                     )}
                                 </div>

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
+import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 import {
     DEFAULT_SCHOOL_TIMEZONE,
     resolveTimeZone,
@@ -204,7 +205,13 @@ const attendanceSchema = new mongoose.Schema({
 attendanceSchema.index({ school: 1, date: 1 });
 attendanceSchema.index({ teacher: 1, date: 1 });
 attendanceSchema.index({ class: 1, date: 1 });
-attendanceSchema.index({ schedule: 1, date: 1 }, { unique: true, sparse: true });
+attendanceSchema.index(
+    { schedule: 1, date: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { schedule: { $exists: true, $ne: null } }
+    }
+);
 attendanceSchema.index({ teacher: 1, period: 1, date: 1 }, { unique: true, sparse: true });
 attendanceSchema.index({ 'studentAttendance.student': 1, date: 1 });
 
@@ -390,7 +397,10 @@ attendanceSchema.statics.getAttendanceAnalytics = async function(schoolId, start
             }
         },
         {
-            $unwind: '$scheduleInfo'
+            $unwind: {
+                path: '$scheduleInfo',
+                preserveNullAndEmptyArrays: true
+            }
         },
         {
             $unwind: '$teacherInfo'
@@ -399,7 +409,10 @@ attendanceSchema.statics.getAttendanceAnalytics = async function(schoolId, start
             $unwind: '$classInfo'
         },
         {
-            $unwind: '$subjectInfo'
+            $unwind: {
+                path: '$subjectInfo',
+                preserveNullAndEmptyArrays: true
+            }
         },
         {
             $group: {
@@ -467,6 +480,8 @@ attendanceSchema.statics.getAttendanceAnalytics = async function(schoolId, start
         { $sort: { '_id': 1 } }
     ]);
 };
+
+attendanceSchema.plugin(tenantIsolationPlugin);
 
 const Attendance = mongoose.model('Attendance', attendanceSchema);
 

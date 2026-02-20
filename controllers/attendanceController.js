@@ -23,6 +23,11 @@ import {
     zonedDateTimeToUtc
 } from '../utils/schoolTimezone.js';
 
+const ADMIN_ATTENDANCE_ROLES = new Set(['admin', 'department_principal']);
+const TEACHER_ATTENDANCE_ROLES = new Set(['teacher', 'admin', 'department_principal']);
+
+const hasRoleAccess = (req, allowedRoles) => allowedRoles.has(req.user?.role);
+
 // Helper function to get room name from roomId
 async function getRoomName(roomId) {
     if (!roomId) return 'N/A';
@@ -145,6 +150,10 @@ export const getMyAttendance = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/teacher
 // @access  Private (Teacher, Admin)
 export const getTeacherAttendance = asyncHandler(async (req, res) => {
+    if (!hasRoleAccess(req, TEACHER_ATTENDANCE_ROLES)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { startDate, endDate, viewMode = 'today' } = req.query;
     const teacherId = req.user.role === 'teacher' ? req.user._id : req.query.teacherId;
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
@@ -240,6 +249,10 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/admin
 // @access  Private (Admin)
 export const getAdminAttendance = asyncHandler(async (req, res) => {
+    if (!hasRoleAccess(req, ADMIN_ATTENDANCE_ROLES)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { startDate, endDate, viewMode = 'today', teacher, class: classId, subject, status } = req.query;
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const { academicYear, classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req, classId ? [classId] : null);
@@ -323,6 +336,10 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
 // @route   POST /api/attendance
 // @access  Private (Teacher, Admin)
 export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
+    if (!hasRoleAccess(req, TEACHER_ATTENDANCE_ROLES)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { scheduleId, studentAttendance } = req.body;
     const { academicYear: effectiveAcademicYear } = resolveAcademicYearDateRangeForRequest(req);
     
@@ -460,6 +477,10 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/my-today
 // @access  Private (Teacher)
 export const getMyTodayPeriods = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'teacher') {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     const { academicYear, classIds: yearClassIds } = await getYearScopedClassIds(req);
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const now = new Date();
@@ -535,6 +556,10 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
 // @route   POST /api/attendance/take
 // @access  Private (Teacher)
 export const takePeriodAttendance = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'teacher') {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     const { periodId, classId, subjectId, studentAttendance } = req.body;
     const { academicYear, classIds: yearClassIds } = await getYearScopedClassIds(req, classId ? [classId] : null);
 
@@ -655,6 +680,10 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/:id
 // @access  Private (Teacher, Admin)
 export const getAttendanceDetails = asyncHandler(async (req, res) => {
+    if (!hasRoleAccess(req, TEACHER_ATTENDANCE_ROLES)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { academicYear: effectiveAcademicYear } = resolveAcademicYearDateRangeForRequest(req);
     const attendance = await Attendance.findById(req.params.id)
         .populate('schedule class subject teacher')
@@ -685,6 +714,10 @@ export const getAttendanceDetails = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/analytics
 // @access  Private (Admin)
 export const getAttendanceAnalytics = asyncHandler(async (req, res) => {
+    if (!hasRoleAccess(req, ADMIN_ATTENDANCE_ROLES)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { startDate, endDate, teacher, class: classId, subject } = req.query;
     const { classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req, classId ? [classId] : null);
 
@@ -716,6 +749,10 @@ export const getAttendanceAnalytics = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/missed
 // @access  Private (Admin)
 export const getMissedAttendance = asyncHandler(async (req, res) => {
+    if (!hasRoleAccess(req, ADMIN_ATTENDANCE_ROLES)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { date } = req.query;
     const targetDate = date ? new Date(date) : new Date();
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
@@ -755,6 +792,10 @@ export const getMissedAttendance = asyncHandler(async (req, res) => {
 // @route   GET /api/attendance/export
 // @access  Private (Admin)
 export const exportAttendanceData = asyncHandler(async (req, res) => {
+    if (!hasRoleAccess(req, ADMIN_ATTENDANCE_ROLES)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { startDate, endDate, format = 'csv', teacher, class: classId, subject } = req.query;
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const { classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req, classId ? [classId] : null);
@@ -829,6 +870,10 @@ export const exportAttendanceData = asyncHandler(async (req, res) => {
 // @route   POST /api/attendance/:id/lock
 // @access  Private (Admin)
 export const lockAttendance = asyncHandler(async (req, res) => {
+    if (!hasRoleAccess(req, ADMIN_ATTENDANCE_ROLES)) {
+        return res.status(403).json({ message: 'Access denied' });
+    }
+
     const { academicYear: effectiveAcademicYear } = resolveAcademicYearDateRangeForRequest(req);
     const attendance = await Attendance.findById(req.params.id);
     

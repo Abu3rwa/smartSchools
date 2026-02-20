@@ -2,11 +2,11 @@ export const landingPageDefaults = {
   seo: {
     organizationName: 'GradeBook Pro',
     description:
-      'School management platform for grades, attendance, timetables, and parent communication.',
+      'School operations platform for gradebook, attendance, standards practice, interventions, reports, reading, and revision planning.',
   },
   brand: {
     name: 'GradeBook Pro',
-    tagline: 'School management for the digital age.',
+    tagline: 'Core school operations plus learning support in one platform.',
     supportEmail: 'support@gradebookpro.com',
     copyrightName: 'GradeBook Pro',
   },
@@ -26,8 +26,8 @@ export const landingPageDefaults = {
     badgeFallback: 'Trusted by schools worldwide',
     title: 'The gradebook that runs your school-not the other way around',
     subtitle:
-      'Daily grades, attendance, timetables, and parent communication in one place. Start free with up to 50 students-no credit card required.',
-    highlights: ['Free up to 50 students', 'No credit card', 'Cancel anytime'],
+      'Manage students, classes, gradebook, attendance, standards practice, behavior, reports, reading, and revision from one secure school platform.',
+    highlights: ['Role-based access', 'School data isolation', 'AI-assisted learning workflows'],
     scrollHint: 'Scroll to explore',
     primaryCta: { label: 'Start free trial', action: 'register' },
     secondaryCta: { label: 'See pricing', action: 'scroll:pricing' },
@@ -46,31 +46,31 @@ export const landingPageDefaults = {
     },
   },
   trustStrip: [
-    { iconKey: 'shield', text: 'Secure and compliant' },
-    { iconKey: 'cloud', text: 'Cloud-based' },
+    { iconKey: 'shield', text: 'Role-based and secure' },
+    { iconKey: 'cloud', text: 'Cloud-based operations' },
     { iconKey: 'schools', text: '{{schoolCount}}+ schools' },
-    { iconKey: 'uptime', text: '99.9% uptime' },
+    { iconKey: 'uptime', text: 'Built for daily school workflows' },
   ],
   howItWorks: {
     overline: 'How it works',
     title: 'Get started in minutes',
     subtitle:
-      'Register your school, add classes and teachers, then start recording grades and attendance.',
+      'Set up your school, onboard academic structure, and run daily operations with clear role-based access.',
     steps: [
       {
-        title: 'Create your school',
+        title: 'Set up school and roles',
         description:
-          'Sign up with your school details. No credit card required for the Free plan.',
+          'Create your school workspace and assign admin, teacher, student, and parent access.',
       },
       {
-        title: 'Add classes and teachers',
+        title: 'Add classes, subjects, and students',
         description:
-          'Set up grades, subjects, and assign teachers. Import students via CSV if you like.',
+          'Configure classes and subjects, assign teachers, and organize your academic data.',
       },
       {
-        title: 'Start managing',
+        title: 'Run teaching and support workflows',
         description:
-          'Enter daily grades, take attendance, and send reports to parents-all from one dashboard.',
+          'Use gradebook, attendance, standards practice, interventions, and reporting from one dashboard.',
       },
     ],
   },
@@ -78,43 +78,85 @@ export const landingPageDefaults = {
     overline: 'Features',
     title: 'Built for how schools actually work',
     subtitle:
-      'One platform for grades, attendance, timetables, and parent communication.',
+      'Core school operations plus AI-assisted teaching, intervention, and communication tools.',
     items: [
       {
         iconKey: 'gradebook',
-        title: 'Daily gradebook',
+        title: 'Student, class, and gradebook operations',
         description:
-          'Bulk entry by class, automatic averages, and report generation. Configure max marks and passing criteria per subject.',
+          'Manage student records, classes, subjects, and grades with reporting views for teachers and school leaders.',
       },
       {
         iconKey: 'attendance',
-        title: 'Attendance and timetable',
+        title: 'Attendance, timetable, and calendar',
         description:
-          'Period-based timetables and attendance. Teachers see their day at a glance and record attendance in one click.',
+          'Track attendance, manage timetables, handle room planning, and apply school calendar exceptions with control.',
       },
       {
         iconKey: 'substitute',
-        title: 'Teacher substitution',
+        title: 'Substitution and request workflows',
         description:
-          'When a teacher is absent, principals create sub requests, see available substitutes, and teachers confirm or decline via secure links. Full audit trail and no double-booking.',
+          'Manage teacher substitution requests and attendance request approvals with structured status tracking.',
       },
       {
         iconKey: 'analytics',
-        title: 'Reports and insights',
+        title: 'Standards practice and mastery tracking',
         description:
-          'Generate student and class reports, track trends, and identify gaps early.',
+          'Assign standards-based practice, track attempts and mastery, and surface learning gaps quickly.',
       },
       {
-        iconKey: 'security',
-        title: 'Role-based security',
+        iconKey: 'ai',
+        title: 'AI lesson plan evaluation',
         description:
-          'Each school data is isolated. Role-based access, secure auth, and white-label options on paid plans.',
+          'Review lesson plans against school-defined criteria with AI scoring and feedback to speed up approvals.',
+      },
+      {
+        iconKey: 'ai',
+        title: 'AI-assisted reporting',
+        description:
+          'Generate advanced reports with templates, analytics, and automated summaries for leaders and teachers.',
+      },
+      {
+        iconKey: 'analytics',
+        title: 'Behavior analytics and interventions',
+        description:
+          'Track behavior incidents, monitor trends, and manage intervention queues for targeted student support.',
       },
       {
         iconKey: 'mobile',
-        title: 'Works everywhere',
+        title: 'Reading assistant and revision planning',
         description:
-          'Responsive web app for desktop, tablet, or phone. No separate app install required.',
+          'Support learners with reading workflows, simplified texts, and revision plans to improve outcomes.',
+      },
+      {
+        iconKey: 'communication',
+        title: 'Notifications and newsletters',
+        description:
+          'Keep families and staff informed with in-app notifications and scheduled newsletter workflows.',
+      },
+      {
+        iconKey: 'automation',
+        title: 'Workflow automation',
+        description:
+          'Automate reminders, review queues, and request lifecycles to reduce manual administration.',
+      },
+      {
+        iconKey: 'planning',
+        title: 'School settings and departments',
+        description:
+          'Configure school structure, departments, roles, and academic year settings in one place.',
+      },
+      {
+        iconKey: 'governance',
+        title: 'Super admin oversight and subscriptions',
+        description:
+          'Manage multi-school access, subscriptions, and platform governance with secure controls.',
+      },
+      {
+        iconKey: 'security',
+        title: 'Secure access and multi-tenant design',
+        description:
+          'Protect each school with isolated data, role-based permissions, secure auth, and admin governance controls.',
       },
     ],
   },
@@ -129,10 +171,10 @@ export const landingPageDefaults = {
         period: '/month',
         description: 'Up to 50 students',
         features: [
-          'Full gradebook',
-          'Attendance and timetable',
-          'Teacher substitution',
-          'Parent notifications',
+          'Student, class, and subject management',
+          'Gradebook, attendance, and timetable',
+          'Standards practice and mastery tracking',
+          'Attendance and substitution workflows',
           'Email support',
         ],
         featured: false,
@@ -146,9 +188,10 @@ export const landingPageDefaults = {
         description: 'Unlimited students plus premium features',
         features: [
           'Everything in Starter',
-          'White-label branding',
+          'Behavior analytics and interventions',
+          'Advanced reporting with templates',
+          'Reading assistant and revision planning',
           'Priority support',
-          'Usage analytics',
         ],
         featured: true,
         ctaLabel: 'Get started',
@@ -161,9 +204,10 @@ export const landingPageDefaults = {
         description: 'Advanced features and dedicated support',
         features: [
           'Everything in Growth',
-          'Custom integrations',
+          'Custom branding options',
+          'Custom integrations and API access',
           'Dedicated success manager',
-          'SLA and training',
+          'SLA, onboarding, and training',
         ],
         featured: false,
         ctaLabel: 'Contact sales',
@@ -174,25 +218,25 @@ export const landingPageDefaults = {
   testimonials: {
     overline: 'Testimonials',
     title: 'Loved by educators',
-    subtitle: 'See what admins and teachers say about GradeBook Pro.',
+    subtitle: 'See what admins, principals, and teachers say about daily usage.',
     items: [
       {
         quote:
-          'The analytics dashboard alone has saved us hours each week. Parents love the real-time grade updates.',
+          'We replaced disconnected tools with one workflow for grades, attendance, and interventions. It changed our weekly operations.',
         name: 'Dr. Jane Davis',
         role: 'Principal, Lincoln High School',
         initials: 'JD',
       },
       {
         quote:
-          'We switched from spreadsheets last year. Setup was quick, and our teachers actually use it every day.',
+          'The standards practice and mastery view helps us support students earlier, with less manual tracking.',
         name: 'Mark Stevens',
         role: 'IT Director, Riverside Academy',
         initials: 'MS',
       },
       {
         quote:
-          'I can update grades and take attendance from my phone between classes. Game-changer.',
+          'I use gradebook, attendance, and reading support in one place between classes. It saves real time every day.',
         name: 'Sarah Chen',
         role: 'Math Teacher, Oak Valley School',
         initials: 'SC',
@@ -206,39 +250,39 @@ export const landingPageDefaults = {
       {
         question: 'How does the free trial work?',
         answer:
-          'Start with our Free plan-no credit card required. You get up to 50 students, full gradebook, attendance, teacher substitution, and parent notifications. Upgrade to Growth anytime when you need more capacity or premium features.',
+          'Start with our Free plan-no credit card required. You get up to 50 students with core operations including students, classes, gradebook, attendance, and timetable workflows.',
       },
       {
-        question: 'What is teacher substitution?',
+        question: 'What learning support features are included?',
         answer:
-          'When a teacher is absent, department principals create a sub request, select available substitutes from the system, and teachers receive an email with a secure link to confirm or decline. The system prevents double-booking and keeps a full audit trail.',
+          'The platform includes standards-based practice with mastery tracking, intervention management, reading assistant workflows, and revision planning support.',
       },
       {
         question: 'Is my school data secure?',
         answer:
-          'Yes. We use bank-level encryption, secure cloud hosting, and are designed for GDPR compliance. Each school data is isolated-no other institution can access your information.',
+          'Yes. Access is role-based and each school data is tenant-isolated. Authentication and security controls help protect institutional data.',
       },
       {
-        question: 'Can we use our own branding?',
+        question: 'Do you support behavior and attendance workflows?',
         answer:
-          'Growth and Enterprise plans support white-label options: custom logo, colors, and domain so parents and staff see your school brand when they log in.',
+          'Yes. Teams can track behavior incidents and analytics, manage attendance operations, and process attendance requests and approvals.',
       },
       {
-        question: 'Do you integrate with existing systems?',
+        question: 'Can admins oversee multiple schools?',
         answer:
-          'We offer CSV import for students and grades. Enterprise plans can include API access and custom integrations-contact us to discuss your needs.',
+          'Yes. Super admin capabilities include multi-school oversight for users, subscriptions, and platform-level analytics.',
       },
       {
         question: 'What kind of support do you offer?',
         answer:
-          'All plans include email support. Growth adds priority support. Enterprise includes a dedicated success manager and optional training for your staff.',
+          'All plans include email support. Growth adds priority support. Enterprise includes a dedicated success manager plus onboarding and training.',
       },
     ],
   },
   finalCta: {
     title: 'Ready to simplify your school?',
     subtitle:
-      'Join schools that switched from spreadsheets and paperwork to one clear system.',
+      'Move from fragmented tools to one system for operations, learning support, and reporting.',
     button: { label: 'Start free trial', action: 'register' },
   },
   findSchool: {

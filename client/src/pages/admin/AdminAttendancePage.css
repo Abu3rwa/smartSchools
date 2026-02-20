@@ -237,6 +237,10 @@
     margin-bottom: var(--spacing-md);
 }
 
+.empty-state .btn {
+    margin-top: var(--spacing-sm);
+}
+
 .attendance-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
