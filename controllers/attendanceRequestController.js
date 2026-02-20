@@ -75,6 +75,7 @@ export const getEligibleStudents = asyncHandler(async (req, res) => {
             $or: [
                 { 'parentInfo.fatherEmail': new RegExp(`^${(email || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
                 { 'parentInfo.motherEmail': new RegExp(`^${(email || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+                { 'parentInfo.guardianEmail': new RegExp(`^${(email || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
             ],
         })
             .select('_id firstName lastName studentId currentClass')
@@ -116,9 +117,7 @@ export const createAttendanceRequest = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid or inactive request type' });
     }
 
-    if (requestType.requiresProof && (!req.file || !req.file.filename)) {
-        return res.status(400).json({ success: false, message: 'Supporting proof document is required for this request type' });
-    }
+    // Supporting proof is optional for this flow. If provided, it is stored; if omitted, request is still accepted.
 
     const useDateRange = requestType.useDateRange === true;
     let parsedRequestDate = null;
@@ -167,7 +166,8 @@ export const createAttendanceRequest = asyncHandler(async (req, res) => {
             const parentEmail = user.email?.toLowerCase();
             const father = studentDoc.parentInfo?.fatherEmail?.toLowerCase();
             const mother = studentDoc.parentInfo?.motherEmail?.toLowerCase();
-            if (father !== parentEmail && mother !== parentEmail) {
+            const guardian = studentDoc.parentInfo?.guardianEmail?.toLowerCase();
+            if (father !== parentEmail && mother !== parentEmail && guardian !== parentEmail) {
                 return res.status(403).json({ success: false, message: 'You are not linked to this student' });
             }
         } else if (role === 'student') {
