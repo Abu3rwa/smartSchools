@@ -12,6 +12,7 @@ import {
     sendTestEmail,
     forgotPassword,
     resetPassword,
+    refresh,
     impersonateUser
 } from '../controllers/authenticationController.js';
 import { protect, authorize } from '../middleware/auth.js';
@@ -33,6 +34,7 @@ const passwordResetLimiter = rateLimit({
 // School-scoped user creation (admin only)
 router.post('/register', protect, requireSchoolContext, authorize('admin'), validationRules.register, validate, register);
 router.post('/login', validationRules.login, validate, login);
+router.post('/refresh', refresh);
 
 // Password reset routes (public) with rate limiting
 router.post('/forgot-password', passwordResetLimiter, forgotPassword);

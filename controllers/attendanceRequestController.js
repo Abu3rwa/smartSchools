@@ -236,6 +236,9 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
     const user = req.user;
     const schoolId = req.schoolId;
     const { academicYear, dateFilter } = getAttendanceRequestYearScope(req);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+    const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
 
     const isPrincipal = ['admin', 'department_principal'].includes(user.role);
     const query = { school: schoolId };
@@ -258,11 +261,33 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
     }
     query.requestDate = scopedRange;
 
-    const requests = await AttendanceRequest.find(query)
+    const requestsQuery = AttendanceRequest.find(query)
         .populate('requestType', 'labelEn labelAr requiresProof')
         .populate('student', 'firstName lastName studentId')
         .populate('requester', 'firstName lastName email')
         .sort({ createdAt: -1 });
+
+    if (shouldPaginate) {
+        const [requests, total] = await Promise.all([
+            requestsQuery.skip((page - 1) * limit).limit(limit),
+            AttendanceRequest.countDocuments(query)
+        ]);
+        return res.status(200).json({
+            success: true,
+            data: {
+                items: requests,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.max(Math.ceil(total / limit), 1)
+                }
+            },
+            academicYear
+        });
+    }
+
+    const requests = await requestsQuery;
 
     res.status(200).json({
         success: true,

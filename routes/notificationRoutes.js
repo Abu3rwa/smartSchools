@@ -7,7 +7,8 @@ import {
     getNotificationHistory,
     getNotification,
     resendNotification,
-    sendAIReport
+    sendAIReport,
+    markNotificationAsRead
 } from '../controllers/notificationController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { validate, validationRules } from '../middleware/validator.js';
@@ -28,6 +29,7 @@ router.post('/send-ai-report/:studentId', authorize('teacher', 'admin'), sendAIR
 // Get notifications
 router.get('/', getNotificationHistory);
 router.get('/:id', validationRules.mongoId, validate, getNotification);
+router.patch('/:id/read', validationRules.mongoId, validate, markNotificationAsRead);
 
 // Resend
 router.post('/:id/resend', authorize('teacher', 'admin'), validationRules.mongoId, validate, resendNotification);

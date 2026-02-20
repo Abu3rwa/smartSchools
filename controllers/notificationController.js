@@ -2,7 +2,10 @@ import notificationService from '../services/notificationService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import Student from '../models/Student.js';
+import Notification from '../models/Notification.js';
 import { resolveRequestedAcademicYear } from '../utils/academicYear.js';
+
+const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Verify teacher has access to a student (student is in one of teacher's assigned classes)
@@ -165,6 +168,13 @@ export const getNotificationHistory = asyncHandler(async (req, res) => {
     const filters = { student, type, status };
     if (req.user.role === 'teacher') {
         filters.createdBy = req.user._id;
+    } else if (req.user.role === 'parent' || req.user.role === 'student') {
+        const orConditions = [{ recipient: req.user._id }];
+        const normalizedEmail = String(req.user.email || '').trim();
+        if (normalizedEmail) {
+            orConditions.push({ recipientEmail: new RegExp(escapeRegex(normalizedEmail), 'i') });
+        }
+        filters.or = orConditions;
     }
 
     const result = await notificationService.getNotificationHistory(
@@ -185,8 +195,6 @@ export const getNotificationHistory = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const getNotification = asyncHandler(async (req, res) => {
-    const Notification = (await import('../models/Notification.js')).default;
-
     const notification = await Notification.findById(req.params.id)
         .populate('student', 'firstName lastName studentId')
         .populate('createdBy', 'firstName lastName');
@@ -195,6 +203,20 @@ export const getNotification = asyncHandler(async (req, res) => {
         return res.status(404).json({
             success: false,
             message: 'Notification not found'
+        });
+    }
+
+    const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
+    const isOwner = notification.recipient?.toString() === req.user._id.toString();
+    const normalizedUserEmail = String(req.user.email || '').trim().toLowerCase();
+    const isRecipientEmail = normalizedUserEmail
+        ? (notification.recipientEmail || '').toLowerCase().includes(normalizedUserEmail)
+        : false;
+    const isTeacherOwner = req.user.role === 'teacher' && notification.createdBy?._id?.toString() === req.user._id.toString();
+    if (!isAdmin && !isOwner && !isRecipientEmail && !isTeacherOwner) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to view this notification'
         });
     }
 
@@ -245,8 +267,6 @@ export const sendAIReport = asyncHandler(async (req, res) => {
     }
 });
 export const resendNotification = asyncHandler(async (req, res) => {
-    const Notification = (await import('../models/Notification.js')).default;
-
     const notification = await Notification.findById(req.params.id);
 
     if (!notification) {
@@ -266,6 +286,44 @@ export const resendNotification = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         message: 'Notification resent',
+        data: { notification }
+    });
+});
+
+/**
+ * @desc    Mark notification as read
+ * @route   PATCH /api/notifications/:id/read
+ * @access  Private
+ */
+export const markNotificationAsRead = asyncHandler(async (req, res) => {
+    const notification = await Notification.findById(req.params.id);
+    if (!notification) {
+        return res.status(404).json({
+            success: false,
+            message: 'Notification not found'
+        });
+    }
+
+    const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
+    const isOwner = notification.recipient?.toString() === req.user._id.toString();
+    const normalizedUserEmail = String(req.user.email || '').trim().toLowerCase();
+    const isRecipientEmail = normalizedUserEmail
+        ? (notification.recipientEmail || '').toLowerCase().includes(normalizedUserEmail)
+        : false;
+    if (!isAdmin && !isOwner && !isRecipientEmail) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to update this notification'
+        });
+    }
+
+    notification.readAt = new Date();
+    notification.status = 'read';
+    await notification.save();
+
+    res.json({
+        success: true,
+        message: 'Notification marked as read',
         data: { notification }
     });
 });

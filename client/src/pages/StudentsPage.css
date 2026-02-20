@@ -324,6 +324,11 @@
     gap: 4px;
 }
 
+.student-actions .btn-icon:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .btn-xs {
     padding: 4px 8px;
     font-size: 0.75rem;

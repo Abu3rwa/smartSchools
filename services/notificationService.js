@@ -786,6 +786,11 @@ Best regards,
     if (filters.type) query.type = filters.type;
     if (filters.status) query.status = filters.status;
     if (filters.createdBy) query.createdBy = filters.createdBy;
+    if (filters.recipient) query.recipient = filters.recipient;
+    if (filters.recipientEmailRegex) query.recipientEmail = filters.recipientEmailRegex;
+    if (Array.isArray(filters.or) && filters.or.length > 0) {
+      query.$or = filters.or;
+    }
 
     const notifications = await Notification.find(query)
       .populate("student", "firstName lastName studentId")

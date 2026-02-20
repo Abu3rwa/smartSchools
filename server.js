@@ -61,6 +61,8 @@ import lessonPlanCriteriaRoutes from "./routes/lessonPlanCriteriaRoutes.js";
 import apiDocsRoutes from "./routes/apiDocsRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import interventionRoutes from "./routes/interventionRoutes.js";
+import parentRoutes from "./routes/parentRoutes.js";
+import deviceRoutes from "./routes/deviceRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
@@ -245,6 +247,8 @@ app.use("/api/reading", readingRoutes);
 app.use("/api/substitutions", substitutionRoutes);
 app.use("/api/review", reviewRoutes);
 app.use("/api/interventions", interventionRoutes);
+app.use("/api/parent", parentRoutes);
+app.use("/api/devices", deviceRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);

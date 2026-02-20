@@ -124,6 +124,18 @@ export const bulkCreateStudentLogin = createAsyncThunk(
     }
 );
 
+export const sendParentCredentials = createAsyncThunk(
+    'students/sendParentCredentials',
+    async (studentId, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/students/${studentId}/send-parent-credentials`);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send parent credentials');
+        }
+    }
+);
+
 const studentSlice = createSlice({
     name: 'students',
     initialState: {

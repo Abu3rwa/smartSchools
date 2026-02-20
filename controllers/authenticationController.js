@@ -3,8 +3,15 @@ import { google } from 'googleapis';
 import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
 import School from '../models/School.js';
-import { generateToken } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import {
+    clearRefreshToken,
+    decodeRefreshToken,
+    generateAccessToken,
+    generateRefreshToken,
+    isRefreshTokenValidForUser,
+    storeRefreshToken
+} from '../services/authTokenService.js';
 
 /**
  * @desc    Register a new user
@@ -52,7 +59,7 @@ export const register = asyncHandler(async (req, res) => {
     });
 
     // Generate token
-    const token = generateToken(user._id, user.school);
+    const token = generateAccessToken(user);
 
     res.status(201).json({
         success: true,
@@ -111,7 +118,9 @@ export const login = asyncHandler(async (req, res) => {
     await user.updateLastLogin();
 
     // Generate token with school context
-    const token = generateToken(user._id, user.school);
+    const token = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user._id);
+    await storeRefreshToken(user._id, refreshToken);
 
     // Get teacher profile if applicable
     let teacherProfile = null;
@@ -140,7 +149,8 @@ export const login = asyncHandler(async (req, res) => {
                 permissionScopes: user.permissionScopes || {}
             },
             teacherProfile,
-            token
+            token,
+            refreshToken
         }
     });
 });
@@ -393,11 +403,70 @@ const sendPasswordResetEmail = async (email, resetUrl) => {
 };
 
 /**
+ * @desc    Refresh access token
+ * @route   POST /api/auth/refresh
+ * @access  Public
+ */
+export const refresh = asyncHandler(async (req, res) => {
+    const { refreshToken } = req.body || {};
+    if (!refreshToken || typeof refreshToken !== 'string') {
+        return res.status(400).json({
+            success: false,
+            message: 'Refresh token is required'
+        });
+    }
+
+    let decoded;
+    try {
+        decoded = decodeRefreshToken(refreshToken);
+    } catch (error) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid refresh token'
+        });
+    }
+
+    const user = await User.findById(decoded.id)
+        .select('+refreshTokenHash +refreshTokenExpiresAt')
+        .populate('school')
+        .setOptions({ skipTenantFilter: true });
+
+    if (!user || !user.isActive) {
+        return res.status(401).json({
+            success: false,
+            message: 'Session is no longer valid'
+        });
+    }
+
+    if (!isRefreshTokenValidForUser({ user, refreshToken })) {
+        await clearRefreshToken(user._id);
+        return res.status(401).json({
+            success: false,
+            message: 'Refresh token expired or revoked'
+        });
+    }
+
+    const nextAccessToken = generateAccessToken(user);
+    const nextRefreshToken = generateRefreshToken(user._id);
+    await storeRefreshToken(user._id, nextRefreshToken);
+
+    res.json({
+        success: true,
+        message: 'Token refreshed',
+        data: {
+            token: nextAccessToken,
+            refreshToken: nextRefreshToken
+        }
+    });
+});
+
+/**
  * @desc    Logout user (client-side token removal)
  * @route   POST /api/auth/logout
  * @access  Private
  */
 export const logout = asyncHandler(async (req, res) => {
+    await clearRefreshToken(req.user._id);
     res.json({
         success: true,
         message: 'Logged out successfully'
@@ -432,7 +501,7 @@ export const impersonateUser = asyncHandler(async (req, res) => {
     console.log(`AUDIT: Super Admin '${req.user.email}' is impersonating user '${userToImpersonate.email}' (ID: ${userToImpersonate._id})`);
 
     // Generate token for the target user
-    const token = generateToken(userToImpersonate._id, userToImpersonate.school?._id);
+    const token = generateAccessToken(userToImpersonate);
 
     res.json({
         success: true,
@@ -592,7 +661,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
         await user.save();
 
         // Step 9: Generate our own JWT token for the app
-        const jwtToken = generateToken(user._id, user.school);
+        const jwtToken = generateAccessToken(user);
 
         // Step 10: Redirect back to frontend with the token
         // Put token in fragment instead of query string to reduce leakage via logs/referrers.

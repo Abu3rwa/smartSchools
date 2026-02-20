@@ -2,10 +2,12 @@ import crypto from 'crypto';
 import Student from '../models/Student.js';
 import User from '../models/User.js';
 import Class from '../models/Class.js';
+import Notification from '../models/Notification.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
 import { resolveSchoolAcademicYear } from '../utils/academicYear.js';
+import notificationService from '../services/notificationService.js';
 
 /**
  * Generate a human-readable temporary password.
@@ -27,6 +29,191 @@ function generateTempPassword() {
         '!'
     );
 }
+
+const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+
+const splitContactName = (fullName = '', fallbackLastName = 'Parent') => {
+    const normalized = String(fullName || '').trim().replace(/\s+/g, ' ');
+    if (!normalized) {
+        return { firstName: 'Parent', lastName: fallbackLastName || 'User' };
+    }
+    const parts = normalized.split(' ');
+    if (parts.length === 1) {
+        return { firstName: parts[0], lastName: fallbackLastName || 'User' };
+    }
+    return {
+        firstName: parts[0],
+        lastName: parts.slice(1).join(' ') || fallbackLastName || 'User'
+    };
+};
+
+const buildParentContacts = (student) => {
+    const parentInfo = student.parentInfo || {};
+    const rawContacts = [
+        {
+            relation: 'father',
+            relationLabel: 'Father',
+            name: parentInfo.fatherName || '',
+            email: parentInfo.fatherEmail || ''
+        },
+        {
+            relation: 'mother',
+            relationLabel: 'Mother',
+            name: parentInfo.motherName || '',
+            email: parentInfo.motherEmail || ''
+        },
+        {
+            relation: 'guardian',
+            relationLabel: 'Guardian',
+            name: parentInfo.guardianName || '',
+            email: parentInfo.guardianEmail || ''
+        }
+    ];
+
+    const byEmail = new Map();
+    for (const contact of rawContacts) {
+        const email = String(contact.email || '').trim().toLowerCase();
+        if (!email) continue;
+        if (!byEmail.has(email)) {
+            byEmail.set(email, {
+                email,
+                name: String(contact.name || '').trim(),
+                relationLabels: [contact.relationLabel]
+            });
+            continue;
+        }
+        const existing = byEmail.get(email);
+        if (contact.name && !existing.name) existing.name = String(contact.name).trim();
+        if (!existing.relationLabels.includes(contact.relationLabel)) {
+            existing.relationLabels.push(contact.relationLabel);
+        }
+    }
+
+    return Array.from(byEmail.values()).map((item) => ({
+        ...item,
+        relationLabel: item.relationLabels.join('/')
+    }));
+};
+
+const createParentCredentialsEmailContent = ({
+    parentDisplayName,
+    studentFullName,
+    relationLabel,
+    email,
+    tempPassword
+}) => {
+    const portalUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const greetingName = parentDisplayName || 'Parent';
+    const subject = `Parent App Login Credentials for ${studentFullName}`;
+    const message = [
+        `Hello ${greetingName},`,
+        '',
+        `You have been granted parent access for ${studentFullName}.`,
+        'Use these temporary credentials to sign in on the Parent Mobile App:',
+        `Email: ${email}`,
+        `Password: ${tempPassword}`,
+        '',
+        `Web Portal: ${portalUrl}`,
+        '',
+        'Please change your password after your first login.',
+        'If you did not expect this message, contact your school administrator.'
+    ].join('\n');
+    const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto;">
+            <h2>Parent App Login Credentials</h2>
+            <p>Hello ${greetingName},</p>
+            <p>You have been granted parent access for <strong>${studentFullName}</strong> (${relationLabel}).</p>
+            <p>Use these temporary credentials to sign in on the Parent Mobile App:</p>
+            <ul>
+                <li><strong>Email:</strong> ${email}</li>
+                <li><strong>Password:</strong> ${tempPassword}</li>
+            </ul>
+            <p><strong>Web Portal:</strong> <a href="${portalUrl}" target="_blank" rel="noreferrer">${portalUrl}</a></p>
+            <p>Please change your password after your first login.</p>
+            <p>If you did not expect this message, contact your school administrator.</p>
+        </div>
+    `;
+
+    return { subject, message, htmlContent };
+};
+
+const findOrCreateParentUser = async ({
+    schoolId,
+    email,
+    displayName,
+    fallbackLastName,
+    tempPassword
+}) => {
+    const existingUser = await User.findOne({ email })
+        .select('+password')
+        .setOptions({ skipTenantFilter: true });
+
+    if (existingUser) {
+        if (existingUser.school?.toString() !== schoolId.toString()) {
+            throw new Error(`Email "${email}" is linked to another school account`);
+        }
+        if (existingUser.role !== 'parent') {
+            throw new Error(`Email "${email}" is linked to a non-parent account`);
+        }
+        existingUser.password = tempPassword;
+        existingUser.isActive = true;
+        if (!existingUser.firstName || !existingUser.lastName) {
+            const parsed = splitContactName(displayName, fallbackLastName);
+            existingUser.firstName = existingUser.firstName || parsed.firstName;
+            existingUser.lastName = existingUser.lastName || parsed.lastName;
+        }
+        await existingUser.save();
+        return { user: existingUser, created: false };
+    }
+
+    const parsed = splitContactName(displayName, fallbackLastName);
+    const user = await User.create({
+        email,
+        password: tempPassword,
+        role: 'parent',
+        school: schoolId,
+        firstName: parsed.firstName,
+        lastName: parsed.lastName,
+        isActive: true
+    });
+    return { user, created: true };
+};
+
+const sendParentCredentialsEmail = async ({
+    student,
+    parentUser,
+    contact,
+    tempPassword,
+    senderUserId
+}) => {
+    const studentFullName = `${student.firstName} ${student.lastName}`.trim();
+    const emailContent = createParentCredentialsEmailContent({
+        parentDisplayName: contact.name || parentUser.firstName,
+        studentFullName,
+        relationLabel: contact.relationLabel,
+        email: contact.email,
+        tempPassword
+    });
+
+    const notification = await Notification.create({
+        school: student.school,
+        recipient: parentUser._id,
+        recipientEmail: contact.email,
+        student: student._id,
+        type: 'custom',
+        subject: emailContent.subject,
+        message: emailContent.message,
+        htmlContent: emailContent.htmlContent,
+        channels: ['email'],
+        metadata: {
+            category: 'parent_mobile_credentials',
+            relation: contact.relationLabel
+        },
+        createdBy: senderUserId
+    });
+
+    await notificationService.sendEmail(notification, senderUserId);
+};
 
 /**
  * @desc    Get all students
@@ -681,6 +868,115 @@ export const resetStudentPassword = asyncHandler(async (req, res) => {
             studentId: student._id,
             email: user.email,
             tempPassword        // shown once
+        }
+    });
+});
+
+/**
+ * @desc    Create/reset parent account credentials for a student and send by email
+ * @route   POST /api/students/:id/send-parent-credentials
+ * @access  Private (Admin)
+ */
+export const sendParentCredentials = asyncHandler(async (req, res) => {
+    const student = await Student.findById(req.params.id).setOptions({ skipTenantFilter: true });
+    if (!student || student.school?.toString() !== req.schoolId.toString()) {
+        return res.status(404).json({
+            success: false,
+            message: 'Student not found'
+        });
+    }
+
+    const contacts = buildParentContacts(student);
+    if (contacts.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'No parent/guardian emails found for this student'
+        });
+    }
+
+    const sent = [];
+    const errors = [];
+    for (const contact of contacts) {
+        if (!EMAIL_PATTERN.test(contact.email)) {
+            errors.push({
+                relation: contact.relationLabel,
+                email: contact.email,
+                error: 'Invalid email format'
+            });
+            continue;
+        }
+
+        const tempPassword = generateTempPassword();
+        try {
+            const { user, created } = await findOrCreateParentUser({
+                schoolId: student.school,
+                email: contact.email,
+                displayName: contact.name,
+                fallbackLastName: student.lastName || 'Parent',
+                tempPassword
+            });
+
+            let emailSent = false;
+            try {
+                await sendParentCredentialsEmail({
+                    student,
+                    parentUser: user,
+                    contact,
+                    tempPassword,
+                    senderUserId: req.user._id
+                });
+                emailSent = true;
+            } catch (emailError) {
+                errors.push({
+                    relation: contact.relationLabel,
+                    name: contact.name || '',
+                    email: contact.email,
+                    error: emailError.message || 'Credentials created but email delivery failed'
+                });
+            }
+
+            sent.push({
+                relation: contact.relationLabel,
+                name: contact.name || `${user.firstName} ${user.lastName}`.trim(),
+                email: contact.email,
+                userId: user._id,
+                created,
+                tempPassword,
+                emailSent
+            });
+        } catch (error) {
+            errors.push({
+                relation: contact.relationLabel,
+                name: contact.name || '',
+                email: contact.email,
+                error: error.message || 'Failed to send credentials'
+            });
+        }
+    }
+
+    if (sent.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Unable to send parent credentials',
+            data: {
+                studentId: student._id,
+                studentName: `${student.firstName} ${student.lastName}`.trim(),
+                sent,
+                errors
+            }
+        });
+    }
+
+    const successfulEmailCount = sent.filter((item) => item.emailSent).length;
+
+    res.status(200).json({
+        success: true,
+        message: `Credentials prepared for ${sent.length} parent contact(s). ${successfulEmailCount} email(s) delivered.${errors.length ? ` ${errors.length} issue(s) reported.` : ''}`,
+        data: {
+            studentId: student._id,
+            studentName: `${student.firstName} ${student.lastName}`.trim(),
+            sent,
+            errors
         }
     });
 });

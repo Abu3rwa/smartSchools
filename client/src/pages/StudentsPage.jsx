@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchStudents, selectStudents, selectStudentsLoading, createStudent, updateStudent, deleteStudent, importStudents, createStudentLogin, bulkCreateStudentLogin, resetStudentPassword } from '../store/slices/studentSlice';
+import { fetchStudents, selectStudents, selectStudentsLoading, createStudent, updateStudent, deleteStudent, importStudents, createStudentLogin, bulkCreateStudentLogin, resetStudentPassword, sendParentCredentials } from '../store/slices/studentSlice';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectIsAdmin } from '../store/slices/authSlice';
-import { HiOutlinePlus, HiOutlineSearch, HiOutlinePencil, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload, HiOutlineExclamationCircle, HiOutlineCheckCircle, HiOutlineKey, HiOutlineUserAdd, HiOutlineClipboardCopy } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineSearch, HiOutlinePencil, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload, HiOutlineExclamationCircle, HiOutlineCheckCircle, HiOutlineKey, HiOutlineUserAdd, HiOutlineClipboardCopy, HiOutlineMail } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './StudentsPage.css';
 
@@ -60,6 +60,9 @@ const StudentsPage = () => {
     const [loginEmail, setLoginEmail] = useState('');
     const [showLoginEmailPrompt, setShowLoginEmailPrompt] = useState(false);
     const [loginTargetStudent, setLoginTargetStudent] = useState(null);
+    const [sendingParentCredentialsFor, setSendingParentCredentialsFor] = useState(null);
+    const [showParentCredentialsResult, setShowParentCredentialsResult] = useState(false);
+    const [parentCredentialsResult, setParentCredentialsResult] = useState(null); // { studentName, sent: [], errors: [] }
 
     // Bulk login state
     const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
@@ -216,6 +219,36 @@ const StudentsPage = () => {
         }
     };
 
+    const handleSendParentCredentials = async (student) => {
+        const parentEmailCount = [
+            student.parentInfo?.fatherEmail,
+            student.parentInfo?.motherEmail,
+            student.parentInfo?.guardianEmail
+        ].filter(Boolean).length;
+
+        if (parentEmailCount === 0) {
+            toast.error('No parent/guardian email found for this student');
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Send mobile app login credentials to ${parentEmailCount} parent contact(s) for ${student.firstName} ${student.lastName}?\n\nThis will create or reset their parent account password.`
+        );
+        if (!confirmed) return;
+
+        setSendingParentCredentialsFor(student._id);
+        const result = await dispatch(sendParentCredentials(student._id));
+        setSendingParentCredentialsFor(null);
+
+        if (sendParentCredentials.fulfilled.match(result)) {
+            setParentCredentialsResult(result.payload.data);
+            setShowParentCredentialsResult(true);
+            toast.success(result.payload.message || 'Parent credentials sent');
+        } else {
+            toast.error(result.payload || 'Failed to send parent credentials');
+        }
+    };
+
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text).then(() => {
             toast.success('Copied to clipboard!');
@@ -289,6 +322,14 @@ const StudentsPage = () => {
         if (!bulkCredentials?.created?.length) return;
         const block = bulkCredentials.created
             .map(c => `${c.name}\t${c.email}\t${c.tempPassword}`)
+            .join('\n');
+        copyToClipboard(block);
+    };
+
+    const copyAllParentCredentials = () => {
+        if (!parentCredentialsResult?.sent?.length) return;
+        const block = parentCredentialsResult.sent
+            .map((item) => `${item.relation}\t${item.name}\t${item.email}\t${item.tempPassword}`)
             .join('\n');
         copyToClipboard(block);
     };
@@ -491,7 +532,13 @@ const StudentsPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredStudents.map(student => (
+                                {filteredStudents.map(student => {
+                                    const hasParentEmail = Boolean(
+                                        student.parentInfo?.fatherEmail ||
+                                        student.parentInfo?.motherEmail ||
+                                        student.parentInfo?.guardianEmail
+                                    );
+                                    return (
                                     <tr key={student._id}>
                                         {isAdmin && (
                                             <td className="td-checkbox">
@@ -555,6 +602,20 @@ const StudentsPage = () => {
                                         {isAdmin && (
                                             <td>
                                                 <div className="student-actions">
+                                                    <button
+                                                        className="btn-icon"
+                                                        onClick={() => handleSendParentCredentials(student)}
+                                                        title={
+                                                            sendingParentCredentialsFor === student._id
+                                                                ? 'Sending credentials...'
+                                                                : hasParentEmail
+                                                                    ? 'Send parent app credentials'
+                                                                    : 'No parent email on file'
+                                                        }
+                                                        disabled={!hasParentEmail || sendingParentCredentialsFor === student._id}
+                                                    >
+                                                        <HiOutlineMail size={16} />
+                                                    </button>
                                                     <button 
                                                         className="btn-icon"
                                                         onClick={() => handleEdit(student)}
@@ -583,10 +644,10 @@ const StudentsPage = () => {
                                             </td>
                                         )}
                                     </tr>
-                                ))}
+                                )})}
                                 {filteredStudents.length === 0 && (
                                     <tr>
-                                        <td colSpan={isAdmin ? 8 : 5} className="empty-row">
+                                        <td colSpan={isAdmin ? 9 : 5} className="empty-row">
                                             No students found
                                         </td>
                                     </tr>
@@ -1035,6 +1096,83 @@ const StudentsPage = () => {
                         </div>
                         <div className="modal-footer">
                             <button className="btn btn-primary" onClick={() => { setShowBulkCredentials(false); setBulkCredentials(null); }}>
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Parent credentials result modal ── */}
+            {showParentCredentialsResult && parentCredentialsResult && (
+                <div className="modal-overlay" onClick={() => { setShowParentCredentialsResult(false); setParentCredentialsResult(null); }}>
+                    <div className="modal modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: 620 }}>
+                        <div className="modal-header">
+                            <h3>Parent App Credentials</h3>
+                            <button className="modal-close" onClick={() => { setShowParentCredentialsResult(false); setParentCredentialsResult(null); }}>&times;</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="credentials-card">
+                                <p className="credentials-warning">
+                                    <HiOutlineExclamationCircle size={18} />
+                                    <strong>Credentials were emailed.</strong> Copy these now if you need to share manually.
+                                </p>
+                                <div className="credentials-row">
+                                    <label>Student</label>
+                                    <span>{parentCredentialsResult.studentName}</span>
+                                </div>
+                                {parentCredentialsResult.sent?.length > 0 && (
+                                    <>
+                                        <div className="table-container" style={{ maxHeight: 260, overflow: 'auto', marginTop: '0.75rem' }}>
+                                            <table>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Contact</th>
+                                                        <th>Email</th>
+                                                        <th>Password</th>
+                                                        <th>Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {parentCredentialsResult.sent.map((item, index) => (
+                                                        <tr key={`${item.email}-${index}`}>
+                                                            <td>{item.relation}</td>
+                                                            <td><code className="font-mono text-sm">{item.email}</code></td>
+                                                            <td><code className="password-display font-mono text-sm">{item.tempPassword}</code></td>
+                                                            <td>
+                                                                <span className={`badge badge-${item.emailSent ? 'success' : 'warning'}`}>
+                                                                    {item.emailSent ? 'Emailed' : 'Created only'}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className="bulk-credentials-actions mt-md">
+                                            <button type="button" className="btn btn-outline btn-sm" onClick={copyAllParentCredentials}>
+                                                <HiOutlineClipboardCopy size={16} />
+                                                Copy All
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                                {parentCredentialsResult.errors?.length > 0 && (
+                                    <div className="import-errors mt-md">
+                                        <h4><HiOutlineExclamationCircle /> Issues</h4>
+                                        <ul>
+                                            {parentCredentialsResult.errors.map((err, index) => (
+                                                <li key={`${err.email || 'unknown'}-${index}`}>
+                                                    {(err.relation || err.name) ? `${err.relation || err.name}: ` : ''}{err.error}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-primary" onClick={() => { setShowParentCredentialsResult(false); setParentCredentialsResult(null); }}>
                                 Done
                             </button>
                         </div>

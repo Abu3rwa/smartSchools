@@ -12,7 +12,8 @@ import {
     transferStudent,
     createStudentLogin,
     bulkCreateStudentLogin,
-    resetStudentPassword
+    resetStudentPassword,
+    sendParentCredentials
 } from '../controllers/studentController.js';
 import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
@@ -42,6 +43,7 @@ router.route('/:id')
 router.post('/bulk-enroll', authorize('admin'), bulkEnrollStudents);
 router.post('/:id/create-login', authorize('admin'), createStudentLogin);
 router.post('/:id/reset-password', authorize('admin'), resetStudentPassword);
+router.post('/:id/send-parent-credentials', authorize('admin'), sendParentCredentials);
 router.put('/:id/transfer', authorize('admin'), validationRules.mongoId, validate, transferStudent);
 router.put('/:id/enroll', authorize('admin'), validationRules.mongoId, validate, enrollStudent);
 

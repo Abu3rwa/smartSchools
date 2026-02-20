@@ -129,6 +129,16 @@ const userSchema = new mongoose.Schema({
     },
     passwordResetToken: String,
     passwordResetExpires: Date,
+    refreshTokenHash: {
+        type: String,
+        select: false,
+        default: null
+    },
+    refreshTokenExpiresAt: {
+        type: Date,
+        select: false,
+        default: null
+    },
     // Gmail OAuth tokens for sending emails
     gmailTokens: {
         email: {
