@@ -7,6 +7,18 @@ import { resolveRequestedAcademicYear } from '../utils/academicYear.js';
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const buildRecipientEmailExactMatcher = (email = '') => {
+    const escaped = escapeRegex(String(email || '').trim().toLowerCase());
+    if (!escaped) return null;
+    return new RegExp(`(^|\\s*,\\s*)${escaped}(\\s*,\\s*|$)`, 'i');
+};
+
+const matchesRecipientEmail = (recipientEmail, userEmail) => {
+    const matcher = buildRecipientEmailExactMatcher(userEmail);
+    if (!matcher) return false;
+    return matcher.test(String(recipientEmail || '').toLowerCase());
+};
+
 /**
  * Verify teacher has access to a student (student is in one of teacher's assigned classes)
  */
@@ -172,7 +184,10 @@ export const getNotificationHistory = asyncHandler(async (req, res) => {
         const orConditions = [{ recipient: req.user._id }];
         const normalizedEmail = String(req.user.email || '').trim();
         if (normalizedEmail) {
-            orConditions.push({ recipientEmail: new RegExp(escapeRegex(normalizedEmail), 'i') });
+            const exactEmailMatcher = buildRecipientEmailExactMatcher(normalizedEmail);
+            if (exactEmailMatcher) {
+                orConditions.push({ recipientEmail: exactEmailMatcher });
+            }
         }
         filters.or = orConditions;
     }
@@ -208,10 +223,7 @@ export const getNotification = asyncHandler(async (req, res) => {
 
     const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
     const isOwner = notification.recipient?.toString() === req.user._id.toString();
-    const normalizedUserEmail = String(req.user.email || '').trim().toLowerCase();
-    const isRecipientEmail = normalizedUserEmail
-        ? (notification.recipientEmail || '').toLowerCase().includes(normalizedUserEmail)
-        : false;
+    const isRecipientEmail = matchesRecipientEmail(notification.recipientEmail, req.user.email);
     const isTeacherOwner = req.user.role === 'teacher' && notification.createdBy?._id?.toString() === req.user._id.toString();
     if (!isAdmin && !isOwner && !isRecipientEmail && !isTeacherOwner) {
         return res.status(403).json({
@@ -306,10 +318,7 @@ export const markNotificationAsRead = asyncHandler(async (req, res) => {
 
     const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
     const isOwner = notification.recipient?.toString() === req.user._id.toString();
-    const normalizedUserEmail = String(req.user.email || '').trim().toLowerCase();
-    const isRecipientEmail = normalizedUserEmail
-        ? (notification.recipientEmail || '').toLowerCase().includes(normalizedUserEmail)
-        : false;
+    const isRecipientEmail = matchesRecipientEmail(notification.recipientEmail, req.user.email);
     if (!isAdmin && !isOwner && !isRecipientEmail) {
         return res.status(403).json({
             success: false,

@@ -23,9 +23,14 @@ const buildParentEmailFilter = (email) => {
     };
 };
 
-const buildParentNotificationFilter = (parentUser) => {
-    const escapedEmail = escapeRegex(String(parentUser?.email || '').trim());
-    const emailMatcher = escapedEmail ? new RegExp(escapedEmail, 'i') : null;
+const buildRecipientEmailExactMatcher = (email) => {
+    const escapedEmail = escapeRegex(String(email || '').trim());
+    if (!escapedEmail) return null;
+    return new RegExp(`(^|\\s*,\\s*)${escapedEmail}(\\s*,\\s*|$)`, 'i');
+};
+
+export const buildParentNotificationFilter = (parentUser) => {
+    const emailMatcher = buildRecipientEmailExactMatcher(parentUser?.email);
     const conditions = [{ recipient: parentUser._id }];
     if (emailMatcher) {
         conditions.push({ recipientEmail: emailMatcher });
@@ -221,52 +226,174 @@ export const getParentDashboard = async ({ schoolId, parentUser, academicYear, d
     };
 };
 
-const mapNotificationToUpdate = (notification) => ({
-    id: notification._id,
-    type: notification.type,
-    title: notification.subject,
-    message: trimMessagePreview(notification.message),
-    htmlContent: notification.htmlContent || null,
-    student: notification.student,
-    createdBy: notification.createdBy,
-    createdAt: notification.createdAt,
-    readAt: notification.readAt || null
+const mapNotificationToUpdateListItem = (notification) => {
+    const firstName = notification.student?.firstName || '';
+    const lastName = notification.student?.lastName || '';
+    const classDoc = notification.student?.currentClass;
+    return {
+        id: notification._id,
+        childId: notification.student?._id || '',
+        childName: `${firstName} ${lastName}`.trim(),
+        childGrade: toGradeLabel(classDoc?.grade),
+        childSection: classDoc?.section || '',
+        type: notification.type,
+        subject: notification.subject || '',
+        preview: trimMessagePreview(notification.message),
+        hasHtmlContent: Boolean(String(notification.htmlContent || '').trim()),
+        isRead: Boolean(notification.readAt),
+        createdAt: notification.createdAt,
+        sentVia: Array.isArray(notification.channels) ? notification.channels : [],
+        deliveryStatus: notification.status || ''
+    };
+};
+
+const mapNotificationToUpdateDetail = (notification) => ({
+    ...mapNotificationToUpdateListItem(notification),
+    message: notification.message || '',
+    htmlContent: notification.htmlContent || ''
 });
 
-export const getParentUpdates = async ({ schoolId, parentUser, academicYear, page = 1, limit = 20 }) => {
-    const students = await getParentLinkedStudents({ schoolId, parentUser, academicYear });
-    const studentIds = students.map((s) => s._id);
-    const parentNotificationFilter = buildParentNotificationFilter(parentUser);
+const normalizePage = (value) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+};
 
-    const query = {
-        school: schoolId,
-        ...parentNotificationFilter
-    };
-    if (studentIds.length > 0) {
-        query.student = { $in: studentIds };
-    } else {
-        query.student = { $in: [] };
+const normalizeLimit = (value) => {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 20;
+    return Math.min(parsed, 100);
+};
+
+const normalizeBoolean = (value) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value !== 'string') return false;
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+};
+
+const buildUnreadClause = () => ({
+    $or: [
+        { readAt: null },
+        { readAt: { $exists: false } }
+    ]
+});
+
+export const getParentUpdates = async ({
+    schoolId,
+    parentUser,
+    academicYear,
+    page = 1,
+    limit = 20,
+    childId = null,
+    type = null,
+    unreadOnly = false
+}) => {
+    const students = await getParentLinkedStudents({ schoolId, parentUser, academicYear });
+    const childIds = students.map((student) => student._id.toString());
+    if (childIds.length === 0) {
+        return {
+            updates: [],
+            pagination: {
+                page: normalizePage(page),
+                limit: normalizeLimit(limit),
+                total: 0,
+                totalPages: 0
+            },
+            unreadCount: 0
+        };
     }
 
-    const [notifications, total] = await Promise.all([
-        Notification.find(query)
-            .populate('student', 'firstName lastName studentId')
-            .populate('createdBy', 'firstName lastName')
-            .select('_id type subject message htmlContent student createdAt readAt createdBy')
+    if (childId && !childIds.includes(String(childId))) {
+        return {
+            updates: [],
+            pagination: {
+                page: normalizePage(page),
+                limit: normalizeLimit(limit),
+                total: 0,
+                totalPages: 0
+            },
+            unreadCount: 0
+        };
+    }
+
+    const pageNumber = normalizePage(page);
+    const pageSize = normalizeLimit(limit);
+    const parentNotificationFilter = buildParentNotificationFilter(parentUser);
+
+    const listQuery = {
+        school: schoolId,
+        $and: [
+            parentNotificationFilter,
+            { student: { $in: childIds } },
+            ...(childId ? [{ student: childId }] : []),
+            ...(type ? [{ type }] : []),
+            ...(normalizeBoolean(unreadOnly) ? [buildUnreadClause()] : [])
+        ]
+    };
+
+    const [notifications, total, unreadCount] = await Promise.all([
+        Notification.find(listQuery)
+            .select('_id student type subject message htmlContent channels status readAt createdAt')
+            .populate({
+                path: 'student',
+                select: 'firstName lastName currentClass',
+                populate: {
+                    path: 'currentClass',
+                    select: 'grade section'
+                }
+            })
             .sort({ createdAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(limit)
+            .skip((pageNumber - 1) * pageSize)
+            .limit(pageSize)
             .lean(),
-        Notification.countDocuments(query)
+        Notification.countDocuments(listQuery),
+        Notification.countDocuments({
+            school: schoolId,
+            $and: [parentNotificationFilter, buildUnreadClause()]
+        })
     ]);
 
     return {
-        updates: notifications.map(mapNotificationToUpdate),
+        updates: notifications.map(mapNotificationToUpdateListItem),
         pagination: {
-            page,
-            limit,
+            page: pageNumber,
+            limit: pageSize,
             total,
-            pages: Math.ceil(total / limit)
-        }
+            totalPages: Math.ceil(total / pageSize)
+        },
+        unreadCount
     };
+};
+
+export const getParentUpdateById = async ({
+    schoolId,
+    parentUser,
+    academicYear,
+    updateId
+}) => {
+    const students = await getParentLinkedStudents({ schoolId, parentUser, academicYear });
+    const childIds = students.map((student) => student._id.toString());
+    if (childIds.length === 0) return null;
+
+    const parentNotificationFilter = buildParentNotificationFilter(parentUser);
+
+    const notification = await Notification.findOne({
+        _id: updateId,
+        school: schoolId,
+        student: { $in: childIds },
+        ...parentNotificationFilter
+    })
+        .select('_id student type subject message htmlContent channels status readAt createdAt')
+        .populate({
+            path: 'student',
+            select: 'firstName lastName currentClass',
+            populate: {
+                path: 'currentClass',
+                select: 'grade section'
+            }
+        })
+        .lean();
+
+    if (!notification) return null;
+    return mapNotificationToUpdateDetail(notification);
 };
