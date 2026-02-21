@@ -1,5 +1,5 @@
 import express from 'express';
-import { param } from 'express-validator';
+import { body, param } from 'express-validator';
 import {
     getParentChildAttendanceSummaryController,
     getParentChildGradesController,
@@ -7,10 +7,14 @@ import {
     getParentChildTimetableController,
     getParentChildrenController,
     getParentDashboardController,
+    getParentMessageThreadByIdController,
+    getParentMessageThreadsController,
     getParentSettingsController,
     getParentUpdateByIdController,
     getParentUpdatesController,
     markAllParentUpdatesAsReadController,
+    markParentMessageThreadReadController,
+    replyToParentMessageThreadController,
     updateParentSettingsController
 } from '../controllers/parentController.js';
 import { authorize, protect } from '../middleware/auth.js';
@@ -52,6 +56,30 @@ router.get('/dashboard', getParentDashboardController);
 router.patch('/updates/read-all', markAllParentUpdatesAsReadController);
 router.get('/updates', getParentUpdatesController);
 router.get('/updates/:id', validationRules.mongoId, validate, getParentUpdateByIdController);
+router.get('/messages/threads', validationRules.pagination, validate, getParentMessageThreadsController);
+router.get(
+    '/messages/threads/:threadId',
+    param('threadId').isMongoId().withMessage('Invalid threadId format'),
+    validate,
+    getParentMessageThreadByIdController
+);
+router.post(
+    '/messages/threads/:threadId/replies',
+    param('threadId').isMongoId().withMessage('Invalid threadId format'),
+    body('body')
+        .isString()
+        .trim()
+        .isLength({ min: 1, max: 5000 })
+        .withMessage('Reply body is required and must be at most 5000 characters'),
+    validate,
+    replyToParentMessageThreadController
+);
+router.patch(
+    '/messages/threads/:threadId/read',
+    param('threadId').isMongoId().withMessage('Invalid threadId format'),
+    validate,
+    markParentMessageThreadReadController
+);
 router.get('/settings', getParentSettingsController);
 router.patch('/settings', updateParentSettingsController);
 

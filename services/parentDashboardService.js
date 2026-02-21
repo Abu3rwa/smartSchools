@@ -392,7 +392,11 @@ export const getParentUpdates = async ({
         Notification.countDocuments(listQuery),
         Notification.countDocuments({
             school: schoolId,
-            $and: [parentNotificationFilter, buildUnreadClause()]
+            $and: [
+                parentNotificationFilter,
+                { student: { $in: childIds } },
+                buildUnreadClause()
+            ]
         })
     ]);
 

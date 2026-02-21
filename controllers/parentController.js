@@ -16,6 +16,7 @@ import {
     getParentUpdates,
     getParentUpdateById
 } from '../services/parentDashboardService.js';
+import ParentMessageThread from '../models/ParentMessageThread.js';
 
 const parseDateValue = (raw, endOfDay = false) => {
     if (!raw) return null;
@@ -374,5 +375,268 @@ export const updateParentSettingsController = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         data
+    });
+});
+
+const parsePositiveInt = (raw, fallback, max = 100) => {
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return Math.min(parsed, max);
+};
+
+const toId = (value) => (value == null ? '' : String(value));
+
+const toDisplayName = (user) => {
+    const firstName = user?.firstName || '';
+    const lastName = user?.lastName || '';
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || user?.email || 'Parent';
+};
+
+const mapThreadSummary = (thread, currentUserId) => {
+    const participants = Array.isArray(thread.participants) ? thread.participants : [];
+    const currentParticipant = participants.find((item) => toId(item.user) === currentUserId);
+    const unreadCount = currentParticipant?.unreadCount || 0;
+    const lastMessage = Array.isArray(thread.messages) && thread.messages.length > 0
+        ? thread.messages[thread.messages.length - 1]
+        : null;
+    const participantNames = participants
+        .filter((item) => toId(item.user) !== currentUserId)
+        .map((item) => (item.displayName || '').trim())
+        .filter((value) => value.length > 0);
+
+    return {
+        id: thread._id,
+        subject: (thread.subject || '').trim() || 'Conversation',
+        preview: (lastMessage?.body || '').trim(),
+        participantsLabel: participantNames.join(', '),
+        lastMessageAt: thread.lastMessageAt || lastMessage?.createdAt || thread.updatedAt || thread.createdAt,
+        unreadCount,
+        isRead: unreadCount <= 0
+    };
+};
+
+const mapThreadDetail = (thread, currentUser) => {
+    const participants = Array.isArray(thread.participants) ? thread.participants : [];
+    const currentUserId = toId(currentUser?._id);
+    const currentParticipant = participants.find((item) => toId(item.user) === currentUserId);
+    const participantNames = participants
+        .filter((item) => toId(item.user) !== currentUserId)
+        .map((item) => (item.displayName || '').trim())
+        .filter((value) => value.length > 0);
+
+    const messageItems = Array.isArray(thread.messages) ? [...thread.messages] : [];
+    messageItems.sort((left, right) => {
+        const leftTime = left?.createdAt ? new Date(left.createdAt).getTime() : 0;
+        const rightTime = right?.createdAt ? new Date(right.createdAt).getTime() : 0;
+        return leftTime - rightTime;
+    });
+
+    const messages = messageItems.map((message) => {
+        const senderId = toId(message.sender);
+        const senderParticipant = participants.find((item) => toId(item.user) === senderId);
+        return {
+            id: message._id,
+            body: message.body || '',
+            senderRole: message.senderRole || senderParticipant?.role || '',
+            senderName: senderParticipant?.displayName || (senderId === currentUserId ? toDisplayName(currentUser) : 'School'),
+            isMine: senderId === currentUserId,
+            createdAt: message.createdAt || null
+        };
+    });
+
+    return {
+        thread: {
+            id: thread._id,
+            subject: (thread.subject || '').trim() || 'Conversation',
+            participantsLabel: participantNames.join(', '),
+            unreadCount: currentParticipant?.unreadCount || 0,
+            isClosed: thread.isClosed === true
+        },
+        messages
+    };
+};
+
+/**
+ * @desc    Get parent message threads (paginated)
+ * @route   GET /api/parent/messages/threads
+ * @access  Private (parent)
+ */
+export const getParentMessageThreadsController = asyncHandler(async (req, res) => {
+    const page = parsePositiveInt(req.query.page, 1, 5000);
+    const limit = parsePositiveInt(req.query.limit, 20, 100);
+    const filter = { 'participants.user': req.user._id };
+
+    const [threads, total] = await Promise.all([
+        ParentMessageThread.find(filter)
+            .sort({ lastMessageAt: -1, updatedAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit),
+        ParentMessageThread.countDocuments(filter)
+    ]);
+
+    const currentUserId = toId(req.user._id);
+    const items = threads.map((thread) => mapThreadSummary(thread, currentUserId));
+    const unreadCount = items.reduce((sum, item) => sum + (item.unreadCount || 0), 0);
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+
+    res.status(200).json({
+        success: true,
+        data: {
+            items,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages
+            },
+            unreadCount
+        }
+    });
+});
+
+/**
+ * @desc    Get one parent message thread detail
+ * @route   GET /api/parent/messages/threads/:threadId
+ * @access  Private (parent)
+ */
+export const getParentMessageThreadByIdController = asyncHandler(async (req, res) => {
+    const thread = await ParentMessageThread.findOne({
+        _id: req.params.threadId,
+        'participants.user': req.user._id
+    });
+
+    if (!thread) {
+        return res.status(404).json({
+            success: false,
+            message: 'Thread not found'
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data: mapThreadDetail(thread, req.user)
+    });
+});
+
+/**
+ * @desc    Reply to parent message thread
+ * @route   POST /api/parent/messages/threads/:threadId/replies
+ * @access  Private (parent)
+ */
+export const replyToParentMessageThreadController = asyncHandler(async (req, res) => {
+    const body = (req.body?.body || '').toString().trim();
+    if (!body) {
+        return res.status(400).json({
+            success: false,
+            message: 'Reply body is required'
+        });
+    }
+
+    const thread = await ParentMessageThread.findOne({
+        _id: req.params.threadId,
+        'participants.user': req.user._id
+    });
+
+    if (!thread) {
+        return res.status(404).json({
+            success: false,
+            message: 'Thread not found'
+        });
+    }
+
+    if (thread.isClosed === true) {
+        return res.status(400).json({
+            success: false,
+            message: 'This conversation is closed'
+        });
+    }
+
+    const now = new Date();
+    thread.messages.push({
+        sender: req.user._id,
+        senderRole: req.user.role,
+        body,
+        createdAt: now
+    });
+    thread.lastMessageAt = now;
+
+    const currentUserId = toId(req.user._id);
+    let hasCurrentParticipant = false;
+    for (const participant of thread.participants) {
+        if (toId(participant.user) === currentUserId) {
+            participant.unreadCount = 0;
+            participant.lastReadAt = now;
+            if (!participant.displayName) {
+                participant.displayName = toDisplayName(req.user);
+            }
+            hasCurrentParticipant = true;
+        } else {
+            participant.unreadCount = (participant.unreadCount || 0) + 1;
+        }
+    }
+
+    if (!hasCurrentParticipant) {
+        thread.participants.push({
+            user: req.user._id,
+            role: req.user.role,
+            displayName: toDisplayName(req.user),
+            unreadCount: 0,
+            lastReadAt: now
+        });
+    }
+
+    await thread.save();
+
+    const lastMessage = thread.messages[thread.messages.length - 1];
+    res.status(200).json({
+        success: true,
+        data: {
+            threadId: thread._id,
+            message: {
+                id: lastMessage._id,
+                body: lastMessage.body,
+                senderRole: lastMessage.senderRole || req.user.role,
+                senderName: toDisplayName(req.user),
+                isMine: true,
+                createdAt: lastMessage.createdAt || now
+            }
+        }
+    });
+});
+
+/**
+ * @desc    Mark parent message thread as read
+ * @route   PATCH /api/parent/messages/threads/:threadId/read
+ * @access  Private (parent)
+ */
+export const markParentMessageThreadReadController = asyncHandler(async (req, res) => {
+    const thread = await ParentMessageThread.findOne({
+        _id: req.params.threadId,
+        'participants.user': req.user._id
+    });
+
+    if (!thread) {
+        return res.status(404).json({
+            success: false,
+            message: 'Thread not found'
+        });
+    }
+
+    const currentUserId = toId(req.user._id);
+    const participant = thread.participants.find((item) => toId(item.user) === currentUserId);
+    if (participant) {
+        participant.unreadCount = 0;
+        participant.lastReadAt = new Date();
+    }
+
+    await thread.save();
+
+    res.status(200).json({
+        success: true,
+        data: {
+            threadId: thread._id,
+            unreadCount: 0
+        }
     });
 });
