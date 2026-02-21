@@ -230,7 +230,18 @@ const buildChildSummary = async ({ schoolId, parentUser, student, dateFilter }) 
 
 export const getParentDashboard = async ({ schoolId, parentUser, academicYear, dateFilter }) => {
     const students = await getParentLinkedStudents({ schoolId, parentUser, academicYear });
+    const childIds = students.map((student) => student._id.toString());
     const parentNotificationFilter = buildParentNotificationFilter(parentUser);
+    const unreadNotificationsPromise = childIds.length === 0
+        ? Promise.resolve(0)
+        : Notification.countDocuments({
+            school: schoolId,
+            $and: [
+                parentNotificationFilter,
+                buildParentUpdateVisibilityClause({ childIds }),
+                buildUnreadClause()
+            ]
+        });
 
     const [children, pendingRequestsCount, unreadNotificationsCount] = await Promise.all([
         Promise.all(
@@ -247,18 +258,7 @@ export const getParentDashboard = async ({ schoolId, parentUser, academicYear, d
             status: 'pending',
             ...(dateFilter?.$gte || dateFilter?.$lte ? { requestDate: dateFilter } : {})
         }),
-        Notification.countDocuments({
-            school: schoolId,
-            $and: [
-                parentNotificationFilter,
-                {
-                    $or: [
-                        { readAt: null },
-                        { readAt: { $exists: false } }
-                    ]
-                }
-            ]
-        })
+        unreadNotificationsPromise
     ]);
 
     return {
@@ -272,11 +272,12 @@ export const getParentDashboard = async ({ schoolId, parentUser, academicYear, d
 const mapNotificationToUpdateListItem = (notification) => {
     const firstName = notification.student?.firstName || '';
     const lastName = notification.student?.lastName || '';
+    const childName = `${firstName} ${lastName}`.trim() || 'School';
     const classDoc = notification.student?.currentClass;
     return {
         id: notification._id,
         childId: notification.student?._id || '',
-        childName: `${firstName} ${lastName}`.trim(),
+        childName,
         childGrade: toGradeLabel(classDoc?.grade),
         childSection: classDoc?.section || '',
         type: notification.type,
@@ -314,12 +315,41 @@ const normalizeBoolean = (value) => {
     return normalized === 'true' || normalized === '1' || normalized === 'yes';
 };
 
-const buildUnreadClause = () => ({
-    $or: [
-        { readAt: null },
-        { readAt: { $exists: false } }
-    ]
-});
+function buildUnreadClause() {
+    return {
+        $or: [
+            { readAt: null },
+            { readAt: { $exists: false } }
+        ]
+    };
+}
+
+function buildLegacyAttendanceRequestStatusClause() {
+    return {
+        $and: [
+            { type: 'attendance_request_status' },
+            {
+                $or: [
+                    { student: null },
+                    { student: { $exists: false } }
+                ]
+            }
+        ]
+    };
+}
+
+function buildParentUpdateVisibilityClause({ childIds, childId = null }) {
+    if (childId) {
+        return { student: childId };
+    }
+
+    return {
+        $or: [
+            { student: { $in: childIds } },
+            buildLegacyAttendanceRequestStatusClause()
+        ]
+    };
+}
 
 export const getParentUpdates = async ({
     schoolId,
@@ -367,8 +397,7 @@ export const getParentUpdates = async ({
         school: schoolId,
         $and: [
             parentNotificationFilter,
-            { student: { $in: childIds } },
-            ...(childId ? [{ student: childId }] : []),
+            buildParentUpdateVisibilityClause({ childIds, childId }),
             ...(type ? [{ type }] : []),
             ...(normalizeBoolean(unreadOnly) ? [buildUnreadClause()] : [])
         ]
@@ -394,7 +423,7 @@ export const getParentUpdates = async ({
             school: schoolId,
             $and: [
                 parentNotificationFilter,
-                { student: { $in: childIds } },
+                buildParentUpdateVisibilityClause({ childIds }),
                 buildUnreadClause()
             ]
         })
@@ -427,8 +456,10 @@ export const getParentUpdateById = async ({
     const notification = await Notification.findOne({
         _id: updateId,
         school: schoolId,
-        student: { $in: childIds },
-        ...parentNotificationFilter
+        $and: [
+            parentNotificationFilter,
+            buildParentUpdateVisibilityClause({ childIds })
+        ]
     })
         .select('_id student type subject message htmlContent channels status readAt createdAt')
         .populate({
@@ -461,7 +492,7 @@ export const markAllParentUpdatesAsRead = async ({
         school: schoolId,
         $and: [
             parentNotificationFilter,
-            { student: { $in: childIds } },
+            buildParentUpdateVisibilityClause({ childIds }),
             buildUnreadClause()
         ]
     };
