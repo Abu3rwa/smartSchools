@@ -353,6 +353,77 @@
     min-height: 40px;
 }
 
+.class-selection {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    max-height: 220px;
+    overflow-y: auto;
+    padding: var(--spacing-xs);
+}
+
+.class-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.class-option {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    cursor: pointer;
+    background: var(--bg-card);
+}
+
+.class-option.selected {
+    border-color: var(--primary-600);
+    background: rgba(var(--accent-primary-rgb), 0.1);
+}
+
+.class-option input {
+    margin: 0;
+    accent-color: var(--primary-600);
+}
+
+.class-option-main {
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.class-option-meta {
+    grid-column: 2 / span 1;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.compose-audience-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin-top: 2px;
+}
+
+.audience-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.audience-toggle input {
+    accent-color: var(--primary-600);
+}
+
+.compose-class-preview {
+    font-size: 0.82rem;
+}
+
 .compose-chip {
     display: inline-flex;
     align-items: center;
@@ -362,6 +433,11 @@
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     font-size: 0.8rem;
+}
+
+.compose-students {
+    color: var(--text-muted);
+    font-size: 0.75rem;
 }
 
 .chip-remove {
@@ -396,7 +472,6 @@
 
 .compose-result:hover {
     background: var(--bg-card-hover);
-}
 }
 
 @media (max-width: 900px) {

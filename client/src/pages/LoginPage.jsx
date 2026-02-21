@@ -102,7 +102,7 @@ const LoginPage = () => {
                         <HiOutlineArrowLeft size={16} />
                         All schools
                     </button>
-                    <span className="login-powered">GradeBook Pro</span>
+                    <span className="login-powered">NextGen School</span>
                 </header>
             )}
 
@@ -112,7 +112,7 @@ const LoginPage = () => {
                     <div className="logo-icon-lg">
                         <HiOutlineAcademicCap size={40} />
                     </div>
-                    <h1 className="logo-title">{isSchoolContext ? school.name : 'GradeBook Pro'}</h1>
+                    <h1 className="logo-title">{isSchoolContext ? school.name : 'NextGen School'}</h1>
                     <p className="logo-subtitle">Sign in to your account</p>
                 </div>
 

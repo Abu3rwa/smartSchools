@@ -1,10 +1,11 @@
 import express from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, authorizeWithPermission } from '../middleware/auth.js';
 import { requireSchoolContext, superAdminOnly } from '../middleware/tenantIsolation.js';
 import School from '../models/School.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
+import { PERMISSIONS } from '../config/permissions.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { generateToken } from '../middleware/auth.js';
 import {
@@ -20,6 +21,11 @@ import {
 } from '../utils/academicYear.js';
 
 const router = express.Router();
+const userManagementAccess = authorizeWithPermission(
+    ['admin'],
+    [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SCHOOL_SETTINGS]
+);
+const validPermissionKeys = new Set(Object.values(PERMISSIONS));
 
 // All routes require authentication
 router.use(protect);
@@ -118,7 +124,7 @@ router.put('/me', requireSchoolContext, authorize('admin'), asyncHandler(async (
  * @route   GET /api/schools/me/users
  * @access  Private (Admin)
  */
-router.get('/me/users', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+router.get('/me/users', requireSchoolContext, userManagementAccess, asyncHandler(async (req, res) => {
     const users = await User.find({ school: req.schoolId })
         .select('firstName lastName email role isActive department permissions permissionScopes createdAt')
         .populate('department', 'name type')
@@ -132,7 +138,7 @@ router.get('/me/users', requireSchoolContext, authorize('admin'), asyncHandler(a
  * @route   PATCH /api/schools/me/users/:userId
  * @access  Private (Admin)
  */
-router.patch('/me/users/:userId', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const { role, department, permissions, permissionScopes } = req.body;
 
@@ -181,10 +187,25 @@ router.patch('/me/users/:userId', requireSchoolContext, authorize('admin'), asyn
     
     // Update permissions array
     if (permissions !== undefined) {
-        if (!Array.isArray(permissions)) {
-            return res.status(400).json({ success: false, message: 'Permissions must be an array' });
+        if (!Array.isArray(permissions) && typeof permissions !== 'string') {
+            return res.status(400).json({ success: false, message: 'Permissions must be an array or comma-separated string' });
         }
-        user.permissions = permissions;
+
+        const normalizedPermissions = Array.from(new Set(
+            (Array.isArray(permissions) ? permissions : permissions.split(','))
+                .map((permission) => String(permission || '').trim())
+                .filter(Boolean)
+        ));
+
+        const invalidPermissions = normalizedPermissions.filter((permission) => !validPermissionKeys.has(permission));
+        if (invalidPermissions.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid permissions: ${invalidPermissions.join(', ')}`
+            });
+        }
+
+        user.permissions = normalizedPermissions;
     }
     
     // Update permission scopes (optional)

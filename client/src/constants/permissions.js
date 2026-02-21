@@ -6,6 +6,9 @@ export const PERMISSIONS = {
     // Attendance
     MANAGE_ATTENDANCE_REMINDERS: 'manage_attendance_reminders',
     VIEW_ATTENDANCE_REPORTS: 'view_attendance_reports',
+
+    // School Settings
+    MANAGE_SCHOOL_SETTINGS: 'manage_school_settings',
     
     // Lesson Plans
     REVIEW_LESSON_PLANS: 'review_lesson_plans',
@@ -70,6 +73,11 @@ export const PERMISSION_DEFINITIONS = {
         label: 'View Attendance Reports',
         description: 'View attendance reports and statistics',
         category: 'attendance'
+    },
+    [PERMISSIONS.MANAGE_SCHOOL_SETTINGS]: {
+        label: 'Manage School Settings',
+        description: 'Configure school-wide settings including lesson plan criteria',
+        category: 'admin'
     },
     [PERMISSIONS.REVIEW_LESSON_PLANS]: {
         label: 'Review Lesson Plans',

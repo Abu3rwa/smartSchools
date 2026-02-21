@@ -31,13 +31,36 @@ export async function fetchMessageThreadById(threadId) {
 }
 
 /**
- * Create a new thread to one or more parents.
- * @param {{ subject: string, body: string, recipientUserIds: string[] }} payload
+ * Create one-to-one threads to recipients and/or class audiences.
+ * @param {{
+ *  subject: string,
+ *  body: string,
+ *  recipientUserIds?: string[],
+ *  classIds?: string[],
+ *  includeParents?: boolean,
+ *  includeStudents?: boolean
+ * }} payload
  * @returns {Promise<{ threadId: string, messageId: string, recipientCount: number, threads?: Array }>}
  */
 export async function createMessageThread(payload) {
     const { data } = await api.post(`${BASE}/threads`, payload);
     if (!data.success) throw new Error(data.message || 'Failed to create message thread');
+    return data.data;
+}
+
+/**
+ * Get class options with parent/student recipient counts for compose flow.
+ * @param {{ search?: string, limit?: number }} params
+ * @returns {Promise<{ classes: Array }>}
+ */
+export async function fetchMessageClasses(params = {}) {
+    const query = new URLSearchParams();
+    if (params.search) query.set('search', params.search);
+    if (params.limit) query.set('limit', params.limit);
+
+    const suffix = query.toString();
+    const { data } = await api.get(`${BASE}/classes${suffix ? `?${suffix}` : ''}`);
+    if (!data.success) throw new Error(data.message || 'Failed to fetch classes');
     return data.data;
 }
 

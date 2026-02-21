@@ -7,7 +7,8 @@ import {
     getMessageThreadByIdController,
     replyToMessageThreadController,
     markMessageThreadReadController,
-    getParentUsersForMessagingController
+    getParentUsersForMessagingController,
+    getMessageClassesForMessagingController
 } from '../controllers/messageController.js';
 import { authorize, protect } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
@@ -32,11 +33,29 @@ router.post(
         .isLength({ min: 1, max: 5000 })
         .withMessage('body is required and must be at most 5000 characters'),
     body('recipientUserIds')
-        .isArray({ min: 1 })
-        .withMessage('recipientUserIds must be a non-empty array'),
+        .optional()
+        .isArray()
+        .withMessage('recipientUserIds must be an array'),
     body('recipientUserIds.*')
+        .optional()
         .isMongoId()
         .withMessage('Each recipientUserId must be a valid ID'),
+    body('classIds')
+        .optional()
+        .isArray()
+        .withMessage('classIds must be an array'),
+    body('classIds.*')
+        .optional()
+        .isMongoId()
+        .withMessage('Each classId must be a valid ID'),
+    body('includeParents')
+        .optional()
+        .isBoolean()
+        .withMessage('includeParents must be a boolean'),
+    body('includeStudents')
+        .optional()
+        .isBoolean()
+        .withMessage('includeStudents must be a boolean'),
     validate,
     createMessageThreadController
 );
@@ -58,7 +77,8 @@ router.post(
 
 router.patch('/threads/:threadId/read', markMessageThreadReadController);
 
+router.get('/classes', getMessageClassesForMessagingController);
+
 router.get('/parents', getParentUsersForMessagingController);
 
 export default router;
-

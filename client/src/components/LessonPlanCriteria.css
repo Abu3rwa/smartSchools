@@ -1,295 +1,315 @@
 .lesson-plan-criteria {
-    padding: 20px;
+    padding: var(--spacing-lg);
+    color: var(--text-primary);
 }
 
-.criteria-header {
+.lesson-plan-criteria .criteria-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 30px;
-    gap: 20px;
+    margin-bottom: var(--spacing-xl);
+    gap: var(--spacing-lg);
 }
 
-.criteria-header h3 {
-    margin: 0 0 8px 0;
+.lesson-plan-criteria .criteria-header h3 {
+    margin: 0 0 var(--spacing-xs) 0;
     font-size: 1.5rem;
-    color: #1a1a1a;
+    color: var(--text-primary);
 }
 
-.criteria-actions {
+.lesson-plan-criteria .criteria-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
 }
 
-.loading {
+.lesson-plan-criteria .loading {
     text-align: center;
-    padding: 40px;
-    color: #666;
+    padding: var(--spacing-2xl);
+    color: var(--text-muted);
 }
 
-.empty-state {
+.lesson-plan-criteria .empty-state {
     text-align: center;
-    padding: 60px 20px;
-    background: #f9f9f9;
-    border-radius: 8px;
-    border: 2px dashed #ddd;
+    padding: var(--spacing-2xl) var(--spacing-lg);
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    border: 1px dashed var(--border-color);
 }
 
-.empty-state p {
-    margin: 10px 0;
+.lesson-plan-criteria .empty-state p {
+    margin: var(--spacing-xs) 0;
     font-size: 1rem;
 }
 
-.criteria-list {
+.lesson-plan-criteria .criteria-list {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--spacing-md);
 }
 
-.criterion-card {
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 20px;
-    transition: box-shadow 0.2s;
+.lesson-plan-criteria .criterion-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    transition: all var(--transition-normal);
 }
 
-.criterion-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.lesson-plan-criteria .criterion-card:hover {
+    border-color: var(--border-color-hover);
+    box-shadow: var(--shadow-md);
 }
 
-.criterion-header {
+.lesson-plan-criteria .criterion-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 12px;
+    margin-bottom: var(--spacing-sm);
+    gap: var(--spacing-md);
 }
 
-.criterion-title {
+.lesson-plan-criteria .criterion-title {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--spacing-sm);
     flex: 1;
+    min-width: 0;
 }
 
-.criterion-order {
+.lesson-plan-criteria .criterion-order {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
+    min-width: 28px;
     height: 28px;
-    background: #f0f0f0;
-    border-radius: 50%;
+    padding: 0 var(--spacing-xs);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
     font-weight: 600;
-    font-size: 0.9rem;
-    color: #666;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
 }
 
-.criterion-title h4 {
+.lesson-plan-criteria .criterion-title h4 {
     margin: 0;
-    font-size: 1.1rem;
-    color: #1a1a1a;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.badge {
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 0.75rem;
+.lesson-plan-criteria .badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-full);
+    font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.02em;
 }
 
-.badge-required {
-    background: #e3f2fd;
-    color: #1976d2;
+.lesson-plan-criteria .badge-required {
+    background: rgba(var(--accent-primary-rgb), 0.14);
+    color: var(--primary-400);
+    border: 1px solid rgba(var(--accent-primary-rgb), 0.35);
 }
 
-.criterion-actions {
+.lesson-plan-criteria .criterion-actions {
     display: flex;
     gap: 6px;
+    flex-wrap: wrap;
 }
 
-.btn-icon {
-    background: none;
-    border: 1px solid #e0e0e0;
+.lesson-plan-criteria .btn-icon {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     padding: 6px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    color: #666;
-    transition: all 0.2s;
-    display: flex;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+    display: inline-flex;
     align-items: center;
     justify-content: center;
 }
 
-.btn-icon:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #ccc;
-    color: #333;
+.lesson-plan-criteria .btn-icon:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color-hover);
+    color: var(--text-primary);
 }
 
-.btn-icon:disabled {
-    opacity: 0.3;
+.lesson-plan-criteria .btn-icon:disabled {
+    opacity: 0.35;
     cursor: not-allowed;
 }
 
-.btn-icon.btn-danger:hover:not(:disabled) {
-    background: #ffebee;
-    border-color: #ef5350;
-    color: #d32f2f;
+.lesson-plan-criteria .btn-icon.btn-danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: var(--error-500);
+    color: var(--error-500);
 }
 
-.criterion-description {
-    margin: 0 0 12px 0;
-    color: #666;
+.lesson-plan-criteria .criterion-description {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-secondary);
     line-height: 1.5;
 }
 
-.criterion-meta {
+.lesson-plan-criteria .criterion-meta {
     display: flex;
-    gap: 24px;
-    margin-bottom: 12px;
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-sm);
+    flex-wrap: wrap;
 }
 
-.meta-item {
+.lesson-plan-criteria .meta-item {
     display: flex;
-    gap: 6px;
+    gap: var(--spacing-xs);
     font-size: 0.9rem;
 }
 
-.meta-label {
-    color: #666;
+.lesson-plan-criteria .meta-label {
+    color: var(--text-muted);
     font-weight: 500;
 }
 
-.meta-value {
-    color: #1a1a1a;
+.lesson-plan-criteria .meta-value {
+    color: var(--text-primary);
     font-weight: 600;
 }
 
-.criterion-prompt {
-    margin-top: 12px;
-    padding: 12px;
-    background: #f9f9f9;
-    border-radius: 4px;
-    border: 1px solid #e0e0e0;
+.lesson-plan-criteria .criterion-prompt {
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
 }
 
-.criterion-prompt summary {
+.lesson-plan-criteria .criterion-prompt summary {
     cursor: pointer;
     font-weight: 500;
-    color: #1976d2;
+    color: var(--primary-400);
     user-select: none;
 }
 
-.criterion-prompt summary:hover {
-    color: #1565c0;
+.lesson-plan-criteria .criterion-prompt summary:hover {
+    color: var(--primary-300);
 }
 
-.criterion-prompt p {
-    margin: 12px 0 0 0;
-    color: #666;
-    line-height: 1.6;
+.lesson-plan-criteria .criterion-prompt p {
+    margin: var(--spacing-sm) 0 0 0;
+    color: var(--text-secondary);
+    line-height: 1.55;
 }
 
-.modal-overlay {
+.lesson-plan-criteria .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay-bg);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    padding: 20px;
+    padding: var(--spacing-lg);
 }
 
-.modal-content {
-    background: white;
-    border-radius: 8px;
+.lesson-plan-criteria .modal-content {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
     width: 100%;
-    max-width: 600px;
+    max-width: 640px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-lg);
 }
 
-.modal-header {
+.lesson-plan-criteria .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid #e0e0e0;
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
 }
 
-.modal-header h3 {
+.lesson-plan-criteria .modal-header h3 {
     margin: 0;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
+    color: var(--text-primary);
 }
 
-.btn-close {
-    background: none;
-    border: none;
+.lesson-plan-criteria .btn-close {
+    background: transparent;
+    border: 1px solid transparent;
     padding: 4px;
     cursor: pointer;
-    color: #666;
-    display: flex;
+    color: var(--text-secondary);
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
 }
 
-.btn-close:hover {
-    background: #f5f5f5;
-    color: #333;
+.lesson-plan-criteria .btn-close:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
 }
 
-.modal-content form {
-    padding: 20px;
+.lesson-plan-criteria .modal-content form {
+    padding: var(--spacing-lg);
 }
 
-.form-group {
-    margin-bottom: 20px;
+.lesson-plan-criteria .form-group {
+    margin-bottom: var(--spacing-lg);
 }
 
-.form-group label {
+.lesson-plan-criteria .form-group label {
     display: block;
     margin-bottom: 6px;
     font-weight: 500;
-    color: #333;
+    color: var(--text-primary);
 }
 
-.form-group input[type="text"],
-.form-group input[type="number"],
-.form-group textarea {
+.lesson-plan-criteria .form-group input[type="text"],
+.lesson-plan-criteria .form-group input[type="number"],
+.lesson-plan-criteria .form-group textarea {
     width: 100%;
     padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
     font-size: 0.95rem;
     font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-input);
 }
 
-.form-group input:focus,
-.form-group textarea:focus {
+.lesson-plan-criteria .form-group input:focus,
+.lesson-plan-criteria .form-group textarea:focus {
     outline: none;
-    border-color: #1976d2;
-    box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
-.form-group textarea {
+.lesson-plan-criteria .form-group textarea {
     resize: vertical;
 }
 
-.form-row {
+.lesson-plan-criteria .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: var(--spacing-md);
 }
 
-.checkbox-label {
+.lesson-plan-criteria .checkbox-label {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -297,84 +317,47 @@
     font-weight: 500;
 }
 
-.checkbox-label input[type="checkbox"] {
+.lesson-plan-criteria .checkbox-label input[type="checkbox"] {
     width: 18px;
     height: 18px;
     cursor: pointer;
 }
 
-.text-muted {
-    color: #666;
+.lesson-plan-criteria .text-muted {
+    color: var(--text-muted);
     font-size: 0.85rem;
     margin-top: 4px;
     display: block;
 }
 
-.modal-footer {
+.lesson-plan-criteria .modal-footer {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
-    padding: 20px;
-    border-top: 1px solid #e0e0e0;
-    margin-top: 20px;
-}
-
-.btn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.95rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.btn-primary {
-    background: #1976d2;
-    color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-    background: #1565c0;
-}
-
-.btn-secondary {
-    background: #f5f5f5;
-    color: #333;
-    border: 1px solid #ddd;
-}
-
-.btn-secondary:hover:not(:disabled) {
-    background: #e0e0e0;
-}
-
-.btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    margin-top: var(--spacing-lg);
 }
 
 @media (max-width: 768px) {
-    .criteria-header {
+    .lesson-plan-criteria {
+        padding: var(--spacing-md);
+    }
+
+    .lesson-plan-criteria .criteria-header {
         flex-direction: column;
     }
 
-    .criteria-actions {
+    .lesson-plan-criteria .criteria-actions {
         width: 100%;
         flex-direction: column;
     }
 
-    .criteria-actions button {
+    .lesson-plan-criteria .criteria-actions button {
         width: 100%;
     }
 
-    .form-row {
+    .lesson-plan-criteria .form-row {
         grid-template-columns: 1fr;
-    }
-
-    .criterion-actions {
-        flex-wrap: wrap;
     }
 }

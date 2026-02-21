@@ -17,6 +17,7 @@ const ABSENT_STATUSES = ['absent', 'absent_excused'];
 const LATE_STATUSES = ['tardy', 'tardy_excused'];
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const REPORT_TYPE_MAP = {
     daily: ['daily_report', 'daily_classwork_update'],
@@ -615,6 +616,17 @@ export const getParentChildAttendanceSummary = async ({
     };
 };
 
+const roundOneDecimal = (value) => Number(Number(value || 0).toFixed(1));
+
+const computeAssessmentPercentage = ({ marks, maxMarks }) => {
+    const earned = Number(marks || 0);
+    const possible = Number(maxMarks || 0);
+    if (!Number.isFinite(earned) || !Number.isFinite(possible) || possible <= 0) {
+        return null;
+    }
+    return roundOneDecimal((earned / possible) * 100);
+};
+
 const mapGradeForParent = (grade) => ({
     id: grade._id,
     subject: grade.subject ? {
@@ -627,7 +639,10 @@ const mapGradeForParent = (grade) => ({
     title: grade.title || grade.examName || '',
     marks: grade.marks,
     maxMarks: grade.maxMarks,
-    percentage: Number(((Number(grade.marks || 0) / Number(grade.maxMarks || 1)) * 100).toFixed(1)),
+    percentage: computeAssessmentPercentage({
+        marks: grade.marks,
+        maxMarks: grade.maxMarks
+    }),
     semester: grade.semester,
     month: grade.month,
     date: grade.date,
@@ -637,6 +652,8 @@ const mapGradeForParent = (grade) => ({
 
 const aggregateGradeSummary = (grades = []) => {
     const bySubject = new Map();
+    let overallPercentageTotal = 0;
+    let overallPercentageCount = 0;
 
     grades.forEach((grade) => {
         if (!grade.subject) return;
@@ -648,31 +665,133 @@ const aggregateGradeSummary = (grades = []) => {
                 subjectCode: grade.subject.code || '',
                 totalMarks: 0,
                 totalMaxMarks: 0,
-                assessments: 0
+                assessments: 0,
+                percentageTotal: 0,
+                percentageCount: 0
             });
         }
         const item = bySubject.get(key);
         item.totalMarks += Number(grade.marks || 0);
         item.totalMaxMarks += Number(grade.maxMarks || 0);
         item.assessments += 1;
+
+        if (Number.isFinite(grade.percentage)) {
+            item.percentageTotal += grade.percentage;
+            item.percentageCount += 1;
+            overallPercentageTotal += grade.percentage;
+            overallPercentageCount += 1;
+        }
     });
 
     const subjects = [...bySubject.values()].map((item) => ({
-        ...item,
-        average: item.totalMaxMarks > 0
-            ? Number(((item.totalMarks / item.totalMaxMarks) * 100).toFixed(1))
+        subjectId: item.subjectId,
+        subjectName: item.subjectName,
+        subjectCode: item.subjectCode,
+        totalMarks: item.totalMarks,
+        totalMaxMarks: item.totalMaxMarks,
+        assessments: item.assessments,
+        average: item.percentageCount > 0
+            ? roundOneDecimal(item.percentageTotal / item.percentageCount)
             : 0
     }));
 
-    const overallTotalMarks = subjects.reduce((sum, item) => sum + item.totalMarks, 0);
-    const overallTotalMaxMarks = subjects.reduce((sum, item) => sum + item.totalMaxMarks, 0);
-
     return {
-        subjects,
-        overallAverage: overallTotalMaxMarks > 0
-            ? Number(((overallTotalMarks / overallTotalMaxMarks) * 100).toFixed(1))
+        subjects: subjects.sort((left, right) => left.subjectName.localeCompare(right.subjectName)),
+        overallAverage: overallPercentageCount > 0
+            ? roundOneDecimal(overallPercentageTotal / overallPercentageCount)
             : 0
     };
+};
+
+const normalizeCategory = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized || 'other';
+};
+
+const createCategoryAccumulator = () => ({
+    percentageTotal: 0,
+    count: 0
+});
+
+const mapCategoryAccumulatorToResponse = (category, item) => ({
+    category,
+    averagePercentage: item.count > 0 ? roundOneDecimal(item.percentageTotal / item.count) : 0,
+    assessments: item.count
+});
+
+const buildCategoryBreakdown = (grades = []) => {
+    const categories = new Map();
+
+    grades.forEach((grade) => {
+        if (!Number.isFinite(grade.percentage)) return;
+        const category = normalizeCategory(grade.category);
+        if (!categories.has(category)) {
+            categories.set(category, createCategoryAccumulator());
+        }
+        const entry = categories.get(category);
+        entry.percentageTotal += grade.percentage;
+        entry.count += 1;
+    });
+
+    return [...categories.entries()]
+        .map(([category, item]) => mapCategoryAccumulatorToResponse(category, item))
+        .sort((left, right) => left.category.localeCompare(right.category));
+};
+
+const buildMonthKey = (dateInput) => {
+    const date = new Date(dateInput);
+    if (Number.isNaN(date.getTime())) return null;
+    const year = String(date.getFullYear());
+    const monthNumber = date.getMonth() + 1;
+    const month = String(monthNumber).padStart(2, '0');
+    const monthLabel = `${MONTH_LABELS[monthNumber - 1]} ${year}`;
+    return {
+        key: `${year}-${month}`,
+        label: monthLabel
+    };
+};
+
+const buildMonthlyBreakdown = (grades = []) => {
+    const byMonth = new Map();
+
+    grades.forEach((grade) => {
+        if (!Number.isFinite(grade.percentage)) return;
+        const month = buildMonthKey(grade.date);
+        if (!month) return;
+        if (!byMonth.has(month.key)) {
+            byMonth.set(month.key, {
+                month: month.key,
+                monthLabel: month.label,
+                percentageTotal: 0,
+                count: 0,
+                categories: new Map()
+            });
+        }
+
+        const monthRow = byMonth.get(month.key);
+        monthRow.percentageTotal += grade.percentage;
+        monthRow.count += 1;
+
+        const category = normalizeCategory(grade.category);
+        if (!monthRow.categories.has(category)) {
+            monthRow.categories.set(category, createCategoryAccumulator());
+        }
+        const categoryRow = monthRow.categories.get(category);
+        categoryRow.percentageTotal += grade.percentage;
+        categoryRow.count += 1;
+    });
+
+    return [...byMonth.values()]
+        .sort((left, right) => right.month.localeCompare(left.month))
+        .map((item) => ({
+            month: item.month,
+            monthLabel: item.monthLabel,
+            averagePercentage: item.count > 0 ? roundOneDecimal(item.percentageTotal / item.count) : 0,
+            assessments: item.count,
+            categories: [...item.categories.entries()]
+                .map(([category, row]) => mapCategoryAccumulatorToResponse(category, row))
+                .sort((left, right) => left.category.localeCompare(right.category))
+        }));
 };
 
 export const getParentChildGrades = async ({
@@ -733,6 +852,119 @@ export const getParentChildGrades = async ({
             total,
             totalPages: Math.ceil(total / pageSize)
         }
+    };
+};
+
+export const getParentChildAcademicStats = async ({
+    schoolId,
+    parentUser,
+    academicYear,
+    childId,
+    dateRange = null
+}) => {
+    const child = await resolveParentChildOrNull({
+        schoolId,
+        parentUser,
+        academicYear,
+        childId
+    });
+    if (!child) return null;
+
+    const query = {
+        school: schoolId,
+        student: child._id,
+        academicYear
+    };
+    const scopedRange = normalizeDateRange(dateRange);
+    if (scopedRange) {
+        query.date = scopedRange;
+    }
+
+    const rows = await Grade.find(query)
+        .populate('subject', 'name code')
+        .sort({ date: -1, createdAt: -1 })
+        .lean();
+    const grades = rows.map(mapGradeForParent);
+    const summary = aggregateGradeSummary(grades);
+
+    return {
+        childId: child._id,
+        scoreMethod: 'average_percentage',
+        period: 'month',
+        overallAverage: summary.overallAverage,
+        subjects: summary.subjects.map((item) => ({
+            subjectId: item.subjectId,
+            subjectName: item.subjectName,
+            subjectCode: item.subjectCode,
+            overallAverage: item.average,
+            assessments: item.assessments
+        }))
+    };
+};
+
+export const getParentChildSubjectAcademicStats = async ({
+    schoolId,
+    parentUser,
+    academicYear,
+    childId,
+    subjectId,
+    dateRange = null
+}) => {
+    const child = await resolveParentChildOrNull({
+        schoolId,
+        parentUser,
+        academicYear,
+        childId
+    });
+    if (!child) return null;
+
+    const query = {
+        school: schoolId,
+        student: child._id,
+        academicYear,
+        subject: subjectId
+    };
+    const scopedRange = normalizeDateRange(dateRange);
+    if (scopedRange) {
+        query.date = scopedRange;
+    }
+
+    const rows = await Grade.find(query)
+        .populate('subject', 'name code')
+        .sort({ date: -1, createdAt: -1 })
+        .lean();
+    const grades = rows.map(mapGradeForParent).filter((item) => item.subject);
+
+    if (grades.length === 0) {
+        return {
+            childId: child._id,
+            subject: null,
+            scoreMethod: 'average_percentage',
+            period: 'month',
+            overallAverage: 0,
+            assessments: 0,
+            categories: [],
+            monthlyBreakdown: []
+        };
+    }
+
+    const subject = grades[0].subject;
+    const validPercentages = grades
+        .map((grade) => grade.percentage)
+        .filter((value) => Number.isFinite(value));
+    const overallAverage = validPercentages.length > 0
+        ? roundOneDecimal(validPercentages.reduce((sum, value) => sum + value, 0) / validPercentages.length)
+        : 0;
+
+    return {
+        childId: child._id,
+        subject,
+        scoreMethod: 'average_percentage',
+        period: 'month',
+        overallAverage,
+        assessments: grades.length,
+        categories: buildCategoryBreakdown(grades),
+        monthlyBreakdown: buildMonthlyBreakdown(grades)
     };
 };
 

@@ -134,7 +134,7 @@ const LandingPage = () => {
         script.textContent = JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'Organization',
-            name: content?.seo?.organizationName || content?.brand?.name || 'GradeBook Pro',
+            name: content?.seo?.organizationName || content?.brand?.name || 'NextGen School',
             description: content?.seo?.description || 'School management platform for grades, attendance, timetables, and parent communication.',
             url: window.location.origin
         });

@@ -1,13 +1,17 @@
 import express from 'express';
 import { body, param } from 'express-validator';
 import {
+    createParentMessageThreadController,
+    getParentChildAcademicStatsController,
     getParentChildAttendanceSummaryController,
     getParentChildGradesController,
     getParentChildReportsController,
+    getParentChildSubjectAcademicStatsController,
     getParentChildTimetableController,
     getParentChildrenController,
     getParentDashboardController,
     getParentMessageThreadByIdController,
+    getParentMessageTeachersController,
     getParentMessageThreadsController,
     getParentSettingsController,
     getParentUpdateByIdController,
@@ -41,6 +45,19 @@ router.get(
     getParentChildGradesController
 );
 router.get(
+    '/children/:childId/academic-stats',
+    param('childId').isMongoId().withMessage('Invalid childId format'),
+    validate,
+    getParentChildAcademicStatsController
+);
+router.get(
+    '/children/:childId/academic-stats/:subjectId',
+    param('childId').isMongoId().withMessage('Invalid childId format'),
+    param('subjectId').isMongoId().withMessage('Invalid subjectId format'),
+    validate,
+    getParentChildSubjectAcademicStatsController
+);
+router.get(
     '/children/:childId/timetable',
     param('childId').isMongoId().withMessage('Invalid childId format'),
     validate,
@@ -57,6 +74,26 @@ router.patch('/updates/read-all', markAllParentUpdatesAsReadController);
 router.get('/updates', getParentUpdatesController);
 router.get('/updates/:id', validationRules.mongoId, validate, getParentUpdateByIdController);
 router.get('/messages/threads', validationRules.pagination, validate, getParentMessageThreadsController);
+router.get('/messages/teachers', getParentMessageTeachersController);
+router.post(
+    '/messages/threads',
+    body('teacherUserId')
+        .isMongoId()
+        .withMessage('teacherUserId must be a valid ID'),
+    body('subject')
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ min: 1, max: 200 })
+        .withMessage('subject must be at most 200 characters'),
+    body('body')
+        .isString()
+        .trim()
+        .isLength({ min: 1, max: 5000 })
+        .withMessage('body is required and must be at most 5000 characters'),
+    validate,
+    createParentMessageThreadController
+);
 router.get(
     '/messages/threads/:threadId',
     param('threadId').isMongoId().withMessage('Invalid threadId format'),

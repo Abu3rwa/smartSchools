@@ -4,12 +4,15 @@ import {
     resolveAcademicYearDateRangeForRequest
 } from '../helpers/academicYearScope.js';
 import {
+    getParentChildAcademicStats,
     getParentChildAttendanceSummary,
     getParentChildGrades,
     getParentChildReports,
+    getParentChildSubjectAcademicStats,
     getParentChildTimetable,
     getParentChildren,
     getParentDashboard,
+    getParentLinkedStudents,
     getParentSettings,
     updateParentSettings,
     markAllParentUpdatesAsRead,
@@ -17,6 +20,8 @@ import {
     getParentUpdateById
 } from '../services/parentDashboardService.js';
 import ParentMessageThread from '../models/ParentMessageThread.js';
+import Teacher from '../models/Teacher.js';
+import Class from '../models/Class.js';
 
 const parseDateValue = (raw, endOfDay = false) => {
     if (!raw) return null;
@@ -261,6 +266,79 @@ export const getParentChildGradesController = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Get child academic subject stats for parent view
+ * @route   GET /api/parent/children/:childId/academic-stats
+ * @access  Private (parent)
+ */
+export const getParentChildAcademicStatsController = asyncHandler(async (req, res) => {
+    const { academicYear, dateFilter } = resolveAcademicYearDateRangeForRequest(req);
+    const { range, error } = parseDateRangeFromQuery({
+        from: req.query.from,
+        to: req.query.to
+    }, dateFilter);
+    if (error) {
+        return res.status(400).json({ success: false, message: error });
+    }
+
+    const data = await getParentChildAcademicStats({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+        childId: req.params.childId,
+        dateRange: range
+    });
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            message: 'Child not found'
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data
+    });
+});
+
+/**
+ * @desc    Get one subject's academic stats for parent view
+ * @route   GET /api/parent/children/:childId/academic-stats/:subjectId
+ * @access  Private (parent)
+ */
+export const getParentChildSubjectAcademicStatsController = asyncHandler(async (req, res) => {
+    const { academicYear, dateFilter } = resolveAcademicYearDateRangeForRequest(req);
+    const { range, error } = parseDateRangeFromQuery({
+        from: req.query.from,
+        to: req.query.to
+    }, dateFilter);
+    if (error) {
+        return res.status(400).json({ success: false, message: error });
+    }
+
+    const data = await getParentChildSubjectAcademicStats({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+        childId: req.params.childId,
+        subjectId: req.params.subjectId,
+        dateRange: range
+    });
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            message: 'Child not found'
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data
+    });
+});
+
+/**
  * @desc    Get weekly child timetable for parent view
  * @route   GET /api/parent/children/:childId/timetable
  * @access  Private (parent)
@@ -393,6 +471,167 @@ const toDisplayName = (user) => {
     return fullName || user?.email || 'Parent';
 };
 
+const formatClassLabel = (classDoc) => {
+    if (!classDoc) return 'Class';
+    const name = (classDoc.name || '').toString().trim();
+    const grade = Number.isFinite(Number(classDoc.grade)) ? `Grade ${classDoc.grade}` : '';
+    const section = (classDoc.section || '').toString().trim();
+    const parts = [name, grade, section].filter((part) => part.length > 0);
+    return parts.length > 0 ? parts.join(' · ') : 'Class';
+};
+
+const resolveParentTeacherAudience = async ({
+    schoolId,
+    parentUser,
+    academicYear,
+    search = '',
+    limit = 50
+}) => {
+    const linkedStudents = await getParentLinkedStudents({
+        schoolId,
+        parentUser,
+        academicYear
+    });
+
+    if (linkedStudents.length === 0) {
+        return {
+            teachers: [],
+            teacherUserMap: new Map()
+        };
+    }
+
+    const classIdToChildNames = new Map();
+    const classIds = new Set();
+    for (const student of linkedStudents) {
+        const classId = toId(student.currentClass?._id || student.currentClass);
+        if (!classId) continue;
+        classIds.add(classId);
+        if (!classIdToChildNames.has(classId)) {
+            classIdToChildNames.set(classId, new Set());
+        }
+        const childName = `${student.firstName || ''} ${student.lastName || ''}`.trim();
+        if (childName) {
+            classIdToChildNames.get(classId).add(childName);
+        }
+    }
+
+    if (classIds.size === 0) {
+        return {
+            teachers: [],
+            teacherUserMap: new Map()
+        };
+    }
+
+    const classDocs = await Class.find({
+        school: schoolId,
+        _id: { $in: [...classIds] }
+    })
+        .select('_id name grade section classTeacher subjects.teacher')
+        .lean();
+
+    const teacherClassLabels = new Map();
+    const teacherChildNames = new Map();
+    const teacherProfileIds = new Set();
+
+    for (const classDoc of classDocs) {
+        const classId = toId(classDoc._id);
+        const classLabel = formatClassLabel(classDoc);
+        const childNames = classIdToChildNames.get(classId) || new Set();
+        const classTeacherId = toId(classDoc.classTeacher);
+        const subjectTeacherIds = Array.isArray(classDoc.subjects)
+            ? classDoc.subjects.map((item) => toId(item?.teacher)).filter(Boolean)
+            : [];
+        const allTeacherIds = new Set([classTeacherId, ...subjectTeacherIds].filter(Boolean));
+
+        for (const teacherId of allTeacherIds) {
+            teacherProfileIds.add(teacherId);
+            if (!teacherClassLabels.has(teacherId)) {
+                teacherClassLabels.set(teacherId, new Set());
+            }
+            teacherClassLabels.get(teacherId).add(classLabel);
+
+            if (!teacherChildNames.has(teacherId)) {
+                teacherChildNames.set(teacherId, new Set());
+            }
+            for (const childName of childNames) {
+                teacherChildNames.get(teacherId).add(childName);
+            }
+        }
+    }
+
+    if (teacherProfileIds.size === 0) {
+        return {
+            teachers: [],
+            teacherUserMap: new Map()
+        };
+    }
+
+    const teacherProfiles = await Teacher.find({
+        school: schoolId,
+        _id: { $in: [...teacherProfileIds] },
+        isActive: true
+    })
+        .select('_id user')
+        .populate('user', 'firstName lastName email role isActive')
+        .lean();
+
+    const normalizedSearch = String(search || '').trim().toLowerCase();
+    const teacherUserMap = new Map();
+    const teachers = [];
+
+    for (const profile of teacherProfiles) {
+        const teacherUser = profile.user;
+        const teacherUserId = toId(teacherUser?._id);
+        if (!teacherUserId) continue;
+        if (teacherUser?.isActive === false) continue;
+        if (String(teacherUser?.role || '') !== 'teacher') continue;
+
+        const displayName = toDisplayName(teacherUser);
+        const email = (teacherUser?.email || '').toString().trim();
+        const classLabels = [...(teacherClassLabels.get(toId(profile._id)) || new Set())]
+            .filter(Boolean)
+            .sort((left, right) => left.localeCompare(right));
+        const studentNames = [...(teacherChildNames.get(toId(profile._id)) || new Set())]
+            .filter(Boolean)
+            .sort((left, right) => left.localeCompare(right));
+
+        if (normalizedSearch) {
+            const haystack = [
+                displayName.toLowerCase(),
+                email.toLowerCase(),
+                classLabels.join(' ').toLowerCase(),
+                studentNames.join(' ').toLowerCase()
+            ].join(' ');
+            if (!haystack.includes(normalizedSearch)) {
+                continue;
+            }
+        }
+
+        const item = {
+            id: teacherUserId,
+            displayName,
+            email,
+            classLabels,
+            studentNames
+        };
+        teachers.push(item);
+        teacherUserMap.set(teacherUserId, {
+            ...item,
+            role: teacherUser.role
+        });
+    }
+
+    teachers.sort((left, right) => left.displayName.localeCompare(right.displayName));
+    const effectiveLimit = Number.isFinite(Number(limit)) && Number(limit) > 0
+        ? Math.min(Number(limit), 100)
+        : 0;
+
+    return {
+        teachers: effectiveLimit > 0 ? teachers.slice(0, effectiveLimit) : teachers,
+        teacherUserMap
+    };
+};
+
 const mapThreadSummary = (thread, currentUserId) => {
     const participants = Array.isArray(thread.participants) ? thread.participants : [];
     const currentParticipant = participants.find((item) => toId(item.user) === currentUserId);
@@ -491,6 +730,178 @@ export const getParentMessageThreadsController = asyncHandler(async (req, res) =
                 totalPages
             },
             unreadCount
+        }
+    });
+});
+
+/**
+ * @desc    Get teacher options for parent messaging
+ * @route   GET /api/parent/messages/teachers
+ * @access  Private (parent)
+ */
+export const getParentMessageTeachersController = asyncHandler(async (req, res) => {
+    const { academicYear } = resolveAcademicYearDateRangeForRequest(req);
+    const limit = parsePositiveInt(req.query.limit, 50, 100);
+    const search = (req.query.search || '').toString().trim();
+
+    const { teachers } = await resolveParentTeacherAudience({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+        search,
+        limit
+    });
+
+    res.status(200).json({
+        success: true,
+        data: { teachers }
+    });
+});
+
+/**
+ * @desc    Start or continue a parent-to-teacher conversation
+ * @route   POST /api/parent/messages/threads
+ * @access  Private (parent)
+ */
+export const createParentMessageThreadController = asyncHandler(async (req, res) => {
+    const { academicYear } = resolveAcademicYearDateRangeForRequest(req);
+    const teacherUserId = (req.body?.teacherUserId || '').toString().trim();
+    const body = (req.body?.body || '').toString().trim();
+    const requestedSubject = (req.body?.subject || '').toString().trim();
+
+    if (!teacherUserId) {
+        return res.status(400).json({
+            success: false,
+            message: 'teacherUserId is required'
+        });
+    }
+    if (!body) {
+        return res.status(400).json({
+            success: false,
+            message: 'body is required'
+        });
+    }
+
+    const { teacherUserMap } = await resolveParentTeacherAudience({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+        limit: 0
+    });
+
+    const selectedTeacher = teacherUserMap.get(teacherUserId);
+    if (!selectedTeacher) {
+        return res.status(403).json({
+            success: false,
+            message: 'You can only message teachers linked to your children'
+        });
+    }
+
+    const subject = requestedSubject || 'Parent Message';
+    const now = new Date();
+    let thread = await ParentMessageThread.findOne({
+        school: req.schoolId,
+        isClosed: { $ne: true },
+        participants: { $size: 2 },
+        'participants.user': { $all: [req.user._id, teacherUserId] }
+    }).sort({ lastMessageAt: -1 });
+    const isNewThread = !thread;
+
+    if (!thread) {
+        thread = await ParentMessageThread.create({
+            school: req.schoolId,
+            subject,
+            participants: [
+                {
+                    user: req.user._id,
+                    role: req.user.role,
+                    displayName: toDisplayName(req.user),
+                    unreadCount: 0,
+                    lastReadAt: now
+                },
+                {
+                    user: teacherUserId,
+                    role: selectedTeacher.role || 'teacher',
+                    displayName: selectedTeacher.displayName || 'Teacher',
+                    unreadCount: 1,
+                    lastReadAt: null
+                }
+            ],
+            createdBy: req.user._id,
+            lastMessageAt: now,
+            messages: [
+                {
+                    sender: req.user._id,
+                    senderRole: req.user.role,
+                    body,
+                    createdAt: now
+                }
+            ]
+        });
+    } else {
+        thread.messages.push({
+            sender: req.user._id,
+            senderRole: req.user.role,
+            body,
+            createdAt: now
+        });
+        thread.lastMessageAt = now;
+        if (!thread.subject || !thread.subject.trim()) {
+            thread.subject = subject;
+        }
+
+        const currentUserId = toId(req.user._id);
+        let hasCurrentParticipant = false;
+        let hasTeacherParticipant = false;
+        for (const participant of thread.participants) {
+            const participantUserId = toId(participant.user);
+            if (participantUserId === currentUserId) {
+                participant.unreadCount = 0;
+                participant.lastReadAt = now;
+                if (!participant.displayName) {
+                    participant.displayName = toDisplayName(req.user);
+                }
+                hasCurrentParticipant = true;
+                continue;
+            }
+
+            if (participantUserId === teacherUserId) {
+                hasTeacherParticipant = true;
+            }
+            participant.unreadCount = (participant.unreadCount || 0) + 1;
+        }
+
+        if (!hasCurrentParticipant) {
+            thread.participants.push({
+                user: req.user._id,
+                role: req.user.role,
+                displayName: toDisplayName(req.user),
+                unreadCount: 0,
+                lastReadAt: now
+            });
+        }
+
+        if (!hasTeacherParticipant) {
+            thread.participants.push({
+                user: teacherUserId,
+                role: selectedTeacher.role || 'teacher',
+                displayName: selectedTeacher.displayName || 'Teacher',
+                unreadCount: 1,
+                lastReadAt: null
+            });
+        }
+
+        await thread.save();
+    }
+
+    const latestMessage = thread.messages[thread.messages.length - 1];
+
+    res.status(isNewThread ? 201 : 200).json({
+        success: true,
+        data: {
+            threadId: thread._id,
+            messageId: latestMessage?._id || null,
+            isNewThread
         }
     });
 });

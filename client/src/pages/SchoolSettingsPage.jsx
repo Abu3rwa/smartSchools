@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import api from '../config/api';
-import { PERMISSION_DEFINITIONS, PERMISSION_CATEGORIES, getPermissionsByCategory } from '../constants/permissions';
+import { PERMISSIONS, PERMISSION_DEFINITIONS, PERMISSION_CATEGORIES, getPermissionsByCategory } from '../constants/permissions';
 import {
     fetchDepartments,
     selectDepartments,
@@ -12,7 +12,7 @@ import {
     updateDepartment,
     deleteDepartment
 } from '../store/slices/departmentSlice';
-import { selectIsAdmin } from '../store/slices/authSlice';
+import { selectUser } from '../store/slices/authSlice';
 import {
     selectCurrentAcademicYear,
     updateSchoolAcademicYear,
@@ -55,7 +55,11 @@ const ROLES = [
 const SchoolSettingsPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const isAdmin = useSelector(selectIsAdmin);
+    const user = useSelector(selectUser);
+    const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
+    const canManageUsers = user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_USERS);
+    const canManageSchoolSettings = user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_SCHOOL_SETTINGS);
+    const canAccessSchoolSettings = canManageUsers || canManageSchoolSettings;
     const departments = useSelector(selectDepartments);
     const departmentsLoading = useSelector(selectDepartmentsLoading);
     const departmentsError = useSelector(selectDepartmentsError);
@@ -94,22 +98,37 @@ const SchoolSettingsPage = () => {
         return end === start + 1;
     };
 
+    const normalizePermissions = (permissions) => {
+        if (Array.isArray(permissions)) {
+            return permissions
+                .map((permission) => String(permission || '').trim())
+                .filter(Boolean);
+        }
+        if (typeof permissions === 'string') {
+            return permissions
+                .split(',')
+                .map((permission) => permission.trim())
+                .filter(Boolean);
+        }
+        return [];
+    };
+
     useEffect(() => {
-        if (!isAdmin) {
+        if (!canAccessSchoolSettings) {
             navigate('/portal/dashboard');
             return;
         }
         dispatch(fetchDepartments());
-    }, [dispatch, isAdmin, navigate]);
+    }, [canAccessSchoolSettings, dispatch, navigate]);
 
     useEffect(() => {
-        if (isAdmin && activeTab === 'users') {
+        if (canManageUsers && activeTab === 'users') {
             fetchSchoolUsers();
         }
-    }, [isAdmin, activeTab]);
+    }, [canManageUsers, activeTab]);
 
     useEffect(() => {
-        if (isAdmin && activeTab === 'schoolyear') {
+        if (canManageSchoolSettings && activeTab === 'schoolyear') {
             api.get('/schools/me/academic-years')
                 .then((res) => {
                     if (res.data.success && res.data.data.academicYears) {
@@ -126,7 +145,7 @@ const SchoolSettingsPage = () => {
                 })
                 .catch(() => toast.error('Failed to load academic years'));
         }
-    }, [isAdmin, activeTab]);
+    }, [canManageSchoolSettings, activeTab]);
 
     const handleCopyClasses = async () => {
         if (!fromYear || !toYear) {
@@ -280,19 +299,24 @@ const SchoolSettingsPage = () => {
         setUserFormData({
             role: user.role,
             department: user.department?._id || user.department || '',
-            permissions: user.permissions || []
+            permissions: normalizePermissions(user.permissions)
         });
         setShowUserModal(true);
     };
 
     const handleUserSubmit = async (e) => {
         e.preventDefault();
+        if (!canManageUsers) {
+            toast.error('You do not have permission to manage users');
+            return;
+        }
         setSubmittingUser(true);
+        const normalizedPermissions = Array.from(new Set(normalizePermissions(userFormData.permissions)));
         try {
             const response = await api.patch(`/schools/me/users/${editingUser._id}`, {
                 role: userFormData.role,
                 department: userFormData.department || null,
-                permissions: userFormData.permissions
+                permissions: normalizedPermissions
             });
             if (response.data.success) {
                 toast.success('User updated');
@@ -318,13 +342,13 @@ const SchoolSettingsPage = () => {
     const handlePermissionToggle = (permission) => {
         setUserFormData(prev => ({
             ...prev,
-            permissions: prev.permissions.includes(permission)
-                ? prev.permissions.filter(p => p !== permission)
-                : [...prev.permissions, permission]
+            permissions: normalizePermissions(prev.permissions).includes(permission)
+                ? normalizePermissions(prev.permissions).filter(p => p !== permission)
+                : [...normalizePermissions(prev.permissions), permission]
         }));
     };
 
-    if (!isAdmin) {
+    if (!canAccessSchoolSettings) {
         return null;
     }
 
@@ -345,13 +369,15 @@ const SchoolSettingsPage = () => {
                     <HiOutlineOfficeBuilding size={18} />
                     Departments
                 </button>
-                <button
-                    className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('users')}
-                >
-                    <HiOutlineUserGroup size={18} />
-                    Users & roles
-                </button>
+                {canManageUsers && (
+                    <button
+                        className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('users')}
+                    >
+                        <HiOutlineUserGroup size={18} />
+                        Users & roles
+                    </button>
+                )}
                 <button
                     className={`tab-btn ${activeTab === 'lessonplancriteria' ? 'active' : ''}`}
                     onClick={() => setActiveTab('lessonplancriteria')}
@@ -359,13 +385,15 @@ const SchoolSettingsPage = () => {
                     <HiOutlineDocumentText size={18} />
                     Lesson Plan Criteria
                 </button>
-                <button
-                    className={`tab-btn ${activeTab === 'schoolyear' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('schoolyear')}
-                >
-                    <HiOutlineCalendar size={18} />
-                    School year
-                </button>
+                {canManageSchoolSettings && (
+                    <button
+                        className={`tab-btn ${activeTab === 'schoolyear' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('schoolyear')}
+                    >
+                        <HiOutlineCalendar size={18} />
+                        School year
+                    </button>
+                )}
             </div>
 
             {activeTab === 'departments' && (

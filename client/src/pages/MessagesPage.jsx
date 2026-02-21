@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
     createMessageThread,
+    fetchMessageClasses,
     fetchMessageParents,
     fetchMessageThreads,
     fetchMessageThreadById,
@@ -17,6 +18,22 @@ const formatTimestamp = (value) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
     return format(date, 'MMM d, yyyy');
+};
+
+const formatStudentNames = (studentNames) => {
+    if (!Array.isArray(studentNames) || studentNames.length === 0) return '';
+    return studentNames.join(', ');
+};
+
+const formatClassLabel = (classOption) => {
+    if (!classOption) return 'Class';
+    if (classOption.label) return classOption.label;
+
+    const parts = [];
+    if (classOption.name) parts.push(classOption.name);
+    if (classOption.grade != null) parts.push(`Grade ${classOption.grade}`);
+    if (classOption.section) parts.push(classOption.section);
+    return parts.join(' · ') || 'Class';
 };
 
 const MessagesPage = () => {
@@ -40,6 +57,11 @@ const MessagesPage = () => {
     const [composeBody, setComposeBody] = useState('');
     const [composeSearch, setComposeSearch] = useState('');
     const [composeLoading, setComposeLoading] = useState(false);
+    const [classOptions, setClassOptions] = useState([]);
+    const [selectedClassIds, setSelectedClassIds] = useState([]);
+    const [includeClassParents, setIncludeClassParents] = useState(true);
+    const [includeClassStudents, setIncludeClassStudents] = useState(true);
+    const [loadingClasses, setLoadingClasses] = useState(false);
     const [parentOptions, setParentOptions] = useState([]);
     const [selectedParents, setSelectedParents] = useState([]);
     const [loadingParents, setLoadingParents] = useState(false);
@@ -152,8 +174,39 @@ const MessagesPage = () => {
         setComposeSearch('');
         setParentOptions([]);
         setSelectedParents([]);
+        setSelectedClassIds([]);
+        setIncludeClassParents(true);
+        setIncludeClassStudents(true);
         setComposeSubject('');
         setComposeBody('');
+    }, [showCompose]);
+
+    useEffect(() => {
+        if (!showCompose) return undefined;
+
+        let cancelled = false;
+        const loadClassOptions = async () => {
+            setLoadingClasses(true);
+            try {
+                const data = await fetchMessageClasses({ limit: 200 });
+                if (!cancelled) {
+                    setClassOptions(data.classes || []);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    toast.error(error.message || 'Failed to load classes');
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingClasses(false);
+                }
+            }
+        };
+
+        loadClassOptions();
+        return () => {
+            cancelled = true;
+        };
     }, [showCompose]);
 
     useEffect(() => {
@@ -186,6 +239,14 @@ const MessagesPage = () => {
         });
     };
 
+    const handleToggleClass = (classId) => {
+        setSelectedClassIds((prev) => (
+            prev.includes(classId)
+                ? prev.filter((id) => id !== classId)
+                : [...prev, classId]
+        ));
+    };
+
     const handleRemoveParent = (parentId) => {
         setSelectedParents((prev) => prev.filter((item) => item.id !== parentId));
     };
@@ -200,8 +261,12 @@ const MessagesPage = () => {
             toast.error('Message body is required');
             return;
         }
-        if (selectedParents.length === 0) {
-            toast.error('Select at least one parent');
+        if (selectedParents.length === 0 && selectedClassIds.length === 0) {
+            toast.error('Select at least one recipient or class');
+            return;
+        }
+        if (selectedClassIds.length > 0 && !includeClassParents && !includeClassStudents) {
+            toast.error('Enable at least one class audience: parents or students');
             return;
         }
 
@@ -210,7 +275,10 @@ const MessagesPage = () => {
             const payload = {
                 subject: composeSubject.trim(),
                 body: composeBody.trim(),
-                recipientUserIds: selectedParents.map((parent) => parent.id)
+                recipientUserIds: selectedParents.map((parent) => parent.id),
+                classIds: selectedClassIds,
+                includeParents: includeClassParents,
+                includeStudents: includeClassStudents
             };
             const result = await createMessageThread(payload);
             const data = await loadThreads({ page: 1, append: false });
@@ -224,7 +292,12 @@ const MessagesPage = () => {
                 }
             }
 
-            toast.success('Message sent');
+            const recipientCount = Number(result.recipientCount || 0);
+            toast.success(
+                recipientCount > 0
+                    ? `Message sent to ${recipientCount} recipient${recipientCount === 1 ? '' : 's'}`
+                    : 'Message sent'
+            );
         } catch (error) {
             toast.error(error.message || 'Failed to send message');
         } finally {
@@ -274,12 +347,28 @@ const MessagesPage = () => {
         return threads.find((item) => item.id === selectedThreadId) || null;
     }, [threads, selectedThreadId]);
 
+    const selectedClasses = useMemo(
+        () => classOptions.filter((classOption) => selectedClassIds.includes(classOption.id)),
+        [classOptions, selectedClassIds]
+    );
+
+    const classAudiencePreview = useMemo(() => {
+        if (selectedClasses.length === 0) {
+            return { parents: 0, students: 0 };
+        }
+        return selectedClasses.reduce((acc, classOption) => {
+            acc.parents += Number(classOption.parentCount || 0);
+            acc.students += Number(classOption.studentRecipientCount || 0);
+            return acc;
+        }, { parents: 0, students: 0 });
+    }, [selectedClasses]);
+
     return (
         <div className="messages-page">
             <div className="page-header">
                 <div>
                     <h1>Messages</h1>
-                    <p className="text-muted">Communicate with parents in a shared inbox</p>
+                    <p className="text-muted">Communicate with parents and students in a shared inbox</p>
                 </div>
                 <div className="messages-header-actions">
                     {lastUpdatedAt && (
@@ -327,7 +416,7 @@ const MessagesPage = () => {
                             <div className="thread-empty">
                                 <HiOutlineInbox size={28} />
                                 <p>No conversations yet</p>
-                                <span className="text-muted">Start a new thread to reach parents.</span>
+                                <span className="text-muted">Start a new thread to reach families and students.</span>
                             </div>
                         )}
 
@@ -443,17 +532,81 @@ const MessagesPage = () => {
                         </div>
                         <form className="modal-body" onSubmit={handleCreateThread}>
                             <div className="compose-field">
-                                <label>To</label>
+                                <label>To classes</label>
+                                <div className="class-selection">
+                                    {loadingClasses && <div className="loading-more">Loading classes...</div>}
+                                    {!loadingClasses && classOptions.length === 0 && (
+                                        <div className="empty-row">No available classes</div>
+                                    )}
+                                    {!loadingClasses && classOptions.length > 0 && (
+                                        <div className="class-options">
+                                            {classOptions.map((classOption) => {
+                                                const isSelected = selectedClassIds.includes(classOption.id);
+                                                return (
+                                                    <label
+                                                        key={classOption.id}
+                                                        className={`class-option ${isSelected ? 'selected' : ''}`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => handleToggleClass(classOption.id)}
+                                                        />
+                                                        <span className="class-option-main">
+                                                            {formatClassLabel(classOption)}
+                                                        </span>
+                                                        <span className="class-option-meta">
+                                                            {classOption.studentCount || 0} students · {classOption.parentCount || 0} parents
+                                                        </span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="compose-audience-row">
+                                    <label className="audience-toggle">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeClassParents}
+                                            onChange={(event) => setIncludeClassParents(event.target.checked)}
+                                        />
+                                        <span>To parents</span>
+                                    </label>
+                                    <label className="audience-toggle">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeClassStudents}
+                                            onChange={(event) => setIncludeClassStudents(event.target.checked)}
+                                        />
+                                        <span>To students</span>
+                                    </label>
+                                </div>
+                                {selectedClassIds.length > 0 && (
+                                    <div className="compose-class-preview text-muted">
+                                        Selected {selectedClassIds.length} class{selectedClassIds.length === 1 ? '' : 'es'} ·
+                                        approx. {classAudiencePreview.parents} parents · {classAudiencePreview.students} students
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="compose-field">
+                                <label>Also send to specific parents (optional)</label>
                                 <input
                                     type="text"
-                                    placeholder="Search parents by name or email"
+                                    placeholder="Search parents or child names"
                                     value={composeSearch}
                                     onChange={(event) => setComposeSearch(event.target.value)}
                                 />
                                 <div className="compose-selection">
                                     {selectedParents.map((parent) => (
                                         <span key={parent.id} className="compose-chip">
-                                            {parent.displayName}
+                                            <span>{parent.displayName}</span>
+                                            {formatStudentNames(parent.studentNames) && (
+                                                <span className="compose-students">
+                                                    ({formatStudentNames(parent.studentNames)})
+                                                </span>
+                                            )}
                                             <button
                                                 type="button"
                                                 className="chip-remove"
@@ -464,7 +617,7 @@ const MessagesPage = () => {
                                         </span>
                                     ))}
                                     {selectedParents.length === 0 && (
-                                        <span className="text-muted">Select one or more parents</span>
+                                        <span className="text-muted">No extra parent selected</span>
                                     )}
                                 </div>
                                 <div className="compose-results">
@@ -480,7 +633,13 @@ const MessagesPage = () => {
                                             onClick={() => handleSelectParent(parent)}
                                         >
                                             <span>{parent.displayName}</span>
-                                            <span className="text-muted">{parent.email}</span>
+                                            {formatStudentNames(parent.studentNames) ? (
+                                                <span className="compose-students">
+                                                    {formatStudentNames(parent.studentNames)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-muted">{parent.email}</span>
+                                            )}
                                         </button>
                                     ))}
                                 </div>

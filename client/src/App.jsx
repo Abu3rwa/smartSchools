@@ -144,7 +144,7 @@ const PortalRoute = ({ children }) => {
 };
 
 // Role Route - requires specific role(s)
-const RoleRoute = ({ roles, children }) => {
+const RoleRoute = ({ roles = [], permissions = [], children }) => {
   const user = useSelector(selectUser);
   const { loading } = useSelector(selectAuth);
 
@@ -165,7 +165,13 @@ const RoleRoute = ({ roles, children }) => {
       <Navigate to="/admin/dashboard" replace />
     );
   }
-  if (!roles.includes(user.role)) return <Navigate to="/portal" replace />;
+
+  const hasRoleAccess = roles.includes(user.role);
+  const userPermissions = Array.isArray(user.permissions) ? user.permissions : [];
+  const hasPermissionAccess =
+    permissions.length > 0 && permissions.some((permission) => userPermissions.includes(permission));
+
+  if (!hasRoleAccess && !hasPermissionAccess) return <Navigate to="/portal" replace />;
 
   return children;
 };
@@ -232,7 +238,10 @@ function App() {
         <Route
           path="school-settings"
           element={
-            <RoleRoute roles={["admin"]}>
+            <RoleRoute
+              roles={["admin"]}
+              permissions={["manage_users", "manage_school_settings"]}
+            >
               <SchoolSettingsPage />
             </RoleRoute>
           }
