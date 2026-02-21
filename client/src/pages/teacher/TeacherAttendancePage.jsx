@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     HiOutlineCalendar,
     HiOutlineClock,
@@ -13,76 +13,64 @@ import {
     HiOutlineEye,
     HiOutlinePencil,
     HiOutlineChevronLeft,
-    HiOutlineChevronRight
+    HiOutlineChevronRight,
+    HiOutlineX
 } from 'react-icons/hi';
 import './TeacherAttendancePage.css';
 import attendanceService from '../../services/attendanceService';
+import studentService from '../../services/studentService';
+
+const STATUS_OPTIONS = [
+    { value: 'present', label: 'Present' },
+    { value: 'absent', label: 'Absent' },
+    { value: 'tardy', label: 'Tardy' },
+    { value: 'tardy_excused', label: 'Tardy Excused' },
+    { value: 'absent_excused', label: 'Absent Excused' }
+];
+
+const STATUS_LABELS = {
+    present: 'Present',
+    absent: 'Absent',
+    tardy: 'Tardy',
+    tardy_excused: 'Tardy Excused',
+    absent_excused: 'Absent Excused'
+};
 
 const TeacherAttendancePage = () => {
-    // Local state
     const [attendanceData, setAttendanceData] = useState([]);
-    const [schedules, setSchedules] = useState([]);
+    const [missedSchedules, setMissedSchedules] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(null);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedSchedule, setSelectedSchedule] = useState(null);
+    const [selectedRecord, setSelectedRecord] = useState(null);
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
-    const [viewMode, setViewMode] = useState('today'); // 'today', 'week', 'month'
-    const [filters, setFilters] = useState({
-        class: '',
-        subject: '',
-        status: ''
-    });
+    const [viewMode, setViewMode] = useState('today');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filters, setFilters] = useState({ class: '', subject: '', status: '' });
+    const [students, setStudents] = useState([]);
+    const [studentAttendance, setStudentAttendance] = useState({});
 
     useEffect(() => {
         fetchAttendanceData();
-        fetchSchedules();
-    }, [currentDate, viewMode, filters]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentDate, viewMode]);
 
     const fetchAttendanceData = async () => {
         try {
             setLoading(true);
             setError(null);
-            
-            // Calculate date range based on view mode
-            let startDate, endDate;
-            const today = new Date(currentDate);
-            
-            if (viewMode === 'today') {
-                startDate = new Date(today.setHours(0, 0, 0, 0));
-                endDate = new Date(today.setHours(23, 59, 59, 999));
-            } else if (viewMode === 'week') {
-                const startOfWeek = new Date(today);
-                startOfWeek.setDate(today.getDate() - today.getDay());
-                startDate = new Date(startOfWeek.setHours(0, 0, 0, 0));
-                
-                const endOfWeek = new Date(startOfWeek);
-                endOfWeek.setDate(startOfWeek.getDate() + 6);
-                endDate = new Date(endOfWeek.setHours(23, 59, 59, 999));
-            } else { // month
-                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                endDate.setHours(23, 59, 59, 999);
-            }
-            
+            const { startDate, endDate } = getDateRange(currentDate, viewMode);
             const response = await attendanceService.getTeacherAttendance({
                 startDate: startDate.toISOString(),
                 endDate: endDate.toISOString(),
                 viewMode
             });
-
-            const records = response?.attendanceRecords || [];
-
-            const filtered = records.filter(r => {
-                if (filters.class && r.class?._id !== filters.class) return false;
-                if (filters.subject && r.subject?._id !== filters.subject) return false;
-                if (filters.status === 'recorded' && r.status === 'draft') return false;
-                if (filters.status === 'pending' && r.status !== 'draft') return false;
-                return true;
-            });
-
-            setAttendanceData(filtered);
+            setAttendanceData(response?.attendanceRecords || []);
+            setMissedSchedules(response?.missedSchedules || []);
         } catch (err) {
             setError(err?.response?.data?.message || err.message);
         } finally {
@@ -90,88 +78,181 @@ const TeacherAttendancePage = () => {
         }
     };
 
-    const fetchSchedules = async () => {
-        try {
-            // This page focuses on attendance records; schedules are derived from attendanceRecords.
-            setSchedules([]);
-        } catch (err) {
-            console.error('Error fetching schedules:', err);
-        }
-    };
+    const mergedItems = useMemo(() => {
+        const recordedItems = attendanceData.map((record) => {
+            const schedule = record.schedule || null;
+            const classInfo = record.class || schedule?.class || null;
+            const subjectInfo = record.subject || schedule?.subject || null;
+            const periodName = record.period?.name || '';
+            const title = schedule?.title ||
+                [classInfo?.name, subjectInfo?.name || periodName].filter(Boolean).join(' • ') ||
+                'Attendance Record';
+            return {
+                id: `record-${record._id}`,
+                isRecorded: true,
+                title,
+                classId: classInfo?._id || '',
+                className: classInfo?.name || 'Unknown class',
+                subjectId: subjectInfo?._id || '',
+                subjectName: subjectInfo?.name || periodName || 'Unknown subject',
+                room: getRoomLabel(record.room || schedule?.room) || 'N/A',
+                startTime: record.startTime || schedule?.startTime || record.date,
+                endTime: record.endTime || schedule?.endTime || record.date,
+                totalStudents: record.totalStudents || 0,
+                present: record.present || 0,
+                absent: record.absent || 0,
+                late: record.late || 0,
+                attendanceRate: Number(record.attendanceRate || 0),
+                rawRecord: record
+            };
+        });
 
-    const handleRecordAttendance = (schedule) => {
-        setSelectedSchedule(schedule);
-        setShowAttendanceModal(true);
-    };
+        const pendingItems = missedSchedules.map((schedule) => {
+            const classInfo = schedule.class || null;
+            const subjectInfo = schedule.subject || null;
+            return {
+                id: `pending-${schedule._id}`,
+                isRecorded: false,
+                title: schedule.title ||
+                    [classInfo?.name, subjectInfo?.name].filter(Boolean).join(' • ') ||
+                    'Scheduled class',
+                classId: classInfo?._id || '',
+                className: classInfo?.name || 'Unknown class',
+                subjectId: subjectInfo?._id || '',
+                subjectName: subjectInfo?.name || 'Unknown subject',
+                room: getRoomLabel(schedule.room) || 'N/A',
+                startTime: schedule.startTime,
+                endTime: schedule.endTime,
+                totalStudents: 0,
+                present: 0,
+                absent: 0,
+                late: 0,
+                attendanceRate: 0,
+                rawSchedule: schedule
+            };
+        });
 
-    const handleViewDetails = (attendanceRecord) => {
-        setSelectedSchedule(attendanceRecord.schedule);
-        setShowDetailsModal(true);
-    };
+        return [...recordedItems, ...pendingItems].sort(
+            (a, b) => new Date(a.startTime || 0) - new Date(b.startTime || 0)
+        );
+    }, [attendanceData, missedSchedules]);
 
-    const navigateDate = (direction) => {
-        const newDate = new Date(currentDate);
-        
-        if (viewMode === 'today') {
-            newDate.setDate(newDate.getDate() + (direction === 'prev' ? -1 : 1));
-        } else if (viewMode === 'week') {
-            newDate.setDate(newDate.getDate() + (direction === 'prev' ? -7 : 7));
-        } else { // month
-            newDate.setMonth(newDate.getMonth() + (direction === 'prev' ? -1 : 1));
-        }
-        
-        setCurrentDate(newDate);
-    };
+    const classOptions = useMemo(() => buildSelectOptions(mergedItems, 'classId', 'className'), [mergedItems]);
+    const subjectOptions = useMemo(() => buildSelectOptions(mergedItems, 'subjectId', 'subjectName'), [mergedItems]);
 
-    const formatDateTime = (date) => {
-        return new Date(date).toLocaleString();
-    };
+    const filteredItems = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        return mergedItems.filter((item) => {
+            if (filters.class && item.classId !== filters.class) return false;
+            if (filters.subject && item.subjectId !== filters.subject) return false;
+            if (filters.status === 'recorded' && !item.isRecorded) return false;
+            if (filters.status === 'pending' && item.isRecorded) return false;
+            if (!query) return true;
+            return `${item.title} ${item.className} ${item.subjectName} ${item.room}`
+                .toLowerCase()
+                .includes(query);
+        });
+    }, [filters, mergedItems, searchQuery]);
 
-    const formatTime = (date) => {
-        return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    };
-
-    const getDateRangeText = () => {
-        const today = new Date(currentDate);
-        
-        if (viewMode === 'today') {
-            return today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        } else if (viewMode === 'week') {
-            const startOfWeek = new Date(today);
-            startOfWeek.setDate(today.getDate() - today.getDay());
-            const endOfWeek = new Date(startOfWeek);
-            endOfWeek.setDate(startOfWeek.getDate() + 6);
-            return `${startOfWeek.toLocaleDateString()} - ${endOfWeek.toLocaleDateString()}`;
-        } else { // month
-            return today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        }
-    };
-
-    const getAttendanceStats = () => {
-        const total = attendanceData.length;
-        const recorded = attendanceData.filter(item => item.attendanceRecorded).length;
-        const pending = total - recorded;
-        
-        const totalStudents = attendanceData.reduce((sum, item) => sum + item.totalStudents, 0);
-        const totalPresent = attendanceData.reduce((sum, item) => sum + item.present, 0);
-        const totalAbsent = attendanceData.reduce((sum, item) => sum + item.absent, 0);
-        const totalLate = attendanceData.reduce((sum, item) => sum + item.late, 0);
-        
-        const overallRate = totalStudents > 0 ? ((totalPresent / totalStudents) * 100).toFixed(1) : 0;
-        
+    const stats = useMemo(() => {
+        const recorded = filteredItems.filter((item) => item.isRecorded);
+        const totalStudents = recorded.reduce((sum, item) => sum + (item.totalStudents || 0), 0);
+        const totalPresent = recorded.reduce((sum, item) => sum + (item.present || 0), 0);
+        const totalLate = recorded.reduce((sum, item) => sum + (item.late || 0), 0);
+        const totalAbsent = recorded.reduce((sum, item) => sum + (item.absent || 0), 0);
+        const overallRate = totalStudents > 0
+            ? (((totalPresent + totalLate) / totalStudents) * 100).toFixed(1)
+            : '0.0';
         return {
-            totalClasses: total,
-            recordedClasses: recorded,
-            pendingClasses: pending,
+            totalClasses: filteredItems.length,
+            recordedClasses: recorded.length,
+            pendingClasses: filteredItems.length - recorded.length,
             totalStudents,
             totalPresent,
             totalAbsent,
             totalLate,
             overallRate
         };
+    }, [filteredItems]);
+
+    const handleRecordAttendance = async (schedule) => {
+        if (!schedule?._id || !schedule?.class?._id) return;
+        setSelectedSchedule(schedule);
+        setStudents([]);
+        setStudentAttendance({});
+        setShowAttendanceModal(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            const response = await studentService.getStudentsByClass(schedule.class._id);
+            const list = response?.data?.students || [];
+            setStudents(list);
+            const initial = {};
+            list.forEach((student) => {
+                initial[student._id] = 'present';
+            });
+            setStudentAttendance(initial);
+        } catch (err) {
+            setError(err?.response?.data?.message || err.message);
+        }
     };
 
-    const stats = getAttendanceStats();
+    const handleSaveAttendance = async () => {
+        if (!selectedSchedule?._id) return;
+        try {
+            setSaving(true);
+            setError(null);
+            await attendanceService.createOrUpdateAttendance({
+                scheduleId: selectedSchedule._id,
+                studentAttendance: students.map((student) => ({
+                    student: student._id,
+                    status: studentAttendance[student._id] || 'present'
+                }))
+            });
+            setSuccess('Attendance saved successfully.');
+            setShowAttendanceModal(false);
+            await fetchAttendanceData();
+        } catch (err) {
+            setError(err?.response?.data?.message || err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleExport = async () => {
+        try {
+            setError(null);
+            const { startDate, endDate } = getDateRange(currentDate, viewMode);
+            const blob = await attendanceService.exportAttendanceData({
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                format: 'csv'
+            });
+            const url = window.URL.createObjectURL(new Blob([blob], { type: 'text/csv' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `attendance_${startDate.toISOString().slice(0, 10)}_${endDate.toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err?.response?.data?.message || err.message);
+        }
+    };
+
+    const navigateDate = (direction) => {
+        const next = new Date(currentDate);
+        if (viewMode === 'today') next.setDate(next.getDate() + (direction === 'prev' ? -1 : 1));
+        else if (viewMode === 'week') next.setDate(next.getDate() + (direction === 'prev' ? -7 : 7));
+        else next.setMonth(next.getMonth() + (direction === 'prev' ? -1 : 1));
+        setCurrentDate(next);
+    };
+
+    const handleViewDetails = (record) => {
+        setSelectedRecord(record);
+        setShowDetailsModal(true);
+    };
 
     if (loading) {
         return (
@@ -182,7 +263,7 @@ const TeacherAttendancePage = () => {
         );
     }
 
-    if (error) {
+    if (error && !showAttendanceModal && !showDetailsModal) {
         return (
             <div className="attendance-error">
                 <HiOutlineExclamation size={48} />
@@ -197,31 +278,30 @@ const TeacherAttendancePage = () => {
 
     return (
         <div className="teacher-attendance-page">
-            {/* Header */}
             <div className="page-header">
                 <div className="header-content">
                     <h1>Attendance Management</h1>
-                    <p>Record and manage class attendance</p>
+                    <p>Track attendance, fill gaps, and keep classroom records current.</p>
                 </div>
                 <div className="header-actions">
-                    <button
-                        className="btn btn-secondary"
-                        onClick={fetchAttendanceData}
-                    >
+                    <button className="btn btn-secondary" onClick={fetchAttendanceData}>
                         <HiOutlineRefresh size={20} />
                         Refresh
                     </button>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => {/* Export functionality */}}
-                    >
+                    <button className="btn btn-secondary" onClick={handleExport}>
                         <HiOutlineDownload size={20} />
                         Export
                     </button>
                 </div>
             </div>
 
-            {/* Statistics Cards */}
+            {success && (
+                <div className="feedback-banner feedback-success">
+                    <HiOutlineCheckCircle size={18} />
+                    <span>{success}</span>
+                </div>
+            )}
+
             <div className="stats-grid">
                 <div className="stat-card">
                     <div className="stat-icon">
@@ -232,7 +312,7 @@ const TeacherAttendancePage = () => {
                         <p>Total Classes</p>
                     </div>
                 </div>
-                
+
                 <div className="stat-card">
                     <div className="stat-icon">
                         <HiOutlineCheckCircle size={24} />
@@ -242,7 +322,7 @@ const TeacherAttendancePage = () => {
                         <p>Attendance Recorded</p>
                     </div>
                 </div>
-                
+
                 <div className="stat-card">
                     <div className="stat-icon">
                         <HiOutlineExclamation size={24} />
@@ -252,7 +332,7 @@ const TeacherAttendancePage = () => {
                         <p>Pending Attendance</p>
                     </div>
                 </div>
-                
+
                 <div className="stat-card">
                     <div className="stat-icon">
                         <HiOutlineUserGroup size={24} />
@@ -264,7 +344,6 @@ const TeacherAttendancePage = () => {
                 </div>
             </div>
 
-            {/* View Controls */}
             <div className="view-controls">
                 <div className="view-modes">
                     <div className="toggle-buttons">
@@ -287,45 +366,58 @@ const TeacherAttendancePage = () => {
                             Month
                         </button>
                     </div>
-                    
+
                     <div className="date-navigation">
                         <button onClick={() => navigateDate('prev')}>
                             <HiOutlineChevronLeft size={20} />
                         </button>
-                        <span>{getDateRangeText()}</span>
+                        <span>{getDateRangeText(currentDate, viewMode)}</span>
                         <button onClick={() => navigateDate('next')}>
                             <HiOutlineChevronRight size={20} />
                         </button>
                     </div>
                 </div>
-                
+
                 <div className="filters">
-                    <div className="filter-group">
+                    <div className="filter-group search-group">
+                        <HiOutlineSearch size={16} />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            placeholder="Search class, subject, room..."
+                        />
+                    </div>
+
+                    <div className="filter-group select-group">
+                        <HiOutlineFilter size={15} />
                         <select
                             value={filters.class}
-                            onChange={(e) => setFilters(prev => ({ ...prev, class: e.target.value }))}
+                            onChange={(event) => setFilters((prev) => ({ ...prev, class: event.target.value }))}
                         >
                             <option value="">All Classes</option>
-                            <option value="1">Grade 10A</option>
-                            <option value="2">Grade 11B</option>
+                            {classOptions.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
                         </select>
                     </div>
-                    
+
                     <div className="filter-group">
                         <select
                             value={filters.subject}
-                            onChange={(e) => setFilters(prev => ({ ...prev, subject: e.target.value }))}
+                            onChange={(event) => setFilters((prev) => ({ ...prev, subject: event.target.value }))}
                         >
                             <option value="">All Subjects</option>
-                            <option value="1">Mathematics</option>
-                            <option value="2">Science</option>
+                            {subjectOptions.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
                         </select>
                     </div>
-                    
+
                     <div className="filter-group">
                         <select
                             value={filters.status}
-                            onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                            onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}
                         >
                             <option value="">All Status</option>
                             <option value="recorded">Recorded</option>
@@ -335,82 +427,81 @@ const TeacherAttendancePage = () => {
                 </div>
             </div>
 
-            {/* Attendance List */}
-            <div className="attendance-list">
-                {attendanceData.length === 0 ? (
+            <div className="attendance-cards">
+                {filteredItems.length === 0 ? (
                     <div className="empty-state">
                         <HiOutlineCalendar size={48} />
                         <h3>No attendance records found</h3>
                         <p>No attendance data available for the selected period.</p>
                     </div>
                 ) : (
-                    attendanceData.map(record => (
-                        <div key={record._id} className="attendance-card">
+                    filteredItems.map((item) => (
+                        <div key={item.id} className="attendance-card">
                             <div className="attendance-header">
                                 <div className="class-info">
-                                    <h3>{record.schedule.title}</h3>
+                                    <h3>{item.title}</h3>
                                     <div className="class-details">
-                                        <span className="class-name">{record.schedule.class.name}</span>
-                                        <span className="subject">{record.schedule.subject.name}</span>
-                                        <span className="room">{record.schedule.room}</span>
+                                        <span className="class-name">{item.className}</span>
+                                        <span className="subject">{item.subjectName}</span>
+                                        <span className="room">{item.room}</span>
                                     </div>
                                 </div>
                                 <div className="attendance-status">
-                                    {record.attendanceRecorded ? (
+                                    {item.isRecorded ? (
                                         <div className="status-recorded">
-                                            <HiOutlineCheckCircle size={20} color="green" />
+                                            <HiOutlineCheckCircle size={20} />
                                             <span>Recorded</span>
                                         </div>
                                     ) : (
                                         <div className="status-pending">
-                                            <HiOutlineExclamation size={20} color="orange" />
+                                            <HiOutlineExclamation size={20} />
                                             <span>Pending</span>
                                         </div>
                                     )}
                                 </div>
                             </div>
-                            
+
                             <div className="attendance-content">
                                 <div className="time-info">
                                     <div className="time-item">
                                         <HiOutlineClock size={16} />
-                                        <span>{formatTime(record.schedule.startTime)} - {formatTime(record.schedule.endTime)}</span>
+                                        <span>{formatTime(item.startTime)} - {formatTime(item.endTime)}</span>
                                     </div>
                                     <div className="date-item">
                                         <HiOutlineCalendar size={16} />
-                                        <span>{new Date(record.schedule.startTime).toLocaleDateString()}</span>
+                                        <span>{new Date(item.startTime).toLocaleDateString()}</span>
                                     </div>
                                 </div>
-                                
+
                                 <div className="attendance-stats">
                                     <div className="stat-item">
-                                        <span className="stat-label">Total:</span>
-                                        <span className="stat-value">{record.totalStudents}</span>
+                                        <span className="stat-label">Total</span>
+                                        <span className="stat-value">{item.totalStudents}</span>
                                     </div>
                                     <div className="stat-item present">
-                                        <span className="stat-label">Present:</span>
-                                        <span className="stat-value">{record.present}</span>
+                                        <span className="stat-label">Present</span>
+                                        <span className="stat-value">{item.present}</span>
                                     </div>
                                     <div className="stat-item absent">
-                                        <span className="stat-label">Absent:</span>
-                                        <span className="stat-value">{record.absent}</span>
+                                        <span className="stat-label">Absent</span>
+                                        <span className="stat-value">{item.absent}</span>
                                     </div>
                                     <div className="stat-item late">
-                                        <span className="stat-label">Late:</span>
-                                        <span className="stat-value">{record.late}</span>
+                                        <span className="stat-label">Late</span>
+                                        <span className="stat-value">{item.late}</span>
                                     </div>
                                     <div className="stat-item rate">
-                                        <span className="stat-label">Rate:</span>
-                                        <span className="stat-value">{record.attendanceRate}%</span>
+                                        <span className="stat-label">Rate</span>
+                                        <span className="stat-value">{item.isRecorded ? `${item.attendanceRate}%` : '--'}</span>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="attendance-actions">
-                                {record.attendanceRecorded ? (
+                                {item.isRecorded ? (
                                     <button
                                         className="action-btn"
-                                        onClick={() => handleViewDetails(record)}
+                                        onClick={() => handleViewDetails(item.rawRecord)}
                                     >
                                         <HiOutlineEye size={16} />
                                         View Details
@@ -418,7 +509,7 @@ const TeacherAttendancePage = () => {
                                 ) : (
                                     <button
                                         className="action-btn primary"
-                                        onClick={() => handleRecordAttendance(record.schedule)}
+                                        onClick={() => handleRecordAttendance(item.rawSchedule)}
                                     >
                                         <HiOutlinePencil size={16} />
                                         Record Attendance
@@ -430,146 +521,132 @@ const TeacherAttendancePage = () => {
                 )}
             </div>
 
-            {/* Attendance Recording Modal */}
             {showAttendanceModal && selectedSchedule && (
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
                             <h2>Record Attendance</h2>
-                            <button
-                                className="modal-close"
-                                onClick={() => setShowAttendanceModal(false)}
-                            >
+                            <button className="modal-close" onClick={() => setShowAttendanceModal(false)}>
                                 <HiOutlineX size={20} />
                             </button>
                         </div>
                         <div className="modal-body">
+                            {error && (
+                                <div className="feedback-banner feedback-error compact">
+                                    <HiOutlineExclamation size={16} />
+                                    <span>{error}</span>
+                                </div>
+                            )}
                             <div className="attendance-form">
-                                <h3>{selectedSchedule.title}</h3>
+                                <h3>{selectedSchedule.title || selectedSchedule.class?.name}</h3>
                                 <p>
                                     {formatDateTime(selectedSchedule.startTime)} - {formatDateTime(selectedSchedule.endTime)}
                                 </p>
-                                <p>Room: {selectedSchedule.room}</p>
-                                
+                                <p>Room: {getRoomLabel(selectedSchedule.room) || 'N/A'}</p>
+
                                 <div className="attendance-list">
-                                    {/* Mock student list - in real app, this would come from API */}
-                                    {[
-                                        { _id: '1', firstName: 'John', lastName: 'Doe' },
-                                        { _id: '2', firstName: 'Jane', lastName: 'Smith' },
-                                        { _id: '3', firstName: 'Bob', lastName: 'Johnson' },
-                                        { _id: '4', firstName: 'Alice', lastName: 'Brown' },
-                                        { _id: '5', firstName: 'Charlie', lastName: 'Wilson' }
-                                    ].map(student => (
-                                        <div key={student._id} className="attendance-item">
-                                            <div className="student-info">
-                                                <span className="student-name">
-                                                    {student.firstName} {student.lastName}
-                                                </span>
-                                            </div>
-                                            <div className="attendance-status">
-                                                <select className="status-select">
-                                                    <option value="present">Present</option>
-                                                    <option value="absent">Absent</option>
-                                                    <option value="late">Late</option>
-                                                    <option value="excused">Excused</option>
-                                                </select>
-                                            </div>
+                                    {students.length === 0 ? (
+                                        <div className="empty-state compact">
+                                            <p>No students found for this class.</p>
                                         </div>
-                                    ))}
+                                    ) : (
+                                        students.map((student) => (
+                                            <div key={student._id} className="attendance-item">
+                                                <div className="student-info">
+                                                    <span className="student-name">{getStudentName(student)}</span>
+                                                </div>
+                                                <div className="attendance-status">
+                                                    <select
+                                                        className="status-select"
+                                                        value={studentAttendance[student._id] || 'present'}
+                                                        onChange={(event) => setStudentAttendance((prev) => ({
+                                                            ...prev,
+                                                            [student._id]: event.target.value
+                                                        }))}
+                                                    >
+                                                        {STATUS_OPTIONS.map((option) => (
+                                                            <option key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>
                         <div className="modal-footer">
-                            <button
-                                className="btn btn-secondary"
-                                onClick={() => setShowAttendanceModal(false)}
-                            >
+                            <button className="btn btn-secondary" onClick={() => setShowAttendanceModal(false)}>
                                 Cancel
                             </button>
                             <button
                                 className="btn btn-primary"
-                                onClick={() => {
-                                    // Handle attendance submission
-                                    setShowAttendanceModal(false);
-                                    fetchAttendanceData();
-                                }}
+                                onClick={handleSaveAttendance}
+                                disabled={saving || students.length === 0}
                             >
-                                Save Attendance
+                                {saving ? 'Saving...' : 'Save Attendance'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Attendance Details Modal */}
-            {showDetailsModal && selectedSchedule && (
+            {showDetailsModal && selectedRecord && (
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
                             <h2>Attendance Details</h2>
-                            <button
-                                className="modal-close"
-                                onClick={() => setShowDetailsModal(false)}
-                            >
+                            <button className="modal-close" onClick={() => setShowDetailsModal(false)}>
                                 <HiOutlineX size={20} />
                             </button>
                         </div>
                         <div className="modal-body">
                             <div className="attendance-details">
-                                <h3>{selectedSchedule.title}</h3>
+                                <h3>{getRecordTitle(selectedRecord)}</h3>
                                 <p>
-                                    {formatDateTime(selectedSchedule.startTime)} - {formatDateTime(selectedSchedule.endTime)}
+                                    {formatDateTime(selectedRecord.startTime || selectedRecord.date)}
+                                    {' - '}
+                                    {formatDateTime(selectedRecord.endTime || selectedRecord.date)}
                                 </p>
-                                <p>Room: {selectedSchedule.room}</p>
-                                
+                                <p>Room: {getRoomLabel(selectedRecord.room || selectedRecord.schedule?.room) || 'N/A'}</p>
+
                                 <div className="attendance-summary">
                                     <div className="summary-stats">
                                         <div className="summary-item">
-                                            <span className="label">Total Students:</span>
-                                            <span className="value">25</span>
+                                            <span className="label">Total Students</span>
+                                            <span className="value">{selectedRecord.totalStudents || 0}</span>
                                         </div>
                                         <div className="summary-item present">
-                                            <span className="label">Present:</span>
-                                            <span className="value">22</span>
+                                            <span className="label">Present</span>
+                                            <span className="value">{selectedRecord.present || 0}</span>
                                         </div>
                                         <div className="summary-item absent">
-                                            <span className="label">Absent:</span>
-                                            <span className="value">2</span>
+                                            <span className="label">Absent</span>
+                                            <span className="value">{selectedRecord.absent || 0}</span>
                                         </div>
                                         <div className="summary-item late">
-                                            <span className="label">Late:</span>
-                                            <span className="value">1</span>
+                                            <span className="label">Late</span>
+                                            <span className="value">{selectedRecord.late || 0}</span>
                                         </div>
                                         <div className="summary-item rate">
-                                            <span className="label">Attendance Rate:</span>
-                                            <span className="value">88%</span>
+                                            <span className="label">Attendance Rate</span>
+                                            <span className="value">{selectedRecord.attendanceRate || 0}%</span>
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div className="student-attendance-list">
                                     <h4>Student Attendance</h4>
-                                    {[
-                                        { student: { firstName: 'John', lastName: 'Doe' }, status: 'present', checkInTime: '09:05' },
-                                        { student: { firstName: 'Jane', lastName: 'Smith' }, status: 'late', checkInTime: '09:10' },
-                                        { student: { firstName: 'Bob', lastName: 'Johnson' }, status: 'absent', checkInTime: null }
-                                    ].map((record, index) => (
-                                        <div key={index} className="student-attendance-item">
+                                    {(selectedRecord.studentAttendance || []).map((entry, index) => (
+                                        <div key={`${entry.student?._id || index}`} className="student-attendance-item">
                                             <div className="student-details">
-                                                <span className="student-name">
-                                                    {record.student.firstName} {record.student.lastName}
-                                                </span>
-                                                {record.checkInTime && (
-                                                    <span className="check-in-time">
-                                                        Check-in: {record.checkInTime}
-                                                    </span>
-                                                )}
+                                                <span className="student-name">{getStudentName(entry.student)}</span>
                                             </div>
-                                            <div className={`attendance-status ${record.status}`}>
-                                                {record.status === 'present' && <HiOutlineCheckCircle size={16} />}
-                                                {record.status === 'absent' && <HiOutlineXCircle size={16} />}
-                                                {record.status === 'late' && <HiOutlineExclamation size={16} />}
-                                                <span>{record.status}</span>
+                                            <div className={`attendance-status ${getStatusClassName(entry.status)}`}>
+                                                {getStatusIcon(entry.status)}
+                                                <span>{STATUS_LABELS[entry.status] || entry.status}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -577,10 +654,7 @@ const TeacherAttendancePage = () => {
                             </div>
                         </div>
                         <div className="modal-footer">
-                            <button
-                                className="btn btn-secondary"
-                                onClick={() => setShowDetailsModal(false)}
-                            >
+                            <button className="btn btn-secondary" onClick={() => setShowDetailsModal(false)}>
                                 Close
                             </button>
                         </div>
@@ -590,5 +664,107 @@ const TeacherAttendancePage = () => {
         </div>
     );
 };
+
+function getDateRange(currentDate, viewMode) {
+    const base = new Date(currentDate);
+    if (viewMode === 'today') {
+        const start = new Date(base);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(base);
+        end.setHours(23, 59, 59, 999);
+        return { startDate: start, endDate: end };
+    }
+
+    if (viewMode === 'week') {
+        const startOfWeek = new Date(base);
+        startOfWeek.setDate(base.getDate() - base.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        return { startDate: startOfWeek, endDate: endOfWeek };
+    }
+
+    const monthStart = new Date(base.getFullYear(), base.getMonth(), 1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthEnd = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+    return { startDate: monthStart, endDate: monthEnd };
+}
+
+function getDateRangeText(currentDate, viewMode) {
+    const base = new Date(currentDate);
+    if (viewMode === 'today') {
+        return base.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    if (viewMode === 'week') {
+        const startOfWeek = new Date(base);
+        startOfWeek.setDate(base.getDate() - base.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        return `${startOfWeek.toLocaleDateString()} - ${endOfWeek.toLocaleDateString()}`;
+    }
+
+    return base.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function buildSelectOptions(items, idKey, labelKey) {
+    const options = new Map();
+    items.forEach((item) => {
+        if (item[idKey]) options.set(item[idKey], item[labelKey]);
+    });
+    return [...options.entries()]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function getRoomLabel(room) {
+    if (!room) return '';
+    if (typeof room === 'string') return room;
+    return room.name || '';
+}
+
+function getStudentName(student) {
+    if (!student) return 'Student';
+    if (typeof student === 'string') return student;
+    const firstName = student.firstName || student.user?.firstName || '';
+    const lastName = student.lastName || student.user?.lastName || '';
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || 'Student';
+}
+
+function formatDateTime(date) {
+    if (!date) return '--';
+    return new Date(date).toLocaleString();
+}
+
+function formatTime(date) {
+    if (!date) return '--';
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function getStatusClassName(status) {
+    if (status === 'present') return 'present';
+    if (status === 'absent' || status === 'absent_excused') return 'absent';
+    return 'late';
+}
+
+function getStatusIcon(status) {
+    if (status === 'present') return <HiOutlineCheckCircle size={16} />;
+    if (status === 'absent' || status === 'absent_excused') return <HiOutlineXCircle size={16} />;
+    return <HiOutlineExclamation size={16} />;
+}
+
+function getRecordTitle(record) {
+    const className = record.class?.name || record.schedule?.class?.name || '';
+    const subjectName = record.subject?.name || record.schedule?.subject?.name || record.period?.name || '';
+    return record.schedule?.title || [className, subjectName].filter(Boolean).join(' • ') || 'Attendance Record';
+}
 
 export default TeacherAttendancePage;

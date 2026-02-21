@@ -215,8 +215,38 @@
     border-color: var(--primary-500);
 }
 
+.search-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0 var(--spacing-md);
+    min-width: 240px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+}
+
+.search-group input {
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    width: 100%;
+    height: 40px;
+}
+
+.search-group input:focus {
+    outline: none;
+}
+
+.select-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
 /* Attendance List */
-.attendance-list {
+.attendance-cards {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-lg);
@@ -407,6 +437,38 @@
 
 .action-btn.primary:hover {
     background: var(--primary-600);
+}
+
+.feedback-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    margin-bottom: var(--spacing-lg);
+    font-weight: 500;
+}
+
+.feedback-success {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--accent-emerald);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.feedback-error {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--accent-red);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.feedback-banner.compact {
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.empty-state.compact {
+    min-height: 140px;
 }
 
 /* Modal Styles */
@@ -720,6 +782,10 @@
         flex-wrap: wrap;
         gap: var(--spacing-sm);
     }
+
+    .search-group {
+        min-width: 180px;
+    }
     
     .filter-group select {
         min-width: 120px;
@@ -751,6 +817,11 @@
 @media (max-width: 480px) {
     .header-actions {
         flex-direction: column;
+    }
+
+    .search-group {
+        width: 100%;
+        min-width: 0;
     }
     
     .stats-grid {

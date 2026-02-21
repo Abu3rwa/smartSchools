@@ -452,7 +452,52 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
         });
     }
     
-    await attendance.save();
+    try {
+        await attendance.save();
+    } catch (error) {
+        const isDuplicateSchedule =
+            error?.code === 11000 && (error?.keyPattern?.schedule || error?.keyValue?.schedule);
+        if (!isDuplicateSchedule) {
+            throw error;
+        }
+
+        const existingAttendance = await Attendance.findOne({
+            schedule: scheduleId,
+            date: { $gte: scheduleDayRange.start, $lte: scheduleDayRange.end }
+        });
+
+        if (!existingAttendance) {
+            throw error;
+        }
+
+        const previousAttendance = existingAttendance.studentAttendance.map(s => ({
+            student: s.student,
+            status: s.status
+        }));
+
+        existingAttendance.studentAttendance = studentAttendance.map(student => ({
+            ...student,
+            recordedBy: req.user._id,
+            recordedAt: new Date(),
+            lastModifiedBy: req.user._id,
+            lastModifiedAt: new Date()
+        }));
+
+        existingAttendance.lastModifiedBy = req.user._id;
+        existingAttendance.lastModifiedAt = new Date();
+        existingAttendance.status = 'submitted';
+
+        existingAttendance.auditTrail.push({
+            action: 'student_updated',
+            performedBy: req.user._id,
+            details: 'Attendance updated after duplicate schedule save',
+            previousValues: { studentAttendance: previousAttendance },
+            newValues: { studentAttendance: studentAttendance }
+        });
+
+        await existingAttendance.save();
+        attendance = existingAttendance;
+    }
     
     // Send parent notifications for absent students
     const absentStudents = attendance.studentAttendance.filter(s => s.status === 'absent');
@@ -655,7 +700,9 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
             teacher: req.user._id,
             class: classId,
             subject: subjectId || assignment.subject,
-            date: localYmdToServerMidnightDate(todayLocal),
+            // Use period start timestamp for period-based attendance so multiple
+            // periods on the same day do not collide on legacy schedule/date indexes.
+            date: periodStart,
             startTime: periodStart,
             endTime: periodEnd,
             room: await getRoomName(assignment.room),
