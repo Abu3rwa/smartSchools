@@ -4,6 +4,7 @@ import {
     listAttendanceRequests,
     getAttendanceRequest,
     reviewAttendanceRequest,
+    cancelAttendanceRequest,
     getEligibleStudents,
     getRequesterContext,
 } from '../controllers/attendanceRequestController.js';
@@ -39,6 +40,13 @@ router
     );
 
 router.get('/:id', validationRules.mongoId, validate, getAttendanceRequest);
+router.patch(
+    '/:id/cancel',
+    authorize('parent', 'student'),
+    validationRules.mongoId,
+    validate,
+    cancelAttendanceRequest
+);
 router.patch(
     '/:id/review',
     authorize('admin', 'department_principal'),

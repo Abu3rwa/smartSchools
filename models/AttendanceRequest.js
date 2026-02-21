@@ -87,7 +87,7 @@ const attendanceRequestSchema = new mongoose.Schema({
     // Workflow
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected'],
+        enum: ['pending', 'approved', 'rejected', 'cancelled'],
         default: 'pending'
     },
     reviewedBy: {

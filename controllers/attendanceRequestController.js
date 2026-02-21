@@ -381,3 +381,45 @@ export const reviewAttendanceRequest = asyncHandler(async (req, res) => {
         data: { ...updated.toObject(), academicYear },
     });
 });
+
+/**
+ * @desc    Cancel own pending attendance request
+ * @route   PATCH /api/attendance-requests/:id/cancel
+ * @access  Private (parent, student)
+ */
+export const cancelAttendanceRequest = asyncHandler(async (req, res) => {
+    const request = await AttendanceRequest.findById(req.params.id)
+        .populate('requestType', 'labelEn labelAr requiresProof')
+        .populate('student', 'firstName lastName studentId');
+
+    if (!request) {
+        return res.status(404).json({ success: false, message: 'Request not found' });
+    }
+
+    const requesterId = request.requester?.toString();
+    if (requesterId !== req.user._id.toString()) {
+        return res.status(403).json({ success: false, message: 'You can only cancel your own request' });
+    }
+
+    if (request.status !== 'pending') {
+        return res.status(400).json({ success: false, message: 'Only pending requests can be cancelled' });
+    }
+
+    const reason = String(req.body?.reason || '').trim();
+    request.status = 'cancelled';
+    request.reviewedAt = new Date();
+    request.reviewNote = reason || 'Cancelled by requester';
+    await request.save();
+
+    const updated = await AttendanceRequest.findById(request._id)
+        .populate('requestType', 'labelEn labelAr requiresProof')
+        .populate('student', 'firstName lastName studentId')
+        .populate('requester', 'firstName lastName email')
+        .populate('reviewedBy', 'firstName lastName');
+
+    res.status(200).json({
+        success: true,
+        message: 'Request cancelled',
+        data: updated
+    });
+});
