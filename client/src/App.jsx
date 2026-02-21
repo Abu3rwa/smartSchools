@@ -40,6 +40,7 @@ import TeachersPage from "./pages/TeachersPage";
 import TeacherDetailsPage from "./pages/TeacherDetailsPage";
 import SubjectsPage from "./pages/SubjectsPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import MessagesPage from "./pages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
 import SchoolSettingsPage from "./pages/SchoolSettingsPage";
 import AdminSchedulePage from "./pages/admin/AdminSchedulePage";
@@ -331,6 +332,14 @@ function App() {
           element={
             <RoleRoute roles={["admin", "teacher"]}>
               <NotificationsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="messages"
+          element={
+            <RoleRoute roles={["admin", "teacher", "department_principal", "staff"]}>
+              <MessagesPage />
             </RoleRoute>
           }
         />

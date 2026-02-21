@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { useTheme, useMediaQuery } from "@mui/material";
 import { selectUser } from "../../store/slices/authSlice";
+import { fetchMessageThreads } from "../../api/messagesApi";
 import {
   selectSidebarOpen,
   toggleSidebar,
@@ -17,6 +18,7 @@ import {
   HiOutlineClipboardList,
   HiOutlineChartBar,
   HiOutlineBell,
+  HiOutlineChatAlt2,
   HiOutlineCog,
   HiOutlineDocumentText,
   HiOutlineCalendar,
@@ -42,6 +44,11 @@ const Sidebar = () => {
   const isAdmin = user?.role === "admin";
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0);
+
+  const canSeeMessages = useMemo(() => {
+    return ["admin", "teacher", "department_principal", "staff"].includes(user?.role);
+  }, [user?.role]);
 
   // Helper function to check if user has permission
   const hasPermission = (permission) => {
@@ -62,6 +69,36 @@ const Sidebar = () => {
       prevPathRef.current = location.pathname;
     }
   }, [location.pathname, isDesktop, dispatch]);
+
+  useEffect(() => {
+    if (!canSeeMessages) {
+      setMessageUnreadCount(0);
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const loadUnreadCount = async () => {
+      try {
+        const data = await fetchMessageThreads({ page: 1, limit: 1 });
+        if (isMounted) {
+          setMessageUnreadCount(data?.unreadCount || 0);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setMessageUnreadCount(0);
+        }
+      }
+    };
+
+    loadUnreadCount();
+    const intervalId = window.setInterval(loadUnreadCount, 60000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [canSeeMessages]);
 
   const SECTION_ORDER = [
     "overview",
@@ -94,6 +131,14 @@ const Sidebar = () => {
       icon: HiOutlineBell,
       label: "Notifications",
       section: "overview",
+    },
+    {
+      path: "/portal/messages",
+      icon: HiOutlineChatAlt2,
+      label: "Messages",
+      roles: ["admin", "teacher", "department_principal", "staff"],
+      section: "overview",
+      badgeCount: messageUnreadCount,
     },
     {
       path: "/portal/my-schedule",
@@ -416,6 +461,9 @@ const Sidebar = () => {
               >
                 <item.icon className="nav-icon" size={22} />
                 {sidebarOpen && <span className="nav-label">{item.label}</span>}
+                {!!item.badgeCount && item.badgeCount > 0 && (
+                  <span className="nav-badge">{item.badgeCount}</span>
+                )}
               </NavLink>
             ))}
           </div>

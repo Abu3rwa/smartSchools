@@ -1,7 +1,14 @@
 import express from 'express';
 import { body } from 'express-validator';
 
-import { createMessageThreadController } from '../controllers/messageController.js';
+import {
+    createMessageThreadController,
+    getMessageThreadsController,
+    getMessageThreadByIdController,
+    replyToMessageThreadController,
+    markMessageThreadReadController,
+    getParentUsersForMessagingController
+} from '../controllers/messageController.js';
 import { authorize, protect } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate } from '../middleware/validator.js';
@@ -33,6 +40,25 @@ router.post(
     validate,
     createMessageThreadController
 );
+
+router.get('/threads', getMessageThreadsController);
+
+router.get('/threads/:threadId', getMessageThreadByIdController);
+
+router.post(
+    '/threads/:threadId/replies',
+    body('body')
+        .isString()
+        .trim()
+        .isLength({ min: 1, max: 5000 })
+        .withMessage('body is required and must be at most 5000 characters'),
+    validate,
+    replyToMessageThreadController
+);
+
+router.patch('/threads/:threadId/read', markMessageThreadReadController);
+
+router.get('/parents', getParentUsersForMessagingController);
 
 export default router;
 
