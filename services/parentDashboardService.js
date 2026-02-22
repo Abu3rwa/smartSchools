@@ -220,3 +220,53 @@ export const getParentDashboard = async ({ schoolId, parentUser, academicYear, d
         pendingRequestsCount
     };
 };
+
+const mapNotificationToUpdate = (notification) => ({
+    id: notification._id,
+    type: notification.type,
+    title: notification.subject,
+    message: trimMessagePreview(notification.message),
+    htmlContent: notification.htmlContent || null,
+    student: notification.student,
+    createdBy: notification.createdBy,
+    createdAt: notification.createdAt,
+    readAt: notification.readAt || null
+});
+
+export const getParentUpdates = async ({ schoolId, parentUser, academicYear, page = 1, limit = 20 }) => {
+    const students = await getParentLinkedStudents({ schoolId, parentUser, academicYear });
+    const studentIds = students.map((s) => s._id);
+    const parentNotificationFilter = buildParentNotificationFilter(parentUser);
+
+    const query = {
+        school: schoolId,
+        ...parentNotificationFilter
+    };
+    if (studentIds.length > 0) {
+        query.student = { $in: studentIds };
+    } else {
+        query.student = { $in: [] };
+    }
+
+    const [notifications, total] = await Promise.all([
+        Notification.find(query)
+            .populate('student', 'firstName lastName studentId')
+            .populate('createdBy', 'firstName lastName')
+            .select('_id type subject message htmlContent student createdAt readAt createdBy')
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .lean(),
+        Notification.countDocuments(query)
+    ]);
+
+    return {
+        updates: notifications.map(mapNotificationToUpdate),
+        pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit)
+        }
+    };
+};
