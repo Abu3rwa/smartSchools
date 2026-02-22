@@ -42,13 +42,25 @@ export function validateEnvironment() {
     }
   }
 
-  const hasPushKey = Boolean(
-    process.env.FCM_SERVER_KEY ||
-    process.env.FIREBASE_SERVER_KEY ||
-    process.env.FIREBASE_LEGACY_SERVER_KEY
-  );
-  if (!hasPushKey) {
-    warnings.push('FCM_SERVER_KEY (or FIREBASE_SERVER_KEY)');
+  const fcmApiVersion = String(process.env.FCM_API_VERSION || 'legacy').trim().toLowerCase();
+  if (fcmApiVersion === 'v1') {
+    const hasV1Config = Boolean(
+      process.env.FIREBASE_PROJECT_ID &&
+      process.env.FIREBASE_CLIENT_EMAIL &&
+      process.env.FIREBASE_PRIVATE_KEY
+    );
+    if (!hasV1Config) {
+      warnings.push('FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY');
+    }
+  } else {
+    const hasLegacyPushKey = Boolean(
+      process.env.FCM_SERVER_KEY ||
+      process.env.FIREBASE_SERVER_KEY ||
+      process.env.FIREBASE_LEGACY_SERVER_KEY
+    );
+    if (!hasLegacyPushKey) {
+      warnings.push('FCM_SERVER_KEY (or FIREBASE_SERVER_KEY)');
+    }
   }
 
   if (warnings.length > 0) {
