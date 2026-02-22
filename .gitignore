@@ -8,6 +8,8 @@ client/node_modules
 .env.development.local
 .env.test.local
 .env.production.local
+*service-account*.json
+*firebase-adminsdk*.json
 
 # Build outputs
 client/dist
