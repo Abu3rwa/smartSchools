@@ -15,7 +15,6 @@ const optionalEnvVars = [
   'JWT_EXPIRE',
   'GOOGLE_REDIRECT_URI',
   'GOOGLE_LOGIN_REDIRECT_URI',
-  'FCM_SERVER_KEY',
   'RUN_ATTENDANCE_REMINDER_JOB',
   'RUN_NEWSLETTER_ISSUE_SCHEDULER',
   'RUN_SUBSTITUTION_EXPIRY_JOB'
@@ -41,6 +40,15 @@ export function validateEnvironment() {
     if (!process.env[varName]) {
       warnings.push(varName);
     }
+  }
+
+  const hasPushKey = Boolean(
+    process.env.FCM_SERVER_KEY ||
+    process.env.FIREBASE_SERVER_KEY ||
+    process.env.FIREBASE_LEGACY_SERVER_KEY
+  );
+  if (!hasPushKey) {
+    warnings.push('FCM_SERVER_KEY (or FIREBASE_SERVER_KEY)');
   }
 
   if (warnings.length > 0) {

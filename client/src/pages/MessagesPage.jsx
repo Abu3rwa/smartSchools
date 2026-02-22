@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HiOutlinePlus, HiOutlineRefresh, HiOutlineInbox, HiOutlineChatAlt2, HiOutlineX } from 'react-icons/hi';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import {
+    buildMessagesRealtimeUrl,
     createMessageThread,
     fetchMessageClasses,
     fetchMessageParents,
@@ -11,6 +12,7 @@ import {
     markMessageThreadRead,
     replyToMessageThread
 } from '../api/messagesApi';
+import { MessagesRealtimeService } from '../services/messagesRealtimeService';
 import './MessagesPage.css';
 
 const formatTimestamp = (value) => {
@@ -39,6 +41,12 @@ const formatClassLabel = (classOption) => {
 const MessagesPage = () => {
     const listRef = useRef(null);
     const messageListRef = useRef(null);
+    const realtimeServiceRef = useRef(null);
+    const realtimeSyncTimerRef = useRef(null);
+    const realtimeSyncThreadIdsRef = useRef(new Set());
+    const selectedThreadIdRef = useRef(null);
+    const loadThreadsRef = useRef(null);
+    const refreshThreadDetailRef = useRef(null);
     const [threads, setThreads] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
     const [unreadCount, setUnreadCount] = useState(0);
@@ -51,6 +59,7 @@ const MessagesPage = () => {
     const [replyBody, setReplyBody] = useState('');
     const [sendingReply, setSendingReply] = useState(false);
     const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+    const [realtimeConnected, setRealtimeConnected] = useState(false);
 
     const [showCompose, setShowCompose] = useState(false);
     const [composeSubject, setComposeSubject] = useState('');
@@ -67,6 +76,35 @@ const MessagesPage = () => {
     const [loadingParents, setLoadingParents] = useState(false);
 
     const hasMore = useMemo(() => pagination.page < pagination.totalPages, [pagination]);
+
+    const scheduleRealtimeSync = useCallback((threadId = '') => {
+        const normalizedThreadId = String(threadId || '').trim();
+        if (normalizedThreadId) {
+            realtimeSyncThreadIdsRef.current.add(normalizedThreadId);
+        }
+
+        if (realtimeSyncTimerRef.current) {
+            return;
+        }
+
+        realtimeSyncTimerRef.current = window.setTimeout(async () => {
+            realtimeSyncTimerRef.current = null;
+            const pendingThreadIds = new Set(realtimeSyncThreadIdsRef.current);
+            realtimeSyncThreadIdsRef.current.clear();
+
+            if (typeof loadThreadsRef.current === 'function') {
+                await loadThreadsRef.current({ page: 1, append: false, silent: true });
+            }
+
+            const activeThreadId = selectedThreadIdRef.current;
+            if (!activeThreadId) return;
+            if (pendingThreadIds.size > 0 && !pendingThreadIds.has(activeThreadId)) return;
+
+            if (typeof refreshThreadDetailRef.current === 'function') {
+                await refreshThreadDetailRef.current(activeThreadId);
+            }
+        }, 350);
+    }, []);
 
     const loadThreads = async ({ page = 1, append = false, silent = false } = {}) => {
         if (append) {
@@ -106,6 +144,45 @@ const MessagesPage = () => {
     };
 
     useEffect(() => {
+        selectedThreadIdRef.current = selectedThreadId;
+    }, [selectedThreadId]);
+
+    useEffect(() => {
+        loadThreadsRef.current = loadThreads;
+    }, [loadThreads]);
+
+    useEffect(() => {
+        refreshThreadDetailRef.current = refreshThreadDetail;
+    }, [refreshThreadDetail]);
+
+    useEffect(() => {
+        const realtimeService = new MessagesRealtimeService({
+            onConnectionChange: (connected) => setRealtimeConnected(connected),
+            onEvent: (event) => {
+                const eventThreadId = event?.data?.threadId;
+                scheduleRealtimeSync(eventThreadId);
+            }
+        });
+        realtimeServiceRef.current = realtimeService;
+
+        const realtimeUrl = buildMessagesRealtimeUrl();
+        if (realtimeUrl) {
+            realtimeService.connect(realtimeUrl);
+        }
+
+        return () => {
+            if (realtimeSyncTimerRef.current) {
+                window.clearTimeout(realtimeSyncTimerRef.current);
+                realtimeSyncTimerRef.current = null;
+            }
+            realtimeSyncThreadIdsRef.current.clear();
+            realtimeService.dispose();
+            realtimeServiceRef.current = null;
+            setRealtimeConnected(false);
+        };
+    }, [scheduleRealtimeSync]);
+
+    useEffect(() => {
         setSelectedThreadId(null);
         setThreadDetail(null);
         loadThreads({ page: 1, append: false });
@@ -113,6 +190,10 @@ const MessagesPage = () => {
 
     useEffect(() => {
         const handleFocus = () => {
+            const realtimeUrl = buildMessagesRealtimeUrl();
+            if (realtimeUrl && realtimeServiceRef.current) {
+                realtimeServiceRef.current.connect(realtimeUrl);
+            }
             loadThreads({ page: 1, append: false, silent: true });
             refreshThreadDetail(selectedThreadId);
         };
@@ -122,6 +203,10 @@ const MessagesPage = () => {
     }, [selectedThreadId, unreadOnly]);
 
     useEffect(() => {
+        if (realtimeConnected) {
+            return undefined;
+        }
+
         let isMounted = true;
 
         const tick = async () => {
@@ -135,7 +220,7 @@ const MessagesPage = () => {
             isMounted = false;
             window.clearInterval(intervalId);
         };
-    }, [selectedThreadId, unreadOnly]);
+    }, [selectedThreadId, unreadOnly, realtimeConnected]);
 
     const handleScroll = () => {
         const container = listRef.current;
@@ -371,6 +456,10 @@ const MessagesPage = () => {
                     <p className="text-muted">Communicate with parents and students in a shared inbox</p>
                 </div>
                 <div className="messages-header-actions">
+                    <span className={`messages-live-pill ${realtimeConnected ? 'online' : 'offline'}`}>
+                        <span className="messages-live-dot" />
+                        {realtimeConnected ? 'Live' : 'Offline'}
+                    </span>
                     {lastUpdatedAt && (
                         <span className="messages-updated text-muted">
                             Updated {format(lastUpdatedAt, 'HH:mm')}

@@ -1,6 +1,25 @@
 import api from '../config/api';
 
 const BASE = '/messages';
+const DEV_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const resolveApiBaseUrl = () => {
+    if (import.meta.env.PROD) {
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000';
+        return `${origin}/api`;
+    }
+    return DEV_API_BASE_URL;
+};
+
+const toWebSocketUrl = (apiBaseUrl) => {
+    const fallbackOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000';
+    const parsed = new URL(apiBaseUrl, fallbackOrigin);
+    parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+    parsed.pathname = '/ws';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed;
+};
 
 /**
  * Fetch message threads for staff.
@@ -101,4 +120,19 @@ export async function fetchMessageParents(params = {}) {
     const { data } = await api.get(`${BASE}/parents${suffix ? `?${suffix}` : ''}`);
     if (!data.success) throw new Error(data.message || 'Failed to fetch parents');
     return data.data;
+}
+
+/**
+ * Build websocket URL for realtime messaging events.
+ * @returns {string}
+ */
+export function buildMessagesRealtimeUrl() {
+    const token = typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('token') || '').trim()
+        : '';
+    if (!token) return '';
+
+    const socketUrl = toWebSocketUrl(resolveApiBaseUrl());
+    socketUrl.searchParams.set('token', token);
+    return socketUrl.toString();
 }

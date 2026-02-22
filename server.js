@@ -72,7 +72,7 @@ import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 
 // Validate environment variables
 validateEnvironment();
-
+console.log(":::::", process.env.GEMINI_API_KEY, ":::::");
 // Connect to database
 connectDB();
 const app = express();

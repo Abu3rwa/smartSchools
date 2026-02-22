@@ -15,6 +15,35 @@
     font-size: 0.8rem;
 }
 
+.messages-live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.messages-live-pill.online {
+    color: var(--success-700);
+    border-color: rgba(var(--accent-success-rgb), 0.5);
+    background: rgba(var(--accent-success-rgb), 0.12);
+}
+
+.messages-live-pill.offline {
+    color: var(--text-muted);
+    background: var(--bg-tertiary);
+}
+
+.messages-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
 .messages-layout {
     display: grid;
     grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);

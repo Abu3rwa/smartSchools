@@ -12,6 +12,19 @@ const INVALID_FCM_TOKEN_ERRORS = new Set([
 
 const toId = (value) => (value == null ? '' : String(value));
 
+const resolveFcmServerKey = () => {
+  const candidates = [
+    process.env.FCM_SERVER_KEY,
+    process.env.FIREBASE_SERVER_KEY,
+    process.env.FIREBASE_LEGACY_SERVER_KEY,
+  ];
+  for (const key of candidates) {
+    const normalized = String(key || '').trim();
+    if (normalized) return normalized;
+  }
+  return '';
+};
+
 const chunk = (items, size) => {
   const normalizedSize = Math.max(1, Number(size) || 1);
   const chunks = [];
@@ -96,7 +109,7 @@ export const sendPushToUsers = async ({
     };
   }
 
-  const serverKey = process.env.FCM_SERVER_KEY;
+  const serverKey = resolveFcmServerKey();
   if (!serverKey) {
     logger.warn('push_delivery_skipped_missing_fcm_server_key');
     return {
@@ -105,7 +118,7 @@ export const sendPushToUsers = async ({
       sent: 0,
       failed: 0,
       skipped: true,
-      reason: 'FCM_SERVER_KEY is not configured',
+      reason: 'FCM server key is not configured (FCM_SERVER_KEY/FIREBASE_SERVER_KEY)',
     };
   }
 
@@ -192,4 +205,3 @@ export const sendPushToUsers = async ({
     invalidTokensPruned: invalidTokens.size,
   };
 };
-
