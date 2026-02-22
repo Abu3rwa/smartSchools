@@ -38,6 +38,45 @@ const formatClassLabel = (classOption) => {
     return parts.join(' · ') || 'Class';
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const getStartOfLocalDay = (value) => {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const groupMessagesByAge = (messages = []) => {
+    const today = [];
+    const yesterday = [];
+    const older = [];
+    const todayStart = getStartOfLocalDay(new Date());
+    if (!todayStart) {
+        return { today, yesterday, older };
+    }
+
+    for (const message of messages) {
+        const messageStart = getStartOfLocalDay(message?.createdAt);
+        if (!messageStart) {
+            older.push(message);
+            continue;
+        }
+
+        const diffDays = Math.floor((todayStart.getTime() - messageStart.getTime()) / DAY_MS);
+        if (diffDays <= 0) {
+            today.push(message);
+            continue;
+        }
+        if (diffDays === 1) {
+            yesterday.push(message);
+            continue;
+        }
+        older.push(message);
+    }
+
+    return { today, yesterday, older };
+};
+
 const MessagesPage = () => {
     const listRef = useRef(null);
     const messageListRef = useRef(null);
@@ -47,6 +86,8 @@ const MessagesPage = () => {
     const selectedThreadIdRef = useRef(null);
     const loadThreadsRef = useRef(null);
     const refreshThreadDetailRef = useRef(null);
+    const backgroundListSyncRef = useRef(false);
+    const backgroundDetailSyncRef = useRef(false);
     const [threads, setThreads] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
     const [unreadCount, setUnreadCount] = useState(0);
@@ -60,6 +101,8 @@ const MessagesPage = () => {
     const [sendingReply, setSendingReply] = useState(false);
     const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
     const [realtimeConnected, setRealtimeConnected] = useState(false);
+    const [showYesterdayMessages, setShowYesterdayMessages] = useState(false);
+    const [showOlderMessages, setShowOlderMessages] = useState(false);
 
     const [showCompose, setShowCompose] = useState(false);
     const [composeSubject, setComposeSubject] = useState('');
@@ -76,6 +119,15 @@ const MessagesPage = () => {
     const [loadingParents, setLoadingParents] = useState(false);
 
     const hasMore = useMemo(() => pagination.page < pagination.totalPages, [pagination]);
+    const groupedThreadMessages = useMemo(
+        () => groupMessagesByAge(threadDetail?.messages || []),
+        [threadDetail?.messages]
+    );
+    const latestMessageId = useMemo(() => {
+        const messages = threadDetail?.messages || [];
+        if (messages.length === 0) return '';
+        return messages[messages.length - 1]?.id || '';
+    }, [threadDetail?.messages]);
 
     const scheduleRealtimeSync = useCallback((threadId = '') => {
         const normalizedThreadId = String(threadId || '').trim();
@@ -148,6 +200,11 @@ const MessagesPage = () => {
     }, [selectedThreadId]);
 
     useEffect(() => {
+        setShowYesterdayMessages(false);
+        setShowOlderMessages(false);
+    }, [selectedThreadId]);
+
+    useEffect(() => {
         loadThreadsRef.current = loadThreads;
     }, [loadThreads]);
 
@@ -203,24 +260,43 @@ const MessagesPage = () => {
     }, [selectedThreadId, unreadOnly]);
 
     useEffect(() => {
-        if (realtimeConnected) {
-            return undefined;
-        }
-
-        let isMounted = true;
+        let cancelled = false;
 
         const tick = async () => {
-            if (!isMounted || document.visibilityState !== 'visible') return;
-            await loadThreads({ page: 1, append: false, silent: true });
-            await refreshThreadDetail(selectedThreadId);
+            if (cancelled || document.visibilityState !== 'visible') return;
+
+            if (!backgroundListSyncRef.current && typeof loadThreadsRef.current === 'function') {
+                backgroundListSyncRef.current = true;
+                try {
+                    await loadThreadsRef.current({ page: 1, append: false, silent: true });
+                } finally {
+                    backgroundListSyncRef.current = false;
+                }
+            }
+
+            const activeThreadId = selectedThreadIdRef.current;
+            if (!activeThreadId) return;
+            if (backgroundDetailSyncRef.current || typeof refreshThreadDetailRef.current !== 'function') return;
+
+            backgroundDetailSyncRef.current = true;
+            try {
+                await refreshThreadDetailRef.current(activeThreadId);
+            } finally {
+                backgroundDetailSyncRef.current = false;
+            }
         };
 
-        const intervalId = window.setInterval(tick, 30000);
+        const intervalMs = 4000;
+        const intervalId = window.setInterval(() => {
+            void tick();
+        }, intervalMs);
+        void tick();
+
         return () => {
-            isMounted = false;
+            cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [selectedThreadId, unreadOnly, realtimeConnected]);
+    }, [realtimeConnected]);
 
     const handleScroll = () => {
         const container = listRef.current;
@@ -315,7 +391,7 @@ const MessagesPage = () => {
     useEffect(() => {
         if (!messageListRef.current) return;
         messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
-    }, [threadDetail?.messages?.length]);
+    }, [selectedThreadId, latestMessageId]);
 
     const handleSelectParent = (parent) => {
         setSelectedParents((prev) => {
@@ -563,23 +639,85 @@ const MessagesPage = () => {
                                 )}
                             </div>
                             <div className="message-list" ref={messageListRef}>
-                                {threadDetail.messages?.map((message) => (
-                                    <div
-                                        key={message.id}
-                                        className={`message-bubble ${message.isMine ? 'mine' : ''}`}
-                                    >
-                                        <div className="message-meta">
-                                            <span className="message-sender">{message.senderName}</span>
-                                            <span className="message-time">{formatTimestamp(message.createdAt)}</span>
-                                        </div>
-                                        <p>{message.body}</p>
-                                    </div>
-                                ))}
-                                {threadDetail.messages?.length === 0 && (
-                                    <div className="thread-empty">
-                                        <p>No messages yet.</p>
+                                {groupedThreadMessages.older.length > 0 && (
+                                    <div className="message-section">
+                                        <button
+                                            type="button"
+                                            className="message-section-toggle"
+                                            onClick={() => setShowOlderMessages((prev) => !prev)}
+                                        >
+                                            <span>{showOlderMessages ? 'Hide older messages' : 'Show older messages'}</span>
+                                            <span className="message-section-count">
+                                                {groupedThreadMessages.older.length}
+                                            </span>
+                                        </button>
+                                        {showOlderMessages && groupedThreadMessages.older.map((message) => (
+                                            <div
+                                                key={message.id}
+                                                className={`message-bubble ${message.isMine ? 'mine' : ''}`}
+                                            >
+                                                <div className="message-meta">
+                                                    <span className="message-sender">{message.senderName}</span>
+                                                    <span className="message-time">{formatTimestamp(message.createdAt)}</span>
+                                                </div>
+                                                <p>{message.body}</p>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
+
+                                {groupedThreadMessages.yesterday.length > 0 && (
+                                    <div className="message-section">
+                                        <button
+                                            type="button"
+                                            className="message-section-toggle"
+                                            onClick={() => setShowYesterdayMessages((prev) => !prev)}
+                                        >
+                                            <span>{showYesterdayMessages ? 'Hide yesterday messages' : 'Show yesterday messages'}</span>
+                                            <span className="message-section-count">
+                                                {groupedThreadMessages.yesterday.length}
+                                            </span>
+                                        </button>
+                                        {showYesterdayMessages && groupedThreadMessages.yesterday.map((message) => (
+                                            <div
+                                                key={message.id}
+                                                className={`message-bubble ${message.isMine ? 'mine' : ''}`}
+                                            >
+                                                <div className="message-meta">
+                                                    <span className="message-sender">{message.senderName}</span>
+                                                    <span className="message-time">{formatTimestamp(message.createdAt)}</span>
+                                                </div>
+                                                <p>{message.body}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="message-section">
+                                    <div className="message-section-header">
+                                        <span>Today</span>
+                                        <span className="message-section-count">
+                                            {groupedThreadMessages.today.length}
+                                        </span>
+                                    </div>
+                                    {groupedThreadMessages.today.map((message) => (
+                                        <div
+                                            key={message.id}
+                                            className={`message-bubble ${message.isMine ? 'mine' : ''}`}
+                                        >
+                                            <div className="message-meta">
+                                                <span className="message-sender">{message.senderName}</span>
+                                                <span className="message-time">{formatTimestamp(message.createdAt)}</span>
+                                            </div>
+                                            <p>{message.body}</p>
+                                        </div>
+                                    ))}
+                                    {groupedThreadMessages.today.length === 0 && (
+                                        <div className="thread-empty compact">
+                                            <p>No messages today yet.</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             {threadDetail.thread?.isClosed ? (
                                 <div className="reply-closed">This conversation is closed.</div>
