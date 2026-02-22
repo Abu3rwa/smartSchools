@@ -17,10 +17,8 @@ export const evaluateLessonPlan = async (lessonPlanId, criteria) => {
 
     const evaluationPrompt = buildEvaluationPrompt(lessonPlan, criteria);
     
-    const model = await connectAi();
-    const result = await model.generateContent(evaluationPrompt);
-    const response = result.response;
-    const text = response.text();
+    const aiResponse = await connectAi(evaluationPrompt, { modelName: MODEL_NAME });
+    const text = aiResponse.text;
 
     const evaluation = parseAIResponse(text, criteria);
     
@@ -46,13 +44,13 @@ export const evaluateLessonPlan = async (lessonPlanId, criteria) => {
 
     if (lessonPlan.school && lessonPlan.teacher) {
       const tokenUsage = {
-        input: response.usageMetadata?.promptTokenCount || 0,
-        output: response.usageMetadata?.candidatesTokenCount || 0,
-        total: response.usageMetadata?.totalTokenCount || 0
+        input: aiResponse.inputtokenCount || 0,
+        output: aiResponse.outputtokenCount || 0,
+        total: aiResponse.totalTokenCount || 0
       };
 
       await AITokenUsage.create({
-        model: MODEL_NAME,
+        model: aiResponse.modelName || MODEL_NAME,
         feature: 'lesson_plan_evaluation',
         school: lessonPlan.school,
         user: lessonPlan.teacher._id,

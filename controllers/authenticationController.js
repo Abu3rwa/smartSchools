@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
 import School from '../models/School.js';
+import gmailOAuthService from '../services/gmailOAuthService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import {
     clearRefreshToken,
@@ -297,11 +298,11 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     await user.save({ validateBeforeSave: false });
 
     // Create reset URL
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
+    const frontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetUrl = `${frontendUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
     try {
-        // Send email (you'll need to implement email service)
-        await sendPasswordResetEmail(user.email, resetUrl);
+        await sendPasswordResetEmail(user, resetUrl);
 
         res.json({
             success: true,
@@ -369,37 +370,88 @@ export const resetPassword = asyncHandler(async (req, res) => {
 
 /**
  * @desc    Send password reset email
- * @param   {string} email - User email
+ * @param   {Object} user - User document
  * @param   {string} resetUrl - Password reset URL
  */
-const sendPasswordResetEmail = async (email, resetUrl) => {
-    // TODO: Implement email sending service
-    // Do not log reset tokens or reset links in application logs.
-    
-    // You can integrate with:
-    // - Nodemailer with SMTP
-    // - SendGrid
-    // - AWS SES
-    // - Gmail API (if user has Gmail tokens)
-    
-    // Example with basic email structure:
-    const emailContent = {
-        to: email,
-        subject: 'Password Reset Request',
-        html: `
+const sendPasswordResetEmail = async (user, resetUrl) => {
+    if (!user?.email) {
+        throw new Error('Cannot send password reset email without a valid recipient');
+    }
+
+    const subject = 'Password Reset Request';
+    const text = `You requested a password reset. Use the link below within 10 minutes:\n\n${resetUrl}\n\nIf you did not request this reset, you can ignore this email.`;
+    const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2>Password Reset Request</h2>
             <p>You requested to reset your password. Click the link below to reset it:</p>
-            <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                Reset Password
-            </a>
-            <p>This link will expire in 10 minutes.</p>
-            <p>If you didn't request this, please ignore this email.</p>
-        `
+            <p style="margin: 24px 0;">
+                <a href="${resetUrl}" style="background-color: #007bff; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                    Reset Password
+                </a>
+            </p>
+            <p>This link expires in 10 minutes.</p>
+            <p>If you did not request this, you can safely ignore this email.</p>
+        </div>
+    `;
+
+    const mailOptions = {
+        to: user.email,
+        subject,
+        text,
+        html
     };
-    
-    // For now, just return success
-    // In production, you would send this email using your email service
-    return emailContent;
+
+    const smtpHost = process.env.EMAIL_HOST;
+    const smtpPort = Number(process.env.EMAIL_PORT || 587);
+    const smtpUser = process.env.EMAIL_USER;
+    const smtpPass = process.env.EMAIL_PASS;
+
+    if (smtpHost && smtpUser && smtpPass) {
+        const nodemailer = await import('nodemailer');
+        const transporter = nodemailer.default.createTransport({
+            host: smtpHost,
+            port: smtpPort,
+            secure: smtpPort === 465,
+            auth: {
+                user: smtpUser,
+                pass: smtpPass
+            }
+        });
+
+        await transporter.sendMail({
+            ...mailOptions,
+            from: process.env.EMAIL_FROM || `"GradeBook" <${smtpUser}>`
+        });
+        return;
+    }
+
+    if (await gmailOAuthService.hasValidTokens(user._id.toString())) {
+        await gmailOAuthService.sendEmail(user._id.toString(), mailOptions);
+        return;
+    }
+
+    if (user.school) {
+        const adminsWithGmail = await User.find({
+            school: user.school,
+            role: 'admin',
+            isActive: true,
+            'gmailTokens.refreshToken': { $exists: true, $ne: null }
+        })
+            .select('_id')
+            .setOptions({ skipTenantFilter: true })
+            .lean();
+
+        for (const admin of adminsWithGmail) {
+            try {
+                await gmailOAuthService.sendEmail(admin._id.toString(), mailOptions);
+                return;
+            } catch {
+                // Try next admin sender if this token is stale
+            }
+        }
+    }
+
+    throw new Error('No configured email transport available for password reset emails');
 };
 
 /**

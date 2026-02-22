@@ -22,6 +22,11 @@ import {
 import ParentMessageThread from '../models/ParentMessageThread.js';
 import Teacher from '../models/Teacher.js';
 import Class from '../models/Class.js';
+import {
+    appendMessageToThread,
+    applyReadReceiptsForUser,
+    emitMessageThreadEvent
+} from '../services/messageRealtimeService.js';
 
 const parseDateValue = (raw, endOfDay = false) => {
     if (!raw) return null;
@@ -671,6 +676,20 @@ const mapThreadDetail = (thread, currentUser) => {
         return leftTime - rightTime;
     });
 
+    const mapDeliveryReceipts = (message) => {
+        const receipts = Array.isArray(message?.deliveryReceipts) ? message.deliveryReceipts : [];
+        return receipts.map((receipt) => {
+            const receiptUserId = toId(receipt?.user);
+            const participant = participants.find((item) => toId(item.user) === receiptUserId);
+            return {
+                userId: receiptUserId,
+                displayName: participant?.displayName || '',
+                deliveredAt: receipt?.deliveredAt || null,
+                readAt: receipt?.readAt || null
+            };
+        });
+    };
+
     const messages = messageItems.map((message) => {
         const senderId = toId(message.sender);
         const senderParticipant = participants.find((item) => toId(item.user) === senderId);
@@ -680,7 +699,8 @@ const mapThreadDetail = (thread, currentUser) => {
             senderRole: message.senderRole || senderParticipant?.role || '',
             senderName: senderParticipant?.displayName || (senderId === currentUserId ? toDisplayName(currentUser) : 'School'),
             isMine: senderId === currentUserId,
-            createdAt: message.createdAt || null
+            createdAt: message.createdAt || null,
+            deliveryReceipts: mapDeliveryReceipts(message)
         };
     });
 
@@ -834,53 +854,36 @@ export const createParentMessageThreadController = asyncHandler(async (req, res)
                     sender: req.user._id,
                     senderRole: req.user.role,
                     body,
-                    createdAt: now
+                    createdAt: now,
+                    deliveryReceipts: [
+                        {
+                            user: teacherUserId,
+                            deliveredAt: now,
+                            readAt: null
+                        }
+                    ]
                 }
             ]
         });
+
+        await emitMessageThreadEvent({
+            thread,
+            actorUser: req.user,
+            event: 'message',
+            message: thread.messages?.[0] || null,
+            includePush: true
+        });
     } else {
-        thread.messages.push({
-            sender: req.user._id,
-            senderRole: req.user.role,
+        const latestMessage = appendMessageToThread({
+            thread,
+            senderUser: req.user,
             body,
             createdAt: now
         });
-        thread.lastMessageAt = now;
         if (!thread.subject || !thread.subject.trim()) {
             thread.subject = subject;
         }
-
-        const currentUserId = toId(req.user._id);
-        let hasCurrentParticipant = false;
-        let hasTeacherParticipant = false;
-        for (const participant of thread.participants) {
-            const participantUserId = toId(participant.user);
-            if (participantUserId === currentUserId) {
-                participant.unreadCount = 0;
-                participant.lastReadAt = now;
-                if (!participant.displayName) {
-                    participant.displayName = toDisplayName(req.user);
-                }
-                hasCurrentParticipant = true;
-                continue;
-            }
-
-            if (participantUserId === teacherUserId) {
-                hasTeacherParticipant = true;
-            }
-            participant.unreadCount = (participant.unreadCount || 0) + 1;
-        }
-
-        if (!hasCurrentParticipant) {
-            thread.participants.push({
-                user: req.user._id,
-                role: req.user.role,
-                displayName: toDisplayName(req.user),
-                unreadCount: 0,
-                lastReadAt: now
-            });
-        }
-
+        const hasTeacherParticipant = thread.participants.some((participant) => toId(participant.user) === teacherUserId);
         if (!hasTeacherParticipant) {
             thread.participants.push({
                 user: teacherUserId,
@@ -889,9 +892,23 @@ export const createParentMessageThreadController = asyncHandler(async (req, res)
                 unreadCount: 1,
                 lastReadAt: null
             });
+            if (latestMessage && Array.isArray(latestMessage.deliveryReceipts)) {
+                latestMessage.deliveryReceipts.push({
+                    user: teacherUserId,
+                    deliveredAt: now,
+                    readAt: null
+                });
+            }
         }
 
         await thread.save();
+        await emitMessageThreadEvent({
+            thread,
+            actorUser: req.user,
+            event: 'message',
+            message: latestMessage || thread.messages?.[thread.messages.length - 1] || null,
+            includePush: true
+        });
     }
 
     const latestMessage = thread.messages[thread.messages.length - 1];
@@ -964,42 +981,22 @@ export const replyToParentMessageThreadController = asyncHandler(async (req, res
     }
 
     const now = new Date();
-    thread.messages.push({
-        sender: req.user._id,
-        senderRole: req.user.role,
+    const lastMessage = appendMessageToThread({
+        thread,
+        senderUser: req.user,
         body,
         createdAt: now
     });
-    thread.lastMessageAt = now;
-
-    const currentUserId = toId(req.user._id);
-    let hasCurrentParticipant = false;
-    for (const participant of thread.participants) {
-        if (toId(participant.user) === currentUserId) {
-            participant.unreadCount = 0;
-            participant.lastReadAt = now;
-            if (!participant.displayName) {
-                participant.displayName = toDisplayName(req.user);
-            }
-            hasCurrentParticipant = true;
-        } else {
-            participant.unreadCount = (participant.unreadCount || 0) + 1;
-        }
-    }
-
-    if (!hasCurrentParticipant) {
-        thread.participants.push({
-            user: req.user._id,
-            role: req.user.role,
-            displayName: toDisplayName(req.user),
-            unreadCount: 0,
-            lastReadAt: now
-        });
-    }
 
     await thread.save();
+    await emitMessageThreadEvent({
+        thread,
+        actorUser: req.user,
+        event: 'message',
+        message: lastMessage,
+        includePush: true
+    });
 
-    const lastMessage = thread.messages[thread.messages.length - 1];
     res.status(200).json({
         success: true,
         data: {
@@ -1037,11 +1034,23 @@ export const markParentMessageThreadReadController = asyncHandler(async (req, re
     const currentUserId = toId(req.user._id);
     const participant = thread.participants.find((item) => toId(item.user) === currentUserId);
     if (participant) {
+        const readAt = new Date();
         participant.unreadCount = 0;
-        participant.lastReadAt = new Date();
+        participant.lastReadAt = readAt;
+        applyReadReceiptsForUser({
+            thread,
+            readerUserId: req.user._id,
+            readAt
+        });
     }
 
     await thread.save();
+    await emitMessageThreadEvent({
+        thread,
+        actorUser: req.user,
+        event: 'read',
+        includePush: false
+    });
 
     res.status(200).json({
         success: true,

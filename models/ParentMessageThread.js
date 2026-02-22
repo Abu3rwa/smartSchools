@@ -50,9 +50,28 @@ const messageSchema = new mongoose.Schema(
         createdAt: {
             type: Date,
             default: Date.now
-        }
+        },
+        deliveryReceipts: [
+            {
+                user: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'User',
+                    required: true
+                },
+                deliveredAt: {
+                    type: Date,
+                    default: null
+                },
+                readAt: {
+                    type: Date,
+                    default: null
+                }
+            }
+        ]
     },
-    { _id: true }
+    {
+        _id: true
+    }
 );
 
 const parentMessageThreadSchema = new mongoose.Schema(
@@ -101,4 +120,3 @@ parentMessageThreadSchema.plugin(tenantIsolationPlugin);
 const ParentMessageThread = mongoose.model('ParentMessageThread', parentMessageThreadSchema);
 
 export default ParentMessageThread;
-

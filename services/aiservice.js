@@ -305,7 +305,7 @@ Output the final report as ONE HTML block only.
      * Legacy method for backward compatibility
      */
     async generateStudentReport(studentData, grades, period, teacher) {
-        return await this.generateAdvancedReport({
+        const result = await this.generateAdvancedReport({
             studentData,
             grades,
             period,
@@ -313,6 +313,44 @@ Output the final report as ONE HTML block only.
             language: 'english',
             reportType: 'monthly'
         });
+
+        return result.text;
+    }
+
+    /**
+     * Format a date range for report display/prompting
+     */
+    formatDateRange(startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        const dateOptions = {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        };
+
+        return `${start.toLocaleDateString('en-US', dateOptions)} - ${end.toLocaleDateString('en-US', dateOptions)}`;
+    }
+
+    /**
+     * Generate AI report for a custom date range
+     */
+    async generateDateRangeReport(studentData, grades, startDate, endDate, teacher) {
+        const result = await this.generateAdvancedReport({
+            studentData,
+            grades,
+            period: this.formatDateRange(startDate, endDate),
+            teacher,
+            language: 'english',
+            reportType: 'custom',
+            dateRange: {
+                startDate,
+                endDate
+            }
+        });
+
+        return result.text;
     }
 }
 

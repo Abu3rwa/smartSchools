@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
 import compression from "compression";
+import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
@@ -67,6 +68,7 @@ import deviceRoutes from "./routes/deviceRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
+import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 
 // Validate environment variables
 validateEnvironment();
@@ -288,7 +290,10 @@ const REMINDER_JOB_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const REVIEW_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-const server = app.listen(PORT, () => {
+const httpServer = createServer(app);
+initRealtimeGateway(httpServer);
+
+const server = httpServer.listen(PORT, () => {
   logger.info(`Server is running on port ${PORT}`);
   if (process.env.RUN_ATTENDANCE_REMINDER_JOB !== "false") {
     // Run once on startup (after 1 min), then every 15 min

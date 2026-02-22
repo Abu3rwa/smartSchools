@@ -4,6 +4,11 @@ import ParentMessageThread from '../models/ParentMessageThread.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 import { getTeacherClassIds, resolveTeacherProfile } from '../helpers/teacherScoping.js';
+import {
+    appendMessageToThread,
+    applyReadReceiptsForUser,
+    emitMessageThreadEvent
+} from '../services/messageRealtimeService.js';
 
 const parsePositiveInt = (raw, fallback, max = 100) => {
     const parsed = Number.parseInt(raw, 10);
@@ -311,6 +316,20 @@ const mapThreadDetail = (thread, currentUser) => {
         return leftTime - rightTime;
     });
 
+    const mapDeliveryReceipts = (message) => {
+        const receipts = Array.isArray(message?.deliveryReceipts) ? message.deliveryReceipts : [];
+        return receipts.map((receipt) => {
+            const receiptUserId = toId(receipt?.user);
+            const participant = participants.find((item) => toId(item.user) === receiptUserId);
+            return {
+                userId: receiptUserId,
+                displayName: participant?.displayName || '',
+                deliveredAt: receipt?.deliveredAt || null,
+                readAt: receipt?.readAt || null
+            };
+        });
+    };
+
     const messages = messageItems.map((message) => {
         const senderId = toId(message.sender);
         const senderParticipant = participants.find((item) => toId(item.user) === senderId);
@@ -320,7 +339,8 @@ const mapThreadDetail = (thread, currentUser) => {
             senderRole: message.senderRole || senderParticipant?.role || '',
             senderName: senderParticipant?.displayName || (senderId === currentUserId ? toDisplayName(currentUser) : 'School'),
             isMine: senderId === currentUserId,
-            createdAt: message.createdAt || null
+            createdAt: message.createdAt || null,
+            deliveryReceipts: mapDeliveryReceipts(message)
         };
     });
 
@@ -338,40 +358,14 @@ const mapThreadDetail = (thread, currentUser) => {
 
 const addReplyToThread = ({ thread, senderUser, body }) => {
     const now = new Date();
-    thread.messages.push({
-        sender: senderUser._id,
-        senderRole: senderUser.role,
+    const message = appendMessageToThread({
+        thread,
+        senderUser,
         body,
         createdAt: now
     });
-    thread.lastMessageAt = now;
 
-    const currentUserId = toId(senderUser._id);
-    let hasCurrentParticipant = false;
-    for (const participant of thread.participants) {
-        if (toId(participant.user) === currentUserId) {
-            participant.unreadCount = 0;
-            participant.lastReadAt = now;
-            if (!participant.displayName) {
-                participant.displayName = toDisplayName(senderUser);
-            }
-            hasCurrentParticipant = true;
-        } else {
-            participant.unreadCount = (participant.unreadCount || 0) + 1;
-        }
-    }
-
-    if (!hasCurrentParticipant) {
-        thread.participants.push({
-            user: senderUser._id,
-            role: senderUser.role,
-            displayName: toDisplayName(senderUser),
-            unreadCount: 0,
-            lastReadAt: now
-        });
-    }
-
-    return now;
+    return { now, message };
 };
 
 /**
@@ -547,7 +541,14 @@ export const createMessageThreadController = asyncHandler(async (req, res) => {
                 sender: req.user._id,
                 senderRole: req.user.role,
                 body,
-                createdAt: now
+                createdAt: now,
+                deliveryReceipts: [
+                    {
+                        user: recipientUser._id,
+                        deliveredAt: now,
+                        readAt: null
+                    }
+                ]
             }
         ]
     }));
@@ -567,6 +568,14 @@ export const createMessageThreadController = asyncHandler(async (req, res) => {
         else acc.other += 1;
         return acc;
     }, { parents: 0, students: 0, other: 0 });
+
+    await Promise.allSettled(createdThreads.map((thread) => emitMessageThreadEvent({
+        thread,
+        actorUser: req.user,
+        event: 'message',
+        message: thread.messages?.[0] || null,
+        includePush: true
+    })));
 
     res.status(201).json({
         success: true,
@@ -683,10 +692,19 @@ export const replyToMessageThreadController = asyncHandler(async (req, res) => {
         });
     }
 
-    const now = addReplyToThread({ thread, senderUser: req.user, body });
+    const { now, message } = addReplyToThread({ thread, senderUser: req.user, body });
     await thread.save();
 
-    const lastMessage = thread.messages[thread.messages.length - 1];
+    const lastMessage = message || thread.messages[thread.messages.length - 1];
+
+    await emitMessageThreadEvent({
+        thread,
+        actorUser: req.user,
+        event: 'message',
+        message: lastMessage,
+        includePush: true
+    });
+
     res.status(200).json({
         success: true,
         data: {
@@ -725,11 +743,23 @@ export const markMessageThreadReadController = asyncHandler(async (req, res) => 
     const currentUserId = toId(req.user._id);
     const participant = thread.participants.find((item) => toId(item.user) === currentUserId);
     if (participant) {
+        const readAt = new Date();
         participant.unreadCount = 0;
-        participant.lastReadAt = new Date();
+        participant.lastReadAt = readAt;
+        applyReadReceiptsForUser({
+            thread,
+            readerUserId: req.user._id,
+            readAt
+        });
     }
 
     await thread.save();
+    await emitMessageThreadEvent({
+        thread,
+        actorUser: req.user,
+        event: 'read',
+        includePush: false
+    });
 
     res.status(200).json({
         success: true,

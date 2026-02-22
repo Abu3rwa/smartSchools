@@ -104,7 +104,8 @@ export const generateAIReportByDateRange = asyncHandler(async (req, res) => {
         });
     }
 
-    // 3. Generate Report via AI Service
+    // 3. Generate Report via AI Service (lazy load to ensure env vars are loaded)
+    const { default: aiService } = await import('../services/aiservice.js');
     const reportText = await aiService.generateDateRangeReport(
         student,
         grades,
