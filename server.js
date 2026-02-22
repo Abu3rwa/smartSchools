@@ -72,10 +72,10 @@ import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 
 // Validate environment variables
 validateEnvironment();
-console.log(":::::", process.env.GEMINI_API_KEY, ":::::");
 // Connect to database
 connectDB();
 const app = express();
+app.set("trust proxy", 1);
 // CORS configuration
 const allowedOrigins = [
   process.env.CLIENT_URL,
