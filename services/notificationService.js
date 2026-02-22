@@ -700,10 +700,16 @@ Best regards,
       })
       .join("");
 
+    const gradeClass = student.currentClass
+      ? `Grade ${student.currentClass.grade}${student.currentClass.section ? ` ${student.currentClass.section}` : ""}`
+      : "";
+
     return renderTemplate("dailyClassworkUpdate", {
       title,
       todayStr,
       groupedSectionsHtml,
+      studentName: student.fullName,
+      gradeClass,
       teacherFirstName: teacherInfo.firstName,
       teacherEmail: teacherInfo.email,
     });
