@@ -1,6 +1,7 @@
 const MESSAGE_EVENT_PREFIX = 'message.thread.';
 const DEFAULT_RECONNECT_DELAY_MS = 5000;
 const PING_INTERVAL_MS = 25000;
+const HEALTH_TIMEOUT_MS = 70000;
 
 const safeParseJson = (rawValue) => {
     if (typeof rawValue !== 'string') return null;
@@ -37,6 +38,7 @@ export class MessagesRealtimeService {
         this._manualDisconnect = false;
         this._reconnectTimer = null;
         this._pingTimer = null;
+        this._lastInboundAt = 0;
     }
 
     get isConnected() {
@@ -67,6 +69,7 @@ export class MessagesRealtimeService {
         this._manualDisconnect = true;
         this._clearReconnectTimer();
         this._stopPing();
+        this._lastInboundAt = 0;
 
         const socket = this._socket;
         this._socket = null;
@@ -93,10 +96,12 @@ export class MessagesRealtimeService {
         socket.onopen = () => {
             this._isConnecting = false;
             this._setConnectedState(true);
+            this._lastInboundAt = Date.now();
             this._startPing();
         };
 
         socket.onmessage = (event) => {
+            this._lastInboundAt = Date.now();
             const parsedPayload = safeParseJson(event?.data);
             if (!parsedPayload) return;
             const realtimeEvent = normalizeRealtimeEvent(parsedPayload);
@@ -150,6 +155,10 @@ export class MessagesRealtimeService {
             if (!this._socket || this._socket.readyState !== WebSocket.OPEN) {
                 return;
             }
+            if (this._lastInboundAt && (Date.now() - this._lastInboundAt) > HEALTH_TIMEOUT_MS) {
+                this._socket.close();
+                return;
+            }
             this._socket.send(JSON.stringify({ type: 'ping' }));
         }, PING_INTERVAL_MS);
     }
@@ -160,4 +169,3 @@ export class MessagesRealtimeService {
         this._pingTimer = null;
     }
 }
-
