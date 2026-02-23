@@ -411,17 +411,20 @@ export const sendPushToUsers = async ({
     };
   }
 
-  const serverKey = resolveFcmServerKey();
-  if (!serverKey) {
-    logger.warn('push_delivery_skipped_missing_fcm_server_key');
-    return {
-      targetedUsers: normalizedUserIds.length,
-      matchedTokens: deviceTokens.length,
-      sent: 0,
-      failed: 0,
-      skipped: true,
-      reason: 'FCM server key is not configured (FCM_SERVER_KEY/FIREBASE_SERVER_KEY)',
-    };
+  const apiVersion = resolveFcmApiVersion();
+  if (apiVersion !== 'v1') {
+    const serverKey = resolveFcmServerKey();
+    if (!serverKey) {
+      logger.warn('push_delivery_skipped_missing_fcm_server_key');
+      return {
+        targetedUsers: normalizedUserIds.length,
+        matchedTokens: deviceTokens.length,
+        sent: 0,
+        failed: 0,
+        skipped: true,
+        reason: 'FCM server key is not configured (FCM_SERVER_KEY/FIREBASE_SERVER_KEY)',
+      };
+    }
   }
 
   const byToken = new Map();
@@ -431,7 +434,6 @@ export const sendPushToUsers = async ({
   }
   const uniqueTokens = [...byToken.keys()];
   const dataPayload = toStringMap(data);
-  const apiVersion = resolveFcmApiVersion();
   const deliveryResult = apiVersion === 'v1'
     ? await sendViaV1Api({
       normalizedUserIds,
