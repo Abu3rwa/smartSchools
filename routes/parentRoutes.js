@@ -119,5 +119,4 @@ router.patch(
 );
 router.get('/settings', getParentSettingsController);
 router.patch('/settings', updateParentSettingsController);
-
 export default router;

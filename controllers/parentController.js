@@ -1060,3 +1060,4 @@ export const markParentMessageThreadReadController = asyncHandler(async (req, re
         }
     });
 });
+
