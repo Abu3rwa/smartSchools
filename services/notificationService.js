@@ -3,6 +3,7 @@ import Student from "../models/Student.js";
 import User from "../models/User.js";
 import gradeService from "./gradeService.js";
 import gmailOAuthService from "./gmailOAuthService.js";
+import { sendPushToUsers } from "./pushNotificationService.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
 import logger from "../utils/logger.js";
 
@@ -39,6 +40,97 @@ class NotificationService {
       return user || { firstName: "", email: "" };
     } catch {
       return { firstName: "", email: "" };
+    }
+  }
+
+  _normalizeRecipientEmails(emailValues = []) {
+    const normalized = new Set();
+    for (const rawValue of emailValues || []) {
+      const value = String(rawValue || "").trim().toLowerCase();
+      if (value) normalized.add(value);
+    }
+    return [...normalized];
+  }
+
+  _resolvePushBodyText(message) {
+    const normalized = String(message || "").replace(/\s+/g, " ").trim();
+    if (!normalized) return "You have a new update.";
+    if (normalized.length <= 180) return normalized;
+    return `${normalized.slice(0, 177)}...`;
+  }
+
+  async _resolveParentUserIdsFromEmails(schoolId, emails = []) {
+    const normalizedEmails = this._normalizeRecipientEmails(emails);
+    if (!schoolId || normalizedEmails.length === 0) return [];
+
+    const parentUsers = await User.find({
+      school: schoolId,
+      role: "parent",
+      isActive: true,
+      email: { $in: normalizedEmails },
+    })
+      .select("_id")
+      .lean();
+
+    return [...new Set(parentUsers.map((user) => String(user._id || "")).filter(Boolean))];
+  }
+
+  async _dispatchParentUpdatePush({
+    notification,
+    student = null,
+    recipientEmails = [],
+    preferredUserIds = [],
+  }) {
+    try {
+      if (!notification?._id || !notification?.school) return;
+
+      const normalizedPreferredUserIds = [
+        ...new Set(
+          (preferredUserIds || [])
+            .map((userId) => String(userId || "").trim())
+            .filter(Boolean),
+        ),
+      ];
+
+      const notificationRecipientEmails = String(notification.recipientEmail || "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const usersFromEmails = await this._resolveParentUserIdsFromEmails(
+        notification.school,
+        [...recipientEmails, ...notificationRecipientEmails],
+      );
+      const targetUserIds = [
+        ...new Set([...normalizedPreferredUserIds, ...usersFromEmails]),
+      ];
+      if (targetUserIds.length === 0) return;
+
+      const resolvedStudentId =
+        student?._id != null
+          ? String(student._id)
+          : notification.student
+            ? String(notification.student)
+            : "";
+
+      await sendPushToUsers({
+        schoolId: notification.school,
+        userIds: targetUserIds,
+        title: String(notification.subject || "School update").trim() || "School update",
+        body: this._resolvePushBodyText(notification.message),
+        data: {
+          type: "update",
+          updateId: String(notification._id),
+          notificationType: String(notification.type || ""),
+          studentId: resolvedStudentId,
+        },
+        collapseKey: `update_${String(notification._id)}`,
+      });
+    } catch (error) {
+      logger.error("update_push_dispatch_failed", {
+        notificationId: notification?._id ? String(notification._id) : "",
+        type: notification?.type || "",
+        error: error?.message || String(error),
+      });
     }
   }
 
@@ -79,6 +171,11 @@ class NotificationService {
     });
 
     await notification.save();
+    await this._dispatchParentUpdatePush({
+      notification,
+      student,
+      recipientEmails: recipients,
+    });
     await this.sendEmail(notification, createdBy);
 
     return notification;
@@ -128,6 +225,11 @@ class NotificationService {
     });
 
     await notification.save();
+    await this._dispatchParentUpdatePush({
+      notification,
+      student,
+      recipientEmails: recipients,
+    });
     await this.sendEmail(notification, createdBy);
 
     return notification;
@@ -217,6 +319,11 @@ class NotificationService {
     });
 
     await notification.save();
+    await this._dispatchParentUpdatePush({
+      notification,
+      student,
+      recipientEmails: recipients,
+    });
     await this.sendEmail(notification, createdBy);
 
     return notification;
@@ -269,6 +376,11 @@ class NotificationService {
     });
 
     await notification.save();
+    await this._dispatchParentUpdatePush({
+      notification,
+      student,
+      recipientEmails: recipients,
+    });
     await this.sendEmail(notification, createdBy);
 
     return notification;
@@ -316,6 +428,11 @@ class NotificationService {
     });
 
     await notification.save();
+    await this._dispatchParentUpdatePush({
+      notification,
+      student,
+      recipientEmails: recipients,
+    });
     await this.sendEmail(notification, userId);
 
     return notification;
@@ -775,6 +892,12 @@ Best regards,
       createdBy,
     });
     await notification.save();
+    await this._dispatchParentUpdatePush({
+      notification,
+      student: request.student ? { _id: request.student } : null,
+      recipientEmails: [request.requesterEmail],
+      preferredUserIds: [request.requester],
+    });
     await this.sendEmail(notification, createdBy);
     return notification;
   }
