@@ -194,16 +194,20 @@ if (isProduction) {
 }
 
 // AI test endpoint (with rate limiting)
-app.get("/api/ai/test", async (req, res) => {
-  try {
-    const prompt = req.query.prompt || "Test prompt";
-    const result = await connectAi(prompt);
-    res.json(result);
-  } catch (error) {
-    logger.error("AI test endpoint error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+const enableAiTestEndpoint =
+  !isProduction || process.env.ENABLE_AI_TEST_ENDPOINT === "true";
+if (enableAiTestEndpoint) {
+  app.get("/api/ai/test", async (req, res) => {
+    try {
+      const prompt = req.query.prompt || "Test prompt";
+      const result = await connectAi(prompt);
+      res.json(result);
+    } catch (error) {
+      logger.error("AI test endpoint error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+}
 
 // Behavior tracking middleware (applies to all API routes)
 app.use("/api", behaviorTracker);

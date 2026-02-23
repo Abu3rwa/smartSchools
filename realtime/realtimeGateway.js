@@ -41,15 +41,17 @@ const removeSocketForUser = (userId, socket) => {
 };
 
 const getConnectionToken = (request) => {
-  const host = request.headers.host || 'localhost';
-  const url = new URL(request.url || '/', `http://${host}`);
-  const fromQuery = (url.searchParams.get('token') || '').trim();
-  if (fromQuery) return fromQuery;
-
   const authHeader = String(request.headers.authorization || '').trim();
   if (authHeader.toLowerCase().startsWith('bearer ')) {
     return authHeader.slice(7).trim();
   }
+
+  // Backward compatibility for browser websocket clients that cannot set
+  // custom Authorization headers.
+  const host = request.headers.host || 'localhost';
+  const url = new URL(request.url || '/', `http://${host}`);
+  const fromQuery = (url.searchParams.get('token') || '').trim();
+  if (fromQuery) return fromQuery;
   return '';
 };
 
