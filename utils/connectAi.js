@@ -5,7 +5,8 @@ const DEFAULT_MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
 
 export async function connectAi(prompt, options = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
-  const modelName = options.modelName || DEFAULT_MODEL_NAME;
+
+   const modelName = options.modelName || DEFAULT_MODEL_NAME;
 
   if (!apiKey) {
     logger.error("GEMINI_API_KEY is not set in environment variables");

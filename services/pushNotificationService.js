@@ -6,6 +6,7 @@ import logger from '../utils/logger.js';
 const FCM_LEGACY_ENDPOINT = 'https://fcm.googleapis.com/fcm/send';
 const FCM_V1_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const FCM_V1_ENDPOINT_BASE = 'https://fcm.googleapis.com/v1/projects';
+const DEFAULT_ANDROID_CHANNEL_ID = 'parent_updates';
 const INVALID_FCM_TOKEN_ERRORS = new Set([
   'InvalidRegistration',
   'NotRegistered',
@@ -202,6 +203,7 @@ const sendViaLegacyApi = async ({
       notification: {
         title: String(title || 'New message'),
         body: String(body || '').slice(0, 180),
+        android_channel_id: DEFAULT_ANDROID_CHANNEL_ID,
       },
       data: dataPayload,
     };
@@ -308,6 +310,9 @@ const sendViaV1Api = async ({
         android: {
           priority: 'HIGH',
           collapseKey,
+          notification: {
+            channelId: DEFAULT_ANDROID_CHANNEL_ID,
+          },
         },
         apns: {
           headers: {

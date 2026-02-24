@@ -72,7 +72,7 @@ import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterSched
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
-
+console.log( process.env.GEMINI_API_KEY)
 // Validate environment variables
 validateEnvironment();
 // Connect to database

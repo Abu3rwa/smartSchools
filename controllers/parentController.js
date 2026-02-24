@@ -479,9 +479,11 @@ const toDisplayName = (user) => {
 const formatClassLabel = (classDoc) => {
     if (!classDoc) return 'Class';
     const name = (classDoc.name || '').toString().trim();
+    if (name) return name;
     const grade = Number.isFinite(Number(classDoc.grade)) ? `Grade ${classDoc.grade}` : '';
     const section = (classDoc.section || '').toString().trim();
-    const parts = [name, grade, section].filter((part) => part.length > 0);
+    const gradeLabel = grade && section ? `${grade}-${section}` : (grade || section);
+    const parts = [gradeLabel].filter((part) => part.length > 0);
     return parts.length > 0 ? parts.join(' · ') : 'Class';
 };
 
@@ -531,10 +533,12 @@ const resolveParentTeacherAudience = async ({
         school: schoolId,
         _id: { $in: [...classIds] }
     })
-        .select('_id name grade section classTeacher subjects.teacher')
+        .select('_id name grade section classTeacher subjects.teacher subjects.subject')
+        .populate('subjects.subject', 'name code')
         .lean();
 
     const teacherClassLabels = new Map();
+    const teacherSubjectLabels = new Map();
     const teacherChildNames = new Map();
     const teacherProfileIds = new Set();
 
@@ -562,6 +566,18 @@ const resolveParentTeacherAudience = async ({
                 teacherChildNames.get(teacherId).add(childName);
             }
         }
+
+        const subjectAssignments = Array.isArray(classDoc.subjects) ? classDoc.subjects : [];
+        for (const assignment of subjectAssignments) {
+            const subjectTeacherId = toId(assignment?.teacher);
+            if (!subjectTeacherId) continue;
+            const subjectName = (assignment?.subject?.name || '').toString().trim();
+            if (!subjectName) continue;
+            if (!teacherSubjectLabels.has(subjectTeacherId)) {
+                teacherSubjectLabels.set(subjectTeacherId, new Set());
+            }
+            teacherSubjectLabels.get(subjectTeacherId).add(subjectName);
+        }
     }
 
     if (teacherProfileIds.size === 0) {
@@ -576,8 +592,10 @@ const resolveParentTeacherAudience = async ({
         _id: { $in: [...teacherProfileIds] },
         isActive: true
     })
-        .select('_id user')
+        .select('_id user subjects assignedClasses.subject')
         .populate('user', 'firstName lastName email role isActive')
+        .populate('subjects', 'name code')
+        .populate('assignedClasses.subject', 'name code')
         .lean();
 
     const normalizedSearch = String(search || '').trim().toLowerCase();
@@ -593,9 +611,26 @@ const resolveParentTeacherAudience = async ({
 
         const displayName = toDisplayName(teacherUser);
         const email = (teacherUser?.email || '').toString().trim();
-        const classLabels = [...(teacherClassLabels.get(toId(profile._id)) || new Set())]
+        const classOnlyLabels = [...(teacherClassLabels.get(toId(profile._id)) || new Set())]
             .filter(Boolean)
             .sort((left, right) => left.localeCompare(right));
+        const classSubjectLabels = [...(teacherSubjectLabels.get(toId(profile._id)) || new Set())]
+            .filter(Boolean)
+            .sort((left, right) => left.localeCompare(right));
+        const profileSubjectLabels = (Array.isArray(profile.subjects) ? profile.subjects : [])
+            .map((subject) => (subject?.name || '').toString().trim())
+            .filter(Boolean)
+            .sort((left, right) => left.localeCompare(right));
+        const assignedClassSubjectLabels = (Array.isArray(profile.assignedClasses) ? profile.assignedClasses : [])
+            .map((assignment) => (assignment?.subject?.name || '').toString().trim())
+            .filter(Boolean)
+            .sort((left, right) => left.localeCompare(right));
+        const mergedSubjectLabels = [...new Set([...classSubjectLabels, ...profileSubjectLabels])]
+            .concat(assignedClassSubjectLabels)
+            .filter(Boolean);
+        const dedupedMergedSubjectLabels = [...new Set(mergedSubjectLabels)]
+            .sort((left, right) => left.localeCompare(right));
+        const classLabels = dedupedMergedSubjectLabels.length > 0 ? dedupedMergedSubjectLabels : classOnlyLabels;
         const studentNames = [...(teacherChildNames.get(toId(profile._id)) || new Set())]
             .filter(Boolean)
             .sort((left, right) => left.localeCompare(right));
@@ -604,6 +639,8 @@ const resolveParentTeacherAudience = async ({
             const haystack = [
                 displayName.toLowerCase(),
                 email.toLowerCase(),
+                dedupedMergedSubjectLabels.join(' ').toLowerCase(),
+                classOnlyLabels.join(' ').toLowerCase(),
                 classLabels.join(' ').toLowerCase(),
                 studentNames.join(' ').toLowerCase()
             ].join(' ');
