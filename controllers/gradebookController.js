@@ -3,6 +3,8 @@ import Grade from '../models/Grade.js';
 import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import Subject from '../models/Subject.js';
+import HomeworkAssignment from '../models/HomeworkAssignment.js';
+import HomeworkSubmission from '../models/HomeworkSubmission.js';
 import gradeService from '../services/gradeService.js';
 import notificationService from '../services/notificationService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -143,6 +145,263 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         success: true,
         message: `${savedGrades.length} grades added successfully`,
         data: { count: savedGrades.length }
+    });
+});
+
+/**
+ * @desc    Bulk grade homework assignment submissions
+ * @route   POST /api/grades/homework/bulk
+ * @access  Private (Teacher, Admin)
+ */
+export const bulkGradeHomework = asyncHandler(async (req, res) => {
+    const { homeworkAssignmentId, rows, sendNotifications } = req.body || {};
+
+    if (!homeworkAssignmentId || !Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'homeworkAssignmentId and non-empty rows are required'
+        });
+    }
+
+    const assignment = await HomeworkAssignment.findOne({
+        _id: homeworkAssignmentId,
+        school: req.schoolId
+    }).lean();
+    if (!assignment) {
+        return res.status(404).json({
+            success: false,
+            message: 'Homework assignment not found'
+        });
+    }
+
+    if (!['published', 'closed'].includes(String(assignment.status || ''))) {
+        return res.status(400).json({
+            success: false,
+            message: 'Homework must be published or closed before grading'
+        });
+    }
+
+    let teacherProfile = null;
+    if (req.user.role === 'teacher') {
+        teacherProfile = await resolveTeacherProfile(req);
+        if (!teacherProfile) {
+            return res.status(403).json({
+                success: false,
+                message: 'Teacher profile not found'
+            });
+        }
+        const authorized = await isTeacherAuthorizedForClassSubject(
+            teacherProfile._id,
+            assignment.class,
+            assignment.subject
+        );
+        if (!authorized) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized to grade this homework assignment'
+            });
+        }
+    }
+
+    const studentQuery = {
+        school: req.schoolId,
+        currentClass: assignment.class,
+        academicYear: assignment.academicYear,
+        status: 'active'
+    };
+    if (
+        assignment.scope === 'selected_students' &&
+        Array.isArray(assignment.studentIds) &&
+        assignment.studentIds.length > 0
+    ) {
+        studentQuery._id = { $in: assignment.studentIds };
+    }
+
+    const eligibleStudents = await Student.find(studentQuery)
+        .select('_id')
+        .lean();
+    const eligibleStudentIds = new Set(
+        eligibleStudents.map((row) => String(row._id))
+    );
+    if (eligibleStudentIds.size === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'No eligible students found for this homework assignment'
+        });
+    }
+
+    const normalizedRowsMap = new Map();
+    const assignmentMaxMarks = Number(assignment.maxMarks || 10);
+
+    for (let index = 0; index < rows.length; index += 1) {
+        const raw = rows[index] || {};
+        const studentId = String(raw.studentId || raw.student || '').trim();
+        if (!studentId) {
+            return res.status(400).json({
+                success: false,
+                message: `rows[${index}].studentId is required`
+            });
+        }
+
+        if (!eligibleStudentIds.has(studentId)) {
+            return res.status(400).json({
+                success: false,
+                message: `Student ${studentId} is not assigned to this homework`
+            });
+        }
+
+        const marks = Number(raw.marks);
+        if (!Number.isFinite(marks) || marks < 0) {
+            return res.status(400).json({
+                success: false,
+                message: `rows[${index}].marks must be a non-negative number`
+            });
+        }
+
+        const maxMarks = raw.maxMarks !== undefined
+            ? Number(raw.maxMarks)
+            : assignmentMaxMarks;
+        if (!Number.isFinite(maxMarks) || maxMarks <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: `rows[${index}].maxMarks must be a positive number`
+            });
+        }
+
+        if (marks > maxMarks) {
+            return res.status(400).json({
+                success: false,
+                message: `rows[${index}].marks cannot be greater than maxMarks`
+            });
+        }
+
+        normalizedRowsMap.set(studentId, {
+            studentId,
+            marks,
+            maxMarks,
+            remarks: String(raw.remarks || '').trim(),
+            notes: String(raw.notes || '').trim()
+        });
+    }
+
+    const normalizedRows = [...normalizedRowsMap.values()];
+    const shouldNotifyParents = sendNotifications === true
+        || String(sendNotifications || '').trim().toLowerCase() === 'true';
+    const gradingDate = new Date();
+    const gradingTeacherId = teacherProfile?._id || assignment.teacher || req.user._id;
+
+    const graded = [];
+
+    for (const row of normalizedRows) {
+        const submission = await HomeworkSubmission.findOneAndUpdate(
+            {
+                school: req.schoolId,
+                homeworkAssignment: assignment._id,
+                student: row.studentId
+            },
+            {
+                $setOnInsert: {
+                    school: req.schoolId,
+                    homeworkAssignment: assignment._id,
+                    student: row.studentId,
+                    status: 'not_submitted'
+                }
+            },
+            {
+                upsert: true,
+                new: true,
+                setDefaultsOnInsert: true
+            }
+        );
+
+        const grade = await Grade.findOneAndUpdate(
+            {
+                school: req.schoolId,
+                student: row.studentId,
+                subject: assignment.subject,
+                class: assignment.class,
+                academicYear: assignment.academicYear,
+                gradeType: 'homework',
+                homeworkAssignment: assignment._id
+            },
+            {
+                $set: {
+                    marks: row.marks,
+                    maxMarks: row.maxMarks,
+                    date: gradingDate,
+                    title: assignment.title || 'Homework',
+                    category: 'homework',
+                    notes: row.notes,
+                    remarks: row.remarks,
+                    homeworkSubmission: submission._id,
+                    gradingSource: 'homework_submission'
+                },
+                $setOnInsert: {
+                    school: req.schoolId,
+                    student: row.studentId,
+                    subject: assignment.subject,
+                    class: assignment.class,
+                    teacher: gradingTeacherId,
+                    academicYear: assignment.academicYear,
+                    gradeType: 'homework',
+                    homeworkAssignment: assignment._id
+                }
+            },
+            {
+                upsert: true,
+                new: true,
+                setDefaultsOnInsert: true,
+                runValidators: true
+            }
+        );
+
+        const updatedSubmission = await HomeworkSubmission.findOneAndUpdate(
+            {
+                school: req.schoolId,
+                homeworkAssignment: assignment._id,
+                student: row.studentId
+            },
+            {
+                $set: {
+                    grade: grade._id,
+                    status: 'graded',
+                    gradedAt: gradingDate
+                }
+            },
+            {
+                new: true
+            }
+        ).lean();
+
+        if (shouldNotifyParents) {
+            await notificationService.sendHomeworkGradedNotification({
+                studentId: row.studentId,
+                assignment,
+                grade,
+                submission: updatedSubmission,
+                createdBy: req.user._id
+            }).catch((error) => {
+                console.error('Homework grade notification error:', error);
+            });
+        }
+
+        graded.push({
+            studentId: row.studentId,
+            gradeId: grade._id,
+            submissionId: updatedSubmission?._id || null,
+            marks: grade.marks,
+            maxMarks: grade.maxMarks
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: `${graded.length} homework grades saved successfully`,
+        data: {
+            homeworkAssignmentId: assignment._id,
+            gradedCount: graded.length,
+            grades: graded
+        }
     });
 });
 

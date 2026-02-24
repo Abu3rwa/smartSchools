@@ -1,4 +1,5 @@
 import Notification from "../models/Notification.js";
+import ParentSetting from "../models/ParentSetting.js";
 import Student from "../models/Student.js";
 import User from "../models/User.js";
 import gradeService from "./gradeService.js";
@@ -14,6 +15,24 @@ const sanitizeSubject = (subject) => {
   if (!subject) return "Notification";
   // Remove emojis and non-ASCII characters, keep only basic ASCII
   return subject.replace(/[^\x00-\x7F]/g, "").trim();
+};
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const formatDateForNotice = (value) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 };
 
 class NotificationService {
@@ -132,6 +151,370 @@ class NotificationService {
         error: error?.message || String(error),
       });
     }
+  }
+
+  async _resolveHomeworkAudience(student) {
+    if (!student?.school) {
+      return {
+        parentRecipients: [],
+        fallbackEmails: [],
+      };
+    }
+
+    const recipientEmails = this._normalizeRecipientEmails(
+      typeof student.getAllContactEmails === "function"
+        ? student.getAllContactEmails()
+        : [],
+    );
+    if (recipientEmails.length === 0) {
+      return {
+        parentRecipients: [],
+        fallbackEmails: [],
+      };
+    }
+
+    const parentUsers = await User.find({
+      school: student.school,
+      role: "parent",
+      isActive: true,
+      email: { $in: recipientEmails },
+    })
+      .select("_id email")
+      .lean();
+
+    const userIds = [...new Set(parentUsers.map((row) => String(row._id || "")).filter(Boolean))];
+    const settingsRows =
+      userIds.length > 0
+        ? await ParentSetting.find({
+            school: student.school,
+            user: { $in: userIds },
+          })
+            .select("user notifications")
+            .lean()
+        : [];
+    const settingsMap = new Map(
+      settingsRows.map((row) => [String(row.user || ""), row.notifications || {}]),
+    );
+
+    const emailToParent = new Map(
+      parentUsers.map((row) => [String(row.email || "").trim().toLowerCase(), row]),
+    );
+    const parentRecipients = [];
+    const fallbackEmails = [];
+
+    for (const email of recipientEmails) {
+      const parent = emailToParent.get(email);
+      if (!parent?._id) {
+        fallbackEmails.push(email);
+        continue;
+      }
+
+      const notifications = settingsMap.get(String(parent._id)) || {};
+      const homeworkEnabled = notifications.homework !== false;
+      if (!homeworkEnabled) continue;
+
+      parentRecipients.push({
+        userId: String(parent._id),
+        email,
+        pushEnabled: notifications.push !== false,
+        emailEnabled: notifications.email !== false,
+      });
+    }
+
+    return {
+      parentRecipients,
+      fallbackEmails,
+    };
+  }
+
+  _buildHomeworkPostedContent({ student, assignment }) {
+    const studentName = student?.fullName || "Student";
+    const title = String(assignment?.title || "Homework").trim() || "Homework";
+    const dueDate = formatDateForNotice(assignment?.dueDate);
+    const instructions = String(assignment?.instructions || "").trim();
+    const trimmedInstructions =
+      instructions.length > 450 ? `${instructions.slice(0, 447)}...` : instructions;
+
+    const subject = `Homework posted: ${title}`;
+    const messageLines = [
+      `A new homework has been posted for ${studentName}.`,
+      `Title: ${title}`,
+      dueDate ? `Due date: ${dueDate}` : "",
+      trimmedInstructions ? `Instructions: ${trimmedInstructions}` : "",
+      "Please review it in the app.",
+    ].filter(Boolean);
+
+    const htmlParts = [
+      `<p>A new homework has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>`,
+      `<p><strong>Title:</strong> ${escapeHtml(title)}</p>`,
+      dueDate ? `<p><strong>Due date:</strong> ${escapeHtml(dueDate)}</p>` : "",
+      trimmedInstructions
+        ? `<p><strong>Instructions:</strong><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
+        : "",
+      "<p>Please review it in the app.</p>",
+    ].filter(Boolean);
+
+    return {
+      subject,
+      message: messageLines.join("\n"),
+      htmlContent: htmlParts.join(""),
+    };
+  }
+
+  _buildHomeworkGradedContent({ student, assignment, grade }) {
+    const studentName = student?.fullName || "Student";
+    const title = String(assignment?.title || "Homework").trim() || "Homework";
+    const marks = Number(grade?.marks ?? 0);
+    const maxMarks = Number(grade?.maxMarks ?? assignment?.maxMarks ?? 0);
+    const remarks = String(grade?.remarks || "").trim();
+
+    const subject = `Homework graded: ${title}`;
+    const messageLines = [
+      `${studentName}'s homework has been graded.`,
+      `Title: ${title}`,
+      Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0
+        ? `Score: ${marks}/${maxMarks}`
+        : "",
+      remarks ? `Remarks: ${remarks}` : "",
+      "Open the app to review details.",
+    ].filter(Boolean);
+
+    const htmlParts = [
+      `<p><strong>${escapeHtml(studentName)}</strong>'s homework has been graded.</p>`,
+      `<p><strong>Title:</strong> ${escapeHtml(title)}</p>`,
+      Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0
+        ? `<p><strong>Score:</strong> ${escapeHtml(`${marks}/${maxMarks}`)}</p>`
+        : "",
+      remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "",
+      "<p>Open the app to review details.</p>",
+    ].filter(Boolean);
+
+    return {
+      subject,
+      message: messageLines.join("\n"),
+      htmlContent: htmlParts.join(""),
+    };
+  }
+
+  async sendHomeworkPostedNotification({
+    studentId,
+    assignment,
+    createdBy = null,
+  }) {
+    if (!studentId || !assignment?._id) return [];
+
+    const student = await Student.findById(studentId);
+    if (!student) return [];
+
+    const audience = await this._resolveHomeworkAudience(student);
+    if (
+      audience.parentRecipients.length === 0 &&
+      audience.fallbackEmails.length === 0
+    ) {
+      return [];
+    }
+
+    const content = this._buildHomeworkPostedContent({ student, assignment });
+    const metadata = {
+      homeworkAssignmentId: String(assignment._id),
+      dueDate: assignment?.dueDate || null,
+    };
+
+    const createdNotifications = [];
+
+    for (const recipient of audience.parentRecipients) {
+      const channels = [];
+      if (recipient.pushEnabled) channels.push("push");
+      if (recipient.emailEnabled) channels.push("email");
+
+      const notification = new Notification({
+        school: student.school,
+        recipient: recipient.userId,
+        recipientEmail: recipient.email,
+        student: student._id,
+        type: "homework_posted",
+        subject: content.subject,
+        message: content.message,
+        htmlContent: content.htmlContent,
+        channels,
+        metadata,
+        createdBy,
+      });
+
+      await notification.save();
+      createdNotifications.push(notification);
+
+      if (recipient.pushEnabled) {
+        try {
+          await this._dispatchParentUpdatePush({
+            notification,
+            student,
+            recipientEmails: [recipient.email],
+            preferredUserIds: [recipient.userId],
+          });
+        } catch (error) {
+          logger.error("homework_posted_push_failed", {
+            notificationId: String(notification._id || ""),
+            userId: recipient.userId,
+            error: error?.message || String(error),
+          });
+        }
+      }
+
+      if (recipient.emailEnabled) {
+        try {
+          await this.sendEmail(notification, createdBy);
+        } catch (error) {
+          logger.error("homework_posted_email_failed", {
+            notificationId: String(notification._id || ""),
+            recipientEmail: recipient.email,
+            error: error?.message || String(error),
+          });
+        }
+      }
+    }
+
+    for (const email of audience.fallbackEmails) {
+      const notification = new Notification({
+        school: student.school,
+        recipientEmail: email,
+        student: student._id,
+        type: "homework_posted",
+        subject: content.subject,
+        message: content.message,
+        htmlContent: content.htmlContent,
+        channels: ["email"],
+        metadata,
+        createdBy,
+      });
+      await notification.save();
+      createdNotifications.push(notification);
+
+      try {
+        await this.sendEmail(notification, createdBy);
+      } catch (error) {
+        logger.error("homework_posted_email_fallback_failed", {
+          notificationId: String(notification._id || ""),
+          recipientEmail: email,
+          error: error?.message || String(error),
+        });
+      }
+    }
+
+    return createdNotifications;
+  }
+
+  async sendHomeworkGradedNotification({
+    studentId,
+    assignment,
+    grade,
+    submission = null,
+    createdBy = null,
+  }) {
+    if (!studentId || !assignment?._id || !grade?._id) return [];
+
+    const student = await Student.findById(studentId);
+    if (!student) return [];
+
+    const audience = await this._resolveHomeworkAudience(student);
+    if (
+      audience.parentRecipients.length === 0 &&
+      audience.fallbackEmails.length === 0
+    ) {
+      return [];
+    }
+
+    const content = this._buildHomeworkGradedContent({ student, assignment, grade });
+    const metadata = {
+      homeworkAssignmentId: String(assignment._id),
+      homeworkSubmissionId: submission?._id ? String(submission._id) : "",
+      gradeId: String(grade._id),
+      marks: Number(grade?.marks ?? 0),
+      maxMarks: Number(grade?.maxMarks ?? assignment?.maxMarks ?? 0),
+    };
+
+    const createdNotifications = [];
+
+    for (const recipient of audience.parentRecipients) {
+      const channels = [];
+      if (recipient.pushEnabled) channels.push("push");
+      if (recipient.emailEnabled) channels.push("email");
+
+      const notification = new Notification({
+        school: student.school,
+        recipient: recipient.userId,
+        recipientEmail: recipient.email,
+        student: student._id,
+        type: "homework_graded",
+        subject: content.subject,
+        message: content.message,
+        htmlContent: content.htmlContent,
+        channels,
+        metadata,
+        createdBy,
+      });
+
+      await notification.save();
+      createdNotifications.push(notification);
+
+      if (recipient.pushEnabled) {
+        try {
+          await this._dispatchParentUpdatePush({
+            notification,
+            student,
+            recipientEmails: [recipient.email],
+            preferredUserIds: [recipient.userId],
+          });
+        } catch (error) {
+          logger.error("homework_graded_push_failed", {
+            notificationId: String(notification._id || ""),
+            userId: recipient.userId,
+            error: error?.message || String(error),
+          });
+        }
+      }
+
+      if (recipient.emailEnabled) {
+        try {
+          await this.sendEmail(notification, createdBy);
+        } catch (error) {
+          logger.error("homework_graded_email_failed", {
+            notificationId: String(notification._id || ""),
+            recipientEmail: recipient.email,
+            error: error?.message || String(error),
+          });
+        }
+      }
+    }
+
+    for (const email of audience.fallbackEmails) {
+      const notification = new Notification({
+        school: student.school,
+        recipientEmail: email,
+        student: student._id,
+        type: "homework_graded",
+        subject: content.subject,
+        message: content.message,
+        htmlContent: content.htmlContent,
+        channels: ["email"],
+        metadata,
+        createdBy,
+      });
+      await notification.save();
+      createdNotifications.push(notification);
+
+      try {
+        await this.sendEmail(notification, createdBy);
+      } catch (error) {
+        logger.error("homework_graded_email_fallback_failed", {
+          notificationId: String(notification._id || ""),
+          recipientEmail: email,
+          error: error?.message || String(error),
+        });
+      }
+    }
+
+    return createdNotifications;
   }
 
   /**

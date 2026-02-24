@@ -184,6 +184,14 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
+      path: "/portal/homework",
+      icon: HiOutlineClipboardList,
+      label: "Homework",
+      roles: ["admin", "department_principal", "teacher"],
+      permissions: [PERMISSIONS.EDIT_LESSON_PLANS, PERMISSIONS.REVIEW_LESSON_PLANS],
+      section: "teaching",
+    },
+    {
       path: "/portal/grades/entry",
       icon: HiOutlineClipboardList,
       label: "Grade Entry",

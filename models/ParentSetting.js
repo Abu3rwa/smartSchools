@@ -37,6 +37,10 @@ const parentSettingSchema = new mongoose.Schema({
             type: Boolean,
             default: true
         },
+        homework: {
+            type: Boolean,
+            default: true
+        },
         reports: {
             type: Boolean,
             default: true

@@ -92,6 +92,23 @@ const gradeSchema = new mongoose.Schema({
     examName: {
         type: String,
         trim: true
+    },
+    // Optional linkage for homework lifecycle
+    homeworkAssignment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'HomeworkAssignment',
+        default: null,
+        index: true
+    },
+    homeworkSubmission: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'HomeworkSubmission',
+        default: null
+    },
+    gradingSource: {
+        type: String,
+        enum: ['manual', 'homework_submission'],
+        default: 'manual'
     }
 }, {
     timestamps: true,
@@ -106,6 +123,7 @@ gradeSchema.index({ student: 1, semester: 1, academicYear: 1 });
 gradeSchema.index({ class: 1, subject: 1, date: 1 });
 gradeSchema.index({ teacher: 1, date: 1 });
 gradeSchema.index({ gradeType: 1 });
+gradeSchema.index({ school: 1, homeworkAssignment: 1, student: 1 });
 
 // Virtual for percentage
 gradeSchema.virtual('percentage').get(function () {

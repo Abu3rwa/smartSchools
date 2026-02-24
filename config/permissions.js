@@ -59,6 +59,10 @@ export const PERMISSIONS = {
     // Grades
     VIEW_GRADES: 'view_grades',
     EDIT_GRADES: 'edit_grades',
+    CREATE_HOMEWORK: 'create_homework',
+    PUBLISH_HOMEWORK: 'publish_homework',
+    GRADE_HOMEWORK: 'grade_homework',
+    VIEW_HOMEWORK_SUBMISSIONS: 'view_homework_submissions',
     
     // Notifications
     SEND_NOTIFICATIONS: 'send_notifications'
@@ -196,6 +200,26 @@ export const PERMISSION_DEFINITIONS = {
         description: 'Create and edit student grades',
         category: 'academic'
     },
+    [PERMISSIONS.CREATE_HOMEWORK]: {
+        label: 'Create Homework',
+        description: 'Create and update homework assignments',
+        category: 'academic'
+    },
+    [PERMISSIONS.PUBLISH_HOMEWORK]: {
+        label: 'Publish Homework',
+        description: 'Publish homework assignments to students and parents',
+        category: 'academic'
+    },
+    [PERMISSIONS.GRADE_HOMEWORK]: {
+        label: 'Grade Homework',
+        description: 'Enter homework grades linked to submissions',
+        category: 'academic'
+    },
+    [PERMISSIONS.VIEW_HOMEWORK_SUBMISSIONS]: {
+        label: 'View Homework Submissions',
+        description: 'View student homework submission status',
+        category: 'academic'
+    },
     [PERMISSIONS.SEND_NOTIFICATIONS]: {
         label: 'Send Notifications',
         description: 'Send notifications to users',
@@ -254,12 +278,17 @@ export const ROLE_TO_PERMISSIONS = {
     teacher: [
         PERMISSIONS.EDIT_LESSON_PLANS,
         PERMISSIONS.VIEW_GRADES,
-        PERMISSIONS.EDIT_GRADES
+        PERMISSIONS.EDIT_GRADES,
+        PERMISSIONS.CREATE_HOMEWORK,
+        PERMISSIONS.PUBLISH_HOMEWORK,
+        PERMISSIONS.GRADE_HOMEWORK,
+        PERMISSIONS.VIEW_HOMEWORK_SUBMISSIONS
     ],
     department_principal: [
         PERMISSIONS.MANAGE_SUBSTITUTIONS,
         PERMISSIONS.REVIEW_LESSON_PLANS,
-        PERMISSIONS.VIEW_ALL_REPORTS
+        PERMISSIONS.VIEW_ALL_REPORTS,
+        PERMISSIONS.VIEW_HOMEWORK_SUBMISSIONS
     ],
     staff: [],
     parent: [],

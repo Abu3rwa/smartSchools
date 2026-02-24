@@ -329,6 +329,14 @@ function App() {
           }
         />
         <Route
+          path="homework"
+          element={
+            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+              <LessonPlanPage />
+            </RoleRoute>
+          }
+        />
+        <Route
           path="subjects"
           element={
             <RoleRoute roles={["admin", "teacher"]}>

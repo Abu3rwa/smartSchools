@@ -2,6 +2,7 @@ import express from 'express';
 import {
     addDailyGrade,
     bulkAddGrades,
+    bulkGradeHomework,
     addExamGrade,
     getMyGrades,
     getStudentGrades,
@@ -16,7 +17,8 @@ import {
     getClassStatistics,
     getDashboardStats
 } from '../controllers/gradebookController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, requirePermission } from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/permissions.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
 const router = express.Router();
@@ -30,6 +32,12 @@ router.get('/dashboard/stats', getDashboardStats);
 // Add grades
 router.post('/daily', authorize('teacher', 'admin'), validationRules.createGrade, validate, addDailyGrade);
 router.post('/bulk', authorize('teacher', 'admin'), bulkAddGrades);
+router.post(
+    '/homework/bulk',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.GRADE_HOMEWORK),
+    bulkGradeHomework
+);
 router.post('/exam', authorize('teacher', 'admin'), addExamGrade);
 
 // Get grades

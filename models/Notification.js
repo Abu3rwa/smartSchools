@@ -28,7 +28,22 @@ const notificationSchema = new mongoose.Schema({
     // Notification type
     type: {
         type: String,
-        enum: ['grade_update', 'daily_report', 'daily_classwork_update', 'monthly_report', 'semester_report', 'attendance', 'announcement', 'custom', 'ai_report', 'attendance_request', 'attendance_request_status'],
+        enum: [
+            'grade_update',
+            'daily_report',
+            'daily_classwork_update',
+            'monthly_report',
+            'semester_report',
+            'attendance',
+            'announcement',
+            'custom',
+            'ai_report',
+            'attendance_request',
+            'attendance_request_status',
+            'homework_posted',
+            'homework_due_reminder',
+            'homework_graded'
+        ],
         required: true
     },
 

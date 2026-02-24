@@ -80,6 +80,7 @@ const groupMessagesByAge = (messages = []) => {
 const MessagesPage = () => {
     const listRef = useRef(null);
     const messageListRef = useRef(null);
+    const messageListEndRef = useRef(null);
     const realtimeServiceRef = useRef(null);
     const realtimeSyncTimerRef = useRef(null);
     const realtimeSyncThreadIdsRef = useRef(new Set());
@@ -128,6 +129,18 @@ const MessagesPage = () => {
         if (messages.length === 0) return '';
         return messages[messages.length - 1]?.id || '';
     }, [threadDetail?.messages]);
+
+    const scrollMessageListToBottom = useCallback((behavior = 'auto') => {
+        const container = messageListRef.current;
+        if (!container) return;
+
+        if (messageListEndRef.current && typeof messageListEndRef.current.scrollIntoView === 'function') {
+            messageListEndRef.current.scrollIntoView({ block: 'end', behavior });
+            return;
+        }
+
+        container.scrollTo({ top: container.scrollHeight, behavior });
+    }, []);
 
     const scheduleRealtimeSync = useCallback((threadId = '') => {
         const normalizedThreadId = String(threadId || '').trim();
@@ -389,9 +402,12 @@ const MessagesPage = () => {
     }, [composeSearch, showCompose]);
 
     useEffect(() => {
-        if (!messageListRef.current) return;
-        messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
-    }, [selectedThreadId, latestMessageId]);
+        if (!selectedThreadId || loadingDetail) return undefined;
+        const frameId = window.requestAnimationFrame(() => {
+            scrollMessageListToBottom('auto');
+        });
+        return () => window.cancelAnimationFrame(frameId);
+    }, [selectedThreadId, latestMessageId, loadingDetail, scrollMessageListToBottom]);
 
     const handleSelectParent = (parent) => {
         setSelectedParents((prev) => {
@@ -525,7 +541,7 @@ const MessagesPage = () => {
     }, [selectedClasses]);
 
     return (
-        <div className="messages-page">
+        <div className={`messages-page ${selectedThread ? 'thread-open' : ''}`}>
             <div className="page-header">
                 <div>
                     <h1>Messages</h1>
@@ -545,14 +561,16 @@ const MessagesPage = () => {
                         <HiOutlineRefresh size={18} />
                         Refresh
                     </button>
-                    <button className="btn btn-primary" onClick={() => setShowCompose(true)}>
-                        <HiOutlinePlus size={18} />
-                        New Message
-                    </button>
+                    {!selectedThreadId && (
+                        <button className="btn btn-primary" onClick={() => setShowCompose(true)}>
+                            <HiOutlinePlus size={18} />
+                            New Message
+                        </button>
+                    )}
                 </div>
             </div>
 
-            <div className="messages-layout">
+            <div className={`messages-layout ${selectedThread ? 'has-selection' : ''}`}>
                 <div className="thread-list">
                     <div className="thread-list-header">
                         <div className="thread-list-title">
@@ -631,6 +649,16 @@ const MessagesPage = () => {
                         <>
                             <div className="detail-header">
                                 <div>
+                                    <button
+                                        type="button"
+                                        className="detail-back"
+                                        onClick={() => {
+                                            setSelectedThreadId(null);
+                                            setThreadDetail(null);
+                                        }}
+                                    >
+                                        Back to conversations
+                                    </button>
                                     <h2>{threadDetail.thread?.subject || selectedThread.subject}</h2>
                                     <p className="text-muted">{threadDetail.thread?.participantsLabel || selectedThread.participantsLabel}</p>
                                 </div>
@@ -718,6 +746,7 @@ const MessagesPage = () => {
                                         </div>
                                     )}
                                 </div>
+                                <div ref={messageListEndRef} />
                             </div>
                             {threadDetail.thread?.isClosed ? (
                                 <div className="reply-closed">This conversation is closed.</div>
@@ -743,6 +772,16 @@ const MessagesPage = () => {
                     )}
                 </div>
             </div>
+
+            <button
+                type="button"
+                className={`messages-fab btn btn-primary ${showCompose || selectedThreadId ? 'hidden' : ''}`}
+                onClick={() => setShowCompose(true)}
+                aria-label="Create new message"
+            >
+                <HiOutlinePlus size={18} />
+                <span>New Message</span>
+            </button>
 
             {showCompose && (
                 <div className="modal-overlay" onClick={() => setShowCompose(false)}>

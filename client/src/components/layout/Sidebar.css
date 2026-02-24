@@ -267,6 +267,7 @@
 .nav-item[href*="attendance"] .nav-icon { color: var(--icon-teal); }
 .nav-item[href*="newsletters"] .nav-icon { color: var(--icon-amber); }
 .nav-item[href*="lessons"] .nav-icon { color: var(--icon-orange); }
+.nav-item[href*="homework"] .nav-icon { color: var(--icon-orange); }
 .nav-item[href*="grades"] .nav-icon { color: var(--icon-pink); }
 .nav-item[href*="gradebook"] .nav-icon { color: var(--icon-blue); }
 .nav-item[href*="standards"] .nav-icon { color: var(--icon-purple); }

@@ -65,6 +65,7 @@ import interventionRoutes from "./routes/interventionRoutes.js";
 import parentRoutes from "./routes/parentRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import deviceRoutes from "./routes/deviceRoutes.js";
+import homeworkRoutes from "./routes/homeworkRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
@@ -257,6 +258,7 @@ app.use("/api/interventions", interventionRoutes);
 app.use("/api/parent", parentRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/devices", deviceRoutes);
+app.use("/api/homework", homeworkRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);

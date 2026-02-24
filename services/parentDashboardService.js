@@ -32,6 +32,7 @@ const DEFAULT_PARENT_SETTINGS = Object.freeze({
         email: true,
         attendance: true,
         grades: true,
+        homework: true,
         reports: true
     }
 });
@@ -1187,6 +1188,7 @@ const buildParentSettingsResponse = (input = DEFAULT_PARENT_SETTINGS) => ({
         email: Boolean(input.notifications?.email ?? DEFAULT_PARENT_SETTINGS.notifications.email),
         attendance: Boolean(input.notifications?.attendance ?? DEFAULT_PARENT_SETTINGS.notifications.attendance),
         grades: Boolean(input.notifications?.grades ?? DEFAULT_PARENT_SETTINGS.notifications.grades),
+        homework: Boolean(input.notifications?.homework ?? DEFAULT_PARENT_SETTINGS.notifications.homework),
         reports: Boolean(input.notifications?.reports ?? DEFAULT_PARENT_SETTINGS.notifications.reports)
     }
 });
@@ -1225,6 +1227,7 @@ export const updateParentSettings = async ({ schoolId, parentUser, payload = {} 
             email: typeof payload.notifications?.email === 'boolean' ? payload.notifications.email : base.notifications.email,
             attendance: typeof payload.notifications?.attendance === 'boolean' ? payload.notifications.attendance : base.notifications.attendance,
             grades: typeof payload.notifications?.grades === 'boolean' ? payload.notifications.grades : base.notifications.grades,
+            homework: typeof payload.notifications?.homework === 'boolean' ? payload.notifications.homework : base.notifications.homework,
             reports: typeof payload.notifications?.reports === 'boolean' ? payload.notifications.reports : base.notifications.reports
         }
     };
