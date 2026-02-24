@@ -184,11 +184,10 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
-      path: "/portal/homework",
+      path: "/portal/assignments",
       icon: HiOutlineClipboardList,
-      label: "Homework",
+      label: "Assignments",
       roles: ["admin", "department_principal", "teacher"],
-      permissions: [PERMISSIONS.EDIT_LESSON_PLANS, PERMISSIONS.REVIEW_LESSON_PLANS],
       section: "teaching",
     },
     {
@@ -199,10 +198,10 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
-      path: "/portal/gradebook",
+      path: "/portal/classes",
       icon: HiOutlineChartBar,
       label: "Gradebook",
-      roles: ["admin", "teacher"],
+      roles: ["admin", "teacher", "department_principal"],
       section: "teaching",
     },
     {

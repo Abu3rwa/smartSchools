@@ -58,6 +58,10 @@ export const PERMISSIONS = {
     // Grades
     VIEW_GRADES: 'view_grades',
     EDIT_GRADES: 'edit_grades',
+    MANAGE_ASSIGNMENT_CONFIG: 'manage_assignment_config',
+    CREATE_ASSIGNMENTS: 'create_assignments',
+    PUBLISH_ASSIGNMENTS: 'publish_assignments',
+    GRADE_ASSIGNMENTS: 'grade_assignments',
     
     // Notifications
     SEND_NOTIFICATIONS: 'send_notifications'
@@ -192,6 +196,26 @@ export const PERMISSION_DEFINITIONS = {
     [PERMISSIONS.EDIT_GRADES]: {
         label: 'Edit Grades',
         description: 'Create and edit student grades',
+        category: 'academic'
+    },
+    [PERMISSIONS.MANAGE_ASSIGNMENT_CONFIG]: {
+        label: 'Manage Assignment Config',
+        description: 'Create and maintain assignment types and defaults',
+        category: 'academic'
+    },
+    [PERMISSIONS.CREATE_ASSIGNMENTS]: {
+        label: 'Create Assignments',
+        description: 'Create and update assignments',
+        category: 'academic'
+    },
+    [PERMISSIONS.PUBLISH_ASSIGNMENTS]: {
+        label: 'Publish Assignments',
+        description: 'Publish assignments to students and parents',
+        category: 'academic'
+    },
+    [PERMISSIONS.GRADE_ASSIGNMENTS]: {
+        label: 'Grade Assignments',
+        description: 'Enter and update assignment-linked grades',
         category: 'academic'
     },
     [PERMISSIONS.SEND_NOTIFICATIONS]: {

@@ -59,6 +59,10 @@ export const PERMISSIONS = {
     // Grades
     VIEW_GRADES: 'view_grades',
     EDIT_GRADES: 'edit_grades',
+    MANAGE_ASSIGNMENT_CONFIG: 'manage_assignment_config',
+    CREATE_ASSIGNMENTS: 'create_assignments',
+    PUBLISH_ASSIGNMENTS: 'publish_assignments',
+    GRADE_ASSIGNMENTS: 'grade_assignments',
     CREATE_HOMEWORK: 'create_homework',
     PUBLISH_HOMEWORK: 'publish_homework',
     GRADE_HOMEWORK: 'grade_homework',
@@ -200,6 +204,26 @@ export const PERMISSION_DEFINITIONS = {
         description: 'Create and edit student grades',
         category: 'academic'
     },
+    [PERMISSIONS.MANAGE_ASSIGNMENT_CONFIG]: {
+        label: 'Manage Assignment Config',
+        description: 'Create and maintain assignment types and defaults',
+        category: 'academic'
+    },
+    [PERMISSIONS.CREATE_ASSIGNMENTS]: {
+        label: 'Create Assignments',
+        description: 'Create and update assignments',
+        category: 'academic'
+    },
+    [PERMISSIONS.PUBLISH_ASSIGNMENTS]: {
+        label: 'Publish Assignments',
+        description: 'Publish assignments to students and parents',
+        category: 'academic'
+    },
+    [PERMISSIONS.GRADE_ASSIGNMENTS]: {
+        label: 'Grade Assignments',
+        description: 'Enter and update assignment-linked grades',
+        category: 'academic'
+    },
     [PERMISSIONS.CREATE_HOMEWORK]: {
         label: 'Create Homework',
         description: 'Create and update homework assignments',
@@ -279,6 +303,9 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.EDIT_LESSON_PLANS,
         PERMISSIONS.VIEW_GRADES,
         PERMISSIONS.EDIT_GRADES,
+        PERMISSIONS.CREATE_ASSIGNMENTS,
+        PERMISSIONS.PUBLISH_ASSIGNMENTS,
+        PERMISSIONS.GRADE_ASSIGNMENTS,
         PERMISSIONS.CREATE_HOMEWORK,
         PERMISSIONS.PUBLISH_HOMEWORK,
         PERMISSIONS.GRADE_HOMEWORK,

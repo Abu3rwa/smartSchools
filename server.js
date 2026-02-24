@@ -66,6 +66,8 @@ import parentRoutes from "./routes/parentRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import deviceRoutes from "./routes/deviceRoutes.js";
 import homeworkRoutes from "./routes/homeworkRoutes.js";
+import assignmentRoutes from "./routes/assignmentRoutes.js";
+import assignmentTypeRoutes from "./routes/assignmentTypeRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
@@ -259,6 +261,8 @@ app.use("/api/parent", parentRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/devices", deviceRoutes);
 app.use("/api/homework", homeworkRoutes);
+app.use("/api/assignments", assignmentRoutes);
+app.use("/api/assignment-types", assignmentTypeRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);

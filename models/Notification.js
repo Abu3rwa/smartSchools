@@ -40,6 +40,8 @@ const notificationSchema = new mongoose.Schema({
             'ai_report',
             'attendance_request',
             'attendance_request_status',
+            'assignment_posted',
+            'assignment_graded',
             'homework_posted',
             'homework_due_reminder',
             'homework_graded'

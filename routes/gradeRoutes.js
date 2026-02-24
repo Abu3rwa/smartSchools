@@ -44,8 +44,8 @@ router.post('/exam', authorize('teacher', 'admin'), addExamGrade);
 router.get('/my-grades', authorize('student'), getMyGrades);
 router.get('/student/:studentId', getStudentGrades);
 router.get('/report/:studentId', getStudentGradeReport);
-router.get('/class/:classId', authorize('teacher', 'admin'), getClassGrades);
-router.get('/gradebook/:classId', authorize('teacher', 'admin'), getGradebookGrades);
+router.get('/class/:classId', authorize('teacher', 'admin', 'department_principal'), getClassGrades);
+router.get('/gradebook/:classId', authorize('teacher', 'admin', 'department_principal'), getGradebookGrades);
 
 // Averages
 router.get('/average/monthly/:studentId', getMonthlyAverage);

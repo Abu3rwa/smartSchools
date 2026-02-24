@@ -54,6 +54,7 @@ import TeacherTimetablePage from "./pages/teacher/TeacherTimetablePage";
 import TeacherAttendanceNewPage from "./pages/teacher/TeacherAttendanceNewPage";
 import TeacherNewslettersPage from "./pages/teacher/TeacherNewslettersPage";
 import LessonPlanPage from "./pages/LessonPlanPage";
+import AssignmentsPage from "./pages/AssignmentsPage";
 import AdminNewslettersPage from "./pages/admin/AdminNewslettersPage";
 import AttendanceRemindersPage from "./pages/admin/AttendanceRemindersPage";
 import BehaviorManagementPage from "./pages/BehaviorManagementPage";
@@ -329,13 +330,14 @@ function App() {
           }
         />
         <Route
-          path="homework"
+          path="assignments"
           element={
             <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <LessonPlanPage />
+              <AssignmentsPage />
             </RoleRoute>
           }
         />
+        <Route path="homework" element={<Navigate to="/portal/assignments" replace />} />
         <Route
           path="subjects"
           element={

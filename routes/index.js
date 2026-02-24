@@ -14,6 +14,8 @@ import practiceRoutes from './practiceRoutes.js';
 import departmentRoutes from './departmentRoutes.js';
 import attendanceRequestTypeRoutes from './attendanceRequestTypeRoutes.js';
 import attendanceRequestRoutes from './attendanceRequestRoutes.js';
+import assignmentRoutes from './assignmentRoutes.js';
+import assignmentTypeRoutes from './assignmentTypeRoutes.js';
 
 export {
     authRoutes,
@@ -31,5 +33,7 @@ export {
     practiceRoutes,
     departmentRoutes,
     attendanceRequestTypeRoutes,
-    attendanceRequestRoutes
+    attendanceRequestRoutes,
+    assignmentRoutes,
+    assignmentTypeRoutes
 };

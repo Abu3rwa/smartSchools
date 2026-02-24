@@ -41,6 +41,10 @@ const parentSettingSchema = new mongoose.Schema({
             type: Boolean,
             default: true
         },
+        assignments: {
+            type: Boolean,
+            default: true
+        },
         reports: {
             type: Boolean,
             default: true

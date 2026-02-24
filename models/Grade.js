@@ -94,6 +94,12 @@ const gradeSchema = new mongoose.Schema({
         trim: true
     },
     // Optional linkage for homework lifecycle
+    assignment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Assignment',
+        default: null,
+        index: true
+    },
     homeworkAssignment: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'HomeworkAssignment',
@@ -124,6 +130,10 @@ gradeSchema.index({ class: 1, subject: 1, date: 1 });
 gradeSchema.index({ teacher: 1, date: 1 });
 gradeSchema.index({ gradeType: 1 });
 gradeSchema.index({ school: 1, homeworkAssignment: 1, student: 1 });
+gradeSchema.index(
+    { school: 1, assignment: 1, student: 1 },
+    { unique: true, partialFilterExpression: { assignment: { $exists: true, $ne: null } } }
+);
 
 // Virtual for percentage
 gradeSchema.virtual('percentage').get(function () {
