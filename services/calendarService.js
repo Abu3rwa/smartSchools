@@ -553,7 +553,7 @@ const expandCalendarEventForUpcoming = (event, { fromDate, maxOccurrences = MAX_
     if (!startAt || !endAt) return [];
 
     if (!isRecurringEvent(event)) {
-        return startAt >= fromDate ? [event] : [];
+        return endAt >= fromDate ? [event] : [];
     }
 
     const durationMs = Math.max(0, endAt.getTime() - startAt.getTime());
@@ -1149,7 +1149,7 @@ export const listUpcomingCalendarEvents = async ({
             {
                 $and: [
                     { $or: [{ 'recurrence.isRecurring': { $ne: true } }, { recurrence: { $exists: false } }] },
-                    { startAt: { $gte: fromDate } }
+                    { endAt: { $gte: fromDate } }
                 ]
             },
             {

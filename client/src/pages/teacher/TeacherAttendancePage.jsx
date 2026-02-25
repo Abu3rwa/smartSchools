@@ -16,9 +16,25 @@ import {
     HiOutlineChevronRight,
     HiOutlineX
 } from 'react-icons/hi';
+import {
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    Tooltip,
+    Cell
+} from 'recharts';
 import './TeacherAttendancePage.css';
 import attendanceService from '../../services/attendanceService';
 import studentService from '../../services/studentService';
+
+const ATTENDANCE_STATUS_COLORS = {
+    Present: '#10B981',
+    Absent: '#EF4444',
+    Tardy: '#F59E0B',
+    Excused: '#3B82F6'
+};
 
 const STATUS_OPTIONS = [
     { value: 'present', label: 'Present' },
@@ -102,6 +118,7 @@ const TeacherAttendancePage = () => {
                 present: record.present || 0,
                 absent: record.absent || 0,
                 late: record.late || 0,
+                excused: record.excused || 0,
                 attendanceRate: Number(record.attendanceRate || 0),
                 rawRecord: record
             };
@@ -127,6 +144,7 @@ const TeacherAttendancePage = () => {
                 present: 0,
                 absent: 0,
                 late: 0,
+                excused: 0,
                 attendanceRate: 0,
                 rawSchedule: schedule
             };
@@ -160,6 +178,7 @@ const TeacherAttendancePage = () => {
         const totalPresent = recorded.reduce((sum, item) => sum + (item.present || 0), 0);
         const totalLate = recorded.reduce((sum, item) => sum + (item.late || 0), 0);
         const totalAbsent = recorded.reduce((sum, item) => sum + (item.absent || 0), 0);
+        const totalExcused = recorded.reduce((sum, item) => sum + (item.excused || 0), 0);
         const overallRate = totalStudents > 0
             ? (((totalPresent + totalLate) / totalStudents) * 100).toFixed(1)
             : '0.0';
@@ -171,9 +190,16 @@ const TeacherAttendancePage = () => {
             totalPresent,
             totalAbsent,
             totalLate,
+            totalExcused,
             overallRate
         };
     }, [filteredItems]);
+    const statusChartData = [
+        { name: 'Present', value: stats.totalPresent, color: ATTENDANCE_STATUS_COLORS.Present },
+        { name: 'Absent', value: stats.totalAbsent, color: ATTENDANCE_STATUS_COLORS.Absent },
+        { name: 'Tardy', value: stats.totalLate, color: ATTENDANCE_STATUS_COLORS.Tardy },
+        { name: 'Excused', value: stats.totalExcused, color: ATTENDANCE_STATUS_COLORS.Excused }
+    ];
 
     const handleRecordAttendance = async (schedule) => {
         if (!schedule?._id || !schedule?.class?._id) return;
@@ -341,6 +367,36 @@ const TeacherAttendancePage = () => {
                         <h3>{stats.overallRate}%</h3>
                         <p>Overall Attendance Rate</p>
                     </div>
+                </div>
+            </div>
+
+            <div className="teacher-status-chart-card">
+                <div className="teacher-status-chart-header">
+                    <h3>Attendance Status Chart</h3>
+                    <p>Present, Absent, Tardy and Excused counts for the selected range</p>
+                </div>
+                <div className="teacher-status-chart-body">
+                    <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={statusChartData} layout="vertical" margin={{ top: 8, right: 12, left: 12, bottom: 8 }}>
+                            <XAxis type="number" allowDecimals={false} />
+                            <YAxis type="category" dataKey="name" width={75} />
+                            <Tooltip formatter={(value, name) => [value, name]} />
+                            <Bar dataKey="value" radius={[8, 8, 8, 8]}>
+                                {statusChartData.map((entry) => (
+                                    <Cell key={entry.name} fill={entry.color} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+                <div className="teacher-status-chart-legend">
+                    {statusChartData.map((item) => (
+                        <div key={item.name} className="teacher-status-chart-legend-item">
+                            <span className="teacher-status-chart-legend-dot" style={{ backgroundColor: item.color }} />
+                            <span className="teacher-status-chart-legend-label">{item.name}</span>
+                            <span className="teacher-status-chart-legend-value">{item.value}</span>
+                        </div>
+                    ))}
                 </div>
             </div>
 

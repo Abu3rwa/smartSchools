@@ -108,35 +108,45 @@ const SchoolAdminDashboard = () => {
     const fetchAdditionalData = async () => {
         try {
             setLoadingAdditional(true);
-            // Fetch teachers
-            const teachersRes = await api.get('/users', { params: { role: 'teacher', limit: 100 } });
-            if (teachersRes.data.success) {
-                setTeachers(teachersRes.data.data?.users || []);
+
+            const [teachersResult, attendanceResult] = await Promise.allSettled([
+                api.get('/users', { params: { role: 'teacher', limit: 100 } }),
+                api.get('/attendance/admin', { params: { viewMode: 'today' } }),
+            ]);
+
+            if (teachersResult.status === 'fulfilled') {
+                const teachersRes = teachersResult.value;
+                if (teachersRes.data.success) {
+                    setTeachers(teachersRes.data.data?.users || []);
+                } else {
+                    setTeachers([]);
+                }
+            } else {
+                setTeachers([]);
+                console.error('Error fetching teachers:', teachersResult.reason);
             }
 
-            // Fetch today's attendance summary
-            const today = new Date().toISOString().split('T')[0];
-            const attendanceRes = await api.get('/attendance/admin', {
-                params: { viewMode: 'today' },
-            });
+            if (attendanceResult.status === 'fulfilled') {
+                const attendanceRes = attendanceResult.value;
+                const attendancePayload = attendanceRes.data?.data || attendanceRes.data || {};
+                const records = attendancePayload.attendanceRecords || [];
+                const totalStudents = records.reduce((sum, r) => sum + (r.totalStudents || 0), 0);
+                const totalPresent = records.reduce((sum, r) => sum + (r.present || 0), 0);
+                const totalAbsent = records.reduce((sum, r) => sum + (r.absent || 0), 0);
+                const attendanceRate =
+                    totalStudents > 0 ? Number(((totalPresent / totalStudents) * 100).toFixed(1)) : 0;
 
-            const attendancePayload = attendanceRes.data?.data || attendanceRes.data || {};
-            const records = attendancePayload.attendanceRecords || [];
-            const totalStudents = records.reduce((sum, r) => sum + (r.totalStudents || 0), 0);
-            const totalPresent = records.reduce((sum, r) => sum + (r.present || 0), 0);
-            const totalAbsent = records.reduce((sum, r) => sum + (r.absent || 0), 0);
-            const attendanceRate =
-                totalStudents > 0 ? ((totalPresent / totalStudents) * 100).toFixed(1) : 0;
-
-            setAttendanceSummary({
-                totalClasses: records.length,
-                totalStudents,
-                totalPresent,
-                totalAbsent,
-                attendanceRate: parseFloat(attendanceRate),
-            });
-        } catch (err) {
-            console.error('Error fetching additional data:', err);
+                setAttendanceSummary({
+                    totalClasses: records.length,
+                    totalStudents,
+                    totalPresent,
+                    totalAbsent,
+                    attendanceRate,
+                });
+            } else {
+                setAttendanceSummary(null);
+                console.error('Error fetching attendance summary:', attendanceResult.reason);
+            }
         } finally {
             setLoadingAdditional(false);
         }
@@ -210,7 +220,7 @@ const SchoolAdminDashboard = () => {
         },
         {
             title: 'Attendance Rate',
-            value: attendanceSummary?.attendanceRate
+            value: Number.isFinite(attendanceSummary?.attendanceRate)
                 ? `${attendanceSummary.attendanceRate}%`
                 : 'N/A',
             icon: HiOutlineCheckCircle,
