@@ -397,14 +397,34 @@ export const sendPushToUsers = async ({
     };
   }
 
-  const deviceTokens = await DeviceToken.find({
-    school: schoolId,
+  const baseTokenQuery = {
     user: { $in: pushEnabledUserIds },
     active: true,
     token: { $exists: true, $ne: '' },
+  };
+
+  let deviceTokens = await DeviceToken.find({
+    ...baseTokenQuery,
+    ...(schoolId ? { school: schoolId } : {}),
   })
     .select('_id user token platform')
     .lean();
+
+  if (deviceTokens.length === 0 && schoolId) {
+    const crossSchoolMatches = await DeviceToken.find(baseTokenQuery)
+      .setOptions({ skipTenantFilter: true })
+      .select('_id user token platform school')
+      .lean();
+
+    if (crossSchoolMatches.length > 0) {
+      logger.warn('push_delivery_school_scope_fallback', {
+        schoolId: toId(schoolId),
+        targetedUsers: normalizedUserIds.length,
+        matchedTokens: crossSchoolMatches.length,
+      });
+      deviceTokens = crossSchoolMatches;
+    }
+  }
 
   if (deviceTokens.length === 0) {
     return {
