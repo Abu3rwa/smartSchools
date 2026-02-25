@@ -11,6 +11,8 @@ const validateCategoryList = (rawValue) => {
     const normalized = values
         .map((value) => String(value || '').trim().toUpperCase())
         .filter(Boolean);
+    if (normalized.length === 0) return true;
+    if (normalized.includes('ALL')) return true;
     return normalized.every((value) => CALENDAR_EVENT_CATEGORIES.includes(value));
 };
 

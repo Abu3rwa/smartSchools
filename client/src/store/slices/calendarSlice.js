@@ -26,7 +26,7 @@ export const fetchCalendarMonthEvents = createAsyncThunk(
                 to,
                 category = 'ALL',
                 page = 1,
-                limit = 200,
+                limit = 100,
                 search = ''
             } = arg;
             const cacheKey = buildCalendarMonthCacheKey({ from, to, category, search });

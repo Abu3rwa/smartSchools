@@ -263,7 +263,7 @@ const AdminSchoolCalendarPage = () => {
             from: monthRange.from,
             to: monthRange.to,
             category: activeFilter,
-            limit: 300
+            limit: 100
         }));
     }, [activeFilter, dispatch, monthRange.from, monthRange.to]);
 
@@ -318,7 +318,7 @@ const AdminSchoolCalendarPage = () => {
             from: monthRange.from,
             to: monthRange.to,
             category: activeFilter,
-            limit: 300,
+            limit: 100,
             force: true
         }));
         dispatch(fetchUpcomingCalendarEvents({
