@@ -6,7 +6,9 @@ import {
     HiOutlineExclamation,
     HiOutlineCheckCircle,
     HiOutlineUserGroup,
-    HiOutlineClock
+    HiOutlineClock,
+    HiOutlineChevronLeft,
+    HiOutlineChevronRight
 } from 'react-icons/hi';
 import { selectUser } from '../../store/slices/authSlice';
 import attendanceService from '../../services/attendanceService';
@@ -34,20 +36,24 @@ const TeacherAttendanceNewPage = () => {
     const [students, setStudents] = useState([]);
     const [studentAttendance, setStudentAttendance] = useState({});
     const [loadingStudents, setLoadingStudents] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(new Date());
 
-    const today = new Date();
-    const todayStr = today.toLocaleDateString('en-US', {
+    const selectedDateStr = selectedDate.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric'
     });
+    const isSelectedDateToday = isSameDay(selectedDate, new Date());
+    const canGoNextDay = isBeforeDay(selectedDate, new Date());
 
-    const fetchTodayPeriods = async () => {
+    const fetchPeriodsForDate = async (dateToLoad = selectedDate) => {
         try {
             setLoading(true);
             setError(null);
-            const res = await attendanceService.getMyTodayPeriods();
+            const res = await attendanceService.getMyTodayPeriods({
+                date: formatDayKey(dateToLoad)
+            });
             setPeriodsData(res?.data?.periods || []);
         } catch (err) {
             setError(err?.response?.data?.message || err.message);
@@ -57,8 +63,13 @@ const TeacherAttendanceNewPage = () => {
     };
 
     useEffect(() => {
-        fetchTodayPeriods();
-    }, []);
+        setSelectedPeriod(null);
+        setStudents([]);
+        setStudentAttendance({});
+        setSuccess(null);
+        fetchPeriodsForDate(selectedDate);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedDate]);
 
     const handleSelectPeriod = async (periodItem) => {
         if (!periodItem.hasClass) return;
@@ -129,6 +140,7 @@ const TeacherAttendanceNewPage = () => {
             periodId,
             classId,
             subjectId,
+            attendanceDate: formatDayKey(selectedDate),
             studentAttendance: students.map(student => ({
                 student: student._id,
                 status: studentAttendance[student._id] || 'present'
@@ -141,12 +153,23 @@ const TeacherAttendanceNewPage = () => {
             setSuccess(null);
             await attendanceService.takePeriodAttendance(payload);
             setSuccess('Attendance saved successfully!');
-            await fetchTodayPeriods();
+            await fetchPeriodsForDate(selectedDate);
         } catch (err) {
             setError(err?.response?.data?.message || err.message);
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleChangeDay = (direction) => {
+        setSelectedDate((prev) => {
+            const next = new Date(prev);
+            next.setDate(prev.getDate() + direction);
+            if (isAfterDay(next, new Date())) {
+                return prev;
+            }
+            return next;
+        });
     };
 
     // Summary counts
@@ -160,6 +183,7 @@ const TeacherAttendanceNewPage = () => {
 
     // Current period detection
     const currentPeriodId = useMemo(() => {
+        if (!isSelectedDateToday) return null;
         const now = new Date();
         const nowMinutes = now.getHours() * 60 + now.getMinutes();
         for (const item of periodsData) {
@@ -170,7 +194,7 @@ const TeacherAttendanceNewPage = () => {
             }
         }
         return null;
-    }, [periodsData]);
+    }, [isSelectedDateToday, periodsData]);
 
     if (loading) {
         return (
@@ -190,10 +214,22 @@ const TeacherAttendanceNewPage = () => {
                         <HiOutlineClipboardCheck size={24} />
                         Attendance
                     </h1>
-                    <div className="today-date">{todayStr}</div>
+                    <div className="today-date">{selectedDateStr}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-secondary" onClick={fetchTodayPeriods}>
+                    <button className="btn btn-secondary" onClick={() => handleChangeDay(-1)}>
+                        <HiOutlineChevronLeft size={18} />
+                        Previous
+                    </button>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => handleChangeDay(1)}
+                        disabled={!canGoNextDay}
+                    >
+                        Next
+                        <HiOutlineChevronRight size={18} />
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => fetchPeriodsForDate(selectedDate)}>
                         <HiOutlineRefresh size={18} />
                         Refresh
                     </button>
@@ -216,7 +252,7 @@ const TeacherAttendanceNewPage = () => {
 
             {periodsData.length === 0 ? (
                 <div className="empty-attendance">
-                    <p>No periods configured for today.</p>
+                    <p>No periods configured for this day.</p>
                     <p style={{ fontSize: '0.8rem' }}>Contact your school admin to set up the timetable.</p>
                 </div>
             ) : (
@@ -358,5 +394,31 @@ const TeacherAttendanceNewPage = () => {
         </div>
     );
 };
+
+function startOfDay(dateValue) {
+    const date = new Date(dateValue);
+    date.setHours(0, 0, 0, 0);
+    return date;
+}
+
+function isBeforeDay(dateA, dateB) {
+    return startOfDay(dateA).getTime() < startOfDay(dateB).getTime();
+}
+
+function isAfterDay(dateA, dateB) {
+    return startOfDay(dateA).getTime() > startOfDay(dateB).getTime();
+}
+
+function isSameDay(dateA, dateB) {
+    return startOfDay(dateA).getTime() === startOfDay(dateB).getTime();
+}
+
+function formatDayKey(dateValue) {
+    const date = new Date(dateValue);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
 
 export default TeacherAttendanceNewPage;

@@ -16,16 +16,15 @@ const AttendanceStatusChartCard = ({ statusChartData }) => {
                 <p>Present, Absent, Tardy and Excused counts for the selected range</p>
             </div>
             <div className="attendance-status-chart-body">
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         data={statusChartData}
-                        layout="vertical"
                         margin={{ top: 8, right: 12, left: 12, bottom: 8 }}
                     >
-                        <XAxis type="number" allowDecimals={false} />
-                        <YAxis type="category" dataKey="name" width={75} />
+                        <XAxis type="category" dataKey="name" />
+                        <YAxis type="number" allowDecimals={false} />
                         <Tooltip formatter={(value, name) => [value, name]} />
-                        <Bar dataKey="value" radius={[8, 8, 8, 8]}>
+                        <Bar dataKey="value" barSize={40} radius={[8, 8, 0, 0]}>
                             {statusChartData.map((entry) => (
                                 <Cell key={entry.name} fill={entry.color} />
                             ))}

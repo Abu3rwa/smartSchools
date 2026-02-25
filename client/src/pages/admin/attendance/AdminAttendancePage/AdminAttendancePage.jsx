@@ -1,4 +1,5 @@
 import { HiOutlineExclamation } from 'react-icons/hi';
+import { Grid } from '@mui/material';
 import AttendanceDetailsModal from './components/AttendanceDetailsModal';
 import AttendanceList from './components/AttendanceList';
 import AttendancePageHeader from './components/AttendancePageHeader';
@@ -64,19 +65,29 @@ const AdminAttendancePage = () => {
 
             <AttendanceStatsGrid stats={stats} />
 
-            <AttendanceStatusChartCard statusChartData={statusChartData} />
-
-            <AttendanceViewControls
-                classes={classes}
-                dateRangeText={dateRangeText}
-                filters={filters}
-                navigateDate={navigateDate}
-                setFilters={setFilters}
-                setViewMode={setViewMode}
-                subjects={subjects}
-                teachers={teachers}
-                viewMode={viewMode}
-            />
+            <Grid
+                container
+                spacing={{ xs: 2, md: 3 }}
+                className="attendance-overview-row"
+                sx={{ width: 'min(100%, 1100px)', mx: 'auto', mb: { xs: 2, md: 3 } }}
+            >
+                <Grid item xs={12} md={8}>
+                    <AttendanceStatusChartCard statusChartData={statusChartData} />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <AttendanceViewControls
+                        classes={classes}
+                        dateRangeText={dateRangeText}
+                        filters={filters}
+                        navigateDate={navigateDate}
+                        setFilters={setFilters}
+                        setViewMode={setViewMode}
+                        subjects={subjects}
+                        teachers={teachers}
+                        viewMode={viewMode}
+                    />
+                </Grid>
+            </Grid>
 
             <AttendanceList
                 attendanceData={attendanceData}

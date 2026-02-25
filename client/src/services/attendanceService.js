@@ -2,8 +2,8 @@ import api from '../config/api';
 
 const attendanceService = {
     // Teacher period-based attendance
-    getMyTodayPeriods: async () => {
-        const response = await api.get('/attendance/my-today');
+    getMyTodayPeriods: async (params = {}) => {
+        const response = await api.get('/attendance/my-today', { params });
         return response.data;
     },
 

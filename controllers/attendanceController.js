@@ -28,6 +28,18 @@ const TEACHER_ATTENDANCE_ROLES = new Set(['teacher', 'admin', 'department_princi
 
 const hasRoleAccess = (req, allowedRoles) => allowedRoles.has(req.user?.role);
 
+function parseAttendanceRequestDate(input) {
+    if (!input) return new Date();
+    if (typeof input === 'string') {
+        const match = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) {
+            return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0, 0));
+        }
+    }
+    const parsed = new Date(input);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 // Helper function to get room name from roomId
 async function getRoomName(roomId) {
     if (!roomId) return 'N/A';
@@ -265,7 +277,10 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
                 totalClasses: 0,
                 recordedClasses: 0,
                 missedClasses: 0,
-                overallAttendanceRate: 0
+                overallAttendanceRate: 0,
+                pendingToday: 0,
+                pendingOverall: 0,
+                pendingInRange: 0
             },
             academicYear
         });
@@ -284,24 +299,31 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
                 totalClasses: 0,
                 recordedClasses: 0,
                 missedClasses: 0,
-                overallAttendanceRate: 0
+                overallAttendanceRate: 0,
+                pendingToday: 0,
+                pendingOverall: 0,
+                pendingInRange: 0
             },
             academicYear
         });
     }
     const start = scopedDateRange.$gte;
     const end = scopedDateRange.$lte;
-    const today = new Date();
-    
-    // Build query
-    const query = {
+    const now = new Date();
+
+    const baseQuery = {
         school: req.schoolId,
-        class: classId ? classId : { $in: yearClassIds },
+        class: classId ? classId : { $in: yearClassIds }
+    };
+    if (teacher) baseQuery.teacher = teacher;
+    if (subject) baseQuery.subject = subject;
+
+    // Build range query
+    const query = {
+        ...baseQuery,
         date: { $gte: start, $lte: end }
     };
-    
-    if (teacher) query.teacher = teacher;
-    if (subject) query.subject = subject;
+
     if (status === 'recorded') {
         query.status = { $in: ['submitted', 'locked'] };
     } else if (status === 'pending') {
@@ -316,7 +338,40 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
     .sort({ date: 1, startTime: 1 });
     
     // Get missed attendance
-    const missedAttendance = await Attendance.findMissedAttendance(req.schoolId, today, { classIds: yearClassIds });
+    const missedAttendance = await Attendance.findMissedAttendance(req.schoolId, now, { classIds: yearClassIds });
+
+    const todayRange = getSchoolDayRange(now, schoolTimeZone);
+    const pendingTodayDateRange = clampDateRangeToAcademicYear(
+        { $gte: todayRange.start, $lte: todayRange.end },
+        dateFilter
+    );
+    const pendingOverallDateRange = clampDateRangeToAcademicYear(
+        { $lte: now },
+        dateFilter
+    );
+
+    const pendingCountBaseQuery = {
+        ...baseQuery,
+        status: 'draft',
+        endTime: { $lte: now }
+    };
+
+    const [pendingToday, pendingOverall] = await Promise.all([
+        pendingTodayDateRange
+            ? Attendance.countDocuments({
+                ...pendingCountBaseQuery,
+                date: pendingTodayDateRange
+            })
+            : 0,
+        pendingOverallDateRange
+            ? Attendance.countDocuments({
+                ...pendingCountBaseQuery,
+                date: pendingOverallDateRange
+            })
+            : 0
+    ]);
+
+    const pendingInRange = attendanceRecords.filter((record) => record.status === 'draft').length;
     
     res.json({
         attendanceRecords,
@@ -326,7 +381,10 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
             recordedClasses: attendanceRecords.filter(r => r.status !== 'draft').length,
             missedClasses: missedAttendance.reduce((sum, m) => sum + m.totalMissed, 0),
             overallAttendanceRate: attendanceRecords.length > 0 ? 
-                Math.round((attendanceRecords.reduce((sum, r) => sum + r.attendanceRate, 0) / attendanceRecords.length)) : 0
+                Math.round((attendanceRecords.reduce((sum, r) => sum + r.attendanceRate, 0) / attendanceRecords.length)) : 0,
+            pendingToday,
+            pendingOverall,
+            pendingInRange
         },
         academicYear
     });
@@ -389,6 +447,12 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
     
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const scheduleDayRange = getSchoolDayRange(schedule.startTime, schoolTimeZone);
+    const todayRange = getSchoolDayRange(new Date(), schoolTimeZone);
+
+    if (req.user.role === 'teacher' && scheduleDayRange.localYmd > todayRange.localYmd) {
+        return res.status(400).json({ message: 'Teachers cannot record attendance for future days' });
+    }
+
     const attendanceDate = localYmdToServerMidnightDate(scheduleDayRange.localYmd);
 
     // Check if attendance already exists
@@ -528,11 +592,15 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
 
     const { academicYear, classIds: yearClassIds } = await getYearScopedClassIds(req);
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
-    const now = new Date();
-    const todayRange = getSchoolDayRange(now, schoolTimeZone);
-    const dayOfWeek = todayRange.weekday;
-    const startOfDay = todayRange.start;
-    const endOfDay = todayRange.end;
+    const requestedDate = parseAttendanceRequestDate(req.query?.date);
+    if (!requestedDate) {
+        return res.status(400).json({ success: false, message: 'Invalid date' });
+    }
+
+    const targetRange = getSchoolDayRange(requestedDate, schoolTimeZone);
+    const dayOfWeek = targetRange.weekday;
+    const startOfDay = targetRange.start;
+    const endOfDay = targetRange.end;
 
     if (yearClassIds.length === 0) {
         const allPeriodsEmpty = await TimetablePeriod.find({ school: req.schoolId, isActive: true }).sort({ order: 1 });
@@ -605,7 +673,7 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const { periodId, classId, subjectId, studentAttendance } = req.body;
+    const { periodId, classId, subjectId, studentAttendance, attendanceDate } = req.body;
     const { academicYear, classIds: yearClassIds } = await getYearScopedClassIds(req, classId ? [classId] : null);
 
     if (!periodId || !classId || !Array.isArray(studentAttendance) || studentAttendance.length === 0) {
@@ -626,11 +694,20 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
 
     // Verify teacher has an assignment for this period + class today
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
-    const today = new Date();
-    const todayRange = getSchoolDayRange(today, schoolTimeZone);
-    const dayOfWeek = todayRange.weekday;
-    const startOfDay = todayRange.start;
-    const endOfDay = todayRange.end;
+    const targetDate = parseAttendanceRequestDate(attendanceDate);
+    if (!targetDate) {
+        return res.status(400).json({ success: false, message: 'Invalid attendanceDate' });
+    }
+
+    const targetRange = getSchoolDayRange(targetDate, schoolTimeZone);
+    const todayRange = getSchoolDayRange(new Date(), schoolTimeZone);
+    if (targetRange.localYmd > todayRange.localYmd) {
+        return res.status(400).json({ success: false, message: 'Teachers cannot record attendance for future days' });
+    }
+
+    const dayOfWeek = targetRange.weekday;
+    const startOfDay = targetRange.start;
+    const endOfDay = targetRange.end;
 
     const assignment = await TeacherPeriodAssignment.findOne({
         school: req.schoolId,
@@ -644,7 +721,7 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
     });
 
     if (!assignment) {
-        return res.status(403).json({ success: false, message: 'You are not assigned to this class for this period today' });
+        return res.status(403).json({ success: false, message: 'You are not assigned to this class for this period on the selected day' });
     }
 
     // Check for existing attendance record
@@ -663,20 +740,20 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
         recordedAt: new Date()
     }));
 
-    const todayLocal = getDatePartsInTimeZone(today, schoolTimeZone);
+    const targetLocal = getDatePartsInTimeZone(targetDate, schoolTimeZone);
     const periodStart = zonedDateTimeToUtc({
-        year: todayLocal.year,
-        month: todayLocal.month,
-        day: todayLocal.day,
+        year: targetLocal.year,
+        month: targetLocal.month,
+        day: targetLocal.day,
         hour: Number((period.startTime || '00:00').split(':')[0] || 0),
         minute: Number((period.startTime || '00:00').split(':')[1] || 0),
         second: 0,
         millisecond: 0
     }, schoolTimeZone);
     const periodEnd = zonedDateTimeToUtc({
-        year: todayLocal.year,
-        month: todayLocal.month,
-        day: todayLocal.day,
+        year: targetLocal.year,
+        month: targetLocal.month,
+        day: targetLocal.day,
         hour: Number((period.endTime || '00:00').split(':')[0] || 0),
         minute: Number((period.endTime || '00:00').split(':')[1] || 0),
         second: 0,

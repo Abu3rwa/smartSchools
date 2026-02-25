@@ -34,6 +34,10 @@ export default function useAdminAttendanceController() {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [viewMode, setViewMode] = useState(INITIAL_VIEW_MODE);
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
+    const [pendingSummary, setPendingSummary] = useState({
+        pendingToday: 0,
+        pendingOverall: 0
+    });
 
     useEffect(() => {
         dispatch(fetchTeachers());
@@ -60,6 +64,10 @@ export default function useAdminAttendanceController() {
             const res = await attendanceService.getAdminAttendance(params);
             const records = res?.attendanceRecords ?? [];
             setAttendanceData(records.map(mapRecordToUI));
+            setPendingSummary({
+                pendingToday: Number(res?.summary?.pendingToday ?? 0),
+                pendingOverall: Number(res?.summary?.pendingOverall ?? 0)
+            });
         } catch (err) {
             setError(err.response?.data?.message || err.message || 'Failed to load attendance');
         } finally {
@@ -117,7 +125,12 @@ export default function useAdminAttendanceController() {
         setCurrentDate((prev) => navigateDateByViewMode(prev, viewMode, direction));
     }, [viewMode]);
 
-    const stats = useMemo(() => getAttendanceStats(attendanceData), [attendanceData]);
+    const baseStats = useMemo(() => getAttendanceStats(attendanceData), [attendanceData]);
+    const stats = useMemo(() => ({
+        ...baseStats,
+        pendingToday: pendingSummary.pendingToday,
+        pendingOverall: pendingSummary.pendingOverall
+    }), [baseStats, pendingSummary.pendingOverall, pendingSummary.pendingToday]);
     const statusChartData = useMemo(
         () => buildStatusChartData(stats, ATTENDANCE_STATUS_COLORS),
         [stats]

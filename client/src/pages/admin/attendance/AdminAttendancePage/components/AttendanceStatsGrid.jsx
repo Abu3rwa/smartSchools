@@ -1,6 +1,7 @@
 import {
     HiOutlineCalendar,
     HiOutlineCheckCircle,
+    HiOutlineClock,
     HiOutlineExclamation,
     HiOutlineUserGroup
 } from 'react-icons/hi';
@@ -30,11 +31,21 @@ const AttendanceStatsGrid = ({ stats }) => {
 
             <div className="stat-card">
                 <div className="stat-icon">
+                    <HiOutlineClock size={24} />
+                </div>
+                <div className="stat-content">
+                    <h3>{stats.pendingToday}</h3>
+                    <p>Pending Today</p>
+                </div>
+            </div>
+
+            <div className="stat-card">
+                <div className="stat-icon">
                     <HiOutlineExclamation size={24} />
                 </div>
                 <div className="stat-content">
-                    <h3>{stats.pendingClasses}</h3>
-                    <p>Pending Attendance</p>
+                    <h3>{stats.pendingOverall}</h3>
+                    <p>Overall Not Taken</p>
                 </div>
             </div>
 

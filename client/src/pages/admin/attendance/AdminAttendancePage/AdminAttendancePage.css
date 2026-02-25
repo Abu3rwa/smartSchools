@@ -2,7 +2,9 @@
 .admin-attendance-page {
     padding: var(--spacing-2xl);
     max-width: 1400px;
+    width: 100%;
     margin: 0 auto;
+    box-sizing: border-box;
 }
 
 /* Loading State */
@@ -47,6 +49,22 @@
     align-items: flex-start;
     gap: var(--spacing-xl);
     margin-bottom: var(--spacing-2xl);
+}
+
+.page-header,
+.stats-grid,
+.attendance-list {
+    width: min(100%, 1100px);
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.attendance-overview-row {
+    width: 100%;
+}
+
+.attendance-overview-row > .MuiGrid-item {
+    display: flex;
 }
 
 .header-content h1 {
@@ -119,7 +137,8 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-xl);
     padding: var(--spacing-xl);
-    margin-bottom: var(--spacing-xl);
+    width: 100%;
+    margin: 0;
 }
 
 .attendance-status-chart-header h3 {
@@ -137,12 +156,16 @@
 
 .attendance-status-chart-body {
     margin-top: var(--spacing-lg);
+    width: 100%;
+    max-width: 680px;
+    height: 320px;
+    margin: 0 auto;
 }
 
 .attendance-status-legend {
     margin-top: var(--spacing-lg);
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--spacing-sm);
 }
 
@@ -178,20 +201,24 @@
 /* View Controls */
 .view-controls {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--spacing-xl);
-    margin-bottom: var(--spacing-xl);
+    margin: 0;
     padding: var(--spacing-lg);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
+    width: 100%;
 }
 
 .view-modes {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--spacing-lg);
+    min-width: 0;
 }
 
 .toggle-buttons {
@@ -259,7 +286,10 @@
 
 .filters {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--spacing-md);
+    justify-content: flex-end;
+    min-width: 0;
 }
 
 .filter-group select {
@@ -662,6 +692,12 @@
 }
 
 /* Responsive Design */
+@media (min-width: 768px) {
+    .attendance-overview-row > .MuiGrid-item {
+        align-self: stretch;
+    }
+}
+
 @media (max-width: 1024px) {
     .admin-attendance-page {
         padding: var(--spacing-lg);
@@ -734,10 +770,11 @@
         min-width: 120px;
     }
 
-    .attendance-status-legend {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+    .attendance-status-chart-body {
+        max-width: 100%;
+        height: 280px;
     }
-    
+
     .attendance-header {
         flex-direction: column;
         gap: var(--spacing-md);
@@ -776,6 +813,10 @@
 
     .attendance-status-legend {
         grid-template-columns: 1fr;
+    }
+
+    .attendance-status-chart-body {
+        height: 250px;
     }
     
     .attendance-stats {

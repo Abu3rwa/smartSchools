@@ -49,6 +49,11 @@
     background: var(--bg-card-hover);
 }
 
+.teacher-attendance-page .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .teacher-attendance-page .btn-primary {
     background: var(--primary-500);
     color: var(--text-primary);
