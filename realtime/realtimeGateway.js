@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import logger from '../utils/logger.js';
 
 const OPEN_STATE = 1;
+const AUTH_TIMEOUT_MS = 10000;
 
 let gateway = null;
 const userSockets = new Map();
@@ -40,23 +41,15 @@ const removeSocketForUser = (userId, socket) => {
   }
 };
 
-const getConnectionToken = (request) => {
+const getConnectionTokenFromHeaders = (request) => {
   const authHeader = String(request.headers.authorization || '').trim();
   if (authHeader.toLowerCase().startsWith('bearer ')) {
     return authHeader.slice(7).trim();
   }
-
-  // Backward compatibility for browser websocket clients that cannot set
-  // custom Authorization headers.
-  const host = request.headers.host || 'localhost';
-  const url = new URL(request.url || '/', `http://${host}`);
-  const fromQuery = (url.searchParams.get('token') || '').trim();
-  if (fromQuery) return fromQuery;
   return '';
 };
 
-const authenticateSocket = async (request) => {
-  const token = getConnectionToken(request);
+const authenticateToken = async (token) => {
   if (!token) return null;
 
   try {
@@ -75,6 +68,12 @@ const authenticateSocket = async (request) => {
   }
 };
 
+const authenticateSocketFromRequest = async (request) => {
+  const token = getConnectionTokenFromHeaders(request);
+  if (!token) return null;
+  return authenticateToken(token);
+};
+
 export const initRealtimeGateway = (httpServer) => {
   if (gateway) return gateway;
 
@@ -82,53 +81,116 @@ export const initRealtimeGateway = (httpServer) => {
   gateway = wss;
 
   wss.on('connection', async (socket, request) => {
-    const user = await authenticateSocket(request);
-    if (!user) {
+    let userId = '';
+    let isAuthenticated = false;
+    let isAuthenticating = false;
+    let authTimeout = setTimeout(() => {
+      if (isAuthenticated) return;
+      safeSend(socket, {
+        event: 'system.error',
+        data: { message: 'Authentication timeout' }
+      });
+      socket.close(1008, 'Unauthorized');
+    }, AUTH_TIMEOUT_MS);
+
+    const clearAuthTimeout = () => {
+      if (!authTimeout) return;
+      clearTimeout(authTimeout);
+      authTimeout = null;
+    };
+
+    const finalizeAuth = (user) => {
+      if (!user || isAuthenticated) return;
+      isAuthenticated = true;
+      userId = toId(user._id);
+      socket.__userId = userId;
+      socket.__schoolId = toId(user.school);
+      socket.__role = user.role;
+      addSocketForUser(userId, socket);
+      clearAuthTimeout();
+
+      safeSend(socket, {
+        event: 'system.connected',
+        data: {
+          userId,
+          role: user.role,
+          connectedAt: new Date().toISOString()
+        }
+      });
+    };
+
+    const rejectUnauthorized = () => {
+      clearAuthTimeout();
       safeSend(socket, {
         event: 'system.error',
         data: { message: 'Unauthorized websocket connection' }
       });
       socket.close(1008, 'Unauthorized');
-      return;
+    };
+
+    const userFromHeaders = await authenticateSocketFromRequest(request);
+    if (userFromHeaders) {
+      finalizeAuth(userFromHeaders);
     }
 
-    const userId = toId(user._id);
-    socket.__userId = userId;
-    socket.__schoolId = toId(user.school);
-    socket.__role = user.role;
-    addSocketForUser(userId, socket);
-
-    safeSend(socket, {
-      event: 'system.connected',
-      data: {
-        userId,
-        role: user.role,
-        connectedAt: new Date().toISOString()
-      }
-    });
-
     socket.on('message', (raw) => {
-      try {
-        const parsed = JSON.parse(String(raw));
+      const handleMessage = async () => {
+        let parsed;
+        try {
+          parsed = JSON.parse(String(raw));
+        } catch {
+          safeSend(socket, {
+            event: 'system.error',
+            data: { message: 'Invalid websocket payload' }
+          });
+          return;
+        }
+
+        if (!isAuthenticated) {
+          if (parsed?.type !== 'auth') {
+            safeSend(socket, {
+              event: 'system.error',
+              data: { message: 'Authentication required' }
+            });
+            return;
+          }
+
+          if (isAuthenticating) return;
+          isAuthenticating = true;
+          const token = String(parsed?.token || '').trim();
+          const user = await authenticateToken(token);
+          isAuthenticating = false;
+          if (!user) {
+            rejectUnauthorized();
+            return;
+          }
+          finalizeAuth(user);
+          return;
+        }
+
         if (parsed?.type === 'ping') {
           safeSend(socket, {
             event: 'system.pong',
             data: { at: new Date().toISOString() }
           });
         }
-      } catch {
+      };
+
+      void handleMessage().catch(() => {
         safeSend(socket, {
           event: 'system.error',
-          data: { message: 'Invalid websocket payload' }
+          data: { message: 'Unexpected websocket error' }
         });
-      }
+      });
     });
 
     socket.on('close', () => {
+      clearAuthTimeout();
       removeSocketForUser(userId, socket);
     });
 
     socket.on('error', () => {
+      clearAuthTimeout();
       removeSocketForUser(userId, socket);
     });
   });

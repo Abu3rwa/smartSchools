@@ -174,7 +174,8 @@ export async function createRequest({
         createdBy
     });
 
-    const baseUrl = process.env.API_BASE_URL || process.env.API_URL || process.env.CLIENT_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const appBaseUrl = process.env.CLIENT_URL || process.env.API_BASE_URL || process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const normalizedAppBaseUrl = String(appBaseUrl).replace(/\/+$/, '');
     const tokenMap = {}; // substituteTeacherId -> { rawToken, confirmUrl, declineUrl }
 
     for (const a of request.assignments) {
@@ -187,8 +188,8 @@ export async function createRequest({
             expiresAt
         });
 
-        const confirmUrl = `${baseUrl}/api/substitutions/respond?token=${rawToken}&action=CONFIRM`;
-        const declineUrl = `${baseUrl}/api/substitutions/respond?token=${rawToken}&action=DECLINE`;
+        const confirmUrl = `${normalizedAppBaseUrl}/substitutions/respond?token=${encodeURIComponent(rawToken)}&intent=confirm`;
+        const declineUrl = `${normalizedAppBaseUrl}/substitutions/respond?token=${encodeURIComponent(rawToken)}&intent=decline`;
 
         const subIdStr = a.substituteTeacherId.toString();
         if (!tokenMap[subIdStr]) {

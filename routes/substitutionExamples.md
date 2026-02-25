@@ -156,9 +156,9 @@ Or for decline:
 }
 ```
 
-**GET alternative (for email links):**  
-`GET /api/substitutions/respond?token=...&action=CONFIRM`  
-Returns HTML success page.
+**GET alternative (safe redirect for email links):**  
+`GET /api/substitutions/respond?token=...`  
+Redirects to frontend response page where the teacher explicitly confirms or declines.
 
 **Response:**
 ```json

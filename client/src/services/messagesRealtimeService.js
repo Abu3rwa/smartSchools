@@ -2,6 +2,7 @@ const MESSAGE_EVENT_PREFIX = 'message.thread.';
 const DEFAULT_RECONNECT_DELAY_MS = 5000;
 const PING_INTERVAL_MS = 25000;
 const HEALTH_TIMEOUT_MS = 70000;
+const AUTH_MESSAGE_TYPE = 'auth';
 
 const safeParseJson = (rawValue) => {
     if (typeof rawValue !== 'string') return null;
@@ -97,6 +98,12 @@ export class MessagesRealtimeService {
             this._isConnecting = false;
             this._setConnectedState(true);
             this._lastInboundAt = Date.now();
+            const authToken = this._resolveAuthToken();
+            if (!authToken) {
+                socket.close(1008, 'Unauthorized');
+                return;
+            }
+            socket.send(JSON.stringify({ type: AUTH_MESSAGE_TYPE, token: authToken }));
             this._startPing();
         };
 
@@ -114,6 +121,11 @@ export class MessagesRealtimeService {
         socket.onclose = () => {
             this._handleSocketClose();
         };
+    }
+
+    _resolveAuthToken() {
+        if (typeof localStorage === 'undefined') return '';
+        return (localStorage.getItem('token') || '').trim();
     }
 
     _handleSocketClose() {

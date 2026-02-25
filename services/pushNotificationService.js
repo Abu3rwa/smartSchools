@@ -40,8 +40,9 @@ const resolveFcmServerKey = () => {
 };
 
 const resolveFcmApiVersion = () => {
-  const normalized = String(process.env.FCM_API_VERSION || 'legacy').trim().toLowerCase();
-  return normalized === 'v1' ? 'v1' : 'legacy';
+  const normalized = String(process.env.FCM_API_VERSION || '').trim().toLowerCase();
+  if (normalized === 'v1' || normalized === 'legacy') return normalized;
+  return resolveFcmV1Config().configured ? 'v1' : 'legacy';
 };
 
 const resolveFirebaseProjectId = () => {

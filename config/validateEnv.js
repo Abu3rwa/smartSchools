@@ -42,13 +42,17 @@ export function validateEnvironment() {
     }
   }
 
-  const fcmApiVersion = String(process.env.FCM_API_VERSION || 'legacy').trim().toLowerCase();
+  const hasV1Config = Boolean(
+    process.env.FIREBASE_PROJECT_ID &&
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY
+  );
+  const configuredFcmApiVersion = String(process.env.FCM_API_VERSION || '').trim().toLowerCase();
+  const fcmApiVersion = (configuredFcmApiVersion === 'v1' || configuredFcmApiVersion === 'legacy')
+    ? configuredFcmApiVersion
+    : (hasV1Config ? 'v1' : 'legacy');
+
   if (fcmApiVersion === 'v1') {
-    const hasV1Config = Boolean(
-      process.env.FIREBASE_PROJECT_ID &&
-      process.env.FIREBASE_CLIENT_EMAIL &&
-      process.env.FIREBASE_PRIVATE_KEY
-    );
     if (!hasV1Config) {
       warnings.push('FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY');
     }

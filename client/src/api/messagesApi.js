@@ -133,6 +133,5 @@ export function buildMessagesRealtimeUrl() {
     if (!token) return '';
 
     const socketUrl = toWebSocketUrl(resolveApiBaseUrl());
-    socketUrl.searchParams.set('token', token);
     return socketUrl.toString();
 }

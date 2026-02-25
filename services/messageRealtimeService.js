@@ -164,7 +164,7 @@ export const emitMessageThreadEvent = async ({
   if (pushRecipients.length === 0) return;
 
   try {
-    await sendPushToUsers({
+    const pushResult = await sendPushToUsers({
       schoolId: thread.school,
       userIds: pushRecipients,
       title: `New message: ${(thread.subject || 'Conversation').toString().trim() || 'Conversation'}`,
@@ -173,9 +173,23 @@ export const emitMessageThreadEvent = async ({
         type: 'message',
         threadId: toId(thread._id),
         messageId: toId(message._id),
+        title: `New message: ${(thread.subject || 'Conversation').toString().trim() || 'Conversation'}`,
+        body: String(message.body).trim().slice(0, 180),
       },
       collapseKey: `thread_${toId(thread._id)}`,
     });
+
+    if (pushResult?.skipped || (pushResult?.failed || 0) > 0) {
+      logger.warn('message_push_delivery_result', {
+        threadId: toId(thread._id),
+        skipped: Boolean(pushResult?.skipped),
+        reason: pushResult?.reason || '',
+        targetedUsers: pushResult?.targetedUsers || 0,
+        matchedTokens: pushResult?.matchedTokens || 0,
+        sent: pushResult?.sent || 0,
+        failed: pushResult?.failed || 0,
+      });
+    }
   } catch (error) {
     logger.error('message_push_dispatch_failed', {
       threadId: toId(thread._id),

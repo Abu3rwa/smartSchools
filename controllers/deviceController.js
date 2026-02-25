@@ -1,5 +1,6 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import DeviceToken from '../models/DeviceToken.js';
+import logger from '../utils/logger.js';
 
 const VALID_PLATFORMS = new Set(['android', 'ios', 'web']);
 
@@ -50,6 +51,12 @@ export const registerDeviceToken = asyncHandler(async (req, res) => {
             lastSeen: doc.lastSeen
         }
     });
+
+    logger.info('device_token_registered', {
+        userId: String(req.user?._id || ''),
+        schoolId: String(req.schoolId || ''),
+        platform: doc.platform
+    });
 });
 
 /**
@@ -84,5 +91,9 @@ export const unregisterDeviceToken = asyncHandler(async (req, res) => {
         success: true,
         message: 'Device token unregistered'
     });
-});
 
+    logger.info('device_token_unregistered', {
+        userId: String(req.user?._id || ''),
+        schoolId: String(req.schoolId || '')
+    });
+});

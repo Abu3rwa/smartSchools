@@ -355,7 +355,7 @@ export const cancelRequestHandler = asyncHandler(async (req, res) => {
 /**
  * @desc    Respond to substitution request (confirm/decline) via token
  * @route   POST /api/substitutions/respond
- * @route   GET /api/substitutions/respond?token=...&action=CONFIRM|DECLINE (for email links)
+ * @route   GET /api/substitutions/respond?token=... (redirect to frontend response page)
  * @access  Public (token-based, rate-limited)
  */
 export const respondHandler = asyncHandler(async (req, res) => {

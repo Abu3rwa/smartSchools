@@ -36,7 +36,7 @@ const respondLimiter = rateLimit({
 
 // Token-based response (no auth required, but rate-limited)
 // POST: body { token, action, note? }
-// GET: query ?token=...&action=CONFIRM|DECLINE (for email links)
+// GET: query ?token=... (redirects to frontend response page for explicit confirmation)
 router.post(
     '/respond',
     respondLimiter,
@@ -47,13 +47,21 @@ router.post(
 router.get(
     '/respond',
     respondLimiter,
-    (req, res, next) => {
-        req.body = { token: req.query.token, action: req.query.action, note: req.query.note };
-        next();
-    },
-    respondRules,
-    validate,
-    respondHandler
+    (req, res) => {
+        const token = String(req.query.token || '').trim();
+        if (!token) {
+            return res.status(400).json({
+                success: false,
+                message: 'token query parameter is required'
+            });
+        }
+
+        const clientBase = String(process.env.CLIENT_URL || '').trim()
+            || `${req.protocol}://${req.get('host')}`;
+        const normalizedBase = clientBase.replace(/\/+$/, '');
+        const redirectUrl = `${normalizedBase}/substitutions/respond?token=${encodeURIComponent(token)}`;
+        return res.redirect(302, redirectUrl);
+    }
 );
 
 router.use(protect);
