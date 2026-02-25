@@ -258,7 +258,8 @@ const Sidebar = () => {
       path: "/portal/school-calendar",
       icon: HiOutlineCalendar,
       label: "School Calendar",
-      roles: ["admin"],
+      roles: ["admin", "department_principal", "teacher"],
+      permissions: [PERMISSIONS.MANAGE_EVENTS],
       section: "scheduling",
     },
     {

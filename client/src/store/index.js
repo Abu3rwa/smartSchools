@@ -18,6 +18,7 @@ import revisionReducer from './slices/revisionSlice';
 import readingReducer from './slices/readingSlice';
 import departmentReducer from './slices/departmentSlice';
 import substitutionsReducer from './slices/substitutionsSlice';
+import calendarReducer from './slices/calendarSlice';
 import uiReducer, {
     fetchSchoolAcademicYear,
     updateSchoolAcademicYear
@@ -59,7 +60,8 @@ const appReducer = combineReducers({
     practice: practiceReducer,
     revision: revisionReducer,
     reading: readingReducer,
-    substitutions: substitutionsReducer
+    substitutions: substitutionsReducer,
+    calendar: calendarReducer
 });
 
 const hasAcademicYearChanged = (state, action) => {

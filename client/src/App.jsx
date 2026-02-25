@@ -373,7 +373,10 @@ function App() {
         <Route
           path="school-calendar"
           element={
-            <RoleRoute roles={["admin"]}>
+            <RoleRoute
+              roles={["admin", "department_principal", "teacher"]}
+              permissions={["manage_events"]}
+            >
               <AdminSchoolCalendarPage />
             </RoleRoute>
           }
