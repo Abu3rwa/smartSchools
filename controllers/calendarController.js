@@ -3,6 +3,7 @@ import {
     cancelCalendarEvent,
     createCalendarEvent,
     getCalendarEventById,
+    searchCalendarAudienceUsers,
     getCalendarNotificationPreferences,
     listCalendarEvents,
     listUpcomingCalendarEvents,
@@ -124,6 +125,26 @@ export const listUpcomingCalendarEventsController = asyncHandler(async (req, res
             schoolId: req.schoolId,
             user: req.user,
             academicYear: req.academicYear,
+            filters: req.query
+        });
+        return res.status(200).json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        const normalized = normalizeError(error);
+        return res.status(normalized.status).json({
+            success: false,
+            message: normalized.message
+        });
+    }
+});
+
+export const searchCalendarAudienceUsersController = asyncHandler(async (req, res) => {
+    try {
+        const data = await searchCalendarAudienceUsers({
+            schoolId: req.schoolId,
+            user: req.user,
             filters: req.query
         });
         return res.status(200).json({

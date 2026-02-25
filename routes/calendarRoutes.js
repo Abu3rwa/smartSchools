@@ -6,6 +6,7 @@ import {
     getCalendarNotificationPreferencesController,
     listCalendarEventsController,
     listUpcomingCalendarEventsController,
+    searchCalendarAudienceUsersController,
     updateCalendarEventController,
     updateCalendarNotificationPreferencesController
 } from '../controllers/calendarController.js';
@@ -17,6 +18,7 @@ import {
     calendarEventIdParam,
     createCalendarEventRules,
     listCalendarEventsRules,
+    searchCalendarAudienceUsersRules,
     upcomingCalendarEventsRules,
     updateCalendarEventRules,
     updateCalendarNotificationPreferencesRules
@@ -75,6 +77,14 @@ router.get(
     upcomingCalendarEventsRules,
     validate,
     listUpcomingCalendarEventsController
+);
+
+router.get(
+    '/audience-users',
+    manageCalendarAccess,
+    searchCalendarAudienceUsersRules,
+    validate,
+    searchCalendarAudienceUsersController
 );
 
 router.get(

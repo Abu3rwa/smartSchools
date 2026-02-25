@@ -33,3 +33,32 @@ test('CalendarEvent validation passes for multi-day events', () => {
     const error = event.validateSync();
     assert.equal(error, undefined);
 });
+
+test('CalendarEvent validation passes for valid weekly recurrence', () => {
+    const event = new CalendarEvent({
+        ...basePayload(),
+        recurrence: {
+            isRecurring: true,
+            frequency: 'WEEKLY',
+            interval: 1,
+            weekDays: [2, 4]
+        }
+    });
+    const error = event.validateSync();
+    assert.equal(error, undefined);
+});
+
+test('CalendarEvent validation fails for weekly recurrence without weekDays', () => {
+    const event = new CalendarEvent({
+        ...basePayload(),
+        recurrence: {
+            isRecurring: true,
+            frequency: 'WEEKLY',
+            interval: 1,
+            weekDays: []
+        }
+    });
+    const error = event.validateSync();
+    assert.ok(error);
+    assert.ok(error.errors.recurrence);
+});

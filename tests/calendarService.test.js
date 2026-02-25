@@ -35,6 +35,10 @@ test('buildCalendarVisibilityQuery scopes teacher to school-wide and teacher-vis
     assert.ok(Array.isArray(query.$or));
     assert.ok(query.$or.some((item) => item['audience.visibility'] === 'SCHOOL_WIDE'));
     assert.ok(query.$or.some((item) => item['audience.visibility'] === 'TEACHERS_ONLY'));
+    const customBranch = query.$or.find((item) => Array.isArray(item.$and));
+    assert.ok(customBranch);
+    const customOrBranch = customBranch.$and.find((item) => Array.isArray(item.$or));
+    assert.ok(customOrBranch.$or.some((condition) => condition['audience.userIds'] === 'user-1'));
 });
 
 test('buildCalendarEventListQuery applies school scoping and overlapping date filters', () => {
@@ -51,10 +55,10 @@ test('buildCalendarEventListQuery applies school scoping and overlapping date fi
     });
 
     assert.equal(query.school, 'school-1');
-    assert.equal(query.startAt.$lte.toISOString(), toDate.toISOString());
-    assert.equal(query.endAt.$gte.toISOString(), fromDate.toISOString());
     assert.equal(query.status, 'ACTIVE');
     assert.deepEqual(query.category, { $in: ['EVENT'] });
+    assert.ok(Array.isArray(query.$and));
+    assert.ok(query.$and.some((item) => Array.isArray(item.$or)));
 });
 
 test('canUserSeeEvent enforces parent and teacher visibility rules', () => {
@@ -92,6 +96,21 @@ test('canUserSeeEvent enforces parent and teacher visibility rules', () => {
         parentsOnlyEvent,
         { teacherAudienceIds: ['teacher-user-1'] }
     ), false);
+});
+
+test('canUserSeeEvent allows direct custom user audience targeting', () => {
+    const event = {
+        audience: {
+            visibility: 'CUSTOM',
+            userIds: ['user-123']
+        }
+    };
+
+    assert.equal(canUserSeeEvent(
+        { role: 'parent', _id: 'user-123' },
+        event,
+        { currentUserId: 'user-123' }
+    ), true);
 });
 
 test('sortCalendarEventsByStartAt sorts upcoming events in ascending order', () => {

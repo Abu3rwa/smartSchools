@@ -53,6 +53,11 @@ const schoolCalendarService = {
         return response.data;
     },
 
+    searchAudienceUsers: async (params = {}) => {
+        const response = await api.get('/calendar/audience-users', { params });
+        return response.data;
+    },
+
     getNotificationPreferences: async () => {
         const response = await api.get('/calendar/notifications/preferences');
         return response.data;

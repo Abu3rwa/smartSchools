@@ -15,6 +15,7 @@ import {
     startOfWeek
 } from 'date-fns';
 import {
+    Autocomplete,
     Alert,
     Box,
     Button,
@@ -36,6 +37,7 @@ import {
     Tooltip,
     Typography
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import {
     HiBell,
     HiOutlineBell,
@@ -71,6 +73,7 @@ import {
     updateCalendarEvent,
     updateCalendarNotificationPreferences
 } from '../../store/slices/calendarSlice';
+import schoolCalendarService from '../../services/schoolCalendarService';
 import './AdminSchoolCalendarPage.css';
 
 const FILTERS = [
@@ -82,19 +85,35 @@ const FILTERS = [
 ];
 
 const CATEGORY_STYLES = {
-    EVENT: { label: 'Event', color: '#1d4ed8', bg: 'rgba(29, 78, 216, 0.12)' },
-    HOLIDAY: { label: 'Holiday', color: '#b45309', bg: 'rgba(180, 83, 9, 0.12)' },
-    MEETING: { label: 'Meeting', color: '#047857', bg: 'rgba(4, 120, 87, 0.12)' },
-    EXAM: { label: 'Exam', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.12)' }
+    EVENT: { label: 'Event', paletteKey: 'primary' },
+    HOLIDAY: { label: 'Holiday', paletteKey: 'warning' },
+    MEETING: { label: 'Meeting', paletteKey: 'success' },
+    EXAM: { label: 'Exam', paletteKey: 'secondary' }
 };
 
 const VISIBILITY_OPTIONS = [
     { label: 'School Wide', value: 'SCHOOL_WIDE' },
     { label: 'Teachers Only', value: 'TEACHERS_ONLY' },
-    { label: 'Parents Only', value: 'PARENTS_ONLY' }
+    { label: 'Parents Only', value: 'PARENTS_ONLY' },
+    { label: 'Custom (By Email)', value: 'CUSTOM' }
 ];
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const RECURRENCE_FREQUENCY_OPTIONS = [
+    { value: 'DAILY', label: 'Daily' },
+    { value: 'WEEKLY', label: 'Weekly' },
+    { value: 'MONTHLY', label: 'Monthly' }
+];
+const RECURRENCE_WEEKDAY_OPTIONS = [
+    { value: 0, label: 'Sun' },
+    { value: 1, label: 'Mon' },
+    { value: 2, label: 'Tue' },
+    { value: 3, label: 'Wed' },
+    { value: 4, label: 'Thu' },
+    { value: 5, label: 'Fri' },
+    { value: 6, label: 'Sat' }
+];
+const OBJECT_ID_PATTERN = /^[a-fA-F0-9]{24}$/;
 
 const toDateInputValue = (value) => {
     const date = value ? new Date(value) : null;
@@ -113,7 +132,13 @@ const createDefaultForm = (baseDate = new Date()) => {
         endAt: toDateInputValue(end),
         allDay: true,
         location: '',
-        visibility: 'SCHOOL_WIDE'
+        visibility: 'SCHOOL_WIDE',
+        audienceUsers: [],
+        isRecurring: false,
+        recurrenceFrequency: 'WEEKLY',
+        recurrenceInterval: 1,
+        recurrenceWeekDays: [start.getDay()],
+        recurrenceUntil: ''
     };
 };
 
@@ -148,6 +173,65 @@ const formatEventDateRange = (event) => {
     return `${format(startAt, 'MMM d, yyyy h:mm a')} - ${format(endAt, 'MMM d, yyyy h:mm a')}`;
 };
 
+const formatRecurrenceSummary = (event) => {
+    const recurrence = event?.recurrence;
+    if (!recurrence || recurrence.isRecurring !== true) return '';
+    const interval = Math.max(1, Number.parseInt(recurrence.interval, 10) || 1);
+    const frequency = String(recurrence.frequency || '').toUpperCase();
+    if (frequency === 'DAILY') {
+        return interval === 1 ? 'Repeats daily' : `Repeats every ${interval} days`;
+    }
+    if (frequency === 'MONTHLY') {
+        return interval === 1 ? 'Repeats monthly' : `Repeats every ${interval} months`;
+    }
+    const days = Array.isArray(recurrence.weekDays)
+        ? recurrence.weekDays
+            .map((value) => Number.parseInt(value, 10))
+            .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+            .sort((left, right) => left - right)
+            .map((value) => WEEKDAY_LABELS[value])
+        : [];
+    if (days.length === 0) {
+        return interval === 1 ? 'Repeats weekly' : `Repeats every ${interval} weeks`;
+    }
+    return interval === 1
+        ? `Repeats weekly on ${days.join(', ')}`
+        : `Repeats every ${interval} weeks on ${days.join(', ')}`;
+};
+
+const toAudienceOption = (user = {}) => {
+    const id = String(user.id || user._id || '').trim();
+    const firstName = String(user.firstName || '').trim();
+    const lastName = String(user.lastName || '').trim();
+    const email = String(user.email || '').trim().toLowerCase();
+    const name = `${firstName} ${lastName}`.trim() || email || 'User';
+    return {
+        id,
+        firstName,
+        lastName,
+        email,
+        role: String(user.role || '').trim(),
+        label: email ? `${name} (${email})` : name
+    };
+};
+
+const getAudienceOptionKey = (option = {}) => {
+    const id = String(option.id || '').trim();
+    if (id) return `id:${id}`;
+    const email = String(option.email || '').trim().toLowerCase();
+    if (email) return `email:${email}`;
+    return `label:${String(option.label || '').trim()}`;
+};
+
+const mergeAudienceOptions = (base = [], extras = []) => {
+    const map = new Map();
+    [...base, ...extras].forEach((option) => {
+        const normalized = toAudienceOption(option);
+        map.set(getAudienceOptionKey(normalized), normalized);
+    });
+    return [...map.values()];
+};
+
 const buildMonthGrid = (monthDate) => {
     const monthStart = startOfMonth(monthDate);
     const monthEnd = endOfMonth(monthDate);
@@ -178,10 +262,33 @@ const canManageCalendar = (user) => {
     return Array.isArray(user.permissions) && user.permissions.includes('manage_events');
 };
 
+const resolveCategoryStyles = (theme) => {
+    const buildStyle = ({ label, paletteKey }) => {
+        const palette = theme.palette[paletteKey] || theme.palette.primary;
+        const color = palette.main;
+        return {
+            label,
+            color,
+            bg: alpha(color, 0.14),
+            dayBg: alpha(color, 0.16),
+            dayBorder: alpha(color, 0.45)
+        };
+    };
+
+    return {
+        EVENT: buildStyle(CATEGORY_STYLES.EVENT),
+        HOLIDAY: buildStyle(CATEGORY_STYLES.HOLIDAY),
+        MEETING: buildStyle(CATEGORY_STYLES.MEETING),
+        EXAM: buildStyle(CATEGORY_STYLES.EXAM)
+    };
+};
+
 const AdminSchoolCalendarPage = () => {
     const dispatch = useDispatch();
+    const theme = useTheme();
     const user = useSelector(selectUser);
     const canManage = canManageCalendar(user);
+    const categoryStyles = useMemo(() => resolveCategoryStyles(theme), [theme]);
 
     const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -192,6 +299,9 @@ const AdminSchoolCalendarPage = () => {
     const [formError, setFormError] = useState('');
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [menuEvent, setMenuEvent] = useState(null);
+    const [audienceUserOptions, setAudienceUserOptions] = useState([]);
+    const [audienceUserSearch, setAudienceUserSearch] = useState('');
+    const [audienceUserLoading, setAudienceUserLoading] = useState(false);
 
     const calendarError = useSelector(selectCalendarError);
     const mutationLoading = useSelector(selectCalendarMutationLoading);
@@ -242,21 +352,41 @@ const AdminSchoolCalendarPage = () => {
     const upcomingEvents = upcomingEntry?.items || [];
     const monthGridCells = useMemo(() => buildMonthGrid(currentMonth), [currentMonth]);
 
-    const eventCountByDay = useMemo(() => {
-        const counts = new Map();
+    const dayStylesByKey = useMemo(() => {
+        const dayStyleMap = new Map();
         monthGridCells.forEach((day) => {
             const key = format(day, 'yyyy-MM-dd');
-            const count = monthEvents.filter((event) => intersectsDay(day, event)).length;
-            if (count > 0) counts.set(key, count);
+            const activeEvents = monthEvents.filter((event) => event.status !== 'CANCELLED' && intersectsDay(day, event));
+            if (activeEvents.length === 0) return;
+
+            const primaryEvent = activeEvents
+                .slice()
+                .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime())[0];
+            const categoryStyle = categoryStyles[primaryEvent.category] || categoryStyles.EVENT;
+
+            dayStyleMap.set(key, {
+                color: categoryStyle.color,
+                backgroundColor: categoryStyle.dayBg,
+                borderColor: categoryStyle.dayBorder
+            });
         });
-        return counts;
-    }, [monthGridCells, monthEvents]);
+        return dayStyleMap;
+    }, [categoryStyles, monthGridCells, monthEvents]);
 
     const selectedDayEvents = useMemo(() => {
         return monthEvents
             .filter((event) => intersectsDay(selectedDate, event))
             .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime());
     }, [monthEvents, selectedDate]);
+
+    const selectedAudienceUsers = useMemo(
+        () => (Array.isArray(formState.audienceUsers) ? formState.audienceUsers.map(toAudienceOption) : []),
+        [formState.audienceUsers]
+    );
+    const audienceAutocompleteOptions = useMemo(
+        () => mergeAudienceOptions(audienceUserOptions, selectedAudienceUsers),
+        [audienceUserOptions, selectedAudienceUsers]
+    );
 
     useEffect(() => {
         dispatch(fetchCalendarMonthEvents({
@@ -284,14 +414,61 @@ const AdminSchoolCalendarPage = () => {
         };
     }, [dispatch]);
 
+    useEffect(() => {
+        if (!dialogOpen || formState.visibility !== 'CUSTOM') return undefined;
+
+        let active = true;
+        const timer = setTimeout(async () => {
+            setAudienceUserLoading(true);
+            try {
+                const response = await schoolCalendarService.searchAudienceUsers({
+                    search: audienceUserSearch,
+                    limit: 20
+                });
+                const users = response?.data?.users || [];
+                if (!active) return;
+                setAudienceUserOptions((previous) => mergeAudienceOptions(previous, users));
+            } catch (error) {
+                // Keep UX stable if search fails; form submission will still validate on backend.
+            } finally {
+                if (active) {
+                    setAudienceUserLoading(false);
+                }
+            }
+        }, 250);
+
+        return () => {
+            active = false;
+            clearTimeout(timer);
+        };
+    }, [audienceUserSearch, dialogOpen, formState.visibility]);
+
     const openCreateDialog = () => {
         setEditingEvent(null);
         setFormState(createDefaultForm(selectedDate));
         setFormError('');
+        setAudienceUserOptions([]);
+        setAudienceUserSearch('');
         setDialogOpen(true);
     };
 
     const openEditDialog = (event) => {
+        const eventStart = new Date(event.startAt);
+        const recurrence = event.recurrence || {};
+        const recurrenceWeekDays = Array.isArray(recurrence.weekDays)
+            ? recurrence.weekDays
+                .map((value) => Number.parseInt(value, 10))
+                .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+            : [];
+        const audienceEmails = Array.isArray(event.audience?.emails) ? event.audience.emails : [];
+        const audienceUserIds = Array.isArray(event.audience?.userIds) ? event.audience.userIds : [];
+        const audienceUsersFromEmails = audienceEmails.map((email, index) => toAudienceOption({
+            id: audienceUserIds[index] || '',
+            email
+        }));
+        const audienceUsersFromIds = audienceUserIds.map((id) => toAudienceOption({ id }));
+        const audienceUsers = mergeAudienceOptions(audienceUsersFromEmails, audienceUsersFromIds);
+
         setEditingEvent(event);
         setFormState({
             title: event.title || '',
@@ -301,9 +478,19 @@ const AdminSchoolCalendarPage = () => {
             endAt: toDateInputValue(event.endAt),
             allDay: event.allDay !== false,
             location: event.location || '',
-            visibility: event.audience?.visibility || 'SCHOOL_WIDE'
+            visibility: event.audience?.visibility || 'SCHOOL_WIDE',
+            audienceUsers,
+            isRecurring: recurrence.isRecurring === true,
+            recurrenceFrequency: recurrence.frequency || 'WEEKLY',
+            recurrenceInterval: Number.parseInt(recurrence.interval, 10) || 1,
+            recurrenceWeekDays: recurrenceWeekDays.length > 0
+                ? recurrenceWeekDays
+                : [Number.isNaN(eventStart.getTime()) ? new Date().getDay() : eventStart.getDay()],
+            recurrenceUntil: toDateInputValue(recurrence.until)
         });
         setFormError('');
+        setAudienceUserOptions(audienceUsers);
+        setAudienceUserSearch('');
         setDialogOpen(true);
     };
 
@@ -311,6 +498,9 @@ const AdminSchoolCalendarPage = () => {
         setDialogOpen(false);
         setEditingEvent(null);
         setFormError('');
+        setAudienceUserSearch('');
+        setAudienceUserLoading(false);
+        setAudienceUserOptions([]);
     };
 
     const refreshCalendarData = () => {
@@ -332,6 +522,29 @@ const AdminSchoolCalendarPage = () => {
         const title = formState.title.trim();
         const startAt = new Date(formState.startAt);
         const endAt = new Date(formState.endAt);
+        const recurrenceInterval = Math.max(1, Number.parseInt(formState.recurrenceInterval, 10) || 1);
+        const recurrenceWeekDays = Array.isArray(formState.recurrenceWeekDays)
+            ? [...new Set(formState.recurrenceWeekDays
+                .map((value) => Number.parseInt(value, 10))
+                .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6))]
+                .sort((left, right) => left - right)
+            : [];
+        const recurrenceUntil = formState.recurrenceUntil
+            ? new Date(formState.recurrenceUntil)
+            : null;
+        const audienceUsers = Array.isArray(formState.audienceUsers)
+            ? formState.audienceUsers.map(toAudienceOption)
+            : [];
+        const audienceEmails = [...new Set(
+            audienceUsers
+                .map((item) => String(item.email || '').trim().toLowerCase())
+                .filter(Boolean)
+        )];
+        const audienceUserIds = [...new Set(
+            audienceUsers
+                .map((item) => String(item.id || '').trim())
+                .filter((id) => OBJECT_ID_PATTERN.test(id))
+        )];
 
         if (!title) {
             setFormError('Title is required.');
@@ -345,6 +558,22 @@ const AdminSchoolCalendarPage = () => {
             setFormError('End date must be after start date.');
             return;
         }
+        if (formState.isRecurring && formState.recurrenceFrequency === 'WEEKLY' && recurrenceWeekDays.length === 0) {
+            setFormError('Select at least one weekday for weekly recurrence.');
+            return;
+        }
+        if (formState.isRecurring && recurrenceUntil && Number.isNaN(recurrenceUntil.getTime())) {
+            setFormError('Repeat until must be a valid date.');
+            return;
+        }
+        if (formState.isRecurring && recurrenceUntil && recurrenceUntil < startAt) {
+            setFormError('Repeat until must be after the event start date.');
+            return;
+        }
+        if (formState.visibility === 'CUSTOM' && audienceEmails.length === 0 && audienceUserIds.length === 0) {
+            setFormError('Select at least one recipient user for custom audience.');
+            return;
+        }
 
         const payload = {
             title,
@@ -355,7 +584,34 @@ const AdminSchoolCalendarPage = () => {
             allDay: formState.allDay,
             location: formState.location.trim(),
             audience: {
-                visibility: formState.visibility
+                visibility: formState.visibility,
+                emails: formState.visibility === 'CUSTOM' ? audienceEmails : [],
+                userIds: formState.visibility === 'CUSTOM' ? audienceUserIds : []
+            },
+            recurrence: formState.isRecurring
+                ? {
+                    isRecurring: true,
+                    frequency: String(formState.recurrenceFrequency || 'WEEKLY').toUpperCase(),
+                    interval: recurrenceInterval,
+                    weekDays: formState.recurrenceFrequency === 'WEEKLY' ? recurrenceWeekDays : [],
+                    until: recurrenceUntil ? recurrenceUntil.toISOString() : null
+                }
+                : {
+                    isRecurring: false
+                }
+        };
+
+        if (payload.recurrence.isRecurring && payload.recurrence.frequency !== 'WEEKLY') {
+            payload.recurrence.weekDays = [];
+        }
+
+        if (payload.recurrence.isRecurring && !payload.recurrence.until) {
+            delete payload.recurrence.until;
+        }
+
+        if (!payload.recurrence.isRecurring) {
+            payload.recurrence = {
+                isRecurring: false
             }
         };
 
@@ -462,20 +718,34 @@ const AdminSchoolCalendarPage = () => {
                         <div className="calendar-days-grid">
                             {monthGridCells.map((day) => {
                                 const key = format(day, 'yyyy-MM-dd');
-                                const count = eventCountByDay.get(key) || 0;
                                 const isCurrentMonthCell = isSameMonth(day, currentMonth);
                                 const isToday = isSameDay(day, new Date());
                                 const isSelected = isSameDay(day, selectedDate);
+                                const dayTone = dayStylesByKey.get(key);
+                                const cellStyle = {
+                                    ...(dayTone && !isSelected ? {
+                                        backgroundColor: dayTone.backgroundColor,
+                                        borderColor: dayTone.borderColor
+                                    } : {}),
+                                    ...(isToday && !isSelected ? {
+                                        boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.primary.main, 0.4)}`
+                                    } : {})
+                                };
+
                                 return (
                                     <button
                                         key={key}
                                         type="button"
-                                        className={`calendar-day-cell${isCurrentMonthCell ? '' : ' outside'}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`}
+                                        className={`calendar-day-cell${isCurrentMonthCell ? '' : ' outside'}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}${dayTone ? ' has-events' : ''}`}
                                         onClick={() => setSelectedDate(day)}
+                                        style={cellStyle}
                                     >
                                         <span className="day-label">{format(day, 'd')}</span>
-                                        {count > 0 && (
-                                            <span className="day-event-count">{count}</span>
+                                        {dayTone && (
+                                            <span
+                                                className="day-event-dot"
+                                                style={{ backgroundColor: dayTone.color }}
+                                            />
                                         )}
                                     </button>
                                 );
@@ -494,9 +764,9 @@ const AdminSchoolCalendarPage = () => {
                                 </Typography>
                             )}
                             {selectedDayEvents.slice(0, 3).map((event) => {
-                                const style = CATEGORY_STYLES[event.category] || CATEGORY_STYLES.EVENT;
+                                const style = categoryStyles[event.category] || categoryStyles.EVENT;
                                 return (
-                                    <Box key={event.id} className="selected-day-event-row">
+                                    <Box key={event.instanceId || event.id} className="selected-day-event-row">
                                         <Box className="selected-day-event-dot" sx={{ backgroundColor: style.color }} />
                                         <Typography variant="body2" fontWeight={600} noWrap>{event.title}</Typography>
                                     </Box>
@@ -522,10 +792,10 @@ const AdminSchoolCalendarPage = () => {
                             )}
 
                             {upcomingEvents.map((event) => {
-                                const style = CATEGORY_STYLES[event.category] || CATEGORY_STYLES.EVENT;
+                                const style = categoryStyles[event.category] || categoryStyles.EVENT;
                                 const eventNotificationEnabled = preferences?.enabled !== false && !mutedEventSet.has(event.id);
                                 return (
-                                    <Paper key={event.id} className="upcoming-event-card" variant="outlined">
+                                    <Paper key={event.instanceId || `${event.id}-${event.startAt}`} className="upcoming-event-card" variant="outlined">
                                         <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start">
                                             <Stack direction="row" spacing={1.25} alignItems="center">
                                                 <Box className="event-category-icon" sx={{ color: style.color }}>
@@ -583,6 +853,11 @@ const AdminSchoolCalendarPage = () => {
                                             <HiOutlineClock size={15} />
                                             <Typography variant="body2">{formatEventDateRange(event)}</Typography>
                                         </Stack>
+                                        {event.recurrence?.isRecurring === true && (
+                                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                {formatRecurrenceSummary(event)}
+                                            </Typography>
+                                        )}
                                         {event.location && (
                                             <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.6 }}>
                                                 <HiOutlineLocationMarker size={15} />
@@ -656,6 +931,93 @@ const AdminSchoolCalendarPage = () => {
                             )}
                             label="All Day"
                         />
+                        <FormControlLabel
+                            control={(
+                                <Switch
+                                    checked={formState.isRecurring}
+                                    onChange={(event) => setFormState((previous) => ({
+                                        ...previous,
+                                        isRecurring: event.target.checked
+                                    }))}
+                                />
+                            )}
+                            label="Recurring Event"
+                        />
+                        {formState.isRecurring && (
+                            <Stack spacing={1.25}>
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
+                                    <TextField
+                                        select
+                                        label="Repeat"
+                                        value={formState.recurrenceFrequency}
+                                        onChange={(event) => setFormState((previous) => ({
+                                            ...previous,
+                                            recurrenceFrequency: event.target.value
+                                        }))}
+                                        fullWidth
+                                    >
+                                        {RECURRENCE_FREQUENCY_OPTIONS.map((option) => (
+                                            <MenuItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                    <TextField
+                                        label="Interval"
+                                        type="number"
+                                        value={formState.recurrenceInterval}
+                                        onChange={(event) => setFormState((previous) => ({
+                                            ...previous,
+                                            recurrenceInterval: event.target.value
+                                        }))}
+                                        inputProps={{ min: 1, max: 52 }}
+                                        fullWidth
+                                    />
+                                </Stack>
+
+                                {formState.recurrenceFrequency === 'WEEKLY' && (
+                                    <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
+                                        {RECURRENCE_WEEKDAY_OPTIONS.map((item) => {
+                                            const selected = formState.recurrenceWeekDays.includes(item.value);
+                                            return (
+                                                <Chip
+                                                    key={item.value}
+                                                    label={item.label}
+                                                    color={selected ? 'primary' : 'default'}
+                                                    variant={selected ? 'filled' : 'outlined'}
+                                                    onClick={() => {
+                                                        setFormState((previous) => {
+                                                            const current = Array.isArray(previous.recurrenceWeekDays)
+                                                                ? previous.recurrenceWeekDays
+                                                                : [];
+                                                            const next = current.includes(item.value)
+                                                                ? current.filter((value) => value !== item.value)
+                                                                : [...current, item.value];
+                                                            return {
+                                                                ...previous,
+                                                                recurrenceWeekDays: next.sort((left, right) => left - right)
+                                                            };
+                                                        });
+                                                    }}
+                                                />
+                                            );
+                                        })}
+                                    </Stack>
+                                )}
+
+                                <TextField
+                                    label="Repeat Until (optional)"
+                                    type="datetime-local"
+                                    value={formState.recurrenceUntil}
+                                    onChange={(event) => setFormState((previous) => ({
+                                        ...previous,
+                                        recurrenceUntil: event.target.value
+                                    }))}
+                                    InputLabelProps={{ shrink: true }}
+                                    fullWidth
+                                />
+                            </Stack>
+                        )}
                         <TextField
                             label="Location (optional)"
                             value={formState.location}
@@ -673,6 +1035,39 @@ const AdminSchoolCalendarPage = () => {
                                 </MenuItem>
                             ))}
                         </TextField>
+                        {formState.visibility === 'CUSTOM' && (
+                            <Autocomplete
+                                multiple
+                                options={audienceAutocompleteOptions}
+                                value={selectedAudienceUsers}
+                                loading={audienceUserLoading}
+                                onChange={(event, selected) => {
+                                    setFormState((previous) => ({
+                                        ...previous,
+                                        audienceUsers: selected.map(toAudienceOption)
+                                    }));
+                                }}
+                                onInputChange={(event, value) => {
+                                    setAudienceUserSearch(value);
+                                }}
+                                filterOptions={(options) => options}
+                                getOptionLabel={(option) => toAudienceOption(option).label}
+                                isOptionEqualToValue={(option, value) => {
+                                    const left = toAudienceOption(option);
+                                    const right = toAudienceOption(value);
+                                    if (left.id && right.id) return left.id === right.id;
+                                    return left.email === right.email;
+                                }}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="Recipient Users"
+                                        placeholder="Search by name or email"
+                                        helperText="Select recipients. Result format: Name (email). Only selected users will receive this custom audience notification."
+                                    />
+                                )}
+                            />
+                        )}
                     </Stack>
                 </DialogContent>
                 <DialogActions>
