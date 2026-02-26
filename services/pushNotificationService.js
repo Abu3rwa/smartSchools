@@ -2,6 +2,35 @@ import DeviceToken from '../models/DeviceToken.js';
 import ParentSetting from '../models/ParentSetting.js';
 import { google } from 'googleapis';
 import logger from '../utils/logger.js';
+import { createRequire } from 'module';
+import { existsSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Lazily loaded service account — read once from disk as a fallback when
+// env vars (FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY)
+// are not set. This lets the app work out-of-the-box with the committed
+// smile3-service-account.json without any extra Heroku config vars.
+let _serviceAccountCache = null;
+const loadServiceAccount = () => {
+  if (_serviceAccountCache !== null) return _serviceAccountCache;
+  try {
+    const filePath = path.resolve(__dirname, '../smile3-service-account.json');
+    if (!existsSync(filePath)) {
+      _serviceAccountCache = {};
+      return _serviceAccountCache;
+    }
+    const require = createRequire(import.meta.url);
+    _serviceAccountCache = require(filePath);
+    logger.info('FCM service account loaded from smile3-service-account.json');
+  } catch (e) {
+    logger.warn(`Could not load smile3-service-account.json: ${e.message}`);
+    _serviceAccountCache = {};
+  }
+  return _serviceAccountCache;
+};
 
 const FCM_LEGACY_ENDPOINT = 'https://fcm.googleapis.com/fcm/send';
 const FCM_V1_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -46,6 +75,10 @@ const resolveFcmApiVersion = () => {
 };
 
 const resolveFirebaseProjectId = () => {
+  // Prefer the service account JSON (always complete) over env vars
+  const fromFile = String(loadServiceAccount().project_id || '').trim();
+  if (fromFile) return fromFile;
+
   const candidates = [
     process.env.FIREBASE_PROJECT_ID,
     process.env.GOOGLE_CLOUD_PROJECT,
@@ -59,10 +92,21 @@ const resolveFirebaseProjectId = () => {
 };
 
 const resolveFirebaseServiceAccount = () => {
-  const clientEmail = String(process.env.FIREBASE_CLIENT_EMAIL || '').trim();
-  const privateKeyRaw = String(process.env.FIREBASE_PRIVATE_KEY || '').trim();
-  const privateKey = privateKeyRaw ? privateKeyRaw.replace(/\\n/g, '\n') : '';
-  return { clientEmail, privateKey };
+  // Prefer the service account JSON — the env var FIREBASE_PRIVATE_KEY is
+  // known to be truncated on Heroku (missing header), so the JSON file is
+  // the authoritative source.
+  const sa = loadServiceAccount();
+  const fileEmail = String(sa.client_email || '').trim();
+  const fileKey = String(sa.private_key || '').trim();
+  if (fileEmail && fileKey) {
+    return { clientEmail: fileEmail, privateKey: fileKey };
+  }
+
+  // Fallback: env vars (with \n un-escaping for keys set via heroku config:set)
+  const envEmail = String(process.env.FIREBASE_CLIENT_EMAIL || '').trim();
+  const envKeyRaw = String(process.env.FIREBASE_PRIVATE_KEY || '').trim();
+  const privateKey = envKeyRaw.replace(/\\n/g, '\n');
+  return { clientEmail: envEmail, privateKey };
 };
 
 const resolveFcmV1Config = () => {
