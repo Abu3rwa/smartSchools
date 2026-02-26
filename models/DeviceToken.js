@@ -37,7 +37,7 @@ const deviceTokenSchema = new mongoose.Schema({
 });
 
 deviceTokenSchema.index({ user: 1, token: 1 }, { unique: true });
-deviceTokenSchema.index({ token: 1 }, { unique: true });
+deviceTokenSchema.index({ token: 1 }); // plain index for lookup; not globally unique (tokens can be recycled across users)
 deviceTokenSchema.plugin(tenantIsolationPlugin);
 
 const DeviceToken = mongoose.model('DeviceToken', deviceTokenSchema);

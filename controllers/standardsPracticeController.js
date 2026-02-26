@@ -4,6 +4,7 @@ import Student from "../models/Student.js";
 import PracticeSession from "../models/PracticeSession.js";
 import PracticeIntegrityEvent from "../models/PracticeIntegrityEvent.js";
 import MasteryRecord from "../models/MasteryRecord.js";
+import StandardsGradebookEntry from "../models/StandardsGradebookEntry.js";
 import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
 import { scheduleFromAttempt } from "../services/reviewSchedulerService.js";
 import { upsertInterventionCase } from "../services/interventionQueueService.js";
@@ -31,6 +32,35 @@ const DEFAULT_PRACTICE_CONFIG = {
   allowedDifficulties: DIFFICULTIES,
   availability: { startAt: null, endAt: null },
   lockStudentOptions: false,
+};
+
+const DEFAULT_ASSESSMENT_CONFIG = {
+  maxMarks: 100,
+  passMarks: 40,
+  resultsVisibility: "immediate",
+  resultsReleaseAt: null,
+};
+
+const resolveSemesterFromDate = (dateValue = new Date()) => {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  const month = date.getMonth() + 1;
+  return month >= 8 ? 1 : 2;
+};
+
+const normalizeSemester = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const semester = Math.trunc(parsed);
+  return [1, 2].includes(semester) ? semester : null;
+};
+
+const resolveSemesterForRequest = (req) => {
+  const fromQuery = normalizeSemester(req?.query?.semester);
+  if (fromQuery) return fromQuery;
+  const fromHeader = normalizeSemester(req?.headers?.["x-semester"]);
+  if (fromHeader) return fromHeader;
+  return resolveSemesterFromDate(new Date());
 };
 
 const DIFFICULTY_RANK = {
@@ -286,6 +316,117 @@ const resolveHighestDifficulty = (current, incoming) => {
     : current;
 };
 
+const getAssessmentConfig = (assignment) => {
+  const cfg = assignment?.assessmentConfig || {};
+  return {
+    maxMarks: Number(cfg.maxMarks || DEFAULT_ASSESSMENT_CONFIG.maxMarks),
+    passMarks: Number(cfg.passMarks || DEFAULT_ASSESSMENT_CONFIG.passMarks),
+    resultsVisibility:
+      cfg.resultsVisibility || DEFAULT_ASSESSMENT_CONFIG.resultsVisibility,
+    resultsReleaseAt: cfg.resultsReleaseAt || null,
+  };
+};
+
+const resolveProgressStatus = (mastery) => {
+  if (!mastery) return "not_started";
+  if (mastery?.masteryStatus === "needs_review" || mastery?.needsReview)
+    return "needs_review";
+  if (mastery?.isMastered) return "mastered";
+  if ((mastery?.totalAttempts || 0) > 0) return "in_progress";
+  return "not_started";
+};
+
+const getProgressSummaryFromRows = (rows = [], accessor) => {
+  const summary = {
+    total: rows.length,
+    mastered: 0,
+    inProgress: 0,
+    notStarted: 0,
+    needsReview: 0,
+  };
+  rows.forEach((row) => {
+    const status = accessor(row);
+    if (status === "mastered") summary.mastered += 1;
+    else if (status === "needs_review") summary.needsReview += 1;
+    else if (status === "in_progress") summary.inProgress += 1;
+    else summary.notStarted += 1;
+  });
+  return summary;
+};
+
+const buildAssessmentScore = ({ correctCount, totalAnswered, maxMarks }) => {
+  const safeAnswered = Math.max(0, Number(totalAnswered || 0));
+  const safeCorrect = Math.max(0, Number(correctCount || 0));
+  const safeMaxMarks = Math.max(1, Number(maxMarks || DEFAULT_ASSESSMENT_CONFIG.maxMarks));
+  const percentage = safeAnswered > 0
+    ? Number(((safeCorrect / safeAnswered) * 100).toFixed(2))
+    : 0;
+  const score = Number(((percentage / 100) * safeMaxMarks).toFixed(2));
+  return { score, percentage };
+};
+
+const percentageToScale4 = (percentageValue) => {
+  const pct = Math.max(0, Math.min(100, Number(percentageValue || 0)));
+  return Number((pct / 25).toFixed(2));
+};
+
+const upsertAssessmentGradebookProgress = async ({
+  schoolId,
+  assignment,
+  studentId,
+  sessionId = null,
+  status = "in_progress",
+  submittedAt = null,
+}) => {
+  const answeredAttempts = await PracticeAttempt.find({
+    school: schoolId,
+    student: studentId,
+    assignment: assignment._id,
+    status: "answered",
+    ...(sessionId ? { session: sessionId } : {}),
+  })
+    .select("isCorrect")
+    .lean();
+
+  const totalAnswered = answeredAttempts.length;
+  const correctCount = answeredAttempts.filter((a) => a.isCorrect).length;
+  const assessmentConfig = getAssessmentConfig(assignment);
+  const { score, percentage } = buildAssessmentScore({
+    correctCount,
+    totalAnswered,
+    maxMarks: assessmentConfig.maxMarks,
+  });
+
+  const update = {
+    standard: assignment.standard?._id || assignment.standard,
+    class: assignment.class?._id || assignment.class,
+    subject: assignment.subject?._id || assignment.subject,
+    academicYear: assignment.academicYear || null,
+    semester: assignment.semester || null,
+    session: sessionId || null,
+    status,
+    totalAnswered,
+    correctCount,
+    score,
+    maxScore: assessmentConfig.maxMarks,
+    percentage,
+    metadata: {
+      passMarks: assessmentConfig.passMarks,
+      resultsVisibility: assessmentConfig.resultsVisibility,
+      resultsReleaseAt: assessmentConfig.resultsReleaseAt || null,
+    },
+  };
+  if (submittedAt) {
+    update.submittedAt = submittedAt;
+  }
+
+  return StandardsGradebookEntry.findOneAndUpdate(
+    { school: schoolId, assignment: assignment._id, student: studentId },
+    { $set: update },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+};
+
 const getYearScopedClassIds = async (req, candidateClassIds = null) => {
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const classIds = await getClassIdsForAcademicYear({
@@ -303,14 +444,24 @@ const getYearScopedAssignmentIds = async ({
   schoolId,
   classIds = [],
   standardId = null,
+  semester = null,
 }) => {
   if (!Array.isArray(classIds) || classIds.length === 0) return [];
 
   const query = {
     school: schoolId,
+    isActive: true,
     class: { $in: classIds },
   };
   if (standardId) query.standard = standardId;
+  const normalizedSemester = normalizeSemester(semester);
+  if (normalizedSemester) {
+    query.$or = [
+      { semester: normalizedSemester },
+      { semester: { $exists: false } },
+      { semester: null },
+    ];
+  }
 
   const assignments = await StandardAssignment.find(query).select("_id").lean();
   return assignments.map((item) => item._id);
@@ -578,6 +729,7 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
 
   const { effectiveAcademicYear, classIds: yearClassIds } =
     await getYearScopedClassIds(req);
+  const effectiveSemester = resolveSemesterForRequest(req);
 
   if (yearClassIds.length === 0) {
     return res.json({
@@ -615,6 +767,15 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
     isActive: true,
     class: { $in: yearClassIds },
     $or: orConditions,
+    $and: [
+      {
+        $or: [
+          { semester: effectiveSemester },
+          { semester: { $exists: false } },
+          { semester: null },
+        ],
+      },
+    ],
   })
     .populate({
       path: "standard",
@@ -640,6 +801,7 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
       return {
         ...a.toObject(),
         mastery,
+        progressStatus: resolveProgressStatus(mastery),
       };
     })
   );
@@ -651,6 +813,7 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
       studentClass: student.currentClass,
       assignments: assignmentsWithProgress,
       academicYear: effectiveAcademicYear,
+      semester: effectiveSemester,
     },
   });
 });
@@ -1106,6 +1269,24 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     }
   }
 
+  if (attempt.sessionType === "assessment") {
+    const assessmentAssignment = await StandardAssignment.findById(
+      attempt.assignment?._id || attempt.assignment
+    ).select("assessmentConfig standard class subject academicYear semester");
+    if (assessmentAssignment) {
+      const assessmentStatus =
+        session && session.status !== "active" ? "submitted" : "in_progress";
+      await upsertAssessmentGradebookProgress({
+        schoolId: req.schoolId,
+        assignment: assessmentAssignment,
+        studentId: student._id,
+        sessionId: attempt.session || session?._id || null,
+        status: assessmentStatus,
+        submittedAt: assessmentStatus === "submitted" ? new Date() : null,
+      });
+    }
+  }
+
   const correctAnswerDisplay = resolveDisplayAnswer(
     attempt.correctAnswer,
     attempt.options || []
@@ -1193,6 +1374,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
  * @access  Private (Student)
  */
 export const getPracticeHistory = asyncHandler(async (req, res) => {
+  const effectiveSemester = resolveSemesterForRequest(req);
   const { effectiveAcademicYear, classIds: yearClassIds } =
     await getYearScopedClassIds(req);
   const student = await Student.findOne({ user: req.user._id });
@@ -1207,6 +1389,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
     schoolId: req.schoolId,
     classIds: yearClassIds,
     standardId: req.params.standardId,
+    semester: effectiveSemester,
   });
 
   if (yearAssignmentIds.length === 0) {
@@ -1230,6 +1413,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
           pages: 0,
         },
         academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
       },
     });
   }
@@ -1284,6 +1468,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
         pages: Math.ceil(total / limit),
       },
       academicYear: effectiveAcademicYear,
+      semester: effectiveSemester,
     },
   });
 });
@@ -1295,6 +1480,7 @@ export const getPracticeHistory = asyncHandler(async (req, res) => {
  */
 export const getStudentProgress = asyncHandler(async (req, res) => {
   const { studentId } = req.params;
+  const effectiveSemester = resolveSemesterForRequest(req);
   const { effectiveAcademicYear, classIds: yearClassIds } =
     await getYearScopedClassIds(req);
 
@@ -1340,6 +1526,15 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
     isActive: true,
     class: { $in: yearClassIds },
     $or: assignmentOrConditions,
+    $and: [
+      {
+        $or: [
+          { semester: effectiveSemester },
+          { semester: { $exists: false } },
+          { semester: null },
+        ],
+      },
+    ],
   })
     .populate(
       "standard",
@@ -1366,10 +1561,12 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
         assignment: a._id,
         status: "answered",
       });
+      const progressStatus = resolveProgressStatus(mastery);
 
       return {
         assignment: {
           _id: a._id,
+          title: a.title || null,
           standard: a.standard,
           subject: a.subject,
           class: a.class,
@@ -1377,9 +1574,15 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
           dueDate: a.dueDate,
         },
         mastery,
+        progressStatus,
         totalAllAttempts,
       };
     })
+  );
+
+  const summaryCounts = getProgressSummaryFromRows(
+    progressData,
+    (item) => item.progressStatus
   );
 
   res.json({
@@ -1389,14 +1592,13 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
       progress: progressData,
       summary: {
         totalAssigned: progressData.length,
-        mastered: progressData.filter((p) => p.mastery.isMastered).length,
-        inProgress: progressData.filter(
-          (p) => !p.mastery.isMastered && p.mastery.totalAttempts > 0
-        ).length,
-        notStarted: progressData.filter((p) => p.mastery.totalAttempts === 0)
-          .length,
+        mastered: summaryCounts.mastered,
+        inProgress: summaryCounts.inProgress,
+        notStarted: summaryCounts.notStarted,
+        needsReview: summaryCounts.needsReview,
       },
       academicYear: effectiveAcademicYear,
+      semester: effectiveSemester,
     },
   });
 });
@@ -1460,17 +1662,20 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         assignment: assignment._id,
         status: "answered",
       });
+      const progressStatus = resolveProgressStatus(mastery);
       return {
         student: student.toObject(),
         mastery,
+        progressStatus,
         totalAttempts,
       };
     })
   );
 
-  const masteredCount = studentsProgress.filter(
-    (s) => s.mastery.isMastered
-  ).length;
+  const summaryCounts = getProgressSummaryFromRows(
+    studentsProgress,
+    (item) => item.progressStatus
+  );
 
   res.json({
     success: true,
@@ -1479,19 +1684,589 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
       studentsProgress,
       summary: {
         totalStudents: studentsProgress.length,
-        mastered: masteredCount,
-        inProgress: studentsProgress.filter(
-          (s) => !s.mastery.isMastered && s.mastery.totalAttempts > 0
-        ).length,
-        notStarted: studentsProgress.filter(
-          (s) => s.mastery.totalAttempts === 0
-        ).length,
+        mastered: summaryCounts.mastered,
+        inProgress: summaryCounts.inProgress,
+        notStarted: summaryCounts.notStarted,
+        needsReview: summaryCounts.needsReview,
         masteryRate:
           studentsProgress.length > 0
-            ? Math.round((masteredCount / studentsProgress.length) * 100)
+            ? Math.round((summaryCounts.mastered / studentsProgress.length) * 100)
             : 0,
       },
       academicYear: effectiveAcademicYear,
+      semester: assignment.semester || null,
+    },
+  });
+});
+
+/**
+ * @desc    Finalize standards assessment and write to SB gradebook
+ * @route   POST /api/practice/assessment/finalize
+ * @access  Private (Student)
+ */
+export const finalizeAssessment = asyncHandler(async (req, res) => {
+  const { assignmentId } = req.body || {};
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  if (!assignmentId) {
+    return res.status(400).json({
+      success: false,
+      message: "assignmentId is required",
+    });
+  }
+
+  const student = await Student.findOne({
+    user: req.user._id,
+    status: "active",
+  });
+  if (!student) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Student profile not found" });
+  }
+
+  const assignment = await StandardAssignment.findById(assignmentId)
+    .populate("class", "academicYear")
+    .populate("subject", "name code")
+    .populate("standard", "code name");
+  if (!assignment || !assignment.isActive) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  }
+  if (!isClassInAcademicYear(assignment.class, effectiveAcademicYear)) {
+    return res.status(404).json({
+      success: false,
+      message: `Assignment is not available in academic year ${effectiveAcademicYear}`,
+    });
+  }
+
+  const practiceConfig = getAssignmentPracticeConfig(assignment);
+  if (practiceConfig.sessionType !== "assessment") {
+    return res.status(400).json({
+      success: false,
+      message: "This assignment is not configured as an assessment",
+    });
+  }
+
+  const assignmentStudents = Array.isArray(assignment.students)
+    ? assignment.students
+    : [];
+  const assignmentClassId = assignment.class?._id || assignment.class;
+  const isAssigned =
+    assignmentStudents.length === 0
+      ? student.currentClass?.toString() === assignmentClassId?.toString()
+      : assignmentStudents.some((s) => s.toString() === student._id.toString());
+  if (!isAssigned) {
+    return res.status(403).json({
+      success: false,
+      message: "You are not assigned to this assessment",
+    });
+  }
+
+  const session = await PracticeSession.findOne({
+    school: req.schoolId,
+    student: student._id,
+    assignment: assignment._id,
+    status: { $in: ["active", "completed", "expired"] },
+  }).sort({ createdAt: -1 });
+
+  if (!session) {
+    return res.status(400).json({
+      success: false,
+      message: "No assessment session found to finalize",
+    });
+  }
+
+  if (session.status === "active") {
+    session.status = "completed";
+    session.endedAt = new Date();
+    await session.save();
+  }
+
+  const entry = await upsertAssessmentGradebookProgress({
+    schoolId: req.schoolId,
+    assignment,
+    studentId: student._id,
+    sessionId: session._id,
+    status: "submitted",
+    submittedAt: new Date(),
+  });
+
+  const assessmentConfig = getAssessmentConfig(assignment);
+  const now = new Date();
+  const hasReleaseDate = Boolean(assessmentConfig.resultsReleaseAt);
+  const isReleaseDateReached =
+    hasReleaseDate &&
+    now.getTime() >= new Date(assessmentConfig.resultsReleaseAt).getTime();
+  const canViewResult =
+    assessmentConfig.resultsVisibility === "immediate" || isReleaseDateReached;
+
+  res.json({
+    success: true,
+    data: {
+      assignmentId: assignment._id,
+      sessionId: session._id,
+      status: entry.status,
+      submittedAt: entry.submittedAt,
+      resultsVisible: canViewResult,
+      result: canViewResult
+        ? {
+            score: entry.score,
+            maxScore: entry.maxScore,
+            percentage: entry.percentage,
+            passMarks: assessmentConfig.passMarks,
+            isPassed: entry.score >= assessmentConfig.passMarks,
+          }
+        : null,
+    },
+  });
+});
+
+/**
+ * @desc    Get student's SB assessment results (semester scoped)
+ * @route   GET /api/practice/assessment/my-results
+ * @access  Private (Student)
+ */
+export const getMyAssessmentResults = asyncHandler(async (req, res) => {
+  const effectiveSemester = resolveSemesterForRequest(req);
+  const { effectiveAcademicYear, classIds: yearClassIds } =
+    await getYearScopedClassIds(req);
+
+  const student = await Student.findOne({
+    user: req.user._id,
+    status: "active",
+  }).populate("currentClass", "name grade section academicYear");
+  if (!student) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Student profile not found" });
+  }
+
+  if (!Array.isArray(yearClassIds) || yearClassIds.length === 0) {
+    return res.json({
+      success: true,
+      data: {
+        items: [],
+        standardAverages: [],
+        summary: {
+          totalAssessments: 0,
+          gradedCount: 0,
+          averagePercentage: 0,
+          averageScale4: 0,
+        },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
+      },
+    });
+  }
+
+  const classId = student.currentClass?._id || student.currentClass;
+  const normalizedClassId = classId ? classId.toString() : null;
+  const isStudentClassInYear = normalizedClassId
+    ? yearClassIds.some((id) => id === normalizedClassId)
+    : false;
+  const assignmentOrConditions = [{ students: student._id }];
+  if (classId && isStudentClassInYear) {
+    assignmentOrConditions.push({
+      class: classId,
+      $or: [
+        { students: { $size: 0 } },
+        { students: { $exists: false } },
+        { students: null },
+      ],
+    });
+  }
+
+  const assignments = await StandardAssignment.find({
+    isActive: true,
+    class: { $in: yearClassIds },
+    $or: assignmentOrConditions,
+    $and: [
+      {
+        $or: [
+          { semester: effectiveSemester },
+          { semester: { $exists: false } },
+          { semester: null },
+        ],
+      },
+    ],
+  })
+    .populate("standard", "code name")
+    .populate("subject", "name code")
+    .populate("class", "name grade section academicYear")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (assignments.length === 0) {
+    return res.json({
+      success: true,
+      data: {
+        items: [],
+        standardAverages: [],
+        summary: {
+          totalAssessments: 0,
+          gradedCount: 0,
+          averagePercentage: 0,
+          averageScale4: 0,
+        },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
+      },
+    });
+  }
+
+  const assessmentAssignments = assignments.filter(
+    (assignment) =>
+      getAssignmentPracticeConfig(assignment).sessionType === "assessment"
+  );
+  if (assessmentAssignments.length === 0) {
+    return res.json({
+      success: true,
+      data: {
+        items: [],
+        standardAverages: [],
+        summary: {
+          totalAssessments: 0,
+          gradedCount: 0,
+          averagePercentage: 0,
+          averageScale4: 0,
+        },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
+      },
+    });
+  }
+
+  const assignmentMap = new Map(
+    assessmentAssignments.map((assignment) => [assignment._id.toString(), assignment])
+  );
+  const assignmentIds = assessmentAssignments.map((assignment) => assignment._id);
+
+  const entries = await StandardsGradebookEntry.find({
+    school: req.schoolId,
+    student: student._id,
+    assignment: { $in: assignmentIds },
+  })
+    .select(
+      "assignment status score maxScore percentage submittedAt releasedAt totalAnswered correctCount"
+    )
+    .lean();
+  const entryMap = new Map(entries.map((entry) => [entry.assignment.toString(), entry]));
+
+  const now = new Date();
+  const items = [];
+  for (const assignment of assessmentAssignments) {
+    const assignmentId = assignment._id.toString();
+    const entry = entryMap.get(assignmentId) || null;
+    const assessmentConfig = getAssessmentConfig(assignment);
+    const hasReleaseDate = Boolean(assessmentConfig.resultsReleaseAt);
+    const releaseReached =
+      hasReleaseDate &&
+      now.getTime() >= new Date(assessmentConfig.resultsReleaseAt).getTime();
+    const isVisible =
+      assessmentConfig.resultsVisibility === "immediate" ||
+      releaseReached ||
+      entry?.status === "released";
+
+    const score = isVisible ? entry?.score ?? null : null;
+    const maxScore = isVisible ? entry?.maxScore ?? assessmentConfig.maxMarks : null;
+    const percentage = isVisible ? entry?.percentage ?? null : null;
+    const scale4 = Number.isFinite(percentage) ? percentageToScale4(percentage) : null;
+
+    items.push({
+      assignmentId,
+      title: assignment.title || `${assignment.standard?.code || "STD"} Assessment`,
+      standard: assignment.standard || null,
+      subject: assignment.subject || null,
+      class: assignment.class || null,
+      academicYear: assignment.academicYear || assignment.class?.academicYear || effectiveAcademicYear,
+      semester: assignment.semester || effectiveSemester,
+      status: entry?.status || "not_started",
+      totalAnswered: entry?.totalAnswered ?? 0,
+      correctCount: entry?.correctCount ?? 0,
+      score,
+      maxScore,
+      percentage,
+      scale4,
+      isPassed:
+        Number.isFinite(score) &&
+        Number.isFinite(assessmentConfig.passMarks) &&
+        score >= assessmentConfig.passMarks,
+      passMarks: assessmentConfig.passMarks,
+      submittedAt: entry?.submittedAt || null,
+      releasedAt: entry?.releasedAt || null,
+      resultsVisible: isVisible,
+    });
+  }
+
+  const gradedItems = items.filter((item) => Number.isFinite(item.percentage));
+  const averagePercentage = gradedItems.length > 0
+    ? Number(
+        (
+          gradedItems.reduce((sum, item) => sum + Number(item.percentage || 0), 0) /
+          gradedItems.length
+        ).toFixed(2)
+      )
+    : 0;
+  const averageScale4 = Number((averagePercentage / 25).toFixed(2));
+
+  const standardAccumulator = new Map();
+  for (const item of gradedItems) {
+    const standardId = item.standard?._id?.toString() || "unknown";
+    if (!standardAccumulator.has(standardId)) {
+      standardAccumulator.set(standardId, {
+        standardId,
+        standardCode: item.standard?.code || "N/A",
+        standardName: item.standard?.name || "Standard",
+        totalAssessments: 0,
+        totalPercentage: 0,
+      });
+    }
+    const aggregate = standardAccumulator.get(standardId);
+    aggregate.totalAssessments += 1;
+    aggregate.totalPercentage += Number(item.percentage || 0);
+  }
+
+  const standardAverages = Array.from(standardAccumulator.values()).map((item) => {
+    const averagePct =
+      item.totalAssessments > 0
+        ? Number((item.totalPercentage / item.totalAssessments).toFixed(2))
+        : 0;
+    return {
+      standardId: item.standardId,
+      standardCode: item.standardCode,
+      standardName: item.standardName,
+      totalAssessments: item.totalAssessments,
+      averagePercentage: averagePct,
+      averageScale4: percentageToScale4(averagePct),
+    };
+  });
+
+  res.json({
+    success: true,
+    data: {
+      items,
+      standardAverages,
+      summary: {
+        totalAssessments: items.length,
+        gradedCount: gradedItems.length,
+        averagePercentage,
+        averageScale4,
+      },
+      academicYear: effectiveAcademicYear,
+      semester: effectiveSemester,
+    },
+  });
+});
+
+/**
+ * @desc    Get Standards-Based assessment gradebook (separate from regular gradebook)
+ * @route   GET /api/practice/assessment/:assignmentId/gradebook
+ * @access  Private (Admin, Teacher)
+ */
+export const getAssessmentGradebook = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const assignment = await StandardAssignment.findById(req.params.assignmentId)
+    .populate("standard", "code name")
+    .populate("class", "name grade section academicYear")
+    .populate("subject", "name code");
+
+  if (!assignment) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  }
+  if (!isClassInAcademicYear(assignment.class, effectiveAcademicYear)) {
+    return res.status(404).json({
+      success: false,
+      message: `Assignment not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
+
+  const practiceConfig = getAssignmentPracticeConfig(assignment);
+  if (practiceConfig.sessionType !== "assessment") {
+    return res.status(400).json({
+      success: false,
+      message: "This assignment is not an assessment",
+    });
+  }
+
+  let students;
+  const assignmentStudents = Array.isArray(assignment.students)
+    ? assignment.students
+    : [];
+  if (assignmentStudents.length > 0) {
+    students = await Student.find({
+      _id: { $in: assignmentStudents },
+      status: "active",
+      academicYear: effectiveAcademicYear,
+    }).select("firstName lastName studentId");
+  } else {
+    students = await Student.find({
+      currentClass: assignment.class._id,
+      status: "active",
+      academicYear: effectiveAcademicYear,
+    }).select("firstName lastName studentId");
+  }
+
+  const entries = await StandardsGradebookEntry.find({
+    school: req.schoolId,
+    assignment: assignment._id,
+  })
+    .select(
+      "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester"
+    )
+    .lean();
+  const entryByStudent = new Map(
+    entries.map((entry) => [entry.student.toString(), entry])
+  );
+
+  const rows = await Promise.all(
+    students.map(async (student) => {
+      const existing = entryByStudent.get(student._id.toString());
+      if (existing) {
+        return {
+          student: student.toObject(),
+          status: existing.status,
+          totalAnswered: existing.totalAnswered,
+          correctCount: existing.correctCount,
+          score: existing.score,
+          maxScore: existing.maxScore,
+          percentage: existing.percentage,
+          scale4: percentageToScale4(existing.percentage),
+          submittedAt: existing.submittedAt || null,
+          releasedAt: existing.releasedAt || null,
+          academicYear: existing.academicYear || assignment.academicYear || null,
+          semester: existing.semester || assignment.semester || null,
+        };
+      }
+
+      const answeredCount = await PracticeAttempt.countDocuments({
+        school: req.schoolId,
+        student: student._id,
+        assignment: assignment._id,
+        status: "answered",
+        sessionType: "assessment",
+      });
+      return {
+        student: student.toObject(),
+        status: answeredCount > 0 ? "in_progress" : "not_started",
+        totalAnswered: answeredCount,
+        correctCount: null,
+        score: null,
+        maxScore: null,
+        percentage: null,
+        scale4: null,
+        submittedAt: null,
+        releasedAt: null,
+        academicYear: assignment.academicYear || null,
+        semester: assignment.semester || null,
+      };
+    })
+  );
+
+  const statusSummary = rows.reduce(
+    (acc, row) => {
+      if (row.status === "released") acc.released += 1;
+      else if (row.status === "submitted") acc.submitted += 1;
+      else if (row.status === "in_progress") acc.inProgress += 1;
+      else acc.notStarted += 1;
+      return acc;
+    },
+    { released: 0, submitted: 0, inProgress: 0, notStarted: 0 }
+  );
+
+  const gradedRows = rows.filter((row) => Number.isFinite(row.percentage));
+  const averagePercentage = gradedRows.length > 0
+    ? Number(
+        (
+          gradedRows.reduce((sum, row) => sum + Number(row.percentage || 0), 0) /
+          gradedRows.length
+        ).toFixed(2)
+      )
+    : 0;
+  const averageScale4 = gradedRows.length > 0
+    ? Number((averagePercentage / 25).toFixed(2))
+    : 0;
+
+  res.json({
+    success: true,
+    data: {
+      assignment: {
+        _id: assignment._id,
+        title: assignment.title || null,
+        standard: assignment.standard,
+        class: assignment.class,
+        subject: assignment.subject,
+        academicYear: assignment.academicYear || assignment.class?.academicYear || null,
+        semester: assignment.semester || null,
+      },
+      rows,
+      summary: {
+        totalStudents: rows.length,
+        ...statusSummary,
+        averagePercentage,
+        averageScale4,
+      },
+      academicYear: effectiveAcademicYear,
+      semester: assignment.semester || null,
+    },
+  });
+});
+
+/**
+ * @desc    Release submitted assessment results to students
+ * @route   POST /api/practice/assessment/:assignmentId/release
+ * @access  Private (Admin, Teacher)
+ */
+export const releaseAssessmentResults = asyncHandler(async (req, res) => {
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const assignment = await StandardAssignment.findById(req.params.assignmentId)
+    .populate("class", "academicYear");
+
+  if (!assignment) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Assignment not found" });
+  }
+  if (!isClassInAcademicYear(assignment.class, effectiveAcademicYear)) {
+    return res.status(404).json({
+      success: false,
+      message: `Assignment not found for academic year ${effectiveAcademicYear}`,
+    });
+  }
+  const practiceConfig = getAssignmentPracticeConfig(assignment);
+  if (practiceConfig.sessionType !== "assessment") {
+    return res.status(400).json({
+      success: false,
+      message: "This assignment is not an assessment",
+    });
+  }
+
+  const now = new Date();
+  const result = await StandardsGradebookEntry.updateMany(
+    {
+      school: req.schoolId,
+      assignment: assignment._id,
+      status: { $in: ["submitted", "released"] },
+    },
+    {
+      $set: { status: "released", releasedAt: now },
+    }
+  );
+
+  if (assignment.assessmentConfig?.resultsVisibility !== "immediate") {
+    assignment.assessmentConfig.resultsReleaseAt = now;
+    await assignment.save();
+  }
+
+  res.json({
+    success: true,
+    message: "Assessment results released",
+    data: {
+      updatedCount: result.modifiedCount || 0,
+      assignmentId: assignment._id,
+      releasedAt: now,
     },
   });
 });

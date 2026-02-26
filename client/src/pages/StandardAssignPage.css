@@ -121,6 +121,36 @@
     align-items: center;
     gap: var(--spacing-md);
     font-size: 0.82rem;
+    flex-wrap: wrap;
+}
+
+.progress-stats .mastery-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.progress-stats .mastery-badge.mastered {
+    background: rgba(16, 185, 129, 0.15);
+    color: #047857;
+}
+
+.progress-stats .mastery-badge.needs-review {
+    background: rgba(239, 68, 68, 0.14);
+    color: #b91c1c;
+}
+
+.progress-stats .mastery-badge.in-progress {
+    background: rgba(245, 158, 11, 0.14);
+    color: #b45309;
+}
+
+.progress-stats .mastery-badge.not-started {
+    background: rgba(107, 114, 128, 0.14);
+    color: #374151;
 }
 
 .assign-empty {

@@ -101,6 +101,18 @@ export const createAssignment = createAsyncThunk(
     }
 );
 
+export const updateAssignment = createAsyncThunk(
+    'standards/updateAssignment',
+    async ({ id, data }, { rejectWithValue }) => {
+        try {
+            const response = await api.put(`/standard-assignments/${id}`, data);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to update assignment');
+        }
+    }
+);
+
 export const deleteAssignment = createAsyncThunk(
     'standards/deleteAssignment',
     async (id, { rejectWithValue }) => {
@@ -225,6 +237,16 @@ const standardSlice = createSlice({
                 state.assignments.unshift(action.payload.assignment);
             })
             .addCase(createAssignment.rejected, (state, action) => {
+                state.error = action.payload;
+            })
+            // Update assignment
+            .addCase(updateAssignment.fulfilled, (state, action) => {
+                const next = action.payload?.assignment;
+                if (!next) return;
+                const index = state.assignments.findIndex((item) => item._id === next._id);
+                if (index !== -1) state.assignments[index] = next;
+            })
+            .addCase(updateAssignment.rejected, (state, action) => {
                 state.error = action.payload;
             })
             // Delete assignment

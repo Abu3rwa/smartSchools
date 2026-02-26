@@ -12,7 +12,7 @@ import {
   selectReviewQueueLoading,
   selectReviewQueueError,
 } from "../store/slices/practiceSlice";
-import { selectCurrentAcademicYear } from "../store/slices/uiSlice";
+import { selectCurrentAcademicYear, selectSelectedSemester } from "../store/slices/uiSlice";
 import {
   HiOutlineAcademicCap,
   HiOutlinePlay,
@@ -31,14 +31,15 @@ const PracticeDashboardPage = () => {
   const error = useSelector(selectPracticeError);
   const reviewQueue = useSelector(selectReviewQueue);
   const academicYear = useSelector(selectCurrentAcademicYear);
+  const selectedSemester = useSelector(selectSelectedSemester);
   const reviewFeatureEnabled = useSelector(selectReviewFeatureEnabled);
   const reviewQueueLoading = useSelector(selectReviewQueueLoading);
   const reviewQueueError = useSelector(selectReviewQueueError);
 
   useEffect(() => {
-    dispatch(fetchMyAssignments());
+    dispatch(fetchMyAssignments({ academicYear, semester: selectedSemester }));
     dispatch(fetchReviewQueue({ limit: 5 }));
-  }, [dispatch, academicYear]);
+  }, [dispatch, academicYear, selectedSemester]);
 
   const dueNowCount = reviewQueue.filter((task) => task.status === "scheduled").length;
 
@@ -87,11 +88,18 @@ const PracticeDashboardPage = () => {
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          onClick={() => dispatch(fetchMyAssignments())}
+          onClick={() => dispatch(fetchMyAssignments({ academicYear, semester: selectedSemester }))}
           disabled={loading}
         >
           <HiOutlineRefresh size={16} />
           <span>{loading ? "Refreshing..." : "Refresh"}</span>
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={() => navigate('/portal/practice/sb-results')}
+        >
+          <span>SB Results</span>
         </button>
       </div>
 
@@ -214,7 +222,7 @@ const PracticeDashboardPage = () => {
           <p>{error}</p>
           <button
             className="btn btn-primary btn-sm"
-            onClick={() => dispatch(fetchMyAssignments())}
+            onClick={() => dispatch(fetchMyAssignments({ academicYear, semester: selectedSemester }))}
           >
             <HiOutlineRefresh size={16} />
             <span>Try Again</span>
@@ -260,6 +268,9 @@ const PracticeDashboardPage = () => {
                   >
                     <td>
                       <div className="standard-cell">
+                        <span className="standard-name" style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                          {a.title || "Standards Assignment"}
+                        </span>
                         <span className="standard-code">
                           {a.standard?.code || "N/A"}
                         </span>

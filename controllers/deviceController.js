@@ -21,8 +21,30 @@ export const registerDeviceToken = asyncHandler(async (req, res) => {
         });
     }
 
+    // If this token currently belongs to a different user (e.g. after a device hand-off
+    // or OS re-install that recycled the FCM token), deactivate the stale record first
+    // so we don't lose the current user's registration.
+    const existingOtherUser = await DeviceToken.findOne({
+        token,
+        user: { $ne: req.user._id },
+    }).setOptions({ skipTenantFilter: true }).select('_id').lean();
+
+    if (existingOtherUser) {
+        await DeviceToken.updateOne(
+            { token, user: { $ne: req.user._id } },
+            { $set: { active: false, lastSeen: new Date() } }
+        ).setOptions({ skipTenantFilter: true });
+
+        logger.info('device_token_ownership_changed', {
+            token: token.slice(0, 12) + '…',
+            newUserId: String(req.user?._id || ''),
+            schoolId: String(req.schoolId || ''),
+        });
+    }
+
+    // Upsert scoped to this user + token so we never overwrite another user's active record.
     const doc = await DeviceToken.findOneAndUpdate(
-        { token },
+        { token, user: req.user._id },
         {
             $set: {
                 school: req.schoolId,

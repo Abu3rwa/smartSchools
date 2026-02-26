@@ -73,6 +73,7 @@ import StandardAssignPage from "./pages/StandardAssignPage";
 import PracticeDashboardPage from "./pages/PracticeDashboardPage";
 import PracticeSessionPage from "./pages/PracticeSessionPage";
 import PracticeHistoryPage from "./pages/PracticeHistoryPage";
+import PracticeAssessmentResultsPage from "./pages/PracticeAssessmentResultsPage";
 import InterventionQueuePage from "./pages/InterventionQueuePage";
 import StudentGradesPage from "./pages/StudentGradesPage";
 import StudentAttendancePage from "./pages/StudentAttendancePage";
@@ -611,6 +612,14 @@ function App() {
           element={
             <RoleRoute roles={["student"]}>
               <PracticeHistoryPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="practice/sb-results"
+          element={
+            <RoleRoute roles={["student"]}>
+              <PracticeAssessmentResultsPage />
             </RoleRoute>
           }
         />

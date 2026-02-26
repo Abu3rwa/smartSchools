@@ -8,9 +8,9 @@ const syncLoadingState = (state) => {
 // Student: Get my assignments
 export const fetchMyAssignments = createAsyncThunk(
     'practice/fetchMyAssignments',
-    async (_, { rejectWithValue }) => {
+    async (params = {}, { rejectWithValue }) => {
         try {
-            const response = await api.get('/practice/my-assignments');
+            const response = await api.get('/practice/my-assignments', { params });
             return response.data.data;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch assignments');
@@ -70,6 +70,18 @@ export const fetchReviewQueue = createAsyncThunk(
     }
 );
 
+export const fetchMyAssessmentResults = createAsyncThunk(
+    'practice/fetchMyAssessmentResults',
+    async (params = {}, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/practice/assessment/my-results', { params });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to fetch assessment results');
+        }
+    }
+);
+
 const practiceSlice = createSlice({
     name: 'practice',
     initialState: {
@@ -90,6 +102,11 @@ const practiceSlice = createSlice({
         reviewQueueError: null,
         historyMastery: null,
         historyPagination: null,
+        assessmentResults: [],
+        assessmentStandardAverages: [],
+        assessmentSummary: null,
+        assessmentResultsLoading: false,
+        assessmentResultsError: null,
         loading: false,
         assignmentsLoading: false,
         historyLoading: false,
@@ -193,6 +210,21 @@ const practiceSlice = createSlice({
             .addCase(fetchReviewQueue.rejected, (state, action) => {
                 state.reviewQueueLoading = false;
                 state.reviewQueueError = action.payload;
+            })
+            // Assessment results
+            .addCase(fetchMyAssessmentResults.pending, (state) => {
+                state.assessmentResultsLoading = true;
+                state.assessmentResultsError = null;
+            })
+            .addCase(fetchMyAssessmentResults.fulfilled, (state, action) => {
+                state.assessmentResultsLoading = false;
+                state.assessmentResults = action.payload?.items || [];
+                state.assessmentStandardAverages = action.payload?.standardAverages || [];
+                state.assessmentSummary = action.payload?.summary || null;
+            })
+            .addCase(fetchMyAssessmentResults.rejected, (state, action) => {
+                state.assessmentResultsLoading = false;
+                state.assessmentResultsError = action.payload;
             });
     }
 });
@@ -222,5 +254,10 @@ export const selectPracticeStatusMessage = (state) => state.practice?.statusMess
 export const selectPracticeStudentFirstName = (state) => state.practice?.studentFirstName;
 export const selectPracticeSuggestRemediation = (state) => state.practice?.suggestRemediation;
 export const selectPracticeSessionContext = (state) => state.practice?.sessionContext;
+export const selectMyAssessmentResults = (state) => state.practice?.assessmentResults || [];
+export const selectMyAssessmentStandardAverages = (state) => state.practice?.assessmentStandardAverages || [];
+export const selectMyAssessmentSummary = (state) => state.practice?.assessmentSummary;
+export const selectMyAssessmentResultsLoading = (state) => state.practice?.assessmentResultsLoading || false;
+export const selectMyAssessmentResultsError = (state) => state.practice?.assessmentResultsError;
 
 export default practiceSlice.reducer;

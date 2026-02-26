@@ -370,6 +370,13 @@ const Sidebar = () => {
       section: "learning",
     },
     {
+      path: "/portal/practice/sb-results",
+      icon: HiOutlineChartBar,
+      label: "SB Results",
+      roles: ["student"],
+      section: "learning",
+    },
+    {
       path: "/portal/reading",
       icon: HiOutlineBookOpen,
       label: "Reading",

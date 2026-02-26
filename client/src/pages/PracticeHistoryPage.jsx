@@ -6,7 +6,7 @@ import {
     selectPracticeHistory, selectHistoryMastery, selectMyAssignments, selectPracticeLoading,
     clearPracticeHistory
 } from '../store/slices/practiceSlice';
-import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
+import { selectCurrentAcademicYear, selectSelectedSemester } from '../store/slices/uiSlice';
 import { HiOutlineArrowLeft, HiOutlineCheckCircle, HiOutlineXCircle } from 'react-icons/hi';
 import './PracticeHistoryPage.css';
 
@@ -20,25 +20,29 @@ const PracticeHistoryPage = () => {
     const assignments = useSelector(selectMyAssignments);
     const loading = useSelector(selectPracticeLoading);
     const academicYear = useSelector(selectCurrentAcademicYear);
+    const selectedSemester = useSelector(selectSelectedSemester);
 
     const [assignment, setAssignment] = useState(null);
 
     useEffect(() => {
         if (!assignments.length) {
-            dispatch(fetchMyAssignments());
+            dispatch(fetchMyAssignments({ academicYear, semester: selectedSemester }));
         }
-    }, [dispatch, assignments.length, academicYear]);
+    }, [dispatch, assignments.length, academicYear, selectedSemester]);
 
     useEffect(() => {
         if (assignments.length) {
             const found = assignments.find(a => a._id === assignmentId);
             if (found) {
                 setAssignment(found);
-                dispatch(fetchPracticeHistory({ standardId: found.standard._id }));
+                dispatch(fetchPracticeHistory({
+                    standardId: found.standard._id,
+                    params: { academicYear, semester: selectedSemester }
+                }));
             }
         }
         return () => { dispatch(clearPracticeHistory()); };
-    }, [dispatch, assignmentId, assignments, academicYear]);
+    }, [dispatch, assignmentId, assignments, academicYear, selectedSemester]);
 
     return (
         <div className="practice-history">

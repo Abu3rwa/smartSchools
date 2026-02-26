@@ -27,6 +27,21 @@ const standardAssignmentSchema = new mongoose.Schema({
         ref: 'Subject',
         required: [true, 'Subject is required']
     },
+    title: {
+        type: String,
+        trim: true,
+        maxlength: 200,
+        default: 'Standards Assignment'
+    },
+    academicYear: {
+        type: String,
+        default: null
+    },
+    semester: {
+        type: Number,
+        enum: [1, 2],
+        default: null
+    },
     // If empty, assignment applies to ALL students in the class
     students: [{
         type: mongoose.Schema.Types.ObjectId,
@@ -76,6 +91,27 @@ const standardAssignmentSchema = new mongoose.Schema({
             default: false
         }
     },
+    assessmentConfig: {
+        maxMarks: {
+            type: Number,
+            min: 1,
+            default: 100
+        },
+        passMarks: {
+            type: Number,
+            min: 0,
+            default: 40
+        },
+        resultsVisibility: {
+            type: String,
+            enum: ['immediate', 'manual_release'],
+            default: 'immediate'
+        },
+        resultsReleaseAt: {
+            type: Date,
+            default: null
+        }
+    },
     isActive: {
         type: Boolean,
         default: true
@@ -89,6 +125,8 @@ standardAssignmentSchema.index({ school: 1, teacher: 1 });
 standardAssignmentSchema.index({ school: 1, class: 1 });
 standardAssignmentSchema.index({ school: 1, standard: 1 });
 standardAssignmentSchema.index({ school: 1, students: 1 });
+standardAssignmentSchema.index({ school: 1, class: 1, subject: 1, createdAt: -1 });
+standardAssignmentSchema.index({ school: 1, academicYear: 1, semester: 1, class: 1 });
 
 // Apply tenant isolation plugin
 standardAssignmentSchema.plugin(tenantIsolationPlugin);

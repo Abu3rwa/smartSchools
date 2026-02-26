@@ -42,6 +42,7 @@ const PracticeSessionPage = () => {
     const [questionType, setQuestionType] = useState('multiple_choice');
     const [startTime, setStartTime] = useState(null);
     const [sessionStats, setSessionStats] = useState({ asked: 0, correct: 0 });
+    const [finalizingAssessment, setFinalizingAssessment] = useState(false);
 
     const textareaRef = useRef(null);
     const lastIntegrityLogRef = useRef(0);
@@ -145,8 +146,27 @@ const PracticeSessionPage = () => {
         }
     };
 
+    const handleFinalizeAssessment = async () => {
+        setFinalizingAssessment(true);
+        try {
+            const response = await api.post('/practice/assessment/finalize', { assignmentId });
+            const payload = response?.data?.data || {};
+            if (payload?.resultsVisible && payload?.result) {
+                toast.success(`Assessment submitted. Final score: ${payload.result.score}/${payload.result.maxScore} (${payload.result.percentage}%)`);
+            } else {
+                toast.success('Assessment submitted. Results will be released by your teacher.');
+            }
+            navigate('/portal/practice');
+        } catch (error) {
+            toast.error(error?.response?.data?.message || 'Failed to submit final assessment');
+        } finally {
+            setFinalizingAssessment(false);
+        }
+    };
+
     const isMasteredResult = practiceStatus === 'mastered' || lastResult?.newlyMastered;
     const isSessionComplete = practiceStatus === 'session_complete' || lastResult?.sessionComplete;
+    const isAssessmentSession = sessionInfo?.sessionType === 'assessment';
     const showQuestion = practiceStatus === 'question' && currentQuestion;
     const displayName = studentFirstName || user?.firstName || 'Student';
     const resultParts = lastResult?.feedbackParts || {};
@@ -315,6 +335,16 @@ const PracticeSessionPage = () => {
                         <HiOutlineLightningBolt size={18} style={{ marginRight: 6 }} />
                         {generating ? 'Loading...' : 'Start Question'}
                     </button>
+                    {isAssessmentSession && combinedAsked > 0 && (
+                        <button
+                            className="btn btn-secondary"
+                            onClick={handleFinalizeAssessment}
+                            disabled={finalizingAssessment}
+                            style={{ width: '100%', marginTop: 'var(--spacing-sm)' }}
+                        >
+                            {finalizingAssessment ? 'Submitting Assessment...' : 'Submit Final Assessment'}
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -339,6 +369,16 @@ const PracticeSessionPage = () => {
                     >
                         Return to Dashboard
                     </button>
+                    {isAssessmentSession && (
+                        <button
+                            className="btn btn-secondary"
+                            onClick={handleFinalizeAssessment}
+                            disabled={finalizingAssessment}
+                            style={{ marginTop: 'var(--spacing-sm)' }}
+                        >
+                            {finalizingAssessment ? 'Submitting Assessment...' : 'Submit Final Assessment'}
+                        </button>
+                    )}
                 </div>
             )}
 

@@ -6,6 +6,10 @@ import {
     getPracticeHistory,
     getStudentProgress,
     getAssignmentProgress,
+    finalizeAssessment,
+    getMyAssessmentResults,
+    getAssessmentGradebook,
+    releaseAssessmentResults,
     logIntegrityEvent,
     getIntegrityByAssignment,
     getIntegrityByStudent
@@ -22,12 +26,16 @@ router.use(protect);
 router.get('/my-assignments', authorize('student'), getMyAssignments);
 router.post('/generate', authorize('student'), generateQuestion);
 router.post('/submit', authorize('student'), submitAnswer);
+router.post('/assessment/finalize', authorize('student'), finalizeAssessment);
+router.get('/assessment/my-results', authorize('student'), getMyAssessmentResults);
 router.get('/history/:standardId', authorize('student'), getPracticeHistory);
 router.post('/integrity-event', authorize('student'), logIntegrityEvent);
 
 // Teacher/Admin routes - view student progress
 router.get('/student/:studentId/progress', authorize('admin', 'teacher'), getStudentProgress);
 router.get('/assignment/:assignmentId/progress', authorize('admin', 'teacher'), getAssignmentProgress);
+router.get('/assessment/:assignmentId/gradebook', authorize('admin', 'teacher'), getAssessmentGradebook);
+router.post('/assessment/:assignmentId/release', authorize('admin', 'teacher'), releaseAssessmentResults);
 router.get('/integrity/assignment/:assignmentId', authorize('admin', 'teacher'), getIntegrityByAssignment);
 router.get('/integrity/student/:studentId', authorize('admin', 'teacher'), getIntegrityByStudent);
 

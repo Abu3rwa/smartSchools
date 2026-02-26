@@ -17,6 +17,21 @@ export const practiceConfigSchema = z.object({
     lockStudentOptions: z.boolean().optional()
 }).strict();
 
+export const assessmentConfigSchema = z.object({
+    maxMarks: z.number().min(1).max(1000).optional(),
+    passMarks: z.number().min(0).max(1000).optional(),
+    resultsVisibility: z.enum(['immediate', 'manual_release']).optional(),
+    resultsReleaseAt: z.coerce.date().nullable().optional()
+}).strict().superRefine((value, ctx) => {
+    if (value.maxMarks !== undefined && value.passMarks !== undefined && value.passMarks > value.maxMarks) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['passMarks'],
+            message: 'passMarks cannot be greater than maxMarks'
+        });
+    }
+});
+
 export const masterySchema = z.object({
     isMastered: z.boolean(),
     totalAttempts: z.number(),

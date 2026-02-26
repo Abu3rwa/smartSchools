@@ -25,19 +25,19 @@
   --accent-red: #ef4444;
 
   /* Dark Theme Colors */
-  --bg-primary: #0f0f1a;
-  --bg-secondary: #1a1a2e;
-  --bg-tertiary: #252542;
-  --bg-card: #1e1e35;
-  --bg-card-hover: #262650;
-  --bg-input: #1a1a2e;
+  --bg-primary: #161628;
+  --bg-secondary: #22223a;
+  --bg-tertiary: #2d2d4d;
+  --bg-card: #272744;
+  --bg-card-hover: #30305d;
+  --bg-input: #22223a;
 
   /* Base shadcn/ui style variables for dark theme */
-  --background: #0f0f1a;
+  --background: #161628;
   --foreground: #ffffff;
-  --card: #1e1e35;
+  --card: #272744;
   --card-foreground: #ffffff;
-  --popover: #1e1e35;
+  --popover: #272744;
   --popover-foreground: #ffffff;
 
   /* Text Colors */
