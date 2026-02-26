@@ -24,7 +24,7 @@ const migrateDeviceTokenIndex = async () => {
 
     if (staleIndex) {
       await collection.dropIndex('token_1');
-      logger.info('✅ Dropped stale unique index token_1 from devicetokens');
+      logger.success('Dropped stale unique index token_1 from devicetokens');
     }
   } catch (err) {
     // Non-fatal — log and continue. The worst case is a duplicate-key error
@@ -36,7 +36,7 @@ const migrateDeviceTokenIndex = async () => {
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    logger.info('✅ MongoDB Connected');
+    logger.success('MongoDB Connected');
     // Run migrations after connection is established.
     await migrateDeviceTokenIndex();
   } catch (error) {

@@ -305,7 +305,7 @@ const httpServer = createServer(app);
 initRealtimeGateway(httpServer);
 
 const server = httpServer.listen(PORT, () => {
-  logger.info(`Server is running on port ${PORT}`);
+  logger.success(`Server is running on port ${PORT}`);
   if (process.env.RUN_ATTENDANCE_REMINDER_JOB !== "false") {
     // Run once on startup (after 1 min), then every 15 min
     logger.info("Attendance reminder job scheduled (every 15 min). Run once on startup in 1 min.");
@@ -374,7 +374,7 @@ const server = httpServer.listen(PORT, () => {
 // Graceful shutdown handling
 const gracefulShutdown = async (signal) => {
   logger.info(`${signal} received. Starting graceful shutdown...`);
-  
+
   try {
     // Stop accepting new requests
     if (server) {
