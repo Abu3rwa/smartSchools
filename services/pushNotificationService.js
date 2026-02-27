@@ -50,8 +50,8 @@ const INVALID_FCM_V1_TOKEN_ERRORS = new Set([
 
 let cachedV1AccessToken = '';
 let cachedV1AccessTokenExpiry = 0;
-let cachedJwtClientFingerprint = '';
-let cachedJwtClient = null;
+let cachedGoogleAuthFingerprint = '';
+let cachedGoogleAuth = null;
 
 const toId = (value) => (value == null ? '' : String(value));
 
@@ -120,20 +120,21 @@ const resolveFcmV1Config = () => {
   };
 };
 
-const getFcmV1JwtClient = ({ clientEmail, privateKey }) => {
+const getFcmV1GoogleAuth = ({ clientEmail, privateKey }) => {
   const fingerprint = `${clientEmail}|${privateKey.length}`;
-  if (!cachedJwtClient || cachedJwtClientFingerprint !== fingerprint) {
-    cachedJwtClient = new google.auth.JWT(
-      clientEmail,
-      undefined,
-      privateKey,
-      [FCM_V1_SCOPE]
-    );
-    cachedJwtClientFingerprint = fingerprint;
+  if (!cachedGoogleAuth || cachedGoogleAuthFingerprint !== fingerprint) {
+    cachedGoogleAuth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: clientEmail,
+        private_key: privateKey,
+      },
+      scopes: [FCM_V1_SCOPE],
+    });
+    cachedGoogleAuthFingerprint = fingerprint;
     cachedV1AccessToken = '';
     cachedV1AccessTokenExpiry = 0;
   }
-  return cachedJwtClient;
+  return cachedGoogleAuth;
 };
 
 const resolveFcmV1AccessToken = async ({ clientEmail, privateKey }) => {
@@ -142,18 +143,14 @@ const resolveFcmV1AccessToken = async ({ clientEmail, privateKey }) => {
     return cachedV1AccessToken;
   }
 
-  const jwtClient = getFcmV1JwtClient({ clientEmail, privateKey });
-  const tokenResponse = await jwtClient.authorize();
-  const accessToken = String(tokenResponse?.access_token || '').trim();
+  const authClient = getFcmV1GoogleAuth({ clientEmail, privateKey });
+  const accessToken = String((await authClient.getAccessToken()) || '').trim();
   if (!accessToken) {
     throw new Error('Failed to obtain FCM v1 access token');
   }
 
   cachedV1AccessToken = accessToken;
-  cachedV1AccessTokenExpiry = Number(tokenResponse?.expiry_date || 0);
-  if (!cachedV1AccessTokenExpiry) {
-    cachedV1AccessTokenExpiry = now + 50 * 60 * 1000;
-  }
+  cachedV1AccessTokenExpiry = now + 50 * 60 * 1000; // cache for 50 min
   return cachedV1AccessToken;
 };
 
