@@ -6,7 +6,10 @@ import {
     HiOutlineRefresh,
     HiOutlineTrash,
     HiOutlineExclamation,
-    HiOutlineOfficeBuilding
+    HiOutlineOfficeBuilding,
+    HiOutlinePencil,
+    HiOutlineCheck,
+    HiOutlineX
 } from 'react-icons/hi';
 import { fetchTeachers, selectTeachers } from '../../store/slices/teacherSlice';
 import { fetchClasses, selectClasses } from '../../store/slices/classSlice';
@@ -59,13 +62,29 @@ const AdminTimetablePage = () => {
     const [assignments, setAssignments] = useState([]);
     const [rooms, setRooms] = useState([]);
 
+    const [editingAssignmentId, setEditingAssignmentId] = useState(null);
+
+    const [filterTeacher, setFilterTeacher] = useState('');
+    const [filterClass, setFilterClass] = useState('');
+
+
     const [newPeriod, setNewPeriod] = useState({ periodNumber: 1, startTime: '08:00', endTime: '09:00', isActive: true });
+    const [editingPeriod, setEditingPeriod] = useState(null);
+
 
     const today = useMemo(() => {
         const d = new Date();
         d.setHours(0, 0, 0, 0);
         return d;
     }, []);
+
+    const filteredAssignments = useMemo(() => {
+        return assignments.filter(a => {
+            const matchTeacher = filterTeacher ? (a.teacher?._id === filterTeacher || a.teacher === filterTeacher) : true;
+            const matchClass = filterClass ? (a.class?._id === filterClass || a.class === filterClass) : true;
+            return matchTeacher && matchClass;
+        });
+    }, [assignments, filterTeacher, filterClass]);
 
     const [newAssignment, setNewAssignment] = useState({
         teacher: '',
@@ -142,9 +161,9 @@ const AdminTimetablePage = () => {
         return Array.from(uniqueSubjects.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }, [selectedTeacherId, newAssignment.class, availableClasses, classes, subjects]);
 
-    // Determine which rooms are occupied for the selected period + days
+    // Determine which rooms are occupied (Globally unique to a single class, or used by same class at same time)
     const occupiedRoomIds = useMemo(() => {
-        if (!newAssignment.period || !newAssignment.daysOfWeek?.length) return new Set();
+        if (!newAssignment.daysOfWeek?.length) return new Set();
 
         const selectedDays = newAssignment.daysOfWeek;
         const candidateStart = new Date(newAssignment.startDate);
@@ -153,23 +172,43 @@ const AdminTimetablePage = () => {
         const occupied = new Set();
 
         for (const assignment of assignments) {
-            if (assignment.period?._id !== newAssignment.period && assignment.period !== newAssignment.period) continue;
+            if (editingAssignmentId && (assignment._id === editingAssignmentId)) continue;
 
             const roomId = typeof assignment.room === 'string' ? assignment.room : assignment.room?._id;
             if (!roomId) continue;
 
-            const assignStart = new Date(assignment.startDate);
-            const assignEnd = new Date(assignment.endDate);
-            if (candidateStart > assignEnd || candidateEnd < assignStart) continue;
+            const assignClassId = typeof assignment.class === 'string' ? assignment.class : assignment.class?._id;
 
-            const sharedDay = (assignment.daysOfWeek || []).some(d => selectedDays.includes(d));
-            if (!sharedDay) continue;
+            // Global exclusivity rule: if room belongs to ANOTHER class, it is fully occupied
+            if (newAssignment.class && assignClassId && assignClassId.toString() !== newAssignment.class.toString()) {
+                // To support room isolation correctly, if date ranges overlap, it is blocked
+                const assignStart = new Date(assignment.startDate);
+                const assignEnd = new Date(assignment.endDate);
+                if (candidateStart <= assignEnd && candidateEnd >= assignStart) {
+                    occupied.add(roomId);
+                }
+                continue;
+            }
 
-            occupied.add(roomId);
+            // If it is the same class, check if they are booking it at the EXACT SAME PERIOD and days
+            // (A class shouldn't double-book its own room at the same time either)
+            const assignPeriodId = typeof assignment.period === 'string' ? assignment.period : assignment.period?._id;
+            const newPeriodId = typeof newAssignment.period === 'string' ? newAssignment.period : newAssignment.period?._id;
+
+            if (newPeriodId && assignPeriodId === newPeriodId) {
+                const assignStart = new Date(assignment.startDate);
+                const assignEnd = new Date(assignment.endDate);
+                if (candidateStart <= assignEnd && candidateEnd >= assignStart) {
+                    const sharedDay = (assignment.daysOfWeek || []).some(d => selectedDays.includes(d));
+                    if (sharedDay) {
+                        occupied.add(roomId);
+                    }
+                }
+            }
         }
 
         return occupied;
-    }, [assignments, newAssignment.period, newAssignment.daysOfWeek, newAssignment.startDate, newAssignment.endDate]);
+    }, [assignments, newAssignment.startDate, newAssignment.endDate, newAssignment.daysOfWeek, newAssignment.class, newAssignment.period, editingAssignmentId]);
 
     const fetchTimetableData = async () => {
         try {
@@ -241,14 +280,56 @@ const AdminTimetablePage = () => {
         }
     };
 
-    const addAssignment = async () => {
+    const saveEditedPeriod = async () => {
+        if (!editingPeriod) return;
+        try {
+            setSaving(true);
+            setError(null);
+            const payload = {
+                name: editingPeriod.name,
+                startTime: editingPeriod.startTime,
+                endTime: editingPeriod.endTime,
+                order: editingPeriod.order,
+                isActive: editingPeriod.isActive
+            };
+            await timetableService.updatePeriod(editingPeriod._id, payload);
+            setEditingPeriod(null);
+            await fetchTimetableData();
+        } catch (err) {
+            setError(err?.response?.data?.message || err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const submitAssignmentForm = async () => {
         try {
             setSaving(true);
             setError(null);
 
-            await timetableService.createAssignment({
+            const payload = {
                 ...newAssignment,
                 daysOfWeek: (newAssignment.daysOfWeek || []).map(n => parseInt(n, 10))
+            };
+
+            if (editingAssignmentId) {
+                await timetableService.updateAssignment(editingAssignmentId, payload);
+                setEditingAssignmentId(null);
+            } else {
+                await timetableService.createAssignment(payload);
+            }
+
+            // Reset form
+            setNewAssignment({
+                teacher: '',
+                class: '',
+                subject: '',
+                room: '',
+                period: '',
+                daysOfWeek: [1, 2, 3, 4, 5],
+                startDate: new Date(today).toISOString().slice(0, 10),
+                endDate: new Date(new Date(today).setMonth(today.getMonth() + 3)).toISOString().slice(0, 10),
+                isActive: true
             });
 
             await fetchTimetableData();
@@ -259,7 +340,43 @@ const AdminTimetablePage = () => {
         }
     };
 
+    const cancelAssignmentEdit = () => {
+        setEditingAssignmentId(null);
+        setNewAssignment({
+            teacher: '',
+            class: '',
+            subject: '',
+            room: '',
+            period: '',
+            daysOfWeek: [1, 2, 3, 4, 5],
+            startDate: new Date(today).toISOString().slice(0, 10),
+            endDate: new Date(new Date(today).setMonth(today.getMonth() + 3)).toISOString().slice(0, 10),
+            isActive: true
+        });
+    };
+
+    const fillAssignmentFormForEdit = (a) => {
+        setEditingAssignmentId(a._id);
+        const formatYMD = (val) => {
+            if (!val) return new Date().toISOString().slice(0, 10);
+            return new Date(val).toISOString().slice(0, 10);
+        };
+        setNewAssignment({
+            teacher: a.teacher?._id || a.teacher || '',
+            class: a.class?._id || a.class || '',
+            subject: a.subject?._id || a.subject || '',
+            room: a.room?._id || a.room || '',
+            period: a.period?._id || a.period || '',
+            daysOfWeek: a.daysOfWeek || [],
+            startDate: formatYMD(a.startDate),
+            endDate: formatYMD(a.endDate),
+            isActive: a.isActive ?? true
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const deleteAssignment = async (id) => {
+
         if (!window.confirm('Delete this assignment?')) return;
         try {
             setSaving(true);
@@ -393,13 +510,66 @@ const AdminTimetablePage = () => {
                             <div className="empty">No periods yet.</div>
                         ) : (
                             periods.map(p => (
-                                <div key={p._id} className="row">
-                                    <div className="cell name">{p.name}</div>
-                                    <div className="cell">{p.startTime} - {p.endTime}</div>
-                                    <div className="cell">#{p.order}</div>
-                                    <button className="icon-btn danger" onClick={() => deletePeriod(p._id)} disabled={saving}>
-                                        <HiOutlineTrash size={18} />
-                                    </button>
+                                <div key={p._id} className="row row-has-actions">
+                                    {editingPeriod && editingPeriod._id === p._id ? (
+                                        <>
+                                            <div className="cell name">
+                                                <input
+                                                    type="text"
+                                                    value={editingPeriod.name}
+                                                    onChange={(e) => setEditingPeriod(prev => ({ ...prev, name: e.target.value }))}
+                                                    style={{ width: '100%', padding: '4px', border: '1px solid var(--border)', borderRadius: '4px' }}
+                                                />
+                                            </div>
+                                            <div className="cell action-input-group" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <input
+                                                    type="time"
+                                                    value={editingPeriod.startTime}
+                                                    onChange={(e) => setEditingPeriod(prev => ({ ...prev, startTime: e.target.value }))}
+                                                    style={{ padding: '4px', border: '1px solid var(--border)', borderRadius: '4px' }}
+                                                />
+                                                <span>-</span>
+                                                <input
+                                                    type="time"
+                                                    value={editingPeriod.endTime}
+                                                    onChange={(e) => setEditingPeriod(prev => ({ ...prev, endTime: e.target.value }))}
+                                                    style={{ padding: '4px', border: '1px solid var(--border)', borderRadius: '4px' }}
+                                                />
+                                            </div>
+                                            <div className="cell">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="20"
+                                                    value={editingPeriod.order}
+                                                    onChange={(e) => setEditingPeriod(prev => ({ ...prev, order: parseInt(e.target.value, 10) || prev.order }))}
+                                                    style={{ width: '60px', padding: '4px', border: '1px solid var(--border)', borderRadius: '4px' }}
+                                                />
+                                            </div>
+                                            <div className="cell flex-row-end">
+                                                <button className="icon-btn success" onClick={saveEditedPeriod} disabled={saving} title="Save">
+                                                    <HiOutlineCheck size={18} />
+                                                </button>
+                                                <button className="icon-btn muted" onClick={() => setEditingPeriod(null)} disabled={saving} title="Cancel">
+                                                    <HiOutlineX size={18} />
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="cell name">{p.name}</div>
+                                            <div className="cell">{p.startTime} - {p.endTime}</div>
+                                            <div className="cell">#{p.order}</div>
+                                            <div className="cell flex-row-end">
+                                                <button className="icon-btn" onClick={() => setEditingPeriod({ ...p })} disabled={saving} title="Edit">
+                                                    <HiOutlinePencil size={18} />
+                                                </button>
+                                                <button className="icon-btn danger" onClick={() => deletePeriod(p._id)} disabled={saving} title="Delete">
+                                                    <HiOutlineTrash size={18} />
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             ))
                         )}
@@ -407,9 +577,12 @@ const AdminTimetablePage = () => {
                 </div>
 
                 <div className="card">
-                    <div className="card-title">Teacher Period Assignments</div>
+                    <div className="card-title">
+                        {editingAssignmentId ? 'Edit Teacher Period Assignment' : 'New Teacher Period Assignment'}
+                    </div>
 
                     <div className="assignment-form">
+
                         <div className="field">
                             <label>Teacher</label>
                             <select
@@ -557,22 +730,58 @@ const AdminTimetablePage = () => {
                         </div>
 
                         <div className="field full">
-                            <button
-                                className="btn btn-primary"
-                                onClick={addAssignment}
-                                disabled={saving || !newAssignment.teacher || !newAssignment.class || !newAssignment.period}
-                            >
-                                {saving ? 'Saving...' : 'Create Assignment'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={submitAssignmentForm}
+                                    disabled={saving || !newAssignment.teacher || !newAssignment.class || !newAssignment.period}
+                                >
+                                    {saving ? 'Saving...' : (editingAssignmentId ? 'Update Assignment' : 'Create Assignment')}
+                                </button>
+                                {editingAssignmentId && (
+                                    <button
+                                        className="btn btn-secondary"
+                                        onClick={cancelAssignmentEdit}
+                                        disabled={saving}
+                                    >
+                                        Cancel Edit
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
                     <div className="table">
-                        {assignments.length === 0 ? (
-                            <div className="empty">No assignments yet.</div>
+                        <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '16px', alignItems: 'center', backgroundColor: 'var(--surface)' }}>
+                            <span style={{ fontWeight: 500 }}>Filter by:</span>
+                            <select
+                                value={filterTeacher}
+                                onChange={(e) => setFilterTeacher(e.target.value)}
+                                style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: '4px' }}
+                            >
+                                <option value="">All Teachers</option>
+                                {teachers.map(t => (
+                                    <option key={t._id} value={t.user?._id || ''}>
+                                        {t.user?.firstName} {t.user?.lastName}
+                                    </option>
+                                ))}
+                            </select>
+                            <select
+                                value={filterClass}
+                                onChange={(e) => setFilterClass(e.target.value)}
+                                style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: '4px' }}
+                            >
+                                <option value="">All Classes</option>
+                                {classes.map(c => (
+                                    <option key={c._id} value={c._id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {filteredAssignments.length === 0 ? (
+                            <div className="empty">No assignments found.</div>
                         ) : (
                             <>
-                                <div className="row header">
+                                <div className="row">
                                     <div className="cell name">Teacher</div>
                                     <div className="cell">Class</div>
                                     <div className="cell">Period</div>
@@ -580,7 +789,7 @@ const AdminTimetablePage = () => {
                                     <div className="cell muted">Days</div>
                                     <div className="cell actions" />
                                 </div>
-                                {assignments.map(a => (
+                                {filteredAssignments.map(a => (
                                     <div key={a._id} className="row">
                                         <div className="cell name">
                                             {a.teacher?.firstName} {a.teacher?.lastName}
@@ -597,14 +806,20 @@ const AdminTimetablePage = () => {
                                         <div className="cell muted">
                                             {a.daysOfWeek?.join(',')}
                                         </div>
-                                        <button className="icon-btn danger" onClick={() => deleteAssignment(a._id)} disabled={saving}>
-                                            <HiOutlineTrash size={18} />
-                                        </button>
+                                        <div className="cell flex-row-end">
+                                            <button className="icon-btn" onClick={() => fillAssignmentFormForEdit(a)} disabled={saving} title="Edit">
+                                                <HiOutlinePencil size={18} />
+                                            </button>
+                                            <button className="icon-btn danger" onClick={() => deleteAssignment(a._id)} disabled={saving} title="Delete">
+                                                <HiOutlineTrash size={18} />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </>
                         )}
                     </div>
+
                 </div>
             </div>
 

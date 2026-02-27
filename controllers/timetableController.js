@@ -108,6 +108,39 @@ async function checkAssignmentConflicts(schoolId, candidate, excludeAssignmentId
     const candidateDays = Array.from(new Set((daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [1, 2, 3, 4, 5])));
     const conflicts = [];
 
+    // Global room-to-class uniqueness rule:
+    // A room can only be assigned to ONE class across the entire school.
+    if (room) {
+        const existingRoomAssignments = await TeacherPeriodAssignment.find({
+            school: schoolId,
+            isActive: true,
+            room: room
+        });
+
+        for (const existing of existingRoomAssignments) {
+            if (excludeAssignmentId && existing._id.toString() === excludeAssignmentId.toString()) continue;
+
+            // Check if there is a date overlap globally for this room
+            const dateOverlap = datesOverlap(normalizedStart, normalizedEnd, new Date(existing.startDate), new Date(existing.endDate));
+            if (!dateOverlap) continue;
+
+            if (existing.class.toString() !== classId?.toString()) {
+                conflicts.push({
+                    id: existing._id,
+                    teacher: existing.teacher,
+                    class: existing.class,
+                    room: existing.room,
+                    period: existing.period,
+                    daysOfWeek: existing.daysOfWeek,
+                    startDate: existing.startDate,
+                    endDate: existing.endDate,
+                    reason: 'room-exclusivity'
+                });
+                break; // One conflict is enough to flag the room
+            }
+        }
+    }
+
     for (const existing of existingForPeriod) {
         if (excludeAssignmentId && existing._id.toString() === excludeAssignmentId.toString()) continue;
 
@@ -241,7 +274,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         const reasons = [...new Set(conflicts.map(c => c.reason))];
         return res.status(400).json({
             success: false,
-            message: `Conflict: ${reasons.map(r => r === 'room' ? 'room already occupied' : r === 'teacher' ? 'teacher already assigned' : 'class already has a lesson').join(', ')} at this period`,
+            message: `Conflict: ${reasons.map(r => r === 'room-exclusivity' ? 'room is already exclusively assigned to another class' : r === 'room' ? 'room already occupied' : r === 'teacher' ? 'teacher already assigned' : 'class already has a lesson').join(', ')}`,
             conflicts
         });
     }
@@ -465,7 +498,7 @@ export const updateAssignment = asyncHandler(async (req, res) => {
             const reasons = [...new Set(conflicts.map(c => c.reason))];
             return res.status(400).json({
                 success: false,
-                message: `Conflict: ${reasons.map(r => r === 'room' ? 'room already occupied' : r === 'teacher' ? 'teacher already assigned' : 'class already has a lesson').join(', ')} at this period`,
+                message: `Conflict: ${reasons.map(r => r === 'room-exclusivity' ? 'room is already exclusively assigned to another class' : r === 'room' ? 'room already occupied' : r === 'teacher' ? 'teacher already assigned' : 'class already has a lesson').join(', ')}`,
                 conflicts
             });
         }

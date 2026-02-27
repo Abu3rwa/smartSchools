@@ -242,7 +242,13 @@ export async function getCandidates({ schoolId, absentTeacherId, date, departmen
             startTime: p.startTime,
             endTime: p.endTime,
             classId: p.classId,
-            roomId: p.roomId
+            roomId: p.roomId,
+            subjectId: p.subjectId,
+            _periodName: p._periodName,
+            _className: p._className,
+            _grade: p._grade,
+            _roomName: p._roomName,
+            _subjectName: p._subjectName
         })),
         candidatesAllPeriods,
         candidatesByPeriod: Object.fromEntries(

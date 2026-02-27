@@ -43,12 +43,12 @@ const formatDate = (d) =>
 const formatDateTime = (d) =>
   d
     ? new Date(d).toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      })
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
     : '—';
 
 const getPersonName = (p) => {
@@ -176,9 +176,9 @@ const SubRequestDetail = () => {
   const isTeacher = user?.role === 'teacher';
   const displayAssignments = isTeacher && item.assignments
     ? item.assignments.filter((a) => {
-        const subId = a.substituteTeacherId?._id || a.substituteTeacherId;
-        return subId?.toString() === user?._id?.toString();
-      })
+      const subId = a.substituteTeacherId?._id || a.substituteTeacherId;
+      return subId?.toString() === user?._id?.toString();
+    })
     : item.assignments;
 
   const assignmentCounts = (displayAssignments || []).reduce(
@@ -192,13 +192,28 @@ const SubRequestDetail = () => {
     { pending: 0, confirmed: 0, declined: 0 }
   );
 
+  const hasConfirmedForTeacher =
+    isTeacher &&
+    (displayAssignments || []).some((assignment) => assignment?.status === 'CONFIRMED');
+
   const hasPendingForTeacher =
     isTeacher &&
     (displayAssignments || []).some((assignment) => (assignment?.status || 'PENDING') === 'PENDING');
 
+  const hasDeclinedForTeacher =
+    isTeacher &&
+    (displayAssignments || []).some((assignment) => assignment?.status === 'DECLINED');
+
+  const isAbsentTeacher =
+    isTeacher &&
+    (item.absentTeacherId?._id?.toString() === user?._id?.toString() || item.absentTeacherId?.toString() === user?._id?.toString());
+
   const handleTeacherRespond = (action) => {
-    if (!id || !hasPendingForTeacher) return;
-    if (action === 'DECLINE' && !teacherNote.trim()) return;
+    if (!id) return;
+    if (action === 'CONFIRM' && !hasPendingForTeacher) return;
+    if (action === 'DECLINE' && !hasPendingForTeacher) return;
+    if (action === 'WITHDRAW' && !hasConfirmedForTeacher) return;
+    if ((action === 'DECLINE' || action === 'WITHDRAW') && !teacherNote.trim()) return;
     setTeacherAction(action);
     dispatch(
       respondToSubRequestAuthThunk({
@@ -343,7 +358,7 @@ const SubRequestDetail = () => {
           <AssignmentsTable assignments={displayAssignments} showSubstituteColumn={!isTeacher} />
         </Box>
 
-        {isTeacher && (
+        {isTeacher && displayAssignments !== undefined && (
           <Box
             sx={{
               mb: 3,
@@ -356,7 +371,30 @@ const SubRequestDetail = () => {
             <Typography variant="subtitle2" fontWeight={600} gutterBottom>
               Your response
             </Typography>
-            {hasPendingForTeacher && item.status === 'SUBMITTED' ? (
+
+            {/* If they are the absent teacher requesting coverage */}
+            {isAbsentTeacher && !hasPendingForTeacher && !hasConfirmedForTeacher && !hasDeclinedForTeacher && (
+              <Typography variant="body2" color="text.secondary">
+                You are the absent teacher for this request. Coverage is being managed by the administration and covering teachers.
+              </Typography>
+            )}
+
+            {/* No assignment for this teacher at all (and they aren't the absent teacher) */}
+            {!isAbsentTeacher && !hasPendingForTeacher && !hasConfirmedForTeacher && !hasDeclinedForTeacher && (
+              <Typography variant="body2" color="text.secondary">
+                You have no assignment on this request.
+              </Typography>
+            )}
+
+            {/* Teacher declined */}
+            {hasDeclinedForTeacher && !hasPendingForTeacher && !hasConfirmedForTeacher && (
+              <Typography variant="body2" color="error.main" sx={{ fontWeight: 500 }}>
+                You have declined your assignment(s) for this request.
+              </Typography>
+            )}
+
+            {/* Pending assignment → Confirm / Decline */}
+            {hasPendingForTeacher && item.status === 'SUBMITTED' && (
               <>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                   Confirm if you can cover these periods, or decline with a short note.
@@ -380,9 +418,7 @@ const SubRequestDetail = () => {
                     onClick={() => handleTeacherRespond('DECLINE')}
                     disabled={respondInPortal.loading || !teacherNote.trim()}
                   >
-                    {respondInPortal.loading && teacherAction === 'DECLINE'
-                      ? 'Submitting...'
-                      : 'Decline'}
+                    {respondInPortal.loading && teacherAction === 'DECLINE' ? 'Submitting...' : 'Decline'}
                   </Button>
                   <Button
                     variant="contained"
@@ -390,15 +426,47 @@ const SubRequestDetail = () => {
                     onClick={() => handleTeacherRespond('CONFIRM')}
                     disabled={respondInPortal.loading}
                   >
-                    {respondInPortal.loading && teacherAction === 'CONFIRM'
-                      ? 'Submitting...'
-                      : 'Confirm'}
+                    {respondInPortal.loading && teacherAction === 'CONFIRM' ? 'Submitting...' : 'Confirm'}
                   </Button>
                 </Stack>
               </>
-            ) : (
+            )}
+
+            {/* Already confirmed → Withdraw */}
+            {hasConfirmedForTeacher && !hasPendingForTeacher && (
+              <>
+                <Typography variant="body2" color="success.main" sx={{ mb: 1.5, fontWeight: 500 }}>
+                  ✓ You have confirmed this substitution.
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  maxRows={4}
+                  label="Reason for withdrawal (required)"
+                  placeholder="Briefly explain why you need to withdraw..."
+                  value={teacherNote}
+                  onChange={(e) => setTeacherNote(e.target.value)}
+                  disabled={respondInPortal.loading}
+                  sx={{ mb: 2 }}
+                />
+                <Stack direction="row" justifyContent="flex-end">
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    onClick={() => handleTeacherRespond('WITHDRAW')}
+                    disabled={respondInPortal.loading || !teacherNote.trim()}
+                  >
+                    {respondInPortal.loading && teacherAction === 'WITHDRAW' ? 'Withdrawing...' : 'Withdraw confirmation'}
+                  </Button>
+                </Stack>
+              </>
+            )}
+
+            {/* Request no longer open */}
+            {hasPendingForTeacher && item.status !== 'SUBMITTED' && (
               <Typography variant="body2" color="text.secondary">
-                You have already responded to this request.
+                This request is no longer open for responses (status: {item.status}).
               </Typography>
             )}
           </Box>

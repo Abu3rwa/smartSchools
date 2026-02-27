@@ -2,6 +2,8 @@ import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import SchoolDayException from '../models/SchoolDayException.js';
 import TimetablePeriod from '../models/TimetablePeriod.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
+import SubstitutionRequest from '../models/SubstitutionRequest.js';
+
 import {
     DEFAULT_SCHOOL_TIMEZONE,
     resolveTimeZone,
@@ -83,4 +85,50 @@ export async function hasTeacherAssignmentForSchedule(schoolId, schedule, teache
 
     const assignment = await TeacherPeriodAssignment.findOne(query);
     return !!assignment;
+}
+
+/**
+ * Check if a teacher is a confirmed substitute for a given period/class/date.
+ * Returns the matching period info { subjectId, roomId, subRequestId } if found,
+ * or null if the teacher has no confirmed sub assignment.
+ */
+export async function hasSubstituteAssignmentForPeriod(schoolId, teacherId, periodId, classId, targetDate) {
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const request = await SubstitutionRequest.findOne({
+        school: schoolId,
+        date: { $gte: startOfDay, $lte: endOfDay },
+        status: { $in: ['SUBMITTED', 'CONFIRMED'] },
+        assignments: {
+            $elemMatch: {
+                substituteTeacherId: teacherId,
+                status: 'CONFIRMED'
+            }
+        }
+    }).populate('periods.roomId', 'name').lean();
+
+    if (!request) return null;
+
+    // Verify the assignment with CONFIRMED status exists for this teacher
+    const myAssignment = request.assignments.find(
+        (a) => a.substituteTeacherId?.toString() === teacherId.toString() && a.status === 'CONFIRMED'
+    );
+    if (!myAssignment) return null;
+
+    // Find the period entry that matches both periodId AND classId
+    const periodInfo = request.periods.find(
+        (p) =>
+            p.periodId?.toString() === periodId.toString() &&
+            p.classId?.toString() === classId.toString()
+    );
+    if (!periodInfo) return null;
+
+    return {
+        subjectId: periodInfo.subjectId || null,
+        roomId: periodInfo.roomId || null,
+        subRequestId: request._id
+    };
 }

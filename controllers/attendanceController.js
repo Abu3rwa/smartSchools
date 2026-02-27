@@ -7,6 +7,7 @@ import Room from '../models/Room.js';
 import Class from '../models/Class.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import TimetablePeriod from '../models/TimetablePeriod.js';
+import SubstitutionRequest from '../models/SubstitutionRequest.js';
 import { generateNotification } from '../utils/notificationService.js';
 import {
     getClassIdsForAcademicYear,
@@ -14,7 +15,7 @@ import {
     clampDateRangeToAcademicYear,
     isDateInAcademicYear
 } from '../helpers/academicYearScope.js';
-import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule, getSchoolTimeZone } from '../helpers/attendanceEligibility.js';
+import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule, getSchoolTimeZone, hasSubstituteAssignmentForPeriod } from '../helpers/attendanceEligibility.js';
 import {
     getViewRangeInTimeZone,
     getSchoolDayRange,
@@ -43,7 +44,7 @@ function parseAttendanceRequestDate(input) {
 // Helper function to get room name from roomId
 async function getRoomName(roomId) {
     if (!roomId) return 'N/A';
-    
+
     try {
         const room = await Room.findById(roomId);
         return room?.name || 'Unknown Room';
@@ -170,7 +171,7 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
     const teacherId = req.user.role === 'teacher' ? req.user._id : req.query.teacherId;
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const { academicYear, classIds: yearClassIds, dateFilter } = await getYearScopedClassIds(req);
-    
+
     if (!teacherId) {
         return res.status(400).json({ message: 'Teacher ID is required' });
     }
@@ -187,7 +188,7 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
             academicYear
         });
     }
-    
+
     const dateRange = getViewRangeInTimeZone({ viewMode, startDate, endDate, now: new Date(), timeZone: schoolTimeZone });
     const scopedDateRange = clampDateRangeToAcademicYear(
         { $gte: dateRange.start, $lte: dateRange.end },
@@ -208,7 +209,7 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
     }
     const start = scopedDateRange.$gte;
     const end = scopedDateRange.$lte;
-    
+
     // Get attendance records (include period for period-based rows)
     const attendanceRecords = await Attendance.find({
         school: req.schoolId,
@@ -216,12 +217,12 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
         class: { $in: yearClassIds },
         date: { $gte: start, $lte: end }
     })
-    .populate('schedule class subject')
-    .populate('period', 'name')
-    .populate('studentAttendance.student', 'firstName lastName email')
-    .populate('recordedBy', 'firstName lastName')
-    .sort({ date: 1, startTime: 1 });
-    
+        .populate('schedule class subject')
+        .populate('period', 'name')
+        .populate('studentAttendance.student', 'firstName lastName email')
+        .populate('recordedBy', 'firstName lastName')
+        .sort({ date: 1, startTime: 1 });
+
     // Get schedules for the period to identify missed attendance
     const schedules = await Schedule.find({
         school: req.schoolId,
@@ -231,18 +232,18 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
         requiresAttendance: true,
         status: { $ne: 'cancelled' }
     })
-    .populate('class subject room')
-    .sort({ startTime: 1 });
-    
+        .populate('class subject room')
+        .sort({ startTime: 1 });
+
     // Identify missed attendance
     const attendedScheduleIds = attendanceRecords
         .map((record) => record.schedule?.toString())
         .filter(Boolean);
-    const missedSchedules = schedules.filter(schedule => 
-        !attendedScheduleIds.includes(schedule._id.toString()) && 
+    const missedSchedules = schedules.filter(schedule =>
+        !attendedScheduleIds.includes(schedule._id.toString()) &&
         new Date(schedule.endTime) < new Date()
     );
-    
+
     res.json({
         attendanceRecords,
         missedSchedules,
@@ -250,7 +251,7 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
             totalClasses: schedules.length,
             recordedClasses: attendanceRecords.length,
             missedClasses: missedSchedules.length,
-            attendanceRate: attendanceRecords.length > 0 ? 
+            attendanceRate: attendanceRecords.length > 0 ?
                 Math.round((attendanceRecords.reduce((sum, r) => sum + r.attendanceRate, 0) / attendanceRecords.length)) : 0
         },
         academicYear
@@ -285,7 +286,7 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
             academicYear
         });
     }
-    
+
     const dateRange = getViewRangeInTimeZone({ viewMode, startDate, endDate, now: new Date(), timeZone: schoolTimeZone });
     const scopedDateRange = clampDateRangeToAcademicYear(
         { $gte: dateRange.start, $lte: dateRange.end },
@@ -329,14 +330,14 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
     } else if (status === 'pending') {
         query.status = 'draft';
     }
-    
+
     // Get attendance records (include period for period-based rows)
     const attendanceRecords = await Attendance.find(query)
-    .populate('schedule class subject teacher')
-    .populate('period', 'name')
-    .populate('recordedBy', 'firstName lastName')
-    .sort({ date: 1, startTime: 1 });
-    
+        .populate('schedule class subject teacher')
+        .populate('period', 'name')
+        .populate('recordedBy', 'firstName lastName')
+        .sort({ date: 1, startTime: 1 });
+
     // Get missed attendance
     const missedAttendance = await Attendance.findMissedAttendance(req.schoolId, now, { classIds: yearClassIds });
 
@@ -372,7 +373,7 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
     ]);
 
     const pendingInRange = attendanceRecords.filter((record) => record.status === 'draft').length;
-    
+
     res.json({
         attendanceRecords,
         missedAttendance,
@@ -380,7 +381,7 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
             totalClasses: attendanceRecords.length,
             recordedClasses: attendanceRecords.filter(r => r.status !== 'draft').length,
             missedClasses: missedAttendance.reduce((sum, m) => sum + m.totalMissed, 0),
-            overallAttendanceRate: attendanceRecords.length > 0 ? 
+            overallAttendanceRate: attendanceRecords.length > 0 ?
                 Math.round((attendanceRecords.reduce((sum, r) => sum + r.attendanceRate, 0) / attendanceRecords.length)) : 0,
             pendingToday,
             pendingOverall,
@@ -400,25 +401,25 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
 
     const { scheduleId, studentAttendance } = req.body;
     const { academicYear: effectiveAcademicYear } = resolveAcademicYearDateRangeForRequest(req);
-    
+
     // Get schedule information
     const schedule = await Schedule.findById(scheduleId)
         .populate('class subject teacher room');
-    
+
     if (!schedule) {
         return res.status(404).json({ message: 'Schedule not found' });
     }
-    
+
     if (schedule.school.toString() !== req.schoolId.toString()) {
         return res.status(403).json({ message: 'Access denied' });
     }
     const scheduleClassYear = schedule.class?.academicYear;
     if (!schedule.class || (scheduleClassYear || '').toString() !== effectiveAcademicYear) {
         return res.status(400).json({
-            message: `Attendance can only be recorded for classes in academic year ${effectiveAcademicYear}`
+            message: `Attendance can only be recorded for classes in academic year ${effectiveAcademicYear} `
         });
     }
-    
+
     // Check permissions
     if (req.user.role === 'teacher' && schedule.teacher._id.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: 'You can only record attendance for your own classes' });
@@ -444,7 +445,7 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
             }
         }
     }
-    
+
     const schoolTimeZone = await getSchoolTimeZone(req.schoolId);
     const scheduleDayRange = getSchoolDayRange(schedule.startTime, schoolTimeZone);
     const todayRange = getSchoolDayRange(new Date(), schoolTimeZone);
@@ -460,14 +461,14 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
         schedule: scheduleId,
         date: { $gte: scheduleDayRange.start, $lte: scheduleDayRange.end }
     });
-    
+
     if (attendance) {
         // Update existing attendance
         const previousAttendance = attendance.studentAttendance.map(s => ({
             student: s.student,
             status: s.status
         }));
-        
+
         attendance.studentAttendance = studentAttendance.map(student => ({
             ...student,
             recordedBy: req.user._id,
@@ -475,10 +476,10 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
             lastModifiedBy: req.user._id,
             lastModifiedAt: new Date()
         }));
-        
+
         attendance.lastModifiedBy = req.user._id;
         attendance.lastModifiedAt = new Date();
-        
+
         // Add to audit trail
         attendance.auditTrail.push({
             action: 'student_updated',
@@ -487,7 +488,7 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
             previousValues: { studentAttendance: previousAttendance },
             newValues: { studentAttendance: studentAttendance }
         });
-        
+
     } else {
         // Create new attendance record
         attendance = new Attendance({
@@ -515,7 +516,7 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
             }]
         });
     }
-    
+
     try {
         await attendance.save();
     } catch (error) {
@@ -562,7 +563,7 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
         await existingAttendance.save();
         attendance = existingAttendance;
     }
-    
+
     // Send parent notifications for absent students
     const absentStudents = attendance.studentAttendance.filter(s => s.status === 'absent');
     for (const absentStudent of absentStudents) {
@@ -578,7 +579,7 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
             }
         });
     }
-    
+
     res.json(attendance);
 });
 
@@ -638,26 +639,84 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
         class: { $in: yearClassIds },
         date: { $gte: startOfDay, $lte: endOfDay },
         period: { $in: allPeriods.map(p => p._id) }
-    }).select('period status studentAttendance');
+    }).select('period status studentAttendance recordedBy').populate('recordedBy', 'firstName lastName');
 
     const attendanceByPeriod = {};
     for (const att of existingAttendance) {
         attendanceByPeriod[att.period.toString()] = {
             id: att._id,
             status: att.status,
-            studentAttendance: att.studentAttendance
+            studentAttendance: att.studentAttendance,
+            takenBy: att.recordedBy
+                ? `${att.recordedBy.firstName} ${att.recordedBy.lastName}`
+                : null
         };
+    }
+
+    // -------------------------------------------------------------------
+    // Merge in confirmed substitute coverages for today
+    // -------------------------------------------------------------------
+    const subRequests = await SubstitutionRequest.find({
+        school: req.schoolId,
+        date: { $gte: startOfDay, $lte: endOfDay },
+        status: { $in: ['SUBMITTED', 'CONFIRMED'] },
+        'assignments.substituteTeacherId': req.user._id,
+        'assignments.status': 'CONFIRMED'
+    })
+        .populate('periods.periodId', 'name startTime endTime order')
+        .populate('periods.classId', 'name grade section')
+        .populate('periods.subjectId', 'name code')
+        .populate('periods.roomId', 'name')
+        .lean();
+
+    // Build synthetic assignment-like objects from sub requests
+    const subAssignments = [];
+    for (const subReq of subRequests) {
+        const mySubAssignments = subReq.assignments.filter(
+            (a) =>
+                a.substituteTeacherId?.toString() === req.user._id.toString() &&
+                a.status === 'CONFIRMED'
+        );
+        for (const subAsg of mySubAssignments) {
+            // Find the matching period detail in the sub request periods array
+            const periodInfo = subReq.periods.find(
+                (p) => p.periodId?._id?.toString() === subAsg.periodId?.toString()
+                    || p.periodId?.toString() === subAsg.periodId?.toString()
+            );
+            if (periodInfo && periodInfo.periodId) {
+                subAssignments.push({
+                    _isSyntheticSub: true,
+                    period: periodInfo.periodId,      // populated TimetablePeriod
+                    class: periodInfo.classId,        // populated Class
+                    subject: periodInfo.subjectId,    // populated Subject
+                    room: periodInfo.roomId,          // populated Room
+                    isSubstitute: true,
+                    subRequestId: subReq._id
+                });
+            }
+        }
+    }
+
+    // Combine: regular assignments + substitute assignments
+    // Use a Map keyed by periodId to avoid duplicates (TPA wins if both exist)
+    const assignmentByPeriod = new Map();
+    for (const a of assignments) {
+        const pid = (a.period?._id || a.period)?.toString();
+        if (pid) assignmentByPeriod.set(pid, a);
+    }
+    for (const a of subAssignments) {
+        const pid = (a.period?._id || a.period)?.toString();
+        if (pid && !assignmentByPeriod.has(pid)) assignmentByPeriod.set(pid, a);
     }
 
     // Build response: each period with its assignment (if any) and attendance status
     const periodsWithStatus = allPeriods.map(period => {
-        const assignment = assignments.find(a =>
-            (a.period?._id || a.period)?.toString() === period._id.toString()
-        );
+        const assignment = assignmentByPeriod.get(period._id.toString()) || null;
         return {
             period,
             assignment: assignment || null,
             hasClass: !!assignment,
+            isSubstitute: assignment?.isSubstitute || false,
             attendanceStatus: attendanceByPeriod[period._id.toString()] || null
         };
     });
@@ -720,8 +779,15 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
         endDate: { $gte: startOfDay }
     });
 
+    // If no regular TPA exists, check if this teacher is a confirmed substitute
+    let subPeriodInfo = null;
     if (!assignment) {
-        return res.status(403).json({ success: false, message: 'You are not assigned to this class for this period on the selected day' });
+        subPeriodInfo = await hasSubstituteAssignmentForPeriod(
+            req.schoolId, req.user._id, periodId, classId, targetDate
+        );
+        if (!subPeriodInfo) {
+            return res.status(403).json({ success: false, message: 'You are not assigned to this class for this period on the selected day' });
+        }
     }
 
     // Check for existing attendance record
@@ -768,21 +834,28 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
         attendance.auditTrail.push({
             action: 'updated',
             performedBy: req.user._id,
-            details: 'Attendance updated'
+            details: subPeriodInfo
+                ? `Attendance updated by substitute teacher (subRequestId: ${subPeriodInfo.subRequestId})`
+                : 'Attendance updated'
         });
     } else {
+        // Resolve room: prefer TPA assignment room, fall back to sub period room object/id
+        const roomSource = assignment?.room || subPeriodInfo?.roomId;
+        const resolvedRoomName = typeof roomSource === 'object' && roomSource?.name
+            ? roomSource.name
+            : await getRoomName(roomSource);
+
         attendance = new Attendance({
             school: req.schoolId,
             period: periodId,
             teacher: req.user._id,
             class: classId,
-            subject: subjectId || assignment.subject,
-            // Use period start timestamp for period-based attendance so multiple
-            // periods on the same day do not collide on legacy schedule/date indexes.
+            subject: subjectId || assignment?.subject || subPeriodInfo?.subjectId,
+            // Use period start timestamp so multiple periods on same day don't collide on legacy indexes
             date: periodStart,
             startTime: periodStart,
             endTime: periodEnd,
-            room: await getRoomName(assignment.room),
+            room: resolvedRoomName,
             totalStudents: mappedStudents.length,
             studentAttendance: mappedStudents,
             recordedBy: req.user._id,
@@ -790,7 +863,9 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
             auditTrail: [{
                 action: 'created',
                 performedBy: req.user._id,
-                details: 'Period attendance created'
+                details: subPeriodInfo
+                    ? `Taken by substitute teacher (subRequestId: ${subPeriodInfo.subRequestId})`
+                    : 'Period attendance created'
             }]
         });
     }
@@ -814,23 +889,23 @@ export const getAttendanceDetails = asyncHandler(async (req, res) => {
         .populate('studentAttendance.student', 'firstName lastName email parentContact')
         .populate('recordedBy', 'firstName lastName')
         .populate('lastModifiedBy', 'firstName lastName');
-    
+
     if (!attendance) {
         return res.status(404).json({ message: 'Attendance record not found' });
     }
-    
+
     if (attendance.school.toString() !== req.user.school.toString()) {
         return res.status(403).json({ message: 'Access denied' });
     }
     if ((attendance.class?.academicYear || '').toString() !== effectiveAcademicYear) {
         return res.status(404).json({ message: `Attendance record not found for academic year ${effectiveAcademicYear}` });
     }
-    
+
     // Check permissions
     if (req.user.role === 'teacher' && attendance.teacher._id.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: 'Access denied' });
     }
-    
+
     res.json({ ...attendance.toObject(), academicYear: effectiveAcademicYear });
 });
 
@@ -858,14 +933,14 @@ export const getAttendanceAnalytics = asyncHandler(async (req, res) => {
     if (!scopedDateRange) {
         return res.json([]);
     }
-    
+
     const analytics = await Attendance.getAttendanceAnalytics(
         req.schoolId,
         scopedDateRange.$gte,
         scopedDateRange.$lte,
         { teacher, class: classId, subject, classIds: yearClassIds }
     );
-    
+
     res.json(analytics);
 });
 
@@ -888,9 +963,9 @@ export const getMissedAttendance = asyncHandler(async (req, res) => {
     if (!isDateInAcademicYear(targetDate, dateFilter)) {
         return res.json([]);
     }
-    
+
     const missedAttendance = await Attendance.findMissedAttendance(req.schoolId, targetDate, { classIds: yearClassIds });
-    
+
     // Generate notifications for teachers who missed attendance
     for (const missed of missedAttendance) {
         for (const missedClass of missed.missedClasses) {
@@ -908,7 +983,7 @@ export const getMissedAttendance = asyncHandler(async (req, res) => {
             });
         }
     }
-    
+
     res.json(missedAttendance);
 });
 
@@ -944,23 +1019,23 @@ export const exportAttendanceData = asyncHandler(async (req, res) => {
         }
         return res.json([]);
     }
-    
+
     // Build query
     const query = {
         school: req.schoolId,
         class: classId ? classId : { $in: yearClassIds },
         date: { $gte: scopedDateRange.$gte, $lte: scopedDateRange.$lte }
     };
-    
+
     if (teacher) query.teacher = teacher;
     if (subject) query.subject = subject;
-    
+
     const attendanceRecords = await Attendance.find(query)
         .populate('schedule class subject teacher')
         .populate('studentAttendance.student', 'firstName lastName')
         .populate('recordedBy', 'firstName lastName')
         .sort({ date: 1, startTime: 1 });
-    
+
     if (format === 'csv') {
         // Generate CSV
         const csv = [
@@ -980,7 +1055,7 @@ export const exportAttendanceData = asyncHandler(async (req, res) => {
                 record.recordedAt.toISOString()
             ].join(','))
         ].join('\n');
-        
+
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename=attendance_${startDate}_to_${endDate}.csv`);
         res.send(csv);
@@ -1000,11 +1075,11 @@ export const lockAttendance = asyncHandler(async (req, res) => {
 
     const { academicYear: effectiveAcademicYear } = resolveAcademicYearDateRangeForRequest(req);
     const attendance = await Attendance.findById(req.params.id);
-    
+
     if (!attendance) {
         return res.status(404).json({ message: 'Attendance record not found' });
     }
-    
+
     if (attendance.school.toString() !== req.schoolId.toString()) {
         return res.status(403).json({ message: 'Access denied' });
     }
@@ -1013,19 +1088,20 @@ export const lockAttendance = asyncHandler(async (req, res) => {
     if (!classDoc || (classDoc.academicYear || '').toString() !== effectiveAcademicYear) {
         return res.status(404).json({ message: `Attendance record not found for academic year ${effectiveAcademicYear}` });
     }
-    
+
     attendance.status = 'locked';
     attendance.lastModifiedBy = req.user._id;
     attendance.lastModifiedAt = new Date();
-    
+
     attendance.auditTrail.push({
         action: 'status_changed',
         performedBy: req.user._id,
         details: 'Attendance locked',
         newValues: { status: 'locked' }
     });
-    
+
     await attendance.save();
-    
+
     res.json({ message: 'Attendance locked successfully' });
 });
+

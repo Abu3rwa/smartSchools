@@ -25,7 +25,9 @@
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Page header */
@@ -278,6 +280,12 @@
     letter-spacing: 0.03em;
 }
 
+.admin-timetable-page .row.header .cell {
+    overflow: visible;
+    text-overflow: none;
+    white-space: normal;
+}
+
 .admin-timetable-page .row.header .cell.actions {
     visibility: hidden;
 }
@@ -343,6 +351,22 @@
 .admin-timetable-page .icon-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.admin-timetable-page .flex-row-end {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+}
+
+.admin-timetable-page .icon-btn.success {
+    border-color: rgba(16, 185, 129, 0.4);
+    color: var(--success-500, #10b981);
+}
+
+.admin-timetable-page .icon-btn.success:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: var(--success-500, #10b981);
 }
 
 /* Room field with Add room button */

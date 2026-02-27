@@ -282,7 +282,9 @@ export const getRequestHandler = asyncHandler(async (req, res) => {
             a => a.substituteTeacherId?._id?.toString() === user._id.toString() ||
                 a.substituteTeacherId?.toString() === user._id.toString()
         );
-        if (!isAssigned) {
+        const isAbsent = request.absentTeacherId?._id?.toString() === user._id.toString() ||
+            request.absentTeacherId?.toString() === user._id.toString();
+        if (!isAssigned && !isAbsent) {
             return res.status(403).json({ success: false, message: 'Not authorized to view this request' });
         }
     } else if (req.departmentId) {
@@ -383,7 +385,7 @@ export const respondHandler = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Respond to substitution request (confirm/decline) in portal as the logged-in teacher
+ * @desc    Respond to substitution request (confirm/decline/withdraw) in portal as the logged-in teacher
  * @route   POST /api/substitutions/:id/respond-auth
  * @access  Private (teacher)
  */
@@ -411,7 +413,8 @@ export const respondAuthHandler = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: `Request not found for academic year ${academicYear}` });
     }
 
-    if (request.status !== 'SUBMITTED') {
+    // WITHDRAW is allowed even when status isn't SUBMITTED (e.g. already CONFIRMED request)
+    if (action !== 'WITHDRAW' && request.status !== 'SUBMITTED') {
         return res.status(400).json({
             success: false,
             message: `Request is no longer pending (status: ${request.status})`
@@ -419,7 +422,9 @@ export const respondAuthHandler = asyncHandler(async (req, res) => {
     }
 
     const teacherId = user._id;
-    const myAssignments = request.assignments.filter((a) => a.substituteTeacherId?.toString() === teacherId.toString());
+    const myAssignments = request.assignments.filter(
+        (a) => a.substituteTeacherId?.toString() === teacherId.toString()
+    );
     if (myAssignments.length === 0) {
         return res.status(403).json({ success: false, message: 'You are not assigned to this request' });
     }
@@ -427,23 +432,28 @@ export const respondAuthHandler = asyncHandler(async (req, res) => {
     const trimmedNote = (note || '').trim();
 
     if (action === 'CONFIRM') {
+        const hasPending = myAssignments.some(a => (a.status || 'PENDING') === 'PENDING');
+        if (!hasPending) {
+            return res.status(400).json({ success: false, message: 'No pending assignment to confirm' });
+        }
         for (const assignment of myAssignments) {
-            assignment.status = 'CONFIRMED';
-            assignment.teacherResponseNote = trimmedNote;
+            if ((assignment.status || 'PENDING') === 'PENDING') {
+                assignment.status = 'CONFIRMED';
+                assignment.teacherResponseNote = trimmedNote;
+            }
         }
 
         if (request.coverageType === 'SINGLE_TEACHER_ALL_PERIODS') {
             for (const a of request.assignments) {
                 a.status = 'CONFIRMED';
-                if (!a.teacherResponseNote) {
-                    a.teacherResponseNote = trimmedNote;
-                }
+                if (!a.teacherResponseNote) a.teacherResponseNote = trimmedNote;
             }
             request.status = 'CONFIRMED';
         } else {
             const allConfirmed = request.assignments.every((a) => a.status === 'CONFIRMED');
             request.status = allConfirmed ? 'CONFIRMED' : 'SUBMITTED';
         }
+
     } else if (action === 'DECLINE') {
         for (const assignment of myAssignments) {
             assignment.status = 'DECLINED';
@@ -458,12 +468,28 @@ export const respondAuthHandler = asyncHandler(async (req, res) => {
             }
         }
         request.status = 'DECLINED';
+
+    } else if (action === 'WITHDRAW') {
+        // Teacher withdraws a previously confirmed assignment, reverting it to PENDING
+        const hasConfirmed = myAssignments.some(a => a.status === 'CONFIRMED');
+        if (!hasConfirmed) {
+            return res.status(400).json({ success: false, message: 'No confirmed assignment to withdraw' });
+        }
+        for (const assignment of myAssignments) {
+            if (assignment.status === 'CONFIRMED') {
+                assignment.status = 'PENDING';
+                assignment.teacherResponseNote = trimmedNote || 'Withdrawn by teacher';
+            }
+        }
+        // Revert request back to SUBMITTED so admin can re-assign
+        request.status = 'SUBMITTED';
+
     } else {
-        return res.status(400).json({ success: false, message: 'Invalid action. Use CONFIRM or DECLINE.' });
+        return res.status(400).json({ success: false, message: 'Invalid action. Use CONFIRM, DECLINE, or WITHDRAW.' });
     }
 
     request.timeline.push({
-        action: action === 'CONFIRM' ? 'CONFIRMED' : 'DECLINED',
+        action: action === 'CONFIRM' ? 'CONFIRMED' : action === 'DECLINE' ? 'DECLINED' : 'WITHDRAWN',
         by: teacherId,
         at: new Date(),
         meta: { note: trimmedNote || null, via: 'portal' }
@@ -482,9 +508,11 @@ export const respondAuthHandler = asyncHandler(async (req, res) => {
         .populate('createdBy', 'firstName lastName')
         .populate('timeline.by', 'firstName lastName');
 
+    const messages = { CONFIRM: 'Substitution confirmed', DECLINE: 'Substitution declined', WITHDRAW: 'Assignment withdrawn' };
     res.status(200).json({
         success: true,
-        message: action === 'CONFIRM' ? 'Substitution confirmed' : 'Substitution declined',
+        message: messages[action] || 'Done',
         data: { ...populated.toObject(), academicYear }
     });
 });
+

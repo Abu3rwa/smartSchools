@@ -92,13 +92,13 @@ const TeacherAttendanceNewPage = () => {
                 // Use existing attendance data from the period item
                 const attendanceData = periodItem.attendanceStatus;
                 const existingAttendance = attendanceData.studentAttendance || [];
-                
+
                 // Build attendance map from existing data
                 const attendanceMap = {};
                 for (const record of existingAttendance) {
                     attendanceMap[record.student] = record.status;
                 }
-                
+
                 // Initialize with existing data, default to 'present' for missing
                 const initial = {};
                 for (const student of studentList) {
@@ -292,6 +292,9 @@ const TeacherAttendanceNewPage = () => {
                                         <div className="period-class-info">
                                             <span className="class-name">{item.assignment?.class?.name}</span>
                                             <span className="subject-name">{item.assignment?.subject?.name || ''}</span>
+                                            {item.isSubstitute && (
+                                                <span className="sub-badge">SUB</span>
+                                            )}
                                         </div>
                                     ) : (
                                         <span className="no-class-label">No class</span>
@@ -299,10 +302,17 @@ const TeacherAttendanceNewPage = () => {
 
                                     <div className="period-status">
                                         {item.attendanceStatus ? (
-                                            <span className="attendance-badge done">
-                                                <HiOutlineCheckCircle size={14} />
-                                                Done
-                                            </span>
+                                            <div className="attendance-done-info">
+                                                <span className="attendance-badge done">
+                                                    <HiOutlineCheckCircle size={14} />
+                                                    Done
+                                                </span>
+                                                {item.attendanceStatus.takenBy && (
+                                                    <span className="taken-by-label">
+                                                        by {item.attendanceStatus.takenBy}
+                                                    </span>
+                                                )}
+                                            </div>
                                         ) : item.hasClass ? (
                                             <span className="attendance-badge pending">Pending</span>
                                         ) : null}
@@ -320,6 +330,9 @@ const TeacherAttendanceNewPage = () => {
                                     <h2>
                                         <HiOutlineUserGroup size={20} />
                                         {selectedPeriod.assignment?.class?.name} — {selectedPeriod.period?.name}
+                                        {selectedPeriod.isSubstitute && (
+                                            <span className="sub-badge" style={{ marginLeft: 8, fontSize: '0.7rem' }}>Substituting</span>
+                                        )}
                                     </h2>
                                     <div className="panel-subtitle">
                                         {selectedPeriod.assignment?.subject?.name || 'No subject'} · {students.length} students

@@ -227,6 +227,11 @@
 .attendance-badge.done {
     background: var(--stat-success-bg);
     color: var(--success-400);
+
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    overflow: hidden;
 }
 
 .attendance-badge.pending {
@@ -240,6 +245,36 @@
     font-style: italic;
 }
 
+/* Substitute coverage badge */
+.sub-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    background: rgba(251, 146, 60, 0.15);
+    color: #f97316;
+    border: 1px solid rgba(251, 146, 60, 0.35);
+    flex-shrink: 0;
+}
+
+/* "Done" + "by Name" stacked in period row */
+.attendance-done-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.taken-by-label {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
 /* ---- STUDENT ATTENDANCE PANEL ---- */
 .attendance-panel {
     margin-top: 24px;
@@ -248,6 +283,7 @@
     background: var(--bg-card);
     overflow: hidden;
 }
+
 
 .attendance-panel-header {
     display: flex;
@@ -293,8 +329,14 @@
     background: var(--bg-secondary);
 }
 
-.quick-actions button.all-present { color: var(--success-400); border-color: var(--success-200); }
-.quick-actions button.all-present:hover { background: var(--stat-success-bg); }
+.quick-actions button.all-present {
+    color: var(--success-400);
+    border-color: var(--success-200);
+}
+
+.quick-actions button.all-present:hover {
+    background: var(--stat-success-bg);
+}
 
 /* Student list */
 .student-list {
@@ -419,10 +461,21 @@
     border-radius: 50%;
 }
 
-.attendance-summary-inline .dot.present { background: var(--success-400); }
-.attendance-summary-inline .dot.absent { background: var(--error-400); }
-.attendance-summary-inline .dot.tardy { background: var(--warning-500); }
-.attendance-summary-inline .dot.excused { background: var(--accent-purple); }
+.attendance-summary-inline .dot.present {
+    background: var(--success-400);
+}
+
+.attendance-summary-inline .dot.absent {
+    background: var(--error-400);
+}
+
+.attendance-summary-inline .dot.tardy {
+    background: var(--warning-500);
+}
+
+.attendance-summary-inline .dot.excused {
+    background: var(--accent-purple);
+}
 
 /* Empty state */
 .empty-attendance {
