@@ -37,7 +37,7 @@ const ReportAnalytics = () => {
         periods={PERIOD_OPTIONS}
         years={YEAR_OPTIONS}
         onPeriodChange={(event) => setPeriod(event.target.value)}
-        onYearChange={(event) => setYear(Number(event.target.value))}
+        onYearChange={(event) => setYear(event.target.value)}
         onRefresh={fetchAnalytics}
       />
 
