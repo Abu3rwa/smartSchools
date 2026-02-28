@@ -101,6 +101,7 @@ export const generateQuestionResponseSchema = z.object({
     status: z.enum(['mastered', 'question', 'session_complete']),
     message: z.string().nullable().optional(),
     studentFirstName: z.string().nullable().optional(),
+    assignmentInstructions: z.string().nullable().optional(),
     mastery: masterySchema.optional(),
     suggestRemediation: z.boolean().optional(),
     sessionContext: sessionContextSchema,

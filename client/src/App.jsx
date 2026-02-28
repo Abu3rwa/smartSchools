@@ -42,7 +42,7 @@ import SubjectsPage from "./pages/SubjectsPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import MessagesPage from "./pages/messages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
-import SchoolSettingsPage from "./pages/SchoolSettingsPage";
+import SchoolSettingsPage from "./pages/schoolSettings/SchoolSettingsPage/SchoolSettingsPage.jsx";
 import AdminSchedulePage from "./pages/admin/AdminSchedulePage";
 import AdminAttendancePage from "./pages/admin/attendance/AdminAttendancePage";
 import AdminAttendanceRequestsPage from "./pages/admin/AdminAttendanceRequestsPage";
@@ -63,10 +63,10 @@ import BehaviorTrackingDashboardPage from "./pages/BehaviorTrackingDashboardPage
 import BehaviorAutoTracker from "./components/behavior/BehaviorAutoTracker";
 
 // Report Pages
-import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator";
-import ReportAnalytics from "./pages/reports/ReportAnalytics";
-import ReportTemplates from "./pages/reports/ReportTemplates";
-import ReportHistory from "./pages/reports/ReportHistory";
+import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator/AdvancedReportGenerator.jsx";
+import ReportAnalytics from "./pages/reports/ReportAnalytics/ReportAnalytics.jsx";
+import ReportTemplates from "./pages/reports/ReportTemplates/ReportTemplates.jsx";
+import ReportHistory from "./pages/reports/ReportHistory/ReportHistory.jsx";
 
 // Standards Practice Pages
 import StandardsPage from "./pages/StandardsPage";
@@ -89,21 +89,21 @@ import ReadingUploadPage from "./pages/ReadingUploadPage";
 import ReadingViewPage from "./pages/ReadingViewPage";
 
 // Substitution pages
-import CreateSubRequest from "./pages/substitutions/CreateSubRequest";
-import SubRequestsList from "./pages/substitutions/SubRequestsList";
-import SubRequestDetail from "./pages/substitutions/SubRequestDetail";
+import CreateSubRequest from "./pages/substitutions/CreateSubRequest/CreateSubRequest.jsx";
+import SubRequestsList from "./pages/substitutions/SubRequestsList/SubRequestsList.jsx";
+import SubRequestDetail from "./pages/substitutions/SubRequestDetail/SubRequestDetail.jsx";
 import SubstitutionRespond from "./pages/substitutions/SubstitutionRespond";
 
 // Platform Admin Pages
-import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
-import AdminSchoolsPage from "./pages/admin/AdminSchoolsPage";
-import AdminSchoolDetailsPage from "./pages/admin/AdminSchoolDetailsPage";
-import AdminUsersPage from "./pages/admin/AdminUsersPage";
-import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
-import AdminSubscriptionsPage from "./pages/admin/AdminSubscriptionsPage";
-import AdminSubscriptionDetailsPage from "./pages/admin/AdminSubscriptionDetailsPage";
-import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage";
-import AdminLandingPageEditor from "./pages/admin/AdminLandingPageEditor";
+import SuperAdminDashboardPage from "./pages/superAdmin/SuperAdminDashboardPage";
+import SuperAdminSchoolsPage from "./pages/superAdmin/SuperAdminSchoolsPage";
+import SuperAdminSchoolDetailsPage from "./pages/superAdmin/SuperAdminSchoolDetailsPage";
+import SuperAdminUsersPage from "./pages/superAdmin/SuperAdminUsersPage";
+import SuperAdminSettingsPage from "./pages/superAdmin/SuperAdminSettingsPage";
+import SuperAdminSubscriptionsPage from "./pages/superAdmin/SuperAdminSubscriptionsPage";
+import SuperAdminSubscriptionDetailsPage from "./pages/superAdmin/SuperAdminSubscriptionDetailsPage";
+import SuperAdminAnalyticsPage from "./pages/superAdmin/SuperAdminAnalyticsPage";
+import SuperAdminLandingPageEditor from "./pages/superAdmin/SuperAdminLandingPageEditor";
 import ApiDocsPage from "./pages/ApiDocsPage";
 
 // Protected Route - requires authentication
@@ -728,21 +728,21 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<AdminDashboardPage />} />
-          <Route path="dashboard" element={<AdminDashboardPage />} />
-          <Route path="schools" element={<AdminSchoolsPage />} />
-          <Route path="schools/new" element={<AdminSchoolsPage />} />
-          <Route path="schools/:id" element={<AdminSchoolDetailsPage />} />
-          <Route path="users" element={<AdminUsersPage />} />
-          <Route path="analytics" element={<AdminAnalyticsPage />} />
-          <Route path="landing" element={<AdminLandingPageEditor />} />
-          <Route path="settings" element={<AdminSettingsPage />} />
-          <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
+          <Route index element={<SuperAdminDashboardPage />} />
+          <Route path="dashboard" element={<SuperAdminDashboardPage />} />
+          <Route path="schools" element={<SuperAdminSchoolsPage />} />
+          <Route path="schools/new" element={<SuperAdminSchoolsPage />} />
+          <Route path="schools/:id" element={<SuperAdminSchoolDetailsPage />} />
+          <Route path="users" element={<SuperAdminUsersPage />} />
+          <Route path="analytics" element={<SuperAdminAnalyticsPage />} />
+          <Route path="landing" element={<SuperAdminLandingPageEditor />} />
+          <Route path="settings" element={<SuperAdminSettingsPage />} />
+          <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />
           <Route
             path="subscriptions/:id"
-            element={<AdminSubscriptionDetailsPage />}
+            element={<SuperAdminSubscriptionDetailsPage />}
           />
-          <Route path="analytics" element={<AdminAnalyticsPage />} />
+          <Route path="analytics" element={<SuperAdminAnalyticsPage />} />
         </Route>
 
         {/* Catch all */}

@@ -94,13 +94,6 @@ const PracticeDashboardPage = () => {
           <HiOutlineRefresh size={16} />
           <span>{loading ? "Refreshing..." : "Refresh"}</span>
         </button>
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          onClick={() => navigate('/portal/practice/sb-results')}
-        >
-          <span>SB Results</span>
-        </button>
       </div>
 
       <div className="practice-stats">
@@ -334,9 +327,7 @@ const PracticeDashboardPage = () => {
                               ) : (
                                 <>
                                   <HiOutlinePlay size={16} />
-                                  <span>
-                                    {lifetimeTotal > 0 ? "Continue Practice" : "Start Practice"}
-                                  </span>
+                                  <span>Start Practice</span>
                                 </>
                               )}
                             </button>

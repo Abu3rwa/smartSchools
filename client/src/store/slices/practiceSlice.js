@@ -94,6 +94,7 @@ const practiceSlice = createSlice({
         sessionContext: null,
         statusMessage: null,
         studentFirstName: null,
+        assignmentInstructions: null,
         suggestRemediation: false,
         practiceHistory: [],
         reviewQueue: [],
@@ -126,6 +127,7 @@ const practiceSlice = createSlice({
             state.statusMessage = null;
             state.sessionContext = null;
             state.suggestRemediation = false;
+            state.assignmentInstructions = null;
         },
         clearLastResult: (state) => { state.lastResult = null; },
         clearPracticeHistory: (state) => { state.practiceHistory = []; state.historyMastery = null; }
@@ -158,6 +160,7 @@ const practiceSlice = createSlice({
                 state.sessionInfo = action.payload.session || null;
                 state.sessionContext = action.payload.sessionContext || state.sessionContext;
                 state.studentFirstName = action.payload.studentFirstName || state.studentFirstName;
+                state.assignmentInstructions = action.payload.assignmentInstructions || state.assignmentInstructions;
                 state.suggestRemediation = Boolean(action.payload.suggestRemediation);
                 state.currentQuestion = action.payload.question || null;
             })
@@ -252,6 +255,7 @@ export const selectPracticeStatus = (state) => state.practice?.practiceStatus;
 export const selectPracticeSessionInfo = (state) => state.practice?.sessionInfo;
 export const selectPracticeStatusMessage = (state) => state.practice?.statusMessage;
 export const selectPracticeStudentFirstName = (state) => state.practice?.studentFirstName;
+export const selectPracticeAssignmentInstructions = (state) => state.practice?.assignmentInstructions;
 export const selectPracticeSuggestRemediation = (state) => state.practice?.suggestRemediation;
 export const selectPracticeSessionContext = (state) => state.practice?.sessionContext;
 export const selectMyAssessmentResults = (state) => state.practice?.assessmentResults || [];

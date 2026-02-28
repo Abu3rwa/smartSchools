@@ -108,14 +108,31 @@ const StandardAssignPage = () => {
         : (isTeacher ? [] : subjects);
 
     const availableStandards = standards.filter(s => {
-        if (selectedClass?.grade && s.gradeLevel !== selectedClass.grade) return false;
+        if (selectedClass?.grade && Number(s.gradeLevel) !== Number(selectedClass.grade)) return false;
         const subjId = getEntityId(s.subject);
         if (formData.subjectId && subjId !== getEntityId(formData.subjectId)) return false;
         return true;
     });
+    const selectedStandard = standards.find((s) => getEntityId(s._id) === getEntityId(formData.standardId));
+
+    const getStandardDescription = (standard) => {
+        const description = (standard?.description || '').trim();
+        if (description) return description;
+        const fallbackName = (standard?.name || '').trim();
+        if (fallbackName) return fallbackName;
+        return 'No description available for this standard yet.';
+    };
+
+    const getStandardOptionLabel = (standard) => {
+        const base = `${standard?.code || 'STD'} - ${standard?.name || 'Standard'} (Grade ${standard?.gradeLevel || '-'})`;
+        const description = getStandardDescription(standard);
+        const shortDescription =
+            description.length > 90 ? `${description.substring(0, 90)}...` : description;
+        return `${base} | ${shortDescription}`;
+    };
 
     useEffect(() => {
-        dispatch(fetchStandards());
+        dispatch(fetchStandards({ limit: 2000, isActive: true }));
         dispatch(fetchAssignments({ academicYear, semester: selectedSemester }));
         dispatch(fetchSubjects());
         loadClasses();
@@ -432,8 +449,8 @@ const StandardAssignPage = () => {
                                 </div>
                             </div>
                             <div className="assign-card-body">
-                                {a.standard?.description?.substring(0, 100)}
-                                {a.standard?.description?.length > 100 ? '...' : ''}
+                                {getStandardDescription(a.standard).substring(0, 100)}
+                                {getStandardDescription(a.standard).length > 100 ? '...' : ''}
                             </div>
                             <div className="assign-card-meta">
                                 <span><HiOutlineBookOpen size={14} /> {a.subject?.name}</span>
@@ -510,7 +527,7 @@ const StandardAssignPage = () => {
                                         <option value="">Select Standard</option>
                                         {availableStandards.map(s => (
                                             <option key={s._id} value={s._id}>
-                                                {s.code} - {s.name} (Grade {s.gradeLevel})
+                                                {getStandardOptionLabel(s)}
                                             </option>
                                         ))}
                                     </select>
@@ -518,6 +535,11 @@ const StandardAssignPage = () => {
                                         <small className="text-muted">
                                             Showing standards for Grade {selectedClass.grade}
                                             {formData.subjectId ? ' and selected subject' : ''}.
+                                        </small>
+                                    )}
+                                    {formData.standardId && (
+                                        <small className="text-muted" style={{ display: 'block', marginTop: 8 }}>
+                                            {getStandardDescription(selectedStandard)}
                                         </small>
                                     )}
                                 </div>

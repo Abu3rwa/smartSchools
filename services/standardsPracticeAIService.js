@@ -4,6 +4,10 @@ import { connectAi } from "../utils/connectAi.js";
 const QUESTION_TYPES = ["multiple_choice", "short_answer", "true_false"];
 const MAX_AI_RETRIES = 2;
 const MC_LABELS = ["A", "B", "C", "D"];
+const AMBIGUOUS_MC_OPTION_PATTERN =
+  /\b(all of the above|none of the above|both a and b|both a & b|both b and c|both c and d|all are correct|all are true)\b/i;
+const CONFUSING_TF_PATTERN =
+  /\b(regardless of whether|unless|double negative|both true and false)\b/i;
 
 const GRADE_WORD_BANDS = [
   { min: 1, max: 3, minWords: 30, maxWords: 60 },
@@ -147,6 +151,16 @@ const evaluateResponseSchema = z
   })
   .strict();
 
+const trueFalsePairSchema = z
+  .object({
+    trueStatement: z.string().min(1, "trueStatement is required"),
+    falseStatement: z.string().min(1, "falseStatement is required"),
+    explanationTrue: z.string().default(""),
+    explanationFalse: z.string().default(""),
+    difficulty: z.string().optional(),
+  })
+  .strict();
+
 /**
  * Service for Standards Practice
  * Generates questions and evaluates student answers
@@ -168,6 +182,7 @@ class StandardsPracticeAIService {
       subjectName,
       difficulty = "medium",
       questionType = "multiple_choice",
+      trueFalseTargetAnswer = null,
       previousQuestions = [],
       previousQuestionFingerprints = [],
       recentAttempts = [],
@@ -175,6 +190,23 @@ class StandardsPracticeAIService {
       contextHints = {},
       attemptNumber = 1,
     } = options;
+    const normalizedTrueFalseTarget =
+      this._normalizeTrueFalseToken(trueFalseTargetAnswer);
+
+    if (questionType === "true_false") {
+      return this._generateTrueFalseQuestion({
+        standard,
+        subjectName,
+        difficulty,
+        trueFalseTargetAnswer: normalizedTrueFalseTarget,
+        previousQuestions,
+        previousQuestionFingerprints,
+        recentAttempts,
+        studentFirstName,
+        contextHints,
+        attemptNumber,
+      });
+    }
 
     const questionMemory = this._buildQuestionMemory({
       previousQuestions,
@@ -193,6 +225,7 @@ class StandardsPracticeAIService {
           subjectName,
           difficulty,
           questionType,
+          trueFalseTargetAnswer: normalizedTrueFalseTarget,
           studentFirstName,
           questionMemory,
           recentAttempts,
@@ -219,6 +252,7 @@ class StandardsPracticeAIService {
           questionMemory,
           standardCode: standard?.code || "",
           attemptSeed: `${standard?.code || ""}|${attemptNumber}|${aiAttempt}`,
+          trueFalseTargetAnswer: normalizedTrueFalseTarget,
         });
 
         return {
@@ -243,6 +277,7 @@ class StandardsPracticeAIService {
       studentFirstName,
       questionMemory,
       contextHints,
+      trueFalseTargetAnswer: normalizedTrueFalseTarget,
     });
 
     return {
@@ -281,6 +316,8 @@ class StandardsPracticeAIService {
 
     const feedbackContext = {
       studentFirstName,
+      questionText,
+      studentAnswer,
       standard,
       correctAnswer,
       questionOptions,
@@ -293,9 +330,23 @@ class StandardsPracticeAIService {
     };
 
     if (questionType === "multiple_choice" || questionType === "true_false") {
+      const normalizedStudentAnswer =
+        questionType === "multiple_choice"
+          ? this._resolveChoiceAnswerLabel(studentAnswer, questionOptions)
+          : this._resolveTrueFalseAnswer({
+              rawAnswer: studentAnswer,
+              rawOptions: questionOptions,
+            }) || "";
+      const normalizedCorrectAnswer =
+        questionType === "multiple_choice"
+          ? this._resolveChoiceAnswerLabel(correctAnswer, questionOptions)
+          : this._resolveTrueFalseAnswer({
+              rawAnswer: correctAnswer,
+              rawOptions: questionOptions,
+            }) || "";
       const isCorrect =
-        String(studentAnswer || "").trim().toUpperCase() ===
-        String(correctAnswer || "").trim().toUpperCase();
+        String(normalizedStudentAnswer || "").trim().toUpperCase() ===
+        String(normalizedCorrectAnswer || "").trim().toUpperCase();
       const deterministic = this._buildDeterministicFeedback({
         isCorrect,
         ...feedbackContext,
@@ -402,6 +453,224 @@ class StandardsPracticeAIService {
     return fallbackResult();
   }
 
+  async _generateTrueFalseQuestion({
+    standard,
+    subjectName,
+    difficulty = "medium",
+    trueFalseTargetAnswer = null,
+    previousQuestions = [],
+    previousQuestionFingerprints = [],
+    recentAttempts = [],
+    studentFirstName = "",
+    contextHints = {},
+    attemptNumber = 1,
+  }) {
+    const questionMemory = this._buildQuestionMemory({
+      previousQuestions,
+      previousQuestionFingerprints,
+      recentAttempts,
+    });
+    const usage = { input: 0, output: 0, total: 0 };
+    let previousFailureNotes = [];
+    let lastError = null;
+    const targetAnswer =
+      this._normalizeTrueFalseToken(trueFalseTargetAnswer) ||
+      (Number(attemptNumber) % 2 === 0 ? "False" : "True");
+
+    for (let aiAttempt = 0; aiAttempt <= MAX_AI_RETRIES; aiAttempt += 1) {
+      try {
+        const prompt = this._buildTrueFalsePairPrompt({
+          standard,
+          subjectName,
+          difficulty,
+          studentFirstName,
+          recentAttempts,
+          contextHints,
+          retryNotes: previousFailureNotes,
+        });
+
+        const response = await connectAi(prompt);
+        usage.input += response.inputtokenCount || 0;
+        usage.output += response.outputtokenCount || 0;
+        usage.total += response.totalTokenCount || 0;
+
+        const raw = this._parseJSON(response.text);
+        if (!raw) {
+          throw new Error("AI response was not valid JSON");
+        }
+
+        const parsedResult = trueFalsePairSchema.safeParse(raw);
+        if (!parsedResult.success) {
+          const issues = parsedResult.error?.issues ?? [];
+          const message = issues
+            .map((issue) => issue?.message || "invalid field")
+            .join("; ");
+          throw new Error(
+            `Invalid true_false pair schema: ${message || "schema mismatch"}`,
+          );
+        }
+
+        const parsed = parsedResult.data;
+        const limits = this._getTextLimitsByGrade(standard?.gradeLevel ?? null);
+        const trueStatement = this._sanitizeTrueFalseStatement(
+          parsed.trueStatement,
+          limits.questionMax,
+        );
+        const falseStatement = this._sanitizeTrueFalseStatement(
+          parsed.falseStatement,
+          limits.questionMax,
+        );
+        if (!trueStatement || !falseStatement) {
+          throw new Error("true_false statements cannot be empty");
+        }
+        if (
+          this._normalizeForComparison(trueStatement) ===
+          this._normalizeForComparison(falseStatement)
+        ) {
+          throw new Error("true_false statements must be different");
+        }
+        if (
+          this._isConfusingTrueFalseStatement(trueStatement) ||
+          this._isConfusingTrueFalseStatement(falseStatement)
+        ) {
+          throw new Error("true_false statement is potentially confusing");
+        }
+
+        let resolvedAnswer = targetAnswer;
+        let selectedStatement =
+          resolvedAnswer === "True" ? trueStatement : falseStatement;
+        const heuristicAnswer = this._inferTrueFalseHeuristic(selectedStatement);
+        if (heuristicAnswer && heuristicAnswer !== resolvedAnswer) {
+          resolvedAnswer = heuristicAnswer;
+          selectedStatement =
+            resolvedAnswer === "True" ? trueStatement : falseStatement;
+        }
+        let questionText = `${this._normalizeStudentName(studentFirstName)}, true or false: ${selectedStatement}`;
+        questionText = this._sanitizeText(questionText, {
+          maxLength: limits.questionMax,
+          sentenceCase: true,
+        });
+        questionText = this._ensureStudentNameInStem(questionText, studentFirstName);
+
+        if (this._isDuplicateQuestion(questionText, questionMemory)) {
+          throw new Error(
+            "Question is a duplicate or near-duplicate of recent session content",
+          );
+        }
+
+        const explanationRaw =
+          resolvedAnswer === "True"
+            ? parsed.explanationTrue
+            : parsed.explanationFalse;
+        const explanation = this._sanitizeText(
+          explanationRaw ||
+            (resolvedAnswer === "True"
+              ? "This statement is true based on the target standard."
+              : "This statement is false because one key detail is incorrect."),
+          {
+            maxLength: limits.explanationMax,
+            sentenceCase: true,
+          },
+        );
+
+        return {
+          questionText,
+          questionType: "true_false",
+          options: this._shuffleTrueFalseOptionsDeterministic(
+            `${standard?.code || ""}|${attemptNumber}|${aiAttempt}|tf`,
+          ),
+          correctAnswer: resolvedAnswer,
+          explanation,
+          difficulty: this._sanitizeDifficulty(parsed.difficulty || difficulty),
+          tokenUsage: usage,
+        };
+      } catch (error) {
+        lastError = error;
+        previousFailureNotes = [
+          ...previousFailureNotes,
+          this._normalizeSentence(error?.message || "Invalid response"),
+        ].slice(-3);
+      }
+    }
+
+    console.error("True/False question generation failed after retries:", lastError);
+    const fallbackQuestion = this._buildFallbackQuestion({
+      standard,
+      subjectName,
+      difficulty,
+      questionType: "true_false",
+      trueFalseTargetAnswer: targetAnswer,
+      studentFirstName,
+      questionMemory,
+      contextHints,
+    });
+
+    return {
+      ...fallbackQuestion,
+      tokenUsage: usage,
+    };
+  }
+
+  _buildTrueFalsePairPrompt({
+    standard,
+    subjectName,
+    difficulty,
+    studentFirstName,
+    recentAttempts = [],
+    contextHints = {},
+    retryNotes = [],
+  }) {
+    const safeName = this._normalizeStudentName(studentFirstName);
+    const recentAttemptSummary = recentAttempts
+      .slice(0, 5)
+      .map((a, index) => {
+        const status = a?.isCorrect ? "correct" : "incorrect";
+        return `${index + 1}. ${a?.difficulty || "medium"} | ${status}${a?.questionText ? ` | ${a.questionText}` : ""}`;
+      })
+      .join("\n");
+    const topicHints =
+      Array.isArray(contextHints?.recentTopics) &&
+      contextHints.recentTopics.length > 0
+        ? contextHints.recentTopics.slice(0, 4).join(", ")
+        : "none";
+    const retrySection =
+      retryNotes.length > 0
+        ? `\nPREVIOUS OUTPUT ISSUES TO FIX:\n- ${retryNotes.join("\n- ")}\n`
+        : "";
+
+    return `You are an expert ${subjectName} teacher creating clear, non-tricky true/false practice content.
+
+STUDENT FIRST NAME: ${safeName}
+GRADE: ${standard?.gradeLevel ?? "unknown"}
+STANDARD CODE: ${standard?.code || "N/A"}
+STANDARD NAME: ${standard?.name || "N/A"}
+STANDARD DESCRIPTION: ${standard?.description || "N/A"}
+REQUESTED DIFFICULTY: ${difficulty}
+
+TASK:
+- Produce one objectively TRUE statement and one objectively FALSE statement about the same concept in this standard.
+- Keep each statement clear, direct, and student-friendly.
+- FALSE statement must be wrong because of one specific incorrect detail.
+- Avoid trick wording, ambiguity, and legalistic phrasing.
+- Avoid phrases like "regardless of whether", "unless", or double negatives.
+- Do not mention AI.
+
+SESSION CONTEXT:
+- Recent topics: ${topicHints}
+- Recent attempts:
+${recentAttemptSummary || "none"}
+
+Return STRICT JSON only:
+{
+  "trueStatement": "...",
+  "falseStatement": "...",
+  "explanationTrue": "...",
+  "explanationFalse": "...",
+  "difficulty": "${difficulty}"
+}
+${retrySection}`;
+  }
+
   /**
    * Build the prompt for generating a question
    */
@@ -410,6 +679,7 @@ class StandardsPracticeAIService {
     subjectName,
     difficulty,
     questionType,
+    trueFalseTargetAnswer = null,
     studentFirstName,
     questionMemory,
     recentAttempts,
@@ -420,14 +690,18 @@ class StandardsPracticeAIService {
     const typeInstructions = {
       multiple_choice: `Generate a multiple-choice question with exactly 4 options.
 Use labels A, B, C, D only in that order.
-The "correctAnswer" must be one of: "A", "B", "C", "D".`,
+The "correctAnswer" must be one of: "A", "B", "C", "D".
+Exactly one option can be correct.
+Do not use "all of the above", "none of the above", or trick wording where multiple options are true.`,
       short_answer: `Generate a short-answer question.
 Set "options" to [].
 The "correctAnswer" should be concise (1-2 sentences max).`,
       true_false: `Generate a true/false question.
 Set "options" to exactly:
 [{"label":"True","text":"True"},{"label":"False","text":"False"}]
-The "correctAnswer" must be "True" or "False".`,
+The "correctAnswer" must be "True" or "False".
+Write one clear factual statement that is definitely true or definitely false.
+Avoid ambiguous or opinion-based wording.`,
     };
 
     const avoidExamples = questionMemory.recentQuestions
@@ -461,6 +735,10 @@ The "correctAnswer" must be "True" or "False".`,
         : questionType === "true_false"
           ? `[{"label":"True","text":"True"},{"label":"False","text":"False"}]`
           : "[]";
+    const trueFalseTargetInstruction =
+      questionType === "true_false" && trueFalseTargetAnswer
+        ? `\nTRUE/FALSE TARGET: The correct answer for this question must be "${trueFalseTargetAnswer}".\nWrite a natural statement that makes "${trueFalseTargetAnswer}" correct.`
+        : "";
 
     return `You are an expert ${subjectName} teacher creating one standards-aligned practice question.
 
@@ -473,6 +751,7 @@ STANDARD CATEGORY: ${standard?.category || "N/A"}
 REQUESTED DIFFICULTY: ${difficulty}
 REQUESTED QUESTION TYPE: ${questionType}
 ${typeInstructions[questionType] || typeInstructions.multiple_choice}
+${trueFalseTargetInstruction}
 
 SESSION AWARENESS:
 - Recent topics practiced: ${topicHints}
@@ -602,6 +881,7 @@ Output JSON:
     questionMemory,
     standardCode = "",
     attemptSeed = "",
+    trueFalseTargetAnswer = null,
   }) {
     const parsedResult = practiceQuestionSchema.safeParse(raw);
     if (!parsedResult.success) {
@@ -613,7 +893,13 @@ Output JSON:
     }
 
     const parsed = parsedResult.data;
-    const resolvedType = parsed.questionType || requestedQuestionType;
+    // Always respect the requested question type so the student sees the type they chose (e.g. MCQ).
+    const resolvedType =
+      QUESTION_TYPES.includes(requestedQuestionType)
+        ? requestedQuestionType
+        : QUESTION_TYPES.includes(parsed.questionType)
+          ? parsed.questionType
+          : requestedQuestionType || "multiple_choice";
     if (!QUESTION_TYPES.includes(resolvedType)) {
       throw new Error(`Unsupported questionType: ${resolvedType}`);
     }
@@ -646,12 +932,23 @@ Output JSON:
       normalizedOptions = normalized.options;
       normalizedCorrectAnswer = normalized.correctAnswer;
     } else if (resolvedType === "true_false") {
-      normalizedOptions = [
-        { label: "True", text: "True" },
-        { label: "False", text: "False" },
-      ];
-      const answerLower = String(normalizedCorrectAnswer).trim().toLowerCase();
-      normalizedCorrectAnswer = answerLower === "false" ? "False" : "True";
+      normalizedOptions =
+        this._shuffleTrueFalseOptionsDeterministic(attemptSeed);
+      const resolvedAnswer = this._resolveTrueFalseAnswer({
+        rawAnswer: normalizedCorrectAnswer,
+        rawOptions: parsed.options,
+      });
+      if (!resolvedAnswer) {
+        throw new Error(
+          "true_false correctAnswer must resolve to True or False",
+        );
+      }
+      if (trueFalseTargetAnswer && resolvedAnswer !== trueFalseTargetAnswer) {
+        throw new Error(
+          `true_false correctAnswer must match target ${trueFalseTargetAnswer}`,
+        );
+      }
+      normalizedCorrectAnswer = resolvedAnswer;
     } else {
       normalizedOptions = [];
       normalizedCorrectAnswer = this._sanitizeText(normalizedCorrectAnswer, {
@@ -701,6 +998,21 @@ Output JSON:
       );
     }
 
+    const normalizedTextValues = cleaned.map((option) =>
+      this._normalizeForComparison(option.text),
+    );
+    const hasDuplicateOptions =
+      new Set(normalizedTextValues.filter(Boolean)).size !== cleaned.length;
+    if (hasDuplicateOptions) {
+      throw new Error(
+        "Multiple-choice questions must have 4 distinct option texts",
+      );
+    }
+
+    if (cleaned.some((option) => AMBIGUOUS_MC_OPTION_PATTERN.test(option.text))) {
+      throw new Error("Multiple-choice options include ambiguous answer patterns");
+    }
+
     const normalizedAnswer = String(correctAnswer || "").trim().toUpperCase();
     let correctIndex = cleaned.findIndex(
       (option) => option.label === normalizedAnswer,
@@ -721,6 +1033,54 @@ Output JSON:
       options: shuffled.options,
       correctAnswer: MC_LABELS[shuffled.correctIndex],
     };
+  }
+
+  _sanitizeTrueFalseStatement(value, maxLength = 320) {
+    const cleaned = this._sanitizeText(value || "", {
+      maxLength,
+      sentenceCase: true,
+    }).replace(/^\s*true\s*or\s*false\s*:\s*/i, "");
+    return cleaned.trim();
+  }
+
+  _isConfusingTrueFalseStatement(text) {
+    const clean = this._sanitizeText(text || "", {
+      maxLength: 600,
+      sentenceCase: false,
+    });
+    if (!clean) return true;
+    if (CONFUSING_TF_PATTERN.test(clean)) return true;
+    const wordCount = clean.split(/\s+/).filter(Boolean).length;
+    if (wordCount > 32) return true;
+    return false;
+  }
+
+  _inferTrueFalseHeuristic(statement) {
+    const normalized = this._normalizeForComparison(statement || "").replace(
+      /\s+/g,
+      "",
+    );
+    if (!normalized) return null;
+
+    // Mathematical certainty: this pattern is always false because trailing zeros can exceed the power when the multiplicand already ends with zero(s).
+    if (
+      normalized.includes("multiply") &&
+      normalized.includes("10") &&
+      normalized.includes("exactly") &&
+      normalized.includes("zero") &&
+      normalized.includes("regardlessofwhether")
+    ) {
+      return "False";
+    }
+
+    return null;
+  }
+
+  resolveTrueFalseCorrectAnswer(questionText, currentCorrectAnswer) {
+    const normalizedCurrent =
+      this._normalizeTrueFalseToken(currentCorrectAnswer) || "True";
+    const heuristic = this._inferTrueFalseHeuristic(questionText);
+    return heuristic || normalizedCurrent;
   }
 
   _shuffleOptionsDeterministic(options, correctIndex, seed) {
@@ -747,6 +1107,15 @@ Output JSON:
     });
 
     return { options: shuffledOptions, correctIndex: newCorrectIndex };
+  }
+
+  _shuffleTrueFalseOptionsDeterministic(seed) {
+    const options = [
+      { label: "True", text: "True" },
+      { label: "False", text: "False" },
+    ];
+    const rng = this._createSeededRng(`tf|${seed || "default"}`);
+    return rng() >= 0.5 ? [options[1], options[0]] : options;
   }
 
   _buildQuestionMemory({
@@ -919,6 +1288,8 @@ Output JSON:
   _buildDeterministicFeedback({
     isCorrect,
     studentFirstName,
+    questionText = "",
+    studentAnswer = "",
     correctAnswer,
     questionOptions = [],
     standard,
@@ -937,6 +1308,11 @@ Output JSON:
     );
     const subject = subjectName || "this subject";
     const displayAnswer = this._resolveDisplayAnswer(correctAnswer, questionOptions);
+    const studentAnswerDisplay = this._resolveStudentAnswerDisplay({
+      questionType,
+      studentAnswer,
+      questionOptions,
+    });
     const incorrectStreak = recentPerformance?.incorrectStreak || 0;
     const correctStreak = recentPerformance?.correctStreak || 0;
     const repeatedStruggle = !isCorrect && incorrectStreak >= 2;
@@ -949,6 +1325,12 @@ Output JSON:
       : standardDescription
         ? `Review this idea: ${standardDescription}`
         : `Review the key idea in ${standardName}.`;
+    const conceptTip = this._buildActionableHintFromStandard({
+      standardDescription,
+      standardName,
+      questionType,
+      questionText,
+    });
 
     const standardReference = standardCode
       ? `${standardCode} (${standardName})`
@@ -961,6 +1343,18 @@ Output JSON:
     const retryTip = repeatedStruggle
       ? `Take 30 seconds to review ${standardReference}, then solve one similar ${subject} question.`
       : `Review ${standardReference} and apply it on the next question.`;
+    const correctionLine = isCorrect
+      ? `Your answer is correct: ${displayAnswer}.`
+      : studentAnswerDisplay && studentAnswerDisplay !== displayAnswer
+        ? `You chose ${studentAnswerDisplay}, but the correct answer is ${displayAnswer}.`
+        : `The correct answer is ${displayAnswer}.`;
+    const nextStepLine = isCorrect
+      ? difficultyLabel === "hard"
+        ? "Try another hard challenge and explain why your answer works."
+        : shortAnswerTip
+      : repeatedStruggle
+        ? `${conceptTip} Then try one similar question right away.`
+        : `${conceptTip} Use that rule on the next question.`;
 
     const feedbackParts = {
       headline: isCorrect ? "Nice work!" : "Good attempt. Let's build it.",
@@ -971,19 +1365,13 @@ Output JSON:
         ? questionType === "short_answer"
           ? "You explained the idea in a way that shows understanding."
           : "You stayed focused on the important clue in the question."
-        : safeAttemptNumber > 1
-          ? "You kept trying, which builds stronger understanding."
-          : "You finished the question and gave us a clear next step.",
-      correctionOrConfirmation: isCorrect
-        ? `Your answer is correct: ${displayAnswer}.`
-        : `The best answer is ${displayAnswer}.`,
-      nextStep: isCorrect
-        ? difficultyLabel === "hard"
-          ? "Try another hard challenge and explain why your answer works."
-          : shortAnswerTip
-        : repeatedStruggle
-          ? `Start with one focused step: ${shortAnswerTip}`
-          : retryTip,
+        : studentAnswerDisplay
+          ? `You gave a clear answer (${studentAnswerDisplay}), which makes it easier to improve quickly.`
+          : safeAttemptNumber > 1
+            ? "You kept working on the target skill, which is exactly how mastery grows."
+            : "You completed the question and gave us a clear starting point to improve.",
+      correctionOrConfirmation: correctionLine,
+      nextStep: nextStepLine,
       encouragement: isCorrect
         ? showingGrowth
           ? "Your recent answers show growth. Keep that momentum."
@@ -992,12 +1380,14 @@ Output JSON:
           ? "You can do this. Small steps will lock this in."
           : "You can do this. One more try will help lock it in.",
       displayAnswer,
-      explanation,
+      explanation: isCorrect ? explanation : `${explanation} ${conceptTip}`.trim(),
       reviewTag: standardCode || standardName,
-      confidenceLevel: isCorrect ? "high" : questionType === "short_answer" ? "medium" : "high",
+      confidenceLevel: isCorrect ? "high" : repeatedStruggle ? "low" : "medium",
       reasonSummary: isCorrect
         ? `You demonstrated the expected concept in ${standardName}.`
-        : `Your answer missed part of the target concept in ${standardName}.`,
+        : studentAnswerDisplay && studentAnswerDisplay !== displayAnswer
+          ? `Your selected answer did not match the target concept in ${standardName}.`
+          : `Your answer missed part of the target concept in ${standardName}.`,
       conceptChecks: {
         matched: isCorrect ? [standardName] : [],
         missing: isCorrect ? [] : [standardName],
@@ -1167,6 +1557,12 @@ Output JSON:
   }
 
   _resolveDisplayAnswer(correctAnswer, questionOptions = []) {
+    const trueFalseAnswer = this._resolveTrueFalseAnswer({
+      rawAnswer: correctAnswer,
+      rawOptions: questionOptions,
+    });
+    if (trueFalseAnswer) return trueFalseAnswer;
+
     const normalized = String(correctAnswer || "").trim().toUpperCase();
     const option =
       Array.isArray(questionOptions) &&
@@ -1175,6 +1571,14 @@ Output JSON:
       );
 
     if (option?.text) {
+      const normalizedLabel = this._normalizeForComparison(option.label || "");
+      const normalizedText = this._normalizeForComparison(option.text || "");
+      if (normalizedLabel && normalizedLabel === normalizedText) {
+        return this._sanitizeText(option.text || "", {
+          maxLength: 220,
+          sentenceCase: false,
+        });
+      }
       return `${option.label}. ${option.text}`;
     }
     return this._sanitizeText(correctAnswer || "", {
@@ -1183,11 +1587,159 @@ Output JSON:
     });
   }
 
+  _resolveStudentAnswerDisplay({
+    questionType,
+    studentAnswer,
+    questionOptions = [],
+  } = {}) {
+    if (!studentAnswer && studentAnswer !== 0) return "";
+    if (questionType === "true_false") {
+      return this._resolveTrueFalseAnswer({
+        rawAnswer: studentAnswer,
+        rawOptions: questionOptions,
+      }) || this._sanitizeText(studentAnswer, { maxLength: 30, sentenceCase: false });
+    }
+    if (questionType === "multiple_choice") {
+      const label = this._resolveChoiceAnswerLabel(studentAnswer, questionOptions);
+      const matched = Array.isArray(questionOptions)
+        ? questionOptions.find(
+            (option) =>
+              String(option?.label || "").trim().toUpperCase() ===
+              String(label || "").trim().toUpperCase(),
+          )
+        : null;
+      if (matched?.text) {
+        return `${matched.label}. ${matched.text}`;
+      }
+      return this._sanitizeText(studentAnswer, { maxLength: 220, sentenceCase: false });
+    }
+    return this._sanitizeText(studentAnswer, { maxLength: 220, sentenceCase: false });
+  }
+
+  _buildActionableHintFromStandard({
+    standardDescription = "",
+    standardName = "the standard",
+    questionType = "",
+    questionText = "",
+  } = {}) {
+    const source = `${standardDescription} ${questionText}`.toLowerCase();
+
+    if (source.includes("power of 10") || (source.includes("zeros") && source.includes("10"))) {
+      return "Remember: multiplying by 10, 100, or 1000 shifts digits left and adds 1, 2, or 3 zeros.";
+    }
+    if (source.includes("place value")) {
+      return "Name the place of each digit first, then compare the place values before deciding.";
+    }
+    if (source.includes("fraction")) {
+      return "Check denominator meaning first, then compare numerators only when denominators match.";
+    }
+    if (source.includes("decimal")) {
+      return "Line up decimal places and compare from left to right.";
+    }
+    if (questionType === "true_false") {
+      return `Test the statement against the rule in ${standardName} before choosing True or False.`;
+    }
+    if (questionType === "multiple_choice") {
+      return `Eliminate two wrong options first, then pick the choice that best matches ${standardName}.`;
+    }
+    return `Use the key rule from ${standardName} and explain one clear reason in your answer.`;
+  }
+
+  _resolveChoiceAnswerLabel(answer, questionOptions = []) {
+    const normalized = String(answer || "").trim().toUpperCase();
+    if (!normalized) return "";
+    if (MC_LABELS.includes(normalized)) return normalized;
+
+    const leadingLabel = normalized.match(/^([A-D])[).:\-\s]/);
+    if (leadingLabel?.[1]) return leadingLabel[1];
+
+    const anyLabel = normalized.match(/\b([A-D])\b/);
+    if (anyLabel?.[1] && normalized.length <= 16) return anyLabel[1];
+
+    const optionMatch =
+      Array.isArray(questionOptions) &&
+      questionOptions.find(
+        (option) =>
+          this._normalizeForComparison(option?.text || "") ===
+          this._normalizeForComparison(answer),
+      );
+    if (optionMatch?.label) {
+      const label = String(optionMatch.label).trim().toUpperCase();
+      if (MC_LABELS.includes(label)) return label;
+    }
+
+    return normalized;
+  }
+
+  _normalizeTrueFalseToken(value) {
+    const normalized = this._normalizeForComparison(value || "").replace(
+      /\s+/g,
+      "",
+    );
+    if (!normalized) return null;
+    if (
+      normalized === "true" ||
+      normalized === "t" ||
+      normalized === "yes" ||
+      normalized === "y" ||
+      normalized === "1"
+    ) {
+      return "True";
+    }
+    if (
+      normalized === "false" ||
+      normalized === "f" ||
+      normalized === "no" ||
+      normalized === "n" ||
+      normalized === "0"
+    ) {
+      return "False";
+    }
+    if (normalized.includes("true") && !normalized.includes("false")) {
+      return "True";
+    }
+    if (normalized.includes("false") && !normalized.includes("true")) {
+      return "False";
+    }
+    return null;
+  }
+
+  _resolveTrueFalseAnswer({ rawAnswer, rawOptions = [] } = {}) {
+    const direct = this._normalizeTrueFalseToken(rawAnswer);
+    if (direct) return direct;
+
+    const normalizedAnswer = String(rawAnswer || "").trim().toUpperCase();
+    if (!normalizedAnswer || !Array.isArray(rawOptions)) return null;
+
+    const matchedByLabel = rawOptions.find(
+      (option) => String(option?.label || "").trim().toUpperCase() === normalizedAnswer,
+    );
+    if (matchedByLabel) {
+      return this._normalizeTrueFalseToken(
+        matchedByLabel.text || matchedByLabel.label,
+      );
+    }
+
+    const matchedByText = rawOptions.find(
+      (option) =>
+        this._normalizeForComparison(option?.text || "") ===
+        this._normalizeForComparison(rawAnswer),
+    );
+    if (matchedByText) {
+      return this._normalizeTrueFalseToken(
+        matchedByText.text || matchedByText.label,
+      );
+    }
+
+    return null;
+  }
+
   _buildFallbackQuestion({
     standard,
     subjectName,
     difficulty = "medium",
     questionType = "multiple_choice",
+    trueFalseTargetAnswer = null,
     studentFirstName = "",
     questionMemory = { fingerprintSet: new Set() },
     contextHints = {},
@@ -1209,19 +1761,28 @@ Output JSON:
       Array.isArray(contextHints?.recentTopics) && contextHints.recentTopics[0]
         ? contextHints.recentTopics[0]
         : keyIdea;
+    const trueFalseSeed = this._createSeededRng(
+      `${standardCode}|${standardName}|${topicHint}|${difficulty}`,
+    );
+    const fallbackTrueAnswer = trueFalseTargetAnswer
+      ? trueFalseTargetAnswer === "True"
+      : trueFalseSeed() >= 0.5;
 
     const candidateQuestions = [];
 
     if (questionType === "true_false") {
       candidateQuestions.push({
-        questionText: `${student}, true or false: ${referenceLabel} focuses on ${topicHint}.`,
+        questionText: fallbackTrueAnswer
+          ? `${student}, true or false: ${referenceLabel} focuses on ${topicHint}.`
+          : `${student}, true or false: ${referenceLabel} means students should ignore evidence and rely only on guesses.`,
         questionType: "true_false",
-        options: [
-          { label: "True", text: "True" },
-          { label: "False", text: "False" },
-        ],
-        correctAnswer: "True",
-        explanation: `This is true because ${referenceLabel} centers on ${topicHint}.`,
+        options: this._shuffleTrueFalseOptionsDeterministic(
+          `${standardCode}|fallback|${topicHint}|${difficulty}`,
+        ),
+        correctAnswer: fallbackTrueAnswer ? "True" : "False",
+        explanation: fallbackTrueAnswer
+          ? `This is true because ${referenceLabel} centers on ${topicHint}.`
+          : `This is false because ${referenceLabel} expects evidence-based thinking, not guessing.`,
         difficulty: this._sanitizeDifficulty(difficulty),
       });
     }

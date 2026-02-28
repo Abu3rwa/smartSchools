@@ -71,18 +71,33 @@ const DIFFICULTY_RANK = {
 
 const getAssignmentPracticeConfig = (assignment) => {
   const cfg = assignment?.practiceConfig || {};
+  const sanitizeAllowedValues = (values, allowed) => {
+    if (!Array.isArray(values)) return [];
+    const unique = [...new Set(values.map((value) => String(value || "")))];
+    return unique.filter((value) => allowed.includes(value));
+  };
+
+  const allowedQuestionTypes = sanitizeAllowedValues(
+    cfg.allowedQuestionTypes,
+    QUESTION_TYPES
+  );
+  const allowedDifficulties = sanitizeAllowedValues(
+    cfg.allowedDifficulties,
+    DIFFICULTIES
+  );
+
   return {
     sessionType: cfg.sessionType || DEFAULT_PRACTICE_CONFIG.sessionType,
     questionLimit: cfg.questionLimit ?? DEFAULT_PRACTICE_CONFIG.questionLimit,
     timeLimitSeconds:
       cfg.timeLimitSeconds ?? DEFAULT_PRACTICE_CONFIG.timeLimitSeconds,
     allowedQuestionTypes:
-      cfg.allowedQuestionTypes && cfg.allowedQuestionTypes.length > 0
-        ? cfg.allowedQuestionTypes
+      allowedQuestionTypes.length > 0
+        ? allowedQuestionTypes
         : DEFAULT_PRACTICE_CONFIG.allowedQuestionTypes,
     allowedDifficulties:
-      cfg.allowedDifficulties && cfg.allowedDifficulties.length > 0
-        ? cfg.allowedDifficulties
+      allowedDifficulties.length > 0
+        ? allowedDifficulties
         : DEFAULT_PRACTICE_CONFIG.allowedDifficulties,
     availability: {
       startAt: cfg.availability?.startAt || null,
@@ -125,7 +140,36 @@ const buildSessionInfo = (session) => {
   };
 };
 
+const normalizeTrueFalseAnswer = (value) => {
+  const raw = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  if (!raw) return null;
+  if (
+    raw === "true" ||
+    raw === "t" ||
+    raw === "yes" ||
+    raw === "y" ||
+    raw === "1"
+  ) {
+    return "True";
+  }
+  if (
+    raw === "false" ||
+    raw === "f" ||
+    raw === "no" ||
+    raw === "n" ||
+    raw === "0"
+  ) {
+    return "False";
+  }
+  return null;
+};
+
 const resolveDisplayAnswer = (correctAnswer, questionOptions = []) => {
+  const directTrueFalse = normalizeTrueFalseAnswer(correctAnswer);
+  if (directTrueFalse) return directTrueFalse;
+
   const normalized = (correctAnswer || "").trim().toUpperCase();
   const option =
     Array.isArray(questionOptions) &&
@@ -134,6 +178,17 @@ const resolveDisplayAnswer = (correctAnswer, questionOptions = []) => {
     );
 
   if (option?.text) {
+    const optionTextTrueFalse = normalizeTrueFalseAnswer(option.text);
+    if (optionTextTrueFalse) return optionTextTrueFalse;
+    const normalizedLabel = String(option.label || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    const normalizedText = String(option.text || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    if (normalizedLabel && normalizedLabel === normalizedText) {
+      return option.text;
+    }
     return `${option.label}. ${option.text}`;
   }
   return correctAnswer;
@@ -200,6 +255,26 @@ const buildQuestionFingerprint = (text = "") =>
     .filter((token) => token && !CONTEXT_STOP_WORDS.has(token))
     .slice(0, 40)
     .join(" ");
+
+const normalizeOptionCollisionKey = (text = "") =>
+  String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const hasDuplicateMultipleChoiceOptions = (question) => {
+  if (question?.questionType !== "multiple_choice") return false;
+  const options = Array.isArray(question?.options) ? question.options : [];
+  if (options.length < 2) return false;
+
+  const seen = new Set();
+  for (const option of options) {
+    const key = normalizeOptionCollisionKey(option?.text || "");
+    if (!key) continue;
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+};
 
 const tokenizeForSemanticCheck = (text = "") =>
   normalizeFingerprintSource(text)
@@ -621,9 +696,18 @@ const resolveQuestionSettings = ({
   config,
   recentAttempts,
 }) => {
-  const allowedTypes = config.allowedQuestionTypes;
-  const allowedDifficulties = config.allowedDifficulties;
+  const allowedTypes =
+    Array.isArray(config.allowedQuestionTypes) &&
+    config.allowedQuestionTypes.length > 0
+      ? config.allowedQuestionTypes
+      : DEFAULT_PRACTICE_CONFIG.allowedQuestionTypes;
+  const allowedDifficulties =
+    Array.isArray(config.allowedDifficulties) &&
+    config.allowedDifficulties.length > 0
+      ? config.allowedDifficulties
+      : DEFAULT_PRACTICE_CONFIG.allowedDifficulties;
 
+  // Prefer student's chosen question type when options are not locked and type is allowed.
   let questionType = allowedTypes[0];
   if (
     !config.lockStudentOptions &&
@@ -657,6 +741,25 @@ const resolveQuestionSettings = ({
   const wasRemediated =
     order.indexOf(difficulty) < order.indexOf(baseDifficulty);
   return { questionType, difficulty, suggestRemediation: wasRemediated };
+};
+
+const resolvePreferredTrueFalseAnswer = (
+  recentAttempts = [],
+  attemptNumber = 1
+) => {
+  const trueFalseAttempts = recentAttempts.filter(
+    (attempt) => attempt?.questionType === "true_false"
+  );
+  const trueCount = trueFalseAttempts.filter(
+    (attempt) => normalizeTrueFalseAnswer(attempt?.correctAnswer) === "True"
+  ).length;
+  const falseCount = trueFalseAttempts.filter(
+    (attempt) => normalizeTrueFalseAnswer(attempt?.correctAnswer) === "False"
+  ).length;
+
+  if (trueCount > falseCount) return "False";
+  if (falseCount > trueCount) return "True";
+  return Number(attemptNumber) % 2 === 0 ? "False" : "True";
 };
 
 const resolveActiveSession = async ({
@@ -898,6 +1001,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       mastery,
       message: "You have already mastered this standard!",
       studentFirstName: student.firstName || null,
+      assignmentInstructions: assignment.instructions || null,
       question: null,
       session: null,
     });
@@ -916,6 +1020,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       status: "session_complete",
       message: "This practice session is complete. Please start again later.",
       studentFirstName: student.firstName || null,
+      assignmentInstructions: assignment.instructions || null,
       question: null,
       session: null,
     });
@@ -931,6 +1036,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       status: "session_complete",
       message: "This practice session has expired.",
       studentFirstName: student.firstName || null,
+      assignmentInstructions: assignment.instructions || null,
       question: null,
       session: buildSessionInfo(session),
     });
@@ -948,6 +1054,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       status: "session_complete",
       message: "You reached the question limit for this session.",
       studentFirstName: student.firstName || null,
+      assignmentInstructions: assignment.instructions || null,
       question: null,
       session: buildSessionInfo(session),
     });
@@ -960,7 +1067,9 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     assignment: assignment._id,
     session: session._id,
   })
-    .select("questionText questionType difficulty isCorrect status feedbackParts")
+    .select(
+      "questionText questionType difficulty isCorrect status feedbackParts correctAnswer"
+    )
     .sort({ createdAt: -1 })
     .limit(Math.max(ACCURACY_WINDOW, 25))
     .lean();
@@ -985,7 +1094,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       assignment: assignment._id,
       status: "answered",
     })
-      .select("questionType difficulty isCorrect status")
+      .select("questionType difficulty isCorrect status correctAnswer")
       .sort({ createdAt: -1 })
       .limit(ACCURACY_WINDOW)
       .lean();
@@ -1003,24 +1112,58 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   });
 
   const subjectName = assignment.subject?.name || "General Studies";
+  const preferredTrueFalseAnswer =
+    effectiveQuestionType === "true_false"
+      ? resolvePreferredTrueFalseAnswer(
+          recentAttempts.slice(0, ACCURACY_WINDOW),
+          attemptCount + 1
+        )
+      : null;
 
-  // Generate question
-  const question = await standardsPracticeAIService.generateQuestion({
-    standard: assignment.standard,
-    subjectName,
-    difficulty: effectiveDifficulty,
-    questionType: effectiveQuestionType,
-    previousQuestions,
-    previousQuestionFingerprints,
-    recentAttempts: sessionAttempts.slice(0, 12),
-    studentFirstName: student.firstName || "",
-    contextHints: {
-      recentTopics: sessionContext.recentTopics,
-      recentMistakes: sessionContext.recentMistakes,
-      confidenceHint: sessionContext.confidenceHint,
-    },
-    attemptNumber: attemptCount + 1,
-  });
+  // Generate question with hard guard against duplicate MCQ options.
+  const generationQuestions = [...previousQuestions];
+  const generationFingerprints = [...previousQuestionFingerprints];
+  let question = null;
+  for (let generationAttempt = 0; generationAttempt < 3; generationAttempt += 1) {
+    const candidate = await standardsPracticeAIService.generateQuestion({
+      standard: assignment.standard,
+      subjectName,
+      difficulty: effectiveDifficulty,
+      questionType: effectiveQuestionType,
+      trueFalseTargetAnswer: preferredTrueFalseAnswer,
+      previousQuestions: generationQuestions,
+      previousQuestionFingerprints: generationFingerprints,
+      recentAttempts: sessionAttempts.slice(0, 12),
+      studentFirstName: student.firstName || "",
+      contextHints: {
+        recentTopics: sessionContext.recentTopics,
+        recentMistakes: sessionContext.recentMistakes,
+        confidenceHint: sessionContext.confidenceHint,
+      },
+      attemptNumber: attemptCount + 1 + generationAttempt,
+    });
+
+    if (!hasDuplicateMultipleChoiceOptions(candidate)) {
+      question = candidate;
+      break;
+    }
+
+    generationQuestions.push(candidate.questionText || "");
+    generationFingerprints.push(buildQuestionFingerprint(candidate.questionText || ""));
+    logger.warn("practice_duplicate_mcq_options_regenerated", {
+      schoolId: req.schoolId,
+      assignmentId: assignment._id,
+      studentId: student._id,
+      generationAttempt: generationAttempt + 1,
+    });
+  }
+
+  if (!question) {
+    return res.status(503).json({
+      success: false,
+      message: "Could not generate a clear multiple-choice question. Please try again.",
+    });
+  }
 
   // Log AI usage
   if (question.tokenUsage && question.tokenUsage.total > 0) {
@@ -1036,6 +1179,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
         questionType: effectiveQuestionType,
         difficulty: effectiveDifficulty,
         standardId: assignment.standard._id,
+        trueFalseTargetAnswer: preferredTrueFalseAnswer,
       },
       response: {
         inputtokenCount: question.tokenUsage.input,
@@ -1069,6 +1213,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     mastery,
     message: null,
     studentFirstName: student.firstName || null,
+    assignmentInstructions: assignment.instructions || null,
     suggestRemediation: suggestRemediation ?? false,
     sessionContext: {
       recentTopics: sessionContext.recentTopics,
@@ -1151,6 +1296,20 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   const student = await Student.findOne({ user: req.user._id });
   if (!student || attempt.student.toString() !== student._id.toString()) {
     return res.status(403).json({ success: false, message: "Not authorized" });
+  }
+
+  if (attempt.questionType === "true_false") {
+    const resolvedCorrectAnswer =
+      standardsPracticeAIService.resolveTrueFalseCorrectAnswer(
+        attempt.questionText,
+        attempt.correctAnswer
+      );
+    if (
+      resolvedCorrectAnswer &&
+      resolvedCorrectAnswer !== attempt.correctAnswer
+    ) {
+      attempt.correctAnswer = resolvedCorrectAnswer;
+    }
   }
 
   const recentAnsweredAttempts = await PracticeAttempt.find({

@@ -5,7 +5,8 @@ import {
     generateQuestion, submitAnswer,
     selectCurrentQuestion, selectLastResult, selectGenerating, selectSubmitting,
     selectPracticeStatus, selectPracticeSessionInfo, selectPracticeStatusMessage,
-    selectPracticeStudentFirstName, selectPracticeSuggestRemediation, selectPracticeSessionContext,
+    selectPracticeStudentFirstName, selectPracticeAssignmentInstructions,
+    selectPracticeSuggestRemediation, selectPracticeSessionContext,
     selectPracticeError,
     clearCurrentQuestion, clearLastResult
 } from '../store/slices/practiceSlice';
@@ -31,6 +32,7 @@ const PracticeSessionPage = () => {
     const sessionInfo = useSelector(selectPracticeSessionInfo);
     const statusMessage = useSelector(selectPracticeStatusMessage);
     const studentFirstName = useSelector(selectPracticeStudentFirstName);
+    const assignmentInstructions = useSelector(selectPracticeAssignmentInstructions);
     const suggestRemediation = useSelector(selectPracticeSuggestRemediation);
     const sessionContext = useSelector(selectPracticeSessionContext);
     const practiceError = useSelector(selectPracticeError);
@@ -124,7 +126,11 @@ const PracticeSessionPage = () => {
             : selectedAnswer;
 
         if (!answer) {
-            toast.error('Please select or enter an answer');
+            toast.error(
+                currentQuestion?.questionType === 'short_answer'
+                    ? 'Write your answer before submitting.'
+                    : 'Select one answer before submitting.'
+            );
             return;
         }
 
@@ -194,12 +200,23 @@ const PracticeSessionPage = () => {
     const streakLabel = (sessionContext?.incorrectStreak || 0) > (sessionContext?.correctStreak || 0)
         ? 'Learning Streak'
         : 'Correct Streak';
-    const showContextHints = (sessionContext?.recentTopics?.length || 0) > 0 || (sessionContext?.recentMistakes?.length || 0) > 0;
+    const rawTopics = sessionContext?.recentTopics || [];
+    const usableTopics = rawTopics.filter(
+        (t) => typeof t === 'string' && t.length > 0 && !t.toLowerCase().includes(' is reading ')
+    );
+    const showContextHints = usableTopics.length > 0 || (sessionContext?.recentMistakes?.length || 0) > 0;
     const questionLimit = Number(sessionInfo?.questionLimit || 0);
     const answeredCount = Number(sessionInfo?.questionsAnswered || 0);
     const currentSessionStep = questionLimit > 0
         ? Math.min(questionLimit, answeredCount + 1)
         : null;
+    const questionTypeGuidance = {
+        multiple_choice: 'Choose one best answer. Read every option before you submit.',
+        true_false: 'Read the statement carefully. Pick True if it is correct, or False if it is not correct.',
+        short_answer: 'Write 1-2 clear sentences. Use key words from the lesson to explain your thinking.'
+    };
+    const activeQuestionType = currentQuestion?.questionType || questionType;
+    const activeQuestionGuidance = questionTypeGuidance[activeQuestionType] || questionTypeGuidance.multiple_choice;
 
     return (
         <div className="practice-session">
@@ -214,7 +231,9 @@ const PracticeSessionPage = () => {
                         Session Progress
                     </div>
                     <div className="overview-value">
-                        {sessionInfo?.questionLimit
+                        {currentQuestion && currentSessionStep != null && questionLimit > 0
+                            ? `Question ${currentSessionStep} of ${questionLimit}`
+                            : sessionInfo?.questionLimit
                             ? `${sessionInfo.questionsAnswered || 0}/${sessionInfo.questionLimit}`
                             : `${combinedAsked} answered`}
                     </div>
@@ -249,6 +268,16 @@ const PracticeSessionPage = () => {
                             : 'Start with one question to build momentum.'}
                     </div>
                 </div>
+            </div>
+
+            <div className="student-guidance-card">
+                <p className="student-guidance-title">How To Answer</p>
+                <p className="student-guidance-copy">{activeQuestionGuidance}</p>
+                {assignmentInstructions && (
+                    <p className="student-guidance-copy">
+                        Teacher note: {assignmentInstructions}
+                    </p>
+                )}
             </div>
 
             {practiceError && !generating && (
@@ -407,16 +436,17 @@ const PracticeSessionPage = () => {
             {showQuestion && !generating && (
                 <div className="question-card">
                     <div className="question-meta">
-                        <span className="badge badge-attempt">Question #{currentQuestion.attemptNumber}</span>
+                        {currentSessionStep != null && questionLimit > 0 ? (
+                            <span className="badge badge-attempt">Question {currentSessionStep} of {questionLimit}</span>
+                        ) : (
+                            <span className="badge badge-attempt">Question #{currentQuestion.attemptNumber}</span>
+                        )}
                         <span className={`badge badge-difficulty ${currentQuestion.difficulty}`}>
                             {currentQuestion.difficulty}
                         </span>
                         <span className="badge">{currentQuestion.questionType?.replace('_', ' ')}</span>
                         <span className="badge">{streakLabel}: {streakValue || 0}</span>
                         <span className="badge">Confidence: {sessionAccuracy}%</span>
-                        {currentSessionStep && questionLimit > 0 && (
-                            <span className="badge">Session {currentSessionStep}/{questionLimit}</span>
-                        )}
                     </div>
 
                     <div className="question-text">{currentQuestion.questionText}</div>
@@ -428,9 +458,9 @@ const PracticeSessionPage = () => {
                     {showContextHints && (
                         <div className="context-hints">
                             <p className="context-hints-title">Recent Focus</p>
-                            {sessionContext?.recentTopics?.length > 0 && (
+                            {usableTopics.length > 0 && (
                                 <p className="context-hints-line">
-                                    Topics: {sessionContext.recentTopics.slice(0, 3).join(', ')}
+                                    Topics: {usableTopics.slice(0, 3).map((t) => t.charAt(0).toUpperCase() + t.slice(1).trim()).join(', ')}
                                 </p>
                             )}
                             {sessionContext?.recentMistakes?.length > 0 && (
@@ -451,8 +481,16 @@ const PracticeSessionPage = () => {
                                     onClick={() => setSelectedAnswer(option.label)}
                                     disabled={submittingAnswer}
                                 >
-                                    <span className="option-label">{option.label}</span>
-                                    <span className="option-text">{option.text}</span>
+                                    <span
+                                        className={`option-label ${currentQuestion.questionType === 'true_false' ? 'option-label-text' : ''}`}
+                                    >
+                                        {currentQuestion.questionType === 'true_false'
+                                            ? (option.text || option.label)
+                                            : option.label}
+                                    </span>
+                                    {currentQuestion.questionType !== 'true_false' && (
+                                        <span className="option-text">{option.text}</span>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -585,6 +623,11 @@ const PracticeSessionPage = () => {
                                 <button className="btn btn-success" onClick={() => navigate('/portal/practice')}>
                                     <HiOutlineCheckCircle size={18} style={{ marginRight: 6 }} />
                                     Standard Mastered! Go Back
+                                </button>
+                            ) : lastResult.sessionComplete ? (
+                                <button className="btn btn-primary" onClick={() => navigate('/portal/practice')}>
+                                    <HiOutlineCheckCircle size={18} style={{ marginRight: 6 }} />
+                                    Return to Dashboard
                                 </button>
                             ) : (
                                 <button className="btn btn-primary" onClick={handleGenerate} disabled={generating}>
