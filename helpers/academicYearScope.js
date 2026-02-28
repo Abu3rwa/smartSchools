@@ -2,7 +2,8 @@ import Class from '../models/Class.js';
 import {
     getAcademicYearDateRange,
     isValidAcademicYear,
-    resolveRequestedAcademicYear
+    resolveRequestedAcademicYear,
+    resolveAcademicYearDateRange
 } from '../utils/academicYear.js';
 
 export const resolveAcademicYearForRequest = (
@@ -39,10 +40,7 @@ export const isClassInAcademicYear = (classDoc, academicYear) => {
 };
 
 export const buildAcademicYearDateFilter = (academicYear, school) => {
-    const range = getAcademicYearDateRange(
-        academicYear,
-        school?.settings?.academicYearStartMonth
-    );
+    const range = resolveAcademicYearDateRange(academicYear, school);
     if (!range) return null;
     return {
         $gte: range.startDate,

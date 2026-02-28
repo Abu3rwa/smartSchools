@@ -1,19 +1,33 @@
 import { Alert, Stack } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CalendarEventActionsMenu from './components/CalendarEventActionsMenu';
-import CalendarEventFormDialog from './components/CalendarEventFormDialog';
-import CalendarFilterChips from './components/CalendarFilterChips';
-import CalendarMonthPanel from './components/CalendarMonthPanel';
 import CalendarPageHeader from './components/CalendarPageHeader';
-import CalendarUpcomingPanel from './components/CalendarUpcomingPanel';
-import useAdminSchoolCalendarController from './hooks/useAdminSchoolCalendarController';
+import CalendarEventFormDialog from '../../../../components/calendar/CalendarEventFormDialog';
+import CalendarFilterChips from '../../../../components/calendar/CalendarFilterChips';
+import CalendarMonthGrid from '../../../../components/calendar/CalendarMonthGrid';
+import CalendarUpcomingEventsList from '../../../../components/calendar/CalendarUpcomingEventsList';
+import useSchoolCalendarData from './hooks/useSchoolCalendarData';
+import useSchoolCalendarPermissions from './hooks/useSchoolCalendarPermissions';
+import {
+    CALENDAR_FILTER_OPTIONS,
+    CALENDAR_RECURRENCE_FREQUENCY_OPTIONS,
+    CALENDAR_RECURRENCE_WEEKDAY_OPTIONS,
+    CALENDAR_VISIBILITY_OPTIONS,
+    CALENDAR_WEEKDAY_LABELS
+} from './constants';
+import {
+    formatCalendarEventDateRange,
+    formatCalendarRecurrenceSummary,
+    getCategoryIconComponent,
+    toAudienceOption
+} from './utils/calendarPresentation';
 import './AdminSchoolCalendarPage.css';
 
 const AdminSchoolCalendarPage = () => {
     const theme = useTheme();
 
+    const { canManage } = useSchoolCalendarPermissions();
     const {
-        canManage,
         categoryStyles,
         calendarError,
         mutationLoading,
@@ -51,7 +65,7 @@ const AdminSchoolCalendarPage = () => {
         goToNextMonth,
         getDayCellStyle,
         isEventNotificationEnabled
-    } = useAdminSchoolCalendarController(theme);
+    } = useSchoolCalendarData(theme);
 
     return (
         <div className="admin-school-calendar-page">
@@ -69,23 +83,25 @@ const AdminSchoolCalendarPage = () => {
                 <CalendarFilterChips
                     activeFilter={activeFilter}
                     onChangeFilter={setActiveFilter}
+                    options={CALENDAR_FILTER_OPTIONS}
                 />
 
                 <div className="calendar-layout-grid">
-                    <CalendarMonthPanel
+                    <CalendarMonthGrid
                         currentMonth={currentMonth}
                         selectedDate={selectedDate}
                         monthGridCells={monthGridCells}
                         selectedDayEvents={selectedDayEvents}
                         categoryStyles={categoryStyles}
                         dayStylesByKey={dayStylesByKey}
+                        weekdayLabels={CALENDAR_WEEKDAY_LABELS}
                         onPreviousMonth={goToPreviousMonth}
                         onNextMonth={goToNextMonth}
                         onSelectDate={setSelectedDate}
                         getDayCellStyle={getDayCellStyle}
                     />
 
-                    <CalendarUpcomingPanel
+                    <CalendarUpcomingEventsList
                         upcomingLoading={upcomingLoading}
                         monthLoading={monthLoading}
                         upcomingEvents={upcomingEvents}
@@ -95,6 +111,9 @@ const AdminSchoolCalendarPage = () => {
                         isEventNotificationEnabled={isEventNotificationEnabled}
                         onToggleNotification={handleNotificationToggle}
                         onOpenEventMenu={openEventActionsMenu}
+                        formatCalendarEventDateRange={formatCalendarEventDateRange}
+                        formatCalendarRecurrenceSummary={formatCalendarRecurrenceSummary}
+                        getCategoryIconComponent={getCategoryIconComponent}
                     />
                 </div>
             </Stack>
@@ -112,6 +131,11 @@ const AdminSchoolCalendarPage = () => {
                 onSetAudienceUserSearch={setAudienceUserSearch}
                 onClose={closeDialog}
                 onSubmit={submitEventForm}
+                categoryOptions={CALENDAR_FILTER_OPTIONS}
+                recurrenceFrequencyOptions={CALENDAR_RECURRENCE_FREQUENCY_OPTIONS}
+                recurrenceWeekdayOptions={CALENDAR_RECURRENCE_WEEKDAY_OPTIONS}
+                visibilityOptions={CALENDAR_VISIBILITY_OPTIONS}
+                toAudienceOption={toAudienceOption}
             />
 
             <CalendarEventActionsMenu

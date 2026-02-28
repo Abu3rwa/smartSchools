@@ -125,12 +125,89 @@ function parseJsonArray(text) {
 }
 
 /**
- * Detect standards that align with lesson content
+ * Infer standards or skills from lesson content when no subject+grade standards exist.
+ * AI extracts learning standards/skills that the lesson addresses, aligned with subject and grade.
+ * @param {Object} options
+ * @param {string} options.subjectName - Subject name (e.g. Mathematics, ELA)
+ * @param {number} options.gradeLevel - Grade level (1-12)
+ * @param {string} options.lessonText - Combined lesson content
+ */
+export async function inferStandardsFromContent({
+  subjectName,
+  gradeLevel,
+  lessonText,
+}) {
+  if (!lessonText || !(lessonText.trim())) {
+    return {
+      standards: [],
+      tokenUsage: { input: 0, output: 0, total: 0 },
+    };
+  }
+
+  const prompt = `You are an expert curriculum analyst. There are NO pre-defined standards for this subject and grade. Your task is to INFER or EXTRACT the learning standards or skills that this lesson clearly addresses, based ONLY on the lesson content below.
+
+RULES:
+- Infer standards/skills ONLY from the lesson content. Do not use standards from other subjects.
+- Every inferred standard/skill MUST align with the subject "${subjectName}" and grade level ${gradeLevel}.
+- Use clear, concise codes (e.g. "1.1", "2.A", "NS.3") and short names. Description should state what the student will know or be able to do.
+- Return between 2 and 8 inferred standards/skills. No duplicates.
+
+SUBJECT: ${subjectName}
+GRADE LEVEL: ${gradeLevel}
+
+LESSON CONTENT:
+${lessonText.trim()}
+
+Output ONLY a valid JSON array. No markdown, no code fences, no extra text. Each item must have: code, name, description.
+[
+  { "code": "1.1", "name": "Short name", "description": "What the student will know or do." },
+  ...
+]`;
+
+  const response = await connectAi(prompt);
+  const parsed = parseJsonArray(response.text);
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return {
+      standards: [],
+      tokenUsage: {
+        input: response.inputtokenCount || 0,
+        output: response.outputtokenCount || 0,
+        total: response.totalTokenCount || 0,
+      },
+    };
+  }
+
+  const standards = parsed
+    .filter((s) => s && (s.code || s.name || s.description))
+    .slice(0, 10)
+    .map((s, i) => ({
+      id: `inferred-${i}`,
+      standardId: `inferred-${i}`,
+      code: String(s.code || "").trim() || `INF-${i + 1}`,
+      name: String(s.name || "").trim(),
+      description: String(s.description || "").trim(),
+      inferred: true,
+    }));
+
+  return {
+    standards,
+    tokenUsage: {
+      input: response.inputtokenCount || 0,
+      output: response.outputtokenCount || 0,
+      total: response.totalTokenCount || 0,
+    },
+  };
+}
+
+/**
  * @param {Object} options
  * @param {string} options.schoolId - School ID (for tenant isolation)
  * @param {string} options.subjectId - Subject ID
  * @param {number} options.gradeLevel - Grade level (1-12)
  * @param {string} options.lessonText - Combined lesson content (title, summary, description, objectives)
+ * @param {Object[]} options.standards - Standards to choose from (subject's or same-grade pool)
+ * @param {boolean} [options.suggestedPool] - When true, standards are from other subjects (suggested pool)
  */
 export async function detectStandardsFromContent({
   schoolId,
@@ -138,6 +215,7 @@ export async function detectStandardsFromContent({
   gradeLevel,
   lessonText,
   standards,
+  suggestedPool = false,
 }) {
   if (!Array.isArray(standards) || standards.length === 0) {
     return {
@@ -147,7 +225,6 @@ export async function detectStandardsFromContent({
   }
 
   const maxStandards = 50;
-  // Pass full code and description from the subject's standards - AI must select ONLY from this list
   const standardsList = standards.slice(0, maxStandards).map((s) => ({
     _id: s._id.toString(),
     code: s.code || "",
@@ -155,12 +232,16 @@ export async function detectStandardsFromContent({
     description: (s.description || "").trim(),
   }));
 
-  const prompt = `You are an expert curriculum analyst. You must select standards ONLY from the AVAILABLE STANDARDS list below. These are the actual standards for this subject and grade - use their exact _id, code, and description. Do NOT invent, modify, or create any standard.
+  const poolNote = suggestedPool
+    ? "These are suggested standards from other subjects for this grade. Select the most relevant for the lesson content."
+    : "These are the actual standards for this subject and grade - use their exact _id, code, and description. Do NOT invent, modify, or create any standard.";
+
+  const prompt = `You are an expert curriculum analyst. You must select standards ONLY from the AVAILABLE STANDARDS list below. ${poolNote}
 
 LESSON CONTENT:
 ${lessonText || "(No content provided)"}
 
-AVAILABLE STANDARDS (subject, grade ${gradeLevel}) - select ONLY from this list:
+AVAILABLE STANDARDS (grade ${gradeLevel}) - select ONLY from this list:
 ${JSON.stringify(standardsList, null, 0)}
 
 For each selected standard, provide:
@@ -192,7 +273,6 @@ Output ONLY a valid JSON array. No markdown, no code fences, no extra text:
     standards.map((s) => [s._id.toString(), s])
   );
 
-  // Return only the subject's actual standards - code and description from the Standard document
   const result = matches
     .filter((m) => m?.standardId && standardsById[m.standardId])
     .map((m) => {

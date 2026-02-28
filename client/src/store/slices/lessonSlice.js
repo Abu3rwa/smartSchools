@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../config/api';
+import lessonService from '../../services/lessonService';
 
 // Async thunks
 export const fetchLessons = createAsyncThunk(
@@ -113,6 +114,48 @@ export const fetchLessonPlanStats = createAsyncThunk(
     }
 );
 
+export const updateLessonPlanAdminNote = createAsyncThunk(
+    'lessons/updateAdminNote',
+    async ({ id, adminNoteToTeacher }, { rejectWithValue }) => {
+        try {
+            const response = await api.put(`/lessons/${id}/admin-note`, { adminNoteToTeacher });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to save admin note');
+        }
+    }
+);
+
+export const triggerLessonEvaluation = createAsyncThunk(
+    'lessons/triggerLessonEvaluation',
+    async ({ id, forceReevaluate = false, reason = '' }, { rejectWithValue }) => {
+        try {
+            const response = await lessonService.triggerLessonEvaluation(id, { forceReevaluate, reason });
+            return { lessonId: id, ...response };
+        } catch (error) {
+            return rejectWithValue({
+                lessonId: id,
+                message: error.response?.data?.message || 'Failed to evaluate lesson plan'
+            });
+        }
+    }
+);
+
+export const fetchLessonEvaluationHistory = createAsyncThunk(
+    'lessons/fetchLessonEvaluationHistory',
+    async ({ id, page = 1, limit = 10 }, { rejectWithValue }) => {
+        try {
+            const response = await lessonService.getLessonEvaluationHistory(id, { page, limit });
+            return { lessonId: id, ...response };
+        } catch (error) {
+            return rejectWithValue({
+                lessonId: id,
+                message: error.response?.data?.message || 'Failed to load evaluation history'
+            });
+        }
+    }
+);
+
 const lessonSlice = createSlice({
     name: 'lessons',
     initialState: {
@@ -121,7 +164,12 @@ const lessonSlice = createSlice({
         stats: null,
         statsLoading: false,
         loading: false,
-        error: null
+        error: null,
+        evaluationLoadingByLessonId: {},
+        evaluationHistoryLoadingByLessonId: {},
+        evaluationErrorByLessonId: {},
+        evaluationHistoryByLessonId: {},
+        evaluationMetaByLessonId: {}
     },
     reducers: {
         clearError: (state) => {
@@ -177,6 +225,64 @@ const lessonSlice = createSlice({
             .addCase(fetchLessonPlanStats.rejected, (state, action) => {
                 state.statsLoading = false;
                 state.error = action.payload;
+            })
+            .addCase(updateLessonPlanAdminNote.fulfilled, (state, action) => {
+                const lesson = action.payload?.lesson;
+                if (lesson) {
+                    const index = state.lessons.findIndex(l => l._id === lesson._id);
+                    if (index !== -1) {
+                        state.lessons[index] = { ...state.lessons[index], ...lesson };
+                    }
+                }
+            })
+            .addCase(triggerLessonEvaluation.pending, (state, action) => {
+                const lessonId = action.meta.arg.id;
+                state.evaluationLoadingByLessonId[lessonId] = true;
+                state.evaluationErrorByLessonId[lessonId] = null;
+            })
+            .addCase(triggerLessonEvaluation.fulfilled, (state, action) => {
+                const lessonId = action.payload.lessonId;
+                state.evaluationLoadingByLessonId[lessonId] = false;
+                state.evaluationErrorByLessonId[lessonId] = null;
+
+                const lesson = action.payload?.data?.lesson;
+                const evaluationMeta = action.payload?.data || null;
+                if (evaluationMeta) {
+                    state.evaluationMetaByLessonId[lessonId] = evaluationMeta;
+                }
+
+                if (lesson) {
+                    const index = state.lessons.findIndex((l) => l._id === lesson._id);
+                    if (index !== -1) {
+                        state.lessons[index] = { ...state.lessons[index], ...lesson };
+                    } else {
+                        state.lessons.unshift(lesson);
+                    }
+                    if (state.currentLesson?._id === lesson._id) {
+                        state.currentLesson = { ...state.currentLesson, ...lesson };
+                    }
+                }
+            })
+            .addCase(triggerLessonEvaluation.rejected, (state, action) => {
+                const lessonId = action.payload?.lessonId || action.meta.arg.id;
+                state.evaluationLoadingByLessonId[lessonId] = false;
+                state.evaluationErrorByLessonId[lessonId] = action.payload?.message || 'Failed to evaluate lesson plan';
+            })
+            .addCase(fetchLessonEvaluationHistory.pending, (state, action) => {
+                const lessonId = action.meta.arg.id;
+                state.evaluationHistoryLoadingByLessonId[lessonId] = true;
+                state.evaluationErrorByLessonId[lessonId] = null;
+            })
+            .addCase(fetchLessonEvaluationHistory.fulfilled, (state, action) => {
+                const lessonId = action.payload.lessonId;
+                state.evaluationHistoryLoadingByLessonId[lessonId] = false;
+                state.evaluationErrorByLessonId[lessonId] = null;
+                state.evaluationHistoryByLessonId[lessonId] = action.payload?.data || null;
+            })
+            .addCase(fetchLessonEvaluationHistory.rejected, (state, action) => {
+                const lessonId = action.payload?.lessonId || action.meta.arg.id;
+                state.evaluationHistoryLoadingByLessonId[lessonId] = false;
+                state.evaluationErrorByLessonId[lessonId] = action.payload?.message || 'Failed to load evaluation history';
             });
     }
 });
@@ -189,5 +295,10 @@ export const selectLessonsLoading = (state) => state.lessons.loading;
 export const selectCurrentLesson = (state) => state.lessons.currentLesson;
 export const selectLessonPlanStats = (state) => state.lessons.stats;
 export const selectLessonPlanStatsLoading = (state) => state.lessons.statsLoading;
+export const selectEvaluationLoadingByLessonId = (state) => state.lessons.evaluationLoadingByLessonId;
+export const selectEvaluationHistoryLoadingByLessonId = (state) => state.lessons.evaluationHistoryLoadingByLessonId;
+export const selectEvaluationErrorByLessonId = (state) => state.lessons.evaluationErrorByLessonId;
+export const selectEvaluationHistoryByLessonId = (state) => state.lessons.evaluationHistoryByLessonId;
+export const selectEvaluationMetaByLessonId = (state) => state.lessons.evaluationMetaByLessonId;
 
 export default lessonSlice.reducer;

@@ -792,7 +792,7 @@ const GradebookPage = () => {
                                     }}>
                                         {/* Email Header */}
                                         <div style={{
-                                            background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)',
+                                            background: 'var(--brand-gradient)',
                                             padding: '20px',
                                             borderRadius: '8px 8px 0 0',
                                             color: 'white',

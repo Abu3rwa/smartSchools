@@ -289,20 +289,6 @@
     color: var(--on-accent);
 }
 
-/* Accessibility: in light theme, route-specific icon hues can fail contrast on white surfaces */
-[data-theme="light"] .sidebar .nav-item .nav-icon {
-    color: var(--text-secondary) !important;
-}
-
-[data-theme="light"] .sidebar .nav-item:hover .nav-icon {
-    color: var(--text-primary) !important;
-    filter: none;
-}
-
-[data-theme="light"] .sidebar .nav-item.active .nav-icon {
-    color: var(--on-accent) !important;
-}
-
 /* Hover state - brighten the icon slightly */
 .nav-item:hover .nav-icon {
     filter: brightness(1.2);

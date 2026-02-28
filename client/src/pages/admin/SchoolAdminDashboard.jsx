@@ -326,7 +326,7 @@ const SchoolAdminDashboard = () => {
             <Grid container spacing={2} sx={{ mb: { xs: 2, md: 3 } }}>
                 {/* Class Distribution */}
                 {classDistributionData.length > 0 && (
-                    <Grid item xs={12} md={8}>
+                    <Grid item xs={12} md={4}>
                         <Box sx={cardSx}>
                             <Box
                                 sx={{
@@ -398,7 +398,7 @@ const SchoolAdminDashboard = () => {
                 )}
 
                 {/* Performance Trend */}
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={8} flexGrow={1}>
                     <Box sx={cardSx}>
                         <Box
                             sx={{

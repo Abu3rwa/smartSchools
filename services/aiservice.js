@@ -7,6 +7,82 @@ class AIService {
     }
 
     /**
+     * Parse JSON object from plain text or markdown-wrapped output
+     * @param {string} text
+     * @returns {object|null}
+     */
+    parseJsonObject(text) {
+        if (!text || typeof text !== 'string') return null;
+        const trimmed = text.trim();
+
+        try {
+            return JSON.parse(trimmed);
+        } catch (_) {
+            // fall through
+        }
+
+        const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        if (codeBlockMatch?.[1]) {
+            try {
+                return JSON.parse(codeBlockMatch[1].trim());
+            } catch (_) {
+                // fall through
+            }
+        }
+
+        const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+        if (objectMatch?.[0]) {
+            try {
+                return JSON.parse(objectMatch[0]);
+            } catch (_) {
+                // fall through
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Generate structured JSON from AI with a bounded retry count.
+     * This keeps feature services DRY and avoids each service re-implementing parsing logic.
+     * @param {Object} options
+     * @param {string} options.prompt
+     * @param {string} [options.modelName]
+     * @param {number} [options.maxRetries]
+     * @returns {Promise<{parsed: object, text: string, tokenUsage: {input:number, output:number, total:number}, modelName: string}>}
+     */
+    async generateStructuredJson({ prompt, modelName, maxRetries = 1 }) {
+        let currentPrompt = prompt;
+        let lastError = null;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+            const response = await connectAi(currentPrompt, modelName ? { modelName } : {});
+            const parsed = this.parseJsonObject(response.text || '');
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                return {
+                    parsed,
+                    text: response.text || '',
+                    tokenUsage: {
+                        input: response.inputtokenCount || 0,
+                        output: response.outputtokenCount || 0,
+                        total: response.totalTokenCount || 0
+                    },
+                    modelName: response.modelName || modelName || 'unknown'
+                };
+            }
+
+            lastError = new Error('AI response did not contain a valid JSON object');
+            if (attempt < maxRetries) {
+                currentPrompt = `${prompt}
+
+IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object matching the requested schema.`;
+            }
+        }
+
+        throw lastError || new Error('Failed to generate structured JSON');
+    }
+
+    /**
      * Generate advanced AI report with multi-language support
      * @param {Object} options - Report generation options
      * @param {Object} options.studentData - Student details

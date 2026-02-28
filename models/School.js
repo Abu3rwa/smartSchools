@@ -49,6 +49,12 @@ const schoolSchema = new mongoose.Schema({
             max: 12,
             default: 8
         },
+        academicYearStartDate: {
+            type: Date
+        },
+        academicYearEndDate: {
+            type: Date
+        },
         maxStudents: {
             type: Number,
             default: 50

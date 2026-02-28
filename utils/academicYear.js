@@ -63,3 +63,18 @@ export const getAcademicYearDateRange = (academicYear, schoolStartMonth = DEFAUL
 
     return { startDate, endDate };
 };
+
+export const resolveAcademicYearDateRange = (academicYear, school) => {
+    const explicitStart = school?.settings?.academicYearStartDate;
+    const explicitEnd = school?.settings?.academicYearEndDate;
+
+    if (explicitStart && explicitEnd) {
+        const startDate = new Date(explicitStart);
+        const endDate = new Date(explicitEnd);
+        if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && startDate <= endDate) {
+            return { startDate, endDate };
+        }
+    }
+
+    return getAcademicYearDateRange(academicYear, school?.settings?.academicYearStartMonth);
+};

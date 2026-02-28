@@ -113,11 +113,14 @@ const MainLayout = () => {
             )}
 
             <div className="main-content">
-                {isImpersonating && <ImpersonationBanner />}
-                <Header />
-                <main id="main-content" className="page-content">
-                    <Outlet />
-                </main>
+                <div className="bg-grid-inset" aria-hidden="true" />
+                <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
+                    {isImpersonating && <ImpersonationBanner />}
+                    <Header />
+                    <main id="main-content" className="page-content">
+                        <Outlet />
+                    </main>
+                </div>
             </div>
         </div>
     );

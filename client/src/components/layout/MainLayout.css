@@ -25,6 +25,7 @@
 }
 
 .main-content {
+    position: relative;
     flex: 1;
     margin-left: var(--sidebar-width);
     display: flex;
@@ -37,6 +38,7 @@
 }
 
 .page-content {
+    position: relative;
     flex: 1;
     padding: var(--spacing-xl);
     padding-top: calc(var(--header-height) + var(--spacing-xl));

@@ -99,6 +99,84 @@ router.put('/me/current-academic-year', requireSchoolContext, authorize('admin')
 }));
 
 /**
+ * @desc    Get school academic year date range (start/end)
+ * @route   GET /api/schools/me/academic-year-dates
+ * @access  Private (Admin)
+ */
+router.get('/me/academic-year-dates', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select(
+        'settings.academicYearStartDate settings.academicYearEndDate settings.currentAcademicYear'
+    );
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            academicYear: school.settings?.currentAcademicYear || null,
+            startDate: school.settings?.academicYearStartDate || null,
+            endDate: school.settings?.academicYearEndDate || null
+        }
+    });
+}));
+
+/**
+ * @desc    Update school academic year date range (start/end)
+ * @route   PUT /api/schools/me/academic-year-dates
+ * @access  Private (Admin)
+ */
+router.put('/me/academic-year-dates', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.body || {};
+    if (!startDate || !endDate) {
+        return res.status(400).json({
+            success: false,
+            message: 'startDate and endDate are required'
+        });
+    }
+
+    const parsedStart = new Date(startDate);
+    const parsedEnd = new Date(endDate);
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid startDate or endDate'
+        });
+    }
+    if (parsedStart > parsedEnd) {
+        return res.status(400).json({
+            success: false,
+            message: 'End date must be on or after start date'
+        });
+    }
+
+    const school = await School.findByIdAndUpdate(
+        req.schoolId,
+        {
+            $set: {
+                'settings.academicYearStartDate': parsedStart,
+                'settings.academicYearEndDate': parsedEnd
+            }
+        },
+        { new: true, runValidators: true }
+    ).select('settings.academicYearStartDate settings.academicYearEndDate settings.currentAcademicYear');
+
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        message: 'Academic year dates updated',
+        data: {
+            academicYear: school.settings?.currentAcademicYear || null,
+            startDate: school.settings?.academicYearStartDate || null,
+            endDate: school.settings?.academicYearEndDate || null
+        }
+    });
+}));
+
+/**
  * @desc    Update current school settings
  * @route   PUT /api/schools/me
  * @access  Private (Admin)

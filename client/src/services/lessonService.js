@@ -35,6 +35,18 @@ const lessonService = {
     getLessonPlanStats: async (params = {}) => {
         const response = await api.get('/lessons/stats', { params });
         return response.data;
+    },
+
+    // Admin trigger AI evaluation for a lesson
+    triggerLessonEvaluation: async (id, payload = {}) => {
+        const response = await api.post(`/lessons/${id}/evaluation/trigger`, payload);
+        return response.data;
+    },
+
+    // Admin fetch AI evaluation history for a lesson
+    getLessonEvaluationHistory: async (id, params = {}) => {
+        const response = await api.get(`/lessons/${id}/evaluation/history`, { params });
+        return response.data;
     }
 };
 

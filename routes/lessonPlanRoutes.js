@@ -14,8 +14,13 @@ import {
     submitLessonPlan,
     getLessonPlansForReview,
     reviewLessonPlan,
-    getLessonPlanStats
+    getLessonPlanStats,
+    setAdminNoteToLessonPlan
 } from '../controllers/lessonPlanController.js';
+import {
+    triggerEvaluation,
+    getEvaluationHistory
+} from '../controllers/evaluationController.js';
 
 const router = express.Router();
 
@@ -57,9 +62,21 @@ router.delete('/:id', authorize('teacher', 'admin'), deleteLessonPlan);
 
 // Submission and review routes
 router.post('/:id/submit', authorize('teacher', 'admin'), submitLessonPlan);
+router.post('/:id/evaluation/trigger', authorizeWithPermission(
+    ['admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), triggerEvaluation);
+router.get('/:id/evaluation/history', authorizeWithPermission(
+    ['admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), getEvaluationHistory);
 router.post('/:id/review', authorizeWithPermission(
     ['admin', 'department_principal'],
     [PERMISSIONS.REVIEW_LESSON_PLANS]
 ), reviewLessonPlan);
+router.put('/:id/admin-note', authorizeWithPermission(
+    ['admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), setAdminNoteToLessonPlan);
 
 export default router;

@@ -23,8 +23,8 @@ const baseThemeOptions = {
       dark: '#6d28d9',
     },
     background: {
-      default: '#0f0f1a',
-      paper: '#1e1e35',
+      default: '#161628',
+      paper: '#272744',
     },
     text: {
       primary: '#ffffff',
@@ -53,9 +53,9 @@ const baseThemeOptions = {
           fontWeight: 600,
         },
         contained: {
-          background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)',
+          background: 'var(--brand-gradient)',
           '&:hover': {
-            background: 'linear-gradient(135deg, #2d4ac7 0%, #a855f7 100%)',
+            background: 'var(--brand-gradient-hover)',
           },
         },
       },

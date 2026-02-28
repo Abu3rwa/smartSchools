@@ -128,6 +128,22 @@ const lessonPlanSchema = new mongoose.Schema(
     evaluatedAt: {
       type: Date
     },
+    aiEvaluationStatus: {
+      type: String,
+      enum: ['not_started', 'in_progress', 'completed', 'failed'],
+      default: 'not_started',
+      index: true
+    },
+    aiEvaluationRequestedAt: {
+      type: Date
+    },
+    aiEvaluationCompletedAt: {
+      type: Date
+    },
+    aiEvaluationLastError: {
+      type: String,
+      default: ''
+    },
     // AI Evaluation results
     aiEvaluation: {
       overallScore: {
@@ -159,6 +175,65 @@ const lessonPlanSchema = new mongoose.Schema(
       },
       evaluatedAt: Date
     },
+    aiEvaluationMeta: {
+      criteriaHash: String,
+      lessonContentHash: String,
+      criteriaCount: Number,
+      criteriaSnapshot: [{
+        criteriaId: String,
+        name: String,
+        description: String,
+        weight: Number,
+        minScore: Number,
+        isRequired: Boolean,
+        evaluationPrompt: String,
+        updatedAt: String
+      }],
+      promptVersion: String,
+      model: String,
+      triggeredBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      triggerSource: {
+        type: String,
+        enum: ['teacher_submit', 'admin_manual', 'system_recheck']
+      },
+      latencyMs: Number
+    },
+    aiEvaluationHistory: [{
+      evaluationId: String,
+      evaluatedAt: Date,
+      overallScore: Number,
+      meetsMinimumRequirements: Boolean,
+      criteriaScores: [{
+        criteriaId: String,
+        criteriaName: String,
+        score: Number,
+        feedback: String,
+        metMinimum: Boolean
+      }],
+      strengths: [String],
+      areasForImprovement: [String],
+      recommendations: [String],
+      meta: {
+        criteriaHash: String,
+        lessonContentHash: String,
+        criteriaCount: Number,
+        promptVersion: String,
+        model: String,
+        triggerSource: {
+          type: String,
+          enum: ['teacher_submit', 'admin_manual', 'system_recheck']
+        },
+        triggeredBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User'
+        },
+        reason: String,
+        latencyMs: Number
+      }
+    }],
     // Human review (optional)
     humanReview: {
       reviewedBy: {
@@ -168,6 +243,12 @@ const lessonPlanSchema = new mongoose.Schema(
       reviewedAt: Date,
       comments: String,
       finalStatus: String
+    },
+    // Admin note to the teacher about this lesson plan (visible to teacher)
+    adminNoteToTeacher: {
+      type: String,
+      trim: true,
+      default: ''
     }
   },
   { timestamps: true },
@@ -177,6 +258,8 @@ lessonPlanSchema.index({ school: 1, date: -1 });
 lessonPlanSchema.index({ school: 1, class: 1, subject: 1 });
 lessonPlanSchema.index({ school: 1, teacher: 1, status: 1 });
 lessonPlanSchema.index({ school: 1, status: 1, submittedAt: -1 });
+lessonPlanSchema.index({ school: 1, aiEvaluationStatus: 1, updatedAt: -1 });
+lessonPlanSchema.index({ school: 1, 'aiEvaluationMeta.criteriaHash': 1 });
 lessonPlanSchema.plugin(tenantIsolationPlugin);
 
 const LessonPlan = mongoose.model("LessonPlan", lessonPlanSchema);

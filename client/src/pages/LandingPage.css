@@ -11,24 +11,16 @@
     pointer-events: none;
 }
 
-.landing-bg-mesh {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background-image:
-        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-    background-size: 56px 56px;
-    mask-image: radial-gradient(ellipse 85% 75% at 50% 0%, black, transparent 65%);
-    -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 0%, black, transparent 65%);
-    pointer-events: none;
+@media (max-width: 599px) {
+    .landing-bg-gradient {
+        background:
+            radial-gradient(ellipse 100% 50% at 50% -10%, var(--stat-primary-bg) 0%, transparent 55%),
+            radial-gradient(ellipse 80% 60% at 100% 50%, var(--stat-secondary-bg) 0%, transparent 50%),
+            radial-gradient(ellipse 80% 60% at 0% 60%, var(--stat-primary-bg) 0%, transparent 50%);
+    }
 }
 
-[data-theme="light"] .landing-bg-mesh {
-    background-image:
-        linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
-}
+/* .bg-grid is defined in index.css (app-wide) */
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-4px); }
@@ -50,7 +42,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #203bb4 0%, #933fe7 100%);
+    background: var(--brand-gradient);
     color: #fff;
 }
 
@@ -88,12 +80,12 @@
     top: 0;
     width: 100%;
     height: 3px;
-    background: linear-gradient(90deg, #203bb4 0%, #4ea4e9 50%, #933fe7 100%);
+    background: var(--brand-gradient-bar);
     opacity: 0.86;
 }
 
 .landing-feature-card-icon {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--feature-tint, rgba(32,59,180,0.2)) 75%, transparent) 0%, rgba(147, 63, 231, 0.17) 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--feature-tint, rgba(var(--brand-rgb-start), 0.2)) 75%, transparent) 0%, rgba(var(--brand-rgb-end), 0.17) 100%);
     box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.16);
 }
 

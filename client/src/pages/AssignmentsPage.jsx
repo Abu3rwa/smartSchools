@@ -53,17 +53,28 @@ const AssignmentsPage = () => {
 
     const availableClasses = useMemo(() => {
         if (user?.role === 'teacher' && Array.isArray(myClasses) && myClasses.length > 0) {
-            return myClasses.map((item) => item.class).filter(Boolean);
+            const seen = new Set();
+            return myClasses
+                .map((item) => item.class)
+                .filter((c) => c && !seen.has(c._id) && (seen.add(c._id), true));
         }
         return classes;
     }, [classes, myClasses, user?.role]);
 
     const availableSubjects = useMemo(() => {
+        if (user?.role === 'teacher' && selectedClass && Array.isArray(myClasses) && myClasses.length > 0) {
+            const seen = new Set();
+            return myClasses
+                .filter((mc) => (mc.class?._id || mc.class)?.toString() === selectedClass)
+                .map((mc) => mc.subject)
+                .filter((s) => s && !seen.has(s._id) && (seen.add(s._id), true));
+        }
+        if (user?.role === 'teacher' && !selectedClass) return [];
         if (!selectedClass) return subjects;
         const classDoc = classes.find((item) => item._id === selectedClass);
         if (!classDoc?.subjects) return subjects;
         return classDoc.subjects.map((item) => item.subject).filter(Boolean);
-    }, [classes, selectedClass, subjects]);
+    }, [classes, selectedClass, subjects, user?.role, myClasses]);
 
     const fetchAssignmentTypes = async () => {
         try {
@@ -113,6 +124,13 @@ const AssignmentsPage = () => {
             setSelectedClass(availableClasses[0]._id);
         }
     }, [availableClasses, selectedClass]);
+
+    useEffect(() => {
+        const subjectIds = availableSubjects.map((s) => (s._id || s).toString());
+        if (selectedSubject && !subjectIds.includes(selectedSubject)) {
+            setSelectedSubject('');
+        }
+    }, [availableSubjects, selectedSubject]);
 
     useEffect(() => {
         fetchAssignments();

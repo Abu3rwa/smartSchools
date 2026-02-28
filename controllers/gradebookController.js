@@ -9,7 +9,7 @@ import gradeService from '../services/gradeService.js';
 import notificationService from '../services/notificationService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject } from '../helpers/teacherScoping.js';
-import { resolveRequestedAcademicYear } from '../utils/academicYear.js';
+import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 
 /**
@@ -897,6 +897,7 @@ export const getClassStatistics = asyncHandler(async (req, res) => {
 
 export const getDashboardStats = asyncHandler(async (req, res) => {
     const academicYear = resolveRequestedAcademicYear(req.query.academicYear, req.school);
+    const academicYearRange = resolveAcademicYearDateRange(academicYear, req.school);
     
     // Get total students count for this school
     const totalStudents = await Student.countDocuments({ school: req.schoolId, status: 'active' });
@@ -1021,20 +1022,22 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         { $limit: 12 }
     ]);
 
-    const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const rangeStart = academicYearRange?.startDate || new Date(currentYear, 0, 1);
+    const rangeEnd = academicYearRange?.endDate || new Date(currentYear, 11, 31, 23, 59, 59, 999);
     const monthTrendRaw = await Grade.aggregate([
         {
             $match: {
                 school: req.schoolId,
                 academicYear,
                 date: {
-                    $gte: new Date(currentYear, 0, 1),
-                    $lte: new Date(currentYear, 5, 30, 23, 59, 59)
+                    $gte: rangeStart,
+                    $lte: rangeEnd
                 }
             }
         },
         {
             $project: {
+                year: { $year: '$date' },
                 month: { $month: '$date' },
                 percentage: {
                     $cond: [
@@ -1048,21 +1051,33 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         { $match: { percentage: { $ne: null } } },
         {
             $group: {
-                _id: '$month',
+                _id: { year: '$year', month: '$month' },
                 average: { $avg: '$percentage' }
             }
         }
     ]);
 
-    const monthlyAveragesByMonth = monthTrendRaw.reduce((acc, item) => {
-        acc[item._id] = Number(item.average?.toFixed(1) || 0);
+    const monthlyAveragesByKey = monthTrendRaw.reduce((acc, item) => {
+        const key = `${item._id.year}-${String(item._id.month).padStart(2, '0')}`;
+        acc[key] = Number(item.average?.toFixed(1) || 0);
         return acc;
     }, {});
 
-    const performanceTrend = monthLabels.map((label, idx) => ({
-        month: label,
-        average: monthlyAveragesByMonth[idx + 1] || 0,
-    }));
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const performanceTrend = [];
+    const cursor = new Date(Date.UTC(rangeStart.getUTCFullYear(), rangeStart.getUTCMonth(), 1));
+    const endCursor = new Date(Date.UTC(rangeEnd.getUTCFullYear(), rangeEnd.getUTCMonth(), 1));
+    while (cursor <= endCursor) {
+        const year = cursor.getUTCFullYear();
+        const month = cursor.getUTCMonth() + 1;
+        const key = `${year}-${String(month).padStart(2, '0')}`;
+        const label = `${monthNames[month - 1]} ${String(year).slice(-2)}`;
+        performanceTrend.push({
+            month: label,
+            average: monthlyAveragesByKey[key] || 0
+        });
+        cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
     
     // Calculate percentage changes
     const studentChange = previousMonthStudents > 0 

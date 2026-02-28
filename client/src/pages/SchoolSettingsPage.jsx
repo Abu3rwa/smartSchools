@@ -91,6 +91,9 @@ const SchoolSettingsPage = () => {
     const [classesCreated, setClassesCreated] = useState(null);
     const [deactivateCount, setDeactivateCount] = useState(null);
     const [promoteResult, setPromoteResult] = useState(null);
+    const [schoolYearStartDate, setSchoolYearStartDate] = useState('');
+    const [schoolYearEndDate, setSchoolYearEndDate] = useState('');
+    const [schoolYearDatesSaving, setSchoolYearDatesSaving] = useState(false);
     const isValidAcademicYear = (value) => /^\d{4}-\d{4}$/.test(value || '');
     const isConsecutiveAcademicYear = (value) => {
         if (!isValidAcademicYear(value)) return false;
@@ -144,6 +147,17 @@ const SchoolSettingsPage = () => {
                     }
                 })
                 .catch(() => toast.error('Failed to load academic years'));
+
+            api.get('/schools/me/academic-year-dates')
+                .then((res) => {
+                    if (res.data.success && res.data.data) {
+                        const start = res.data.data.startDate ? new Date(res.data.data.startDate) : null;
+                        const end = res.data.data.endDate ? new Date(res.data.data.endDate) : null;
+                        setSchoolYearStartDate(start ? start.toISOString().slice(0, 10) : '');
+                        setSchoolYearEndDate(end ? end.toISOString().slice(0, 10) : '');
+                    }
+                })
+                .catch(() => toast.error('Failed to load school year dates'));
         }
     }, [canManageSchoolSettings, activeTab]);
 
@@ -233,6 +247,34 @@ const SchoolSettingsPage = () => {
             ));
         } else {
             toast.error(result.payload || 'Failed to update school academic year');
+        }
+    };
+
+    const handleSaveSchoolYearDates = async () => {
+        if (!schoolYearStartDate || !schoolYearEndDate) {
+            toast.error('Start and end dates are required');
+            return;
+        }
+        if (schoolYearEndDate < schoolYearStartDate) {
+            toast.error('End date must be on or after start date');
+            return;
+        }
+
+        setSchoolYearDatesSaving(true);
+        try {
+            const res = await api.put('/schools/me/academic-year-dates', {
+                startDate: schoolYearStartDate,
+                endDate: schoolYearEndDate
+            });
+            if (res.data.success) {
+                toast.success(res.data.message || 'School year dates updated');
+            } else {
+                toast.error(res.data.message || 'Failed to update school year dates');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to update school year dates');
+        } finally {
+            setSchoolYearDatesSaving(false);
         }
     };
 
@@ -516,6 +558,35 @@ const SchoolSettingsPage = () => {
                         <span>Set up a new school year: create classes from the previous year, deactivate old classes, and promote students. Then assign teachers and principals for the new year.</span>
                     </div>
                     <div className="rollover-wizard card">
+                        <div className="wizard-step">
+                            <h4>0. Set school year dates</h4>
+                            <p className="text-muted">These dates are used for performance trends and reports.</p>
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label>Start date</label>
+                                    <input
+                                        type="date"
+                                        value={schoolYearStartDate}
+                                        onChange={(e) => setSchoolYearStartDate(e.target.value)}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>End date</label>
+                                    <input
+                                        type="date"
+                                        value={schoolYearEndDate}
+                                        onChange={(e) => setSchoolYearEndDate(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleSaveSchoolYearDates}
+                                disabled={schoolYearDatesSaving || !schoolYearStartDate || !schoolYearEndDate}
+                            >
+                                {schoolYearDatesSaving ? 'Saving...' : 'Save school year dates'}
+                            </button>
+                        </div>
                         <div className="wizard-step">
                             <h4>1. Choose years</h4>
                             <div className="form-row">

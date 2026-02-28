@@ -21,12 +21,12 @@ const VALID_SUGGEST_FIELDS = [
  * @access  Private (Teacher sees own; Admin sees school)
  */
 export const getLessonPlans = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 20, class: classId, subject, startDate, endDate, academicYear } = req.query;
+    const { page = 1, limit = 20, class: classId, subject, teacher: teacherId, startDate, endDate, academicYear } = req.query;
     const effectiveAcademicYear = academicYear || req.academicYear;
     const query = {};
 
     // Check if user can view all lesson plans
-    const canViewAll = req.user.role === 'admin' || 
+    const canViewAll = req.user.role === 'admin' ||
                        req.user.role === 'department_principal' ||
                        req.user.permissions?.includes('review_lesson_plans');
 
@@ -34,7 +34,12 @@ export const getLessonPlans = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher' && !canViewAll) {
         query.teacher = req.user._id;
     }
-    
+
+    // Admin filter by teacher (user id)
+    if (canViewAll && teacherId) {
+        query.teacher = teacherId;
+    }
+
     let departmentClassIds = null;
     if (req.departmentId) {
         departmentClassIds = await Class.find({ school: req.schoolId, department: req.departmentId }).select('_id').lean();
@@ -314,6 +319,7 @@ export const suggestField = asyncHandler(async (req, res) => {
 
 /**
  * @desc    AI detect standards aligned with lesson content
+ * Uses subject-added standards when present; when none exist, infers standards from lesson (subject+grade aligned).
  * @route   POST /api/lessons/ai/detect-standards
  * @access  Private (Teacher, Admin)
  */
@@ -333,7 +339,9 @@ export const detectStandards = asyncHandler(async (req, res) => {
     }
 
     const gradeLevel = cls.grade ?? 1;
-    const standards = await Standard.find({
+
+    // Standards for this subject + grade only
+    let standards = await Standard.find({
         subject: subjectId,
         gradeLevel,
         isActive: true
@@ -341,12 +349,47 @@ export const detectStandards = asyncHandler(async (req, res) => {
         .lean()
         .limit(50);
 
+    let fromSubject = true;
+    let inferred = false;
+
+    if (!standards || standards.length === 0) {
+        // No standards for this subject+grade: infer from lesson content (aligned with subject and grade)
+        const inferResult = await lessonPlanAIService.inferStandardsFromContent({
+            subjectName: subj.name || '',
+            gradeLevel,
+            lessonText: lessonText || ''
+        });
+        if (schoolId && userId && (inferResult.tokenUsage?.total || 0) > 0) {
+            await AITokenUsage.create({
+                model: MODEL_NAME,
+                feature: 'lesson_plan_detect_standards',
+                school: schoolId,
+                user: userId,
+                inputTokens: inferResult.tokenUsage.input,
+                outputTokens: inferResult.tokenUsage.output,
+                totalTokens: inferResult.tokenUsage.total,
+                schoolId: schoolId.toString(),
+                metadata: { subjectId, classId, inferred: true }
+            });
+        }
+        return res.json({
+            success: true,
+            data: {
+                standards: inferResult.standards || [],
+                fromSubject: false,
+                inferred: true,
+                tokenUsage: inferResult.tokenUsage || { input: 0, output: 0, total: 0 }
+            }
+        });
+    }
+
     const result = await lessonPlanAIService.detectStandardsFromContent({
         schoolId,
         subjectId,
         gradeLevel,
         lessonText: lessonText || '',
-        standards
+        standards,
+        suggestedPool: false
     });
 
     if (schoolId && userId && result.tokenUsage.total > 0) {
@@ -365,7 +408,12 @@ export const detectStandards = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { standards: result.standards, tokenUsage: result.tokenUsage }
+        data: {
+            standards: result.standards,
+            fromSubject,
+            inferred,
+            tokenUsage: result.tokenUsage
+        }
     });
 });
 
@@ -435,6 +483,26 @@ export const generateSection = asyncHandler(async (req, res) => {
                     totalTokens: detectResult.tokenUsage.total,
                     schoolId: schoolId.toString(),
                     metadata: { subjectId, classId, fromGenerate: true }
+                });
+            }
+        } else {
+            const inferResult = await lessonPlanAIService.inferStandardsFromContent({
+                subjectName: subj.name || '',
+                gradeLevel,
+                lessonText
+            });
+            standards = inferResult.standards || [];
+            if (inferResult.tokenUsage?.total > 0 && schoolId && userId) {
+                await AITokenUsage.create({
+                    model: MODEL_NAME,
+                    feature: 'lesson_plan_detect_standards',
+                    school: schoolId,
+                    user: userId,
+                    inputTokens: inferResult.tokenUsage.input,
+                    outputTokens: inferResult.tokenUsage.output,
+                    totalTokens: inferResult.tokenUsage.total,
+                    schoolId: schoolId.toString(),
+                    metadata: { subjectId, classId, fromGenerate: true, inferred: true }
                 });
             }
         }
@@ -533,7 +601,15 @@ export const submitLessonPlan = asyncHandler(async (req, res) => {
     await lesson.save();
 
     try {
-        const evaluation = await lessonPlanEvaluationService.evaluateLessonPlan(lesson._id, criteria);
+        const evaluationResult = await lessonPlanEvaluationService.evaluateLessonPlan(
+            lesson._id,
+            criteria,
+            {
+                actorUserId: req.user?._id,
+                triggerSource: lessonPlanEvaluationService.LESSON_PLAN_EVALUATION_SOURCES.TEACHER_SUBMIT
+            }
+        );
+        const evaluation = evaluationResult?.evaluation || evaluationResult;
         
         const updatedLesson = await LessonPlan.findById(lesson._id)
             .populate('class', 'name')
@@ -541,7 +617,7 @@ export const submitLessonPlan = asyncHandler(async (req, res) => {
             .populate('teacher', 'firstName lastName email')
             .populate('standardIds', 'code name');
 
-        if (!evaluation.meetsMinimumRequirements) {
+        if (evaluation && !evaluation.meetsMinimumRequirements) {
             await sendLessonPlanFeedback(updatedLesson, updatedLesson.teacher);
         }
 
@@ -814,5 +890,46 @@ export const getLessonPlanStats = asyncHandler(async (req, res) => {
             averageScores: avgScores[0] || { avgScore: 0, minScore: 0, maxScore: 0 },
             topTeachers: teacherStats
         }
+    });
+});
+
+/**
+ * @desc    Set admin note to teacher for a lesson plan
+ * @route   PUT /api/lessons/:id/admin-note
+ * @access  Private (Admin, Department Principal)
+ */
+export const setAdminNoteToLessonPlan = asyncHandler(async (req, res) => {
+    const { adminNoteToTeacher } = req.body;
+
+    const lesson = await LessonPlan.findById(req.params.id);
+
+    if (!lesson) {
+        return res.status(404).json({ success: false, message: 'Lesson plan not found' });
+    }
+
+    if (lesson.school.toString() !== req.schoolId.toString()) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    if (req.departmentId) {
+        const cls = await Class.findById(lesson.class).select('department').lean();
+        if (!cls?.department || cls.department.toString() !== req.departmentId.toString()) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+    }
+
+    lesson.adminNoteToTeacher = typeof adminNoteToTeacher === 'string' ? adminNoteToTeacher.trim() : '';
+    await lesson.save();
+
+    const updatedLesson = await LessonPlan.findById(lesson._id)
+        .populate('class', 'name')
+        .populate('subject', 'name')
+        .populate('teacher', 'firstName lastName email')
+        .lean();
+
+    res.json({
+        success: true,
+        message: 'Admin note saved',
+        data: { lesson: updatedLesson }
     });
 });

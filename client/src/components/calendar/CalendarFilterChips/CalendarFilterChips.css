@@ -1,0 +1,14 @@
+.calendar-filter-chip-row {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.calendar-filter-chip-row .MuiChip-root {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+.calendar-filter-chip-row .MuiChip-root.MuiChip-filled {
+    color: var(--on-accent);
+}

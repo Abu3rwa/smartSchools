@@ -39,21 +39,22 @@ import GradebookPage from "./pages/GradebookPage";
 import TeachersPage from "./pages/TeachersPage";
 import TeacherDetailsPage from "./pages/TeacherDetailsPage";
 import SubjectsPage from "./pages/SubjectsPage";
-import NotificationsPage from "./pages/NotificationsPage";
-import MessagesPage from "./pages/MessagesPage";
+import NotificationsPage from "./pages/notifications/NotificationsPage";
+import MessagesPage from "./pages/messages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
 import SchoolSettingsPage from "./pages/SchoolSettingsPage";
 import AdminSchedulePage from "./pages/admin/AdminSchedulePage";
-import AdminAttendancePage from "./pages/admin/AdminAttendancePage";
+import AdminAttendancePage from "./pages/admin/attendance/AdminAttendancePage";
 import AdminAttendanceRequestsPage from "./pages/admin/AdminAttendanceRequestsPage";
 import AdminAttendanceRequestTypesPage from "./pages/admin/AdminAttendanceRequestTypesPage";
-import AdminSchoolCalendarPage from "./pages/admin/AdminSchoolCalendarPage";
+import AdminSchoolCalendarPage from "./pages/admin/calendar/AdminSchoolCalendarPage";
 import AdminTimetablePage from "./pages/admin/AdminTimetablePage";
 import TeacherSchedulePage from "./pages/teacher/TeacherSchedulePage";
 import TeacherTimetablePage from "./pages/teacher/TeacherTimetablePage";
 import TeacherAttendanceNewPage from "./pages/teacher/TeacherAttendanceNewPage";
 import TeacherNewslettersPage from "./pages/teacher/TeacherNewslettersPage";
-import LessonPlanPage from "./pages/LessonPlanPage";
+import LessonPlanPage from "./pages/lessonPlan/LessonPlanPage";
+import LessonPlanDetailPage from "./pages/lessonPlan/LessonPlanDetailPage";
 import AssignmentsPage from "./pages/AssignmentsPage";
 import AdminNewslettersPage from "./pages/admin/AdminNewslettersPage";
 import AttendanceRemindersPage from "./pages/admin/AttendanceRemindersPage";
@@ -212,532 +213,540 @@ function App() {
       <CssBaseline />
       <BehaviorAutoTracker />
       <Routes>
-      {/* Public Routes */}
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/register-school" element={<RegisterSchoolPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/login/:schoolSlug" element={<LoginPage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/auth/callback" element={<AuthCallbackPage />} />
-      <Route path="/substitutions/respond" element={<SubstitutionRespond />} />
+        {/* Public Routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/register-school" element={<RegisterSchoolPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/:schoolSlug" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/substitutions/respond" element={<SubstitutionRespond />} />
 
-      {/* Protected Routes */}
-      <Route
-        path="/portal/*"
-        element={
-          <ProtectedRoute>
-            <PortalRoute>
-              <MainLayout />
-            </PortalRoute>
-          </ProtectedRoute>
-        }
-      >
-        {/* All authenticated users */}
-        <Route index element={<DashboardPage />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+        {/* Protected Routes */}
         <Route
-          path="school-settings"
+          path="/portal/*"
           element={
-            <RoleRoute
-              roles={["admin"]}
-              permissions={["manage_users", "manage_school_settings"]}
-            >
-              <SchoolSettingsPage />
-            </RoleRoute>
+            <ProtectedRoute>
+              <PortalRoute>
+                <MainLayout />
+              </PortalRoute>
+            </ProtectedRoute>
           }
-        />
-        <Route
-          path="api-docs"
-          element={
-            <RoleRoute roles={["admin", "super_admin"]}>
-              <ApiDocsPage />
-            </RoleRoute>
-          }
-        />
+        >
+          {/* All authenticated users */}
+          <Route index element={<DashboardPage />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route
+            path="school-settings"
+            element={
+              <RoleRoute
+                roles={["admin"]}
+                permissions={["manage_users", "manage_school_settings"]}
+              >
+                <SchoolSettingsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="api-docs"
+            element={
+              <RoleRoute roles={["admin", "super_admin"]}>
+                <ApiDocsPage />
+              </RoleRoute>
+            }
+          />
 
-        {/* Admin + Department Principal + Teacher */}
-        <Route
-          path="classes"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <ClassesPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="classes/:id"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <ClassDetailPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="classes/:classId/gradebook"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <GradebookPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="students"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <StudentsPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="students/:id"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <StudentDetailPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="grades/entry"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <GradeEntryPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="grades/report/:studentId"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <GradeReportPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="grades/weekly/class/:classId"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <WeeklyReportPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="lessons"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <LessonPlanPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="assignments"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <AssignmentsPage />
-            </RoleRoute>
-          }
-        />
-        <Route path="homework" element={<Navigate to="/portal/assignments" replace />} />
-        <Route
-          path="subjects"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <SubjectsPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="notifications"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <NotificationsPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="messages"
-          element={
-            <RoleRoute roles={["admin", "teacher", "department_principal", "staff"]}>
-              <MessagesPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="schedules"
-          element={
-            <RoleRoute roles={["admin"]}>
-              <AdminSchedulePage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="school-calendar"
-          element={
-            <RoleRoute
-              roles={["admin", "department_principal", "teacher"]}
-              permissions={["manage_events"]}
-            >
-              <AdminSchoolCalendarPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="timetable"
-          element={
-            <RoleRoute roles={["admin", "department_principal"]}>
-              <AdminTimetablePage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="attendance"
-          element={
-            <RoleRoute roles={["admin", "department_principal"]}>
-              <AdminAttendancePage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="newsletters/admin"
-          element={
-            <RoleRoute roles={["admin"]}>
-              <AdminNewslettersPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="attendance-reminders"
-          element={
-            <RoleRoute roles={["admin", "department_principal"]}>
-              <AttendanceRemindersPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="behavior"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <BehaviorManagementPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="behavior-analytics"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "super_admin"]}>
-              <BehaviorTrackingDashboardPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="my-schedule"
-          element={
-            <RoleRoute roles={["teacher"]}>
-              <TeacherSchedulePage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="my-timetable"
-          element={
-            <RoleRoute roles={["teacher", "admin"]}>
-              <TeacherTimetablePage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="my-attendance"
-          element={
-            <RoleRoute roles={["teacher"]}>
-              <TeacherAttendanceNewPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="newsletters"
-          element={
-            <RoleRoute roles={["teacher"]}>
-              <TeacherNewslettersPage />
-            </RoleRoute>
-          }
-        />
+          {/* Admin + Department Principal + Teacher */}
+          <Route
+            path="classes"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <ClassesPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="classes/:id"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <ClassDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="classes/:classId/gradebook"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <GradebookPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="students"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <StudentsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="students/:id"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <StudentDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="grades/entry"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <GradeEntryPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="grades/report/:studentId"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <GradeReportPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="grades/weekly/class/:classId"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <WeeklyReportPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="lessons"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <LessonPlanPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="lessons/:id"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <LessonPlanDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="assignments"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <AssignmentsPage />
+              </RoleRoute>
+            }
+          />
+          <Route path="homework" element={<Navigate to="/portal/assignments" replace />} />
+          <Route
+            path="subjects"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <SubjectsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="notifications"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <NotificationsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="messages"
+            element={
+              <RoleRoute roles={["admin", "teacher", "department_principal", "staff"]}>
+                <MessagesPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="schedules"
+            element={
+              <RoleRoute roles={["admin"]}>
+                <AdminSchedulePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="school-calendar"
+            element={
+              <RoleRoute
+                roles={["admin", "department_principal", "teacher"]}
+                permissions={["manage_events"]}
+              >
+                <AdminSchoolCalendarPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="timetable"
+            element={
+              <RoleRoute roles={["admin", "department_principal"]}>
+                <AdminTimetablePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="attendance"
+            element={
+              <RoleRoute roles={["admin", "department_principal"]}>
+                <AdminAttendancePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="newsletters/admin"
+            element={
+              <RoleRoute roles={["admin"]}>
+                <AdminNewslettersPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="attendance-reminders"
+            element={
+              <RoleRoute roles={["admin", "department_principal"]}>
+                <AttendanceRemindersPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="behavior"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <BehaviorManagementPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="behavior-analytics"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "super_admin"]}>
+                <BehaviorTrackingDashboardPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="my-schedule"
+            element={
+              <RoleRoute roles={["teacher"]}>
+                <TeacherSchedulePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="my-timetable"
+            element={
+              <RoleRoute roles={["teacher", "admin"]}>
+                <TeacherTimetablePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="my-attendance"
+            element={
+              <RoleRoute roles={["teacher"]}>
+                <TeacherAttendanceNewPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="newsletters"
+            element={
+              <RoleRoute roles={["teacher"]}>
+                <TeacherNewslettersPage />
+              </RoleRoute>
+            }
+          />
 
-        {/* Admin + Department Principal */}
-        <Route
-          path="teachers"
-          element={
-            <RoleRoute roles={["admin", "department_principal"]}>
-              <TeachersPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="teachers/:id"
-          element={
-            <RoleRoute roles={["admin", "department_principal"]}>
-              <TeacherDetailsPage />
-            </RoleRoute>
-          }
-        />
+          {/* Admin + Department Principal */}
+          <Route
+            path="teachers"
+            element={
+              <RoleRoute roles={["admin", "department_principal"]}>
+                <TeachersPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="teachers/:id"
+            element={
+              <RoleRoute roles={["admin", "department_principal"]}>
+                <TeacherDetailsPage />
+              </RoleRoute>
+            }
+          />
 
-        {/* Attendance Requests: submit form + my list (all requesters) */}
-        <Route
-          path="attendance-request"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher", "parent", "student"]}>
-              <AttendanceRequestFormPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="attendance-requests"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher", "parent", "student"]}>
-              <MyAttendanceRequestsPage />
-            </RoleRoute>
-          }
-        />
-        {/* Principal: review queue */}
-        <Route
-          path="review-attendance-requests"
-          element={
-            <RoleRoute roles={["admin", "department_principal"]}>
-              <AdminAttendanceRequestsPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="substitutions/create"
-          element={
-            <RoleRoute roles={["admin", "department_principal"]}>
-              <CreateSubRequest />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="substitutions/:id"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <SubRequestDetail />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="substitutions"
-          element={
-            <RoleRoute roles={["admin", "department_principal", "teacher"]}>
-              <SubRequestsList />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="attendance-request-types"
-          element={
-            <RoleRoute roles={["admin"]}>
-              <AdminAttendanceRequestTypesPage />
-            </RoleRoute>
-          }
-        />
+          {/* Attendance Requests: submit form + my list (all requesters) */}
+          <Route
+            path="attendance-request"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher", "parent", "student"]}>
+                <AttendanceRequestFormPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="attendance-requests"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher", "parent", "student"]}>
+                <MyAttendanceRequestsPage />
+              </RoleRoute>
+            }
+          />
+          {/* Principal: review queue */}
+          <Route
+            path="review-attendance-requests"
+            element={
+              <RoleRoute roles={["admin", "department_principal"]}>
+                <AdminAttendanceRequestsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="substitutions/create"
+            element={
+              <RoleRoute roles={["admin", "department_principal"]}>
+                <CreateSubRequest />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="substitutions/:id"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <SubRequestDetail />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="substitutions"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <SubRequestsList />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="attendance-request-types"
+            element={
+              <RoleRoute roles={["admin"]}>
+                <AdminAttendanceRequestTypesPage />
+              </RoleRoute>
+            }
+          />
 
-        {/* Reports Routes */}
-        <Route
-          path="reports/generator"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <AdvancedReportGenerator />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="reports/analytics"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <ReportAnalytics />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="reports/templates"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <ReportTemplates />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="reports/history"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <ReportHistory />
-            </RoleRoute>
-          }
-        />
+          {/* Reports Routes */}
+          <Route
+            path="reports/generator"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <AdvancedReportGenerator />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="reports/analytics"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <ReportAnalytics />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="reports/templates"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <ReportTemplates />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="reports/history"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <ReportHistory />
+              </RoleRoute>
+            }
+          />
 
-        {/* Standards Practice Routes */}
-        <Route
-          path="standards"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <StandardsPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="standards/assign"
-          element={
-            <RoleRoute roles={["admin", "teacher"]}>
-              <StandardAssignPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="practice"
-          element={
-            <RoleRoute roles={["student"]}>
-              <PracticeDashboardPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="practice/:assignmentId"
-          element={
-            <RoleRoute roles={["student"]}>
-              <PracticeSessionPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="practice/:assignmentId/history"
-          element={
-            <RoleRoute roles={["student"]}>
-              <PracticeHistoryPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="practice/sb-results"
-          element={
-            <RoleRoute roles={["student"]}>
-              <PracticeAssessmentResultsPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="interventions"
-          element={
-            <RoleRoute roles={["admin", "teacher", "department_principal"]}>
-              <InterventionQueuePage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="my-grades"
-          element={
-            <RoleRoute roles={["student"]}>
-              <StudentGradesPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="my-attendance"
-          element={
-            <RoleRoute roles={["student"]}>
-              <StudentAttendancePage />
-            </RoleRoute>
-          }
-        />
-        {/* Revision Plans */}
-        <Route
-          path="revision"
-          element={
-            <RoleRoute roles={["student", "teacher", "admin"]}>
-              <RevisionPlansListPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="revision/create"
-          element={
-            <RoleRoute roles={["student", "teacher", "admin"]}>
-              <RevisionPlanCreatePage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="revision/:planId"
-          element={
-            <RoleRoute roles={["student", "teacher", "admin"]}>
-              <RevisionPlanViewPage />
-            </RoleRoute>
-          }
-        />
-        {/* Reading Assistant: student sees assignments and reader */}
-        <Route
-          path="reading"
-          element={
-            <RoleRoute roles={["student"]}>
-              <ReadingMyAssignmentsPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="reading/view/:textId"
-          element={
-            <RoleRoute roles={["student"]}>
-              <ReadingViewPage />
-            </RoleRoute>
-          }
-        />
-        {/* Reading: teacher/admin manage texts and assign */}
-        <Route
-          path="reading/texts"
-          element={
-            <RoleRoute roles={["teacher", "admin"]}>
-              <ReadingTextsListPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path="reading/upload"
-          element={
-            <RoleRoute roles={["teacher", "admin"]}>
-              <ReadingUploadPage />
-            </RoleRoute>
-          }
-        />
-      </Route>
+          {/* Standards Practice Routes */}
+          <Route
+            path="standards"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <StandardsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="standards/assign"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <StandardAssignPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="practice"
+            element={
+              <RoleRoute roles={["student"]}>
+                <PracticeDashboardPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="practice/:assignmentId"
+            element={
+              <RoleRoute roles={["student"]}>
+                <PracticeSessionPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="practice/:assignmentId/history"
+            element={
+              <RoleRoute roles={["student"]}>
+                <PracticeHistoryPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="practice/sb-results"
+            element={
+              <RoleRoute roles={["student"]}>
+                <PracticeAssessmentResultsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="interventions"
+            element={
+              <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                <InterventionQueuePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="my-grades"
+            element={
+              <RoleRoute roles={["student"]}>
+                <StudentGradesPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="my-attendance"
+            element={
+              <RoleRoute roles={["student"]}>
+                <StudentAttendancePage />
+              </RoleRoute>
+            }
+          />
+          {/* Revision Plans */}
+          <Route
+            path="revision"
+            element={
+              <RoleRoute roles={["student", "teacher", "admin"]}>
+                <RevisionPlansListPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="revision/create"
+            element={
+              <RoleRoute roles={["student", "teacher", "admin"]}>
+                <RevisionPlanCreatePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="revision/:planId"
+            element={
+              <RoleRoute roles={["student", "teacher", "admin"]}>
+                <RevisionPlanViewPage />
+              </RoleRoute>
+            }
+          />
+          {/* Reading Assistant: student sees assignments and reader */}
+          <Route
+            path="reading"
+            element={
+              <RoleRoute roles={["student"]}>
+                <ReadingMyAssignmentsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="reading/view/:textId"
+            element={
+              <RoleRoute roles={["student"]}>
+                <ReadingViewPage />
+              </RoleRoute>
+            }
+          />
+          {/* Reading: teacher/admin manage texts and assign */}
+          <Route
+            path="reading/texts"
+            element={
+              <RoleRoute roles={["teacher", "admin"]}>
+                <ReadingTextsListPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="reading/upload"
+            element={
+              <RoleRoute roles={["teacher", "admin"]}>
+                <ReadingUploadPage />
+              </RoleRoute>
+            }
+          />
+        </Route>
 
-      {/* Platform Admin Routes (super_admin only) */}
-      <Route
-        path="/admin/*"
-        element={
-          <ProtectedRoute>
-            <RoleRoute roles={["super_admin"]}>
-              <AdminLayout />
-            </RoleRoute>
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<AdminDashboardPage />} />
-        <Route path="dashboard" element={<AdminDashboardPage />} />
-        <Route path="schools" element={<AdminSchoolsPage />} />
-        <Route path="schools/new" element={<AdminSchoolsPage />} />
-        <Route path="schools/:id" element={<AdminSchoolDetailsPage />} />
-        <Route path="users" element={<AdminUsersPage />} />
-        <Route path="analytics" element={<AdminAnalyticsPage />} />
-        <Route path="landing" element={<AdminLandingPageEditor />} />
-        <Route path="settings" element={<AdminSettingsPage />} />
-        <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
+        {/* Platform Admin Routes (super_admin only) */}
         <Route
-                    path="subscriptions/:id"
-                    element={<AdminSubscriptionDetailsPage />}
-                  />
-                  <Route path="analytics" element={<AdminAnalyticsPage />} />
-                </Route>
+          path="/admin/*"
+          element={
+            <ProtectedRoute>
+              <RoleRoute roles={["super_admin"]}>
+                <AdminLayout />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="dashboard" element={<AdminDashboardPage />} />
+          <Route path="schools" element={<AdminSchoolsPage />} />
+          <Route path="schools/new" element={<AdminSchoolsPage />} />
+          <Route path="schools/:id" element={<AdminSchoolDetailsPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="analytics" element={<AdminAnalyticsPage />} />
+          <Route path="landing" element={<AdminLandingPageEditor />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
+          <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
+          <Route
+            path="subscriptions/:id"
+            element={<AdminSubscriptionDetailsPage />}
+          />
+          <Route path="analytics" element={<AdminAnalyticsPage />} />
+        </Route>
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Catch all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ThemeProvider>
   );

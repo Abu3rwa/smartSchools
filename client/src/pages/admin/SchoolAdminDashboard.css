@@ -1,17 +1,14 @@
 /* Theme-aware admin dashboard styles */
 .admin-dashboard-page {
     min-height: 100vh;
-    background: var(--bg-primary, #f8fafc);
     color: var(--text-primary, #1e293b);
 }
 
 [data-theme="light"] .admin-dashboard-page {
-    background: var(--background, #ffffff);
     color: var(--foreground, #1e293b);
 }
 
 [data-theme="dark"] .admin-dashboard-page {
-    background: var(--bg-primary, #0f0f1a);
     color: var(--text-primary, #ffffff);
 }
 

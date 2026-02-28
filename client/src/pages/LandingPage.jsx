@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSchools, selectSchools, selectSchoolLoading } from '../store/slices/schoolSlice';
 import { selectIsAuthenticated } from '../store/slices/authSlice';
+import { selectTheme, setTheme } from '../store/slices/uiSlice';
 import {
     HiOutlineAcademicCap,
     HiOutlineSearch,
@@ -18,6 +19,8 @@ import {
     HiOutlineChevronDown,
     HiOutlineMenu,
     HiOutlineX,
+    HiOutlineSun,
+    HiOutlineMoon,
     HiOutlineClipboardCheck,
     HiOutlineOfficeBuilding,
     HiOutlineUserAdd,
@@ -86,11 +89,14 @@ const LandingPage = () => {
     const schools = useSelector(selectSchools);
     const loading = useSelector(selectSchoolLoading);
     const isAuthenticated = useSelector(selectIsAuthenticated);
+    const themeMode = useSelector(selectTheme);
     const [searchTerm, setSearchTerm] = useState('');
     const [mobileOpen, setMobileOpen] = useState(false);
     const [content, setContent] = useState(landingPageDefaults);
     const [contentLoading, setContentLoading] = useState(true);
     const [contentError, setContentError] = useState('');
+
+    const toggleTheme = () => dispatch(setTheme(themeMode === 'dark' ? 'light' : 'dark'));
 
     useEffect(() => {
         let mounted = true;
@@ -239,7 +245,7 @@ const LandingPage = () => {
             <Button onClick={() => handleAction('login')} sx={{ color: 'text.secondary', fontWeight: 600 }}>
                 {content.header.loginLabel}
             </Button>
-            <Button variant="contained" onClick={() => handleAction('register')} sx={{ fontWeight: 600, bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
+            <Button variant="contained" onClick={() => handleAction('register')} sx={{ fontWeight: 600 }}>
                 {content.header.startLabel}
             </Button>
         </>
@@ -248,37 +254,51 @@ const LandingPage = () => {
     return (
         <Box sx={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
             <div className="landing-bg-gradient" aria-hidden="true" />
-            <div className="landing-bg-mesh" aria-hidden="true" />
+            <div className="bg-grid" aria-hidden="true" />
 
-            <AppBar position="fixed" elevation={0} sx={{ bgcolor: 'rgba(15,15,26,0.9)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <Toolbar sx={{ justifyContent: 'space-between', maxWidth: 1280, mx: 'auto', width: '100%' }}>
+            <AppBar position="fixed" elevation={0} sx={{ bgcolor: 'background.default', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <Toolbar sx={{ justifyContent: 'space-between', maxWidth: 1280, mx: 'auto', width: '100%', px: { xs: 1.5, sm: 2 } }}>
                     <Button onClick={() => window.scrollTo(0, 0)} sx={{ color: 'inherit', textTransform: 'none' }} startIcon={
-                        <Box sx={{ width: 40, height: 40, borderRadius: 2, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                        <Box sx={{ width: 40, height: 40, borderRadius: 2, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
                             <HiOutlineAcademicCap size={24} />
                         </Box>
                     }>
-                        <Typography variant="h6" sx={{ fontWeight: 700, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', backgroundClip: 'text', color: 'transparent' }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, background: 'var(--brand-gradient)', backgroundClip: 'text', color: 'transparent' }}>
                             {content.brand.name}
                         </Typography>
                     </Button>
                     <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 1 }}>
                         {navContent}
+                        <IconButton onClick={toggleTheme} color="inherit" aria-label={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} sx={{ ml: 0.5 }}>
+                            {themeMode === 'dark' ? <HiOutlineSun size={22} /> : <HiOutlineMoon size={22} />}
+                        </IconButton>
                     </Box>
-                    <IconButton sx={{ display: { lg: 'none' }, color: 'inherit' }} onClick={() => setMobileOpen(true)} aria-label="Open navigation menu">
-                        <HiOutlineMenu size={24} />
-                    </IconButton>
+                    <Box sx={{ display: { lg: 'none' }, alignItems: 'center', gap: 0.5 }}>
+                        <IconButton onClick={toggleTheme} color="inherit" aria-label={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+                            {themeMode === 'dark' ? <HiOutlineSun size={22} /> : <HiOutlineMoon size={22} />}
+                        </IconButton>
+                        <IconButton sx={{ color: 'inherit' }} onClick={() => setMobileOpen(true)} aria-label="Open navigation menu">
+                            <HiOutlineMenu size={24} />
+                        </IconButton>
+                    </Box>
                 </Toolbar>
             </AppBar>
 
             <Drawer anchor="right" open={mobileOpen} onClose={() => setMobileOpen(false)} PaperProps={{ sx: { width: 280, bgcolor: 'background.default' } }}>
                 <Box sx={{ p: 3, pt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="subtitle2" color="text.secondary">Theme</Typography>
+                        <Button startIcon={themeMode === 'dark' ? <HiOutlineSun size={18} /> : <HiOutlineMoon size={18} />} onClick={() => { setMobileOpen(false); toggleTheme(); }} sx={{ color: 'text.primary' }}>
+                            {themeMode === 'dark' ? 'Light mode' : 'Dark mode'}
+                        </Button>
+                    </Box>
                     {(content.navigation || []).map(({ label, id }) => (
                         <Button key={id} href={`#${id}`} fullWidth onClick={() => scrollTo(id)} sx={{ justifyContent: 'flex-start', color: 'text.primary' }}>
                             {label}
                         </Button>
                     ))}
                     <Button fullWidth onClick={() => { setMobileOpen(false); handleAction('login'); }} sx={{ color: 'text.secondary' }}>{content.header.loginLabel}</Button>
-                    <Button variant="contained" fullWidth onClick={() => { setMobileOpen(false); handleAction('register'); }} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>{content.header.startLabel}</Button>
+                    <Button variant="contained" fullWidth onClick={() => { setMobileOpen(false); handleAction('register'); }}>{content.header.startLabel}</Button>
                 </Box>
             </Drawer>
 
@@ -301,14 +321,14 @@ const LandingPage = () => {
                                     {heroBadge}
                                 </Typography>
                             </Paper>
-                            <Typography variant="h3" component="h1" sx={{ fontWeight: 800, mb: 2, lineHeight: 1.15 }}>
+                            <Typography variant="h3" component="h1" sx={{ fontWeight: 800, mb: 2, lineHeight: 1.15, fontSize: { xs: '1.75rem', sm: '2rem', md: '2.5rem', lg: '2.75rem' } }}>
                                 {content.hero.title}
                             </Typography>
                             <Typography color="text.secondary" sx={{ fontSize: '1.125rem', mb: 3, maxWidth: 520 }}>
                                 {content.hero.subtitle}
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 3 }}>
-                                <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={18} />} onClick={() => handleAction(content.hero.primaryCta.action)} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
+                                <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={18} />} onClick={() => handleAction(content.hero.primaryCta.action)}>
                                     {content.hero.primaryCta.label}
                                 </Button>
                                 <Button variant="outlined" size="large" onClick={() => handleAction(content.hero.secondaryCta.action)}>{content.hero.secondaryCta.label}</Button>
@@ -327,8 +347,8 @@ const LandingPage = () => {
                             </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, color: 'text.secondary', typography: 'body2' }}>
                                 {(content.hero.highlights || []).map((t) => (
-                                    <Box key={t} component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                                        <HiOutlineCheckCircle size={16} style={{ color: '#10b981' }} /> {t}
+                                    <Box key={t} component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, '& svg': { color: 'success.main' } }}>
+                                        <HiOutlineCheckCircle size={16} /> {t}
                                     </Box>
                                 ))}
                             </Box>
@@ -397,7 +417,7 @@ const LandingPage = () => {
                         {(content.howItWorks.steps || []).map(({ title, description }, index) => (
                             <Grid item xs={12} md={4} key={title || index}>
                                 <Paper className="landing-lift-card" variant="outlined" sx={{ p: 3, textAlign: 'center', height: '100%', '&:hover': { borderColor: 'primary.main' } }}>
-                                    <Box sx={{ width: 48, height: 48, borderRadius: 2, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, mx: 'auto', mb: 2 }}>{index + 1}</Box>
+                                    <Box sx={{ width: 48, height: 48, borderRadius: 2, background: 'var(--brand-gradient)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, mx: 'auto', mb: 2 }}>{index + 1}</Box>
                                     <Typography variant="h6" sx={{ mb: 1 }}>{title}</Typography>
                                     <Typography variant="body2" color="text.secondary">{description}</Typography>
                                 </Paper>
@@ -415,7 +435,7 @@ const LandingPage = () => {
                     <Typography color="text.secondary" align="center" sx={{ maxWidth: 580, mx: 'auto', mb: 4 }}>
                         {content.features.subtitle}
                     </Typography>
-                     <Grid sx={{ justifyContent: 'center' }} container spacing={3} alignItems="stretch"> 
+                    <Grid container spacing={3} alignItems="stretch" sx={{ justifyContent: 'center' }}>
                         {(content.features.items || []).map(({ iconKey, title, description }, index) => {
                             const Icon = featureIconMap[iconKey] || HiOutlineSparkles;
                             const featureMeta = featureMetaMap[iconKey] || {
@@ -424,44 +444,42 @@ const LandingPage = () => {
                                 tint: 'rgba(90,174,238,0.2)'
                             };
                             return (
-                                 <Paper
-                                    className="landing-feature-card landing-lift-card"
-                                    variant="outlined"
-                                    item xs={12} sm={6} md={4} key={title} 
-                                    sx={{
-                                        
-                                        p: 3,
-                                        width: "300px",
-                                        height: '100%',
-                                        minHeight: { xs: 260, sm: 290, md: 310, lg: 330 },
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        '--feature-tint': featureMeta.tint
-                                    }}
-                                >
-                                    <Box className="landing-feature-card-accent" aria-hidden="true" />
-                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2 }}>
-                                        <Box className="landing-feature-card-icon" sx={{ width: 48, height: 48, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
-                                            <Icon size={26} />
+                                <Grid item xs={12} sm={6} md={4} key={title}>
+                                    <Paper
+                                        className="landing-feature-card landing-lift-card"
+                                        variant="outlined"
+                                        sx={{
+                                            p: 3,
+                                            height: '100%',
+                                            minHeight: { xs: 260, sm: 290, md: 310 },
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            '--feature-tint': featureMeta.tint
+                                        }}
+                                    >
+                                        <Box className="landing-feature-card-accent" aria-hidden="true" />
+                                        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2 }}>
+                                            <Box className="landing-feature-card-icon" sx={{ width: 48, height: 48, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
+                                                <Icon size={26} />
+                                            </Box>
+                                            <Chip
+                                                size="small"
+                                                label={featureMeta.audience}
+                                                className="landing-feature-chip"
+                                                sx={{ alignSelf: 'center' }}
+                                            />
                                         </Box>
-                                        <Chip
-                                            size="small"
-                                            label={featureMeta.audience}
-                                            className="landing-feature-chip"
-                                            sx={{ alignSelf: 'center' }}
-                                        />
-                                    </Box>
-                                    <Typography variant="h6" sx={{ mb: 1.25 }}>{title}</Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>{description}</Typography>
-                                    <Box className="landing-feature-card-footer" sx={{ mt: 'auto', pt: 2 }}>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {featureMeta.highlight}
-                                        </Typography>
-                                        <HiOutlineArrowRight size={15} />
-                                    </Box>
-                                </Paper>
-                           
-                            ); 
+                                        <Typography variant="h6" sx={{ mb: 1.25 }}>{title}</Typography>
+                                        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>{description}</Typography>
+                                        <Box className="landing-feature-card-footer" sx={{ mt: 'auto', pt: 2 }}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {featureMeta.highlight}
+                                            </Typography>
+                                            <HiOutlineArrowRight size={15} />
+                                        </Box>
+                                    </Paper>
+                                </Grid>
+                            );
                         })}
                     </Grid>
                 </Container>
@@ -485,20 +503,12 @@ const LandingPage = () => {
                                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{plan.description}</Typography>
                                     <Box sx={{ flex: 1 }}>
                                         {(plan.features || []).map((f) => (
-                                            <Box key={f} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, typography: 'body2', color: 'text.secondary' }}>
-                                                <HiOutlineCheckCircle size={16} style={{ color: '#10b981', flexShrink: 0 }} /> {f}
+                                            <Box key={f} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, typography: 'body2', color: 'text.secondary', '& svg': { color: 'success.main' } }}>
+                                                <HiOutlineCheckCircle size={16} style={{ flexShrink: 0 }} /> {f}
                                             </Box>
                                         ))}
                                     </Box>
-                                    <Button
-                                        fullWidth
-                                        variant={plan.featured ? 'contained' : 'outlined'}
-                                        sx={{
-                                            mt: 2,
-                                            ...(plan.featured ? { bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } } : {})
-                                        }}
-                                        onClick={() => handleAction(plan.ctaAction)}
-                                    >
+                                    <Button variant={plan.featured ? 'contained' : 'outlined'} fullWidth sx={{ mt: 2 }} onClick={() => handleAction(plan.ctaAction)}>
                                         {plan.ctaLabel}
                                     </Button>
                                 </Paper>
@@ -559,7 +569,7 @@ const LandingPage = () => {
                     <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.finalCta.title}</Typography>
                     <Typography color="text.secondary" align="center" sx={{ mb: 3 }}>{content.finalCta.subtitle}</Typography>
                     <Box sx={{ textAlign: 'center' }}>
-                        <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={20} />} onClick={() => handleAction(content.finalCta.button.action)} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
+                        <Button variant="contained" size="large" endIcon={<HiOutlineArrowRight size={20} />} onClick={() => handleAction(content.finalCta.button.action)}>
                             {content.finalCta.button.label}
                         </Button>
                     </Box>
@@ -653,7 +663,7 @@ const LandingPage = () => {
                     </Box>
                     <Typography color="text.secondary" align="center" sx={{ mb: 1.5 }}>{content.findSchool.registerPrompt}</Typography>
                     <Box sx={{ textAlign: 'center' }}>
-                        <Button variant="contained" startIcon={<HiOutlinePlus size={18} />} onClick={() => handleAction('register')} sx={{ bgcolor: '#2563eb', color: '#fff', '&:hover': { bgcolor: '#3b82f6' } }}>
+                        <Button variant="contained" startIcon={<HiOutlinePlus size={18} />} onClick={() => handleAction('register')}>
                             {content.findSchool.registerCtaLabel}
                         </Button>
                     </Box>
@@ -666,16 +676,16 @@ const LandingPage = () => {
                     <Grid container spacing={4} sx={{ mb: 3 }}>
                         <Grid item xs={12} md={4}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                <Box sx={{ width: 40, height: 40, borderRadius: 2, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Box sx={{ width: 40, height: 40, borderRadius: 2, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <HiOutlineAcademicCap size={22} style={{ color: 'white' }} />
                                 </Box>
-                                <Typography variant="h6" sx={{ fontWeight: 700, background: 'linear-gradient(135deg, #203bb4 0%, #933fe7 100%)', backgroundClip: 'text', color: 'transparent' }}>{content.brand.name}</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 700, background: 'var(--brand-gradient)', backgroundClip: 'text', color: 'transparent' }}>{content.brand.name}</Typography>
                             </Box>
                             <Typography variant="body2" color="text.secondary">{content.brand.tagline}</Typography>
                         </Grid>
                         <Grid item xs={12} md={8}>
                             <Grid container spacing={4}>
-                                <Grid item xs={6} sm={4}>
+                                <Grid item xs={12} sm={4}>
                                     <Typography variant="subtitle2" sx={{ mb: 1 }}>{content.footer.productTitle}</Typography>
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                         {(content.footer.productLinks || []).map((link, index) => (
@@ -683,7 +693,7 @@ const LandingPage = () => {
                                         ))}
                                     </Box>
                                 </Grid>
-                                <Grid item xs={6} sm={4}>
+                                <Grid item xs={12} sm={4}>
                                     <Typography variant="subtitle2" sx={{ mb: 1 }}>{content.footer.companyTitle}</Typography>
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                         {(content.footer.companyLinks || []).map((link, index) => (
@@ -691,7 +701,7 @@ const LandingPage = () => {
                                         ))}
                                     </Box>
                                 </Grid>
-                                <Grid item xs={6} sm={4}>
+                                <Grid item xs={12} sm={4}>
                                     <Typography variant="subtitle2" sx={{ mb: 1 }}>{content.footer.legalTitle}</Typography>
                                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                         {(content.footer.legalLinks || []).map((link, index) => (
