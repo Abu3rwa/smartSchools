@@ -70,14 +70,14 @@ const useReportHistory = ({ token }) => {
   }, []);
 
   const getStatusBadge = useCallback((emailStatus) => {
-    if (!emailStatus) return <span className="status-badge status-pending">Pending</span>;
+    if (!emailStatus) return { label: 'Pending', className: 'status-pending' };
 
     const hasSent = emailStatus.mother?.sent || emailStatus.father?.sent || emailStatus.student?.sent;
     const hasFailed = emailStatus.mother?.sent === false || emailStatus.father?.sent === false;
 
-    if (hasFailed) return <span className="status-badge status-failed">Failed</span>;
-    if (hasSent) return <span className="status-badge status-sent">Sent</span>;
-    return <span className="status-badge status-pending">Pending</span>;
+    if (hasFailed) return { label: 'Failed', className: 'status-failed' };
+    if (hasSent) return { label: 'Sent', className: 'status-sent' };
+    return { label: 'Pending', className: 'status-pending' };
   }, []);
 
   const getEmailStatusDetail = useCallback((emailStatus) => {

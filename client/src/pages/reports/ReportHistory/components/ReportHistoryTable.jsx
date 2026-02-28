@@ -32,7 +32,14 @@ const ReportHistoryTable = ({ reports, retrying, onRetry, formatDate, getStatusB
               </span>
             </td>
             <td>
-              <div className="email-status">{getStatusBadge(report.emailStatus)}</div>
+              {(() => {
+                const badge = getStatusBadge(report.emailStatus);
+                return (
+                  <div className="email-status">
+                    <span className={`status-badge ${badge.className}`}>{badge.label}</span>
+                  </div>
+                );
+              })()}
               <div
                 className="email-status-detail"
                 style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}
