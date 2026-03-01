@@ -21,77 +21,77 @@ import MainLayout from "./components/layout/MainLayout";
 import AdminLayout from "./components/layout/AdminLayout";
 
 // Pages
-import LandingPage from "./pages/LandingPage";
-import RegisterSchoolPage from "./pages/RegisterSchoolPage";
-import LoginPage from "./pages/LoginPage";
-import AuthCallbackPage from "./pages/AuthCallbackPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import DashboardPage from "./pages/DashboardPage";
-import ClassesPage from "./pages/ClassesPage";
-import ClassDetailPage from "./pages/ClassDetailPage";
-import StudentsPage from "./pages/StudentsPage";
-import StudentDetailPage from "./pages/StudentDetailPage";
-import GradeEntryPage from "./pages/GradeEntryPage";
-import GradeReportPage from "./pages/GradeReportPage";
-import WeeklyReportPage from "./pages/WeeklyReportPage";
-import GradebookPage from "./pages/GradebookPage";
-import TeachersPage from "./pages/TeachersPage";
-import TeacherDetailsPage from "./pages/TeacherDetailsPage";
-import SubjectsPage from "./pages/SubjectsPage";
+import LandingPage from "./pages/landing/LandingPage";
+import RegisterSchoolPage from "./pages/auth/RegisterSchoolPage";
+import LoginPage from "./pages/auth/LoginPage";
+import AuthCallbackPage from "./pages/auth/AuthCallbackPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
+import DashboardPage from "./pages/dashboard/DashboardPage";
+import ClassesPage from "./pages/classes/ClassesPage";
+import ClassDetailPage from "./pages/classes/ClassDetailPage";
+import StudentsPage from "./pages/students/StudentsPage";
+import StudentDetailPage from "./pages/students/StudentDetailPage";
+import GradeEntryPage from "./pages/grades/GradeEntryPage";
+import GradeReportPage from "./pages/grades/GradeReportPage";
+import WeeklyReportPage from "./pages/reports/WeeklyReportPage";
+import GradebookPage from "./pages/gradebook/GradebookPage";
+import TeachersPage from "./pages/teachers/TeachersPage";
+import TeacherDetailsPage from "./pages/teachers/TeacherDetailsPage";
+import SubjectsPage from "./pages/subjects/SubjectsPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import MessagesPage from "./pages/messages/MessagesPage";
-import SettingsPage from "./pages/SettingsPage";
-import SchoolSettingsPage from "./pages/schoolSettings/SchoolSettingsPage/SchoolSettingsPage.jsx";
-import AdminSchedulePage from "./pages/admin/AdminSchedulePage";
+import SettingsPage from "./pages/settings/SettingsPage";
+import SchoolSettingsPage from "./pages/schoolSettings/SchoolSettingsPage";
+import AdminSchedulePage from "./pages/admin/schedule/AdminSchedulePage";
 import AdminAttendancePage from "./pages/admin/attendance/AdminAttendancePage";
-import AdminAttendanceRequestsPage from "./pages/admin/AdminAttendanceRequestsPage";
-import AdminAttendanceRequestTypesPage from "./pages/admin/AdminAttendanceRequestTypesPage";
+import AdminAttendanceRequestsPage from "./pages/admin/attendanceRequests/AdminAttendanceRequestsPage";
+import AdminAttendanceRequestTypesPage from "./pages/admin/attendanceRequestTypes/AdminAttendanceRequestTypesPage";
 import AdminSchoolCalendarPage from "./pages/admin/calendar/AdminSchoolCalendarPage";
-import AdminTimetablePage from "./pages/admin/AdminTimetablePage";
-import TeacherSchedulePage from "./pages/teacher/TeacherSchedulePage";
-import TeacherTimetablePage from "./pages/teacher/TeacherTimetablePage";
-import TeacherAttendanceNewPage from "./pages/teacher/TeacherAttendanceNewPage";
-import TeacherNewslettersPage from "./pages/teacher/TeacherNewslettersPage";
+import AdminTimetablePage from "./pages/admin/timetable/AdminTimetablePage";
+import TeacherSchedulePage from "./pages/teacher/schedule/TeacherSchedulePage";
+import TeacherTimetablePage from "./pages/teacher/timetable/TeacherTimetablePage";
+import TeacherAttendanceNewPage from "./pages/teacher/attendance/TeacherAttendanceNewPage";
+import TeacherNewslettersPage from "./pages/teacher/newsletters/TeacherNewslettersPage";
 import LessonPlanPage from "./pages/lessonPlan/LessonPlanPage";
 import LessonPlanDetailPage from "./pages/lessonPlan/LessonPlanDetailPage";
-import AssignmentsPage from "./pages/AssignmentsPage";
-import AdminNewslettersPage from "./pages/admin/AdminNewslettersPage";
-import AttendanceRemindersPage from "./pages/admin/AttendanceRemindersPage";
-import BehaviorManagementPage from "./pages/BehaviorManagementPage";
-import BehaviorTrackingDashboardPage from "./pages/BehaviorTrackingDashboardPage";
+import AssignmentsPage from "./pages/assignments/AssignmentsPage";
+import AdminNewslettersPage from "./pages/admin/newsletters/AdminNewslettersPage";
+import AttendanceRemindersPage from "./pages/admin/attendanceReminders/AttendanceRemindersPage";
+import BehaviorManagementPage from "./pages/behavior/BehaviorManagementPage";
+import BehaviorTrackingDashboardPage from "./pages/behavior/BehaviorTrackingDashboardPage";
 import BehaviorAutoTracker from "./components/behavior/BehaviorAutoTracker";
 
 // Report Pages
-import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator/AdvancedReportGenerator.jsx";
-import ReportAnalytics from "./pages/reports/ReportAnalytics/ReportAnalytics.jsx";
-import ReportTemplates from "./pages/reports/ReportTemplates/ReportTemplates.jsx";
-import ReportHistory from "./pages/reports/ReportHistory/ReportHistory.jsx";
+import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator";
+import ReportAnalytics from "./pages/reports/ReportAnalytics";
+import ReportTemplates from "./pages/reports/ReportTemplates";
+import ReportHistory from "./pages/reports/ReportHistory";
 
 // Standards Practice Pages
-import StandardsPage from "./pages/StandardsPage";
-import StandardAssignPage from "./pages/StandardAssignPage";
-import PracticeDashboardPage from "./pages/PracticeDashboardPage";
-import PracticeSessionPage from "./pages/PracticeSessionPage";
-import PracticeHistoryPage from "./pages/PracticeHistoryPage";
-import PracticeAssessmentResultsPage from "./pages/PracticeAssessmentResultsPage";
-import InterventionQueuePage from "./pages/InterventionQueuePage";
-import StudentGradesPage from "./pages/StudentGradesPage";
-import StudentAttendancePage from "./pages/StudentAttendancePage";
-import AttendanceRequestFormPage from "./pages/AttendanceRequestFormPage";
-import MyAttendanceRequestsPage from "./pages/MyAttendanceRequestsPage";
-import RevisionPlansListPage from "./pages/RevisionPlansListPage";
-import RevisionPlanCreatePage from "./pages/RevisionPlanCreatePage";
-import RevisionPlanViewPage from "./pages/RevisionPlanViewPage";
-import ReadingMyAssignmentsPage from "./pages/ReadingMyAssignmentsPage";
-import ReadingTextsListPage from "./pages/ReadingTextsListPage";
-import ReadingUploadPage from "./pages/ReadingUploadPage";
-import ReadingViewPage from "./pages/ReadingViewPage";
+import StandardsPage from "./pages/standards/StandardsPage";
+import StandardAssignPage from "./pages/standards/StandardAssignPage";
+import PracticeDashboardPage from "./pages/student/practice/PracticeDashboardPage";
+import PracticeSessionPage from "./pages/student/practice/PracticeSessionPage";
+import PracticeHistoryPage from "./pages/student/practice/PracticeHistoryPage";
+import PracticeAssessmentResultsPage from "./pages/student/practice/PracticeAssessmentResultsPage";
+import InterventionQueuePage from "./pages/interventions/InterventionQueuePage";
+import StudentGradesPage from "./pages/student/academics/StudentGradesPage";
+import StudentAttendancePage from "./pages/student/attendance/StudentAttendancePage";
+import AttendanceRequestFormPage from "./pages/attendance/AttendanceRequestFormPage";
+import MyAttendanceRequestsPage from "./pages/attendance/MyAttendanceRequestsPage";
+import RevisionPlansListPage from "./pages/revisionPlans/RevisionPlansListPage";
+import RevisionPlanCreatePage from "./pages/revisionPlans/RevisionPlanCreatePage";
+import RevisionPlanViewPage from "./pages/revisionPlans/RevisionPlanViewPage";
+import ReadingMyAssignmentsPage from "./pages/student/reading/ReadingMyAssignmentsPage";
+import ReadingTextsListPage from "./pages/teacher/reading/ReadingTextsListPage";
+import ReadingUploadPage from "./pages/teacher/reading/ReadingUploadPage";
+import ReadingViewPage from "./pages/student/reading/ReadingViewPage";
 
 // Substitution pages
-import CreateSubRequest from "./pages/substitutions/CreateSubRequest/CreateSubRequest.jsx";
-import SubRequestsList from "./pages/substitutions/SubRequestsList/SubRequestsList.jsx";
-import SubRequestDetail from "./pages/substitutions/SubRequestDetail/SubRequestDetail.jsx";
+import CreateSubRequest from "./pages/substitutions/CreateSubRequest";
+import SubRequestsList from "./pages/substitutions/SubRequestsList";
+import SubRequestDetail from "./pages/substitutions/SubRequestDetail";
 import SubstitutionRespond from "./pages/substitutions/SubstitutionRespond";
 
 // Platform Admin Pages
@@ -102,9 +102,9 @@ import SuperAdminUsersPage from "./pages/superAdmin/SuperAdminUsersPage";
 import SuperAdminSettingsPage from "./pages/superAdmin/SuperAdminSettingsPage";
 import SuperAdminSubscriptionsPage from "./pages/superAdmin/SuperAdminSubscriptionsPage";
 import SuperAdminSubscriptionDetailsPage from "./pages/superAdmin/SuperAdminSubscriptionDetailsPage";
-import SuperAdminAnalyticsPage from "./pages/superAdmin/SuperAdminAnalyticsPage";
+import BehaviorAnalyticsPage from "./pages/superAdmin/BehaviorAnalyticsPage";
 import SuperAdminLandingPageEditor from "./pages/superAdmin/SuperAdminLandingPageEditor";
-import ApiDocsPage from "./pages/ApiDocsPage";
+import ApiDocsPage from "./pages/docs/ApiDocsPage";
 
 // Protected Route - requires authentication
 const ProtectedRoute = ({ children }) => {
@@ -734,7 +734,8 @@ function App() {
           <Route path="schools/new" element={<SuperAdminSchoolsPage />} />
           <Route path="schools/:id" element={<SuperAdminSchoolDetailsPage />} />
           <Route path="users" element={<SuperAdminUsersPage />} />
-          <Route path="analytics" element={<SuperAdminAnalyticsPage />} />
+          <Route path="analytics" element={<BehaviorAnalyticsPage />} />
+          <Route path="behavior-analytics" element={<BehaviorAnalyticsPage />} />
           <Route path="landing" element={<SuperAdminLandingPageEditor />} />
           <Route path="settings" element={<SuperAdminSettingsPage />} />
           <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />
@@ -742,7 +743,6 @@ function App() {
             path="subscriptions/:id"
             element={<SuperAdminSubscriptionDetailsPage />}
           />
-          <Route path="analytics" element={<SuperAdminAnalyticsPage />} />
         </Route>
 
         {/* Catch all */}

@@ -49,7 +49,6 @@ const useSubRequestsList = () => {
     loading,
     error,
     items,
-    pagination,
     filters,
     setFilters,
     applyFilters,
