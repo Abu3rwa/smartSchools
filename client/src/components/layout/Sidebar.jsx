@@ -47,14 +47,16 @@ const Sidebar = () => {
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
 
   const canSeeMessages = useMemo(() => {
-    return ["admin", "teacher", "department_principal", "staff"].includes(user?.role);
+    return ["admin", "teacher", "department_principal", "staff"].includes(
+      user?.role,
+    );
   }, [user?.role]);
 
   // Helper function to check if user has permission
   const hasPermission = (permission) => {
     if (!user) return false;
     // Super admin and admin have all permissions
-    if (user.role === 'super_admin' || user.role === 'admin') return true;
+    if (user.role === "super_admin" || user.role === "admin") return true;
     // Check if user has the permission
     return user.permissions?.includes(permission) ?? false;
   };
@@ -180,7 +182,10 @@ const Sidebar = () => {
       icon: HiOutlineDocumentText,
       label: "Lesson Plans",
       roles: ["admin", "department_principal", "teacher"],
-      permissions: [PERMISSIONS.EDIT_LESSON_PLANS, PERMISSIONS.REVIEW_LESSON_PLANS],
+      permissions: [
+        PERMISSIONS.EDIT_LESSON_PLANS,
+        PERMISSIONS.REVIEW_LESSON_PLANS,
+      ],
       section: "teaching",
     },
     {
@@ -332,7 +337,7 @@ const Sidebar = () => {
       icon: HiOutlineBookOpen,
       label: "Reading",
       roles: ["admin", "teacher"],
-      section: "school",
+      section: "teaching",
     },
     {
       path: "/portal/school-settings",
@@ -413,7 +418,9 @@ const Sidebar = () => {
 
     // If permissions are specified, check if user has at least one
     if (item.permissions && item.permissions.length > 0) {
-      const hasRequiredPermission = item.permissions.some(permission => hasPermission(permission));
+      const hasRequiredPermission = item.permissions.some((permission) =>
+        hasPermission(permission),
+      );
       // User needs either role access OR permission access
       return hasRoleAccess || hasRequiredPermission;
     }
@@ -474,7 +481,7 @@ const Sidebar = () => {
                   `nav-item ${isActive ? "active" : ""}`
                 }
               >
-                <item.icon className="nav-icon" size={22} />
+                <item.icon className="nav-icon" size={20} />
                 {sidebarOpen && <span className="nav-label">{item.label}</span>}
                 {!!item.badgeCount && item.badgeCount > 0 && (
                   <span className="nav-badge">{item.badgeCount}</span>
@@ -486,7 +493,7 @@ const Sidebar = () => {
       </nav>
 
       {/* User info */}
-      {sidebarOpen && user && (
+      {/* {sidebarOpen && user && (
         <div className="sidebar-footer">
           <div className="user-info">
             <div className="user-avatar">
@@ -515,7 +522,7 @@ const Sidebar = () => {
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </aside>
   );
 };

@@ -1,362 +1,410 @@
 .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100vh;
-    background: var(--bg-secondary);
-    border-right: 1px solid var(--border-color);
-    display: flex;
-    flex-direction: column;
-    transition: width var(--transition-normal);
-    z-index: 100;
-    overflow: hidden;
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--transition-normal);
+  z-index: 100;
+  overflow: hidden;
 }
 
 /* When sidebar is inside MUI Drawer (mobile), contain it and always show full open state */
 .MuiDrawer-paper .sidebar {
-    position: relative;
-    left: auto;
-    top: auto;
-    height: 100%;
-    min-height: 100vh;
-    width: 100% !important;
-    transition: none;
-    border-right: none;
+  position: relative;
+  left: auto;
+  top: auto;
+  height: 100%;
+  min-height: 100vh;
+  width: 100% !important;
+  transition: none;
+  border-right: none;
 }
 .MuiDrawer-paper .sidebar.open,
 .MuiDrawer-paper .sidebar.collapsed {
-    width: 100% !important;
+  width: 100% !important;
 }
 .MuiDrawer-paper .sidebar .nav-label {
-    display: inline !important;
+  display: inline !important;
 }
 .MuiDrawer-paper .sidebar.collapsed .nav-item {
-    justify-content: flex-start;
-    padding: 0.75rem var(--spacing-md);
+  justify-content: flex-start;
+  padding: 0.75rem var(--spacing-md);
 }
 .MuiDrawer-paper .sidebar .toggle-btn {
-    display: none;
+  display: none;
 }
 .MuiDrawer-paper .sidebar .logo {
-    display: flex !important;
+  display: flex !important;
 }
 .MuiDrawer-paper .sidebar .sidebar-header {
-    justify-content: flex-start;
+  justify-content: flex-start;
 }
 
 .sidebar.open {
-    width: var(--sidebar-width);
+  width: var(--sidebar-width);
 }
 
 .sidebar.collapsed {
-    width: var(--sidebar-collapsed);
+  width: var(--sidebar-collapsed);
 }
 
 /* Header */
 .sidebar-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-lg);
-    border-bottom: 1px solid var(--border-color);
-    min-height: var(--header-height);
-    position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+  min-height: var(--header-height);
+  position: relative;
 }
 
 .logo {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 
 .logo-icon {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent-gradient);
-    border-radius: var(--radius-md);
-    color: var(--on-accent);
-    flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-gradient);
+  border-radius: var(--radius-md);
+  color: var(--on-accent);
+  flex-shrink: 0;
 }
 
 .logo-text {
-    font-size: 1.25rem;
-    font-weight: 700;
-    background: var(--accent-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    white-space: nowrap;
+  font-size: 1.25rem;
+  font-weight: 700;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
 }
 
 .toggle-btn {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color-hover);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    flex-shrink: 0;
-    line-height: 0;
-    position: relative;
-    z-index: 1;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color-hover);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  line-height: 0;
+  position: relative;
+  z-index: 1;
 }
 
 /* Force icon visibility: Heroicons use stroke=currentColor */
 .toggle-btn svg {
-    width: 20px;
-    height: 20px;
-    display: block;
-    opacity: 1;
-    color: inherit;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2.2;
-    overflow: visible;
+  width: 20px;
+  height: 20px;
+  display: block;
+  opacity: 1;
+  color: inherit;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  overflow: visible;
 }
 
 .toggle-btn:hover {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
-    border-color: var(--border-color-hover);
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--border-color-hover);
 }
 
 /* Open sidebar: ensure icon stands out on button */
 .sidebar.open .toggle-btn {
-    background: var(--bg-card);
-    color: var(--text-primary);
+  background: var(--bg-card);
+  color: var(--text-primary);
 }
 
 .sidebar.open .toggle-btn:hover {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
 }
 
 /* Collapsed: same icon as mobile (menu) – make it very visible like header hamburger */
 .sidebar.collapsed .toggle-btn {
-    margin: 0 auto;
-    background: var(--accent-gradient);
-    border: none;
-    color: var(--on-accent);
-    box-shadow: var(--shadow-md);
+  margin: 0 auto;
+  background: var(--accent-gradient);
+  border: none;
+  color: var(--on-accent);
+  box-shadow: var(--shadow-md);
 }
 
 .sidebar.collapsed .toggle-btn svg {
-    color: inherit;
-    stroke: currentColor;
+  color: inherit;
+  stroke: currentColor;
 }
 
 .sidebar.collapsed .toggle-btn:hover {
-    filter: brightness(1.1);
-    color: var(--on-accent);
-    box-shadow: var(--shadow-lg);
+  filter: brightness(1.1);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-lg);
 }
 
 .sidebar.collapsed .sidebar-header {
-    justify-content: center;
+  justify-content: center;
 }
 
 .sidebar.collapsed .logo {
-    display: none;
+  display: none;
 }
 
 .toggle-btn:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--focus-ring);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* Navigation */
 .sidebar-nav {
-    flex: 1;
-    padding: var(--spacing-md);
-    overflow-y: auto;
+  flex: 1;
+  padding: var(--spacing-md);
+  overflow-y: auto;
 }
 
 .sidebar-nav-section {
-    margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
 }
 
 .sidebar-nav-section:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 .sidebar-section-title {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    padding: var(--spacing-xs) var(--spacing-md) var(--spacing-sm);
-    margin-bottom: var(--spacing-xs);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: var(--spacing-xs) var(--spacing-md) var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
 }
 
 .sidebar-section-divider {
-    height: 1px;
-    background: var(--border-color);
-    margin: var(--spacing-sm) var(--spacing-md);
+  height: 1px;
+  background: var(--border-color);
+  margin: var(--spacing-sm) var(--spacing-md);
 }
 
 .sidebar.collapsed .sidebar-section-divider {
-    margin: var(--spacing-xs) var(--spacing-sm);
+  margin: var(--spacing-xs) var(--spacing-sm);
 }
 
 .nav-item {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    padding: 0.75rem var(--spacing-md);
-    margin-bottom: var(--spacing-xs);
-    border-radius: var(--radius-md);
-    color: var(--text-secondary);
-    text-decoration: none;
-    transition: all var(--transition-fast);
-    white-space: nowrap;
-    position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: 0.5rem var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  position: relative;
 }
 
 .nav-item:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .nav-item.active {
-    background: var(--accent-gradient);
-    color: var(--on-accent);
-    box-shadow: var(--shadow-md);
+  background: var(--accent-gradient);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-md);
 }
 
 .nav-badge {
-    margin-left: auto;
-    background: var(--accent-amber);
-    color: #111827;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: var(--radius-full);
+  margin-left: auto;
+  background: var(--accent-amber);
+  color: #111827;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
 }
 
 .sidebar.collapsed .nav-badge {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    margin-left: 0;
-    padding: 2px 6px;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  margin-left: 0;
+  padding: 2px 6px;
 }
 
 .nav-icon {
-    flex-shrink: 0;
-    width: 22px;
-    height: 22px;
-    display: block;
-    transition: color var(--transition-fast);
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: block;
+  transition: color var(--transition-fast);
 }
 
 /* Icon colors for different navigation items */
-.nav-item[href*="dashboard"] .nav-icon { color: var(--icon-blue); }
-.nav-item[href*="classes"] .nav-icon { color: var(--icon-purple); }
-.nav-item[href*="students"] .nav-icon { color: var(--icon-green); }
-.nav-item[href*="schedule"] .nav-icon { color: var(--icon-cyan); }
-.nav-item[href*="timetable"] .nav-icon { color: var(--icon-indigo); }
-.nav-item[href*="attendance"] .nav-icon { color: var(--icon-teal); }
-.nav-item[href*="newsletters"] .nav-icon { color: var(--icon-amber); }
-.nav-item[href*="lessons"] .nav-icon { color: var(--icon-orange); }
-.nav-item[href*="homework"] .nav-icon { color: var(--icon-orange); }
-.nav-item[href*="grades"] .nav-icon { color: var(--icon-pink); }
-.nav-item[href*="gradebook"] .nav-icon { color: var(--icon-blue); }
-.nav-item[href*="standards"] .nav-icon { color: var(--icon-purple); }
-.nav-item[href*="behavior"] .nav-icon { color: var(--icon-red); }
-.nav-item[href*="substitutions"] .nav-icon { color: var(--icon-amber); }
-.nav-item[href*="teachers"] .nav-icon { color: var(--icon-indigo); }
-.nav-item[href*="school-settings"] .nav-icon { color: var(--icon-cyan); }
-.nav-item[href*="api-docs"] .nav-icon { color: var(--icon-teal); }
-.nav-item[href*="subjects"] .nav-icon { color: var(--icon-orange); }
-.nav-item[href*="reading"] .nav-icon { color: var(--icon-green); }
-.nav-item[href*="practice"] .nav-icon { color: var(--icon-amber); }
-.nav-item[href*="revision"] .nav-icon { color: var(--icon-purple); }
-.nav-item[href*="notifications"] .nav-icon { color: var(--icon-pink); }
-.nav-item[href*="messages"] .nav-icon { color: var(--icon-cyan); }
-.nav-item[href*="settings"] .nav-icon { color: var(--icon-cyan); }
+.nav-item[href*="dashboard"] .nav-icon {
+  color: var(--icon-blue);
+}
+.nav-item[href*="classes"] .nav-icon {
+  color: var(--icon-purple);
+}
+.nav-item[href*="students"] .nav-icon {
+  color: var(--icon-green);
+}
+.nav-item[href*="schedule"] .nav-icon {
+  color: var(--icon-cyan);
+}
+.nav-item[href*="timetable"] .nav-icon {
+  color: var(--icon-indigo);
+}
+.nav-item[href*="attendance"] .nav-icon {
+  color: var(--icon-teal);
+}
+.nav-item[href*="newsletters"] .nav-icon {
+  color: var(--icon-amber);
+}
+.nav-item[href*="lessons"] .nav-icon {
+  color: var(--icon-orange);
+}
+.nav-item[href*="homework"] .nav-icon {
+  color: var(--icon-orange);
+}
+.nav-item[href*="grades"] .nav-icon {
+  color: var(--icon-pink);
+}
+.nav-item[href*="gradebook"] .nav-icon {
+  color: var(--icon-blue);
+}
+.nav-item[href*="standards"] .nav-icon {
+  color: var(--icon-purple);
+}
+.nav-item[href*="behavior"] .nav-icon {
+  color: var(--icon-red);
+}
+.nav-item[href*="substitutions"] .nav-icon {
+  color: var(--icon-amber);
+}
+.nav-item[href*="teachers"] .nav-icon {
+  color: var(--icon-indigo);
+}
+.nav-item[href*="school-settings"] .nav-icon {
+  color: var(--icon-cyan);
+}
+.nav-item[href*="api-docs"] .nav-icon {
+  color: var(--icon-teal);
+}
+.nav-item[href*="subjects"] .nav-icon {
+  color: var(--icon-orange);
+}
+.nav-item[href*="reading"] .nav-icon {
+  color: var(--icon-green);
+}
+.nav-item[href*="practice"] .nav-icon {
+  color: var(--icon-amber);
+}
+.nav-item[href*="revision"] .nav-icon {
+  color: var(--icon-purple);
+}
+.nav-item[href*="notifications"] .nav-icon {
+  color: var(--icon-pink);
+}
+.nav-item[href*="messages"] .nav-icon {
+  color: var(--icon-cyan);
+}
+.nav-item[href*="settings"] .nav-icon {
+  color: var(--icon-cyan);
+}
 
 /* Active state - icons become white/on-accent color */
 .nav-item.active .nav-icon {
-    color: var(--on-accent);
+  color: var(--on-accent);
 }
 
 /* Hover state - brighten the icon slightly */
 .nav-item:hover .nav-icon {
-    filter: brightness(1.2);
+  filter: brightness(1.2);
 }
 
 .sidebar.collapsed .nav-item {
-    justify-content: center;
-    padding: 0.75rem;
+  justify-content: center;
+  padding: 0.75rem;
 }
 
 .sidebar.collapsed .nav-label {
-    display: none;
+  display: none;
 }
 
 /* Footer */
 .sidebar-footer {
-    padding: var(--spacing-lg);
-    border-top: 1px solid var(--border-color);
+  padding: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
 }
 
 .user-info {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 
 .user-avatar {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent-gradient);
-    border-radius: var(--radius-full);
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--on-accent);
-    flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-gradient);
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--on-accent);
+  flex-shrink: 0;
 }
 
 .user-details {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .user-name {
-    font-weight: 500;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-role {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-transform: capitalize;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: capitalize;
 }
 
 .scope-badge {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    margin-top: 2px;
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Mobile: fixed sidebar is not rendered (only Drawer content); drawer sidebar styled above */
