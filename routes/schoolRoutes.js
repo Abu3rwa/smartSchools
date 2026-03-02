@@ -22,6 +22,8 @@ import {
     normalizeAcademicYear,
     resolveSchoolAcademicYear
 } from '../utils/academicYear.js';
+import upload from '../middleware/upload.js';
+import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 
 const router = express.Router();
 const userManagementAccess = authorizeWithPermission(
@@ -218,7 +220,6 @@ router.put('/me/academic-year-dates', requireSchoolContext, authorize('admin'), 
         }
     });
 }));
-
 /**
  * @desc    Update current school settings
  * @route   PUT /api/schools/me
@@ -237,6 +238,38 @@ router.put('/me', requireSchoolContext, authorize('admin'), asyncHandler(async (
         success: true,
         message: 'School updated successfully',
         data: { school }
+    });
+}));
+
+/**
+ * @desc    Upload school logo
+ * @route   PUT /api/schools/me/logo
+ * @access  Private (Admin)
+ */
+router.put('/me/logo', requireSchoolContext, authorize('admin'), upload.single('logo'), asyncHandler(async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Please provide a valid image file.' });
+    }
+
+    const schoolToUpdate = await School.findById(req.schoolId);
+
+    if (schoolToUpdate.settings?.branding?.logoUrl && schoolToUpdate.settings.branding.logoUrl.includes('storage.googleapis.com')) {
+        await deleteFile(schoolToUpdate.settings.branding.logoUrl);
+    }
+
+    const destinationPath = `schools/${req.schoolId}/logo-${Date.now()}`;
+    const newLogoUrl = await uploadFile(req.file.buffer, req.file.mimetype, destinationPath);
+
+    const school = await School.findByIdAndUpdate(
+        req.schoolId,
+        { 'settings.branding.logoUrl': newLogoUrl },
+        { new: true, runValidators: true }
+    );
+
+    res.json({
+        success: true,
+        message: 'School logo updated successfully',
+        data: { logoUrl: newLogoUrl, school }
     });
 }));
 
@@ -275,11 +308,11 @@ router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, as
     }
 
     const allowedRoles = [
-        'admin', 
+        'admin',
         'staff',
-        'department_principal', 
-        'teacher', 
-        'parent', 
+        'department_principal',
+        'teacher',
+        'parent',
         'student',
         // Legacy staff roles (kept for backward compatibility)
         'attendance_manager',
@@ -294,18 +327,18 @@ router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, as
         'counselor',
         'nurse'
     ];
-    
+
     if (role !== undefined) {
         if (!allowedRoles.includes(role)) {
             return res.status(400).json({ success: false, message: `Role must be one of: ${allowedRoles.join(', ')}` });
         }
         user.role = role;
     }
-    
+
     if (department !== undefined) {
         user.department = department || null;
     }
-    
+
     // Update permissions array
     if (permissions !== undefined) {
         if (!Array.isArray(permissions) && typeof permissions !== 'string') {
@@ -328,12 +361,12 @@ router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, as
 
         user.permissions = normalizedPermissions;
     }
-    
+
     // Update permission scopes (optional)
     if (permissionScopes !== undefined) {
         user.permissionScopes = new Map(Object.entries(permissionScopes || {}));
     }
-    
+
     // Department optional for department_principal: if empty, user is whole-school principal
     await user.save();
 
@@ -484,13 +517,13 @@ router.get('/', superAdminOnly, asyncHandler(async (req, res) => {
         schools.map(async (school) => {
             const studentCount = await Student.countDocuments({ school: school._id, status: 'active' });
             const userCount = await User.countDocuments({ school: school._id });
-            
+
             // Find the primary admin for this school to enable impersonation
             const admin = await User.findOne({ school: school._id, role: 'admin' }).select('_id').lean();
 
-            return { 
-                ...school.toObject(), 
-                studentCount, 
+            return {
+                ...school.toObject(),
+                studentCount,
                 userCount,
                 adminId: admin ? admin._id : null // Pass adminId for the "Login As" button
             };
