@@ -1,4 +1,20 @@
 import mongoose from 'mongoose';
+import {
+    FEATURE_KEYS,
+    getDefaultPlanConfig,
+    getFeaturesForPlan,
+    normalizePlan
+} from '../constants/features.js';
+import SubscriptionPlan from './SubscriptionPlan.js';
+
+const starterFeatureDefaults = getFeaturesForPlan('starter');
+const featureSchemaDefinition = FEATURE_KEYS.reduce((acc, featureKey) => {
+    acc[featureKey] = {
+        type: Boolean,
+        default: starterFeatureDefaults[featureKey] === true
+    };
+    return acc;
+}, {});
 
 const subscriptionSchema = new mongoose.Schema({
     school: {
@@ -9,9 +25,10 @@ const subscriptionSchema = new mongoose.Schema({
     },
     plan: {
         type: String,
-        enum: ['starter', 'professional', 'enterprise'],
         required: true,
-        default: 'starter'
+        default: 'starter',
+        lowercase: true,
+        trim: true
     },
     status: {
         type: String,
@@ -80,40 +97,7 @@ const subscriptionSchema = new mongoose.Schema({
         }
     },
     // Features
-    features: {
-        parentPortal: {
-            type: Boolean,
-            default: false
-        },
-        advancedAnalytics: {
-            type: Boolean,
-            default: false
-        },
-        customReports: {
-            type: Boolean,
-            default: false
-        },
-        emailNotifications: {
-            type: Boolean,
-            default: true
-        },
-        apiAccess: {
-            type: Boolean,
-            default: false
-        },
-        prioritySupport: {
-            type: Boolean,
-            default: false
-        },
-        customBranding: {
-            type: Boolean,
-            default: false
-        },
-        dataExport: {
-            type: Boolean,
-            default: false
-        }
-    },
+    features: featureSchemaDefinition,
     // Billing Information
     billing: {
         amount: {
@@ -253,77 +237,41 @@ subscriptionSchema.index({ status: 1 });
 subscriptionSchema.index({ plan: 1 });
 
 // Static methods to get plan configurations
-subscriptionSchema.statics.getPlanConfig = function(plan) {
-    const plans = {
-        starter: {
-            name: 'Starter',
-            price: 29,
-            currency: 'USD',
-            interval: 'month',
-            limits: {
-                maxStudents: 50,
-                maxTeachers: 10,
-                maxClasses: 20,
-                maxStorage: 1000
-            },
-            features: {
-                parentPortal: false,
-                advancedAnalytics: false,
-                customReports: false,
-                emailNotifications: true,
-                apiAccess: false,
-                prioritySupport: false,
-                customBranding: false,
-                dataExport: false
-            }
-        },
-        professional: {
-            name: 'Professional',
-            price: 79,
-            currency: 'USD',
-            interval: 'month',
-            limits: {
-                maxStudents: 500,
-                maxTeachers: 50,
-                maxClasses: 100,
-                maxStorage: 5000
-            },
-            features: {
-                parentPortal: true,
-                advancedAnalytics: true,
-                customReports: true,
-                emailNotifications: true,
-                apiAccess: true,
-                prioritySupport: true,
-                customBranding: false,
-                dataExport: true
-            }
-        },
-        enterprise: {
-            name: 'Enterprise',
-            price: 199,
-            currency: 'USD',
-            interval: 'month',
-            limits: {
-                maxStudents: -1, // unlimited
-                maxTeachers: -1,
-                maxClasses: -1,
-                maxStorage: -1
-            },
-            features: {
-                parentPortal: true,
-                advancedAnalytics: true,
-                customReports: true,
-                emailNotifications: true,
-                apiAccess: true,
-                prioritySupport: true,
-                customBranding: true,
-                dataExport: true
-            }
-        }
+subscriptionSchema.statics.getPlanConfig = async function(plan) {
+    const normalizedPlan = normalizePlan(plan);
+    const dbPlan = await SubscriptionPlan.findOne({ key: normalizedPlan })
+        .select('key name description limits features billing isActive')
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+
+    if (dbPlan) {
+        return {
+            key: dbPlan.key,
+            name: dbPlan.name,
+            description: dbPlan.description || '',
+            price: dbPlan.billing?.amount ?? 0,
+            currency: dbPlan.billing?.currency || 'USD',
+            interval: dbPlan.billing?.interval || 'month',
+            limits: dbPlan.limits || {},
+            features: dbPlan.features || {},
+            isActive: dbPlan.isActive !== false
+        };
+    }
+
+    const defaultConfig = getDefaultPlanConfig(normalizedPlan);
+    if (!defaultConfig) return null;
+
+    return {
+        key: defaultConfig.key,
+        name: defaultConfig.name,
+        description: defaultConfig.description || '',
+        price: defaultConfig.billing.amount,
+        currency: defaultConfig.billing.currency,
+        interval: defaultConfig.billing.interval,
+        limits: defaultConfig.limits,
+        features: defaultConfig.features || getFeaturesForPlan(normalizedPlan),
+        isActive: true
     };
-    
-    return plans[plan] || plans.starter;
 };
 
 // Instance method to check if user can add more students

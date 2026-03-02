@@ -308,49 +308,51 @@ const SuperAdminDashboardPage = () => {
                         <p>No schools yet. Create your first school to get started.</p>
                     </div>
                 ) : (
-                    <table className="admin-table">
-                        <thead>
-                            <tr>
-                                <th>School</th>
-                                <th>Admin</th>
-                                <th>Users</th>
-                                <th>Students</th>
-                                <th>Plan</th>
-                                <th>Status</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {schools.map((school) => (
-                                <tr key={school._id}>
-                                    <td style={{ fontWeight: 500 }}>{school.name}</td>
-                                    <td>{school.contact?.adminEmail}</td>
-                                    <td>{school.userCount || 0}</td>
-                                    <td>{school.studentCount || 0}</td>
-                                    <td style={{ textTransform: 'capitalize' }}>
-                                        {school.subscription?.plan || 'starter'}
-                                    </td>
-                                    <td>
-                                        <span
-                                            className={`status-badge ${
-                                                school.subscription?.status || 'active'
-                                            }`}
-                                        >
-                                            {school.subscription?.status || 'active'}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className="admin-action-btn"
-                                            onClick={() => navigate(`/admin/schools/${school._id}`)}
-                                        >
-                                            <HiOutlineEye size={14} />
-                                        </button>
-                                    </td>
+                    <div className="admin-table-wrap">
+                        <table className="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>School</th>
+                                    <th>Admin</th>
+                                    <th>Users</th>
+                                    <th>Students</th>
+                                    <th>Plan</th>
+                                    <th>Status</th>
+                                    <th></th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {schools.map((school) => (
+                                    <tr key={school._id}>
+                                        <td style={{ fontWeight: 500 }}>{school.name}</td>
+                                        <td>{school.contact?.adminEmail}</td>
+                                        <td>{school.userCount || 0}</td>
+                                        <td>{school.studentCount || 0}</td>
+                                        <td style={{ textTransform: 'capitalize' }}>
+                                            {school.subscription?.plan || 'starter'}
+                                        </td>
+                                        <td>
+                                            <span
+                                                className={`status-badge ${
+                                                    school.subscription?.status || 'active'
+                                                }`}
+                                            >
+                                                {school.subscription?.status || 'active'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button
+                                                className="admin-action-btn"
+                                                onClick={() => navigate(`/admin/schools/${school._id}`)}
+                                            >
+                                                <HiOutlineEye size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </section>
         </div>

@@ -2,6 +2,10 @@
   padding: 18px;
 }
 
+.teacher-newsletters-page * {
+  box-sizing: border-box;
+}
+
 .tn-header h2 {
   margin: 0 0 6px 0;
 }
@@ -49,12 +53,18 @@
 }
 
 .tn-field input,
-.tn-field select {
+.tn-field select,
+.tn-field textarea {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 0.65rem 0.85rem;
   background: var(--bg-input);
   color: var(--text-primary);
+}
+
+.tn-field textarea {
+  min-height: 80px;
+  resize: vertical;
 }
 
 .tn-subtext {
@@ -64,6 +74,7 @@
 
 .tn-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 6px;
 }
@@ -135,6 +146,7 @@
 .tn-list-date {
   font-size: 12px;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .tn-preview {
@@ -142,6 +154,18 @@
   line-height: 1.55;
   font-size: 14px;
   color: var(--text-primary);
+  margin-top: 10px;
+}
+
+.tn-editor {
+  width: 100%;
+  min-height: 150px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  resize: vertical;
 }
 
 .tn-review-notes {
@@ -153,3 +177,30 @@
   font-size: 13px;
 }
 
+@media (max-width: 768px) {
+  .teacher-newsletters-page {
+    padding: 12px;
+  }
+
+  .tn-card {
+    padding: 12px;
+  }
+
+  .tn-btn {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .tn-list-item {
+    grid-template-columns: 18px 1fr;
+    gap: 6px 10px;
+  }
+
+  .tn-list-date {
+    grid-column: 2;
+  }
+
+  .tn-editor {
+    min-height: 130px;
+  }
+}

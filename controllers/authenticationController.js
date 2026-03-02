@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
 import School from '../models/School.js';
 import gmailOAuthService from '../services/gmailOAuthService.js';
+import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import {
     clearRefreshToken,
@@ -205,11 +206,31 @@ export const getMe = asyncHandler(async (req, res) => {
  */
 export const updateProfile = asyncHandler(async (req, res) => {
     // Whitelist allowed fields to prevent privilege escalation
-    const allowedFields = ['firstName', 'lastName', 'phone', 'avatar'];
+    const allowedFields = ['firstName', 'lastName', 'phone'];
     const updates = {};
     allowedFields.forEach(field => {
         if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
+
+    const userToUpdate = await User.findById(req.user._id);
+
+    // Handle avatar upload if present
+    if (req.file) {
+        // Delete old avatar if it exists and is stored in Firebase
+        if (userToUpdate.avatar && userToUpdate.avatar.includes('storage.googleapis.com')) {
+            await deleteFile(userToUpdate.avatar);
+        }
+
+        const destinationPath = `schools/${userToUpdate.school || 'global'}/users/${userToUpdate._id}/avatar-${Date.now()}`;
+        const newAvatarUrl = await uploadFile(req.file.buffer, req.file.mimetype, destinationPath);
+        updates.avatar = newAvatarUrl;
+    } else if (req.body.avatar === null || req.body.avatar === '') {
+        // Allow removing avatar safely
+        if (userToUpdate.avatar && userToUpdate.avatar.includes('storage.googleapis.com')) {
+            await deleteFile(userToUpdate.avatar);
+        }
+        updates.avatar = null;
+    }
 
     const user = await User.findByIdAndUpdate(
         req.user._id,
@@ -310,7 +331,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
         });
     } catch (error) {
         console.error('Password reset email error:', error);
-        
+
         // Clear reset token on error
         user.passwordResetToken = undefined;
         user.passwordResetExpires = undefined;

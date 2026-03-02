@@ -70,6 +70,7 @@
     font-weight: 700;
     color: var(--text-primary);
     margin-bottom: var(--spacing-sm);
+    overflow-wrap: anywhere;
 }
 
 .header-meta {
@@ -239,6 +240,7 @@
 .detail-item span {
     color: var(--text-primary);
     font-weight: 500;
+    overflow-wrap: anywhere;
 }
 
 .cost {
@@ -258,6 +260,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--spacing-md);
     padding: var(--spacing-md);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -268,6 +271,7 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-md);
+    min-width: 0;
 }
 
 .payment-type {
@@ -284,6 +288,7 @@
 
 .card-last4 {
     color: var(--text-muted);
+    overflow-wrap: anywhere;
 }
 
 .default-badge {
@@ -478,6 +483,7 @@
     padding: var(--spacing-lg);
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
+    overflow-wrap: anywhere;
 }
 
 .billing-table tbody tr:hover {
@@ -520,6 +526,7 @@
 .invoice-actions {
     display: flex;
     gap: var(--spacing-xs);
+    flex-wrap: wrap;
 }
 
 .action-btn {
@@ -572,6 +579,23 @@
     gap: var(--spacing-xl);
 }
 
+.features-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.features-header p {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.features-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
 .features-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -606,6 +630,24 @@
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
+}
+
+.feature-item-toggle {
+    width: 100%;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+    appearance: none;
+}
+
+.feature-item-toggle:hover {
+    border-color: var(--primary-400);
+}
+
+.feature-main {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
 }
 
 .feature-item.enabled {
@@ -847,6 +889,19 @@
     .modal-footer {
         flex-direction: column;
     }
+
+    .features-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .features-actions {
+        justify-content: flex-end;
+    }
+
+    .payment-method {
+        align-items: flex-start;
+    }
 }
 
 @media (max-width: 480px) {
@@ -859,6 +914,10 @@
     .header-actions {
         flex-direction: column;
     }
+
+    .header-actions .btn {
+        width: 100%;
+    }
     
     .usage-header {
         flex-direction: column;
@@ -870,6 +929,14 @@
         flex-direction: column;
         align-items: flex-start;
         gap: var(--spacing-sm);
+    }
+
+    .payment-method {
+        flex-direction: column;
+    }
+
+    .payment-info {
+        width: 100%;
     }
 }
 

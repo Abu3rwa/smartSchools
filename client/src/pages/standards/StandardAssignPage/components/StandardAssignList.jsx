@@ -8,6 +8,7 @@ import {
     HiOutlineUserGroup
 } from 'react-icons/hi';
 import LoadingState from './LoadingState';
+import { formatStandardLabel } from '../../../../utils/standardLabel';
 
 const StandardAssignList = ({
     loading,
@@ -50,8 +51,9 @@ const StandardAssignList = ({
                             >
                                 {assignment.title || `${assignment.standard?.code} Assignment`}
                             </span>
-                            <span className="standard-code">{assignment.standard?.code}</span>
-                            <h4>{assignment.standard?.name}</h4>
+                            <span className="standard-code">
+                                {formatStandardLabel(assignment.standard) || assignment.standard?.code}
+                            </span>
                         </div>
                     </div>
                     <div className="assign-card-body">

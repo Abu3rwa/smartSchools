@@ -48,23 +48,15 @@ const SuperAdminUsersPage = () => {
             <h1>Users Management</h1>
 
             {/* Search */}
-            <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
-                    <HiOutlineSearch size={18} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <div className="admin-toolbar">
+                <div className="admin-toolbar-search">
+                    <HiOutlineSearch size={18} className="search-icon" />
                     <input
+                        className="admin-toolbar-input"
                         type="text"
                         placeholder="Search users by name, email, or role..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: 'var(--spacing-sm) var(--spacing-sm) var(--spacing-sm) 2.5rem',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)',
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.9rem'
-                        }}
                     />
                 </div>
             </div>
@@ -79,44 +71,46 @@ const SuperAdminUsersPage = () => {
                         <p>No users found</p>
                     </div>
                 ) : (
-                    <table className="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>School</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map((user) => (
-                                <tr key={user._id}>
-                                    <td style={{ fontWeight: 500 }}>
-                                        {user.firstName} {user.lastName}
-                                    </td>
-                                    <td>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                            <HiOutlineMail size={14} style={{ color: 'var(--text-muted)' }} />
-                                            {user.email}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span className={`status-badge ${getRoleBadgeClass(user.role)}`}>
-                                            {user.role === 'super_admin' && <HiOutlineShieldCheck size={12} style={{ marginRight: 4 }} />}
-                                            {user.role}
-                                        </span>
-                                    </td>
-                                    <td>{user.school?.name || '—'}</td>
-                                    <td>
-                                        <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
-                                            {user.isActive ? 'Active' : 'Inactive'}
-                                        </span>
-                                    </td>
+                    <div className="admin-table-wrap">
+                        <table className="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>School</th>
+                                    <th>Status</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {filtered.map((user) => (
+                                    <tr key={user._id}>
+                                        <td style={{ fontWeight: 500 }}>
+                                            {user.firstName} {user.lastName}
+                                        </td>
+                                        <td>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <HiOutlineMail size={14} style={{ color: 'var(--text-muted)' }} />
+                                                {user.email}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={`status-badge ${getRoleBadgeClass(user.role)}`}>
+                                                {user.role === 'super_admin' && <HiOutlineShieldCheck size={12} style={{ marginRight: 4 }} />}
+                                                {user.role}
+                                            </span>
+                                        </td>
+                                        <td>{user.school?.name || '—'}</td>
+                                        <td>
+                                            <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
+                                                {user.isActive ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
         </div>

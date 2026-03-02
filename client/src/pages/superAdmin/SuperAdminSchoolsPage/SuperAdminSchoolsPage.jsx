@@ -86,23 +86,15 @@ const SuperAdminSchoolsPage = () => {
             <h1>Schools Management</h1>
 
             {/* Actions Bar */}
-            <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center', flexWrap: 'wrap' }}>
-                <div className="search-input-wrapper" style={{ flex: 1, minWidth: 200 }}>
+            <div className="admin-toolbar">
+                <div className="search-input-wrapper admin-toolbar-search">
                     <HiOutlineSearch className="search-icon" size={18} />
                     <input
+                        className="admin-toolbar-input"
                         type="text"
                         placeholder="Search schools..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: 'var(--spacing-sm) var(--spacing-sm) var(--spacing-sm) 2.5rem',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)',
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-primary)',
-                            fontSize: '0.9rem'
-                        }}
                     />
                 </div>
                 <button className="admin-action-btn primary" onClick={() => setShowCreateModal(true)}>
@@ -121,48 +113,50 @@ const SuperAdminSchoolsPage = () => {
                         <p>No schools found</p>
                     </div>
                 ) : (
-                    <table className="admin-table">
-                        <thead>
-                            <tr>
-                                <th>School</th>
-                                <th>Admin Email</th>
-                                <th>Users</th>
-                                <th>Students</th>
-                                <th>Plan</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map((school) => (
-                                <tr key={school._id}>
-                                    <td style={{ fontWeight: 500 }}>{school.name}</td>
-                                    <td>{school.contact?.adminEmail}</td>
-                                    <td>{school.userCount || 0}</td>
-                                    <td>{school.studentCount || 0}</td>
-                                    <td style={{ textTransform: 'capitalize' }}>{school.subscription?.plan || 'starter'}</td>
-                                    <td>
-                                        <span className={`status-badge ${school.subscription?.status || 'active'}`}>
-                                            {school.subscription?.status || 'active'}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div className="admin-actions">
-                                            <button className="admin-action-btn" title="Login As Admin" onClick={() => handleImpersonate(school.adminId)}>
-                                                <HiOutlineLogin size={14} />
-                                            </button>
-                                            <button className="admin-action-btn" title="View Details" onClick={() => navigate(`/admin/schools/${school._id}`)}>
-                                                <HiOutlineEye size={14} />
-                                            </button>
-                                            <button className="admin-action-btn" title="Edit School">
-                                                <HiOutlinePencil size={14} />
-                                            </button>
-                                        </div>
-                                    </td>
+                    <div className="admin-table-wrap">
+                        <table className="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>School</th>
+                                    <th>Admin Email</th>
+                                    <th>Users</th>
+                                    <th>Students</th>
+                                    <th>Plan</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {filtered.map((school) => (
+                                    <tr key={school._id}>
+                                        <td style={{ fontWeight: 500 }}>{school.name}</td>
+                                        <td>{school.contact?.adminEmail}</td>
+                                        <td>{school.userCount || 0}</td>
+                                        <td>{school.studentCount || 0}</td>
+                                        <td style={{ textTransform: 'capitalize' }}>{school.subscription?.plan || 'starter'}</td>
+                                        <td>
+                                            <span className={`status-badge ${school.subscription?.status || 'active'}`}>
+                                                {school.subscription?.status || 'active'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div className="admin-actions">
+                                                <button className="admin-action-btn" title="Login As Admin" onClick={() => handleImpersonate(school.adminId)}>
+                                                    <HiOutlineLogin size={14} />
+                                                </button>
+                                                <button className="admin-action-btn" title="View Details" onClick={() => navigate(`/admin/schools/${school._id}`)}>
+                                                    <HiOutlineEye size={14} />
+                                                </button>
+                                                <button className="admin-action-btn" title="Edit School">
+                                                    <HiOutlinePencil size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
 
@@ -171,12 +165,13 @@ const SuperAdminSchoolsPage = () => {
                 <div style={{
                     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    zIndex: 1000, padding: 'var(--spacing-xl)'
+                    zIndex: 1000, padding: 'var(--spacing-xl)', overflowY: 'auto'
                 }}>
                     <div style={{
                         background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)',
                         padding: 'var(--spacing-2xl)', width: '100%', maxWidth: 480,
-                        border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-lg)'
+                        border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-lg)',
+                        margin: 'var(--spacing-md) 0'
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
                             <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>Create School</h2>
@@ -210,8 +205,8 @@ const SuperAdminSchoolsPage = () => {
                                     onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
                                     placeholder="Strong password" />
                             </div>
-                            <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-                                <div className="form-group" style={{ flex: 1 }}>
+                            <div className="admin-form-row">
+                                <div className="form-group">
                                     <label>Plan</label>
                                     <select value={formData.plan} onChange={(e) => setFormData({ ...formData, plan: e.target.value })}>
                                         <option value="starter">Starter</option>
@@ -219,14 +214,14 @@ const SuperAdminSchoolsPage = () => {
                                         <option value="enterprise">Enterprise</option>
                                     </select>
                                 </div>
-                                <div className="form-group" style={{ flex: 1 }}>
+                                <div className="form-group">
                                     <label>Max Students</label>
                                     <input type="number" value={formData.maxStudents}
                                         onChange={(e) => setFormData({ ...formData, maxStudents: parseInt(e.target.value) })} />
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end', marginTop: 'var(--spacing-md)' }}>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end', marginTop: 'var(--spacing-md)', flexWrap: 'wrap' }}>
                                 <button type="button" className="admin-action-btn" onClick={() => setShowCreateModal(false)}>Cancel</button>
                                 <button type="submit" className="admin-action-btn primary" disabled={creating}>
                                     {creating ? 'Creating...' : 'Create School'}

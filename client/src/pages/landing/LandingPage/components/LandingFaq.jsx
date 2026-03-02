@@ -16,7 +16,7 @@ export default function LandingFaq({ content }) {
                 <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.faq.overline}</Typography>
                 <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 4 }}>{content.faq.title}</Typography>
                 {(content.faq.items || []).map((item, i) => (
-                    <Accordion className="landing-lift-card" key={`${item.question || 'faq'}-${i}`} sx={{ bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', '&:before': { display: 'none' }, mb: 1 }}>
+                    <Accordion className="landing-lift-card" key={`${item.question || 'faq'}-${i}`} sx={{ bgcolor: 'background.paper', border: 1, borderColor: 'divider', '&:before': { display: 'none' }, mb: 1 }}>
                         <AccordionSummary expandIcon={<HiOutlineChevronDown size={20} />}>
                             <Typography fontWeight={500}>{item.question}</Typography>
                         </AccordionSummary>

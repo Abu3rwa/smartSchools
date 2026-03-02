@@ -50,6 +50,7 @@ const newsletterSectionSchema = new mongoose.Schema(
     selectedLessonPlanIds: [
       { type: mongoose.Schema.Types.ObjectId, ref: "LessonPlan" },
     ],
+    customPrompt: { type: String, default: "" },
 
     // The 100–120 word newsletter content for this subject.
     content: { type: String, default: "" },
@@ -94,4 +95,3 @@ const NewsletterSection = mongoose.model(
   newsletterSectionSchema
 );
 export default NewsletterSection;
-

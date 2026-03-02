@@ -1,6 +1,7 @@
 import { HiOutlineEye, HiOutlinePlay, HiOutlineRefresh } from "react-icons/hi";
 import { PRACTICE_TABLE_HEADERS } from "../constants";
 import { getMasteryColor, getStatusBadge } from "../utils/practiceDashboardPresentation";
+import { formatStandardLabel } from "../../../../../utils/standardLabel";
 
 const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }) => (
   <div className="table-container">
@@ -29,8 +30,9 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
                   <span className="standard-name" style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
                     {assignment.title || "Standards Assignment"}
                   </span>
-                  <span className="standard-code">{assignment.standard?.code || "N/A"}</span>
-                  <span className="standard-name">{assignment.standard?.name}</span>
+                  <span className="standard-code">
+                    {formatStandardLabel(assignment.standard) || "N/A"}
+                  </span>
                 </div>
               </td>
               <td>{assignment.subject?.name}</td>

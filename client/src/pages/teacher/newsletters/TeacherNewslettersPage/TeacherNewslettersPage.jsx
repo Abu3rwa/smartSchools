@@ -11,6 +11,7 @@ import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
 import {
   fetchIssue,
   generateSection,
+  updateSectionContent,
   submitSection,
   selectTeacherNewsletter
 } from '../../../../store/slices/newsletterSlice';
@@ -37,6 +38,9 @@ const TeacherNewslettersPage = () => {
   const [language, setLanguage] = useState('english');
   const [weekDate, setWeekDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedLessonIds, setSelectedLessonIds] = useState([]);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [editableContent, setEditableContent] = useState('');
+  const [savingContent, setSavingContent] = useState(false);
 
   const weekStart = useMemo(() => startOfWeek(new Date(weekDate), { weekStartsOn: 1 }), [weekDate]);
   const weekEnd = useMemo(() => endOfWeek(new Date(weekDate), { weekStartsOn: 1 }), [weekDate]);
@@ -66,6 +70,22 @@ const TeacherNewslettersPage = () => {
     }));
   }, [dispatch, academicYear, classId, subjectId, weekStartStr, weekEndStr]);
 
+  const classSubjectOptions = useMemo(() => {
+    if (!classId) return [];
+
+    const selectedClass = classes.find((c) => c._id === classId);
+    const classSubjectIds = new Set((selectedClass?.subjects || []).map((s) => s?.subject?._id || s?.subject).filter(Boolean).map((id) => id.toString()));
+    const teacherSubjectIds = new Set((subjects || []).map((s) => s._id?.toString()).filter(Boolean));
+
+    return (subjects || []).filter((s) => classSubjectIds.has(s._id?.toString()) && teacherSubjectIds.has(s._id?.toString()));
+  }, [classId, classes, subjects]);
+
+  useEffect(() => {
+    if (!subjectId) return;
+    const isStillValid = classSubjectOptions.some((s) => s._id === subjectId);
+    if (!isStillValid) setSubjectId('');
+  }, [classSubjectOptions, subjectId]);
+
   const toggleLesson = (lessonId) => {
     setSelectedLessonIds((prev) => prev.includes(lessonId)
       ? prev.filter((id) => id !== lessonId)
@@ -78,7 +98,12 @@ const TeacherNewslettersPage = () => {
     return sections.find((s) => (s.subject?._id || s.subject) === subjectId) || teacherNewsletter.lastGeneratedSection;
   }, [teacherNewsletter.sections, teacherNewsletter.lastGeneratedSection, subjectId]);
 
-  const onGenerate = async () => {
+  useEffect(() => {
+    setEditableContent(mySection?.content || '');
+    setCustomPrompt(mySection?.customPrompt || '');
+  }, [mySection?._id, mySection?.content, mySection?.customPrompt]);
+
+  const onGenerate = async ({ useFeedback = false } = {}) => {
     if (!classId || !subjectId) {
       toast.error('Please select class and subject');
       return;
@@ -90,12 +115,42 @@ const TeacherNewslettersPage = () => {
         academicYear,
         weekStart: weekStartStr,
         language,
-        selectedLessonPlanIds: selectedLessonIds
+        selectedLessonPlanIds: selectedLessonIds,
+        customPrompt,
+        regenerateWithFeedback: useFeedback
       })).unwrap();
       toast.success('Section generated');
       dispatch(fetchIssue({ classId, academicYear, weekStart: weekStartStr }));
     } catch (e) {
       toast.error(e || 'Generation failed');
+    }
+  };
+
+  const onSaveContent = async () => {
+    if (!mySection?._id) {
+      toast.error('Generate a section first');
+      return;
+    }
+
+    const trimmed = (editableContent || '').trim();
+    if (!trimmed) {
+      toast.error('Content cannot be empty');
+      return;
+    }
+
+    try {
+      setSavingContent(true);
+      await dispatch(updateSectionContent({
+        sectionId: mySection._id,
+        content: trimmed,
+        customPrompt
+      })).unwrap();
+      toast.success('Draft updated');
+      dispatch(fetchIssue({ classId, academicYear, weekStart: weekStartStr }));
+    } catch (e) {
+      toast.error(e || 'Failed to save');
+    } finally {
+      setSavingContent(false);
     }
   };
 
@@ -143,10 +198,19 @@ const TeacherNewslettersPage = () => {
             <label>Subject</label>
             <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
               <option value="">Select subject</option>
-              {subjects.map((s) => (
+              {classSubjectOptions.map((s) => (
                 <option key={s._id} value={s._id}>{s.name}</option>
               ))}
             </select>
+          </div>
+
+          <div className="tn-field">
+            <label>Custom instructions (optional)</label>
+            <textarea
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder="Example: Mention our science experiment and keep language simple for parents."
+            />
           </div>
 
           <div className="tn-field">
@@ -159,8 +223,26 @@ const TeacherNewslettersPage = () => {
           </div>
 
           <div className="tn-actions">
-            <button className="tn-btn primary" onClick={onGenerate} disabled={teacherNewsletter.generating}>
+            <button className="tn-btn primary" onClick={() => onGenerate()} disabled={teacherNewsletter.generating}>
               {teacherNewsletter.generating ? 'Generating...' : 'Generate '}
+            </button>
+            <button
+              className="tn-btn"
+              onClick={() => onGenerate({ useFeedback: true })}
+              disabled={
+                teacherNewsletter.generating ||
+                mySection?.status !== 'rejected' ||
+                !mySection?.adminReview?.notes
+              }
+            >
+              Regenerate with Feedback
+            </button>
+            <button
+              className="tn-btn"
+              onClick={onSaveContent}
+              disabled={savingContent || !mySection?._id || !editableContent.trim()}
+            >
+              {savingContent ? 'Saving...' : 'Save Draft'}
             </button>
             <button className="tn-btn" onClick={onSubmit} disabled={teacherNewsletter.submitting || mySection?.status !== 'draft'}>
               {teacherNewsletter.submitting ? 'Submitting...' : 'Submit to Admin'}
@@ -205,9 +287,15 @@ const TeacherNewslettersPage = () => {
         <div className="tn-card">
           <h3>3) Preview</h3>
           {mySection?.content ? (
-            <div className="tn-preview">
-              {mySection.content}
-            </div>
+            <>
+              <textarea
+                className="tn-editor"
+                value={editableContent}
+                onChange={(e) => setEditableContent(e.target.value)}
+                disabled={!mySection?._id || mySection?.status === 'approved'}
+              />
+              <div className="tn-preview">{editableContent}</div>
+            </>
           ) : (
             <div className="tn-muted">Generate a section to preview it here.</div>
           )}

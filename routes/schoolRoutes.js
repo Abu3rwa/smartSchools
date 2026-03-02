@@ -2,12 +2,15 @@ import express from 'express';
 import { protect, authorize, authorizeWithPermission } from '../middleware/auth.js';
 import { requireSchoolContext, superAdminOnly } from '../middleware/tenantIsolation.js';
 import School from '../models/School.js';
+import Subscription from '../models/Subscription.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { generateToken } from '../middleware/auth.js';
+import { normalizePlan, toSchoolPlan } from '../constants/features.js';
+import { buildFeatureMetadata, resolveSchoolFeatureContext } from '../middleware/featureGate.js';
 import {
     getAcademicYears,
     copyClassesFromYear,
@@ -95,6 +98,46 @@ router.put('/me/current-academic-year', requireSchoolContext, authorize('admin')
         success: true,
         message: `Academic year updated to ${inputYear}`,
         data: { academicYear: school.settings?.currentAcademicYear || inputYear }
+    });
+}));
+
+/**
+ * @desc    Get current school feature gates and limits
+ * @route   GET /api/schools/me/features
+ * @access  Private (Any school user)
+ */
+router.get('/me/features', requireSchoolContext, asyncHandler(async (req, res) => {
+    const featureContext = await resolveSchoolFeatureContext(req.schoolId);
+    if (!featureContext) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const [currentStudents, currentTeachers, currentClasses] = await Promise.all([
+        Student.countDocuments({ school: req.schoolId, status: 'active' }),
+        User.countDocuments({ school: req.schoolId, role: 'teacher' }),
+        Class.countDocuments({ school: req.schoolId })
+    ]);
+
+    const fallbackPlanConfig = await Subscription.getPlanConfig(featureContext.plan)
+        || await Subscription.getPlanConfig('starter');
+    const limits = featureContext.limits || fallbackPlanConfig?.limits || {};
+    const usage = {
+        currentStudents,
+        currentTeachers,
+        currentClasses,
+        currentStorage: featureContext.subscription?.usage?.currentStorage || 0
+    };
+
+    res.json({
+        success: true,
+        data: {
+            plan: featureContext.plan,
+            planName: featureContext.planName,
+            features: featureContext.features,
+            limits,
+            usage,
+            featureMetadata: buildFeatureMetadata(featureContext.features, featureContext.plan)
+        }
     });
 }));
 
@@ -343,11 +386,26 @@ router.post('/me/rollover/promote-students', requireSchoolContext, authorize('ad
  */
 router.post('/', superAdminOnly, asyncHandler(async (req, res) => {
     const { schoolName, adminName, adminEmail, adminPassword, plan, maxStudents } = req.body;
+    const normalizedPlan = normalizePlan(plan || 'starter');
+    const planConfig = await Subscription.getPlanConfig(normalizedPlan);
 
     if (!schoolName || !adminName || !adminEmail || !adminPassword) {
         return res.status(400).json({
             success: false,
             message: 'schoolName, adminName, adminEmail, and adminPassword are required'
+        });
+    }
+
+    if (!planConfig) {
+        return res.status(400).json({
+            success: false,
+            message: `Plan "${normalizedPlan}" does not exist`
+        });
+    }
+    if (planConfig.isActive === false) {
+        return res.status(400).json({
+            success: false,
+            message: `Plan "${normalizedPlan}" is inactive and cannot be assigned`
         });
     }
 
@@ -368,9 +426,12 @@ router.post('/', superAdminOnly, asyncHandler(async (req, res) => {
         contact: { adminName, adminEmail },
         subscription: {
             status: 'active',
-            plan: plan || 'starter'
+            plan: toSchoolPlan(normalizedPlan)
         },
-        settings: { maxStudents: maxStudents || 50 }
+        settings: {
+            maxStudents: maxStudents || 50,
+            features: planConfig.features || {}
+        }
     });
 
     // Create admin user for the school

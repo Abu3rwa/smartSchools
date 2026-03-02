@@ -14,17 +14,17 @@ export default function LandingFeatures({ content }) {
     return (
         <Box id="features" component="section" sx={{ py: { xs: 8, md: 10 }, scrollMarginTop: 80 }}>
             <Container maxWidth="lg">
-                <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.features.overline}</Typography>
+                {/* <Typography variant="overline" color="primary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>{content.features.overline}</Typography> */}
                 <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.features.title}</Typography>
                 <Typography color="text.secondary" align="center" sx={{ maxWidth: 580, mx: 'auto', mb: 4 }}>
                     {content.features.subtitle}
                 </Typography>
-                <Grid container spacing={3} alignItems="stretch">
+                <Grid container spacing={3} alignItems="center" justifyContent="center">
                     {(content.features.items || []).map(({ iconKey, title, description }, index) => {
                         const Icon = featureIconMap[iconKey] || HiOutlineSparkles;
                         const featureMeta = featureMetaMap[iconKey] || { audience: 'For schools', highlight: `Feature ${index + 1}`, tint: 'rgba(90,174,238,0.2)' };
                         return (
-                            <Grid item xs={12} sm={6} md={4} key={title}>
+                            <Grid item xs={12} sm={6} md={4} key={title} width={300}>
                                 <Paper
                                     className="landing-feature-card landing-lift-card"
                                     variant="outlined"
@@ -39,8 +39,8 @@ export default function LandingFeatures({ content }) {
                                 >
                                     <Box className="landing-feature-card-accent" aria-hidden="true" />
                                     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5, mb: 2 }}>
-                                        <Box className="landing-feature-card-icon" sx={{ width: 48, height: 48, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
-                                            <Icon size={26} />
+                                        <Box className="landing-feature-card-icon" sx={{ width: 55, height: 55, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'primary.main' }}>
+                                            <Icon size={30} />
                                         </Box>
                                         <Chip size="small" label={featureMeta.audience} className="landing-feature-chip" sx={{ alignSelf: 'center' }} />
                                     </Box>

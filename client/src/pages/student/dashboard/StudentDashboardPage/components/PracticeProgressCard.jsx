@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { HiOutlineLightningBolt, HiOutlinePlay } from 'react-icons/hi';
 import { MAX_ASSIGNMENTS_DISPLAY } from '../constants';
+import { formatStandardLabel } from '../../../../../utils/standardLabel';
 
 const PracticeProgressCard = ({ assignments }) => {
     return (
@@ -15,8 +16,9 @@ const PracticeProgressCard = ({ assignments }) => {
                 <ul className="practice-list">
                     {assignments.slice(0, MAX_ASSIGNMENTS_DISPLAY).map((assignment) => (
                         <li key={assignment._id} className="practice-item">
-                            <span className="practice-code">{assignment.standard?.code}</span>
-                            <span className="practice-name">{assignment.standard?.name}</span>
+                            <span className="practice-code">
+                                {formatStandardLabel(assignment.standard) || assignment.standard?.code}
+                            </span>
                             <div className="practice-progress-bar">
                                 <div
                                     className="practice-progress-fill"

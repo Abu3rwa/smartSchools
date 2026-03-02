@@ -83,7 +83,7 @@ const AdminLayout = () => {
     };
 
     return (
-        <div className={`main-layout ${sidebarOpen && isDesktop ? '' : 'sidebar-collapsed'}`}>
+        <div className={`main-layout admin-layout ${sidebarOpen && isDesktop ? '' : 'sidebar-collapsed'}`}>
             <a href="#main-content" className="skip-link">Skip to main content</a>
             {/* Desktop: Persistent sidebar */}
             {isDesktop && <AdminSidebar />}

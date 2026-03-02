@@ -8,7 +8,7 @@ import { HiOutlineCheckCircle } from 'react-icons/hi';
  */
 export default function LandingTrustStrip({ trustItems }) {
     return (
-        <Box sx={{ py: 2, borderTop: '1px solid rgba(255,255,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.1)', bgcolor: 'rgba(255,255,255,0.02)' }}>
+        <Box sx={{ py: 2, borderTop: 1, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
             <Container maxWidth="lg">
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: { xs: 2, sm: 4 }, color: 'text.secondary', typography: 'body2', fontWeight: 500 }}>
                     {trustItems.map((item) => {

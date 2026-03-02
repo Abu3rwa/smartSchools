@@ -15,10 +15,12 @@ import {
   selectTheme,
   setCurrentAcademicYear,
 } from "./store/slices/uiSlice";
+import { fetchSchoolFeatures } from "./store/slices/schoolFeaturesSlice";
 
 // Layouts
 import MainLayout from "./components/layout/MainLayout";
 import AdminLayout from "./components/layout/AdminLayout";
+import FeatureGate from "./components/FeatureGate";
 
 // Pages
 import LandingPage from "./pages/landing/LandingPage";
@@ -57,6 +59,7 @@ import LessonPlanPage from "./pages/lessonPlan/LessonPlanPage";
 import LessonPlanDetailPage from "./pages/lessonPlan/LessonPlanDetailPage";
 import AssignmentsPage from "./pages/assignments/AssignmentsPage";
 import AdminNewslettersPage from "./pages/admin/newsletters/AdminNewslettersPage";
+import ParentNewslettersPage from "./pages/parent/newsletters/ParentNewslettersPage";
 import AttendanceRemindersPage from "./pages/admin/attendanceReminders/AttendanceRemindersPage";
 import BehaviorManagementPage from "./pages/behavior/BehaviorManagementPage";
 import BehaviorTrackingDashboardPage from "./pages/behavior/BehaviorTrackingDashboardPage";
@@ -206,6 +209,7 @@ function App() {
     }
 
     dispatch(fetchSchoolAcademicYear());
+    dispatch(fetchSchoolFeatures());
   }, [dispatch, isAuthenticated, user?.id, user?.role, user?.school?.settings?.currentAcademicYear]);
 
   return (
@@ -253,7 +257,9 @@ function App() {
             path="api-docs"
             element={
               <RoleRoute roles={["admin", "super_admin"]}>
-                <ApiDocsPage />
+                <FeatureGate feature="apiAccess" showUpgradePrompt>
+                  <ApiDocsPage />
+                </FeatureGate>
               </RoleRoute>
             }
           />
@@ -471,6 +477,14 @@ function App() {
               </RoleRoute>
             }
           />
+          <Route
+            path="newsletters/history"
+            element={
+              <RoleRoute roles={["parent"]}>
+                <ParentNewslettersPage />
+              </RoleRoute>
+            }
+          />
 
           {/* Admin + Department Principal */}
           <Route
@@ -554,7 +568,9 @@ function App() {
             path="reports/generator"
             element={
               <RoleRoute roles={["admin", "teacher"]}>
-                <AdvancedReportGenerator />
+                <FeatureGate feature="customReports" showUpgradePrompt>
+                  <AdvancedReportGenerator />
+                </FeatureGate>
               </RoleRoute>
             }
           />
@@ -562,7 +578,9 @@ function App() {
             path="reports/analytics"
             element={
               <RoleRoute roles={["admin", "teacher"]}>
-                <ReportAnalytics />
+                <FeatureGate feature="advancedAnalytics" showUpgradePrompt>
+                  <ReportAnalytics />
+                </FeatureGate>
               </RoleRoute>
             }
           />

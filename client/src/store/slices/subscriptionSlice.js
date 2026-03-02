@@ -121,6 +121,7 @@ const initialState = {
         professionalCount: 0,
         enterpriseCount: 0
     },
+    planDistribution: [],
     loading: false,
     error: null,
     success: null
@@ -156,6 +157,7 @@ const subscriptionSlice = createSlice({
                 state.subscriptions = action.payload.subscriptions;
                 state.pagination = action.payload.pagination;
                 state.statistics = action.payload.statistics;
+                state.planDistribution = action.payload.planDistribution || [];
             })
             .addCase(fetchSubscriptions.rejected, (state, action) => {
                 state.loading = false;
@@ -305,6 +307,7 @@ export const selectSubscriptionAnalytics = (state) => state.subscriptions.analyt
 export const selectBillingHistory = (state) => state.subscriptions.billingHistory;
 export const selectSubscriptionPagination = (state) => state.subscriptions.pagination;
 export const selectSubscriptionStatistics = (state) => state.subscriptions.statistics;
+export const selectSubscriptionPlanDistribution = (state) => state.subscriptions.planDistribution;
 export const selectSubscriptionLoading = (state) => state.subscriptions.loading;
 export const selectSubscriptionError = (state) => state.subscriptions.error;
 export const selectSubscriptionSuccess = (state) => state.subscriptions.success;

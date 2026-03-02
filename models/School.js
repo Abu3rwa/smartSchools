@@ -1,5 +1,15 @@
 import mongoose from 'mongoose';
 import { inferAcademicYear, isValidAcademicYear } from '../utils/academicYear.js';
+import { FEATURE_KEYS, getFeaturesForPlan } from '../constants/features.js';
+
+const starterFeatureDefaults = getFeaturesForPlan('starter');
+const schoolFeatureSchemaDefinition = FEATURE_KEYS.reduce((acc, featureKey) => {
+    acc[featureKey] = {
+        type: Boolean,
+        default: starterFeatureDefaults[featureKey] === true
+    };
+    return acc;
+}, {});
 
 const schoolSchema = new mongoose.Schema({
     name: {
@@ -17,13 +27,14 @@ const schoolSchema = new mongoose.Schema({
     subscription: {
         status: {
             type: String,
-            enum: ['trial', 'active', 'past_due', 'cancelled', 'expired'],
+            enum: ['trial', 'active', 'inactive', 'suspended', 'past_due', 'cancelled', 'expired'],
             default: 'trial'
         },
         plan: {
             type: String,
-            enum: ['starter', 'growth', 'enterprise'],
-            default: 'starter'
+            default: 'starter',
+            lowercase: true,
+            trim: true
         },
         stripeCustomerId: String,
         stripeSubscriptionId: String,
@@ -71,22 +82,7 @@ const schoolSchema = new mongoose.Schema({
             }
         },
         features: {
-            parentPortal: {
-                type: Boolean,
-                default: false
-            },
-            advancedAnalytics: {
-                type: Boolean,
-                default: false
-            },
-            customReports: {
-                type: Boolean,
-                default: false
-            },
-            emailNotifications: {
-                type: Boolean,
-                default: false
-            }
+            ...schoolFeatureSchemaDefinition
         }
     },
     // AI Report settings

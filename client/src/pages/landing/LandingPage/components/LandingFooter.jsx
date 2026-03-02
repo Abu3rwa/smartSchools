@@ -10,7 +10,7 @@ import { HiOutlineAcademicCap } from 'react-icons/hi';
  */
 export default function LandingFooter({ content, copyrightText, handleAction }) {
     return (
-        <Box component="footer" sx={{ py: 4, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <Box component="footer" sx={{ py: 4, borderTop: 1, borderColor: 'divider' }}>
             <Container maxWidth="lg">
                 <Grid container spacing={4} sx={{ mb: 3 }}>
                     <Grid item xs={12} md={4}>
@@ -51,7 +51,7 @@ export default function LandingFooter({ content, copyrightText, handleAction }) 
                         </Grid>
                     </Grid>
                 </Grid>
-                <Typography variant="body2" color="text.secondary" sx={{ pt: 2, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
                     {copyrightText}
                 </Typography>
             </Container>

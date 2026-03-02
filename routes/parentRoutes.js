@@ -22,6 +22,7 @@ import {
     updateParentSettingsController
 } from '../controllers/parentController.js';
 import { authorize, protect } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
@@ -29,6 +30,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(requireSchoolContext);
+router.use(requireFeature('parentPortal'));
 router.use(authorize('parent'));
 
 router.get('/children', getParentChildrenController);

@@ -35,7 +35,7 @@ export default function LandingFindSchool({
                 <Typography variant="h4" align="center" sx={{ fontWeight: 700, mb: 1 }}>{content.findSchool.title}</Typography>
                 <Typography color="text.secondary" align="center" sx={{ mb: 3 }}>{content.findSchool.subtitle}</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                    <Chip size="small" label={totalSchoolCountLabel} sx={{ bgcolor: 'rgba(90,174,238,0.15)', color: 'primary.main' }} />
+                    <Chip size="small" label={totalSchoolCountLabel} sx={{ bgcolor: 'action.selected', color: 'primary.main' }} />
                     {hasSearchFilter ? <Chip size="small" label={filteredSchoolCountLabel} variant="outlined" /> : null}
                 </Box>
                 <TextField

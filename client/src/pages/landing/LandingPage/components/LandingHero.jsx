@@ -55,8 +55,8 @@ export default function LandingHero({ content, contentError, heroBadge, handleAc
                     </Grid>
                     <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: { xs: 'center', md: 'flex-end' } }}>
                         <div className="landing-float-element" style={{ width: '100%', maxWidth: 460 }}>
-                            <Paper className="landing-elevated-card" sx={{ width: '100%', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                <Box sx={{ display: 'flex', gap: 1, p: 1.5, bgcolor: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                            <Paper className="landing-elevated-card" sx={{ width: '100%', overflow: 'hidden', border: 1, borderColor: 'divider' }}>
+                                <Box sx={{ display: 'flex', gap: 1, p: 1.5, bgcolor: 'action.hover', borderBottom: 1, borderColor: 'divider' }}>
                                     <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#ff5f56' }} />
                                     <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#ffbd2e' }} />
                                     <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#27c93f' }} />
@@ -65,14 +65,14 @@ export default function LandingHero({ content, contentError, heroBadge, handleAc
                                     <Grid container spacing={1.5} sx={{ mb: 2 }}>
                                         {(content.hero.preview.metrics || []).map(({ value, label }) => (
                                             <Grid item xs={4} key={label || value}>
-                                                <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.06)' }}>
+                                                <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center', bgcolor: 'background.paper', borderColor: 'divider' }}>
                                                     <Typography variant="h6">{value}</Typography>
                                                     <Typography variant="caption" color="text.secondary">{label}</Typography>
                                                 </Paper>
                                             </Grid>
                                         ))}
                                     </Grid>
-                                    <Grid container sx={{ typography: 'caption', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <Grid container sx={{ typography: 'caption', borderBottom: 1, borderColor: 'divider' }}>
                                         {(content.hero.preview.tableHeaders || []).map((h) => (
                                             <Grid item xs={4} key={h} sx={{ py: 1, px: 1.5, color: 'text.secondary', fontWeight: 600 }}>{h}</Grid>
                                         ))}
@@ -91,5 +91,4 @@ export default function LandingHero({ content, contentError, heroBadge, handleAc
         </Box>
     );
 }
-
 

@@ -70,6 +70,8 @@ export function buildNewsletterSectionPrompt({
   weekEnd,
   lessonPlans = [],
   language = "english",
+  customPrompt = "",
+  adminFeedback = "",
   minWords = 100,
   maxWords = 120,
 }) {
@@ -82,6 +84,8 @@ export function buildNewsletterSectionPrompt({
   const weekEndStr = new Date(weekEnd).toLocaleDateString();
 
   const lessonsBlock = compactLessonPlansForPrompt(lessonPlans);
+  const teacherInstruction = (customPrompt || "").toString().trim();
+  const reviewFeedback = (adminFeedback || "").toString().trim();
 
   const languageRule =
     language === "arabic"
@@ -115,6 +119,9 @@ CONTEXT:
 LESSON PLANS INCLUDED (this week / selected by teacher):
 ${lessonsBlock || "(No lesson plan text provided; infer a generic weekly summary for the subject.)"}
 
+${teacherInstruction ? `TEACHER CUSTOM INSTRUCTIONS:\n${teacherInstruction}` : ""}
+${reviewFeedback ? `ADMIN FEEDBACK FROM PREVIOUS REJECTION:\n${reviewFeedback}` : ""}
+
 Return JSON only.
   `.trim();
 }
@@ -139,7 +146,7 @@ ${previousContent}
   `.trim();
 
   const res = await connectAi(prompt);
-  const parsed = safeJsonParse(res.text);
+  const parsed = parseNewsletterJson(res.text);
   return { parsed, ai: res };
 }
 
@@ -154,6 +161,8 @@ export async function generateNewsletterSection({
   weekEnd,
   lessonPlans = [],
   language = "english",
+  customPrompt = "",
+  adminFeedback = "",
   schoolId,
   userId,
   minWords = 100,
@@ -166,6 +175,8 @@ export async function generateNewsletterSection({
     weekEnd,
     lessonPlans,
     language,
+    customPrompt,
+    adminFeedback,
     minWords,
     maxWords,
   });
@@ -247,4 +258,3 @@ export async function generateNewsletterSection({
     aiTokenUsageId,
   };
 }
-

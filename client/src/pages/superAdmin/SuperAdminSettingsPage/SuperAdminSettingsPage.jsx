@@ -23,7 +23,8 @@ const SuperAdminSettingsPage = () => {
                 <div className="admin-section-header">
                     <h2>Appearance</h2>
                 </div>
-                <div style={{ padding: 'var(--spacing-lg)', display: 'flex', gap: 'var(--spacing-md)' }}>
+                <div style={{ padding: 'var(--spacing-lg)' }}>
+                    <div className="admin-toolbar">
                     <button
                         className={`admin-action-btn ${theme === 'light' ? 'primary' : ''}`}
                         onClick={() => handleThemeChange('light')}
@@ -38,6 +39,7 @@ const SuperAdminSettingsPage = () => {
                         <HiOutlineMoon size={16} style={{ marginRight: 4, verticalAlign: 'middle' }} />
                         Dark
                     </button>
+                    </div>
                 </div>
             </div>
 

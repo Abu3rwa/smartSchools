@@ -1,4 +1,5 @@
 import { DIFFICULTY_OPTIONS, QUESTION_TYPE_OPTIONS } from '../constants';
+import { formatStandardLabel } from '../../../../utils/standardLabel';
 
 export const getEntityId = (entity) => (entity?._id || entity || '').toString();
 
@@ -38,10 +39,12 @@ export const getStandardDescription = (standard) => {
 };
 
 export const getStandardOptionLabel = (standard) => {
-    const base = `${standard?.code || 'STD'} - ${standard?.name || 'Standard'} (Grade ${standard?.gradeLevel || '-'})`;
+    const baseLabel = formatStandardLabel(standard) || `${standard?.code || 'STD'}`;
     const description = getStandardDescription(standard);
-    const shortDescription = description.length > 90 ? `${description.substring(0, 90)}...` : description;
-    return `${base} | ${shortDescription}`;
+    const shortDescription =
+        description.length > 90 ? `${description.substring(0, 90)}...` : description;
+    const gradePart = `Grade ${standard?.gradeLevel || '-'}`;
+    return `${baseLabel} (${gradePart}) | ${shortDescription}`;
 };
 
 export const parseNullablePositiveInt = (value) => {

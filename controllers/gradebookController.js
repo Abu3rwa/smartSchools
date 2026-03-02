@@ -881,7 +881,7 @@ export const getClassStatistics = asyncHandler(async (req, res) => {
     ]);
 
     // Calculate class average
-    const classAverage = stats.length > 0 
+    const classAverage = stats.length > 0
         ? (stats.reduce((sum, student) => sum + student.avgPercentage, 0) / stats.length).toFixed(2)
         : 0;
 
@@ -898,16 +898,16 @@ export const getClassStatistics = asyncHandler(async (req, res) => {
 export const getDashboardStats = asyncHandler(async (req, res) => {
     const academicYear = resolveRequestedAcademicYear(req.query.academicYear, req.school);
     const academicYearRange = resolveAcademicYearDateRange(academicYear, req.school);
-    
+
     // Get total students count for this school
     const totalStudents = await Student.countDocuments({ school: req.schoolId, status: 'active' });
-    
+
     // Get total classes count for this school
     const totalClasses = await Class.countDocuments({ school: req.schoolId, isActive: true });
-    
+
     // Get total grades entered for this school
     const totalGrades = await Grade.countDocuments({ school: req.schoolId, academicYear });
-    
+
     // Calculate average performance
     const gradeStats = await Grade.aggregate([
         {
@@ -934,21 +934,21 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
             }
         }
     ]);
-    
+
     const avgPerformance = gradeStats.length > 0 ? gradeStats[0].avgPercentage.toFixed(1) : 0;
-    
+
     // Calculate monthly changes (simplified - comparing current month to previous)
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
     const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
     const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-    
+
     const currentMonthStart = new Date(currentYear, currentMonth - 1, 1);
     const currentMonthEnd = new Date(currentYear, currentMonth, 0, 23, 59, 59);
     const previousMonthStart = new Date(previousYear, previousMonth - 1, 1);
     const previousMonthEnd = new Date(previousYear, previousMonth, 0, 23, 59, 59);
-    
+
     const [currentMonthStudents, previousMonthStudents] = await Promise.all([
         Student.countDocuments({
             school: req.schoolId,
@@ -961,7 +961,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
             createdAt: { $gte: previousMonthStart, $lte: previousMonthEnd }
         })
     ]);
-    
+
     const [currentMonthClasses, previousMonthClasses] = await Promise.all([
         Class.countDocuments({
             school: req.schoolId,
@@ -974,7 +974,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
             createdAt: { $gte: previousMonthStart, $lte: previousMonthEnd }
         })
     ]);
-    
+
     const [currentMonthGrades, previousMonthGrades] = await Promise.all([
         Grade.countDocuments({
             school: req.schoolId,
@@ -1071,27 +1071,27 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         const year = cursor.getUTCFullYear();
         const month = cursor.getUTCMonth() + 1;
         const key = `${year}-${String(month).padStart(2, '0')}`;
-        const label = `${monthNames[month - 1]} ${String(year).slice(-2)}`;
+        const label = monthNames[month - 1];
         performanceTrend.push({
             month: label,
             average: monthlyAveragesByKey[key] || 0
         });
         cursor.setUTCMonth(cursor.getUTCMonth() + 1);
     }
-    
+
     // Calculate percentage changes
-    const studentChange = previousMonthStudents > 0 
+    const studentChange = previousMonthStudents > 0
         ? (((currentMonthStudents - previousMonthStudents) / previousMonthStudents) * 100).toFixed(0)
         : '0';
-        
-    const classChange = previousMonthClasses > 0 
+
+    const classChange = previousMonthClasses > 0
         ? (((currentMonthClasses - previousMonthClasses) / previousMonthClasses) * 100).toFixed(0)
         : '0';
-        
-    const gradeChange = previousMonthGrades > 0 
+
+    const gradeChange = previousMonthGrades > 0
         ? (((currentMonthGrades - previousMonthGrades) / previousMonthGrades) * 100).toFixed(0)
         : '0';
-    
+
     res.json({
         success: true,
         data: {

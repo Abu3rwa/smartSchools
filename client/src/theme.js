@@ -72,6 +72,11 @@ const baseThemeOptions = {
 };
 
 const lightPaletteOverrides = {
+  primary: {
+    main: '#5f4b8b',
+    light: '#8a74bd',
+    dark: '#4a3a6c',
+  },
   background: {
     default: '#f5f7fa',
     paper: '#ffffff',

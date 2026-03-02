@@ -595,7 +595,7 @@ const SuperAdminLandingPageEditor = () => {
                 spellCheck={false}
                 style={{
                   width: '100%',
-                  minHeight: 520,
+                  minHeight: 'min(520px, 65vh)',
                   borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border-color)',
                   padding: 'var(--spacing-md)',

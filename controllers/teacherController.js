@@ -1,8 +1,55 @@
+import mongoose from 'mongoose';
 import Teacher from '../models/Teacher.js';
 import User from '../models/User.js';
 import Class from '../models/Class.js';
+import Department from '../models/Department.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
+
+/**
+ * If the value is already a valid ObjectId, return it.
+ * If it's a department name string (e.g. "General"), look it up and return the _id.
+ * Returns null if nothing matches.
+ */
+async function resolveDepartmentId(value, schoolId) {
+    if (!value) return null;
+    if (mongoose.Types.ObjectId.isValid(value)) return value;
+    // Treat as department name and look up
+    const dept = await Department.findOne({ school: schoolId, name: { $regex: new RegExp(`^${value}$`, 'i') } }).select('_id').lean();
+    return dept ? dept._id : null;
+}
+
+/**
+ * Legacy data fix:
+ * Some historical records stored Teacher.department as plain text (e.g. "General")
+ * instead of ObjectId. This breaks validations on updates. Normalize once on write paths.
+ */
+async function normalizeLegacyTeacherDepartment(teacherId, schoolId) {
+    if (!mongoose.Types.ObjectId.isValid(teacherId) || !mongoose.Types.ObjectId.isValid(schoolId)) {
+        return;
+    }
+
+    const rawTeacher = await Teacher.collection.findOne(
+        { _id: new mongoose.Types.ObjectId(teacherId), school: new mongoose.Types.ObjectId(schoolId) },
+        { projection: { department: 1, departmentName: 1 } }
+    );
+
+    if (!rawTeacher) return;
+
+    const legacyDepartment = rawTeacher.department;
+    if (typeof legacyDepartment !== 'string') return;
+    if (mongoose.Types.ObjectId.isValid(legacyDepartment)) return;
+
+    await Teacher.collection.updateOne(
+        { _id: rawTeacher._id },
+        {
+            $set: {
+                departmentName: rawTeacher.departmentName || legacyDepartment,
+                department: null
+            }
+        }
+    );
+}
 
 /**
  * @desc    Get all teachers
@@ -117,12 +164,12 @@ export const createTeacher = asyncHandler(async (req, res) => {
     } = req.body;
 
     // Department principal can only create teachers in their department
-    const department = req.departmentId || bodyDepartment || null;
+    const department = req.departmentId || await resolveDepartmentId(bodyDepartment, req.schoolId);
 
     // Check if user already exists (global email lookup)
     let user = await User.findOne({ email }).setOptions({ skipTenantFilter: true });
     let isNewUser = false;
-    
+
     if (!user) {
         // Create new user if doesn't exist
         user = await User.create({
@@ -244,6 +291,11 @@ export const updateTeacher = asyncHandler(async (req, res) => {
         if (rest[field] !== undefined) updates[field] = rest[field];
     });
 
+    // Resolve department name to ObjectId if needed
+    if (updates.department) {
+        updates.department = await resolveDepartmentId(updates.department, req.schoolId);
+    }
+
     // Department principal cannot change a teacher's department
     if (req.departmentId && updates.department !== undefined) {
         delete updates.department;
@@ -323,7 +375,13 @@ export const assignMultipleClasses = asyncHandler(async (req, res) => {
         });
     }
 
-    const teacher = await Teacher.findById(req.params.id);
+    await normalizeLegacyTeacherDepartment(req.params.id, req.schoolId);
+
+    // Use lean + narrow select to avoid hydration cast failures on legacy invalid fields
+    // (e.g. department stored as "General" instead of ObjectId in old records).
+    const teacher = await Teacher.findById(req.params.id)
+        .select('department assignedClasses')
+        .lean();
 
     if (!teacher) {
         return res.status(404).json({
@@ -373,29 +431,27 @@ export const assignMultipleClasses = asyncHandler(async (req, res) => {
     }
 
     // Add all new assignments
-    teacher.assignedClasses.push(...newAssignments);
-    await teacher.save();
+    await Teacher.updateOne(
+        { _id: req.params.id },
+        { $push: { assignedClasses: { $each: newAssignments } } }
+    );
 
-    // Keep Class.subjects in sync so grade authorization works
+    // Keep Class.subjects in sync so grade authorization works.
+    // Use atomic updates instead of doc.save() to avoid failing on legacy unrelated field casts
+    // (e.g. old class documents with invalid non-ObjectId department values).
     for (const newAssignment of newAssignments) {
-        const classDoc = await Class.findById(newAssignment.class);
-        if (!classDoc) continue;
-
-        const alreadyInClass = classDoc.subjects.some(
-            s => s.subject?.toString() === newAssignment.subject.toString() &&
-                 s.teacher?.toString() === teacher._id.toString()
-        );
-
-        if (!alreadyInClass) {
-            classDoc.subjects.push({ subject: newAssignment.subject, teacher: teacher._id });
-        }
+        const update = {
+            $addToSet: { subjects: { subject: newAssignment.subject, teacher: teacher._id } }
+        };
         if (newAssignment.isClassTeacher) {
-            classDoc.classTeacher = teacher._id;
+            update.$set = { classTeacher: teacher._id };
         }
-        await classDoc.save();
+
+        await Class.updateOne({ _id: newAssignment.class }, update);
     }
 
     const updatedTeacher = await Teacher.findById(req.params.id)
+        .select('user employeeId qualification specialization subjects assignedClasses joiningDate address isActive')
         .populate('user', 'firstName lastName email')
         .populate('assignedClasses.class', 'name grade section')
         .populate('assignedClasses.subject', 'name code');
@@ -403,7 +459,7 @@ export const assignMultipleClasses = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         message: `${newAssignments.length} classes assigned successfully`,
-        data: { 
+        data: {
             teacher: updatedTeacher,
             errors: errors.length > 0 ? errors : undefined
         }
@@ -416,7 +472,9 @@ export const assignMultipleClasses = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 export const removeClassAssignment = asyncHandler(async (req, res) => {
-    const teacher = await Teacher.findById(req.params.id);
+    const teacher = await Teacher.findById(req.params.id)
+        .select('department assignedClasses')
+        .lean();
 
     if (!teacher) {
         return res.status(404).json({
@@ -436,11 +494,10 @@ export const removeClassAssignment = asyncHandler(async (req, res) => {
         ac => ac._id.toString() === req.params.assignmentId
     );
 
-    teacher.assignedClasses = teacher.assignedClasses.filter(
-        ac => ac._id.toString() !== req.params.assignmentId
+    await Teacher.updateOne(
+        { _id: req.params.id },
+        { $pull: { assignedClasses: { _id: req.params.assignmentId } } }
     );
-
-    await teacher.save();
 
     // Keep Class.subjects in sync; clear classTeacher if this teacher was class teacher
     if (removed) {

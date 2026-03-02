@@ -1,9 +1,18 @@
+import mongoose from 'mongoose';
 import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
+import Department from '../models/Department.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds, getTeacherProfile } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope, enforceDepartmentOnWrite } from '../helpers/departmentScope.js';
+
+async function resolveDepartmentId(value, schoolId) {
+    if (!value) return null;
+    if (mongoose.Types.ObjectId.isValid(value)) return value;
+    const dept = await Department.findOne({ school: schoolId, name: { $regex: new RegExp(`^${value}$`, 'i') } }).select('_id').lean();
+    return dept ? dept._id : null;
+}
 
 /**
  * @desc    Get all classes
@@ -11,7 +20,7 @@ import { applyDepartmentScope, enforceDepartmentOnWrite } from '../helpers/depar
  * @access  Private
  */
 export const getClasses = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 20, grade, academicYear, isActive } = req.query;
+    const { page = 1, limit = 20, grade, academicYear, isActive, department } = req.query;
     const effectiveAcademicYear = academicYear || req.academicYear;
 
     const query = {};
@@ -21,6 +30,10 @@ export const getClasses = asyncHandler(async (req, res) => {
 
     applyDepartmentScope(query, req.departmentId);
     if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
+    else if (department) {
+        const departmentId = await resolveDepartmentId(department, req.schoolId);
+        if (departmentId) query.department = departmentId;
+    }
 
     // Access Control: Teachers see only their assigned classes
     // department_principals with Teacher profile can pass ?myClassesOnly=true to see only their classes
@@ -211,7 +224,7 @@ export const createClass = asyncHandler(async (req, res) => {
         classTeacher: resolvedClassTeacher || undefined,
         room,
         capacity,
-        department: department || undefined,
+        department: (await resolveDepartmentId(department, req.schoolId)) || undefined,
         name: `Grade ${grade}${section ? '-' + section : ''}`
     });
 
@@ -252,6 +265,11 @@ export const updateClass = asyncHandler(async (req, res) => {
     allowedFields.forEach((field) => {
         if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
+
+    // Resolve department name to ObjectId if needed
+    if (updates.department) {
+        updates.department = await resolveDepartmentId(updates.department, req.schoolId);
+    }
 
     const enforce = enforceDepartmentOnWrite(updates, req.departmentId);
     if (!enforce.allowed) {
@@ -355,7 +373,7 @@ export const addSubjectToClass = asyncHandler(async (req, res) => {
         if (teacher) {
             const alreadyAssigned = teacher.assignedClasses.some(
                 a => a.class?.toString() === req.params.id &&
-                     a.subject?.toString() === subjectId
+                    a.subject?.toString() === subjectId
             );
             if (!alreadyAssigned) {
                 teacher.assignedClasses.push({ class: req.params.id, subject: subjectId });
@@ -410,7 +428,7 @@ export const removeSubjectFromClass = asyncHandler(async (req, res) => {
         if (teacher) {
             teacher.assignedClasses = teacher.assignedClasses.filter(
                 a => !(a.class?.toString() === req.params.id &&
-                       a.subject?.toString() === req.params.subjectId)
+                    a.subject?.toString() === req.params.subjectId)
             );
             await teacher.save();
         }

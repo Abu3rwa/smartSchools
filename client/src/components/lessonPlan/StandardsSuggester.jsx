@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { HiOutlineAcademicCap, HiOutlineSearch, HiOutlineX } from 'react-icons/hi';
 import { detectStandards } from '../../store/slices/lessonSlice';
 import toast from 'react-hot-toast';
+import { formatStandardLabel } from '../../utils/standardLabel';
 
 /**
  * UI for detecting and selecting curriculum standards aligned with lesson content.
@@ -84,7 +85,12 @@ const StandardsSuggester = ({
         const inSuggestions = suggestions.find((s) => idFor(s) === id);
         const inInitial = Array.isArray(initialSuggestions) && initialSuggestions.find((s) => idFor(s) === id);
         const detail = inSuggestions || inInitial;
-        return { id, code: detail?.code, name: detail?.name, description: detail?.description };
+        return {
+            id,
+            code: detail?.code,
+            name: detail?.name,
+            description: detail?.description
+        };
     });
 
     return (
@@ -130,11 +136,9 @@ const StandardsSuggester = ({
                                     onChange={() => toggleStandard(idFor(s))}
                                 />
                                 <div className="standard-content">
-                                    <span className="standard-code">{s.code}</span>
-                                    {s.name && <span className="standard-name">{s.name}</span>}
-                                    {s.description && (
-                                        <span className="standard-description">{s.description}</span>
-                                    )}
+                                    <span className="standard-code">
+                                        {formatStandardLabel(s)}
+                                    </span>
                                     {s.explanation && (
                                         <span className="standard-explanation">{s.explanation}</span>
                                     )}
@@ -149,9 +153,9 @@ const StandardsSuggester = ({
                 <div className="standards-selected">
                     <h5>Selected standards (click × to remove)</h5>
                     <ul className="standards-selected-list">
-                        {selectedList.map(({ id, code, name }) => (
+                        {selectedList.map(({ id, code, name, description }) => (
                             <li key={id} className="standard-selected-chip">
-                                <span>{code || name || id}</span>
+                                <span>{formatStandardLabel({ code, name, description }) || id}</span>
                                 <button
                                     type="button"
                                     className="standard-remove-btn"

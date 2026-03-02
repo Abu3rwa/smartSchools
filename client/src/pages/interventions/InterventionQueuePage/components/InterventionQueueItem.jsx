@@ -1,6 +1,7 @@
 import React from 'react';
 import { HiOutlineRefresh, HiOutlineCheck, HiOutlineX } from 'react-icons/hi';
 import { formatDate } from '../utils/interventionQueuePresentation';
+import { formatStandardLabel } from '../../../../utils/standardLabel';
 
 const InterventionQueueItem = ({ item, onAction, actionLoading }) => {
     return (
@@ -12,8 +13,7 @@ const InterventionQueueItem = ({ item, onAction, actionLoading }) => {
                         <span className={`risk-pill risk-${item.riskLevel}`}>{item.riskLevel || 'unknown'}</span>
                     </h3>
                     <p className="text-muted">
-                        {item.standard?.code || 'Standard'}
-                        {item.standard?.name ? ` · ${item.standard.name}` : ''}
+                        {formatStandardLabel(item.standard) || 'Standard'}
                     </p>
                 </div>
                 <div className="meta-grid">

@@ -6,21 +6,42 @@ import NewsletterSection from "../models/NewsletterSection.js";
 import Class from "../models/Class.js";
 import Subject from "../models/Subject.js";
 import LessonPlan from "../models/LessonPlan.js";
+import Student from "../models/Student.js";
 import { getWeekRange } from "../utils/newsletterWeek.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
-import { generateNewsletterSection } from "../services/newsletterAiService.js";
+import { countWords, generateNewsletterSection } from "../services/newsletterAiService.js";
 import {
   computeIssueReadiness,
   getExpectedSubjectIdsForClass,
   getExpectedSubjectsForClass,
   getSectionsForIssue,
 } from "../services/newsletterIssueService.js";
-import { sendNewsletterIssueToParents } from "../services/newsletterEmailService.js";
+import {
+  prepareNewsletterIssueEmailContent,
+  sendNewsletterIssueToParents,
+} from "../services/newsletterEmailService.js";
 
 function parseDateOrNull(value) {
   if (!value) return null;
   const parsedDate = new Date(value);
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+function normalizeSectionContent(value) {
+  return (value || "").toString().trim();
+}
+
+function normalizePositiveInt(value, fallback, max = 100) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
+
+function buildIssueClassLabel(issueClass) {
+  if (!issueClass) return "Class";
+  const grade = issueClass.grade ? `Grade ${issueClass.grade}` : "";
+  const section = issueClass.section ? `${issueClass.section}` : "";
+  return [issueClass.name, grade, section].filter(Boolean).join(" ");
 }
 
 async function ensureIssue({ schoolId, classId, academicYear, weekStart, weekEnd, createdBy }) {
@@ -137,6 +158,8 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
     weekStart: requestedWeekStart,
     language = "english",
     selectedLessonPlanIds = [],
+    customPrompt = "",
+    regenerateWithFeedback = false,
   } = req.body;
 
   if (!classId || !subjectId) {
@@ -177,6 +200,24 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
     createdBy: req.user._id,
   });
 
+  const existingSection = await NewsletterSection.findOne({
+    school: req.schoolId,
+    issue: issue._id,
+    class: classId,
+    subject: subjectId,
+  })
+    .select("adminReview customPrompt status")
+    .lean();
+
+  const adminFeedback =
+    regenerateWithFeedback && existingSection?.status === "rejected"
+      ? (existingSection?.adminReview?.notes || "").toString().trim()
+      : "";
+
+  const normalizedCustomPrompt = (customPrompt || existingSection?.customPrompt || "")
+    .toString()
+    .trim();
+
   const weekLessonPlans = Array.isArray(selectedLessonPlanIds) && selectedLessonPlanIds.length
     ? await LessonPlan.find({
         _id: { $in: selectedLessonPlanIds },
@@ -201,6 +242,8 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
     weekEnd,
     lessonPlans: weekLessonPlans,
     language,
+    customPrompt: normalizedCustomPrompt,
+    adminFeedback,
     schoolId: req.schoolId,
     userId: req.user._id,
   });
@@ -217,6 +260,7 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
         wordCount: generated.wordCount,
         keyTopics: generated.keyTopics,
         homeworkMentioned: generated.homeworkMentioned,
+        customPrompt: normalizedCustomPrompt,
         aiTokenUsage: generated.aiTokenUsageId,
         status: "draft",
       },
@@ -246,6 +290,57 @@ export const submitNewsletterSection = asyncHandler(async (req, res) => {
   await section.save();
 
   res.json({ success: true, data: { section } });
+});
+
+/**
+ * TEACHER/ADMIN: Update section content manually.
+ * PATCH /api/newsletters/sections/:id/content
+ */
+export const updateNewsletterSectionContent = asyncHandler(async (req, res) => {
+  const section = await NewsletterSection.findById(req.params.id);
+  if (!section) return res.status(404).json({ success: false, message: "Section not found" });
+
+  const issue = await NewsletterIssue.findById(section.issue).select("status");
+  if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
+  if (issue.status === "sent") {
+    return res.status(400).json({ success: false, message: "Cannot edit a sent newsletter issue" });
+  }
+
+  const isTeacherOwner =
+    req.user.role === "teacher" && section.teacherUser?.toString() === req.user._id.toString();
+  const isAdminReviewer = ["admin", "super_admin", "department_principal"].includes(req.user.role);
+
+  if (!isTeacherOwner && !isAdminReviewer) {
+    return res.status(403).json({ success: false, message: "Access denied" });
+  }
+
+  const content = normalizeSectionContent(req.body?.content);
+  if (!content) {
+    return res.status(400).json({ success: false, message: "content is required" });
+  }
+
+  section.content = content;
+  section.wordCount = countWords(content);
+
+  if (req.body?.customPrompt !== undefined) {
+    section.customPrompt = (req.body.customPrompt || "").toString().trim();
+  }
+
+  // Teacher edits invalidate prior review and require re-submit.
+  if (isTeacherOwner && section.status !== "draft") {
+    section.status = "draft";
+    section.submittedAt = undefined;
+    section.adminReview = { notes: "" };
+  }
+
+  await section.save();
+
+  const hydratedSection = await NewsletterSection.findById(section._id)
+    .populate("subject", "name code")
+    .populate("teacherUser", "firstName lastName email")
+    .lean();
+
+  res.json({ success: true, data: { section: hydratedSection } });
 });
 
 /**
@@ -334,7 +429,89 @@ export const listAdminIssues = asyncHandler(async (req, res) => {
     .sort({ class: 1 })
     .lean();
 
-  res.json({ success: true, data: { issues, weekStart, weekEnd } });
+  const progress = await Promise.all(
+    issues.map(async (issue) => {
+      const issueClassId = issue.class?._id || issue.class;
+      const [expectedSubjectIds, issueSections] = await Promise.all([
+        getExpectedSubjectIdsForClass(issueClassId),
+        getSectionsForIssue(issue._id),
+      ]);
+      const readiness = computeIssueReadiness({
+        expectedSubjectIds,
+        sections: issueSections,
+        excludedSubjectIds: issue.excludedSubjectIds || [],
+      });
+      return {
+        issueId: issue._id.toString(),
+        expectedCount: readiness.expectedCount,
+        approvedCount: readiness.approvedCount,
+        excludedCount: readiness.excludedCount,
+        isSendEnabled: readiness.isSendEnabled,
+      };
+    })
+  );
+
+  const summary = progress.reduce(
+    (acc, item) => {
+      acc.totalIssues += 1;
+      acc.readyIssues += item.isSendEnabled ? 1 : 0;
+      acc.totalExpectedSections += item.expectedCount;
+      acc.approvedSections += item.approvedCount;
+      acc.excludedSections += item.excludedCount;
+      return acc;
+    },
+    {
+      totalIssues: 0,
+      readyIssues: 0,
+      totalExpectedSections: 0,
+      approvedSections: 0,
+      excludedSections: 0,
+    }
+  );
+
+  res.json({ success: true, data: { issues, weekStart, weekEnd, progress, summary } });
+});
+
+/**
+ * ADMIN: Sent issue history with pagination.
+ * GET /api/newsletters/admin/sent?classId=&academicYear=&page=&limit=
+ */
+export const listAdminSentIssues = asyncHandler(async (req, res) => {
+  const { classId, academicYear } = req.query;
+  const page = normalizePositiveInt(req.query.page, 1, 5000);
+  const limit = normalizePositiveInt(req.query.limit, 20, 100);
+
+  const query = {
+    school: req.schoolId,
+    status: "sent",
+    sentAt: { $ne: null },
+  };
+  if (classId) query.class = classId;
+  if (academicYear) query.academicYear = resolveRequestedAcademicYear(academicYear, req.school);
+
+  const [issues, total] = await Promise.all([
+    NewsletterIssue.find(query)
+      .populate("class", "name grade section")
+      .populate("sentBy", "firstName lastName email")
+      .sort({ sentAt: -1, updatedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    NewsletterIssue.countDocuments(query),
+  ]);
+
+  res.json({
+    success: true,
+    data: {
+      issues,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1),
+      },
+    },
+  });
 });
 
 /**
@@ -379,6 +556,268 @@ export const sendIssueToParents = asyncHandler(async (req, res) => {
   });
 
   res.json({ success: true, data: result });
+});
+
+/**
+ * PARENT: Newsletter archive for linked children.
+ * GET /api/newsletters/parent/history?childId=&academicYear=&page=&limit=
+ */
+export const listParentNewsletterHistory = asyncHandler(async (req, res) => {
+  const { childId, academicYear } = req.query;
+  const page = normalizePositiveInt(req.query.page, 1, 5000);
+  const limit = normalizePositiveInt(req.query.limit, 20, 100);
+
+  const parentEmail = (req.user?.email || "").toString().trim();
+  if (!parentEmail) {
+    return res.json({
+      success: true,
+      data: {
+        issues: [],
+        children: [],
+        pagination: { page, limit, total: 0, totalPages: 0 },
+      },
+    });
+  }
+
+  const escapedEmail = parentEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const linkedStudentQuery = {
+    school: req.schoolId,
+    $or: [
+      { "parentInfo.fatherEmail": new RegExp(`^${escapedEmail}$`, "i") },
+      { "parentInfo.motherEmail": new RegExp(`^${escapedEmail}$`, "i") },
+      { "parentInfo.guardianEmail": new RegExp(`^${escapedEmail}$`, "i") },
+    ],
+  };
+  if (academicYear) {
+    linkedStudentQuery.academicYear = resolveRequestedAcademicYear(academicYear, req.school);
+  }
+
+  const linkedStudents = await Student.find(linkedStudentQuery)
+    .select("_id firstName lastName currentClass academicYear")
+    .populate("currentClass", "name grade section")
+    .sort({ firstName: 1, lastName: 1 })
+    .lean();
+
+  const scopedStudents = childId
+    ? linkedStudents.filter((student) => String(student?._id) === String(childId))
+    : linkedStudents;
+
+  if (scopedStudents.length === 0) {
+    return res.json({
+      success: true,
+      data: {
+        issues: [],
+        children: [],
+        pagination: { page, limit, total: 0, totalPages: 0 },
+      },
+    });
+  }
+
+  const classIds = Array.from(
+    new Set(
+      scopedStudents
+        .map((student) => student?.currentClass?._id || student?.currentClass)
+        .filter(Boolean)
+        .map((id) => id.toString())
+    )
+  );
+
+  const classToChildren = scopedStudents.reduce((acc, student) => {
+    const classId = (student?.currentClass?._id || student?.currentClass)?.toString?.();
+    if (!classId) return acc;
+    if (!acc[classId]) acc[classId] = [];
+    const name = `${student?.firstName || ""} ${student?.lastName || ""}`.trim();
+    if (name && !acc[classId].includes(name)) acc[classId].push(name);
+    return acc;
+  }, {});
+
+  const query = {
+    school: req.schoolId,
+    class: { $in: classIds },
+    status: "sent",
+    sentAt: { $ne: null },
+  };
+
+  const [issues, total] = await Promise.all([
+    NewsletterIssue.find(query)
+      .populate("class", "name grade section")
+      .populate("sentBy", "firstName lastName")
+      .sort({ sentAt: -1, updatedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    NewsletterIssue.countDocuments(query),
+  ]);
+
+  const issueIds = issues.map((issue) => issue._id);
+  const sections = issueIds.length
+    ? await NewsletterSection.find({
+        school: req.schoolId,
+        issue: { $in: issueIds },
+        status: "approved",
+      })
+        .populate("subject", "name code")
+        .sort({ updatedAt: -1 })
+        .lean()
+    : [];
+
+  const sectionsByIssue = sections.reduce((acc, section) => {
+    const issueId = section.issue?.toString?.();
+    if (!issueId) return acc;
+    if (!acc[issueId]) acc[issueId] = [];
+    acc[issueId].push(section);
+    return acc;
+  }, {});
+
+  const items = issues.map((issue) => {
+    const issueId = issue._id.toString();
+    const excludedSet = new Set((issue.excludedSubjectIds || []).map((id) => id.toString()));
+    const selectedSections = (sectionsByIssue[issueId] || [])
+      .filter((section) => !excludedSet.has((section.subject?._id || section.subject)?.toString?.()))
+      .sort((left, right) => (left.subject?.name || "").localeCompare(right.subject?.name || ""));
+
+    return {
+      _id: issue._id,
+      class: issue.class,
+      classLabel: buildIssueClassLabel(issue.class),
+      academicYear: issue.academicYear,
+      weekStart: issue.weekStart,
+      weekEnd: issue.weekEnd,
+      sentAt: issue.sentAt,
+      sentBy: issue.sentBy || null,
+      emailStats: issue.emailStats || null,
+      childNames: classToChildren[(issue.class?._id || issue.class)?.toString?.()] || [],
+      sections: selectedSections.map((section) => ({
+        _id: section._id,
+        subject: section.subject,
+        content: section.content || "",
+        wordCount: section.wordCount || 0,
+      })),
+    };
+  });
+
+  res.json({
+    success: true,
+    data: {
+      issues: items,
+      children: scopedStudents.map((student) => ({
+        id: student._id,
+        name: `${student.firstName || ""} ${student.lastName || ""}`.trim(),
+        classId: student?.currentClass?._id || student?.currentClass || null,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1),
+      },
+    },
+  });
+});
+
+/**
+ * ADMIN: Preview the exact combined newsletter email before send.
+ * GET /api/newsletters/admin/issues/:id/preview
+ */
+export const previewIssueEmail = asyncHandler(async (req, res) => {
+  const prepared = await prepareNewsletterIssueEmailContent({ issueId: req.params.id });
+
+  res.json({
+    success: true,
+    data: {
+      issueId: prepared.issue._id,
+      classId: prepared.cls._id,
+      classLabel: prepared.classLabel,
+      weekLabel: prepared.weekLabel,
+      subjectLine: prepared.subjectLine,
+      sectionsCount: prepared.sections.length,
+      readiness: prepared.readiness,
+      htmlContent: prepared.htmlContent,
+      textContent: prepared.textContent,
+    },
+  });
+});
+
+/**
+ * ADMIN: Approve all submitted sections for one issue.
+ * POST /api/newsletters/admin/issues/:id/approve-submitted
+ */
+export const approveAllSubmittedSectionsForIssue = asyncHandler(async (req, res) => {
+  const issue = await NewsletterIssue.findById(req.params.id).lean();
+  if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
+
+  const notes = (req.body?.notes || "").toString().trim();
+
+  const result = await NewsletterSection.updateMany(
+    { issue: issue._id, status: "submitted" },
+    {
+      $set: {
+        status: "approved",
+        adminReview: {
+          reviewedBy: req.user._id,
+          reviewedAt: new Date(),
+          notes,
+        },
+      },
+    }
+  );
+
+  res.json({
+    success: true,
+    data: {
+      issueId: issue._id,
+      approvedCount: result.modifiedCount || 0,
+    },
+  });
+});
+
+/**
+ * ADMIN: Approve submitted sections for all issues in selected week.
+ * POST /api/newsletters/admin/issues/approve-submitted
+ * Body: { academicYear?, weekStart?, classId?, notes? }
+ */
+export const approveAllSubmittedSectionsForWeek = asyncHandler(async (req, res) => {
+  const { classId, academicYear, weekStart: requestedWeekStart } = req.body || {};
+  const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
+  const { weekStart } = getWeekRange(referenceDate);
+  const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
+  const notes = (req.body?.notes || "").toString().trim();
+
+  const issueQuery = {
+    school: req.schoolId,
+    academicYear: academicYearValue,
+    weekStart,
+  };
+  if (classId) issueQuery.class = classId;
+
+  const issues = await NewsletterIssue.find(issueQuery).select("_id").lean();
+  const issueIds = issues.map((i) => i._id);
+
+  if (issueIds.length === 0) {
+    return res.json({ success: true, data: { issueCount: 0, approvedCount: 0 } });
+  }
+
+  const result = await NewsletterSection.updateMany(
+    { issue: { $in: issueIds }, status: "submitted" },
+    {
+      $set: {
+        status: "approved",
+        adminReview: {
+          reviewedBy: req.user._id,
+          reviewedAt: new Date(),
+          notes,
+        },
+      },
+    }
+  );
+
+  res.json({
+    success: true,
+    data: {
+      issueCount: issueIds.length,
+      approvedCount: result.modifiedCount || 0,
+    },
+  });
 });
 
 /**

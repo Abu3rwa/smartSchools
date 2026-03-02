@@ -23,6 +23,7 @@ import uiReducer, {
     fetchSchoolAcademicYear,
     updateSchoolAcademicYear
 } from './slices/uiSlice';
+import schoolFeaturesReducer from './slices/schoolFeaturesSlice';
 const YEAR_SCOPED_SLICE_KEYS = [
     'classes',
     'students',
@@ -54,6 +55,7 @@ const appReducer = combineReducers({
     newsletters: newsletterReducer,
     dashboard: dashboardReducer,
     schools: schoolReducer,
+    schoolFeatures: schoolFeaturesReducer,
     subscriptions: subscriptionReducer,
     behavior: behaviorReducer,
     standards: standardReducer,

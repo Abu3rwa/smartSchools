@@ -1,5 +1,6 @@
 import { HiOutlinePlay, HiOutlineRefresh } from "react-icons/hi";
 import { formatTaskDate } from "../utils/practiceDashboardPresentation";
+import { formatStandardLabel } from "../../../../../utils/standardLabel";
 
 const PracticeReviewQueueCard = ({
   reviewFeatureEnabled,
@@ -65,8 +66,7 @@ const PracticeReviewQueueCard = ({
             >
               <div>
                 <div style={{ fontWeight: 600 }}>
-                  {task.standard?.code || "Standard"}
-                  {task.standard?.name ? ` · ${task.standard.name}` : ""}
+                  {formatStandardLabel(task.standard) || "Standard"}
                 </div>
                 <div className="text-muted" style={{ fontSize: "0.82rem" }}>
                   Stage {task.intervalStage} · Due {formatTaskDate(task.scheduledFor)} · Priority {task.priorityScore}

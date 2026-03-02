@@ -49,6 +49,7 @@
     font-size: 2rem;
     font-weight: 700;
     margin-bottom: var(--spacing-sm);
+    overflow-wrap: anywhere;
 }
 
 .school-badges {
@@ -236,6 +237,7 @@
 .info-item span {
     font-size: 1rem;
     color: var(--text-primary);
+    overflow-wrap: anywhere;
 }
 
 /* Users Styles */
@@ -348,6 +350,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--spacing-sm);
     padding: var(--spacing-sm) 0;
     border-bottom: 1px solid var(--border-color);
 }
@@ -364,6 +367,8 @@
 .billing-item span {
     font-weight: 600;
     color: var(--text-primary);
+    text-align: right;
+    overflow-wrap: anywhere;
 }
 
 /* Settings Styles */
@@ -447,6 +452,15 @@
 
     .users-summary {
         grid-template-columns: 1fr;
+    }
+
+    .billing-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .billing-item span {
+        text-align: left;
     }
 }
 

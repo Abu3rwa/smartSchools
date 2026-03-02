@@ -60,6 +60,8 @@ const SuperAdminSubscriptionDetailsPage = () => {
     const [showEditModal, setShowEditModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [featureDraft, setFeatureDraft] = useState({});
+    const [savingFeatures, setSavingFeatures] = useState(false);
 
     useEffect(() => {
         if (id) {
@@ -78,6 +80,12 @@ const SuperAdminSubscriptionDetailsPage = () => {
             dispatch(clearSuccess());
         }
     }, [error, success, dispatch]);
+
+    useEffect(() => {
+        if (subscription?.features) {
+            setFeatureDraft({ ...subscription.features });
+        }
+    }, [subscription?._id, subscription?.features]);
 
     const handleEditSubscription = (updateData) => {
         dispatch(updateSubscription({
@@ -160,6 +168,11 @@ const SuperAdminSubscriptionDetailsPage = () => {
         });
     };
 
+    const formatPlanLabel = (planKey = '') => String(planKey || '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+        .trim();
+
     const getUsagePercentage = (current, max) => {
         if (max === -1) return 0; // unlimited
         return Math.round((current / max) * 100);
@@ -169,6 +182,66 @@ const SuperAdminSubscriptionDetailsPage = () => {
         if (percentage >= 90) return 'usage-danger';
         if (percentage >= 75) return 'usage-warning';
         return 'usage-normal';
+    };
+
+    const featureSections = [
+        {
+            title: 'Core Features',
+            items: [
+                { key: 'emailNotifications', label: 'Email Notifications', icon: HiOutlineMail },
+                { key: 'dataExport', label: 'Data Export', icon: HiOutlineDownload }
+            ]
+        },
+        {
+            title: 'Communication',
+            items: [
+                { key: 'parentPortal', label: 'Parent Portal', icon: HiOutlineUsers }
+            ]
+        },
+        {
+            title: 'Analytics & Reporting',
+            items: [
+                { key: 'advancedAnalytics', label: 'Advanced Analytics', icon: HiOutlineChartBar },
+                { key: 'customReports', label: 'Custom Reports', icon: HiOutlineDocumentText }
+            ]
+        },
+        {
+            title: 'Advanced Features',
+            items: [
+                { key: 'apiAccess', label: 'API Access', icon: HiOutlineCloud },
+                { key: 'prioritySupport', label: 'Priority Support', icon: HiOutlineShieldCheck },
+                { key: 'customBranding', label: 'Custom Branding', icon: HiOutlineSparkles }
+            ]
+        }
+    ];
+
+    const trackedFeatureKeys = featureSections.flatMap((section) => section.items.map((item) => item.key));
+    const hasFeatureChanges = trackedFeatureKeys.some(
+        (featureKey) => Boolean(featureDraft?.[featureKey]) !== Boolean(subscription?.features?.[featureKey])
+    );
+
+    const handleFeatureToggle = (featureKey) => {
+        setFeatureDraft((prev) => ({
+            ...prev,
+            [featureKey]: !prev?.[featureKey]
+        }));
+    };
+
+    const handleResetFeatureDraft = () => {
+        setFeatureDraft({ ...subscription.features });
+    };
+
+    const handleSaveFeatures = async () => {
+        setSavingFeatures(true);
+        try {
+            await dispatch(updateSubscription({
+                id: subscription._id,
+                updateData: { features: featureDraft }
+            })).unwrap();
+            dispatch(fetchSubscriptionById(subscription._id));
+        } finally {
+            setSavingFeatures(false);
+        }
     };
 
     if (loading || !subscription) {
@@ -200,7 +273,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                 {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
                             </span>
                             <span className={`plan-badge ${getPlanBadgeColor(subscription.plan)}`}>
-                                {subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1)}
+                                {formatPlanLabel(subscription.plan)}
                             </span>
                         </div>
                     </div>
@@ -271,7 +344,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                     <div className="detail-item">
                                         <label>Plan</label>
                                         <span className={`plan-badge ${getPlanBadgeColor(subscription.plan)}`}>
-                                            {subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1)}
+                                            {formatPlanLabel(subscription.plan)}
                                         </span>
                                     </div>
                                     <div className="detail-item">
@@ -556,118 +629,58 @@ const SuperAdminSubscriptionDetailsPage = () => {
                 {/* Features Tab */}
                 {activeTab === 'features' && (
                     <div className="features-content">
+                        <div className="features-header">
+                            <p>Super admins can override individual features for this subscription.</p>
+                            <div className="features-actions">
+                                <button
+                                    className="btn btn-secondary"
+                                    onClick={handleResetFeatureDraft}
+                                    disabled={!hasFeatureChanges || savingFeatures}
+                                >
+                                    Reset
+                                </button>
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={handleSaveFeatures}
+                                    disabled={!hasFeatureChanges || savingFeatures}
+                                >
+                                    {savingFeatures ? 'Saving...' : 'Save Feature Overrides'}
+                                </button>
+                            </div>
+                        </div>
                         <div className="features-grid">
-                            <div className="feature-category">
-                                <h3>Core Features</h3>
-                                <div className="feature-list">
-                                    <div className={`feature-item ${subscription.features.emailNotifications ? 'enabled' : 'disabled'}`}>
-                                        <HiOutlineMail size={20} />
-                                        <span>Email Notifications</span>
-                                        <div className="feature-toggle">
-                                            {subscription.features.emailNotifications ? (
-                                                <HiOutlineCheckCircle size={20} />
-                                            ) : (
-                                                <HiOutlineXCircle size={20} />
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className={`feature-item ${subscription.features.dataExport ? 'enabled' : 'disabled'}`}>
-                                        <HiOutlineDownload size={20} />
-                                        <span>Data Export</span>
-                                        <div className="feature-toggle">
-                                            {subscription.features.dataExport ? (
-                                                <HiOutlineCheckCircle size={20} />
-                                            ) : (
-                                                <HiOutlineXCircle size={20} />
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="feature-category">
-                                <h3>Communication</h3>
-                                <div className="feature-list">
-                                    <div className={`feature-item ${subscription.features.parentPortal ? 'enabled' : 'disabled'}`}>
-                                        <HiOutlineUsers size={20} />
-                                        <span>Parent Portal</span>
-                                        <div className="feature-toggle">
-                                            {subscription.features.parentPortal ? (
-                                                <HiOutlineCheckCircle size={20} />
-                                            ) : (
-                                                <HiOutlineXCircle size={20} />
-                                            )}
-                                        </div>
+                            {featureSections.map((section) => (
+                                <div key={section.title} className="feature-category">
+                                    <h3>{section.title}</h3>
+                                    <div className="feature-list">
+                                        {section.items.map((feature) => {
+                                            const Icon = feature.icon;
+                                            const isEnabled = Boolean(featureDraft?.[feature.key]);
+                                            return (
+                                                <button
+                                                    key={feature.key}
+                                                    type="button"
+                                                    className={`feature-item feature-item-toggle ${isEnabled ? 'enabled' : 'disabled'}`}
+                                                    onClick={() => handleFeatureToggle(feature.key)}
+                                                    aria-pressed={isEnabled}
+                                                >
+                                                    <div className="feature-main">
+                                                        <Icon size={20} />
+                                                        <span>{feature.label}</span>
+                                                    </div>
+                                                    <div className="feature-toggle">
+                                                        {isEnabled ? (
+                                                            <HiOutlineCheckCircle size={20} />
+                                                        ) : (
+                                                            <HiOutlineXCircle size={20} />
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="feature-category">
-                                <h3>Analytics & Reporting</h3>
-                                <div className="feature-list">
-                                    <div className={`feature-item ${subscription.features.advancedAnalytics ? 'enabled' : 'disabled'}`}>
-                                        <HiOutlineChartBar size={20} />
-                                        <span>Advanced Analytics</span>
-                                        <div className="feature-toggle">
-                                            {subscription.features.advancedAnalytics ? (
-                                                <HiOutlineCheckCircle size={20} />
-                                            ) : (
-                                                <HiOutlineXCircle size={20} />
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className={`feature-item ${subscription.features.customReports ? 'enabled' : 'disabled'}`}>
-                                        <HiOutlineDocumentText size={20} />
-                                        <span>Custom Reports</span>
-                                        <div className="feature-toggle">
-                                            {subscription.features.customReports ? (
-                                                <HiOutlineCheckCircle size={20} />
-                                            ) : (
-                                                <HiOutlineXCircle size={20} />
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="feature-category">
-                                <h3>Advanced Features</h3>
-                                <div className="feature-list">
-                                    <div className={`feature-item ${subscription.features.apiAccess ? 'enabled' : 'disabled'}`}>
-                                        <HiOutlineCloud size={20} />
-                                        <span>API Access</span>
-                                        <div className="feature-toggle">
-                                            {subscription.features.apiAccess ? (
-                                                <HiOutlineCheckCircle size={20} />
-                                            ) : (
-                                                <HiOutlineXCircle size={20} />
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className={`feature-item ${subscription.features.prioritySupport ? 'enabled' : 'disabled'}`}>
-                                        <HiOutlineShieldCheck size={20} />
-                                        <span>Priority Support</span>
-                                        <div className="feature-toggle">
-                                            {subscription.features.prioritySupport ? (
-                                                <HiOutlineCheckCircle size={20} />
-                                            ) : (
-                                                <HiOutlineXCircle size={20} />
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className={`feature-item ${subscription.features.customBranding ? 'enabled' : 'disabled'}`}>
-                                        <HiOutlineSparkles size={20} />
-                                        <span>Custom Branding</span>
-                                        <div className="feature-toggle">
-                                            {subscription.features.customBranding ? (
-                                                <HiOutlineCheckCircle size={20} />
-                                            ) : (
-                                                <HiOutlineXCircle size={20} />
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
                 )}

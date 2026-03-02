@@ -1,3 +1,5 @@
+import { formatStandardLabel } from "../../../../../utils/standardLabel";
+
 export default function PracticeAssessmentResultsStandardAveragesTable({
   standardAverages,
 }) {
@@ -22,7 +24,7 @@ export default function PracticeAssessmentResultsStandardAveragesTable({
             standardAverages.map((item) => (
               <tr key={item.standardId}>
                 <td>
-                  {item.standardCode} - {item.standardName}
+                  {formatStandardLabel(item.standardCode, item.standardName)}
                 </td>
                 <td>{item.totalAssessments}</td>
                 <td>{item.averagePercentage}%</td>

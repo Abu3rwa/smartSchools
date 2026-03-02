@@ -9,6 +9,7 @@ import {
   toggleSidebar,
   setSidebarOpen,
 } from "../../store/slices/uiSlice";
+import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
 import { PERMISSIONS } from "../../constants/permissions";
 import {
   HiOutlineHome,
@@ -31,6 +32,7 @@ import {
   HiOutlineClipboardCheck,
   HiOutlineOfficeBuilding,
   HiOutlineExclamationCircle,
+  HiOutlineLockClosed,
 } from "react-icons/hi";
 import "./Sidebar.css";
 
@@ -44,6 +46,7 @@ const Sidebar = () => {
   const isAdmin = user?.role === "admin";
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
+  const schoolFeatures = useSelector(selectSchoolFeatures);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
 
   const canSeeMessages = useMemo(() => {
@@ -246,6 +249,13 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
+      path: "/portal/newsletters/history",
+      icon: HiOutlineDocumentText,
+      label: "Newsletters",
+      roles: ["parent"],
+      section: "learning",
+    },
+    {
       path: "/portal/schedules",
       icon: HiOutlineCalendar,
       label: "Schedule Management",
@@ -351,6 +361,7 @@ const Sidebar = () => {
       icon: HiOutlineDocumentText,
       label: "API Documentation",
       admin: true,
+      feature: "apiAccess",
       section: "school",
     },
     {
@@ -472,22 +483,36 @@ const Sidebar = () => {
             {!sidebarOpen && sectionIndex > 0 && (
               <div className="sidebar-section-divider" />
             )}
-            {items.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                end={item.end || false}
-                className={({ isActive }) =>
-                  `nav-item ${isActive ? "active" : ""}`
-                }
-              >
-                <item.icon className="nav-icon" size={20} />
-                {sidebarOpen && <span className="nav-label">{item.label}</span>}
-                {!!item.badgeCount && item.badgeCount > 0 && (
-                  <span className="nav-badge">{item.badgeCount}</span>
-                )}
-              </NavLink>
-            ))}
+            {items.map((item) => {
+              const isLocked = item.feature && schoolFeatures?.[item.feature] === false;
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  end={item.end || false}
+                  className={({ isActive }) =>
+                    `nav-item ${isActive ? "active" : ""} ${isLocked ? "locked" : ""}`
+                  }
+                >
+                  <item.icon className="nav-icon" size={20} />
+                  {sidebarOpen && <span className="nav-label">{item.label}</span>}
+                  {isLocked && sidebarOpen && (
+                    <HiOutlineLockClosed className="nav-feature-lock" size={14} />
+                  )}
+                  {isLocked && sidebarOpen && (
+                    <span className="nav-badge nav-badge-upgrade">Upgrade</span>
+                  )}
+                  {isLocked && !sidebarOpen && (
+                    <span className="nav-lock-dot" aria-label="Feature locked">
+                      <HiOutlineLockClosed size={10} />
+                    </span>
+                  )}
+                  {!!item.badgeCount && item.badgeCount > 0 && (
+                    <span className="nav-badge">{item.badgeCount}</span>
+                  )}
+                </NavLink>
+              );
+            })}
           </div>
         ))}
       </nav>

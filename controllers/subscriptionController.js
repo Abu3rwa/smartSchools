@@ -1,9 +1,139 @@
 import Subscription from '../models/Subscription.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.js';
 import School from '../models/School.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import {
+    coerceFeatureFlags,
+    DEFAULT_PLAN_CONFIGS,
+    FEATURE_KEYS,
+    FEATURES,
+    getDefaultPlanConfig,
+    getPlanName,
+    isRecognizedPlan,
+    normalizePlan,
+    toSchoolPlan
+} from '../constants/features.js';
+
+const toPlainObject = (value) => {
+    if (!value) return {};
+    return typeof value.toObject === 'function' ? value.toObject() : value;
+};
+const ALLOWED_BILLING_INTERVALS = new Set(['month', 'year']);
+
+const normalizeFeaturePayload = (rawFeatures = {}) => {
+    const input = rawFeatures && typeof rawFeatures === 'object' && !Array.isArray(rawFeatures)
+        ? rawFeatures
+        : {};
+
+    const defaults = FEATURE_KEYS.reduce((acc, featureKey) => {
+        acc[featureKey] = false;
+        return acc;
+    }, {});
+
+    return {
+        ...defaults,
+        ...coerceFeatureFlags(input)
+    };
+};
+
+const createPlanSeedPayload = (planKey, userId = null) => {
+    const defaults = getDefaultPlanConfig(planKey);
+    if (!defaults) return null;
+
+    return {
+        key: defaults.key,
+        name: defaults.name,
+        description: defaults.description || '',
+        limits: defaults.limits,
+        features: normalizeFeaturePayload(defaults.features),
+        billing: {
+            amount: defaults.billing.amount,
+            currency: defaults.billing.currency,
+            interval: defaults.billing.interval
+        },
+        isActive: true,
+        sortOrder: ['starter', 'professional', 'enterprise'].indexOf(defaults.key),
+        metadata: {
+            source: 'system_default',
+            createdBy: userId || undefined,
+            updatedBy: userId || undefined
+        }
+    };
+};
+
+const ensureDefaultPlansExist = async (userId = null) => {
+    const defaultPlanKeys = Object.keys(DEFAULT_PLAN_CONFIGS);
+    const existingPlans = await SubscriptionPlan.find({ key: { $in: defaultPlanKeys } })
+        .select('key')
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+
+    const existingKeys = new Set(existingPlans.map((plan) => plan.key));
+    const missingKeys = defaultPlanKeys.filter((key) => !existingKeys.has(key));
+    if (missingKeys.length === 0) return;
+
+    const payload = missingKeys
+        .map((key) => createPlanSeedPayload(key, userId))
+        .filter(Boolean);
+
+    if (payload.length > 0) {
+        try {
+            await SubscriptionPlan.insertMany(payload, { ordered: false });
+        } catch (error) {
+            if (error?.code !== 11000) {
+                throw error;
+            }
+        }
+    }
+};
+
+const serializePlan = (planDoc) => {
+    const plan = toPlainObject(planDoc);
+    const normalizedKey = normalizePlan(plan.key);
+
+    return {
+        _id: plan._id,
+        key: normalizedKey,
+        name: plan.name || getPlanName(normalizedKey),
+        description: plan.description || '',
+        limits: plan.limits || {},
+        features: normalizeFeaturePayload(plan.features),
+        billing: {
+            amount: plan.billing?.amount ?? 0,
+            currency: plan.billing?.currency || 'USD',
+            interval: plan.billing?.interval || 'month'
+        },
+        isActive: plan.isActive !== false,
+        sortOrder: Number.isFinite(plan.sortOrder) ? plan.sortOrder : 0,
+        source: plan.metadata?.source || 'manual'
+    };
+};
+
+const syncSchoolSubscriptionState = async ({ schoolId, plan, status, features }) => {
+    const school = await School.findById(schoolId);
+    if (!school) return;
+
+    school.subscription = {
+        ...toPlainObject(school.subscription),
+        plan: toSchoolPlan(plan),
+        status
+    };
+
+    if (features) {
+        school.settings = {
+            ...toPlainObject(school.settings),
+            features: {
+                ...toPlainObject(school.settings?.features),
+                ...coerceFeatureFlags(features)
+            }
+        };
+    }
+
+    await school.save();
+};
 
 // @desc    Get all subscriptions (super admin only)
 // @route   GET /api/subscriptions
@@ -17,7 +147,9 @@ export const getAllSubscriptions = asyncHandler(async (req, res) => {
 
     const query = {};
     if (status) query.status = status;
-    if (plan) query.plan = plan;
+    if (plan && isRecognizedPlan(plan)) {
+        query.plan = normalizePlan(plan);
+    }
 
     // Search by school name via populate match later, or notes
     let subscriptions;
@@ -70,6 +202,16 @@ export const getAllSubscriptions = asyncHandler(async (req, res) => {
         }
     ]);
 
+    const dynamicPlanDistribution = await Subscription.aggregate([
+        {
+            $group: {
+                _id: '$plan',
+                count: { $sum: 1 }
+            }
+        },
+        { $sort: { count: -1, _id: 1 } }
+    ]);
+
     res.json({
         success: true,
         data: {
@@ -83,7 +225,11 @@ export const getAllSubscriptions = asyncHandler(async (req, res) => {
                 starterCount: 0,
                 professionalCount: 0,
                 enterpriseCount: 0
-            }
+            },
+            planDistribution: dynamicPlanDistribution.map((entry) => ({
+                key: entry._id,
+                count: entry.count
+            }))
         }
     });
 });
@@ -120,6 +266,7 @@ export const getSubscriptionById = asyncHandler(async (req, res) => {
 // @access  Private/Super Admin
 export const createSubscription = asyncHandler(async (req, res) => {
     const { schoolId, plan = 'starter', status = 'trial', trialDays = 14, notes } = req.body;
+    const normalizedPlan = normalizePlan(plan);
 
     if (!schoolId) {
         return res.status(400).json({ success: false, message: 'School ID is required' });
@@ -135,7 +282,19 @@ export const createSubscription = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Subscription already exists for this school' });
     }
 
-    const planConfig = Subscription.getPlanConfig(plan);
+    const planConfig = await Subscription.getPlanConfig(normalizedPlan);
+    if (!planConfig) {
+        return res.status(400).json({
+            success: false,
+            message: `Plan "${normalizedPlan}" does not exist`
+        });
+    }
+    if (planConfig.isActive === false) {
+        return res.status(400).json({
+            success: false,
+            message: `Plan "${normalizedPlan}" is inactive and cannot be assigned`
+        });
+    }
 
     // Calculate trial end date
     const trialEndsAt = new Date();
@@ -147,7 +306,7 @@ export const createSubscription = asyncHandler(async (req, res) => {
 
     const subscription = await Subscription.create({
         school: schoolId,
-        plan,
+        plan: normalizedPlan,
         status,
         paymentMethod: 'cash',
         trialEndsAt: status === 'trial' ? trialEndsAt : undefined,
@@ -168,14 +327,12 @@ export const createSubscription = asyncHandler(async (req, res) => {
         }
     });
 
-    // Update school subscription reference
-    school.subscription = {
-        plan,
+    await syncSchoolSubscriptionState({
+        schoolId,
+        plan: normalizedPlan,
         status,
-        startDate: now,
-        endDate: periodEnd
-    };
-    await school.save();
+        features: planConfig.features
+    });
 
     const populated = await Subscription.findById(subscription._id)
         .populate('school', 'name contact.adminName contact.adminEmail')
@@ -188,7 +345,7 @@ export const createSubscription = asyncHandler(async (req, res) => {
 // @route   PUT /api/subscriptions/:id
 // @access  Private/Super Admin
 export const updateSubscription = asyncHandler(async (req, res) => {
-    const { plan, status, notes } = req.body;
+    const { plan, status, notes, features } = req.body;
 
     const subscription = await Subscription.findById(req.params.id);
     if (!subscription) {
@@ -196,12 +353,33 @@ export const updateSubscription = asyncHandler(async (req, res) => {
     }
 
     // Plan change
-    if (plan && plan !== subscription.plan) {
-        const planConfig = Subscription.getPlanConfig(plan);
-        subscription.plan = plan;
+    if (plan && isRecognizedPlan(plan) && normalizePlan(plan) !== subscription.plan) {
+        const nextPlan = normalizePlan(plan);
+        const planConfig = await Subscription.getPlanConfig(nextPlan);
+        if (!planConfig) {
+            return res.status(400).json({
+                success: false,
+                message: `Plan "${nextPlan}" does not exist`
+            });
+        }
+        if (planConfig.isActive === false) {
+            return res.status(400).json({
+                success: false,
+                message: `Plan "${nextPlan}" is inactive and cannot be assigned`
+            });
+        }
+        subscription.plan = nextPlan;
         subscription.limits = planConfig.limits;
         subscription.features = planConfig.features;
         subscription.billing.amount = planConfig.price;
+    }
+
+    if (features && typeof features === 'object' && !Array.isArray(features)) {
+        const sanitizedFeatureOverrides = coerceFeatureFlags(features);
+        subscription.features = {
+            ...toPlainObject(subscription.features),
+            ...sanitizedFeatureOverrides
+        };
     }
 
     if (status) subscription.status = status;
@@ -210,16 +388,12 @@ export const updateSubscription = asyncHandler(async (req, res) => {
 
     await subscription.save();
 
-    // Sync to school
-    const school = await School.findById(subscription.school);
-    if (school) {
-        school.subscription = {
-            ...school.subscription,
-            plan: subscription.plan,
-            status: subscription.status
-        };
-        await school.save();
-    }
+    await syncSchoolSubscriptionState({
+        schoolId: subscription.school,
+        plan: subscription.plan,
+        status: subscription.status,
+        features: subscription.features
+    });
 
     const updated = await Subscription.findById(subscription._id)
         .populate('school', 'name contact.adminName contact.adminEmail')
@@ -242,12 +416,12 @@ export const cancelSubscription = asyncHandler(async (req, res) => {
     subscription.metadata.notes = `Cancelled by super admin on ${new Date().toLocaleDateString()}`;
     await subscription.save();
 
-    // Sync to school
-    const school = await School.findById(subscription.school);
-    if (school) {
-        school.subscription = { ...school.subscription, status: 'cancelled' };
-        await school.save();
-    }
+    await syncSchoolSubscriptionState({
+        schoolId: subscription.school,
+        plan: subscription.plan,
+        status: 'cancelled',
+        features: subscription.features
+    });
 
     const updated = await Subscription.findById(subscription._id)
         .populate('school', 'name contact.adminName contact.adminEmail');
@@ -369,6 +543,288 @@ export const getSubscriptionAnalytics = asyncHandler(async (req, res) => {
             totalCollected: totalCollected[0]?.total || 0,
             period
         }
+    });
+});
+
+// @desc    Get all subscription plans
+// @route   GET /api/subscriptions/plans
+// @access  Private/Super Admin
+export const getSubscriptionPlans = asyncHandler(async (req, res) => {
+    const includeInactive = req.query.includeInactive === 'true';
+    await ensureDefaultPlansExist(req.user?._id);
+
+    const query = includeInactive ? {} : { isActive: true };
+    const plans = await SubscriptionPlan.find(query)
+        .sort({ sortOrder: 1, createdAt: 1 })
+        .setOptions({ skipTenantFilter: true });
+    const planUsage = await Subscription.aggregate([
+        {
+            $group: {
+                _id: '$plan',
+                count: { $sum: 1 }
+            }
+        }
+    ]);
+    const usageByKey = new Map(
+        planUsage
+            .filter((entry) => typeof entry._id === 'string' && entry._id.trim().length > 0)
+            .map((entry) => [normalizePlan(entry._id), entry.count])
+    );
+
+    res.json({
+        success: true,
+        data: {
+            plans: plans.map((planDoc) => {
+                const serialized = serializePlan(planDoc);
+                return {
+                    ...serialized,
+                    subscriptionCount: usageByKey.get(serialized.key) || 0
+                };
+            }),
+            featureDefinitions: FEATURES
+        }
+    });
+});
+
+// @desc    Create a subscription plan
+// @route   POST /api/subscriptions/plans
+// @access  Private/Super Admin
+export const createSubscriptionPlan = asyncHandler(async (req, res) => {
+    const { key, name, description, limits, billing, features, isActive = true, sortOrder } = req.body || {};
+    const rawKey = String(key || '').trim();
+    if (rawKey.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Plan key is required'
+        });
+    }
+    const normalizedKey = normalizePlan(rawKey);
+
+    if (!isRecognizedPlan(normalizedKey)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid plan key'
+        });
+    }
+
+    if (!name || String(name).trim().length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Plan name is required'
+        });
+    }
+
+    const existing = await SubscriptionPlan.findOne({ key: normalizedKey }).setOptions({ skipTenantFilter: true });
+    if (existing) {
+        return res.status(400).json({
+            success: false,
+            message: `Plan "${normalizedKey}" already exists`
+        });
+    }
+
+    const defaultConfig = getDefaultPlanConfig(normalizedKey) || getDefaultPlanConfig('starter');
+    const resolvedLimits = {
+        maxStudents: Number.isFinite(Number(limits?.maxStudents)) ? Number(limits.maxStudents) : defaultConfig.limits.maxStudents,
+        maxTeachers: Number.isFinite(Number(limits?.maxTeachers)) ? Number(limits.maxTeachers) : defaultConfig.limits.maxTeachers,
+        maxClasses: Number.isFinite(Number(limits?.maxClasses)) ? Number(limits.maxClasses) : defaultConfig.limits.maxClasses,
+        maxStorage: Number.isFinite(Number(limits?.maxStorage)) ? Number(limits.maxStorage) : defaultConfig.limits.maxStorage
+    };
+
+    const resolvedBilling = {
+        amount: Number.isFinite(Number(billing?.amount)) ? Number(billing.amount) : defaultConfig.billing.amount,
+        currency: String(billing?.currency || defaultConfig.billing.currency || 'USD').trim().toUpperCase(),
+        interval: ALLOWED_BILLING_INTERVALS.has(billing?.interval)
+            ? billing.interval
+            : defaultConfig.billing.interval
+    };
+
+    const plan = await SubscriptionPlan.create({
+        key: normalizedKey,
+        name: String(name).trim(),
+        description: description || '',
+        limits: resolvedLimits,
+        billing: resolvedBilling,
+        features: normalizeFeaturePayload(features ?? defaultConfig.features),
+        isActive: Boolean(isActive),
+        sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0,
+        metadata: {
+            source: 'manual',
+            createdBy: req.user?._id,
+            updatedBy: req.user?._id
+        }
+    });
+
+    res.status(201).json({
+        success: true,
+        message: 'Subscription plan created successfully',
+        data: { plan: serializePlan(plan) }
+    });
+});
+
+// @desc    Update a subscription plan
+// @route   PUT /api/subscriptions/plans/:id
+// @access  Private/Super Admin
+export const updateSubscriptionPlan = asyncHandler(async (req, res) => {
+    const plan = await SubscriptionPlan.findById(req.params.id).setOptions({ skipTenantFilter: true });
+    if (!plan) {
+        return res.status(404).json({
+            success: false,
+            message: 'Plan not found'
+        });
+    }
+
+    const {
+        key,
+        name,
+        description,
+        limits,
+        billing,
+        features,
+        isActive,
+        sortOrder
+    } = req.body || {};
+
+    const previousPlanKey = plan.key;
+    if (key !== undefined) {
+        const normalizedKey = normalizePlan(key);
+        if (!isRecognizedPlan(normalizedKey)) {
+            return res.status(400).json({ success: false, message: 'Invalid plan key' });
+        }
+
+        if (normalizedKey !== plan.key) {
+            const existing = await SubscriptionPlan.findOne({ key: normalizedKey }).setOptions({ skipTenantFilter: true });
+            if (existing) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Plan "${normalizedKey}" already exists`
+                });
+            }
+
+            plan.key = normalizedKey;
+        }
+    }
+
+    if (name !== undefined) plan.name = String(name).trim();
+    if (description !== undefined) plan.description = description || '';
+
+    if (limits && typeof limits === 'object') {
+        plan.limits = {
+            ...toPlainObject(plan.limits),
+            maxStudents: Number.isFinite(Number(limits.maxStudents)) ? Number(limits.maxStudents) : plan.limits.maxStudents,
+            maxTeachers: Number.isFinite(Number(limits.maxTeachers)) ? Number(limits.maxTeachers) : plan.limits.maxTeachers,
+            maxClasses: Number.isFinite(Number(limits.maxClasses)) ? Number(limits.maxClasses) : plan.limits.maxClasses,
+            maxStorage: Number.isFinite(Number(limits.maxStorage)) ? Number(limits.maxStorage) : plan.limits.maxStorage
+        };
+    }
+
+    if (billing && typeof billing === 'object') {
+        plan.billing = {
+            ...toPlainObject(plan.billing),
+            amount: Number.isFinite(Number(billing.amount)) ? Number(billing.amount) : plan.billing.amount,
+            currency: String(billing.currency || plan.billing.currency || 'USD').trim().toUpperCase(),
+            interval: ALLOWED_BILLING_INTERVALS.has(billing.interval) ? billing.interval : plan.billing.interval
+        };
+    }
+
+    if (features && typeof features === 'object' && !Array.isArray(features)) {
+        plan.features = normalizeFeaturePayload({
+            ...toPlainObject(plan.features),
+            ...features
+        });
+    }
+
+    if (isActive !== undefined) plan.isActive = Boolean(isActive);
+    if (sortOrder !== undefined && Number.isFinite(Number(sortOrder))) {
+        plan.sortOrder = Number(sortOrder);
+    }
+
+    plan.metadata = {
+        ...toPlainObject(plan.metadata),
+        source: plan.metadata?.source || 'manual',
+        updatedBy: req.user?._id
+    };
+
+    await plan.save();
+
+    const subscriptionPlanQuery = previousPlanKey === plan.key
+        ? { plan: plan.key }
+        : { plan: { $in: [previousPlanKey, plan.key] } };
+    const subscriptionSet = {
+        limits: plan.limits,
+        features: plan.features,
+        'billing.amount': plan.billing.amount,
+        'billing.currency': plan.billing.currency,
+        'billing.interval': plan.billing.interval
+    };
+    if (previousPlanKey !== plan.key) {
+        subscriptionSet.plan = plan.key;
+    }
+
+    await Subscription.updateMany(
+        subscriptionPlanQuery,
+        {
+            $set: subscriptionSet
+        }
+    );
+
+    const previousSchoolPlan = toSchoolPlan(previousPlanKey);
+    const nextSchoolPlan = toSchoolPlan(plan.key);
+    const schoolPlanQuery = previousSchoolPlan === nextSchoolPlan
+        ? { 'subscription.plan': nextSchoolPlan }
+        : { 'subscription.plan': { $in: [previousSchoolPlan, nextSchoolPlan] } };
+    const schoolSet = {
+        'settings.features': plan.features
+    };
+    if (previousSchoolPlan !== nextSchoolPlan) {
+        schoolSet['subscription.plan'] = nextSchoolPlan;
+    }
+
+    await School.updateMany(
+        schoolPlanQuery,
+        {
+            $set: schoolSet
+        }
+    );
+
+    res.json({
+        success: true,
+        message: 'Subscription plan updated successfully',
+        data: { plan: serializePlan(plan) }
+    });
+});
+
+// @desc    Toggle subscription plan active status
+// @route   PATCH /api/subscriptions/plans/:id/status
+// @access  Private/Super Admin
+export const toggleSubscriptionPlanStatus = asyncHandler(async (req, res) => {
+    const { isActive } = req.body || {};
+    if (typeof isActive !== 'boolean') {
+        return res.status(400).json({
+            success: false,
+            message: 'isActive must be a boolean'
+        });
+    }
+
+    const plan = await SubscriptionPlan.findById(req.params.id).setOptions({ skipTenantFilter: true });
+    if (!plan) {
+        return res.status(404).json({
+            success: false,
+            message: 'Plan not found'
+        });
+    }
+
+    plan.isActive = isActive;
+    plan.metadata = {
+        ...toPlainObject(plan.metadata),
+        source: plan.metadata?.source || 'manual',
+        updatedBy: req.user?._id
+    };
+    await plan.save();
+
+    res.json({
+        success: true,
+        message: `Plan ${isActive ? 'activated' : 'deactivated'} successfully`,
+        data: { plan: serializePlan(plan) }
     });
 });
 

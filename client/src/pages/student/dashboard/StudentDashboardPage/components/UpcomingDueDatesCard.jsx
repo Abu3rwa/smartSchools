@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { HiOutlineClock } from 'react-icons/hi';
 import { formatDueDate } from '../utils/studentDashboardPresentation';
+import { formatStandardLabel } from '../../../../../utils/standardLabel';
 
 const UpcomingDueDatesCard = ({ upcomingAssignments, todayStart }) => {
     return (
@@ -12,7 +13,9 @@ const UpcomingDueDatesCard = ({ upcomingAssignments, todayStart }) => {
                 <ul className="due-list">
                     {upcomingAssignments.map((assignment) => (
                         <li key={assignment._id} className="due-item">
-                            <span className="due-code">{assignment.standard?.code}</span>
+                            <span className="due-code">
+                                {formatStandardLabel(assignment.standard) || assignment.standard?.code}
+                            </span>
                             <span className="due-date">{formatDueDate(assignment.due, todayStart)}</span>
                             <Link to={`/portal/practice/${assignment._id}`} className="link-sm">
                                 Practice

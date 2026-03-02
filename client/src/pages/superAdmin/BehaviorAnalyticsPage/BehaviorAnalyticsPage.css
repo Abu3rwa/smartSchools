@@ -64,6 +64,7 @@
 .header-actions {
     display: flex;
     gap: var(--spacing-md);
+    flex-wrap: wrap;
 }
 
 /* Filters Panel */
@@ -630,6 +631,11 @@
     .metrics-grid {
         grid-template-columns: 1fr;
     }
+
+    .header-actions .btn {
+        flex: 1 1 160px;
+        justify-content: center;
+    }
     
     .security-stats {
         grid-template-columns: 1fr;
@@ -647,6 +653,10 @@
 @media (max-width: 480px) {
     .header-actions {
         flex-direction: column;
+    }
+
+    .header-actions .btn {
+        width: 100%;
     }
     
     .metric-card {

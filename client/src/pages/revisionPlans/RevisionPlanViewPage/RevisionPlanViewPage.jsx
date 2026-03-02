@@ -19,6 +19,7 @@ import {
 import { HiOutlineArrowLeft, HiOutlineCalendar, HiOutlineCheck } from "react-icons/hi";
 import { format, isToday, isPast } from "date-fns";
 import { useRevisionPlanViewData } from "./hooks/useRevisionPlanViewData.js";
+import { formatStandardLabel } from "../../../utils/standardLabel";
 
 export default function RevisionPlanViewPage() {
   const theme = useTheme();
@@ -144,9 +145,7 @@ export default function RevisionPlanViewPage() {
                   }
                   label={
                     <Typography variant="body2">
-                      {topic.standard?.name ||
-                        topic.standard?.code ||
-                        `Topic ${idx + 1}`}
+                      {formatStandardLabel(topic.standard) || `Topic ${idx + 1}`}
                     </Typography>
                   }
                 />
@@ -205,10 +204,8 @@ export default function RevisionPlanViewPage() {
                     {day.slots.map((slot, slotIdx) => (
                       <li key={slotIdx}>
                         <Typography variant="body2">
-                          {slot.standard?.name ||
-                            slot.standard?.code ||
-                            "Topic"}{" "}
-                          — {slot.minutes} min
+                          {formatStandardLabel(slot.standard) || "Topic"} —{" "}
+                          {slot.minutes} min
                           {slot.completed && (
                             <Chip
                               icon={<HiOutlineCheck size={14} />}

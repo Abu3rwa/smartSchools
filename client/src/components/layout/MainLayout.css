@@ -24,6 +24,33 @@
     position: relative;
 }
 
+/* Guard against global .btn style leakage from route-specific CSS files */
+.admin-layout .btn {
+    color: var(--text-primary);
+    -webkit-text-fill-color: currentColor;
+}
+
+.admin-layout .btn > svg {
+    color: currentColor;
+    fill: currentColor;
+    stroke: currentColor;
+    display: block;
+    flex-shrink: 0;
+}
+
+.admin-layout .btn-primary,
+.admin-layout .btn-success,
+.admin-layout .btn-danger {
+    color: #ffffff;
+    -webkit-text-fill-color: #ffffff;
+}
+
+.admin-layout .btn-secondary,
+.admin-layout .btn-ghost {
+    color: var(--text-primary);
+    -webkit-text-fill-color: currentColor;
+}
+
 .main-content {
     position: relative;
     flex: 1;

@@ -21,7 +21,7 @@ export default function LandingPricing({ content, handleAction }) {
                         <Grid item xs={12} sm={8} md={4} key={`${plan.name}-${plan.price}`}>
                             <Paper className="landing-lift-card" variant="outlined" sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', borderColor: plan.featured ? 'primary.main' : undefined, boxShadow: plan.featured ? 4 : 0 }}>
                                 {plan.featured && (
-                                    <Typography variant="caption" sx={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', px: 1.5, py: 0.5, borderRadius: 10, bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>Most popular</Typography>
+                                    <Typography variant="caption" sx={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', px: 1.5, py: 0.5, borderRadius: 10, bgcolor: 'primary.main', color: 'primary.contrastText', fontWeight: 600 }}>Most popular</Typography>
                                 )}
                                 <Typography variant="h6" sx={{ mb: 0.5 }}>{plan.name}</Typography>
                                 <Typography variant="h5" sx={{ fontWeight: 700 }}>{plan.price}<Typography component="span" variant="body2" color="text.secondary">{plan.period}</Typography></Typography>
@@ -44,4 +44,3 @@ export default function LandingPricing({ content, handleAction }) {
         </Box>
     );
 }
-

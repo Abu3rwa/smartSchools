@@ -4,6 +4,7 @@ import Student from "../models/Student.js";
 import Notification from "../models/Notification.js";
 import notificationService from "./notificationService.js";
 import ClassModel from "../models/Class.js";
+import School from "../models/School.js";
 import { collectStudentFamilyEmails } from "../utils/newsletterRecipients.js";
 import {
   computeIssueReadiness,
@@ -29,11 +30,21 @@ function escapeHtml(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
+    .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
 
-export function buildCombinedNewsletterHtml({ classLabel, weekLabel, sections }) {
+export function buildCombinedNewsletterHtml({
+  classLabel,
+  weekLabel,
+  sections,
+  schoolName = "School",
+  branding = {},
+}) {
+  const logoUrl = (branding?.logoUrl || "").toString().trim();
+  const primaryColor = (branding?.primaryColor || "#3b82f6").toString().trim();
+  const secondaryColor = (branding?.secondaryColor || "#1e40af").toString().trim();
+
   const sectionsHtml = (sections || [])
     .map((s) => {
       const subjectName = escapeHtml(s.subject?.name || "Subject");
@@ -49,9 +60,13 @@ export function buildCombinedNewsletterHtml({ classLabel, weekLabel, sections })
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto; padding: 16px; background: #ffffff;">
-      <div style="padding: 14px; border-radius: 10px; background: #f3f4f6; border: 1px solid #e5e7eb;">
-        <div style="font-size: 18px; font-weight: 800; color: #111827;">Weekly Newsletter</div>
+      <div style="padding: 14px; border-radius: 10px; background: linear-gradient(135deg, ${escapeHtml(primaryColor)} 0%, ${escapeHtml(secondaryColor)} 100%); border: 1px solid #e5e7eb;">
+        <div style="display: flex; gap: 10px; align-items: center; justify-content: space-between;">
+          <div style="font-size: 18px; font-weight: 800; color: #ffffff;">Weekly Newsletter</div>
+          ${logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(schoolName)} logo" style="height: 36px; max-width: 120px; object-fit: contain; background: #ffffff; padding: 4px; border-radius: 6px;" />` : ""}
+        </div>
         <div style="margin-top: 4px; color: #374151; font-size: 13px;">
+          <div><strong>School:</strong> ${escapeHtml(schoolName)}</div>
           <div><strong>Class:</strong> ${escapeHtml(classLabel)}</div>
           <div><strong>Week:</strong> ${escapeHtml(weekLabel)}</div>
         </div>
@@ -82,15 +97,15 @@ export function buildCombinedNewsletterText({ classLabel, weekLabel, sections })
   return lines.join("\n").trim();
 }
 
-/**
- * Send one combined newsletter email per student family (privacy-safe).
- * Returns per-student results + updates issue stats/status.
- */
-export async function sendNewsletterIssueToParents({ issueId, adminUserId }) {
+export async function prepareNewsletterIssueEmailContent({ issueId }) {
   const issue = await NewsletterIssue.findById(issueId).lean();
   if (!issue) throw new Error("Issue not found");
 
-  const cls = await ClassModel.findById(issue.class).lean();
+  const [cls, school] = await Promise.all([
+    ClassModel.findById(issue.class).lean(),
+    School.findById(issue.school).select("name settings.branding").lean(),
+  ]);
+
   if (!cls) throw new Error("Class not found for issue");
 
   const sectionsAll = await NewsletterSection.find({ issue: issue._id })
@@ -103,10 +118,6 @@ export async function sendNewsletterIssueToParents({ issueId, adminUserId }) {
     sections: sectionsAll,
     excludedSubjectIds: issue.excludedSubjectIds || [],
   });
-  if (!readiness.isSendEnabled) {
-    const msg = `Issue is not ready to send. Missing subjects: ${readiness.missingSubjectIds.length}`;
-    throw new Error(msg);
-  }
 
   const excluded = new Set((issue.excludedSubjectIds || []).map((x) => x.toString()));
   const sections = sectionsAll
@@ -118,8 +129,48 @@ export async function sendNewsletterIssueToParents({ issueId, adminUserId }) {
   const weekLabel = formatWeekLabel(issue.weekStart, issue.weekEnd);
   const subjectLine = `Weekly Newsletter - ${classLabel} (${weekLabel})`;
 
-  const htmlContent = buildCombinedNewsletterHtml({ classLabel, weekLabel, sections });
+  const htmlContent = buildCombinedNewsletterHtml({
+    classLabel,
+    weekLabel,
+    sections,
+    schoolName: school?.name || "School",
+    branding: school?.settings?.branding || {},
+  });
   const textContent = buildCombinedNewsletterText({ classLabel, weekLabel, sections });
+
+  return {
+    issue,
+    cls,
+    school,
+    sectionsAll,
+    sections,
+    readiness,
+    classLabel,
+    weekLabel,
+    subjectLine,
+    htmlContent,
+    textContent,
+  };
+}
+
+/**
+ * Send one combined newsletter email per student family (privacy-safe).
+ * Returns per-student results + updates issue stats/status.
+ */
+export async function sendNewsletterIssueToParents({ issueId, adminUserId }) {
+  const {
+    issue,
+    cls,
+    readiness,
+    subjectLine,
+    htmlContent,
+    textContent,
+  } = await prepareNewsletterIssueEmailContent({ issueId });
+
+  if (!readiness.isSendEnabled) {
+    const msg = `Issue is not ready to send. Missing subjects: ${readiness.missingSubjectIds.length}`;
+    throw new Error(msg);
+  }
 
   const students = await Student.find({
     currentClass: cls._id,
@@ -218,4 +269,3 @@ export async function sendNewsletterIssueToParents({ issueId, adminUserId }) {
     results,
   };
 }
-

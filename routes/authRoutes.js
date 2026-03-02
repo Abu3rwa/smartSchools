@@ -18,6 +18,7 @@ import {
 import { protect, authorize } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
+import upload from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -49,7 +50,7 @@ router.get('/google/callback', googleCallback);
 
 // Protected routes
 router.get('/me', protect, getMe);
-router.put('/profile', protect, updateProfile);
+router.put('/profile', protect, upload.single('avatar'), updateProfile);
 router.put('/password', protect, changePassword);
 router.post('/logout', protect, logout);
 
