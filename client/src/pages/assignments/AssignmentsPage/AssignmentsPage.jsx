@@ -43,12 +43,15 @@ const AssignmentsPage = () => {
         setSelectedStatus,
         gradingAssignment,
         setGradingAssignment,
+        editingAssignment,
+        setEditingAssignment,
         gradeRows,
         setGradeRows,
         gradeStudents,
         setGradeStudents,
         form,
         setForm,
+        resetForm,
         canCreateAssignments,
         availableClasses,
         availableSubjects
@@ -130,7 +133,7 @@ const AssignmentsPage = () => {
 
         setSubmitting(true);
         try {
-            await assignmentService.createAssignment({
+            const payload = {
                 classId: selectedClass,
                 subjectId: selectedSubject,
                 assignmentTypeId: form.assignmentTypeId,
@@ -142,21 +145,66 @@ const AssignmentsPage = () => {
                 notifyOnAssign: form.notifyOnAssign,
                 notifyOnGrade: form.notifyOnGrade,
                 academicYear
-            });
+            };
 
-            toast.success('Assignment created');
-            setForm((prev) => ({
-                ...prev,
-                title: '',
-                instructions: '',
-                dueDate: '',
-                publishNow: false
-            }));
+            if (editingAssignment?.id) {
+                await assignmentService.updateAssignment(editingAssignment.id, payload);
+                toast.success('Assignment updated');
+            } else {
+                await assignmentService.createAssignment(payload);
+                toast.success('Assignment created');
+            }
+
+            setEditingAssignment(null);
+            resetForm();
             await fetchAssignments();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to create assignment');
+            toast.error(error.response?.data?.message || (editingAssignment?.id ? 'Failed to update assignment' : 'Failed to create assignment'));
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const onEditAssignment = (assignment) => {
+        setEditingAssignment(assignment);
+        setForm((prev) => ({
+            ...prev,
+            assignmentTypeId: assignment.assignmentType?.id || prev.assignmentTypeId,
+            title: assignment.title || '',
+            instructions: assignment.instructions || '',
+            dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().slice(0, 10) : '',
+            maxMarks: assignment.maxMarks || 10,
+            publishNow: assignment.status === 'published',
+            notifyOnAssign: assignment.notifyOnAssign !== false,
+            notifyOnGrade: assignment.notifyOnGrade !== false
+        }));
+    };
+
+    const onCancelEdit = () => {
+        setEditingAssignment(null);
+        resetForm();
+    };
+
+    const onDeleteAssignment = async (assignment) => {
+        const confirmed = window.confirm(
+            `Delete "${assignment.title}"?\n\nThis will permanently delete the assignment and all grades entered for it.`
+        );
+        if (!confirmed) return;
+
+        try {
+            const response = await assignmentService.deleteAssignment(assignment.id);
+            const deletedGrades = response?.data?.deletedGradesCount || 0;
+            toast.success(
+                deletedGrades > 0
+                    ? `Assignment deleted. ${deletedGrades} linked grade(s) were also deleted.`
+                    : 'Assignment deleted'
+            );
+            if (editingAssignment?.id === assignment.id) {
+                onCancelEdit();
+            }
+            await fetchAssignments();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to delete assignment');
         }
     };
 
@@ -266,6 +314,8 @@ const AssignmentsPage = () => {
                 form={form}
                 setForm={setForm}
                 assignmentTypes={assignmentTypes}
+                isEditing={Boolean(editingAssignment)}
+                onCancelEdit={onCancelEdit}
                 onSubmit={onCreateAssignment}
             />
 
@@ -275,6 +325,8 @@ const AssignmentsPage = () => {
                 canCreateAssignments={canCreateAssignments}
                 onPublishAssignment={onPublishAssignment}
                 onOpenGradePanel={openGradePanel}
+                onEditAssignment={onEditAssignment}
+                onDeleteAssignment={onDeleteAssignment}
             />
 
             <AssignmentGradePanel

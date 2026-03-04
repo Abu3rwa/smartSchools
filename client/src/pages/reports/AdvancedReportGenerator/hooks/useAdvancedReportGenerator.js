@@ -140,7 +140,11 @@ const useAdvancedReportGenerator = ({ token }) => {
   }, [formData, token]);
 
   const sanitizedReportHtml = useMemo(() => {
-    return report?.report ? DOMPurify.sanitize(report.report) : '';
+    if (!report?.report) return '';
+    return DOMPurify.sanitize(report.report, {
+      FORBID_TAGS: ['table', 'thead', 'tbody', 'tr', 'th', 'td'],
+      FORBID_ATTR: ['style']
+    });
   }, [report]);
 
   return {

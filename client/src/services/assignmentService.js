@@ -26,6 +26,16 @@ const assignmentService = {
         return response.data;
     },
 
+    updateAssignment: async (id, payload) => {
+        const response = await api.put(`/assignments/${id}`, payload);
+        return response.data;
+    },
+
+    deleteAssignment: async (id) => {
+        const response = await api.delete(`/assignments/${id}`);
+        return response.data;
+    },
+
     publishAssignment: async (id, payload = {}) => {
         const response = await api.post(`/assignments/${id}/publish`, payload);
         return response.data;

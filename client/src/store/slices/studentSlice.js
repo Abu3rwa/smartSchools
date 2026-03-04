@@ -136,6 +136,49 @@ export const sendParentCredentials = createAsyncThunk(
     }
 );
 
+export const uploadStudentPhoto = createAsyncThunk(
+    'students/uploadStudentPhoto',
+    async ({ id, file }, { rejectWithValue }) => {
+        try {
+            const formData = new FormData();
+            formData.append('photo', file);
+            const response = await api.put(`/students/${id}/photo`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to upload student photo');
+        }
+    }
+);
+
+export const removeStudentPhoto = createAsyncThunk(
+    'students/removeStudentPhoto',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await api.delete(`/students/${id}/photo`);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to remove student photo');
+        }
+    }
+);
+
+const syncStudentAcrossCollections = (state, updatedStudent) => {
+    const updateInList = (list) => {
+        const index = list.findIndex((student) => student._id === updatedStudent._id);
+        if (index !== -1) {
+            list[index] = updatedStudent;
+        }
+    };
+
+    updateInList(state.students);
+    updateInList(state.classStudents);
+    if (state.currentStudent?._id === updatedStudent._id) {
+        state.currentStudent = updatedStudent;
+    }
+};
+
 const studentSlice = createSlice({
     name: 'students',
     initialState: {
@@ -192,13 +235,13 @@ const studentSlice = createSlice({
             })
             // Update student
             .addCase(updateStudent.fulfilled, (state, action) => {
-                const index = state.students.findIndex(s => s._id === action.payload.student._id);
-                if (index !== -1) {
-                    state.students[index] = action.payload.student;
-                }
-                if (state.currentStudent?._id === action.payload.student._id) {
-                    state.currentStudent = action.payload.student;
-                }
+                syncStudentAcrossCollections(state, action.payload.student);
+            })
+            .addCase(uploadStudentPhoto.fulfilled, (state, action) => {
+                syncStudentAcrossCollections(state, action.payload.student);
+            })
+            .addCase(removeStudentPhoto.fulfilled, (state, action) => {
+                syncStudentAcrossCollections(state, action.payload.student);
             })
             // Delete student
             .addCase(deleteStudent.fulfilled, (state, action) => {

@@ -1,10 +1,12 @@
 import express from 'express';
 import {
     createAssignment,
+    deleteAssignment,
     getAssignmentGradebook,
     getAssignments,
     gradeAssignment,
-    publishAssignment
+    publishAssignment,
+    updateAssignment
 } from '../controllers/assignmentController.js';
 import { authorize, protect, requirePermission } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/permissions.js';
@@ -32,6 +34,24 @@ router.post(
     validationRules.mongoId,
     validate,
     publishAssignment
+);
+
+router.put(
+    '/:id',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    validationRules.mongoId,
+    validate,
+    updateAssignment
+);
+
+router.delete(
+    '/:id',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    validationRules.mongoId,
+    validate,
+    deleteAssignment
 );
 
 router.get(

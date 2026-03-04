@@ -12,7 +12,7 @@
 
 .student-profile {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--spacing-lg);
 }
 
@@ -27,6 +27,21 @@
     font-size: 1.5rem;
     font-weight: 700;
     color: white;
+    overflow: hidden;
+}
+
+.avatar-lg.has-image {
+    background: var(--bg-tertiary);
+}
+
+.avatar-lg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.student-photo-uploader {
+    min-width: 120px;
 }
 
 .student-profile h1 {
@@ -145,6 +160,10 @@
     .student-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .student-profile {
+        flex-direction: column;
     }
 
     .detail-grid {

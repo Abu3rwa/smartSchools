@@ -580,3 +580,196 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
         }
     });
 });
+
+export const updateAssignment = asyncHandler(async (req, res) => {
+    await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
+
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+
+    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to update this assignment' });
+
+    const body = req.body || {};
+    const allowYearOverride = req.user.role === 'admin' || req.user.role === 'super_admin';
+    const academicYear = resolveAcademicYearForRequest(req, body.academicYear || assignment.academicYear, {
+        allowOverride: allowYearOverride
+    });
+
+    const classId = toId(body.classId || body.class || assignment.class);
+    const subjectId = toId(body.subjectId || body.subject || assignment.subject);
+    const title = body.title === undefined
+        ? assignment.title
+        : String(body.title || '').trim();
+    if (!classId || !subjectId || !title) {
+        return res.status(400).json({
+            success: false,
+            message: 'classId, subjectId, and title are required'
+        });
+    }
+
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId, academicYear });
+    if (!classDoc) {
+        return res.status(400).json({
+            success: false,
+            message: 'Selected class not found for current school and academic year'
+        });
+    }
+
+    const subjectExistsInClass = (classDoc.subjects || []).some(
+        (entry) => toId(entry.subject) === subjectId
+    );
+    if (!subjectExistsInClass) {
+        return res.status(400).json({
+            success: false,
+            message: 'Selected subject is not assigned to the selected class'
+        });
+    }
+
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
+        if (!authorized) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized for this class and subject'
+            });
+        }
+    }
+
+    let type = null;
+    const assignmentTypeId = toId(body.assignmentTypeId || body.assignmentType);
+    const assignmentTypeKey = String(body.assignmentTypeKey || '').trim().toLowerCase();
+    if (assignmentTypeId || assignmentTypeKey) {
+        type = await resolveAssignmentType({
+            schoolId: req.schoolId,
+            assignmentTypeId,
+            assignmentTypeKey
+        });
+        if (!type) {
+            return res.status(400).json({
+                success: false,
+                message: 'Assignment type not found or inactive'
+            });
+        }
+    }
+
+    const assignedDate = body.assignedDate === undefined
+        ? assignment.assignedDate
+        : parseDate(body.assignedDate, null);
+    const dueDate = body.dueDate === undefined
+        ? assignment.dueDate
+        : parseDate(body.dueDate, null);
+    if (body.assignedDate !== undefined && !assignedDate) {
+        return res.status(400).json({ success: false, message: 'Invalid assignedDate' });
+    }
+    if (body.dueDate !== undefined && body.dueDate !== null && body.dueDate !== '' && !dueDate) {
+        return res.status(400).json({ success: false, message: 'Invalid dueDate' });
+    }
+
+    const requestedStudentIds = Array.isArray(body.studentIds)
+        ? body.studentIds
+        : Array.isArray(assignment.studentIds)
+            ? assignment.studentIds
+            : [];
+    const scope = body.scope === undefined
+        ? normalizeScope(assignment.scope, requestedStudentIds)
+        : normalizeScope(body.scope, requestedStudentIds);
+
+    const validSelectedStudentIds = scope === 'selected_students'
+        ? await Student.find({
+            school: req.schoolId,
+            _id: { $in: requestedStudentIds },
+            currentClass: classId,
+            academicYear,
+            status: 'active'
+        }).distinct('_id')
+        : [];
+    if (scope === 'selected_students' && validSelectedStudentIds.length !== requestedStudentIds.length) {
+        return res.status(400).json({
+            success: false,
+            message: 'One or more selected students are invalid for this class and academic year'
+        });
+    }
+
+    const status = body.status && ['draft', 'published', 'closed', 'archived'].includes(String(body.status).toLowerCase())
+        ? String(body.status).toLowerCase()
+        : assignment.status;
+
+    assignment.academicYear = academicYear;
+    assignment.class = classId;
+    assignment.subject = subjectId;
+    assignment.title = title;
+    assignment.instructions = body.instructions === undefined
+        ? assignment.instructions
+        : String(body.instructions || '').trim();
+    assignment.assignedDate = assignedDate;
+    assignment.dueDate = dueDate;
+    assignment.scope = scope;
+    assignment.studentIds = scope === 'selected_students' ? validSelectedStudentIds : [];
+    assignment.maxMarks = body.maxMarks === undefined
+        ? assignment.maxMarks
+        : parsePositiveNumber(body.maxMarks, assignment.maxMarks);
+    assignment.allowLateSubmission = body.allowLateSubmission === undefined
+        ? assignment.allowLateSubmission
+        : parseBoolean(body.allowLateSubmission, assignment.allowLateSubmission);
+    assignment.notifyOnAssign = body.notifyOnAssign === undefined
+        ? assignment.notifyOnAssign
+        : parseBoolean(body.notifyOnAssign, assignment.notifyOnAssign);
+    assignment.notifyOnGrade = body.notifyOnGrade === undefined
+        ? assignment.notifyOnGrade
+        : parseBoolean(body.notifyOnGrade, assignment.notifyOnGrade);
+    assignment.status = status;
+    assignment.metadata = body.metadata === undefined ? assignment.metadata : body.metadata;
+
+    if (type) {
+        assignment.assignmentType = type._id;
+        assignment.assignmentTypeKey = type.key;
+        assignment.assignmentTypeName = type.name;
+    }
+
+    if (status === 'published' && !assignment.publishedAt) {
+        assignment.publishedAt = new Date();
+        assignment.publishedBy = req.user._id;
+    }
+
+    await assignment.save();
+
+    const populated = await Assignment.findById(assignment._id)
+        .populate('assignmentType', 'key name')
+        .populate('class', 'name grade section')
+        .populate('subject', 'name code')
+        .lean();
+
+    res.json({
+        success: true,
+        data: { assignment: mapAssignmentSummary(populated) }
+    });
+});
+
+export const deleteAssignment = asyncHandler(async (req, res) => {
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+
+    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to delete this assignment' });
+
+    const gradeDeleteResult = await Grade.deleteMany({
+        school: req.schoolId,
+        assignment: assignment._id
+    });
+
+    await assignment.deleteOne();
+
+    res.json({
+        success: true,
+        message: 'Assignment deleted successfully',
+        data: {
+            assignmentId: assignment._id,
+            deletedGradesCount: gradeDeleteResult?.deletedCount || 0
+        }
+    });
+});

@@ -19,13 +19,14 @@ import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
  */
 export const addDailyGrade = asyncHandler(async (req, res) => {
     const { student, subject, classId, marks, maxMarks, date, title, description, remarks, sendNotification } = req.body;
+    let teacherProfile = null;
 
     // Access Control: Verify teacher is assigned to this class+subject
     if (req.user.role === 'teacher') {
-        const teacher = await resolveTeacherProfile(req);
-        if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        teacherProfile = await resolveTeacherProfile(req);
+        if (!teacherProfile) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
 
-        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subject);
+        const authorized = await isTeacherAuthorizedForClassSubject(teacherProfile._id, classId, subject);
         if (!authorized) {
             return res.status(403).json({
                 success: false,
@@ -44,7 +45,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         student,
         subject,
         class: classId,
-        teacher: req.user._id,
+        teacher: teacherProfile?._id || req.user._id,
         academicYear,
         gradeType: 'daily',
         date: date || new Date(),
@@ -84,12 +85,13 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
 export const bulkAddGrades = asyncHandler(async (req, res) => {
     const { classId, subject, date, maxMarks, grades, sendNotifications, gradeType, title, category } = req.body;
     // grades: [{ student: id, marks, remarks, notes }]
+    let teacherProfile = null;
 
     if (req.user.role === 'teacher') {
-        const teacher = await resolveTeacherProfile(req);
-        if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        teacherProfile = await resolveTeacherProfile(req);
+        if (!teacherProfile) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
 
-        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subject);
+        const authorized = await isTeacherAuthorizedForClassSubject(teacherProfile._id, classId, subject);
         if (!authorized) {
             return res.status(403).json({
                 success: false,
@@ -114,7 +116,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         student: g.student,
         subject,
         class: classId,
-        teacher: req.user._id,
+        teacher: teacherProfile?._id || req.user._id,
         academicYear,
         gradeType: effectiveGradeType,
         category: (category || effectiveGradeType).toLowerCase(),
@@ -412,12 +414,13 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
  */
 export const addExamGrade = asyncHandler(async (req, res) => {
     const { student, subject, classId, marks, maxMarks, gradeType, examName, date, remarks } = req.body;
+    let teacherProfile = null;
 
     if (req.user.role === 'teacher') {
-        const teacher = await resolveTeacherProfile(req);
-        if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        teacherProfile = await resolveTeacherProfile(req);
+        if (!teacherProfile) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
 
-        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subject);
+        const authorized = await isTeacherAuthorizedForClassSubject(teacherProfile._id, classId, subject);
         if (!authorized) {
             return res.status(403).json({
                 success: false,
@@ -433,7 +436,7 @@ export const addExamGrade = asyncHandler(async (req, res) => {
         student,
         subject,
         class: classId,
-        teacher: req.teacherId || req.user._id,
+        teacher: req.teacherId || teacherProfile?._id || req.user._id,
         academicYear,
         gradeType: gradeType || 'monthly_test',
         date: date || new Date(),
@@ -461,7 +464,7 @@ export const getMyGrades = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'Student profile not found' });
     }
 
-    const { month, semester, subjectId, academicYear } = req.query;
+    const { month, semester, subjectId, academicYear, startDate, endDate } = req.query;
     const effectiveAcademicYear = resolveAcademicYearForRequest(req, academicYear);
     if ((student.academicYear || '').toString() !== effectiveAcademicYear) {
         return res.json({
@@ -473,6 +476,19 @@ export const getMyGrades = asyncHandler(async (req, res) => {
     if (month) query.month = parseInt(month, 10);
     if (semester) query.semester = parseInt(semester, 10);
     if (subjectId) query.subject = subjectId;
+    if (startDate || endDate) {
+        query.date = {};
+        if (startDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            query.date.$gte = start;
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            query.date.$lte = end;
+        }
+    }
     query.academicYear = effectiveAcademicYear;
 
     const grades = await Grade.find(query)
@@ -509,14 +525,16 @@ export const getMyGrades = asyncHandler(async (req, res) => {
  */
 export const getStudentGrades = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
-    const { subject, month, semester, gradeType, academicYear } = req.query;
+    const { subject, subjectId, month, semester, gradeType, academicYear, startDate, endDate } = req.query;
 
     const effectiveAcademicYear = resolveRequestedAcademicYear(academicYear, req.school);
     const filters = {
-        subject,
+        subject: subject || subjectId,
         month: month ? parseInt(month) : undefined,
         semester: semester ? parseInt(semester) : undefined,
         gradeType,
+        startDate,
+        endDate,
         academicYear: effectiveAcademicYear
     };
 
@@ -757,7 +775,11 @@ export const updateGrade = asyncHandler(async (req, res) => {
             return res.status(404).json({ success: false, message: 'Grade not found' });
         }
 
-        if (existingGrade.teacher.toString() !== teacher._id.toString()) {
+        const gradeTeacherId = existingGrade.teacher?.toString();
+        const isTeacherOwner = gradeTeacherId === teacher._id.toString();
+        const isLegacyUserOwner = gradeTeacherId === req.user._id.toString();
+
+        if (!isTeacherOwner && !isLegacyUserOwner) {
             return res.status(403).json({
                 success: false,
                 message: 'You can only modify grades you created'
@@ -801,7 +823,11 @@ export const deleteGrade = asyncHandler(async (req, res) => {
             return res.status(404).json({ success: false, message: 'Grade not found' });
         }
 
-        if (existingGrade.teacher.toString() !== teacher._id.toString()) {
+        const gradeTeacherId = existingGrade.teacher?.toString();
+        const isTeacherOwner = gradeTeacherId === teacher._id.toString();
+        const isLegacyUserOwner = gradeTeacherId === req.user._id.toString();
+
+        if (!isTeacherOwner && !isLegacyUserOwner) {
             return res.status(403).json({
                 success: false,
                 message: 'You can only delete grades you created'

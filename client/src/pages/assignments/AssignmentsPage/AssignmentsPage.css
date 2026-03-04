@@ -58,6 +58,12 @@
     gap: 8px;
 }
 
+.assignments-page .btn.btn-danger {
+    background: #b91c1c;
+    color: #fff;
+    border-color: #b91c1c;
+}
+
 .assignments-page .status-badge {
     display: inline-flex;
     align-items: center;

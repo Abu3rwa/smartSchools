@@ -154,9 +154,17 @@ export const sendDailyClassworkUpdate = asyncHandler(async (req, res) => {
     );
 
     if (!notification) {
+        const periodLabel = date.toLocaleDateString('en-US', {
+            month: 'long',
+            year: 'numeric'
+        });
+        const categoryLabel = String(category || '').trim();
+        const categoryHint = categoryLabel && categoryLabel.toLowerCase() !== 'all'
+            ? ` for category "${categoryLabel}"`
+            : '';
         return res.status(400).json({
             success: false,
-            message: 'Could not send daily classwork update. No grades found or no parent or student email.'
+            message: `No classwork grades found${categoryHint} for ${periodLabel}. Add grades for this month or choose a different date range.`
         });
     }
 

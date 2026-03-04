@@ -68,7 +68,6 @@ const AdvancedReportGenerator = () => {
 
       {report && (
         <ReportPreview
-          report={report}
           generating={generating}
           sanitizedHtml={sanitizedReportHtml}
         />

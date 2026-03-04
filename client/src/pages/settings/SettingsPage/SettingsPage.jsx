@@ -14,9 +14,12 @@ const SettingsPage = () => {
         theme,
         academicYear,
         isAdmin,
+        avatarUploading,
         handleThemeChange,
         handleLogout,
-        navigateToSchoolSettings
+        navigateToSchoolSettings,
+        handleAvatarUpload,
+        handleAvatarRemove
     } = useSettingsPageData();
 
     return (
@@ -24,7 +27,12 @@ const SettingsPage = () => {
             <SettingsPageHeader />
 
             <Grid container spacing={2} className="settings-grid">
-                <ProfileCard user={user} />
+                <ProfileCard
+                    user={user}
+                    avatarUploading={avatarUploading}
+                    onAvatarUpload={handleAvatarUpload}
+                    onAvatarRemove={handleAvatarRemove}
+                />
                 <AppearanceCard theme={theme} onThemeChange={handleThemeChange} />
                 <AcademicYearCard 
                     academicYear={academicYear} 

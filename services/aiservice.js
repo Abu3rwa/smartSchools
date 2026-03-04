@@ -6,6 +6,10 @@ class AIService {
         
     }
 
+    containsEnglishText(text) {
+        return /[A-Za-z]{3,}/.test(String(text || ''));
+    }
+
     /**
      * Parse JSON object from plain text or markdown-wrapped output
      * @param {string} text
@@ -122,7 +126,24 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
         });
 
         try {
-            const response = await connectAi(prompt);
+            let response = await connectAi(prompt);
+            let inputTokens = response.inputtokenCount || 0;
+            let outputTokens = response.outputtokenCount || 0;
+            let totalTokens = response.totalTokenCount || 0;
+
+            if (language === 'arabic' && this.containsEnglishText(response.text)) {
+                const correctivePrompt = `${prompt}
+
+تعليمات تصحيحية ملزمة:
+- أعد كتابة التقرير بالكامل باللغة العربية فقط.
+- ممنوع أي كلمات أو عناوين باللغة الإنجليزية.
+- حافظ على نفس المعلومات والهيكل، وبصيغة HTML فقط.`;
+
+                response = await connectAi(correctivePrompt);
+                inputTokens += response.inputtokenCount || 0;
+                outputTokens += response.outputtokenCount || 0;
+                totalTokens += response.totalTokenCount || 0;
+            }
             
             // Track token usage
             const tokenUsage = await this.trackTokenUsage({
@@ -132,9 +153,9 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
                 reportType,
                 language,
                 dateRange,
-                inputTokens: response.inputtokenCount || 0,
-                outputTokens: response.outputtokenCount || 0,
-                totalTokens: response.totalTokenCount || 0
+                inputTokens,
+                outputTokens,
+                totalTokens
             });
 
             return {
@@ -203,9 +224,12 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
 - اكتب HTML فقط.
 - ممنوع Markdown نهائياً (ممنوع ** أو code fences).
 - ممنوع رموز مزخرفة أو غريبة مثل @#$%^&*.
+- ممنوع أي جمل أو كلمات إنجليزية داخل محتوى التقرير.
 - لا تكتب أي شرح أو مقدمة خارج HTML.
 - لا تكتب <html> أو <head> أو <body>.
-- استخدم فقط: <div>, <p>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <li>, <strong>.
+- لا تستخدم جداول نهائياً.
+- لا تستخدم ألوان inline أو style attributes.
+- استخدم فقط: <div>, <p>, <ul>, <li>, <strong>, <span>.
 
 - ضع dir="rtl" على <div> الخارجي.
 
@@ -216,14 +240,14 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
 - المواد: ${subjects}
 - اسم المعلم: ${teacherName}
 
-الدرجات (ترتيب زمني) - استخدم هذه البيانات لإنشاء صفوف جدول:
+الدرجات (ترتيب زمني):
 ${gradeList}
 
 الهيكل المطلوب داخل HTML:
 1) <p>افتتاحية قصيرة</p>
 2) <p><strong>نقاط القوة:</strong> ...</p>
 3) <p><strong>مجالات للتحسين:</strong> ...</p>
-4) <table> جدول درجات منظم (التاريخ/المادة/الدرجة/ملاحظات) </table>
+4) <p><strong>ملخص الأداء:</strong> اعرض الدرجات كسرد نصي واضح داخل فقرات.</p>
 5) <ul>كيف يمكنكم المساعدة في المنزل</ul>
 6) <p>خاتمة وتوقيع باسم المعلم</p>
 
@@ -240,7 +264,9 @@ Very important output rules:
 - No Markdown (no **, no code fences).
 - No weird symbols like @#$%^&*.
 - Do not include <html>, <head>, or <body>.
-- Use only: <div>, <p>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <li>, <strong>.
+- No tables at all.
+- No inline color styles or style attributes.
+- Use only: <div>, <p>, <ul>, <li>, <strong>, <span>.
 
 Student:
 - Name: ${studentData.firstName} ${studentData.lastName}
@@ -249,7 +275,7 @@ Student:
 - Subjects: ${subjects}
 - Teacher: ${teacherName}
 
-Grades (chronological) - use these lines to build the grades table rows:
+Grades (chronological) - refer to these lines narratively:
 ${gradeList}
 
 Output HTML structure:
@@ -262,7 +288,7 @@ Each section must contain:
 1) Greeting paragraph
 2) Strengths paragraph
 3) Areas for growth paragraph
-4) Grades table (Date/Subject/Grade/Notes)
+4) Grades summary in narrative paragraph(s) (Date/Subject/Grade/Notes)
 5) Bullet list: how to help at home
 6) Closing + signature
             `.trim();
@@ -275,6 +301,7 @@ CRITICAL OUTPUT RULES:
 - Output ONLY HTML.
 - NO Markdown (no **, no code fences).
 - NO tables whatsoever - use narrative paragraphs only.
+- NO inline color styles or style attributes.
 - NO weird symbols like @#$%^&*.
 - Do not include <html>, <head>, or <body>.
 - Use only: <div>, <p>, <span>, <ul>, <li>, <strong>.
@@ -297,20 +324,17 @@ REQUIRED STRUCTURE (Positive-Negative-Positive):
 
 2) **POSITIVE SECTION - Strengths & Achievements** (2-3 detailed paragraphs)
    - Highlight specific accomplishments and strong performances
-   - Use <span style="color: #10b981; font-weight: 600;">green colored text</span> for positive highlights
    - Be specific with examples from the grades
    - Mention subjects where student excels
 
 3) **NEGATIVE SECTION - Areas for Growth** (2 paragraphs)
    - Discuss challenges and areas needing improvement
-   - Use <span style="color: #f59e0b; font-weight: 600;">amber colored text</span> for areas of concern
    - Be constructive and supportive, not harsh
    - Provide specific examples
 
 4) **POSITIVE SECTION - Progress & Encouragement** (2 paragraphs)
    - Highlight recent improvements or positive trends
    - Express confidence in student's ability to grow
-   - Use <span style="color: #10b981; font-weight: 600;">green colored text</span> for encouraging points
 
 5) **Recommendations** (1 paragraph with bullet list)
    - Practical suggestions for parents to support at home
@@ -323,7 +347,6 @@ REQUIRED STRUCTURE (Positive-Negative-Positive):
 IMPORTANT:
 - Write in a warm, professional, narrative style
 - NO tables - integrate grade information naturally into the narrative
-- Use colored spans to emphasize positive (green) and growth areas (amber)
 - Be detailed and specific - aim for 400-500 words total
 - Follow the positive-negative-positive sandwich structure strictly
 

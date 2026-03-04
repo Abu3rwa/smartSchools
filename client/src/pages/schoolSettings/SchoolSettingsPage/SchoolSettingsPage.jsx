@@ -6,6 +6,7 @@ import UsersTab from './components/UsersTab';
 import UserRoleModal from './components/UserRoleModal';
 import LessonPlanCriteriaTab from './components/LessonPlanCriteriaTab';
 import SchoolYearTab from './components/SchoolYearTab';
+import BrandingTab from './components/BrandingTab';
 import useSchoolSettings from './hooks/useSchoolSettings';
 import './SchoolSettingsPage.css';
 
@@ -51,6 +52,10 @@ const SchoolSettingsPage = () => {
     schoolYearEndDate,
     setSchoolYearEndDate,
     schoolYearDatesSaving,
+    schoolInfo,
+    brandingLoading,
+    handleUploadSchoolLogo,
+    handleRemoveSchoolLogo,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,
@@ -117,6 +122,16 @@ const SchoolSettingsPage = () => {
       )}
 
       {activeTab === 'lessonplancriteria' && <LessonPlanCriteriaTab />}
+
+      {activeTab === 'branding' && canManageSchoolSettings && (
+        <BrandingTab
+          schoolName={schoolInfo?.name}
+          logoUrl={schoolInfo?.settings?.branding?.logoUrl}
+          loading={brandingLoading}
+          onUploadLogo={handleUploadSchoolLogo}
+          onRemoveLogo={handleRemoveSchoolLogo}
+        />
+      )}
 
       {activeTab === 'schoolyear' && canManageSchoolSettings && (
         <SchoolYearTab

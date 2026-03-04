@@ -243,6 +243,9 @@ const ClassDetailPage = () => {
                                             <td className="text-muted">{student.studentId}</td>
                                             <td className="text-muted text-capitalize">{student.gender}</td>
                                             <td>
+                                                <Link to={`/portal/grades/student/${student._id}`} className="btn btn-ghost btn-sm">
+                                                    Gradebook
+                                                </Link>
                                                 <Link to={`/portal/grades/report/${student._id}`} className="btn btn-ghost btn-sm">
                                                     View Report
                                                 </Link>

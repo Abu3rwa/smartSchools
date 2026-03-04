@@ -6,7 +6,9 @@ const AssignmentsTable = ({
     assignments,
     canCreateAssignments,
     onPublishAssignment,
-    onOpenGradePanel
+    onOpenGradePanel,
+    onEditAssignment,
+    onDeleteAssignment
 }) => {
     return (
         <div className="card assignments-list">
@@ -51,6 +53,16 @@ const AssignmentsTable = ({
                                         {(assignment.status === 'published' || assignment.status === 'closed') && canCreateAssignments && (
                                             <button type="button" className="btn btn-primary btn-sm" onClick={() => onOpenGradePanel(assignment)}>
                                                 Grade
+                                            </button>
+                                        )}
+                                        {canCreateAssignments && (
+                                            <button type="button" className="btn btn-outline btn-sm" onClick={() => onEditAssignment(assignment)}>
+                                                Edit
+                                            </button>
+                                        )}
+                                        {canCreateAssignments && (
+                                            <button type="button" className="btn btn-danger btn-sm" onClick={() => onDeleteAssignment(assignment)}>
+                                                Delete
                                             </button>
                                         )}
                                     </td>

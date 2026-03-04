@@ -1,4 +1,4 @@
-const ReportPreview = ({ report, generating, sanitizedHtml }) => (
+const ReportPreview = ({ generating, sanitizedHtml }) => (
   <div className="preview-section">
     <h3>Report Preview</h3>
     <div className="report-preview">
@@ -8,24 +8,9 @@ const ReportPreview = ({ report, generating, sanitizedHtml }) => (
           <span style={{ marginLeft: '12px' }}>Generating report...</span>
         </div>
       ) : (
-        <div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+        <div className="report-preview-content" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
       )}
     </div>
-
-    {report?.tokenUsage && (
-      <div
-        style={{
-          marginTop: '16px',
-          padding: '12px',
-          background: '#f1f5f9',
-          borderRadius: '8px',
-          fontSize: '13px'
-        }}
-      >
-        <strong>Token Usage:</strong> {report.tokenUsage.totalTokens} tokens |
-        <strong> Est. Cost:</strong> ${report.tokenUsage.estimatedCost?.toFixed(4) || '0.0000'}
-      </div>
-    )}
   </div>
 );
 

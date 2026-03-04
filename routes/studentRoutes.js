@@ -4,6 +4,8 @@ import {
     getStudent,
     createStudent,
     updateStudent,
+    uploadStudentPhoto,
+    removeStudentPhoto,
     deleteStudent,
     getStudentsByClass,
     bulkEnrollStudents,
@@ -19,6 +21,7 @@ import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.j
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
+import upload from '../middleware/upload.js';
 
 const router = express.Router();
 
@@ -35,6 +38,8 @@ router.route('/')
 router.post('/import', authorize('admin'), importStudents);
 router.post('/bulk-create-login', authorize('admin'), bulkCreateStudentLogin);
 router.get('/class/:classId', authorize('admin', 'department_principal', 'teacher'), getStudentsByClass);
+router.put('/:id/photo', authorize('admin'), validationRules.mongoId, validate, upload.single('photo'), uploadStudentPhoto);
+router.delete('/:id/photo', authorize('admin'), validationRules.mongoId, validate, removeStudentPhoto);
 
 router.route('/:id')
     .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getStudent)

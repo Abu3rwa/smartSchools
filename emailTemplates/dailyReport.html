@@ -1,27 +1,29 @@
-<div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; background: #f8f9fa; padding: 10px;">
-  <div style="background: #2c3e50; color: white; padding: 12px 15px; border-radius: 6px 6px 0 0;">
-    <h2 style="margin: 0; font-size: 16px;">Daily Report</h2>
-    <p style="margin: 3px 0 0 0; font-size: 12px; opacity: 0.9;">{{prettyDate}}</p>
-  </div>
-  <div style="background: #ffffff; padding: 12px; border-radius: 0 0 6px 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);">
-    <p style="margin: 0 0 8px 0; color: #333; font-size: 13px;">Dear {{studentFirstName}}'s Parent,</p>
-    <p style="margin: 0 0 12px 0; color: #333; font-size: 13px;">
-      Here is the summary of today's performance for <strong>{{studentFullName}}</strong> by <strong>{{teacherName}}</strong>:
-    </p>
-    <table style="width: 100%; border-collapse: collapse; margin: 8px 0 0 0; font-size: 12px;">
-      <thead>
-        <tr style="background: #e9ecef; color: #212529;">
-          <th style="padding: 8px; border: 1px solid #dee2e6; text-align: left; font-size: 12px;">Subject</th>
-          <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">Marks</th>
-          <th style="padding: 8px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">Percentage</th>
-        </tr>
-      </thead>
-      <tbody>
+<style>{{reportSharedStyles}}</style>
+
+<div class="report-page">
+  <div class="report-card">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Daily Report</h2>
+        <p class="card-meta">{{prettyDate}}</p>
+      </div>
+      <span class="badge">Daily</span>
+    </div>
+
+    <div class="section">
+      <p class="card-meta">Dear {{studentFirstName}}'s Parent,</p>
+      <p class="section-subtitle">
+        Here is today's performance summary for <strong>{{studentFullName}}</strong> by <strong>{{teacherName}}</strong>.
+      </p>
+      <div class="row-list">
         {{gradesRows}}
-      </tbody>
-    </table>
-    <p style="color: #6c757d; font-size: 10px; margin-top: 12px; border-top: 1px solid #eee; padding-top: 6px;">
-      This is an automated message from {{teacherName}}.
-    </p>
+      </div>
+    </div>
+
+    <div class="section">
+      <p class="meta-line">Automated message from {{teacherName}}.</p>
+      <p class="meta-line">khalid,</p>
+      <p class="meta-line">{{schoolName}}</p>
+    </div>
   </div>
 </div>

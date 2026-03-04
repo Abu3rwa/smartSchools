@@ -15,6 +15,7 @@ const useAssignmentsPageState = ({ user, classes, subjects, myClasses }) => {
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('all');
     const [gradingAssignment, setGradingAssignment] = useState(null);
+    const [editingAssignment, setEditingAssignment] = useState(null);
     const [gradeRows, setGradeRows] = useState({});
     const [gradeStudents, setGradeStudents] = useState([]);
     const [form, setForm] = useState(createDefaultAssignmentForm);
@@ -57,6 +58,8 @@ const useAssignmentsPageState = ({ user, classes, subjects, myClasses }) => {
         setSelectedStatus,
         gradingAssignment,
         setGradingAssignment,
+        editingAssignment,
+        setEditingAssignment,
         gradeRows,
         setGradeRows,
         gradeStudents,

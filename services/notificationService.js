@@ -1,5 +1,6 @@
 import Notification from "../models/Notification.js";
 import ParentSetting from "../models/ParentSetting.js";
+import School from "../models/School.js";
 import Student from "../models/Student.js";
 import User from "../models/User.js";
 import gradeService from "./gradeService.js";
@@ -25,6 +26,35 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const getGradeObservation = (grade) =>
+  [grade?.notes, grade?.remarks]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(" | ");
+
+const buildSubjectNotesSummary = (grades = []) => {
+  const summary = {};
+
+  for (const grade of grades) {
+    const observation = getGradeObservation(grade);
+    if (!observation) continue;
+
+    const subjectId = String(grade?.subject?._id || grade?.subject || "").trim();
+    if (!subjectId) continue;
+
+    if (!summary[subjectId]) {
+      summary[subjectId] = { count: 0, samples: [] };
+    }
+
+    summary[subjectId].count += 1;
+    if (!summary[subjectId].samples.includes(observation) && summary[subjectId].samples.length < 2) {
+      summary[subjectId].samples.push(observation);
+    }
+  }
+
+  return summary;
+};
+
 const formatDateForNotice = (value) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
@@ -33,6 +63,31 @@ const formatDateForNotice = (value) => {
     month: "short",
     day: "numeric",
   });
+};
+
+const addSchoolNameToMailContent = (mailOptions, schoolName) => {
+  const normalizedSchoolName = String(schoolName || "").trim();
+  if (!normalizedSchoolName) return mailOptions;
+
+  const nextMailOptions = { ...mailOptions };
+  const lowerSchoolName = normalizedSchoolName.toLowerCase();
+
+  const textBody = String(nextMailOptions.text || "");
+  if (!textBody.toLowerCase().includes(lowerSchoolName)) {
+    nextMailOptions.text = `${textBody}${textBody ? "\n\n" : ""}School: ${normalizedSchoolName}`;
+  }
+
+  const htmlBody = String(nextMailOptions.html || "");
+  if (!htmlBody.toLowerCase().includes(lowerSchoolName)) {
+    const footer = `<p style="margin-top:16px;font-size:12px;color:#6b7280;">School: ${escapeHtml(normalizedSchoolName)}</p>`;
+    if (/<\/body>/i.test(htmlBody)) {
+      nextMailOptions.html = htmlBody.replace(/<\/body>/i, `${footer}</body>`);
+    } else {
+      nextMailOptions.html = `${htmlBody}${footer}`;
+    }
+  }
+
+  return nextMailOptions;
 };
 
 class NotificationService {
@@ -59,6 +114,17 @@ class NotificationService {
       return user || { firstName: "", email: "" };
     } catch {
       return { firstName: "", email: "" };
+    }
+  }
+
+  /** Resolve school display name from schoolId. */
+  async _resolveSchoolName(schoolId) {
+    if (!schoolId) return "School";
+    try {
+      const school = await School.findById(schoolId).select("name").lean();
+      return school?.name || "School";
+    } catch {
+      return "School";
     }
   }
 
@@ -186,11 +252,11 @@ class NotificationService {
     const settingsRows =
       userIds.length > 0
         ? await ParentSetting.find({
-            school: student.school,
-            user: { $in: userIds },
-          })
-            .select("user notifications")
-            .lean()
+          school: student.school,
+          user: { $in: userIds },
+        })
+          .select("user notifications")
+          .lean()
         : [];
     const settingsMap = new Map(
       settingsRows.map((row) => [String(row.user || ""), row.notifications || {}]),
@@ -260,11 +326,11 @@ class NotificationService {
     const settingsRows =
       userIds.length > 0
         ? await ParentSetting.find({
-            school: student.school,
-            user: { $in: userIds },
-          })
-            .select("user notifications")
-            .lean()
+          school: student.school,
+          user: { $in: userIds },
+        })
+          .select("user notifications")
+          .lean()
         : [];
     const settingsMap = new Map(
       settingsRows.map((row) => [String(row.user || ""), row.notifications || {}]),
@@ -991,15 +1057,28 @@ class NotificationService {
     const recipients = student.getAllContactEmails();
     if (recipients.length === 0) return null;
 
+    const normalizedFilters = {
+      subject: String(filters.subject ?? "").trim() || undefined,
+      category: String(filters.category ?? "").trim() || undefined,
+    };
+
     // Get all classwork grades for the current month up to today, with optional filters
-    const grades = await gradeService.getMonthlyClassworkGrades(
+    let grades = await gradeService.getMonthlyClassworkGrades(
       studentId,
       date,
       {
-        subject: filters.subject,
-        category: filters.category,
+        subject: normalizedFilters.subject,
+        category: normalizedFilters.category,
       },
     );
+
+    // UX fallback: if a narrow filter yields nothing, try unfiltered monthly grades.
+    if (
+      grades.length === 0 &&
+      (normalizedFilters.subject || normalizedFilters.category)
+    ) {
+      grades = await gradeService.getMonthlyClassworkGrades(studentId, date, {});
+    }
 
     if (grades.length === 0) return null;
 
@@ -1018,10 +1097,11 @@ class NotificationService {
 
     // Customize subject line based on filters
     let reportTitle = "Class Update";
-    if (filters.category) {
+    if (normalizedFilters.category && normalizedFilters.category.toLowerCase() !== "all") {
       // Capitalize first letter
       const categoryTitle =
-        filters.category.charAt(0).toUpperCase() + filters.category.slice(1);
+        normalizedFilters.category.charAt(0).toUpperCase() +
+        normalizedFilters.category.slice(1);
       reportTitle = `${categoryTitle} Report`;
     }
 
@@ -1058,7 +1138,7 @@ class NotificationService {
         month: date.getMonth() + 1,
         year,
         gradesCount: grades.length,
-        filterCategory: filters.category,
+        filterCategory: normalizedFilters.category,
       },
       createdBy,
     });
@@ -1088,6 +1168,11 @@ class NotificationService {
       studentId,
       academicYear,
     );
+    const monthlyGrades = await gradeService.getStudentGrades(studentId, {
+      month,
+      academicYear,
+    });
+    const subjectNotesSummary = buildSubjectNotesSummary(monthlyGrades);
     const monthName = new Date(2024, month - 1).toLocaleString("default", {
       month: "long",
     });
@@ -1098,6 +1183,7 @@ class NotificationService {
       report,
       month,
       monthName,
+      subjectNotesSummary,
     );
     const htmlContent = await this.formatMonthlyReportHtml(
       student,
@@ -1105,6 +1191,7 @@ class NotificationService {
       month,
       monthName,
       createdBy,
+      subjectNotesSummary,
     );
 
     const notification = new Notification({
@@ -1193,12 +1280,14 @@ class NotificationService {
    * @param {string} userId - User ID for Gmail OAuth (optional)
    */
   async sendEmail(notification, userId = null) {
-    const mailOptions = {
+    const baseMailOptions = {
       to: notification.recipientEmail,
       subject: sanitizeSubject(notification.subject),
       text: notification.message,
       html: notification.htmlContent || notification.message,
     };
+    const schoolName = await this._resolveSchoolName(notification.school);
+    const mailOptions = addSchoolNameToMailContent(baseMailOptions, schoolName);
 
     // 1. Try the provided userId first
     if (userId) {
@@ -1270,6 +1359,7 @@ class NotificationService {
 
   // Message formatters
   formatGradeUpdateMessage(student, gradeData) {
+    const observation = getGradeObservation(gradeData);
     return `
 Dear ${student.firstName}'s Parent,
 
@@ -1279,7 +1369,7 @@ Subject: ${gradeData.subjectName}
 Type: ${gradeData.gradeType}
 Marks: ${gradeData.marks}/${gradeData.maxMarks}
 Date: ${new Date(gradeData.date).toLocaleDateString()}
-${gradeData.remarks ? `Remarks: ${gradeData.remarks}` : ""}
+${observation ? `Notes: ${observation}` : ""}
 
 Best regards,
     `.trim();
@@ -1288,15 +1378,18 @@ Best regards,
   async formatGradeUpdateHtml(student, gradeData, createdBy = null) {
     const percentage = ((gradeData.marks / gradeData.maxMarks) * 100).toFixed(1);
     const teacherName = await this._resolveTeacherName(createdBy);
+    const schoolName = await this._resolveSchoolName(student?.school);
 
-    const remarksSection = gradeData.remarks
-      ? renderTemplate("gradeUpdateRemarks", { remarks: gradeData.remarks })
+    const observation = getGradeObservation(gradeData);
+    const remarksSection = observation
+      ? renderTemplate("gradeUpdateRemarks", { remarks: observation })
       : "";
 
     return renderTemplate("gradeUpdate", {
       studentFullName: student.fullName,
       studentFirstName: student.firstName,
       teacherName,
+      schoolName,
       subjectName: gradeData.subjectName,
       gradeType: gradeData.gradeType,
       gradeDate: new Date(gradeData.date).toLocaleDateString(),
@@ -1323,6 +1416,10 @@ Best regards,
     grades.forEach((grade) => {
       const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(1);
       message += `${grade.subject.name}: ${grade.marks}/${grade.maxMarks} (${percentage}%)\n`;
+      const observation = getGradeObservation(grade);
+      if (observation) {
+        message += `  Notes: ${observation}\n`;
+      }
     });
 
     return message.trim();
@@ -1336,15 +1433,18 @@ Best regards,
       year: "numeric",
     });
     const teacherName = await this._resolveTeacherName(createdBy);
+    const schoolName = await this._resolveSchoolName(student?.school);
 
     const gradesRows = grades
       .map((grade) => {
-        const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(1);
-        return `<tr>
-          <td style="padding: 6px; border: 1px solid #dee2e6; font-size: 12px;">${grade.subject.name}</td>
-          <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${grade.marks}/${grade.maxMarks}</td>
-          <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${percentage}%</td>
-        </tr>`;
+        const observation = getGradeObservation(grade);
+        const notesLine = observation
+          ? `<div class="meta-line">Notes: ${escapeHtml(observation)}</div>`
+          : "";
+        return `<div class="row-item">
+          <div class="row-left">${grade.subject.name}${notesLine}</div>
+          <div class="row-right"><span class="badge">${grade.marks} / ${grade.maxMarks}</span></div>
+        </div>`;
       })
       .join("");
 
@@ -1353,17 +1453,23 @@ Best regards,
       studentFirstName: student.firstName,
       studentFullName: student.fullName,
       teacherName,
+      schoolName,
       gradesRows,
     });
   }
 
-  formatMonthlyReportMessage(student, report, month, monthName) {
+  formatMonthlyReportMessage(student, report, month, monthName, subjectNotesSummary = {}) {
     let message = `Monthly Report for ${student.fullName} - ${monthName}\n\n`;
 
     report.subjects.forEach((subject) => {
       const monthData = subject.monthlyAverages[month];
       if (monthData) {
         message += `${subject.subjectName}: ${monthData.average}% (based on ${monthData.entries} entries)\n`;
+        const subjectId = String(subject.subjectId || "").trim();
+        const noteSummary = subjectNotesSummary[subjectId];
+        if (noteSummary?.count) {
+          message += `  Notes (${noteSummary.count}): ${noteSummary.samples.join(" | ")}\n`;
+        }
       }
     });
 
@@ -1377,19 +1483,32 @@ Best regards,
     month,
     monthName,
     createdBy = null,
+    subjectNotesSummary = {},
   ) {
     const teacherName = await this._resolveTeacherName(createdBy);
+    const schoolName = await this._resolveSchoolName(student?.school);
 
     const subjectsRows = report.subjects
       .map((subject) => {
         const monthData = subject.monthlyAverages[month];
         const avg = monthData?.average || "N/A";
         const entries = monthData?.entries || 0;
-        return `<tr>
-          <td style="padding: 6px; border: 1px solid #dee2e6; font-size: 12px;">${subject.subjectName}</td>
-          <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${avg}%</td>
-          <td style="padding: 6px; border: 1px solid #dee2e6; text-align: center; font-size: 12px;">${entries}</td>
-        </tr>`;
+        const subjectId = String(subject.subjectId || "").trim();
+        const noteSummary = subjectNotesSummary[subjectId];
+        const notesLine = noteSummary?.count
+          ? `<div class="meta-line">Notes (${noteSummary.count}): ${escapeHtml(noteSummary.samples.join(" | "))}</div>`
+          : "";
+        const numericAvg = Number(avg);
+        const hasNumericAvg = Number.isFinite(numericAvg);
+        const label = hasNumericAvg ? `${numericAvg.toFixed(1)}%` : "N/A";
+        return `<div class="row-item">
+          <div class="row-left">
+            <div>${subject.subjectName}</div>
+            <div class="meta-line">${entries} entr${entries === 1 ? "y" : "ies"}</div>
+            ${notesLine}
+          </div>
+          <div class="row-right"><span class="badge">${label}</span></div>
+        </div>`;
       })
       .join("");
 
@@ -1397,6 +1516,7 @@ Best regards,
       monthName,
       studentFullName: student.fullName,
       teacherName,
+      schoolName,
       subjectsRows,
       overallAverage: report.overallAverage,
     });
@@ -1464,8 +1584,9 @@ Best regards,
           });
           const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
           message += `    ${gradeDate} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
-          if (grade.notes) {
-            message += ` | ${grade.notes}`;
+          const observation = getGradeObservation(grade);
+          if (observation) {
+            message += ` | ${observation}`;
           }
           message += "\n";
         });
@@ -1503,6 +1624,7 @@ Best regards,
 
     const teacherInfo = await this._resolveTeacherInfo(createdBy);
     const teacherName = teacherInfo.firstName || "Unknown Teacher";
+    const schoolName = await this._resolveSchoolName(student?.school);
 
     // Group grades by subject and category
     const grouped = {};
@@ -1530,20 +1652,21 @@ Best regards,
             const categoryAverage = catMax > 0 ? ((catTotal / catMax) * 10).toFixed(1) : 0;
 
             const gradeRows = subjectGrades
-              .map((grade, index) => {
+              .map((grade) => {
                 const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
                   weekday: "short", month: "short", day: "numeric",
                 });
-                const outOfTen = ((grade.marks / grade.maxMarks) * 10).toFixed(1);
-                const bgColor = index % 2 === 0 ? "#ffffff" : "#f8f9fa";
-                let gradeColor = "#28a745";
-                if (outOfTen < 5) gradeColor = "#dc3545";
-                else if (outOfTen < 7) gradeColor = "#ffc107";
+
+                const notesText = getGradeObservation(grade);
+                const notesLine = notesText
+                  ? `<div class="row-notes">${escapeHtml(notesText)}</div>`
+                  : "";
 
                 return renderTemplate("classworkGradeRow", {
-                  bgColor, gradeDate, gradeColor, outOfTen,
+                  gradeDate,
+                  scoreClass: "",
                   marks: grade.marks, maxMarks: grade.maxMarks,
-                  notes: grade.notes || "-",
+                  notesLine,
                 });
               })
               .join("");
@@ -1568,6 +1691,7 @@ Best regards,
       groupedSectionsHtml,
       teacherFirstName: teacherInfo.firstName,
       teacherEmail: teacherInfo.email,
+      schoolName,
     });
   }
 
@@ -1587,6 +1711,7 @@ Best regards,
       requesterEmail: request.requesterEmail,
       typeLabel,
       notesSection,
+      schoolName: await this._resolveSchoolName(request?.school),
     });
     for (const principal of principalUsers) {
       const notification = new Notification({
@@ -1622,6 +1747,7 @@ Best regards,
       statusLabel,
       typeLabel,
       reviewNoteSection,
+      schoolName: await this._resolveSchoolName(request?.school),
     });
     const notification = new Notification({
       school: request.school,

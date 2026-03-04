@@ -209,6 +209,7 @@
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .report-preview.loading {
@@ -216,6 +217,29 @@
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
+}
+
+.report-preview-content {
+  color: var(--text-primary);
+  font-family: var(--font-family, inherit);
+}
+
+.report-preview-content > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.report-preview-content p,
+.report-preview-content li,
+.report-preview-content strong,
+.report-preview-content span {
+  color: var(--text-primary);
+}
+
+.report-preview-content ul {
+  margin: 0;
+  padding-inline-start: 20px;
 }
 
 .spinner {

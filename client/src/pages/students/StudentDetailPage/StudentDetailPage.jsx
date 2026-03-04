@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchStudent, selectCurrentStudent, selectStudentsLoading } from '../../../store/slices/studentSlice';
+import {
+    fetchStudent,
+    selectCurrentStudent,
+    selectStudentsLoading,
+    uploadStudentPhoto,
+    removeStudentPhoto
+} from '../../../store/slices/studentSlice';
 import { sendDailyReport, selectNotificationSending } from '../../../store/slices/notificationSlice';
+import { selectIsAdmin } from '../../../store/slices/authSlice';
 import { HiOutlineArrowLeft, HiOutlineMail, HiOutlinePhone, HiOutlineChartBar, HiOutlineClipboardList, HiOutlineDocumentText, HiOutlineClock } from 'react-icons/hi';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../../config/api';
 import AIReportModal from '../../../components/reports/AIReportModal';
+import ImageUploader from '../../../components/shared/ImageUploader';
 import './StudentDetailPage.css';
 
 const StudentDetailPage = () => {
@@ -16,8 +24,10 @@ const StudentDetailPage = () => {
     const student = useSelector(selectCurrentStudent);
     const loading = useSelector(selectStudentsLoading);
     const sending = useSelector(selectNotificationSending);
+    const isAdmin = useSelector(selectIsAdmin);
     const [showAIReportModal, setShowAIReportModal] = useState(false);
     const [generatingAIReport, setGeneratingAIReport] = useState(false);
+    const [photoUploading, setPhotoUploading] = useState(false);
 
     useEffect(() => {
         dispatch(fetchStudent(id));
@@ -75,6 +85,32 @@ const StudentDetailPage = () => {
         }
     };
 
+    const handleUploadStudentPhoto = async (file) => {
+        if (!file || !student?._id) return;
+        setPhotoUploading(true);
+        const result = await dispatch(uploadStudentPhoto({ id: student._id, file }));
+        setPhotoUploading(false);
+
+        if (uploadStudentPhoto.fulfilled.match(result)) {
+            toast.success('Student photo updated');
+        } else {
+            toast.error(result.payload || 'Failed to update student photo');
+        }
+    };
+
+    const handleRemoveStudentPhoto = async () => {
+        if (!student?._id) return;
+        setPhotoUploading(true);
+        const result = await dispatch(removeStudentPhoto(student._id));
+        setPhotoUploading(false);
+
+        if (removeStudentPhoto.fulfilled.match(result)) {
+            toast.success('Student photo removed');
+        } else {
+            toast.error(result.payload || 'Failed to remove student photo');
+        }
+    };
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -102,9 +138,29 @@ const StudentDetailPage = () => {
 
                 <div className="student-header">
                     <div className="student-profile">
-                        <div className="avatar-lg">
-                            {student.firstName?.charAt(0)}{student.lastName?.charAt(0)}
-                        </div>
+                        {isAdmin ? (
+                            <div className="student-photo-uploader">
+                                <ImageUploader
+                                    currentImageUrl={student.photoUrl || null}
+                                    onUpload={handleUploadStudentPhoto}
+                                    onDelete={handleRemoveStudentPhoto}
+                                    isUploading={photoUploading}
+                                    label="Student Photo"
+                                    shape="circular"
+                                />
+                            </div>
+                        ) : (
+                            <div className={`avatar-lg ${student.photoUrl ? 'has-image' : ''}`}>
+                                {student.photoUrl ? (
+                                    <img
+                                        src={student.photoUrl}
+                                        alt={`${student.firstName} ${student.lastName}`}
+                                    />
+                                ) : (
+                                    <>{student.firstName?.charAt(0)}{student.lastName?.charAt(0)}</>
+                                )}
+                            </div>
+                        )}
                         <div>
                             <h1>{student.firstName} {student.lastName}</h1>
                             <p className="student-id">{student.studentId}</p>
@@ -139,6 +195,10 @@ const StudentDetailPage = () => {
                         <Link to={`/portal/grades/report/${student._id}`} className="btn btn-primary">
                             <HiOutlineChartBar />
                             View Grade Report
+                        </Link>
+                        <Link to={`/portal/grades/student/${student._id}`} className="btn btn-secondary">
+                            <HiOutlineClipboardList />
+                            View Gradebook
                         </Link>
                     </div>
                 </div>

@@ -195,3 +195,14 @@
     margin: 0;
     padding-left: 1.2rem;
 }
+
+.school-settings-page .branding-card {
+    max-width: 680px;
+}
+
+.school-settings-page .branding-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md);
+}

@@ -27,7 +27,7 @@ router.get('/my-attendance', authorize('student'), getMyAttendance);
 
 // Teacher period-based attendance
 router.get('/my-today', authorize('teacher'), getMyTodayPeriods);
-router.post('/take', authorize('teacher'), takePeriodAttendance);
+router.post('/take', authorize('teacher', 'admin', 'department_principal'), takePeriodAttendance);
 
 // Teacher attendance routes
 router.get('/teacher', authorize('teacher', 'admin', 'department_principal'), getTeacherAttendance);

@@ -26,6 +26,25 @@
 .student-cell .avatar-sm {
     width: 36px;
     height: 36px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-gradient);
+    color: #fff;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.student-cell .avatar-sm.has-image {
+    background: var(--bg-tertiary);
+}
+
+.student-cell .avatar-sm img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .student-cell .student-name {

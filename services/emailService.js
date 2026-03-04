@@ -2,6 +2,7 @@ import gmailOAuthService from './gmailOAuthService.js';
 import { EmailReport } from '../models/EmailReport.js';
 import { AITokenUsage } from '../models/AITokenUsage.js';
 import Notification from '../models/Notification.js';
+import School from '../models/School.js';
 import xss from 'xss';
 
 /**
@@ -9,8 +10,10 @@ import xss from 'xss';
  */
 const sanitizeSubject = (subject) => {
     if (!subject) return 'Progress Report';
-    // Remove emojis and non-ASCII characters, keep only basic ASCII
-    return subject.replace(/[^\x00-\x7F]/g, '').trim();
+    return subject
+        .replace(/[\u0000-\u001F\u007F]/g, '')
+        .replace(/\p{Extended_Pictographic}/gu, '')
+        .trim();
 };
 
 const normalizeAiHtml = (content, language) => {
@@ -32,6 +35,9 @@ const normalizeAiHtml = (content, language) => {
     // Remove control characters (keep newlines)
     html = html.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
 
+    // Narrative-only: remove table blocks if model returns any
+    html = html.replace(/<table[\s\S]*?<\/table>/gi, '');
+
     // If model returned plain text, wrap into paragraphs
     const hasTags = /<\s*\w+[\s>]/.test(html);
     if (!hasTags) {
@@ -51,8 +57,8 @@ const normalizeAiHtml = (content, language) => {
     // Sanitize HTML to prevent XSS attacks
     const sanitizedHtml = xss(html, {
         whiteList: {
-            div: ['dir', 'style'],
-            p: ['style'],
+            div: ['dir'],
+            p: [],
             strong: [],
             b: [],
             em: [],
@@ -66,17 +72,38 @@ const normalizeAiHtml = (content, language) => {
             ul: [],
             ol: [],
             li: [],
-            span: ['style']
+            span: []
         }
     });
 
     return `<div dir="${direction}">${sanitizedHtml.replace(/^<div[\s>]/i, '').replace(/<\/div>\s*$/i, '')}</div>`;
 };
 
+const escapeHtml = (value) =>
+    String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
 class EmailService {
     constructor() {
         // Gmail OAuth service handles authentication
         this.gmailService = gmailOAuthService;
+    }
+
+    async resolveSchoolName(schoolRef) {
+        if (!schoolRef) return 'School';
+        if (typeof schoolRef === 'object' && schoolRef.name) {
+            return String(schoolRef.name).trim() || 'School';
+        }
+        try {
+            const school = await School.findById(schoolRef).select('name').lean();
+            return school?.name || 'School';
+        } catch {
+            return 'School';
+        }
     }
 
     /**
@@ -114,6 +141,8 @@ class EmailService {
             };
         }
 
+        const schoolName = await this.resolveSchoolName(studentData?.school);
+
         try {
             // Send ONE email to all recipients
             const result = await this.sendSingleEmailToMultiple({
@@ -122,13 +151,14 @@ class EmailService {
                 reportContent,
                 language,
                 studentData,
-                teacherId: teacher._id
+                teacherId: teacher._id,
+                schoolName
             });
 
             // Log to Notification history so teachers/admins can see sent AI reports in /portal/notifications
             try {
                 const subject = sanitizeSubject(this.getEmailSubject(studentData, language));
-                const htmlContent = this.formatEmailContent(reportContent, language);
+                const htmlContent = this.formatEmailContent(reportContent, language, { schoolName });
 
                 const notification = new Notification({
                     school: studentData.school,
@@ -240,7 +270,8 @@ class EmailService {
             reportContent,
             language,
             studentData,
-            teacherId
+            teacherId,
+            schoolName
         } = options;
 
         // Separate primary recipients (parents) from CC recipients
@@ -252,7 +283,7 @@ class EmailService {
         }
 
         const subject = sanitizeSubject(this.getEmailSubject(studentData, language));
-        const htmlContent = this.formatEmailContent(reportContent, language);
+        const htmlContent = this.formatEmailContent(reportContent, language, { schoolName });
 
         // Prepare recipient list for Gmail API
         const toEmails = primaryRecipients.map(r => r.email).join(', ');
@@ -329,8 +360,7 @@ class EmailService {
         
         switch (language) {
             case 'arabic':
-                // Use plain English with Arabic translation in parentheses
-                return `Progress Report for ${studentName} (تقرير التقدم)`;
+                return `تقرير التقدم للطالب ${studentName}`;
             case 'bilingual':
                 return `Progress Report - ${studentName}`;
             default:
@@ -341,7 +371,7 @@ class EmailService {
     /**
      * Format email content with proper styling
      */
-    formatEmailContent(content, language, recipientType) {
+    formatEmailContent(content, language, { schoolName = 'School' } = {}) {
         const isRTL = language === 'arabic';
         const direction = isRTL ? 'rtl' : 'ltr';
 
@@ -357,44 +387,17 @@ class EmailService {
                 body {
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                     line-height: 1.6;
-                    color: #333;
+                    color: #111827;
                     max-width: 600px;
                     margin: 0 auto;
                     padding: 20px;
-                    background-color: #f9f9f9;
+                    background-color: #f6f7fb;
                 }
                 .container {
                     background-color: white;
                     padding: 30px;
-                    border-radius: 10px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                }
-                .header {
-                    border-bottom: 2px solid #007bff;
-                    padding-bottom: 20px;
-                    margin-bottom: 20px;
-                }
-                .footer {
-                    margin-top: 30px;
-                    padding-top: 20px;
-                    border-top: 1px solid #eee;
-                    font-size: 12px;
-                    color: #666;
-                    text-align: center;
-                }
-                .highlight {
-                    background-color: #fff3cd;
-                    padding: 15px;
-                    border-left: 4px solid #ffc107;
-                    margin: 20px 0;
-                }
-                .positive {
-                    color: #28a745;
-                    font-weight: bold;
-                }
-                .improvement {
-                    color: #dc3545;
-                    font-weight: bold;
+                    border-radius: 12px;
+                    border: 1px solid #e5e7eb;
                 }
             </style>
         </head>
@@ -403,8 +406,9 @@ class EmailService {
                 <div class="content">
                     ${normalizedContent}
                 </div>
-
-                
+                <p style="margin-top: 18px; font-size: 12px; color: #6b7280;">
+                    School: ${escapeHtml(schoolName)}
+                </p>
             </div>
         </body>
         </html>
@@ -557,7 +561,8 @@ class EmailService {
 
         try {
             const subject = `Lesson Plan Feedback Required - ${lessonPlan.topic || lessonPlan.title}`;
-            const htmlContent = this.formatLessonPlanFeedbackEmail(lessonPlan);
+            const schoolName = await this.resolveSchoolName(lessonPlan?.school);
+            const htmlContent = this.formatLessonPlanFeedbackEmail(lessonPlan, schoolName);
 
             const emailData = {
                 to: teacher.email,
@@ -610,7 +615,7 @@ class EmailService {
      * Format lesson plan feedback email content
      * @param {Object} lessonPlan - Lesson plan document
      */
-    formatLessonPlanFeedbackEmail(lessonPlan) {
+    formatLessonPlanFeedbackEmail(lessonPlan, schoolName = 'School') {
         const evaluation = lessonPlan.aiEvaluation || {};
         const failedCriteria = (evaluation.criteriaScores || []).filter(c => !c.metMinimum);
         
@@ -695,6 +700,7 @@ class EmailService {
             This evaluation was generated by AI based on your school's lesson plan criteria. 
             If you have questions, please contact your department head or academic coordinator.
         </p>
+        <p style="color: #666; font-size: 12px;">School: ${escapeHtml(schoolName)}</p>
     </div>
 </body>
 </html>

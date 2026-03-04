@@ -206,7 +206,7 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
-      path: "/portal/classes",
+      path: "/portal/gradebook",
       icon: HiOutlineChartBar,
       label: "Gradebook",
       roles: ["admin", "teacher", "department_principal"],

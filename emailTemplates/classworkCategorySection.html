@@ -1,30 +1,10 @@
-<div style="margin: 6px 0; padding: 8px; background: #ffffff; border-radius: 6px; border: 1px solid #e2e8f0;">
-  <h3 style="color: #0f172a; font-size: 15px; margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid #e2e8f0;">
-    {{categoryName}}
-  </h3>
-  
-  <div style="margin-bottom: 8px;">
-    <table style="width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed;">
-      <thead>
-        <tr style="background: #f1f5f9; color: #0f172a;">
-          <th style="padding: 8px 6px; border: 1px solid #e2e8f0; text-align: left; font-weight: 700; font-size: 12px; width: 28%; word-break: break-word;">Date</th>
-          <th style="padding: 8px 6px; border: 1px solid #e2e8f0; text-align: center; font-weight: 700; font-size: 12px; width: 22%; word-break: break-word;">Score</th>
-          <th style="padding: 8px 6px; border: 1px solid #e2e8f0; text-align: left; font-weight: 700; font-size: 12px; width: 50%; word-break: break-word;">Notes</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{gradeRows}}
-      </tbody>
-    </table>
+<div class="section">
+  <h4 class="section-title">{{categoryName}}</h4>
+  <div class="row-list">
+    {{gradeRows}}
   </div>
-  
-  <!-- Category Average -->
-  <div style="background: #f8fafc; padding: 8px; border-radius: 6px; border: 1px solid #e2e8f0; margin-top: 6px;">
-    <table style="width: 100%; border-collapse: collapse;">
-      <tr>
-        <td style="color: #0f172a; font-weight: 600; font-size: 13px;">Average</td>
-        <td style="text-align: right; font-size: 14px; font-weight: 700; color: #0f172a;">{{categoryAverage}}/10</td>
-      </tr>
-    </table>
+  <div class="summary-bar">
+    <span>Average</span>
+    <span>{{categoryAverage}} / 10</span>
   </div>
 </div>

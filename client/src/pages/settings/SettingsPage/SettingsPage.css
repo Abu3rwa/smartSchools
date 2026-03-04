@@ -27,7 +27,7 @@
 /* Profile Section */
 .profile-section {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--spacing-lg);
     padding: var(--spacing-lg);
     background: var(--bg-tertiary);
@@ -35,17 +35,8 @@
     margin-bottom: var(--spacing-lg);
 }
 
-.avatar-xl {
-    width: 80px;
-    height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent-gradient);
-    border-radius: var(--radius-lg);
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: white;
+.profile-uploader {
+    flex-shrink: 0;
 }
 
 .profile-info h4 {
@@ -151,6 +142,7 @@
     .profile-section {
         flex-direction: column;
         text-align: center;
+        align-items: center;
     }
 
     .info-grid {

@@ -1,35 +1,20 @@
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 100%; min-width: 320px; max-width: 680px; margin: 0 auto; padding: 0; background: #ffffff; color: #0f172a; box-sizing: border-box;">
-  <div style="background: #190c0c00; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0;">
-    
-    <!-- Mobile-Optimized Header -->
-    <div style="background: linear-gradient(135deg, #0a3a8a 0%, #1c70d8 100%); color: #ffffff; padding: 14px 12px;">
-      <div style="text-align: center;">
-        <h1 style="margin: 0 0 4px 0; font-size: 20px; line-height: 1.25; font-weight: 700;">{{title}}</h1>
-        <p style="margin: 0; font-size: 13px; opacity: 0.92;">{{todayStr}}</p>
+<style>{{reportSharedStyles}}</style>
+
+<div class="report-scope">
+  <div class="report-card">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">{{title}}</h2>
+        <p class="card-meta">{{todayStr}}</p>
       </div>
+      <span class="tag">Academic Summary</span>
     </div>
 
-    <!-- Mobile Content -->
-    <div style="padding: 10px 8px 12px;">
-      
-      <!-- Mobile Subjects Info -->
-      <div style="margin-bottom: 8px;">
-        <h2 style="color: #0f172a; font-size: 14px; margin: 0 0 4px 0; padding-bottom: 4px; border-bottom: 2px solid #1c70d8;">
-          Academic Summary
-        </h2>
-      </div>
+    {{groupedSectionsHtml}}
 
-      <!-- Mobile-Optimized Grades -->
-      {{groupedSectionsHtml}}
-
-      <!-- Mobile Footer Summary -->
-      <div style="margin-top: 10px; padding: 10px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-        <div style="text-align: start;">
-          <strong style="color: #0f172a; font-size: 13px; display: block; margin-bottom: 4px;">Best regards,</strong>
-          <strong style="color: #0f172a; font-size: 13px; display: block; margin-bottom: 4px;">{{teacherFirstName}},</strong>
-          <strong style="color: #334155; font-size: 13px; display: block; margin-bottom: 0;">{{teacherEmail}}</strong>
-        </div>
-      </div>
+    <div class="section">
+      <p class="meta-line">khalid,</p>
+      <p class="meta-line">{{schoolName}}</p>
     </div>
   </div>
 </div>

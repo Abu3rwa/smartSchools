@@ -1,9 +1,9 @@
 import React from 'react';
 import { Grid } from '@mui/material';
 import { HiOutlineUser } from 'react-icons/hi';
-import { getUserInitials } from '../utils/settingsPagePresentation';
+import ImageUploader from '../../../../components/shared/ImageUploader';
 
-const ProfileCard = ({ user }) => {
+const ProfileCard = ({ user, avatarUploading, onAvatarUpload, onAvatarRemove }) => {
     return (
         <Grid item xs={12} md={6}>
             <div className="card settings-card">
@@ -13,8 +13,15 @@ const ProfileCard = ({ user }) => {
                     </h3>
                 </div>
                 <div className="profile-section">
-                    <div className="avatar-xl">
-                        {getUserInitials(user?.firstName, user?.lastName)}
+                    <div className="profile-uploader">
+                        <ImageUploader
+                            currentImageUrl={user?.avatar || null}
+                            onUpload={onAvatarUpload}
+                            onDelete={onAvatarRemove}
+                            isUploading={avatarUploading}
+                            label="Personal Photo"
+                            shape="circular"
+                        />
                     </div>
                     <div className="profile-info">
                         <h4>{user?.firstName} {user?.lastName}</h4>

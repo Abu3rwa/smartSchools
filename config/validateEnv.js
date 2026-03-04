@@ -56,6 +56,9 @@ export function validateEnvironment() {
     if (!hasV1Config) {
       warnings.push('FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY');
     }
+    if (!process.env.FIREBASE_STORAGE_BUCKET) {
+      warnings.push('FIREBASE_STORAGE_BUCKET (recommended for image uploads)');
+    }
   } else {
     const hasLegacyPushKey = Boolean(
       process.env.FCM_SERVER_KEY ||

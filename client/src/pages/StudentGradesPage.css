@@ -56,6 +56,21 @@
     background: var(--bg-primary, #fff);
 }
 
+.table-input {
+    width: 100%;
+    min-width: 80px;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: var(--radius-sm, 4px);
+    font-size: 0.875rem;
+}
+
+.table-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 .loading-state {
     display: flex;
     flex-direction: column;

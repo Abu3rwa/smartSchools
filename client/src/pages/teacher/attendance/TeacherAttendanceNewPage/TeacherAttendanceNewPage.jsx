@@ -131,6 +131,7 @@ const TeacherAttendanceNewPage = () => {
 
     const handleSubmit = async () => {
         if (!selectedPeriod?.assignment) return;
+        if (selectedPeriod?.isReadOnlyForOriginalTeacher) return;
 
         const periodId = selectedPeriod.period._id;
         const classId = selectedPeriod.assignment.class._id;
@@ -160,6 +161,8 @@ const TeacherAttendanceNewPage = () => {
             setSaving(false);
         }
     };
+
+    const isReadOnlySelectedPeriod = Boolean(selectedPeriod?.isReadOnlyForOriginalTeacher);
 
     const handleChangeDay = (direction) => {
         setSelectedDate((prev) => {
@@ -339,10 +342,33 @@ const TeacherAttendanceNewPage = () => {
                                     </div>
                                 </div>
                                 <div className="quick-actions">
-                                    <button className="all-present" onClick={() => setAllStatus('present')}>All Present</button>
-                                    <button onClick={() => setAllStatus('absent')}>All Absent</button>
+                                    <button
+                                        className="all-present"
+                                        onClick={() => setAllStatus('present')}
+                                        disabled={isReadOnlySelectedPeriod}
+                                    >
+                                        All Present
+                                    </button>
+                                    <button
+                                        onClick={() => setAllStatus('absent')}
+                                        disabled={isReadOnlySelectedPeriod}
+                                    >
+                                        All Absent
+                                    </button>
                                 </div>
                             </div>
+
+                            {isReadOnlySelectedPeriod && (
+                                <div className="error-banner" style={{ marginBottom: 10 }}>
+                                    <HiOutlineExclamation size={20} />
+                                    <span>
+                                        Read-only: attendance was submitted by substitute teacher
+                                        {selectedPeriod?.attendanceStatus?.takenBy
+                                            ? ` (${selectedPeriod.attendanceStatus.takenBy})`
+                                            : ''}.
+                                    </span>
+                                </div>
+                            )}
 
                             {loadingStudents ? (
                                 <div className="loading-overlay" style={{ minHeight: 120 }}>
@@ -368,6 +394,7 @@ const TeacherAttendanceNewPage = () => {
                                                             <button
                                                                 key={opt.key}
                                                                 className={`status-btn ${currentStatus === opt.key ? `active-${opt.key}` : ''}`}
+                                                                disabled={isReadOnlySelectedPeriod}
                                                                 onClick={() => setStudentAttendance(prev => ({
                                                                     ...prev,
                                                                     [student._id]: opt.key
@@ -393,7 +420,7 @@ const TeacherAttendanceNewPage = () => {
                                         <button
                                             className="btn btn-success"
                                             onClick={handleSubmit}
-                                            disabled={saving || students.length === 0}
+                                            disabled={saving || students.length === 0 || isReadOnlySelectedPeriod}
                                         >
                                             {saving ? 'Saving...' : 'Save Attendance'}
                                         </button>

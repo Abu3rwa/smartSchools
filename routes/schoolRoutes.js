@@ -274,6 +274,34 @@ router.put('/me/logo', requireSchoolContext, authorize('admin'), upload.single('
 }));
 
 /**
+ * @desc    Remove school logo
+ * @route   DELETE /api/schools/me/logo
+ * @access  Private (Admin)
+ */
+router.delete('/me/logo', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const schoolToUpdate = await School.findById(req.schoolId);
+    if (!schoolToUpdate) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    if (schoolToUpdate.settings?.branding?.logoUrl && schoolToUpdate.settings.branding.logoUrl.includes('storage.googleapis.com')) {
+        await deleteFile(schoolToUpdate.settings.branding.logoUrl);
+    }
+
+    const school = await School.findByIdAndUpdate(
+        req.schoolId,
+        { 'settings.branding.logoUrl': null },
+        { new: true, runValidators: true }
+    );
+
+    res.json({
+        success: true,
+        message: 'School logo removed successfully',
+        data: { school }
+    });
+}));
+
+/**
  * @desc    List users in current school (for role/department management)
  * @route   GET /api/schools/me/users
  * @access  Private (Admin)

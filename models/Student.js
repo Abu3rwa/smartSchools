@@ -155,6 +155,10 @@ const studentSchema = new mongoose.Schema({
         enum: ['active', 'inactive', 'transferred', 'graduated', 'suspended'],
         default: 'active'
     },
+    photoUrl: {
+        type: String,
+        default: null
+    },
     notes: String
 }, {
     timestamps: true,

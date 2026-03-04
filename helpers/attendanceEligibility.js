@@ -132,3 +132,44 @@ export async function hasSubstituteAssignmentForPeriod(schoolId, teacherId, peri
         subRequestId: request._id
     };
 }
+
+/**
+ * Resolve confirmed substitute coverage for a class+period on a day.
+ * Returns { substituteTeacherId, subRequestId } or null if no confirmed coverage.
+ */
+export async function getConfirmedSubstituteCoverageForPeriod(schoolId, periodId, classId, targetDate) {
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const request = await SubstitutionRequest.findOne({
+        school: schoolId,
+        date: { $gte: startOfDay, $lte: endOfDay },
+        status: { $in: ['SUBMITTED', 'CONFIRMED'] },
+        periods: {
+            $elemMatch: {
+                periodId,
+                classId
+            }
+        },
+        assignments: {
+            $elemMatch: {
+                periodId,
+                status: 'CONFIRMED'
+            }
+        }
+    }).select('_id assignments').lean();
+
+    if (!request) return null;
+
+    const assignment = (request.assignments || []).find(
+        (a) => a.periodId?.toString() === periodId.toString() && a.status === 'CONFIRMED' && a.substituteTeacherId
+    );
+    if (!assignment?.substituteTeacherId) return null;
+
+    return {
+        substituteTeacherId: assignment.substituteTeacherId,
+        subRequestId: request._id
+    };
+}

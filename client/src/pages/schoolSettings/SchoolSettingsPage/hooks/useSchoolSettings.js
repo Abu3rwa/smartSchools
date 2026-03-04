@@ -64,6 +64,8 @@ const useSchoolSettings = () => {
   const [schoolYearStartDate, setSchoolYearStartDate] = useState('');
   const [schoolYearEndDate, setSchoolYearEndDate] = useState('');
   const [schoolYearDatesSaving, setSchoolYearDatesSaving] = useState(false);
+  const [schoolInfo, setSchoolInfo] = useState(null);
+  const [brandingLoading, setBrandingLoading] = useState(false);
 
   useEffect(() => {
     if (!canAccessSchoolSettings) {
@@ -92,6 +94,63 @@ const useSchoolSettings = () => {
       fetchSchoolUsers();
     }
   }, [activeTab, canManageUsers, fetchSchoolUsers]);
+
+  const loadSchoolProfile = useCallback(async () => {
+    try {
+      const response = await api.get('/schools/me');
+      if (response.data?.success) {
+        setSchoolInfo(response.data.data?.school || null);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to load school profile');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (canManageSchoolSettings) {
+      loadSchoolProfile();
+    }
+  }, [canManageSchoolSettings, loadSchoolProfile]);
+
+  const handleUploadSchoolLogo = useCallback(async (file) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    setBrandingLoading(true);
+    try {
+      const response = await api.put('/schools/me/logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (response.data?.success) {
+        setSchoolInfo((prev) => response.data.data?.school || prev);
+        toast.success('School logo updated');
+      } else {
+        toast.error(response.data?.message || 'Failed to update school logo');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update school logo');
+    } finally {
+      setBrandingLoading(false);
+    }
+  }, []);
+
+  const handleRemoveSchoolLogo = useCallback(async () => {
+    setBrandingLoading(true);
+    try {
+      const response = await api.delete('/schools/me/logo');
+      if (response.data?.success) {
+        setSchoolInfo((prev) => response.data.data?.school || prev);
+        toast.success('School logo removed');
+      } else {
+        toast.error(response.data?.message || 'Failed to remove school logo');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to remove school logo');
+    } finally {
+      setBrandingLoading(false);
+    }
+  }, []);
 
   const loadAcademicYearData = useCallback(async () => {
     try {
@@ -417,6 +476,10 @@ const useSchoolSettings = () => {
     schoolYearEndDate,
     setSchoolYearEndDate,
     schoolYearDatesSaving,
+    schoolInfo,
+    brandingLoading,
+    handleUploadSchoolLogo,
+    handleRemoveSchoolLogo,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,

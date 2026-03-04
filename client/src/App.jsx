@@ -38,6 +38,7 @@ import GradeEntryPage from "./pages/grades/GradeEntryPage";
 import GradeReportPage from "./pages/grades/GradeReportPage";
 import WeeklyReportPage from "./pages/reports/WeeklyReportPage";
 import GradebookPage from "./pages/gradebook/GradebookPage";
+import GradebookRedirectPage from "./pages/gradebook/GradebookRedirectPage";
 import TeachersPage from "./pages/teachers/TeachersPage";
 import TeacherDetailsPage from "./pages/teachers/TeacherDetailsPage";
 import SubjectsPage from "./pages/subjects/SubjectsPage";
@@ -282,6 +283,14 @@ function App() {
             }
           />
           <Route
+            path="gradebook"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <GradebookRedirectPage />
+              </RoleRoute>
+            }
+          />
+          <Route
             path="classes/:classId/gradebook"
             element={
               <RoleRoute roles={["admin", "department_principal", "teacher"]}>
@@ -318,6 +327,14 @@ function App() {
             element={
               <RoleRoute roles={["admin", "teacher"]}>
                 <GradeReportPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="grades/student/:studentId"
+            element={
+              <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <StudentGradesPage />
               </RoleRoute>
             }
           />

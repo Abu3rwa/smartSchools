@@ -15,7 +15,7 @@ import {
     clampDateRangeToAcademicYear,
     isDateInAcademicYear
 } from '../helpers/academicYearScope.js';
-import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule, getSchoolTimeZone, hasSubstituteAssignmentForPeriod } from '../helpers/attendanceEligibility.js';
+import { isWorkingDayForSchool, resolvePeriodForSchedule, hasTeacherAssignmentForSchedule, getSchoolTimeZone, hasSubstituteAssignmentForPeriod, getConfirmedSubstituteCoverageForPeriod } from '../helpers/attendanceEligibility.js';
 import {
     getViewRangeInTimeZone,
     getSchoolDayRange,
@@ -635,18 +635,26 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
     // Check which periods already have attendance recorded today
     const existingAttendance = await Attendance.find({
         school: req.schoolId,
-        teacher: req.user._id,
         class: { $in: yearClassIds },
         date: { $gte: startOfDay, $lte: endOfDay },
         period: { $in: allPeriods.map(p => p._id) }
-    }).select('period status studentAttendance recordedBy').populate('recordedBy', 'firstName lastName');
+    })
+        .select('period class status studentAttendance recordedBy')
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .populate('recordedBy', 'firstName lastName');
 
-    const attendanceByPeriod = {};
+    const attendanceByPeriodClass = {};
     for (const att of existingAttendance) {
-        attendanceByPeriod[att.period.toString()] = {
+        const periodId = att.period?.toString();
+        const classId = att.class?.toString();
+        if (!periodId || !classId) continue;
+        const key = `${periodId}:${classId}`;
+        if (attendanceByPeriodClass[key]) continue;
+        attendanceByPeriodClass[key] = {
             id: att._id,
             status: att.status,
             studentAttendance: att.studentAttendance,
+            takenByUserId: att.recordedBy?._id?.toString() || null,
             takenBy: att.recordedBy
                 ? `${att.recordedBy.firstName} ${att.recordedBy.lastName}`
                 : null
@@ -656,6 +664,31 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
     // -------------------------------------------------------------------
     // Merge in confirmed substitute coverages for today
     // -------------------------------------------------------------------
+    const confirmedCoverageByPeriodClass = new Map();
+    if (req.user.role === 'teacher') {
+        const absentTeacherRequests = await SubstitutionRequest.find({
+            school: req.schoolId,
+            date: { $gte: startOfDay, $lte: endOfDay },
+            status: { $in: ['SUBMITTED', 'CONFIRMED'] },
+            absentTeacherId: req.user._id,
+            'assignments.status': 'CONFIRMED'
+        }).select('periods assignments').lean();
+
+        for (const request of absentTeacherRequests) {
+            const confirmedAssignments = (request.assignments || []).filter(
+                (a) => a.status === 'CONFIRMED' && a.substituteTeacherId && a.periodId
+            );
+            for (const assignmentRow of confirmedAssignments) {
+                const periodInfo = (request.periods || []).find(
+                    (p) => p.periodId?.toString() === assignmentRow.periodId?.toString() && p.classId
+                );
+                if (!periodInfo?.classId || !periodInfo?.periodId) continue;
+                const key = `${periodInfo.periodId.toString()}:${periodInfo.classId.toString()}`;
+                confirmedCoverageByPeriodClass.set(key, assignmentRow.substituteTeacherId.toString());
+            }
+        }
+    }
+
     const subRequests = await SubstitutionRequest.find({
         school: req.schoolId,
         date: { $gte: startOfDay, $lte: endOfDay },
@@ -712,12 +745,29 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
     // Build response: each period with its assignment (if any) and attendance status
     const periodsWithStatus = allPeriods.map(period => {
         const assignment = assignmentByPeriod.get(period._id.toString()) || null;
+        const assignmentClassId = assignment?.class?._id?.toString() || assignment?.class?.toString() || null;
+        const attendanceStatus = assignmentClassId
+            ? attendanceByPeriodClass[`${period._id.toString()}:${assignmentClassId}`] || null
+            : null;
+        const coverageKey = assignmentClassId ? `${period._id.toString()}:${assignmentClassId}` : null;
+        const confirmedSubTeacherId = coverageKey ? confirmedCoverageByPeriodClass.get(coverageKey) : null;
+        const isReadOnlyForOriginalTeacher = Boolean(
+            req.user.role === 'teacher' &&
+            assignment &&
+            !assignment?.isSubstitute &&
+            attendanceStatus?.id &&
+            attendanceStatus?.takenByUserId &&
+            confirmedSubTeacherId &&
+            attendanceStatus.takenByUserId === confirmedSubTeacherId &&
+            attendanceStatus.takenByUserId !== req.user._id.toString()
+        );
         return {
             period,
             assignment: assignment || null,
             hasClass: !!assignment,
             isSubstitute: assignment?.isSubstitute || false,
-            attendanceStatus: attendanceByPeriod[period._id.toString()] || null
+            attendanceStatus,
+            isReadOnlyForOriginalTeacher
         };
     });
 
@@ -728,9 +778,10 @@ export const getMyTodayPeriods = asyncHandler(async (req, res) => {
 // @route   POST /api/attendance/take
 // @access  Private (Teacher)
 export const takePeriodAttendance = asyncHandler(async (req, res) => {
-    if (req.user.role !== 'teacher') {
+    if (!hasRoleAccess(req, TEACHER_ATTENDANCE_ROLES)) {
         return res.status(403).json({ success: false, message: 'Access denied' });
     }
+    const isTeacher = req.user.role === 'teacher';
 
     const { periodId, classId, subjectId, studentAttendance, attendanceDate } = req.body;
     const { academicYear, classIds: yearClassIds } = await getYearScopedClassIds(req, classId ? [classId] : null);
@@ -768,20 +819,23 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
     const startOfDay = targetRange.start;
     const endOfDay = targetRange.end;
 
-    const assignment = await TeacherPeriodAssignment.findOne({
-        school: req.schoolId,
-        teacher: req.user._id,
-        period: periodId,
-        class: classId,
-        isActive: true,
-        daysOfWeek: dayOfWeek,
-        startDate: { $lte: endOfDay },
-        endDate: { $gte: startOfDay }
-    });
+    let assignment = null;
+    if (isTeacher) {
+        assignment = await TeacherPeriodAssignment.findOne({
+            school: req.schoolId,
+            teacher: req.user._id,
+            period: periodId,
+            class: classId,
+            isActive: true,
+            daysOfWeek: dayOfWeek,
+            startDate: { $lte: endOfDay },
+            endDate: { $gte: startOfDay }
+        });
+    }
 
     // If no regular TPA exists, check if this teacher is a confirmed substitute
     let subPeriodInfo = null;
-    if (!assignment) {
+    if (isTeacher && !assignment) {
         subPeriodInfo = await hasSubstituteAssignmentForPeriod(
             req.schoolId, req.user._id, periodId, classId, targetDate
         );
@@ -793,10 +847,34 @@ export const takePeriodAttendance = asyncHandler(async (req, res) => {
     // Check for existing attendance record
     let attendance = await Attendance.findOne({
         school: req.schoolId,
-        teacher: req.user._id,
+        class: classId,
         period: periodId,
         date: { $gte: startOfDay, $lte: endOfDay }
-    });
+    }).sort({ updatedAt: -1, createdAt: -1 });
+
+    // Business rule: if substitute submitted attendance, the original absent
+    // teacher can view it but cannot edit it. Admin/department principal can.
+    if (attendance && isTeacher && assignment && !subPeriodInfo) {
+        const existingRecordedBy = attendance.recordedBy?.toString();
+        const currentUserId = req.user._id.toString();
+        if (existingRecordedBy && existingRecordedBy !== currentUserId) {
+            const confirmedCoverage = await getConfirmedSubstituteCoverageForPeriod(
+                req.schoolId,
+                periodId,
+                classId,
+                targetDate
+            );
+            if (
+                confirmedCoverage?.substituteTeacherId &&
+                confirmedCoverage.substituteTeacherId.toString() === existingRecordedBy
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Attendance was submitted by a substitute teacher and is read-only for the original teacher. Please contact school admin for changes.'
+                });
+            }
+        }
+    }
 
     const mappedStudents = studentAttendance.map(s => ({
         student: s.student,

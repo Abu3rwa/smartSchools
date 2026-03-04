@@ -8,6 +8,7 @@ import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherSco
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
 import { resolveSchoolAcademicYear } from '../utils/academicYear.js';
 import notificationService from '../services/notificationService.js';
+import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 
 /**
  * Generate a human-readable temporary password.
@@ -869,6 +870,72 @@ export const resetStudentPassword = asyncHandler(async (req, res) => {
             email: user.email,
             tempPassword        // shown once
         }
+    });
+});
+
+/**
+ * @desc    Upload or replace student photo
+ * @route   PUT /api/students/:id/photo
+ * @access  Private (Admin)
+ */
+export const uploadStudentPhoto = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({
+            success: false,
+            message: 'Please provide a valid image file.'
+        });
+    }
+
+    const student = await Student.findById(req.params.id);
+    if (!student || student.school?.toString() !== req.schoolId.toString()) {
+        return res.status(404).json({
+            success: false,
+            message: 'Student not found'
+        });
+    }
+
+    if (student.photoUrl && student.photoUrl.includes('storage.googleapis.com')) {
+        await deleteFile(student.photoUrl);
+    }
+
+    const destinationPath = `schools/${req.schoolId}/students/${student._id}/photo-${Date.now()}`;
+    const newPhotoUrl = await uploadFile(req.file.buffer, req.file.mimetype, destinationPath);
+
+    student.photoUrl = newPhotoUrl;
+    await student.save();
+
+    res.json({
+        success: true,
+        message: 'Student photo updated successfully',
+        data: { student }
+    });
+});
+
+/**
+ * @desc    Remove student photo
+ * @route   DELETE /api/students/:id/photo
+ * @access  Private (Admin)
+ */
+export const removeStudentPhoto = asyncHandler(async (req, res) => {
+    const student = await Student.findById(req.params.id);
+    if (!student || student.school?.toString() !== req.schoolId.toString()) {
+        return res.status(404).json({
+            success: false,
+            message: 'Student not found'
+        });
+    }
+
+    if (student.photoUrl && student.photoUrl.includes('storage.googleapis.com')) {
+        await deleteFile(student.photoUrl);
+    }
+
+    student.photoUrl = null;
+    await student.save();
+
+    res.json({
+        success: true,
+        message: 'Student photo removed successfully',
+        data: { student }
     });
 });
 

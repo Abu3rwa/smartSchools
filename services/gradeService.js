@@ -35,6 +35,19 @@ class GradeService {
         if (filters.month) query.month = filters.month;
         if (filters.semester) query.semester = filters.semester;
         if (filters.gradeType) query.gradeType = filters.gradeType;
+        if (filters.startDate || filters.endDate) {
+            query.date = {};
+            if (filters.startDate) {
+                const start = new Date(filters.startDate);
+                start.setHours(0, 0, 0, 0);
+                query.date.$gte = start;
+            }
+            if (filters.endDate) {
+                const end = new Date(filters.endDate);
+                end.setHours(23, 59, 59, 999);
+                query.date.$lte = end;
+            }
+        }
 
         return await Grade.find(query)
             .populate('subject', 'name code')
@@ -353,11 +366,14 @@ class GradeService {
             date: { $gte: startOfMonth, $lte: endOfToday }
         };
 
-        if (filters.subject) {
-            query.subject = new mongoose.Types.ObjectId(filters.subject);
+        const normalizedSubject = String(filters.subject ?? '').trim();
+        const normalizedCategory = String(filters.category ?? '').trim();
+
+        if (normalizedSubject && mongoose.isValidObjectId(normalizedSubject)) {
+            query.subject = new mongoose.Types.ObjectId(normalizedSubject);
         }
-        if (filters.category) {
-            query.category = filters.category.toLowerCase();
+        if (normalizedCategory && normalizedCategory.toLowerCase() !== 'all') {
+            query.category = normalizedCategory.toLowerCase();
         }
 
         const grades = await Grade.find(query)
@@ -388,11 +404,14 @@ class GradeService {
             date: { $gte: startOfMonth, $lte: endOfToday }
         };
 
-        if (filters.subject) {
-            query.subject = new mongoose.Types.ObjectId(filters.subject);
+        const normalizedSubject = String(filters.subject ?? '').trim();
+        const normalizedCategory = String(filters.category ?? '').trim();
+
+        if (normalizedSubject && mongoose.isValidObjectId(normalizedSubject)) {
+            query.subject = new mongoose.Types.ObjectId(normalizedSubject);
         }
-        if (filters.category) {
-            query.category = filters.category;
+        if (normalizedCategory && normalizedCategory.toLowerCase() !== 'all') {
+            query.category = normalizedCategory.toLowerCase();
         }
 
         const grades = await Grade.find(query)

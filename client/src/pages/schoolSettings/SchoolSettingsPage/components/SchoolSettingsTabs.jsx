@@ -2,7 +2,8 @@ import {
   HiOutlineOfficeBuilding,
   HiOutlineUserGroup,
   HiOutlineCalendar,
-  HiOutlineDocumentText
+  HiOutlineDocumentText,
+  HiOutlinePhotograph
 } from 'react-icons/hi';
 
 const SchoolSettingsTabs = ({ activeTab, onTabChange, canManageUsers, canManageSchoolSettings }) => (
@@ -30,6 +31,15 @@ const SchoolSettingsTabs = ({ activeTab, onTabChange, canManageUsers, canManageS
       <HiOutlineDocumentText size={18} />
       Lesson Plan Criteria
     </button>
+    {canManageSchoolSettings && (
+      <button
+        className={`tab-btn ${activeTab === 'branding' ? 'active' : ''}`}
+        onClick={() => onTabChange('branding')}
+      >
+        <HiOutlinePhotograph size={18} />
+        Branding
+      </button>
+    )}
     {canManageSchoolSettings && (
       <button
         className={`tab-btn ${activeTab === 'schoolyear' ? 'active' : ''}`}

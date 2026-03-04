@@ -556,8 +556,15 @@ const StudentsPage = () => {
                                         )}
                                         <td>
                                             <div className="student-cell">
-                                                <div className="avatar-sm">
-                                                    {student.firstName?.charAt(0)}{student.lastName?.charAt(0)}
+                                                <div className={`avatar-sm ${student.photoUrl ? 'has-image' : ''}`}>
+                                                    {student.photoUrl ? (
+                                                        <img
+                                                            src={student.photoUrl}
+                                                            alt={`${student.firstName} ${student.lastName}`}
+                                                        />
+                                                    ) : (
+                                                        <>{student.firstName?.charAt(0)}{student.lastName?.charAt(0)}</>
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <span className="student-name">{student.firstName} {student.lastName}</span>

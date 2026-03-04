@@ -6,6 +6,8 @@ const CreateAssignmentForm = ({
     form,
     setForm,
     assignmentTypes,
+    isEditing,
+    onCancelEdit,
     onSubmit
 }) => {
     if (!open) return null;
@@ -15,7 +17,7 @@ const CreateAssignmentForm = ({
             <div className="card-header">
                 <h3 className="card-title">
                     <HiOutlinePlus />
-                    Create Assignment
+                    {isEditing ? 'Edit Assignment' : 'Create Assignment'}
                 </h3>
             </div>
 
@@ -76,9 +78,14 @@ const CreateAssignmentForm = ({
             </div>
 
             <div className="card-footer">
+                {isEditing && (
+                    <button type="button" className="btn btn-outline" onClick={onCancelEdit} disabled={submitting}>
+                        Cancel Edit
+                    </button>
+                )}
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                     <HiOutlineUpload />
-                    {submitting ? 'Saving...' : 'Create Assignment'}
+                    {submitting ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create Assignment')}
                 </button>
             </div>
         </form>
