@@ -29,7 +29,9 @@ const useSchoolSettings = () => {
   const canManageUsers = user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_USERS);
   const canManageSchoolSettings =
     user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_SCHOOL_SETTINGS);
-  const canAccessSchoolSettings = canManageUsers || canManageSchoolSettings;
+  const canManageGradeScaling =
+    user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_GRADE_SCALING);
+  const canAccessSchoolSettings = canManageUsers || canManageSchoolSettings || canManageGradeScaling;
 
   const departments = useSelector(selectDepartments);
   const departmentsLoading = useSelector(selectDepartmentsLoading);
@@ -66,6 +68,31 @@ const useSchoolSettings = () => {
   const [schoolYearDatesSaving, setSchoolYearDatesSaving] = useState(false);
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [brandingLoading, setBrandingLoading] = useState(false);
+  const [gradingScales, setGradingScales] = useState([]);
+  const [gradingScalesLoading, setGradingScalesLoading] = useState(false);
+  const [gradingScaleSubmitting, setGradingScaleSubmitting] = useState(false);
+  const [showGradingScaleForm, setShowGradingScaleForm] = useState(false);
+  const [editingGradingScaleId, setEditingGradingScaleId] = useState(null);
+  const [gradingScaleFormData, setGradingScaleFormData] = useState({
+    name: '',
+    description: '',
+    isActive: true,
+    sortOrder: 100,
+    bands: [
+      { grade: 'A+', min: 97, max: 100, color: '#14532d' },
+      { grade: 'A', min: 93, max: 96, color: '#166534' },
+      { grade: 'A-', min: 90, max: 92, color: '#15803d' },
+      { grade: 'B+', min: 87, max: 89, color: '#059669' },
+      { grade: 'B', min: 83, max: 86, color: '#0d9488' },
+      { grade: 'B-', min: 80, max: 82, color: '#0284c7' },
+      { grade: 'C+', min: 77, max: 79, color: '#2563eb' },
+      { grade: 'C', min: 73, max: 76, color: '#4f46e5' },
+      { grade: 'C-', min: 70, max: 72, color: '#7c3aed' },
+      { grade: 'D+', min: 67, max: 69, color: '#c2410c' },
+      { grade: 'D', min: 50, max: 66, color: '#ea580c' },
+      { grade: 'F', min: 0, max: 49, color: '#dc2626' }
+    ]
+  });
 
   useEffect(() => {
     if (!canAccessSchoolSettings) {
@@ -74,6 +101,25 @@ const useSchoolSettings = () => {
     }
     dispatch(fetchDepartments());
   }, [canAccessSchoolSettings, dispatch, navigate]);
+
+  useEffect(() => {
+    const allowedTabs = [
+      canManageSchoolSettings ? 'departments' : null,
+      canManageUsers ? 'users' : null,
+      canManageSchoolSettings ? 'lessonplancriteria' : null,
+      canManageGradeScaling ? 'gradingscales' : null,
+      canManageSchoolSettings ? 'branding' : null,
+      canManageSchoolSettings ? 'schoolyear' : null
+    ].filter(Boolean);
+
+    if (allowedTabs.length === 0) {
+      return;
+    }
+
+    if (!allowedTabs.includes(activeTab)) {
+      setActiveTab(allowedTabs[0]);
+    }
+  }, [activeTab, canManageGradeScaling, canManageSchoolSettings, canManageUsers]);
 
   const fetchSchoolUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -111,6 +157,29 @@ const useSchoolSettings = () => {
       loadSchoolProfile();
     }
   }, [canManageSchoolSettings, loadSchoolProfile]);
+
+  const fetchGradingScales = useCallback(async () => {
+    if (!canManageGradeScaling) return;
+    setGradingScalesLoading(true);
+    try {
+      const response = await api.get('/grading-scales');
+      if (response.data?.success) {
+        setGradingScales(response.data?.data?.items || []);
+      } else {
+        toast.error(response.data?.message || 'Failed to load grading scales');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to load grading scales');
+    } finally {
+      setGradingScalesLoading(false);
+    }
+  }, [canManageGradeScaling]);
+
+  useEffect(() => {
+    if (activeTab === 'gradingscales' && canManageGradeScaling) {
+      fetchGradingScales();
+    }
+  }, [activeTab, canManageGradeScaling, fetchGradingScales]);
 
   const handleUploadSchoolLogo = useCallback(async (file) => {
     if (!file) return;
@@ -420,6 +489,183 @@ const useSchoolSettings = () => {
     }));
   }, []);
 
+  const getDefaultGradingScaleForm = useCallback(() => ({
+    name: '',
+    description: '',
+    isActive: true,
+    sortOrder: 100,
+    bands: [
+      { grade: 'A+', min: 97, max: 100, color: '#14532d' },
+      { grade: 'A', min: 93, max: 96, color: '#166534' },
+      { grade: 'A-', min: 90, max: 92, color: '#15803d' },
+      { grade: 'B+', min: 87, max: 89, color: '#059669' },
+      { grade: 'B', min: 83, max: 86, color: '#0d9488' },
+      { grade: 'B-', min: 80, max: 82, color: '#0284c7' },
+      { grade: 'C+', min: 77, max: 79, color: '#2563eb' },
+      { grade: 'C', min: 73, max: 76, color: '#4f46e5' },
+      { grade: 'C-', min: 70, max: 72, color: '#7c3aed' },
+      { grade: 'D+', min: 67, max: 69, color: '#c2410c' },
+      { grade: 'D', min: 50, max: 66, color: '#ea580c' },
+      { grade: 'F', min: 0, max: 49, color: '#dc2626' }
+    ]
+  }), []);
+
+  const openCreateGradingScale = useCallback(() => {
+    setEditingGradingScaleId(null);
+    setGradingScaleFormData(getDefaultGradingScaleForm());
+    setShowGradingScaleForm(true);
+  }, [getDefaultGradingScaleForm]);
+
+  const openEditGradingScale = useCallback((scale) => {
+    if (!scale) return;
+    setEditingGradingScaleId(scale.id);
+    setGradingScaleFormData({
+      name: scale.name || '',
+      description: scale.description || '',
+      isActive: scale.isActive !== false,
+      sortOrder: Number.isFinite(Number(scale.sortOrder)) ? Number(scale.sortOrder) : 100,
+      bands: Array.isArray(scale.bands) && scale.bands.length
+        ? scale.bands.map((band) => ({
+          grade: band.grade || '',
+          min: Number.isFinite(Number(band.min)) ? Number(band.min) : 0,
+          max: Number.isFinite(Number(band.max)) ? Number(band.max) : 100,
+          color: band.color || '#64748b'
+        }))
+        : getDefaultGradingScaleForm().bands
+    });
+    setShowGradingScaleForm(true);
+  }, [getDefaultGradingScaleForm]);
+
+  const closeGradingScaleForm = useCallback(() => {
+    setEditingGradingScaleId(null);
+    setGradingScaleFormData(getDefaultGradingScaleForm());
+    setShowGradingScaleForm(false);
+  }, [getDefaultGradingScaleForm]);
+
+  const updateGradingScaleFormField = useCallback((field, value) => {
+    setGradingScaleFormData((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const updateGradingScaleBand = useCallback((index, field, value) => {
+    setGradingScaleFormData((prev) => ({
+      ...prev,
+      bands: (prev.bands || []).map((band, bandIndex) => {
+        if (bandIndex !== index) return band;
+        return {
+          ...band,
+          [field]: field === 'min' || field === 'max' ? Number(value) : value
+        };
+      })
+    }));
+  }, []);
+
+  const addGradingScaleBand = useCallback(() => {
+    setGradingScaleFormData((prev) => ({
+      ...prev,
+      bands: [...(prev.bands || []), { grade: '', min: 0, max: 0, color: '#64748b' }]
+    }));
+  }, []);
+
+  const removeGradingScaleBand = useCallback((index) => {
+    setGradingScaleFormData((prev) => ({
+      ...prev,
+      bands: (prev.bands || []).filter((_, bandIndex) => bandIndex !== index)
+    }));
+  }, []);
+
+  const handleSaveGradingScale = useCallback(async (event) => {
+    event.preventDefault();
+    if (!canManageGradeScaling) {
+      toast.error('You do not have permission to manage grading scales');
+      return;
+    }
+
+    const payload = {
+      name: String(gradingScaleFormData.name || '').trim(),
+      description: String(gradingScaleFormData.description || '').trim(),
+      isActive: gradingScaleFormData.isActive !== false,
+      sortOrder: Number.isFinite(Number(gradingScaleFormData.sortOrder))
+        ? Number(gradingScaleFormData.sortOrder)
+        : 100,
+      bands: (gradingScaleFormData.bands || []).map((band) => ({
+        grade: String(band.grade || '').trim().toUpperCase(),
+        min: Number(band.min),
+        max: Number(band.max),
+        color: String(band.color || '').trim()
+      }))
+    };
+
+    if (!payload.name) {
+      toast.error('Scale name is required');
+      return;
+    }
+    if (!Array.isArray(payload.bands) || payload.bands.length === 0) {
+      toast.error('At least one grading band is required');
+      return;
+    }
+
+    setGradingScaleSubmitting(true);
+    try {
+      const response = editingGradingScaleId
+        ? await api.put(`/grading-scales/${editingGradingScaleId}`, payload)
+        : await api.post('/grading-scales', payload);
+
+      if (response.data?.success) {
+        toast.success(editingGradingScaleId ? 'Grading scale updated' : 'Grading scale created');
+        closeGradingScaleForm();
+        fetchGradingScales();
+      } else {
+        toast.error(response.data?.message || 'Failed to save grading scale');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save grading scale');
+    } finally {
+      setGradingScaleSubmitting(false);
+    }
+  }, [
+    canManageGradeScaling,
+    closeGradingScaleForm,
+    editingGradingScaleId,
+    fetchGradingScales,
+    gradingScaleFormData.bands,
+    gradingScaleFormData.description,
+    gradingScaleFormData.isActive,
+    gradingScaleFormData.name,
+    gradingScaleFormData.sortOrder
+  ]);
+
+  const handleSetDefaultGradingScale = useCallback(async (scaleId) => {
+    if (!canManageGradeScaling) return;
+    try {
+      const response = await api.patch(`/grading-scales/${scaleId}/default`);
+      if (response.data?.success) {
+        toast.success('Default grading scale updated');
+        fetchGradingScales();
+      } else {
+        toast.error(response.data?.message || 'Failed to set default grading scale');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to set default grading scale');
+    }
+  }, [canManageGradeScaling, fetchGradingScales]);
+
+  const handleDeleteGradingScale = useCallback(async (scale) => {
+    if (!canManageGradeScaling || !scale?.id) return;
+    if (!window.confirm(`Delete grading scale "${scale.name}"?`)) return;
+
+    try {
+      const response = await api.delete(`/grading-scales/${scale.id}`);
+      if (response.data?.success) {
+        toast.success('Grading scale deleted');
+        fetchGradingScales();
+      } else {
+        toast.error(response.data?.message || 'Failed to delete grading scale');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete grading scale');
+    }
+  }, [canManageGradeScaling, fetchGradingScales]);
+
   const departmentModalState = useMemo(() => ({
     open: showDeptModal,
     editingDeptId,
@@ -438,6 +684,7 @@ const useSchoolSettings = () => {
     user,
     canManageUsers,
     canManageSchoolSettings,
+    canManageGradeScaling,
     canAccessSchoolSettings,
     activeTab,
     setActiveTab,
@@ -485,6 +732,23 @@ const useSchoolSettings = () => {
     handlePromoteStudents,
     handleSwitchToNewYear,
     handleSaveSchoolYearDates,
+    gradingScales,
+    gradingScalesLoading,
+    gradingScaleSubmitting,
+    showGradingScaleForm,
+    editingGradingScaleId,
+    gradingScaleFormData,
+    fetchGradingScales,
+    openCreateGradingScale,
+    openEditGradingScale,
+    closeGradingScaleForm,
+    updateGradingScaleFormField,
+    updateGradingScaleBand,
+    addGradingScaleBand,
+    removeGradingScaleBand,
+    handleSaveGradingScale,
+    handleSetDefaultGradingScale,
+    handleDeleteGradingScale,
     navigate
   };
 };

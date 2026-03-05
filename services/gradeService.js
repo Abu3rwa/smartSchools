@@ -1,5 +1,6 @@
 import Grade from '../models/Grade.js';
 import mongoose from 'mongoose';
+import { decorateGradesWithScale, getActiveGradingScale } from './gradingScaleEngine.js';
 
 class GradeService {
     /**
@@ -31,10 +32,14 @@ class GradeService {
         const query = { student: studentId };
 
         if (filters.subject) query.subject = filters.subject;
+        if (filters.schoolId) query.school = filters.schoolId;
         if (filters.academicYear) query.academicYear = filters.academicYear;
         if (filters.month) query.month = filters.month;
         if (filters.semester) query.semester = filters.semester;
         if (filters.gradeType) query.gradeType = filters.gradeType;
+        if (filters.date && (filters.date.$gte || filters.date.$lte)) {
+            query.date = filters.date;
+        }
         if (filters.startDate || filters.endDate) {
             query.date = {};
             if (filters.startDate) {
@@ -49,10 +54,17 @@ class GradeService {
             }
         }
 
-        return await Grade.find(query)
+        const grades = await Grade.find(query)
             .populate('subject', 'name code')
             .populate('teacher', 'user')
             .sort({ date: -1 });
+
+        if (!filters.schoolId) {
+            return grades;
+        }
+
+        const gradingScale = await getActiveGradingScale(filters.schoolId);
+        return decorateGradesWithScale(grades, gradingScale);
     }
 
     /**
@@ -102,13 +114,16 @@ class GradeService {
     /**
      * Get grades for gradebook view - filtered by class, subject, month, and type
      */
-    async getGradebookGrades(classId, subjectId, month, gradeType, academicYear) {
+    async getGradebookGrades(classId, subjectId, month, gradeType, academicYear, options = {}) {
+        const monthNumber = Number(month);
         const query = {
             class: new mongoose.Types.ObjectId(classId),
             subject: new mongoose.Types.ObjectId(subjectId),
-            month: parseInt(month),
+            month: Number.isFinite(monthNumber) ? monthNumber : undefined,
             academicYear
         };
+        if (options.schoolId) query.school = options.schoolId;
+        if (query.month === undefined) delete query.month;
 
         // Handle both new and legacy grade types
         if (gradeType === 'classwork') {
@@ -122,13 +137,19 @@ class GradeService {
             .sort({ date: -1, 'student.firstName': 1 });
 
         // Filter out orphaned grades where student is null
-        const validGrades = grades.filter(grade => grade.student && grade.student._id);
+        const validGrades = grades.filter((grade) => grade.student && grade.student._id);
+        const gradingScale = options.schoolId
+            ? await getActiveGradingScale(options.schoolId)
+            : null;
+        const decoratedGrades = gradingScale
+            ? decorateGradesWithScale(validGrades, gradingScale)
+            : validGrades;
 
         // Calculate monthly averages per student
         const studentAverages = {};
         const studentGrades = {};
 
-        for (const grade of validGrades) {
+        for (const grade of decoratedGrades) {
             const studentId = grade.student._id.toString();
             if (!studentGrades[studentId]) {
                 studentGrades[studentId] = [];
@@ -144,7 +165,11 @@ class GradeService {
                 : 0;
         }
 
-        return { grades: validGrades, monthlyAverages: studentAverages };
+        return {
+            grades: decoratedGrades,
+            monthlyAverages: studentAverages,
+            gradingScale: gradingScale || null
+        };
     }
 
     /**
@@ -349,7 +374,6 @@ class GradeService {
      */
     async getMonthlyClassworkGrades(studentId, targetDate = new Date(), filters = {}) {
         const date = new Date(targetDate);
-        const month = date.getMonth() + 1; // 1-12
         const year = date.getFullYear();
 
         // Start of the month
@@ -389,7 +413,6 @@ class GradeService {
      */
     async getClassMonthlyClassworkGrades(classId, targetDate = new Date(), filters = {}) {
         const date = new Date(targetDate);
-        const month = date.getMonth() + 1;
         const year = date.getFullYear();
 
         const startOfMonth = new Date(year, date.getMonth(), 1);

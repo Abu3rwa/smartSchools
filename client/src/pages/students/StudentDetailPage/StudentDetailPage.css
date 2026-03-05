@@ -163,8 +163,44 @@
 }
 
 .chart-card h4 {
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: 0;
     font-size: 1rem;
+}
+
+.chart-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.chart-view-toggle {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-secondary);
+}
+
+.chart-view-toggle button {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.32rem 0.6rem;
+    cursor: pointer;
+}
+
+.chart-view-toggle button + button {
+    border-left: 1px solid var(--border-color);
+}
+
+.chart-view-toggle button.is-active {
+    background: color-mix(in srgb, var(--primary-500) 20%, transparent);
+    color: var(--text-primary);
 }
 
 .trend-filter-row {
@@ -172,6 +208,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
+}
+
+.global-insights-filter-row {
+    margin-bottom: var(--spacing-md);
 }
 
 .trend-filter-item {

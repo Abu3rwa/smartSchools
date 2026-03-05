@@ -11,6 +11,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject } from '../helpers/teacherScoping.js';
 import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
+import { decorateGradesWithScale, getActiveGradingScale } from '../services/gradingScaleEngine.js';
 
 /**
  * @desc    Add daily classwork grade
@@ -495,9 +496,11 @@ export const getMyGrades = asyncHandler(async (req, res) => {
         .populate('subject', 'name code maxMarks passingMarks')
         .populate('class', 'name grade')
         .sort({ date: -1 });
+    const gradingScale = await getActiveGradingScale(req.schoolId);
+    const decoratedGrades = decorateGradesWithScale(grades, gradingScale);
 
     const subjectMap = {};
-    for (const g of grades) {
+    for (const g of decoratedGrades) {
         const sid = g.subject?._id?.toString();
         if (!sid) continue;
         if (!subjectMap[sid]) {
@@ -514,7 +517,7 @@ export const getMyGrades = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { grades, bySubject, academicYear: effectiveAcademicYear }
+        data: { grades: decoratedGrades, bySubject, academicYear: effectiveAcademicYear, gradingScale }
     });
 });
 
@@ -525,9 +528,22 @@ export const getMyGrades = asyncHandler(async (req, res) => {
  */
 export const getStudentGrades = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
-    const { subject, subjectId, month, semester, gradeType, academicYear, startDate, endDate } = req.query;
-
-    const effectiveAcademicYear = resolveRequestedAcademicYear(academicYear, req.school);
+    const {
+        subject,
+        subjectId,
+        month,
+        semester,
+        gradeType,
+        academicYear,
+        schoolYear,
+        startDate,
+        endDate
+    } = req.query;
+    const requestedSchoolYear = String(schoolYear || academicYear || '').trim();
+    const shouldUseAllSchoolYears = requestedSchoolYear.toLowerCase() === 'all';
+    const effectiveAcademicYear = shouldUseAllSchoolYears
+        ? undefined
+        : resolveRequestedAcademicYear(requestedSchoolYear, req.school);
     const filters = {
         subject: subject || subjectId,
         month: month ? parseInt(month) : undefined,
@@ -535,14 +551,24 @@ export const getStudentGrades = asyncHandler(async (req, res) => {
         gradeType,
         startDate,
         endDate,
-        academicYear: effectiveAcademicYear
+        academicYear: effectiveAcademicYear,
+        schoolId: req.schoolId
     };
 
     const grades = await gradeService.getStudentGrades(studentId, filters);
+    const gradingScale = await getActiveGradingScale(req.schoolId);
+    const availableAcademicYears = await Grade.distinct('academicYear', { student: studentId, school: req.schoolId });
+    availableAcademicYears.sort();
 
     res.json({
         success: true,
-        data: { grades, count: grades.length }
+        data: {
+            grades,
+            count: grades.length,
+            availableAcademicYears,
+            academicYear: effectiveAcademicYear || null,
+            gradingScale
+        }
     });
 });
 
@@ -745,14 +771,16 @@ export const getGradebookGrades = asyncHandler(async (req, res) => {
         subject,
         currentMonth,
         gradeType,
-        year
+        year,
+        { schoolId: req.schoolId }
     );
 
     res.json({
         success: true,
         data: {
             grades: result.grades,
-            monthlyAverages: result.monthlyAverages
+            monthlyAverages: result.monthlyAverages,
+            gradingScale: result.gradingScale || null
         }
     });
 });

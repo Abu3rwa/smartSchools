@@ -329,6 +329,19 @@
     color: #ef4444;
 }
 
+.gradebook-average-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    padding: 0.18rem 0.52rem;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
 .action-buttons {
 display: flex;
 gap: 0.25rem;

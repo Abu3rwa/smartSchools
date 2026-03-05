@@ -27,6 +27,22 @@ const PERFORMANCE_COLORS = {
     neutral: '#64748b'
 };
 
+// Default system grading scale colors (can be made admin-configurable later).
+const DEFAULT_GRADING_SCALE = [
+    { grade: 'A+', min: 97, max: 100, color: '#14532d' },
+    { grade: 'A', min: 93, max: 96, color: '#166534' },
+    { grade: 'A-', min: 90, max: 92, color: '#15803d' },
+    { grade: 'B+', min: 87, max: 89, color: '#059669' },
+    { grade: 'B', min: 83, max: 86, color: '#0d9488' },
+    { grade: 'B-', min: 80, max: 82, color: '#0284c7' },
+    { grade: 'C+', min: 77, max: 79, color: '#2563eb' },
+    { grade: 'C', min: 73, max: 76, color: '#4f46e5' },
+    { grade: 'C-', min: 70, max: 72, color: '#7c3aed' },
+    { grade: 'D+', min: 67, max: 69, color: '#c2410c' },
+    { grade: 'D', min: 50, max: 66, color: '#ea580c' },
+    { grade: 'F', min: 0, max: 49, color: '#dc2626' }
+];
+
 const getPerformanceTone = (value) => {
     if (!Number.isFinite(value)) return 'neutral';
     if (value >= 85) return 'excellent';
@@ -37,6 +53,34 @@ const getPerformanceTone = (value) => {
 
 const getToneColor = (tone) => {
     return PERFORMANCE_COLORS[tone] || PERFORMANCE_COLORS.neutral;
+};
+
+const normalizeScaleBands = (scaleBands = []) => {
+    if (!Array.isArray(scaleBands) || scaleBands.length === 0) {
+        return DEFAULT_GRADING_SCALE;
+    }
+
+    return scaleBands
+        .map((band) => ({
+            grade: String(band?.grade || '').trim().toUpperCase(),
+            min: Number(band?.min),
+            max: Number(band?.max),
+            color: String(band?.color || '').trim() || PERFORMANCE_COLORS.neutral
+        }))
+        .filter((band) => Number.isFinite(band.min) && Number.isFinite(band.max) && band.grade)
+        .sort((a, b) => b.min - a.min || b.max - a.max);
+};
+
+const getGradingScaleBand = (value, scaleBands = DEFAULT_GRADING_SCALE) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return null;
+
+    return scaleBands.find((band) => numericValue >= band.min && numericValue <= band.max) || null;
+};
+
+const getGradingScaleColor = (value, scaleBands = DEFAULT_GRADING_SCALE) => {
+    const band = getGradingScaleBand(value, scaleBands);
+    return band?.color || PERFORMANCE_COLORS.neutral;
 };
 
 const formatDateValue = (value) => {
@@ -58,11 +102,11 @@ const ScoreCell = ({ scoreLabel, percentage }) => {
     );
 };
 
-const SubjectPerformanceTooltip = ({ active, payload }) => {
+const SubjectPerformanceTooltip = ({ active, payload, scaleBands }) => {
     if (!active || !payload?.length) return null;
     const row = payload[0]?.payload;
-    const tone = getPerformanceTone(Number(row?.average));
-    const color = getToneColor(tone);
+    const color = getGradingScaleColor(row?.average, scaleBands);
+    const scaleBand = getGradingScaleBand(row?.average, scaleBands);
 
     return (
         <div
@@ -80,6 +124,11 @@ const SubjectPerformanceTooltip = ({ active, payload }) => {
             <div style={{ color, fontWeight: 700, fontSize: 14 }}>
                 {Number.isFinite(row?.average) ? `${row.average.toFixed(1)}%` : 'N/A'}
             </div>
+            {scaleBand?.grade && (
+                <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                    Grade: {scaleBand.grade}
+                </div>
+            )}
         </div>
     );
 };
@@ -90,12 +139,21 @@ const StudentInsightsSection = ({
     overview,
     subjectPerformanceData,
     grades = [],
+    gradingScale = null,
     academicYear = '',
     academicYearStartMonth = 8,
-    assignmentRows
+    assignmentRows,
+    schoolYearFilter = '',
+    semesterFilter = '',
+    schoolYearOptions = [],
+    onSchoolYearChange = () => {},
+    onSemesterChange = () => {}
 }) => {
     const [trendSubjectFilter, setTrendSubjectFilter] = useState('all');
     const [trendCategoryFilter, setTrendCategoryFilter] = useState('all');
+    const [subjectChartType, setSubjectChartType] = useState('column');
+    const [trendChartType, setTrendChartType] = useState('line');
+    const scaleBands = useMemo(() => normalizeScaleBands(gradingScale?.bands), [gradingScale?.bands]);
 
     const chartTooltipStyle = {
         backgroundColor: 'var(--bg-card, #1e1e2f)',
@@ -197,40 +255,116 @@ const StudentInsightsSection = ({
                             </div>
                         </div>
 
+                        <div className="trend-filter-row global-insights-filter-row">
+                            <label className="trend-filter-item">
+                                <span>School Year</span>
+                                <select
+                                    value={schoolYearFilter}
+                                    onChange={(event) => onSchoolYearChange(event.target.value)}
+                                >
+                                    {schoolYearOptions.map((year) => (
+                                        <option key={year} value={year}>
+                                            {year === 'all' ? 'All School Years' : year}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className="trend-filter-item">
+                                <span>Semester</span>
+                                <select
+                                    value={semesterFilter}
+                                    onChange={(event) => onSemesterChange(event.target.value)}
+                                >
+                                    <option value="">All Semesters</option>
+                                    <option value="1">Semester 1</option>
+                                    <option value="2">Semester 2</option>
+                                </select>
+                            </label>
+                        </div>
+
                         <div className="charts-grid">
                             <div className="chart-card">
-                                <h4>Subject Performance</h4>
+                                <div className="chart-card-header">
+                                    <h4>Subject Performance</h4>
+                                    <div className="chart-view-toggle" role="group" aria-label="Subject performance chart type">
+                                        <button
+                                            type="button"
+                                            className={subjectChartType === 'column' ? 'is-active' : ''}
+                                            onClick={() => setSubjectChartType('column')}
+                                        >
+                                            Column
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={subjectChartType === 'line' ? 'is-active' : ''}
+                                            onClick={() => setSubjectChartType('line')}
+                                        >
+                                            Line
+                                        </button>
+                                    </div>
+                                </div>
                                 {subjectPerformanceData.length ? (
                                     <ResponsiveContainer width="100%" height={260}>
-                                        <BarChart
-                                            data={subjectPerformanceData}
-                                            margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
-                                            <XAxis
-                                                dataKey="subject"
-                                                stroke="var(--text-muted)"
-                                                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
-                                                interval={0}
-                                                angle={-20}
-                                                textAnchor="end"
-                                                height={56}
-                                            />
-                                            <YAxis
-                                                domain={[0, 100]}
-                                                stroke="var(--text-muted)"
-                                                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
-                                            />
-                                            <Tooltip content={<SubjectPerformanceTooltip />} />
-                                            <Bar dataKey="average" radius={[6, 6, 0, 0]}>
-                                                {subjectPerformanceData.map((entry, index) => (
-                                                    <Cell
-                                                        key={`performance-cell-${entry.subject}-${index}`}
-                                                        fill={getToneColor(getPerformanceTone(entry.average))}
-                                                    />
-                                                ))}
-                                            </Bar>
-                                        </BarChart>
+                                        {subjectChartType === 'column' ? (
+                                            <BarChart
+                                                data={subjectPerformanceData}
+                                                margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+                                                <XAxis
+                                                    dataKey="subject"
+                                                    stroke="var(--text-muted)"
+                                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                                                    interval={0}
+                                                    angle={-20}
+                                                    textAnchor="end"
+                                                    height={56}
+                                                />
+                                                <YAxis
+                                                    domain={[0, 100]}
+                                                    stroke="var(--text-muted)"
+                                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                                                />
+                                                <Tooltip content={<SubjectPerformanceTooltip scaleBands={scaleBands} />} />
+                                                <Bar dataKey="average" radius={[6, 6, 0, 0]}>
+                                                    {subjectPerformanceData.map((entry, index) => (
+                                                        <Cell
+                                                            key={`performance-cell-${entry.subject}-${index}`}
+                                                            fill={getGradingScaleColor(entry.average, scaleBands)}
+                                                        />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        ) : (
+                                            <LineChart
+                                                data={subjectPerformanceData}
+                                                margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+                                                <XAxis
+                                                    dataKey="subject"
+                                                    stroke="var(--text-muted)"
+                                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                                                    interval={0}
+                                                    angle={-20}
+                                                    textAnchor="end"
+                                                    height={56}
+                                                />
+                                                <YAxis
+                                                    domain={[0, 100]}
+                                                    stroke="var(--text-muted)"
+                                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                                                />
+                                                <Tooltip content={<SubjectPerformanceTooltip scaleBands={scaleBands} />} />
+                                                <Line
+                                                    type="monotone"
+                                                    dataKey="average"
+                                                    stroke="var(--accent-emerald)"
+                                                    strokeWidth={2.5}
+                                                    dot={{ r: 4, strokeWidth: 2, fill: 'var(--bg-card)' }}
+                                                />
+                                            </LineChart>
+                                        )}
                                     </ResponsiveContainer>
                                 ) : (
                                     <p className="text-muted mb-0">No subject performance data yet.</p>
@@ -238,7 +372,25 @@ const StudentInsightsSection = ({
                             </div>
 
                             <div className="chart-card">
-                                <h4>Monthly Trend</h4>
+                                <div className="chart-card-header">
+                                    <h4>Monthly Trend</h4>
+                                    <div className="chart-view-toggle" role="group" aria-label="Monthly trend chart type">
+                                        <button
+                                            type="button"
+                                            className={trendChartType === 'column' ? 'is-active' : ''}
+                                            onClick={() => setTrendChartType('column')}
+                                        >
+                                            Column
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={trendChartType === 'line' ? 'is-active' : ''}
+                                            onClick={() => setTrendChartType('line')}
+                                        >
+                                            Line
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="trend-filter-row">
                                     <label className="trend-filter-item">
                                         <span>Subject</span>
@@ -271,37 +423,68 @@ const StudentInsightsSection = ({
                                 </div>
                                 {filteredMonthlyTrendData.length ? (
                                     <ResponsiveContainer width="100%" height={260}>
-                                        <LineChart
-                                            data={filteredMonthlyTrendData}
-                                            margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
-                                            <XAxis
-                                                dataKey="month"
-                                                stroke="var(--text-muted)"
-                                                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
-                                            />
-                                            <YAxis
-                                                domain={[0, 100]}
-                                                stroke="var(--text-muted)"
-                                                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
-                                            />
-                                            <Tooltip contentStyle={chartTooltipStyle} />
-                                            <Line
-                                                type="monotone"
-                                                dataKey="average"
-                                                stroke="var(--accent-emerald)"
-                                                strokeWidth={2.5}
-                                                dot={{ r: 4, strokeWidth: 2, fill: 'var(--bg-card)' }}
-                                            />
-                                        </LineChart>
+                                        {trendChartType === 'column' ? (
+                                            <BarChart
+                                                data={filteredMonthlyTrendData}
+                                                margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+                                                <XAxis
+                                                    dataKey="month"
+                                                    stroke="var(--text-muted)"
+                                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                                                />
+                                                <YAxis
+                                                    domain={[0, 100]}
+                                                    stroke="var(--text-muted)"
+                                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                                                />
+                                                <Tooltip contentStyle={chartTooltipStyle} />
+                                                <Bar
+                                                    dataKey="average"
+                                                    radius={[6, 6, 0, 0]}
+                                                >
+                                                    {filteredMonthlyTrendData.map((entry, index) => (
+                                                        <Cell
+                                                            key={`monthly-trend-cell-${entry.month}-${index}`}
+                                                            fill={getGradingScaleColor(entry.average, scaleBands)}
+                                                        />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        ) : (
+                                            <LineChart
+                                                data={filteredMonthlyTrendData}
+                                                margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+                                                <XAxis
+                                                    dataKey="month"
+                                                    stroke="var(--text-muted)"
+                                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                                                />
+                                                <YAxis
+                                                    domain={[0, 100]}
+                                                    stroke="var(--text-muted)"
+                                                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                                                />
+                                                <Tooltip contentStyle={chartTooltipStyle} />
+                                                <Line
+                                                    type="monotone"
+                                                    dataKey="average"
+                                                    stroke="var(--accent-emerald)"
+                                                    strokeWidth={2.5}
+                                                    dot={{ r: 4, strokeWidth: 2, fill: 'var(--bg-card)' }}
+                                                />
+                                            </LineChart>
+                                        )}
                                     </ResponsiveContainer>
                                 ) : (
                                     <p className="text-muted mb-0">No monthly trend available yet.</p>
                                 )}
                                 {!hasTrendData && (
                                     <p className="text-muted mb-0">
-                                        No grade data for the selected subject/category in this academic year.
+                                        No grade data for the selected subject/category in this school year and semester.
                                     </p>
                                 )}
                             </div>

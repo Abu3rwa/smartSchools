@@ -3,18 +3,27 @@ import {
   HiOutlineUserGroup,
   HiOutlineCalendar,
   HiOutlineDocumentText,
-  HiOutlinePhotograph
+  HiOutlinePhotograph,
+  HiOutlineColorSwatch
 } from 'react-icons/hi';
 
-const SchoolSettingsTabs = ({ activeTab, onTabChange, canManageUsers, canManageSchoolSettings }) => (
+const SchoolSettingsTabs = ({
+  activeTab,
+  onTabChange,
+  canManageUsers,
+  canManageSchoolSettings,
+  canManageGradeScaling
+}) => (
   <div className="tabs">
-    <button
-      className={`tab-btn ${activeTab === 'departments' ? 'active' : ''}`}
-      onClick={() => onTabChange('departments')}
-    >
-      <HiOutlineOfficeBuilding size={18} />
-      Departments
-    </button>
+    {canManageSchoolSettings && (
+      <button
+        className={`tab-btn ${activeTab === 'departments' ? 'active' : ''}`}
+        onClick={() => onTabChange('departments')}
+      >
+        <HiOutlineOfficeBuilding size={18} />
+        Departments
+      </button>
+    )}
     {canManageUsers && (
       <button
         className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
@@ -24,13 +33,24 @@ const SchoolSettingsTabs = ({ activeTab, onTabChange, canManageUsers, canManageS
         Users & roles
       </button>
     )}
-    <button
-      className={`tab-btn ${activeTab === 'lessonplancriteria' ? 'active' : ''}`}
-      onClick={() => onTabChange('lessonplancriteria')}
-    >
-      <HiOutlineDocumentText size={18} />
-      Lesson Plan Criteria
-    </button>
+    {canManageSchoolSettings && (
+      <button
+        className={`tab-btn ${activeTab === 'lessonplancriteria' ? 'active' : ''}`}
+        onClick={() => onTabChange('lessonplancriteria')}
+      >
+        <HiOutlineDocumentText size={18} />
+        Lesson Plan Criteria
+      </button>
+    )}
+    {canManageGradeScaling && (
+      <button
+        className={`tab-btn ${activeTab === 'gradingscales' ? 'active' : ''}`}
+        onClick={() => onTabChange('gradingscales')}
+      >
+        <HiOutlineColorSwatch size={18} />
+        Grading scales
+      </button>
+    )}
     {canManageSchoolSettings && (
       <button
         className={`tab-btn ${activeTab === 'branding' ? 'active' : ''}`}

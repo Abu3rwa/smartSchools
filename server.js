@@ -68,6 +68,7 @@ import deviceRoutes from "./routes/deviceRoutes.js";
 import homeworkRoutes from "./routes/homeworkRoutes.js";
 import assignmentRoutes from "./routes/assignmentRoutes.js";
 import assignmentTypeRoutes from "./routes/assignmentTypeRoutes.js";
+import gradingScaleRoutes from "./routes/gradingScaleRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
@@ -263,6 +264,7 @@ app.use("/api/devices", deviceRoutes);
 app.use("/api/homework", homeworkRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/assignment-types", assignmentTypeRoutes);
+app.use("/api/grading-scales", gradingScaleRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/docs", apiDocsRoutes);
 

@@ -2,6 +2,7 @@ import { HiOutlineSparkles } from 'react-icons/hi';
 import {
     getClassCategoryAverage,
     getClassOverallAverage,
+    getScaleBandForPercentage,
     getStudentCategoryAverage,
     getStudentOverallAverage
 } from '../utils/gradebookPresentation';
@@ -10,10 +11,40 @@ const GradebookTable = ({
     loading,
     students,
     grades,
+    gradingScale,
     dynamicCategories,
     processedData,
     onOpenAIModal
 }) => {
+    const renderAverageCell = (averageValue) => {
+        if (averageValue === '-' || averageValue === null || averageValue === undefined) {
+            return '-';
+        }
+
+        const normalizedValue = typeof averageValue === 'string'
+            ? averageValue.replace('%', '').trim()
+            : averageValue;
+        const numericAverage = Number(normalizedValue);
+        if (!Number.isFinite(numericAverage)) {
+            return averageValue;
+        }
+
+        const band = getScaleBandForPercentage(numericAverage, gradingScale);
+        return (
+            <span
+                className="gradebook-average-chip"
+                style={{
+                    backgroundColor: `${band?.color || '#64748b'}22`,
+                    color: band?.color || 'var(--text-primary)'
+                }}
+                title={band?.grade ? `${band.grade} (${numericAverage.toFixed(1)}%)` : `${numericAverage.toFixed(1)}%`}
+            >
+                {numericAverage.toFixed(1)}%
+                {band?.grade ? ` (${band.grade})` : ''}
+            </span>
+        );
+    };
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -68,12 +99,12 @@ const GradebookTable = ({
                                         const average = getStudentCategoryAverage(studentData, category);
                                         return (
                                             <td key={category} className="text-center font-mono">
-                                                {average}%
+                                                {renderAverageCell(average)}
                                             </td>
                                         );
                                     })}
 
-                                    <td className="text-center font-bold font-mono">{overallAverage}%</td>
+                                    <td className="text-center font-bold font-mono">{renderAverageCell(overallAverage)}</td>
                                 </tr>
                             );
                         })}
@@ -94,11 +125,11 @@ const GradebookTable = ({
                                 const average = getClassCategoryAverage({ students, processedData, category });
                                 return (
                                     <td key={category} className="text-center">
-                                        {average}%
+                                        {renderAverageCell(average)}
                                     </td>
                                 );
                             })}
-                            <td className="text-center">{getClassOverallAverage({ students, processedData })}</td>
+                            <td className="text-center">{renderAverageCell(getClassOverallAverage({ students, processedData }))}</td>
                         </tr>
                     </tfoot>
                 </table>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../../../store/slices/studentSlice';
 import { sendDailyReport, selectNotificationSending } from '../../../store/slices/notificationSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
+import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../../config/api';
@@ -27,12 +28,15 @@ const StudentDetailPage = () => {
     const loading = useSelector(selectStudentsLoading);
     const sending = useSelector(selectNotificationSending);
     const isAdmin = useSelector(selectIsAdmin);
+    const currentAcademicYear = useSelector(selectCurrentAcademicYear);
     const [showAIReportModal, setShowAIReportModal] = useState(false);
     const [generatingAIReport, setGeneratingAIReport] = useState(false);
     const [photoUploading, setPhotoUploading] = useState(false);
     const [generatedReportContent, setGeneratedReportContent] = useState('');
     const [generatedReportPeriod, setGeneratedReportPeriod] = useState('');
     const [reportGeneratedAt, setReportGeneratedAt] = useState(null);
+    const [schoolYearFilter, setSchoolYearFilter] = useState('');
+    const [semesterFilter, setSemesterFilter] = useState('');
 
     const {
         loading: insightsLoading,
@@ -41,8 +45,13 @@ const StudentDetailPage = () => {
         subjectPerformanceData,
         assignmentRows,
         grades: insightGrades,
-        schoolYearStartMonth
-    } = useStudentAcademicInsights(student);
+        gradingScale,
+        schoolYearStartMonth,
+        availableAcademicYears
+    } = useStudentAcademicInsights(student, {
+        schoolYear: schoolYearFilter,
+        semester: semesterFilter
+    });
 
     useEffect(() => {
         dispatch(fetchStudent(id));
@@ -53,6 +62,21 @@ const StudentDetailPage = () => {
         setGeneratedReportPeriod('');
         setReportGeneratedAt(null);
     }, [id]);
+
+    useEffect(() => {
+        const fallbackYear = student?.academicYear || currentAcademicYear || 'all';
+        setSchoolYearFilter(fallbackYear);
+        setSemesterFilter('');
+    }, [id, student?.academicYear, currentAcademicYear]);
+
+    const schoolYearOptions = useMemo(() => {
+        const years = Array.from(new Set([
+            ...(Array.isArray(availableAcademicYears) ? availableAcademicYears : []),
+            student?.academicYear,
+            currentAcademicYear
+        ].filter(Boolean))).sort();
+        return ['all', ...years];
+    }, [availableAcademicYears, student?.academicYear, currentAcademicYear]);
 
     const handleSendDailyReport = async () => {
         const result = await dispatch(sendDailyReport({
@@ -188,9 +212,15 @@ const StudentDetailPage = () => {
                     overview={overview}
                     subjectPerformanceData={subjectPerformanceData}
                     grades={insightGrades}
-                    academicYear={student.academicYear}
+                    gradingScale={gradingScale}
+                    academicYear={schoolYearFilter}
                     academicYearStartMonth={schoolYearStartMonth}
                     assignmentRows={assignmentRows}
+                    schoolYearFilter={schoolYearFilter}
+                    semesterFilter={semesterFilter}
+                    schoolYearOptions={schoolYearOptions}
+                    onSchoolYearChange={setSchoolYearFilter}
+                    onSemesterChange={setSemesterFilter}
                 />
 
                 <StudentInformationGrid student={student} />

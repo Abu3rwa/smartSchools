@@ -6,6 +6,47 @@ export const getAvailableSubjects = ({ currentClass, subjects }) => {
     return subjects || [];
 };
 
+const DEFAULT_GRADING_SCALE = [
+    { grade: 'A+', min: 97, max: 100, color: '#14532d' },
+    { grade: 'A', min: 93, max: 96, color: '#166534' },
+    { grade: 'A-', min: 90, max: 92, color: '#15803d' },
+    { grade: 'B+', min: 87, max: 89, color: '#059669' },
+    { grade: 'B', min: 83, max: 86, color: '#0d9488' },
+    { grade: 'B-', min: 80, max: 82, color: '#0284c7' },
+    { grade: 'C+', min: 77, max: 79, color: '#2563eb' },
+    { grade: 'C', min: 73, max: 76, color: '#4f46e5' },
+    { grade: 'C-', min: 70, max: 72, color: '#7c3aed' },
+    { grade: 'D+', min: 67, max: 69, color: '#c2410c' },
+    { grade: 'D', min: 50, max: 66, color: '#ea580c' },
+    { grade: 'F', min: 0, max: 49, color: '#dc2626' }
+];
+
+export const normalizeGradingScaleBands = (bands = []) => {
+    if (!Array.isArray(bands) || bands.length === 0) {
+        return DEFAULT_GRADING_SCALE;
+    }
+
+    const normalized = bands
+        .map((band) => ({
+            grade: String(band?.grade || '').trim().toUpperCase(),
+            min: Number(band?.min),
+            max: Number(band?.max),
+            color: String(band?.color || '').trim() || '#64748b'
+        }))
+        .filter((band) => Number.isFinite(band.min) && Number.isFinite(band.max) && band.grade)
+        .sort((a, b) => b.min - a.min || b.max - a.max);
+
+    return normalized.length ? normalized : DEFAULT_GRADING_SCALE;
+};
+
+export const getScaleBandForPercentage = (value, gradingScale = null) => {
+    const percentage = Number(value);
+    if (!Number.isFinite(percentage)) return null;
+
+    const bands = normalizeGradingScaleBands(gradingScale?.bands || gradingScale);
+    return bands.find((band) => percentage >= band.min && percentage <= band.max) || null;
+};
+
 const normalizeCategory = (value) => {
     const rawCategory = value || 'Other';
     return rawCategory.charAt(0).toUpperCase() + rawCategory.slice(1).toLowerCase();

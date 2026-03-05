@@ -86,7 +86,7 @@ teacherSchema.index({ user: 1 });
 
 // Virtual to get classes where teacher is class teacher
 teacherSchema.virtual('classTeacherOf').get(function () {
-    return this.assignedClasses.filter(ac => ac.isClassTeacher);
+    return (this.assignedClasses || []).filter((ac) => ac?.isClassTeacher);
 });
 
 // Apply tenant isolation plugin

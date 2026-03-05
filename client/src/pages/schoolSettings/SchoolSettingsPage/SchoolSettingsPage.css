@@ -206,3 +206,119 @@
     gap: var(--spacing-lg);
     padding: var(--spacing-md);
 }
+
+.grading-scales-list {
+    display: grid;
+    gap: var(--spacing-md);
+}
+
+.grading-scale-card {
+    padding: var(--spacing-md);
+}
+
+.grading-scale-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.grading-scale-card-header h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.grading-scale-desc {
+    margin: var(--spacing-xs) 0 0 0;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+.grading-scale-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.grading-scale-bands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+}
+
+.grading-band-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.grading-scale-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.grading-bands-editor {
+    margin-top: var(--spacing-md);
+}
+
+.grading-bands-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+}
+
+.grading-bands-header h4 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.grading-bands-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.grading-bands-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 520px;
+}
+
+.grading-bands-table th,
+.grading-bands-table td {
+    padding: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.grading-bands-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.grading-bands-table input,
+.grading-bands-table select {
+    width: 100%;
+    padding: 0.42rem 0.56rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.grading-band-color-input {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: var(--spacing-xs);
+    align-items: center;
+}

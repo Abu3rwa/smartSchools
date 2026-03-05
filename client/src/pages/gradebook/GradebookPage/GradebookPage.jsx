@@ -34,6 +34,8 @@ const GradebookPage = () => {
         setSelectedMonth,
         grades,
         setGrades,
+        gradingScale,
+        setGradingScale,
         loading,
         setLoading,
         showAddModal,
@@ -75,6 +77,7 @@ const GradebookPage = () => {
         academicYear,
         setSelectedSubject,
         setGrades,
+        setGradingScale,
         setLoading
     });
 
@@ -148,6 +151,7 @@ const GradebookPage = () => {
                     loading={loading}
                     students={students}
                     grades={grades}
+                    gradingScale={gradingScale}
                     dynamicCategories={dynamicCategories}
                     processedData={processedData}
                     onOpenAIModal={handleOpenAIModal}

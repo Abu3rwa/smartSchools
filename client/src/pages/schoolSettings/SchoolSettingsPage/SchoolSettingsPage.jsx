@@ -7,6 +7,7 @@ import UserRoleModal from './components/UserRoleModal';
 import LessonPlanCriteriaTab from './components/LessonPlanCriteriaTab';
 import SchoolYearTab from './components/SchoolYearTab';
 import BrandingTab from './components/BrandingTab';
+import GradingScalesTab from './components/GradingScalesTab';
 import useSchoolSettings from './hooks/useSchoolSettings';
 import './SchoolSettingsPage.css';
 
@@ -14,6 +15,7 @@ const SchoolSettingsPage = () => {
   const {
     canManageUsers,
     canManageSchoolSettings,
+    canManageGradeScaling,
     canAccessSchoolSettings,
     activeTab,
     setActiveTab,
@@ -61,6 +63,22 @@ const SchoolSettingsPage = () => {
     handlePromoteStudents,
     handleSwitchToNewYear,
     handleSaveSchoolYearDates,
+    gradingScales,
+    gradingScalesLoading,
+    gradingScaleSubmitting,
+    showGradingScaleForm,
+    editingGradingScaleId,
+    gradingScaleFormData,
+    openCreateGradingScale,
+    openEditGradingScale,
+    closeGradingScaleForm,
+    updateGradingScaleFormField,
+    updateGradingScaleBand,
+    addGradingScaleBand,
+    removeGradingScaleBand,
+    handleSaveGradingScale,
+    handleSetDefaultGradingScale,
+    handleDeleteGradingScale,
     navigate
   } = useSchoolSettings();
 
@@ -75,9 +93,10 @@ const SchoolSettingsPage = () => {
         onTabChange={setActiveTab}
         canManageUsers={canManageUsers}
         canManageSchoolSettings={canManageSchoolSettings}
+        canManageGradeScaling={canManageGradeScaling}
       />
 
-      {activeTab === 'departments' && (
+      {activeTab === 'departments' && canManageSchoolSettings && (
         <DepartmentsTab
           departments={departments}
           loading={departmentsLoading}
@@ -121,7 +140,29 @@ const SchoolSettingsPage = () => {
         />
       )}
 
-      {activeTab === 'lessonplancriteria' && <LessonPlanCriteriaTab />}
+      {activeTab === 'lessonplancriteria' && canManageSchoolSettings && <LessonPlanCriteriaTab />}
+
+      {activeTab === 'gradingscales' && canManageGradeScaling && (
+        <GradingScalesTab
+          scales={gradingScales}
+          loading={gradingScalesLoading}
+          canManage={canManageGradeScaling}
+          onOpenCreate={openCreateGradingScale}
+          onEdit={openEditGradingScale}
+          onSetDefault={handleSetDefaultGradingScale}
+          onDelete={handleDeleteGradingScale}
+          formOpen={showGradingScaleForm}
+          editingScaleId={editingGradingScaleId}
+          formData={gradingScaleFormData}
+          submitting={gradingScaleSubmitting}
+          onFormFieldChange={updateGradingScaleFormField}
+          onBandChange={updateGradingScaleBand}
+          onAddBand={addGradingScaleBand}
+          onRemoveBand={removeGradingScaleBand}
+          onCloseForm={closeGradingScaleForm}
+          onSave={handleSaveGradingScale}
+        />
+      )}
 
       {activeTab === 'branding' && canManageSchoolSettings && (
         <BrandingTab

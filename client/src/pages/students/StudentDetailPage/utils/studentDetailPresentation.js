@@ -15,6 +15,18 @@ const toNumeric = (value) => {
     return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const parseSemester = (value) => {
+    const parsed = Number(value);
+    return parsed === 1 || parsed === 2 ? parsed : null;
+};
+
+const getSemesterFromDate = (dateValue) => {
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return null;
+    const month = date.getMonth() + 1;
+    return month >= 8 && month <= 12 ? 1 : 2;
+};
+
 export const toPercentage = (marks, maxMarks) => {
     const safeMax = toNumeric(maxMarks);
     if (!safeMax) return null;
@@ -123,6 +135,40 @@ export const buildSubjectPerformanceData = (subjects = []) => {
                 average: Number(average.toFixed(2))
             };
         })
+        .filter((subject) => Number.isFinite(subject.average) && subject.average > 0)
+        .sort((a, b) => b.average - a.average);
+};
+
+export const buildSubjectPerformanceFromGrades = (grades = []) => {
+    const subjectBuckets = new Map();
+
+    grades.forEach((grade) => {
+        const subjectId = toId(grade?.subject?._id || grade?.subject);
+        if (!subjectId) return;
+
+        const percentage = toPercentage(grade?.marks, grade?.maxMarks);
+        if (!Number.isFinite(percentage)) return;
+
+        if (!subjectBuckets.has(subjectId)) {
+            subjectBuckets.set(subjectId, {
+                subjectId,
+                subject: grade?.subject?.name || grade?.subject?.code || 'Unknown',
+                total: 0,
+                count: 0
+            });
+        }
+
+        const bucket = subjectBuckets.get(subjectId);
+        bucket.total += percentage;
+        bucket.count += 1;
+    });
+
+    return Array.from(subjectBuckets.values())
+        .map((bucket) => ({
+            subjectId: bucket.subjectId,
+            subject: bucket.subject,
+            average: bucket.count > 0 ? Number((bucket.total / bucket.count).toFixed(2)) : 0
+        }))
         .filter((subject) => Number.isFinite(subject.average) && subject.average > 0)
         .sort((a, b) => b.average - a.average);
 };
@@ -273,7 +319,8 @@ export const buildMonthlyTrendData = (input = {}) => {
     }));
 };
 
-export const buildAssignmentRows = ({ assignments = [], grades = [] }) => {
+export const buildAssignmentRows = ({ assignments = [], grades = [], semester = null }) => {
+    const selectedSemester = parseSemester(semester);
     const gradeByAssignment = new Map();
 
     grades.forEach((grade) => {
@@ -287,6 +334,11 @@ export const buildAssignmentRows = ({ assignments = [], grades = [] }) => {
         const grade = gradeByAssignment.get(assignmentId) || null;
         const percentage = grade ? toPercentage(grade.marks, grade.maxMarks) : null;
         const dueDate = assignment.dueDate || assignment.assignedDate || null;
+        const rowDate = grade?.date || dueDate;
+        const rowSemester = getSemesterFromDate(rowDate);
+        if (selectedSemester && rowSemester && rowSemester !== selectedSemester) {
+            return null;
+        }
         const isOverdue = !grade && dueDate ? new Date(dueDate) < new Date() : false;
 
         return {
@@ -300,15 +352,19 @@ export const buildAssignmentRows = ({ assignments = [], grades = [] }) => {
             percentage,
             status: grade ? 'Graded' : isOverdue ? 'Overdue' : 'Pending',
             statusTone: grade ? 'success' : isOverdue ? 'danger' : 'warning',
-            source: 'assignment'
+            source: 'assignment',
+            semester: rowSemester
         };
-    });
+    }).filter(Boolean);
 
     const assignmentIds = new Set(assignments.map((assignment) => toId(assignment.id || assignment._id)));
     const standaloneGradeRows = grades
         .filter((grade) => {
             const assignmentId = toId(grade.assignment);
-            return !assignmentId || !assignmentIds.has(assignmentId);
+            if (assignmentId && assignmentIds.has(assignmentId)) return false;
+            if (!selectedSemester) return true;
+            const gradeSemester = parseSemester(grade?.semester) || getSemesterFromDate(grade?.date);
+            return !gradeSemester || gradeSemester === selectedSemester;
         })
         .map((grade) => ({
             id: `grade-${toId(grade._id)}`,
@@ -321,7 +377,8 @@ export const buildAssignmentRows = ({ assignments = [], grades = [] }) => {
             percentage: toPercentage(grade.marks, grade.maxMarks),
             status: 'Recorded',
             statusTone: 'info',
-            source: 'grade'
+            source: 'grade',
+            semester: parseSemester(grade?.semester) || getSemesterFromDate(grade?.date)
         }));
 
     const rows = [...assignmentRows, ...standaloneGradeRows];

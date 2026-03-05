@@ -20,6 +20,7 @@ const useGradebookData = ({
     academicYear,
     setSelectedSubject,
     setGrades,
+    setGradingScale,
     setLoading
 }) => {
     const dispatch = useDispatch();
@@ -50,13 +51,15 @@ const useGradebookData = ({
                 }
             });
             setGrades(response.data?.data?.grades || []);
+            setGradingScale(response.data?.data?.gradingScale || null);
         } catch (error) {
             console.error('Failed to fetch grades:', error);
             setGrades([]);
+            setGradingScale(null);
         } finally {
             setLoading(false);
         }
-    }, [academicYear, classId, selectedMonth, selectedSubject, setGrades, setLoading]);
+    }, [academicYear, classId, selectedMonth, selectedSubject, setGrades, setGradingScale, setLoading]);
 
     useEffect(() => {
         fetchGrades();

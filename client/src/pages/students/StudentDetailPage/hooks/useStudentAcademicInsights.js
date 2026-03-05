@@ -4,6 +4,7 @@ import {
     toId,
     filterAssignmentsForStudent,
     buildSubjectPerformanceData,
+    buildSubjectPerformanceFromGrades,
     buildMonthlyTrendData,
     buildAssignmentRows,
     buildOverviewMetrics
@@ -15,7 +16,9 @@ const DEFAULT_STATE = {
     report: null,
     grades: [],
     assignments: [],
-    schoolYearStartMonth: 8
+    schoolYearStartMonth: 8,
+    availableAcademicYears: [],
+    gradingScale: null
 };
 
 const shouldIgnoreAssignmentError = (error) => {
@@ -27,11 +30,18 @@ const getCurrentClassId = (student) => {
     return toId(student?.currentClass?._id || student?.currentClass);
 };
 
-export default function useStudentAcademicInsights(student) {
+export default function useStudentAcademicInsights(student, options = {}) {
+    const fallbackAcademicYear = String(student?.academicYear || localStorage.getItem('currentAcademicYear') || '').trim();
+    const requestedSchoolYear = String(options.schoolYear || fallbackAcademicYear || '').trim();
+    const selectedSchoolYear = requestedSchoolYear.toLowerCase() === 'all' ? 'all' : requestedSchoolYear;
+    const semesterValue = Number(options.semester);
+    const effectiveSemester = semesterValue === 1 || semesterValue === 2 ? semesterValue : null;
+    const effectiveAcademicYear = selectedSchoolYear && selectedSchoolYear !== 'all'
+        ? selectedSchoolYear
+        : '';
+    const shouldRequestReport = Boolean(effectiveAcademicYear) && !effectiveSemester;
     const [state, setState] = useState(DEFAULT_STATE);
-
     const studentId = toId(student?._id);
-    const academicYear = student?.academicYear || '';
     const currentClassId = getCurrentClassId(student);
 
     useEffect(() => {
@@ -42,35 +52,48 @@ export default function useStudentAcademicInsights(student) {
         const fetchInsights = async () => {
             setState((prev) => ({ ...prev, loading: true, error: '' }));
 
-            const gradeParams = academicYear ? { academicYear } : undefined;
+            const gradeParams = {
+                academicYear: effectiveAcademicYear || undefined,
+                schoolYear: selectedSchoolYear === 'all' ? 'all' : undefined,
+                semester: effectiveSemester || undefined
+            };
+            const shouldFetchAssignments = Boolean(currentClassId && selectedSchoolYear !== 'all');
             const requests = [
-                api.get(`/grades/report/${studentId}`, { params: gradeParams }),
                 api.get(`/grades/student/${studentId}`, { params: gradeParams }),
-                api.get('/schools/me')
+                api.get('/schools/me'),
+                shouldFetchAssignments
+                    ? api.get('/assignments', {
+                        params: {
+                            classId: currentClassId,
+                            academicYear: effectiveAcademicYear || undefined,
+                            status: 'published',
+                            limit: 100
+                        }
+                    })
+                    : Promise.resolve({ data: { data: { items: [] } } }),
+                shouldRequestReport
+                    ? api.get(`/grades/report/${studentId}`, {
+                        params: { academicYear: effectiveAcademicYear }
+                    })
+                    : Promise.resolve({ data: { data: { report: null } } })
             ];
 
-            const shouldFetchAssignments = Boolean(currentClassId);
-            if (shouldFetchAssignments) {
-                requests.push(api.get('/assignments', {
-                    params: {
-                        classId: currentClassId,
-                        academicYear: academicYear || undefined,
-                        status: 'published',
-                        limit: 100
-                    }
-                }));
-            }
-
-            const [reportResult, gradesResult, schoolResult, assignmentsResult] = await Promise.allSettled(requests);
+            const [gradesResult, schoolResult, assignmentsResult, reportResult] = await Promise.allSettled(requests);
             if (cancelled) return;
+
+            const gradesPayload = gradesResult.status === 'fulfilled'
+                ? gradesResult.value?.data?.data || {}
+                : {};
+            const grades = Array.isArray(gradesPayload?.grades) ? gradesPayload.grades : [];
+            const availableAcademicYears = Array.from(new Set([
+                ...(Array.isArray(gradesPayload?.availableAcademicYears) ? gradesPayload.availableAcademicYears : []),
+                fallbackAcademicYear,
+                effectiveAcademicYear
+            ].filter(Boolean))).sort();
 
             const report = reportResult.status === 'fulfilled'
                 ? reportResult.value?.data?.data?.report || null
                 : null;
-
-            const grades = gradesResult.status === 'fulfilled'
-                ? gradesResult.value?.data?.data?.grades || []
-                : [];
 
             const rawAssignments = assignmentsResult?.status === 'fulfilled'
                 ? assignmentsResult.value?.data?.data?.items || []
@@ -81,7 +104,7 @@ export default function useStudentAcademicInsights(student) {
                 : 8;
 
             let error = '';
-            if (reportResult.status === 'rejected' && gradesResult.status === 'rejected') {
+            if (gradesResult.status === 'rejected') {
                 error = 'Unable to load student performance data right now.';
             } else if (
                 assignmentsResult?.status === 'rejected' &&
@@ -96,7 +119,9 @@ export default function useStudentAcademicInsights(student) {
                 report,
                 grades,
                 assignments,
-                schoolYearStartMonth
+                schoolYearStartMonth,
+                availableAcademicYears,
+                gradingScale: gradesPayload?.gradingScale || null
             });
         };
 
@@ -113,25 +138,38 @@ export default function useStudentAcademicInsights(student) {
         return () => {
             cancelled = true;
         };
-    }, [studentId, academicYear, currentClassId]);
+    }, [
+        studentId,
+        currentClassId,
+        selectedSchoolYear,
+        effectiveAcademicYear,
+        effectiveSemester,
+        shouldRequestReport,
+        fallbackAcademicYear
+    ]);
 
-    const subjectPerformanceData = useMemo(
-        () => buildSubjectPerformanceData(state.report?.subjects || []),
-        [state.report]
-    );
+    const subjectPerformanceData = useMemo(() => {
+        const reportBasedData = buildSubjectPerformanceData(state.report?.subjects || []);
+        if (reportBasedData.length && !effectiveSemester) return reportBasedData;
+        return buildSubjectPerformanceFromGrades(state.grades);
+    }, [state.report, state.grades, effectiveSemester]);
 
     const monthlyTrendData = useMemo(
         () => buildMonthlyTrendData({
-            subjects: state.report?.subjects || [],
-            academicYear,
+            grades: state.grades,
+            academicYear: effectiveAcademicYear,
             academicYearStartMonth: state.schoolYearStartMonth
         }),
-        [state.report, academicYear, state.schoolYearStartMonth]
+        [state.grades, effectiveAcademicYear, state.schoolYearStartMonth]
     );
 
     const assignmentRows = useMemo(
-        () => buildAssignmentRows({ assignments: state.assignments, grades: state.grades }),
-        [state.assignments, state.grades]
+        () => buildAssignmentRows({
+            assignments: state.assignments,
+            grades: state.grades,
+            semester: effectiveSemester
+        }),
+        [state.assignments, state.grades, effectiveSemester]
     );
 
     const overview = useMemo(
@@ -152,6 +190,10 @@ export default function useStudentAcademicInsights(student) {
         monthlyTrendData,
         assignmentRows,
         grades: state.grades,
-        schoolYearStartMonth: state.schoolYearStartMonth
+        gradingScale: state.gradingScale,
+        schoolYearStartMonth: state.schoolYearStartMonth,
+        availableAcademicYears: state.availableAcademicYears,
+        activeAcademicYear: effectiveAcademicYear || null,
+        activeSemester: effectiveSemester
     };
 }

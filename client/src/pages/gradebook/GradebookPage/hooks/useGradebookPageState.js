@@ -8,6 +8,7 @@ const useGradebookPageState = (students = []) => {
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
     const [grades, setGrades] = useState([]);
+    const [gradingScale, setGradingScale] = useState(null);
     const [loading, setLoading] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
@@ -39,6 +40,8 @@ const useGradebookPageState = (students = []) => {
         setSelectedMonth,
         grades,
         setGrades,
+        gradingScale,
+        setGradingScale,
         loading,
         setLoading,
         showAddModal,
