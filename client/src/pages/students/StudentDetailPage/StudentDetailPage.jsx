@@ -10,12 +10,14 @@ import {
 } from '../../../store/slices/studentSlice';
 import { sendDailyReport, selectNotificationSending } from '../../../store/slices/notificationSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
-import { HiOutlineArrowLeft, HiOutlineMail, HiOutlinePhone, HiOutlineChartBar, HiOutlineClipboardList, HiOutlineDocumentText, HiOutlineClock } from 'react-icons/hi';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import api from '../../../config/api';
 import AIReportModal from '../../../components/reports/AIReportModal';
-import ImageUploader from '../../../components/shared/ImageUploader';
+import StudentOverviewHeader from './components/StudentOverviewHeader';
+import StudentInformationGrid from './components/StudentInformationGrid';
+import StudentInsightsSection from './components/StudentInsightsSection';
+import useStudentAcademicInsights from './hooks/useStudentAcademicInsights';
 import './StudentDetailPage.css';
 
 const StudentDetailPage = () => {
@@ -28,10 +30,29 @@ const StudentDetailPage = () => {
     const [showAIReportModal, setShowAIReportModal] = useState(false);
     const [generatingAIReport, setGeneratingAIReport] = useState(false);
     const [photoUploading, setPhotoUploading] = useState(false);
+    const [generatedReportContent, setGeneratedReportContent] = useState('');
+    const [generatedReportPeriod, setGeneratedReportPeriod] = useState('');
+    const [reportGeneratedAt, setReportGeneratedAt] = useState(null);
+
+    const {
+        loading: insightsLoading,
+        error: insightsError,
+        overview,
+        subjectPerformanceData,
+        assignmentRows,
+        grades: insightGrades,
+        schoolYearStartMonth
+    } = useStudentAcademicInsights(student);
 
     useEffect(() => {
         dispatch(fetchStudent(id));
     }, [dispatch, id]);
+
+    useEffect(() => {
+        setGeneratedReportContent('');
+        setGeneratedReportPeriod('');
+        setReportGeneratedAt(null);
+    }, [id]);
 
     const handleSendDailyReport = async () => {
         const result = await dispatch(sendDailyReport({
@@ -46,10 +67,9 @@ const StudentDetailPage = () => {
         }
     };
 
-    const handleGenerateAndSendAIReport = async (payload, periodType) => {
+    const handleGenerateAIReport = async (payload, periodType) => {
         setGeneratingAIReport(true);
         try {
-            // Step 1: Generate the AI report
             const endpoint = periodType === 'predefined' 
                 ? '/reports/generate-predefined'
                 : '/reports/generate-ai-range';
@@ -64,24 +84,39 @@ const StudentDetailPage = () => {
             }
 
             const { report, period } = reportResponse.data.data;
-
-            // Step 2: Send the report to parent
-            const sendResponse = await api.post(`/notifications/send-ai-report/${id}`, {
-                reportContent: report,
-                period
-            });
-
-            if (sendResponse.data.success) {
-                toast.success('AI report generated and sent to parent successfully!');
-                setShowAIReportModal(false);
-            } else {
-                throw new Error(sendResponse.data.message || 'Failed to send report');
-            }
+            setGeneratedReportContent(report);
+            setGeneratedReportPeriod(period || 'Custom Period');
+            setReportGeneratedAt(new Date().toISOString());
+            toast.success('Report generated. Review and edit before sending.');
         } catch (error) {
-            console.error('Error in AI report generation/sending:', error);
-            toast.error(error.response?.data?.message || error.message || 'Failed to generate/send AI report');
+            console.error('Error in AI report generation:', error);
+            toast.error(error.response?.data?.message || error.message || 'Failed to generate AI report');
+            throw error;
         } finally {
             setGeneratingAIReport(false);
+        }
+    };
+
+    const handleSendAIReport = async (reportContent) => {
+        try {
+            const sendResponse = await api.post(`/notifications/send-ai-report/${id}`, {
+                reportContent,
+                period: generatedReportPeriod || 'Custom Period'
+            });
+
+            if (!sendResponse.data.success) {
+                throw new Error(sendResponse.data.message || 'Failed to send report');
+            }
+
+            toast.success('AI report sent to parents successfully.');
+            setShowAIReportModal(false);
+            setGeneratedReportContent('');
+            setGeneratedReportPeriod('');
+            setReportGeneratedAt(null);
+        } catch (error) {
+            console.error('Error sending AI report:', error);
+            toast.error(error.response?.data?.message || error.message || 'Failed to send AI report');
+            throw error;
         }
     };
 
@@ -131,213 +166,44 @@ const StudentDetailPage = () => {
     return (
         <div className="student-detail-page-wrapper">
             <div className="student-detail-page">
-                <Link to="/portal/students" className="back-link">
-                    <HiOutlineArrowLeft />
+                <Link to="/portal/students" className="student-back-link">
                     Back to Students
                 </Link>
 
-                <div className="student-header">
-                    <div className="student-profile">
-                        {isAdmin ? (
-                            <div className="student-photo-uploader">
-                                <ImageUploader
-                                    currentImageUrl={student.photoUrl || null}
-                                    onUpload={handleUploadStudentPhoto}
-                                    onDelete={handleRemoveStudentPhoto}
-                                    isUploading={photoUploading}
-                                    label="Student Photo"
-                                    shape="circular"
-                                />
-                            </div>
-                        ) : (
-                            <div className={`avatar-lg ${student.photoUrl ? 'has-image' : ''}`}>
-                                {student.photoUrl ? (
-                                    <img
-                                        src={student.photoUrl}
-                                        alt={`${student.firstName} ${student.lastName}`}
-                                    />
-                                ) : (
-                                    <>{student.firstName?.charAt(0)}{student.lastName?.charAt(0)}</>
-                                )}
-                            </div>
-                        )}
-                        <div>
-                            <h1>{student.firstName} {student.lastName}</h1>
-                            <p className="student-id">{student.studentId}</p>
-                            <span className={`badge badge-${student.status === 'active' ? 'success' : 'warning'}`}>
-                                {student.status}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="header-actions">
-                        <button 
-                            className="btn btn-secondary" 
-                            onClick={handleSendDailyReport}
-                            disabled={sending}
-                            title="Send only Classwork grades for today"
-                        >
-                            <HiOutlineClipboardList />
-                            Send Daily Classwork
-                        </button>
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => setShowAIReportModal(true)}
-                            disabled={generatingAIReport}
-                            title="Generate AI-powered progress report"
-                        >
-                            <HiOutlineDocumentText />
-                            {generatingAIReport ? 'Generating...' : ' Progress Report'}
-                        </button>
-                        <Link to={`/portal/grades/weekly/${student._id}`} className="btn btn-secondary">
-                            <HiOutlineClock />
-                            Weekly Full Report
-                        </Link>
-                        <Link to={`/portal/grades/report/${student._id}`} className="btn btn-primary">
-                            <HiOutlineChartBar />
-                            View Grade Report
-                        </Link>
-                        <Link to={`/portal/grades/student/${student._id}`} className="btn btn-secondary">
-                            <HiOutlineClipboardList />
-                            View Gradebook
-                        </Link>
-                    </div>
-                </div>
+                <StudentOverviewHeader
+                    student={student}
+                    isAdmin={isAdmin}
+                    sending={sending}
+                    generatingAIReport={generatingAIReport}
+                    photoUploading={photoUploading}
+                    onSendDailyReport={handleSendDailyReport}
+                    onOpenAIReport={() => setShowAIReportModal(true)}
+                    onUploadStudentPhoto={handleUploadStudentPhoto}
+                    onRemoveStudentPhoto={handleRemoveStudentPhoto}
+                />
 
-                <div className="detail-grid">
-                    {/* Personal Info */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h3 className="card-title">Personal Information</h3>
-                        </div>
-                        <div className="info-list">
-                            <div className="info-item">
-                                <span className="info-label">Date of Birth</span>
-                                <span className="info-value">
-                                    {student.dateOfBirth ? format(new Date(student.dateOfBirth), 'MMMM d, yyyy') : 'N/A'}
-                                </span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Age</span>
-                                <span className="info-value">{student.age || 'N/A'} years</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Gender</span>
-                                <span className="info-value text-capitalize">{student.gender}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Class</span>
-                                <span className="info-value">{student.currentClass?.name || 'Unassigned'}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Academic Year</span>
-                                <span className="info-value">{student.academicYear}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Enrollment Date</span>
-                                <span className="info-value">
-                                    {student.enrollmentDate ? format(new Date(student.enrollmentDate), 'MMMM d, yyyy') : 'N/A'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                <StudentInsightsSection
+                    loading={insightsLoading}
+                    error={insightsError}
+                    overview={overview}
+                    subjectPerformanceData={subjectPerformanceData}
+                    grades={insightGrades}
+                    academicYear={student.academicYear}
+                    academicYearStartMonth={schoolYearStartMonth}
+                    assignmentRows={assignmentRows}
+                />
 
-                    {/* Enrollment history */}
-                    {student.classEnrollmentHistory?.length > 0 && (
-                        <div className="card">
-                            <div className="card-header">
-                                <h3 className="card-title">Enrollment History</h3>
-                            </div>
-                            <div className="enrollment-history-table-wrap">
-                                <table className="enrollment-history-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Academic Year</th>
-                                            <th>Class</th>
-                                            <th>Left</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {student.classEnrollmentHistory.map((entry, idx) => (
-                                            <tr key={idx}>
-                                                <td>{entry.academicYear}</td>
-                                                <td>{entry.class?.name ?? '—'}</td>
-                                                <td>{entry.leftAt ? format(new Date(entry.leftAt), 'MMM d, yyyy') : '—'}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Parent Info */}
-                    <div className="card">
-                        <div className="card-header">
-                            <h3 className="card-title">Parent/Guardian Information</h3>
-                        </div>
-                        <div className="parent-cards">
-                            {student.parentInfo?.fatherName && (
-                                <div className="parent-card">
-                                    <h4>Father</h4>
-                                    <p className="parent-name">{student.parentInfo.fatherName}</p>
-                                    {student.parentInfo.fatherPhone && (
-                                        <div className="contact-item">
-                                            <HiOutlinePhone />
-                                            <span>{student.parentInfo.fatherPhone}</span>
-                                        </div>
-                                    )}
-                                    {student.parentInfo.fatherEmail && (
-                                        <div className="contact-item">
-                                            <HiOutlineMail />
-                                            <span>{student.parentInfo.fatherEmail}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            {student.parentInfo?.motherName && (
-                                <div className="parent-card">
-                                    <h4>Mother</h4>
-                                    <p className="parent-name">{student.parentInfo.motherName}</p>
-                                    {student.parentInfo.motherPhone && (
-                                        <div className="contact-item">
-                                            <HiOutlinePhone />
-                                            <span>{student.parentInfo.motherPhone}</span>
-                                        </div>
-                                    )}
-                                    {student.parentInfo.motherEmail && (
-                                        <div className="contact-item">
-                                            <HiOutlineMail />
-                                            <span>{student.parentInfo.motherEmail}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Address */}
-                    {student.address && (
-                        <div className="card">
-                            <div className="card-header">
-                                <h3 className="card-title">Address</h3>
-                            </div>
-                            <p className="address-text">
-                                {student.address.street && `${student.address.street}, `}
-                                {student.address.city && `${student.address.city}, `}
-                                {student.address.state && `${student.address.state} `}
-                                {student.address.zipCode && student.address.zipCode}
-                                {student.address.country && `, ${student.address.country}`}
-                            </p>
-                        </div>
-                    )}
-                </div>
+                <StudentInformationGrid student={student} />
             </div>
 
             <AIReportModal
                 isOpen={showAIReportModal}
                 onClose={() => setShowAIReportModal(false)}
-                onGenerate={handleGenerateAndSendAIReport}
+                onGenerate={handleGenerateAIReport}
+                onSendReport={handleSendAIReport}
                 studentName={`${student.firstName} ${student.lastName}`}
+                reportContent={generatedReportContent}
+                timestamp={reportGeneratedAt}
             />
         </div>
     );

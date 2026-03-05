@@ -3,7 +3,7 @@ import { AITokenUsage } from "../models/AITokenUsage.js";
 
 class AIService {
     constructor() {
-        
+
     }
 
     containsEnglishText(text) {
@@ -111,8 +111,8 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             reportType = 'monthly',
             dateRange,
             customPrompt,
-            userId,
-            schoolId
+            userId = teacher?._id || teacher?.id,
+            schoolId = teacher?.school || studentData?.school
         } = options;
 
         const prompt = customPrompt || this.constructAdvancedPrompt({
@@ -144,7 +144,7 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
                 outputTokens += response.outputtokenCount || 0;
                 totalTokens += response.totalTokenCount || 0;
             }
-            
+
             // Track token usage
             const tokenUsage = await this.trackTokenUsage({
                 userId,
@@ -166,16 +166,16 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             };
         } catch (error) {
             console.error("AI Generation Error:", error);
-            
+
             // Provide specific error messages
             if (error.status === 403 || error.message?.includes('API key')) {
                 throw new Error("AI Service API key is invalid or has been revoked. Please contact your administrator to update the API key.");
             }
-            
+
             if (error.status === 429) {
                 throw new Error("AI Service rate limit exceeded. Please try again later.");
             }
-            
+
             throw new Error(error.message || "Failed to generate AI report");
         }
     }
@@ -375,9 +375,9 @@ Output the final report as ONE HTML block only.
             input: 0.000125,  // per 1K tokens
             output: 0.000375  // per 1K tokens
         };
-        
-        const estimatedCost = (inputTokens * pricing.input / 1000) + 
-                             (outputTokens * pricing.output / 1000);
+
+        const estimatedCost = (inputTokens * pricing.input / 1000) +
+            (outputTokens * pricing.output / 1000);
 
         // Convert schoolId to string safely
         const schoolIdString = schoolId ? (typeof schoolId === 'string' ? schoolId : schoolId.toString()) : '';

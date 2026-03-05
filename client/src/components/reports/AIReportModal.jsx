@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { format, formatDistanceToNow, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import DOMPurify from 'dompurify';
 import { 
     HiOutlineX, 
@@ -7,11 +7,8 @@ import {
     HiOutlineClock, 
     HiOutlineDocumentText,
     HiOutlineSparkles,
-    HiOutlineCheckCircle,
-    HiOutlineExclamation,
     HiOutlineTrendingUp,
     HiOutlineTrendingDown,
-    HiOutlineAcademicCap,
     HiOutlineChartBar,
     HiOutlinePencil,
     HiOutlineMail
@@ -28,12 +25,10 @@ const AIReportModal = ({
     onGenerate,
     onSendReport,
     studentName,
-    studentData = null,
-    reportProgress = null,
     aiAnalysis = null,
     reportContent = null,
     timestamp = null,
-    status = 'idle' // 'idle' | 'generating' | 'complete' | 'error'
+    status = null // optional external status: 'idle' | 'generating' | 'complete' | 'error'
 }) => {
     const [periodType, setPeriodType] = useState('predefined');
     const [predefinedPeriod, setPredefinedPeriod] = useState('this-week');
@@ -45,6 +40,18 @@ const AIReportModal = ({
     const [isEditingReport, setIsEditingReport] = useState(false);
     const [editedReportContent, setEditedReportContent] = useState('');
     const [isSending, setIsSending] = useState(false);
+
+    useEffect(() => {
+        if (typeof status === 'string') {
+            setLocalStatus(status);
+        }
+    }, [status]);
+
+    useEffect(() => {
+        if (reportContent && !isEditingReport) {
+            setEditedReportContent(reportContent);
+        }
+    }, [reportContent, isEditingReport]);
 
     // Handle escape key
     const handleKeyDown = useCallback((e) => {
@@ -517,7 +524,7 @@ const AIReportModal = ({
                                     className="btn btn-primary"
                                     disabled={isLoading}
                                 >
-                                    {isLoading ? 'Generating...' : 'Generate & Send Report'}
+                                    {isLoading ? 'Generating...' : 'Generate Report'}
                                 </button>
                             </div>
                         </form>
