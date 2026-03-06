@@ -14,7 +14,7 @@ const DEFAULT_BANDS = [
     { grade: 'D', min: 50, max: 66, color: '#ea580c' },
     { grade: 'F', min: 0, max: 49, color: '#dc2626' }
 ];
-
+ 
 const DEFAULT_SPECIAL_CODES = [
     { code: 'BLANK', label: 'Leave blank (not counted)', countsAsZero: false, excludeFromAverage: true },
     { code: 'E', label: 'Excused absence (not counted)', countsAsZero: false, excludeFromAverage: true },
