@@ -22,6 +22,14 @@ const timetableService = {
         return response.data;
     },
 
+    importPeriods: async (periods, options = {}) => {
+        const response = await api.post('/timetable/periods/import', {
+            periods,
+            ...options
+        });
+        return response.data;
+    },
+
     // Teacher's own timetable
     getMyTimetable: async () => {
         const response = await api.get('/timetable/my-timetable');

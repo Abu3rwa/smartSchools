@@ -19,6 +19,14 @@ const roomService = {
     deleteRoom: async (id) => {
         const response = await api.delete(`/rooms/${id}`);
         return response.data;
+    },
+
+    importRooms: async (rooms, options = {}) => {
+        const response = await api.post('/rooms/import', {
+            rooms,
+            ...options
+        });
+        return response.data;
     }
 };
 

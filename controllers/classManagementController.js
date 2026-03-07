@@ -6,6 +6,7 @@ import Department from '../models/Department.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds, getTeacherProfile } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope, enforceDepartmentOnWrite } from '../helpers/departmentScope.js';
+import { runImportPipeline } from '../services/import/importPipeline.js';
 
 async function resolveDepartmentId(value, schoolId) {
     if (!value) return null;
@@ -232,6 +233,41 @@ export const createClass = asyncHandler(async (req, res) => {
         success: true,
         message: 'Class created successfully',
         data: { class: classData }
+    });
+});
+
+/**
+ * @desc    Import classes
+ * @route   POST /api/classes/import
+ * @access  Private (Admin, Department Principal)
+ */
+export const importClasses = asyncHandler(async (req, res) => {
+    const result = await runImportPipeline({
+        entityType: 'classes',
+        mode: 'commit',
+        payload: req.body,
+        context: {
+            schoolId: req.schoolId,
+            school: req.school,
+            userId: req.user?._id,
+            academicYear: req.academicYear
+        }
+    });
+
+    res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        data: {
+            imported: result.summary.importedRows,
+            failed: result.summary.failedRows,
+            skipped: result.summary.skippedRows,
+            total: result.summary.totalRows,
+            importRunId: result.importRunId,
+            errorReportUrl: result.errorReportUrl,
+            errors: result.errors
+        },
+        summary: result.summary,
+        warnings: result.warnings
     });
 });
 

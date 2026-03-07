@@ -1,5 +1,6 @@
 import Standard from '../models/Standard.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { runImportPipeline } from '../services/import/importPipeline.js';
 
 /**
  * @desc    Get all standards
@@ -198,77 +199,32 @@ export const deleteStandard = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 export const importStandards = asyncHandler(async (req, res) => {
-    const { standards } = req.body;
-
-    if (!Array.isArray(standards) || standards.length === 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'Please provide an array of standards'
-        });
-    }
-
-    // Validate required fields
-    const errors = [];
-    const prepared = standards.map((s, index) => {
-        if (!s.code || !s.name || !s.description || !s.subject || !s.gradeLevel) {
-            errors.push(`Row ${index + 1}: Missing required fields (code, name, description, subject, gradeLevel)`);
-            return null;
+    const result = await runImportPipeline({
+        entityType: 'standards',
+        mode: 'commit',
+        payload: req.body,
+        context: {
+            schoolId: req.schoolId,
+            school: req.school,
+            userId: req.user?._id,
+            academicYear: req.academicYear
         }
-        return {
-            school: req.schoolId,
-            code: s.code.toUpperCase(),
-            name: s.name,
-            description: s.description,
-            subject: s.subject,
-            gradeLevel: s.gradeLevel,
-            category: s.category || '',
-            masteryThreshold: s.masteryThreshold || 80,
-            masteryMinQuestions: s.masteryMinQuestions || 5,
-            createdBy: req.user._id,
-            isActive: true
-        };
-    }).filter(Boolean);
+    });
 
-    if (errors.length > 0 && prepared.length === 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'All rows have errors',
-            errors
-        });
-    }
-
-    let insertedCount = 0;
-    let skippedCount = 0;
-    const insertErrors = [];
-
-    // Insert one by one to handle duplicates gracefully
-    for (const std of prepared) {
-        try {
-            const existing = await Standard.findOne({ school: req.schoolId, code: std.code });
-            if (existing) {
-                skippedCount++;
-                continue;
-            }
-            await Standard.create(std);
-            insertedCount++;
-        } catch (err) {
-            if (err.code === 11000) {
-                skippedCount++;
-            } else {
-                insertErrors.push(`${std.code}: ${err.message}`);
-            }
-        }
-    }
-
-    res.status(201).json({
-        success: true,
-        message: `Imported ${insertedCount} standards. Skipped ${skippedCount} duplicates.`,
+    res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
         data: {
-            insertedCount,
-            skippedCount,
-            validationErrors: errors,
-            insertErrors
-        }
+            insertedCount: result.summary.createdRows + result.summary.updatedRows,
+            skippedCount: result.summary.skippedRows,
+            validationErrors: result.errors,
+            insertErrors: [],
+            importRunId: result.importRunId,
+            errorReportUrl: result.errorReportUrl
+        },
+        summary: result.summary,
+        errors: result.errors,
+        warnings: result.warnings
     });
 });
 

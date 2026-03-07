@@ -2,6 +2,12 @@
     animation: fadeIn 0.4s ease;
 }
 
+.teachers-page .header-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
 .teachers-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));

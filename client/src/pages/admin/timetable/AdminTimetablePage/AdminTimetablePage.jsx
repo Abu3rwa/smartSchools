@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
     HiOutlineClock,
@@ -20,6 +20,8 @@ import useTimetableAssignmentOptions from './hooks/useTimetableAssignmentOptions
 import { createDefaultAssignment, createDefaultPeriod, createDefaultRoom, formatDateAsYmd } from './utils/timetableState';
 import TimetableErrorBanner from './components/TimetableErrorBanner';
 import AssignmentFiltersBar from './components/AssignmentFiltersBar';
+import { parseCsvFile } from '../../../../utils/csvImport';
+import toast from 'react-hot-toast';
 import './AdminTimetablePage.css';
 
 const AdminTimetablePage = () => {
@@ -51,6 +53,8 @@ const AdminTimetablePage = () => {
     const [showRoomModal, setShowRoomModal] = useState(false);
     const [newRoom, setNewRoom] = useState(createDefaultRoom);
     const [savingRoom, setSavingRoom] = useState(false);
+    const periodImportInputRef = useRef(null);
+    const roomImportInputRef = useRef(null);
     const {
         filteredAssignments,
         availableClasses,
@@ -259,6 +263,83 @@ const AdminTimetablePage = () => {
         }
     };
 
+    const triggerPeriodImport = () => {
+        periodImportInputRef.current?.click();
+    };
+
+    const triggerRoomImport = () => {
+        roomImportInputRef.current?.click();
+    };
+
+    const handlePeriodImportFileChange = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            toast.error('Please select a CSV file');
+            return;
+        }
+
+        const { rows, errors } = await parseCsvFile(file, {
+            requiredColumns: ['name', 'startTime', 'endTime']
+        });
+        if (errors.length > 0) {
+            toast.error(errors[0]);
+            return;
+        }
+        if (rows.length === 0) {
+            toast.error('No valid period rows found in CSV');
+            return;
+        }
+
+        try {
+            const response = await timetableService.importPeriods(rows);
+            const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
+            const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
+            toast.success(response?.message || `Imported ${imported} periods`);
+            if (failed > 0) toast.error(`${failed} period rows failed`);
+            await fetchTimetableData();
+        } catch (importError) {
+            toast.error(importError?.response?.data?.message || 'Failed to import periods');
+        }
+    };
+
+    const handleRoomImportFileChange = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            toast.error('Please select a CSV file');
+            return;
+        }
+
+        const { rows, errors } = await parseCsvFile(file, {
+            requiredColumns: ['name']
+        });
+        if (errors.length > 0) {
+            toast.error(errors[0]);
+            return;
+        }
+        if (rows.length === 0) {
+            toast.error('No valid room rows found in CSV');
+            return;
+        }
+
+        try {
+            const response = await roomService.importRooms(rows);
+            const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
+            const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
+            toast.success(response?.message || `Imported ${imported} rooms`);
+            if (failed > 0) toast.error(`${failed} room rows failed`);
+            const rRes = await roomService.getRooms();
+            setRooms(rRes?.data?.rooms || []);
+        } catch (importError) {
+            toast.error(importError?.response?.data?.message || 'Failed to import rooms');
+        }
+    };
+
     if (loading) {
         return (
             <div className="admin-timetable-page">
@@ -271,12 +352,34 @@ const AdminTimetablePage = () => {
 
     return (
         <div className="admin-timetable-page">
+            <input
+                ref={periodImportInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handlePeriodImportFileChange}
+            />
+            <input
+                ref={roomImportInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handleRoomImportFileChange}
+            />
             <div className="page-header">
                 <div className="header-content">
                     <h1>Timetable</h1>
                     <p>Define periods and assign teachers to periods</p>
                 </div>
                 <div className="header-actions">
+                    <button className="btn btn-secondary" onClick={triggerPeriodImport} disabled={saving}>
+                        <HiOutlinePlus size={20} />
+                        Import Periods CSV
+                    </button>
+                    <button className="btn btn-secondary" onClick={triggerRoomImport} disabled={saving}>
+                        <HiOutlineOfficeBuilding size={20} />
+                        Import Rooms CSV
+                    </button>
                     <button className="btn btn-secondary" onClick={fetchTimetableData} disabled={saving}>
                         <HiOutlineRefresh size={20} />
                         Refresh

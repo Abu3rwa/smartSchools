@@ -8,6 +8,7 @@ import Student from '../models/Student.js';
 import Room from '../models/Room.js';
 import { getClassIdsForAcademicYear, resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
+import { runImportPipeline } from '../services/import/importPipeline.js';
 
 // @desc    List periods
 // @route   GET /api/timetable/periods
@@ -34,6 +35,39 @@ export const createPeriod = asyncHandler(async (req, res) => {
     const period = await TimetablePeriod.create(newPeriod);
 
     res.status(201).json({ success: true, data: { period }, message: 'Period created successfully' });
+});
+
+// @desc    Import timetable periods
+// @route   POST /api/timetable/periods/import
+// @access  Private (Admin, Department Principal)
+export const importPeriods = asyncHandler(async (req, res) => {
+    const result = await runImportPipeline({
+        entityType: 'timetable_periods',
+        mode: 'commit',
+        payload: req.body,
+        context: {
+            schoolId: req.schoolId,
+            school: req.school,
+            userId: req.user?._id,
+            academicYear: req.academicYear
+        }
+    });
+
+    res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        data: {
+            imported: result.summary.importedRows,
+            failed: result.summary.failedRows,
+            skipped: result.summary.skippedRows,
+            total: result.summary.totalRows,
+            importRunId: result.importRunId,
+            errorReportUrl: result.errorReportUrl,
+            errors: result.errors
+        },
+        summary: result.summary,
+        warnings: result.warnings
+    });
 });
 
 // @desc    Update period

@@ -1,6 +1,7 @@
 import Subject from '../models/Subject.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherSubjectIds } from '../helpers/teacherScoping.js';
+import { runImportPipeline } from '../services/import/importPipeline.js';
 
 /**
  * @desc    Get all subjects
@@ -262,35 +263,31 @@ export const getSubjectsByGrade = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 export const bulkCreateSubjects = asyncHandler(async (req, res) => {
-    const { subjects } = req.body;
-
-    if (!Array.isArray(subjects) || subjects.length === 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'Please provide an array of subjects'
-        });
-    }
-
-    // Prepare subjects with uppercase codes and school context
-    const preparedSubjects = subjects.map(s => ({
-        ...s,
-        school: req.schoolId,
-        code: s.code.toUpperCase()
-    }));
-
-    // Insert many, ignoring duplicates
-    const result = await Subject.insertMany(preparedSubjects, {
-        ordered: false,
-        rawResult: true
-    }).catch(err => {
-        if (err.code === 11000) {
-            return { insertedCount: err.result?.nInserted || 0 };
+    const result = await runImportPipeline({
+        entityType: 'subjects',
+        mode: 'commit',
+        payload: req.body,
+        context: {
+            schoolId: req.schoolId,
+            school: req.school,
+            userId: req.user?._id,
+            academicYear: req.academicYear
         }
-        throw err;
     });
 
-    res.status(201).json({
-        success: true,
-        message: `${result.insertedCount || preparedSubjects.length} subjects created successfully`
+    res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        data: {
+            imported: result.summary.importedRows,
+            skipped: result.summary.skippedRows,
+            failed: result.summary.failedRows,
+            total: result.summary.totalRows,
+            importRunId: result.importRunId,
+            errorReportUrl: result.errorReportUrl,
+            errors: result.errors
+        },
+        summary: result.summary,
+        warnings: result.warnings
     });
 });

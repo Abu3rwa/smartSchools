@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchClasses, selectClasses, selectClassesLoading, selectClassesError, createClass, updateClass, deleteClass } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
-import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap, HiOutlineTrash } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap, HiOutlineTrash, HiOutlineUpload } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import classService from '../../../services/classService';
+import { parseCsvFile } from '../../../utils/csvImport';
 import './ClassesPage.css';
 
 const ClassesPage = () => {
@@ -17,6 +19,7 @@ const ClassesPage = () => {
     const error = useSelector(selectClassesError);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
+    const importInputRef = useRef(null);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
@@ -89,8 +92,58 @@ const ClassesPage = () => {
         }
     };
 
+    const handleTriggerImport = () => {
+        importInputRef.current?.click();
+    };
+
+    const handleClassImportFileChange = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            toast.error('Please select a CSV file');
+            return;
+        }
+
+        const { rows, errors } = await parseCsvFile(file, {
+            requiredColumns: ['grade']
+        });
+        if (errors.length > 0) {
+            toast.error(errors[0]);
+            return;
+        }
+        if (rows.length === 0) {
+            toast.error('No valid rows found in CSV');
+            return;
+        }
+
+        try {
+            const response = await classService.importClasses(rows);
+            const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
+            const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
+            const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
+            toast.success(response?.message || `Imported ${imported} classes`);
+            if (failed > 0) {
+                toast.error(`${failed} class rows failed`);
+            } else if (skipped > 0) {
+                toast(`${skipped} class rows skipped`);
+            }
+            dispatch(fetchClasses({ academicYear }));
+        } catch (importError) {
+            toast.error(importError?.response?.data?.message || 'Failed to import classes');
+        }
+    };
+
     return (
         <div className="classes-page">
+            <input
+                ref={importInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handleClassImportFileChange}
+            />
             {/* Header */}
             <div className="page-header">
                 <div>
@@ -98,10 +151,16 @@ const ClassesPage = () => {
                     <p className="text-muted">Manage your school classes and student enrollment</p>
                 </div>
                 {isAdmin && (
-                    <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                        <HiOutlinePlus size={20} />
-                        Add Class
-                    </button>
+                    <div className="header-actions">
+                        <button className="btn btn-outline" onClick={handleTriggerImport}>
+                            <HiOutlineUpload size={20} />
+                            Import CSV
+                        </button>
+                        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                            <HiOutlinePlus size={20} />
+                            Add Class
+                        </button>
+                    </div>
                 )}
             </div>
 

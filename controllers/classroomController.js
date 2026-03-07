@@ -1,5 +1,6 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Room from '../models/Room.js';
+import { runImportPipeline } from '../services/import/importPipeline.js';
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ROOM_TYPES = new Set([
@@ -247,4 +248,34 @@ export const deleteRoom = asyncHandler(async (req, res) => {
     await room.deleteOne();
 
     res.json({ success: true, message: 'Room deleted' });
+});
+
+export const importRooms = asyncHandler(async (req, res) => {
+    const result = await runImportPipeline({
+        entityType: 'rooms',
+        mode: 'commit',
+        payload: req.body,
+        context: {
+            schoolId: req.schoolId,
+            school: req.school,
+            userId: req.user?._id,
+            academicYear: req.academicYear
+        }
+    });
+
+    res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        data: {
+            imported: result.summary.importedRows,
+            failed: result.summary.failedRows,
+            skipped: result.summary.skippedRows,
+            total: result.summary.totalRows,
+            importRunId: result.importRunId,
+            errorReportUrl: result.errorReportUrl,
+            errors: result.errors
+        },
+        summary: result.summary,
+        warnings: result.warnings
+    });
 });

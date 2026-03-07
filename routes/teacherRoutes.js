@@ -3,6 +3,7 @@ import {
     getTeachers,
     getTeacher,
     createTeacher,
+    importTeachers,
     updateTeacher,
     deleteTeacher,
     assignMultipleClasses,
@@ -28,6 +29,8 @@ router.get('/my-classes', authorize('teacher'), getMyClasses);
 router.route('/')
     .get(authorize('admin', 'department_principal', 'teacher'), getTeachers)
     .post(authorize('admin', 'department_principal'), validationRules.createTeacher, validate, createTeacher);
+
+router.post('/import', authorize('admin', 'department_principal'), importTeachers);
 
 router.route('/:id')
     .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getTeacher)

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
     fetchSubjects,
@@ -18,6 +18,8 @@ import SubjectFormModal from './components/SubjectFormModal';
 import useSubjectsPageState from './hooks/useSubjectsPageState';
 import { createDefaultSubjectForm } from './constants';
 import { mapSubjectToFormData } from './utils/subjectPresentation';
+import subjectService from '../../../services/subjectService';
+import { parseCsvFile } from '../../../utils/csvImport';
 import './SubjectsPage.css';
 
 const SubjectsPage = () => {
@@ -26,6 +28,7 @@ const SubjectsPage = () => {
     const loading = useSelector(selectSubjectsLoading);
     const error = useSelector(selectSubjectsError);
     const isAdmin = useSelector(selectIsAdmin);
+    const importInputRef = useRef(null);
 
     const {
         searchTerm,
@@ -97,9 +100,61 @@ const SubjectsPage = () => {
         setShowModal(true);
     };
 
+    const handleTriggerImport = () => {
+        importInputRef.current?.click();
+    };
+
+    const handleImportFileChange = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            toast.error('Please select a CSV file');
+            return;
+        }
+
+        const { rows, errors } = await parseCsvFile(file, { requiredColumns: ['name', 'code'] });
+        if (errors.length > 0) {
+            toast.error(errors[0]);
+            return;
+        }
+        if (rows.length === 0) {
+            toast.error('No valid rows found in CSV');
+            return;
+        }
+
+        try {
+            const response = await subjectService.importSubjects(rows);
+            const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
+            const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
+            const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
+            toast.success(response?.message || `Imported ${imported} subjects`);
+            if (failed > 0) {
+                toast.error(`${failed} subject rows failed`);
+            } else if (skipped > 0) {
+                toast(`${skipped} subject rows skipped`);
+            }
+            dispatch(fetchSubjects());
+        } catch (importError) {
+            toast.error(importError?.response?.data?.message || 'Failed to import subjects');
+        }
+    };
+
     return (
         <div className="subjects-page">
-            <SubjectsHeader isAdmin={isAdmin} onCreate={handleOpenCreate} />
+            <input
+                ref={importInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handleImportFileChange}
+            />
+            <SubjectsHeader
+                isAdmin={isAdmin}
+                onCreate={handleOpenCreate}
+                onImport={handleTriggerImport}
+            />
 
             <SubjectsFilters searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 

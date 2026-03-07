@@ -49,6 +49,14 @@ const teacherService = {
     getMyClasses: async () => {
         const response = await api.get('/teachers/my-classes');
         return response.data;
+    },
+
+    importTeachers: async (teachers, options = {}) => {
+        const response = await api.post('/teachers/import', {
+            teachers,
+            ...options
+        });
+        return response.data;
     }
 };
 

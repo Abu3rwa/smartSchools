@@ -47,6 +47,14 @@ const classService = {
     getClassStats: async (classId) => {
         const response = await api.get(`/classes/${classId}/stats`);
         return response.data;
+    },
+
+    importClasses: async (classes, options = {}) => {
+        const response = await api.post('/classes/import', {
+            classes,
+            ...options
+        });
+        return response.data;
     }
 };
 

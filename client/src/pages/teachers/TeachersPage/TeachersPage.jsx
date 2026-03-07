@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -22,6 +22,8 @@ import TeacherFormModal from './components/TeacherFormModal';
 import TeacherAssignmentsModal from './components/TeacherAssignmentsModal';
 import useTeachersPageState from './hooks/useTeachersPageState';
 import { mapTeacherToFormData } from './utils/teacherPresentation';
+import teacherService from '../../../services/teacherService';
+import { parseCsvFile } from '../../../utils/csvImport';
 import './TeachersPage.css';
 
 const TeachersPage = () => {
@@ -35,6 +37,7 @@ const TeachersPage = () => {
     const isAdmin = useSelector(selectIsAdmin);
     const user = useSelector(selectUser);
     const canManageTeachers = isAdmin || user?.role === 'department_principal';
+    const importInputRef = useRef(null);
 
     const {
         searchTerm,
@@ -173,11 +176,75 @@ const TeachersPage = () => {
         }
     };
 
+    const handleTriggerTeacherImport = () => {
+        importInputRef.current?.click();
+    };
+
+    const handleTeacherImportFileChange = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            toast.error('Please select a CSV file');
+            return;
+        }
+
+        const { rows, errors } = await parseCsvFile(file, {
+            requiredColumns: ['firstName', 'lastName', 'email']
+        });
+        if (errors.length > 0) {
+            toast.error(errors[0]);
+            return;
+        }
+        if (rows.length === 0) {
+            toast.error('No valid rows found in CSV');
+            return;
+        }
+
+        try {
+            const response = await teacherService.importTeachers(rows);
+            const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
+            const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
+            const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
+            toast.success(response?.message || `Imported ${imported} teachers`);
+            if (failed > 0) {
+                toast.error(`${failed} teacher rows failed`);
+            } else if (skipped > 0) {
+                toast(`${skipped} teacher rows skipped`);
+            }
+            dispatch(fetchTeachers());
+        } catch (importError) {
+            const responseData = importError?.response?.data || {};
+            const failed = responseData?.summary?.failedRows ?? responseData?.data?.failed ?? 0;
+            const skipped = responseData?.summary?.skippedRows ?? responseData?.data?.skipped ?? 0;
+            const rowErrors = responseData?.errors || responseData?.data?.errors || [];
+
+            toast.error(responseData?.message || 'Failed to import teachers');
+
+            if (failed > 0 && rowErrors.length > 0) {
+                const firstError = rowErrors[0];
+                const field = firstError?.field ? `${firstError.field}: ` : '';
+                toast.error(`Row ${firstError?.row || '?'} ${field}${firstError?.message || 'Import validation failed'}`);
+            } else if (failed === 0 && skipped > 0) {
+                toast(`${skipped} teacher rows skipped`);
+            }
+        }
+    };
+
     return (
         <div className="teachers-page">
+            <input
+                ref={importInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handleTeacherImportFileChange}
+            />
             <TeachersHeader
                 canManageTeachers={canManageTeachers}
                 onCreateTeacher={() => setShowModal(true)}
+                onImportTeachers={handleTriggerTeacherImport}
             />
 
             <TeachersFilters

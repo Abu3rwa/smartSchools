@@ -3,6 +3,7 @@ import {
     getClasses,
     getClass,
     createClass,
+    importClasses,
     updateClass,
     deleteClass,
     addSubjectToClass,
@@ -25,6 +26,8 @@ router.use(parseQueryFilter);
 router.route('/')
     .get(authorize('admin', 'department_principal', 'teacher'), getClasses)
     .post(authorize('admin'), validationRules.createClass, validate, createClass);
+
+router.post('/import', authorize('admin', 'department_principal'), importClasses);
 
 router.get('/:id/analytics', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassAnalytics);
 router.get('/:id/insights', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassInsights);

@@ -6,9 +6,9 @@ import Notification from '../models/Notification.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
-import { resolveSchoolAcademicYear } from '../utils/academicYear.js';
 import notificationService from '../services/notificationService.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
+import { runImportPipeline } from '../services/import/importPipeline.js';
 
 /**
  * Generate a human-readable temporary password.
@@ -547,120 +547,33 @@ export const enrollStudent = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 export const importStudents = asyncHandler(async (req, res) => {
-    const { students: rows, classId } = req.body;
-
-    if (!Array.isArray(rows) || rows.length === 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'No student data provided'
-        });
-    }
-
-    if (rows.length > 500) {
-        return res.status(400).json({
-            success: false,
-            message: 'Maximum 500 students per import'
-        });
-    }
-
-    // Validate class exists and get its department and academic year for assignment
-    let classDepartment = null;
-    let classAcademicYear = null;
-    const defaultSchoolAcademicYear = resolveSchoolAcademicYear(req.school);
-    if (classId) {
-        const cls = await Class.findById(classId).select('department academicYear');
-        if (!cls) {
-            return res.status(400).json({
-                success: false,
-                message: 'Selected class not found'
-            });
+    const result = await runImportPipeline({
+        entityType: 'students',
+        mode: 'commit',
+        payload: req.body,
+        context: {
+            schoolId: req.schoolId,
+            school: req.school,
+            userId: req.user?._id,
+            academicYear: req.academicYear
         }
-        classDepartment = cls.department || null;
-        classAcademicYear = cls.academicYear || null;
-    }
+    });
 
-    // Get current count for ID generation
-    let count = await Student.countDocuments({ school: req.schoolId });
-    const year = new Date().getFullYear().toString().slice(-2);
-
-    const created = [];
-    const errors = [];
-
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const rowNum = i + 1;
-
-        // Validate required fields
-        if (!row.firstName || !row.lastName || !row.dateOfBirth || !row.gender) {
-            errors.push({ row: rowNum, message: `Missing required fields (firstName, lastName, dateOfBirth, gender)`, data: row });
-            continue;
-        }
-
-        // Validate gender
-        const gender = row.gender.toLowerCase();
-        if (!['male', 'female', 'other'].includes(gender)) {
-            errors.push({ row: rowNum, message: `Invalid gender "${row.gender}". Must be male, female, or other`, data: row });
-            continue;
-        }
-
-        // Validate date
-        const dob = new Date(row.dateOfBirth);
-        if (isNaN(dob.getTime())) {
-            errors.push({ row: rowNum, message: `Invalid date of birth "${row.dateOfBirth}"`, data: row });
-            continue;
-        }
-
-        // Build student data
-        count++;
-        const studentData = {
-            school: req.schoolId,
-            studentId: row.studentId || `STU${year}${String(count).padStart(4, '0')}`,
-            firstName: row.firstName.trim(),
-            lastName: row.lastName.trim(),
-            dateOfBirth: dob,
-            gender,
-            academicYear: row.academicYear || classAcademicYear || defaultSchoolAcademicYear,
-            status: 'active'
-        };
-
-        if (classId) {
-            studentData.currentClass = classId;
-            if (classDepartment) studentData.department = classDepartment;
-        }
-        if (row.email && row.email.trim()) studentData.email = row.email.trim().toLowerCase();
-
-        // Optional parent info
-        if (row.fatherName || row.fatherPhone || row.motherName || row.motherPhone) {
-            studentData.parentInfo = {};
-            if (row.fatherName) studentData.parentInfo.fatherName = row.fatherName.trim();
-            if (row.fatherPhone) studentData.parentInfo.fatherPhone = row.fatherPhone.trim();
-            if (row.fatherEmail) studentData.parentInfo.fatherEmail = row.fatherEmail.trim();
-            if (row.motherName) studentData.parentInfo.motherName = row.motherName.trim();
-            if (row.motherPhone) studentData.parentInfo.motherPhone = row.motherPhone.trim();
-            if (row.motherEmail) studentData.parentInfo.motherEmail = row.motherEmail.trim();
-            studentData.parentInfo.primaryContact = row.primaryContact || 'father';
-        }
-
-        try {
-            const student = await Student.create(studentData);
-            created.push(student);
-        } catch (error) {
-            const msg = error.code === 11000
-                ? 'Duplicate student ID or email'
-                : error.message;
-            errors.push({ row: rowNum, message: msg, data: row });
-        }
-    }
-
-    res.status(created.length > 0 ? 201 : 400).json({
-        success: created.length > 0,
-        message: `${created.length} of ${rows.length} students imported successfully`,
+    res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
         data: {
-            imported: created.length,
-            failed: errors.length,
-            total: rows.length,
-            errors: errors.length > 0 ? errors : undefined
-        }
+            imported: result.summary.importedRows,
+            failed: result.summary.failedRows,
+            total: result.summary.totalRows,
+            skipped: result.summary.skippedRows,
+            importRunId: result.importRunId,
+            errorReportUrl: result.errorReportUrl,
+            errors: result.errors.length > 0 ? result.errors : undefined
+        },
+        summary: result.summary,
+        errors: result.errors,
+        warnings: result.warnings
     });
 });
 

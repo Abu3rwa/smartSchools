@@ -5,6 +5,7 @@ import Class from '../models/Class.js';
 import Department from '../models/Department.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
+import { runImportPipeline } from '../services/import/importPipeline.js';
 
 /**
  * If the value is already a valid ObjectId, return it.
@@ -257,6 +258,41 @@ export const createTeacher = asyncHandler(async (req, res) => {
         success: true,
         message: isNewUser ? 'Teacher created successfully' : 'Teacher profile linked to existing user',
         data: { teacher: populatedTeacher }
+    });
+});
+
+/**
+ * @desc    Import teachers
+ * @route   POST /api/teachers/import
+ * @access  Private (Admin, Department Principal)
+ */
+export const importTeachers = asyncHandler(async (req, res) => {
+    const result = await runImportPipeline({
+        entityType: 'teachers',
+        mode: 'commit',
+        payload: req.body,
+        context: {
+            schoolId: req.schoolId,
+            school: req.school,
+            userId: req.user?._id,
+            academicYear: req.academicYear
+        }
+    });
+
+    res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        data: {
+            imported: result.summary.importedRows,
+            failed: result.summary.failedRows,
+            skipped: result.summary.skippedRows,
+            total: result.summary.totalRows,
+            importRunId: result.importRunId,
+            errorReportUrl: result.errorReportUrl,
+            errors: result.errors
+        },
+        summary: result.summary,
+        warnings: result.warnings
     });
 });
 

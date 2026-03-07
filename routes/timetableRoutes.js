@@ -4,6 +4,7 @@ import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import {
     listPeriods,
     createPeriod,
+    importPeriods,
     updatePeriod,
     deletePeriod,
     createAssignment,
@@ -27,6 +28,7 @@ router.get('/my-schedule', authorize('student'), getStudentTimetable);
 // Periods (teachers can read; admins and principals can CRUD)
 router.get('/periods', authorize('admin', 'department_principal', 'teacher'), listPeriods);
 router.post('/periods', authorize('admin', 'department_principal'), createPeriod);
+router.post('/periods/import', authorize('admin', 'department_principal'), importPeriods);
 router.put('/periods/:id', authorize('admin', 'department_principal'), updatePeriod);
 router.delete('/periods/:id', authorize('admin', 'department_principal'), deletePeriod);
 

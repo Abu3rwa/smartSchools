@@ -35,6 +35,14 @@ const subjectService = {
     getSubjectsByGrade: async (grade) => {
         const response = await api.get(`/subjects/grade/${grade}`);
         return response.data;
+    },
+
+    importSubjects: async (subjects, options = {}) => {
+        const response = await api.post('/subjects/bulk', {
+            subjects,
+            ...options
+        });
+        return response.data;
     }
 };
 

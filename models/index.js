@@ -8,6 +8,7 @@ import Notification from './Notification.js';
 import School from './School.js';
 import NewsletterIssue from './NewsletterIssue.js';
 import NewsletterSection from './NewsletterSection.js';
+import ImportRun from './ImportRun.js';
 
 export {
     User,
@@ -19,5 +20,6 @@ export {
     Notification,
     School,
     NewsletterIssue,
-    NewsletterSection
+    NewsletterSection,
+    ImportRun
 };
