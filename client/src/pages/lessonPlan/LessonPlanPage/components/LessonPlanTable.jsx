@@ -16,13 +16,16 @@ const LessonPlanTable = ({
   lessons,
   canFilterAsAdmin,
   canManageLessonPlans,
+  canReviewLessonPlans,
   canManageLesson,
   onEdit,
   onDelete,
   onAdminNote,
   onOpenEvaluation,
   onTriggerEvaluation,
+  onRequestReviewAction,
   evaluationLoadingByLessonId,
+  reviewLoadingByLessonId,
 }) => {
   const navigate = useNavigate();
   const [openActionMenuLessonId, setOpenActionMenuLessonId] = useState(null);
@@ -55,13 +58,14 @@ const LessonPlanTable = ({
             <th className="lesson-col-subject">Subject</th>
             <th>Date</th>
             <th className="lesson-col-status">Status</th>
-            {canManageLessonPlans && <th className="lesson-col-actions">Actions</th>}
+            {(canManageLessonPlans || canReviewLessonPlans) && <th className="lesson-col-actions">Actions</th>}
           </tr>
         </thead>
         <tbody>
           {lessons.map((lesson) => {
             const isMenuOpen = openActionMenuLessonId === lesson._id;
             const lessonIsManageable = canManageLesson(lesson);
+            const reviewLoading = Boolean(reviewLoadingByLessonId?.[lesson._id]);
             return (
               <tr key={lesson._id}>
                 <td>
@@ -91,9 +95,9 @@ const LessonPlanTable = ({
                     {getStatusLabel(lesson.status)}
                   </span>
                 </td>
-                {canManageLessonPlans && (
+                {(canManageLessonPlans || canReviewLessonPlans) && (
                   <td className="lesson-col-actions">
-                    {lessonIsManageable || canFilterAsAdmin ? (
+                    {lessonIsManageable || canFilterAsAdmin || canReviewLessonPlans ? (
                       <div className="lesson-actions-menu">
                         <button
                           type="button"
@@ -123,6 +127,48 @@ const LessonPlanTable = ({
                             </button>
                             {canFilterAsAdmin && (
                               <>
+                                <button
+                                  type="button"
+                                  className="lesson-menu-item"
+                                  disabled={reviewLoading}
+                                  onClick={() => {
+                                    setOpenActionMenuLessonId(null);
+                                    onRequestReviewAction({
+                                      lesson,
+                                      finalStatus: 'approved',
+                                    });
+                                  }}
+                                >
+                                  {reviewLoading ? 'Updating...' : 'Approve'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="lesson-menu-item"
+                                  disabled={reviewLoading}
+                                  onClick={() => {
+                                    setOpenActionMenuLessonId(null);
+                                    onRequestReviewAction({
+                                      lesson,
+                                      finalStatus: 'needs_revision',
+                                    });
+                                  }}
+                                >
+                                  {reviewLoading ? 'Updating...' : 'Needs revision'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="lesson-menu-item text-danger"
+                                  disabled={reviewLoading}
+                                  onClick={() => {
+                                    setOpenActionMenuLessonId(null);
+                                    onRequestReviewAction({
+                                      lesson,
+                                      finalStatus: 'rejected',
+                                    });
+                                  }}
+                                >
+                                  {reviewLoading ? 'Updating...' : 'Reject'}
+                                </button>
                                 <AdminEvaluationButton
                                   loading={Boolean(evaluationLoadingByLessonId?.[lesson._id])}
                                   hasEvaluation={Boolean(lesson.aiEvaluation?.evaluatedAt)}
@@ -205,7 +251,7 @@ const LessonPlanTable = ({
                 colSpan={
                   5 +
                   (canFilterAsAdmin ? 1 : 0) +
-                  (canManageLessonPlans ? 1 : 0)
+                  (canManageLessonPlans || canReviewLessonPlans ? 1 : 0)
                 }
                 className="empty-row"
               >

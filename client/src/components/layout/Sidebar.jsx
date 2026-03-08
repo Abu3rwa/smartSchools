@@ -33,6 +33,7 @@ import {
   HiOutlineOfficeBuilding,
   HiOutlineExclamationCircle,
   HiOutlineLockClosed,
+  HiOutlineMail,
 } from "react-icons/hi";
 import "./Sidebar.css";
 
@@ -144,6 +145,14 @@ const Sidebar = () => {
       roles: ["admin", "teacher", "department_principal", "staff"],
       section: "overview",
       badgeCount: messageUnreadCount,
+    },
+    {
+      path: "/portal/email-composer",
+      icon: HiOutlineMail,
+      label: "Email Composer",
+      roles: ["admin", "teacher", "department_principal", "staff"],
+      permissions: [PERMISSIONS.SEND_COMMUNICATION_EMAILS, PERMISSIONS.SEND_NOTIFICATIONS],
+      section: "overview",
     },
     {
       path: "/portal/my-schedule",
@@ -339,7 +348,7 @@ const Sidebar = () => {
       path: "/portal/subjects",
       icon: HiOutlineBookOpen,
       label: "Subjects",
-      admin: true,
+      roles: ["teacher"],
       section: "school",
     },
     {
@@ -372,7 +381,7 @@ const Sidebar = () => {
       section: "learning",
     },
     {
-      path: "/portal/my-attendance",
+      path: "/portal/student-attendance",
       icon: HiOutlineClipboardCheck,
       label: "My Attendance",
       roles: ["student"],

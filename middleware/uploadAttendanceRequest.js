@@ -11,6 +11,7 @@ const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'
 const ALLOWED_EXT = ['.jpg', '.jpeg', '.png', '.pdf'];
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'attendance-requests');
+export const attendanceRequestUploadDirectory = uploadDir;
 
 // Ensure directory exists
 if (!fs.existsSync(uploadDir)) {
@@ -47,9 +48,9 @@ export const uploadAttendanceRequestFile = multer({
 
 /**
  * After multer runs, req.file is set. Build URL path for storing in DB.
- * Client will request: same origin + attachmentUrl (e.g. /uploads/attendance-requests/xxx.pdf)
+ * Client will request: same origin + attachmentUrl (authorized API download endpoint)
  */
-export function getAttachmentUrl(filename) {
-    if (!filename) return null;
-    return `/uploads/attendance-requests/${filename}`;
+export function getAttachmentUrl(requestId) {
+    if (!requestId) return null;
+    return `/api/attendance-requests/${requestId}/attachment`;
 }

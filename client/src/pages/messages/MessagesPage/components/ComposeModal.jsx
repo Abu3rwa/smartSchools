@@ -31,10 +31,16 @@ const ComposeModal = ({
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal messages-modal" onClick={(event) => event.stopPropagation()}>
+            <div
+                className="modal messages-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="messages-compose-title"
+                onClick={(event) => event.stopPropagation()}
+            >
                 <div className="modal-header">
-                    <h2>New Message</h2>
-                    <button type="button" className="modal-close" onClick={onClose}>
+                    <h2 id="messages-compose-title">New Message</h2>
+                    <button type="button" className="modal-close" onClick={onClose} aria-label="Close compose message modal">
                         <HiOutlineX size={18} />
                     </button>
                 </div>

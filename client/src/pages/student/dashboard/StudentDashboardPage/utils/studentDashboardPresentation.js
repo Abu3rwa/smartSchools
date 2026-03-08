@@ -39,15 +39,43 @@ export const formatDueDate = (dueDate, todayStart) => {
     return due.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-export const getUpcomingAssignments = (assignments = [], todayStart) => {
+const buildUpcomingPracticeDueItems = (assignments = [], todayStart) => {
     return assignments
         .filter((assignment) => assignment.dueDate && !assignment.mastery?.isMastered)
-        .map((assignment) => ({ ...assignment, due: new Date(assignment.dueDate) }))
+        .map((assignment) => ({
+            ...assignment,
+            source: 'practice',
+            id: assignment._id,
+            due: new Date(assignment.dueDate)
+        }))
         .filter((assignment) => {
             const dueStart = new Date(assignment.due);
             dueStart.setHours(0, 0, 0, 0);
             return dueStart >= todayStart;
-        })
+        });
+};
+
+const buildUpcomingClassDueItems = (classAssignments = [], todayStart) => {
+    return classAssignments
+        .filter((assignment) => assignment?.dueDate)
+        .map((assignment) => ({
+            ...assignment,
+            source: 'class_assignment',
+            id: assignment?.id || assignment?._id,
+            due: new Date(assignment.dueDate)
+        }))
+        .filter((assignment) => {
+            const dueStart = new Date(assignment.due);
+            dueStart.setHours(0, 0, 0, 0);
+            return dueStart >= todayStart;
+        });
+};
+
+export const getUpcomingAssignments = (practiceAssignments = [], classAssignments = [], todayStart) => {
+    const upcomingPractice = buildUpcomingPracticeDueItems(practiceAssignments, todayStart);
+    const upcomingClass = buildUpcomingClassDueItems(classAssignments, todayStart);
+
+    return [...upcomingPractice, ...upcomingClass]
         .sort((a, b) => a.due - b.due)
         .slice(0, MAX_ASSIGNMENTS_DISPLAY);
 };

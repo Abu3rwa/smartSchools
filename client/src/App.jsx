@@ -44,6 +44,7 @@ import TeacherDetailsPage from "./pages/teachers/TeacherDetailsPage";
 import SubjectsPage from "./pages/subjects/SubjectsPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import MessagesPage from "./pages/messages/MessagesPage";
+import EmailComposerPage from "./pages/communication/EmailComposerPage";
 import SettingsPage from "./pages/settings/SettingsPage";
 import SchoolSettingsPage from "./pages/schoolSettings/SchoolSettingsPage";
 import AdminSchedulePage from "./pages/admin/schedule/AdminSchedulePage";
@@ -396,6 +397,17 @@ function App() {
             }
           />
           <Route
+            path="email-composer"
+            element={
+              <RoleRoute
+                roles={["admin", "teacher", "department_principal", "staff"]}
+                permissions={["send_communication_emails", "send_notifications"]}
+              >
+                <EmailComposerPage />
+              </RoleRoute>
+            }
+          />
+          <Route
             path="schedules"
             element={
               <RoleRoute roles={["admin"]}>
@@ -684,7 +696,7 @@ function App() {
             }
           />
           <Route
-            path="my-attendance"
+            path="student-attendance"
             element={
               <RoleRoute roles={["student"]}>
                 <StudentAttendancePage />

@@ -3,6 +3,7 @@ import {
     createAttendanceRequest,
     listAttendanceRequests,
     getAttendanceRequest,
+    downloadAttendanceRequestAttachment,
     reviewAttendanceRequest,
     cancelAttendanceRequest,
     getEligibleStudents,
@@ -40,6 +41,7 @@ router
     );
 
 router.get('/:id', validationRules.mongoId, validate, getAttendanceRequest);
+router.get('/:id/attachment', validationRules.mongoId, validate, downloadAttendanceRequestAttachment);
 router.patch(
     '/:id/cancel',
     authorize('parent', 'student'),

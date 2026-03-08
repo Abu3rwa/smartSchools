@@ -10,6 +10,9 @@ export const login = createAsyncThunk(
       if (response.data.success) {
         localStorage.removeItem('behavior_session_id');
         localStorage.setItem('token', response.data.data.token);
+        if (response.data.data.refreshToken) {
+          localStorage.setItem('refreshToken', response.data.data.refreshToken);
+        }
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
         return response.data.data;
       }
@@ -27,6 +30,9 @@ export const register = createAsyncThunk(
       if (response.data.success) {
         localStorage.removeItem('behavior_session_id');
         localStorage.setItem('token', response.data.data.token);
+        if (response.data.data.refreshToken) {
+          localStorage.setItem('refreshToken', response.data.data.refreshToken);
+        }
         localStorage.setItem('user', JSON.stringify(response.data.data.user));
         return response.data.data;
       }
@@ -62,6 +68,7 @@ export const googleLoginCallback = createAsyncThunk(
       // Save token to localStorage
       localStorage.removeItem('behavior_session_id');
       localStorage.setItem('token', token);
+      localStorage.removeItem('refreshToken');
 
       // Fetch user data with the new token
       const response = await api.get('/auth/me', {
@@ -101,6 +108,7 @@ export const impersonateUser = createAsyncThunk(
         // 3. Set the new user and token in localStorage and state
         localStorage.removeItem('behavior_session_id');
         localStorage.setItem('token', token);
+        localStorage.removeItem('refreshToken');
         localStorage.setItem('user', JSON.stringify(user));
         
         // 4. Dispatch setCredentials to update the store immediately
@@ -130,6 +138,7 @@ export const stopImpersonation = createAsyncThunk(
       // 1. Restore the admin token
       localStorage.removeItem('behavior_session_id');
       localStorage.setItem('token', adminToken);
+      localStorage.removeItem('refreshToken');
       localStorage.removeItem('adminToken');
 
       // 2. Fetch the admin's user data
@@ -187,12 +196,14 @@ export const updateProfile = createAsyncThunk(
 // Get initial state from localStorage
 const getInitialState = () => {
   const token = localStorage.getItem('token');
+  const refreshToken = localStorage.getItem('refreshToken');
   const user = localStorage.getItem('user');
   const adminToken = localStorage.getItem('adminToken');
   return {
     user: user ? JSON.parse(user) : null,
     teacherProfile: null,
     token: token || null,
+    refreshToken: refreshToken || null,
     isAuthenticated: !!token,
     isImpersonating: !!adminToken,
     loading: false,
@@ -206,12 +217,14 @@ const authSlice = createSlice({
   reducers: {
     logout: (state) => {
       localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       localStorage.removeItem('adminToken');
       localStorage.removeItem('behavior_session_id');
       state.user = null;
       state.teacherProfile = null;
       state.token = null;
+      state.refreshToken = null;
       state.isAuthenticated = false;
       state.isImpersonating = false;
       state.error = null;
@@ -222,6 +235,7 @@ const authSlice = createSlice({
     setCredentials: (state, action) => {
       state.user = action.payload.user;
       state.token = action.payload.token;
+      state.refreshToken = action.payload.refreshToken || state.refreshToken || null;
       state.isAuthenticated = true;
       state.isImpersonating = !!localStorage.getItem('adminToken');
     }
@@ -238,6 +252,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.teacherProfile = action.payload.teacherProfile;
         state.token = action.payload.token;
+        state.refreshToken = action.payload.refreshToken || null;
         state.isAuthenticated = true;
       })
       .addCase(login.rejected, (state, action) => {
@@ -253,6 +268,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        state.refreshToken = action.payload.refreshToken || null;
         state.isAuthenticated = true;
       })
       .addCase(register.rejected, (state, action) => {
@@ -281,6 +297,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        state.refreshToken = null;
         state.isAuthenticated = true;
       })
       .addCase(googleLoginCallback.rejected, (state, action) => {
@@ -324,8 +341,10 @@ const authSlice = createSlice({
         state.loading = false;
         state.user = null;
         state.token = null;
+        state.refreshToken = null;
         state.isAuthenticated = false;
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
         localStorage.removeItem('behavior_session_id');
       })

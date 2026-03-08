@@ -5,9 +5,11 @@ import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import notificationService from '../services/notificationService.js';
-import { getAttachmentUrl } from '../middleware/uploadAttendanceRequest.js';
+import { attendanceRequestUploadDirectory, getAttachmentUrl } from '../middleware/uploadAttendanceRequest.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
 import { resolveAcademicYearDateRangeForRequest, clampDateRangeToAcademicYear, isDateInAcademicYear } from '../helpers/academicYearScope.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Resolve principals to notify: school admins + department principals for request.department
@@ -24,6 +26,47 @@ async function getPrincipalsForRequest(schoolId, departmentId) {
 }
 
 const getAttendanceRequestYearScope = (req) => resolveAcademicYearDateRangeForRequest(req);
+
+const parseLegacyAttachmentFilename = (attachmentUrl = '') => {
+    const value = String(attachmentUrl || '').trim();
+    if (!value.includes('/uploads/attendance-requests/')) return null;
+    const parts = value.split('/');
+    const filename = parts[parts.length - 1] || '';
+    if (!filename) return null;
+    return path.basename(filename);
+};
+
+const resolveAttachmentFilename = (request) => (
+    String(request?.attachmentFileName || '').trim()
+    || parseLegacyAttachmentFilename(request?.attachmentUrl)
+    || null
+);
+
+const serializeAttendanceRequest = (requestDoc) => {
+    const data = requestDoc?.toObject ? requestDoc.toObject() : { ...requestDoc };
+    const hasAttachment = Boolean(resolveAttachmentFilename(data));
+    data.attachmentUrl = hasAttachment ? getAttachmentUrl(data._id) : null;
+    return data;
+};
+
+const canViewAttendanceRequest = (req, request) => {
+    const user = req.user;
+    const isPrincipal = ['admin', 'department_principal'].includes(user.role);
+    const requesterId = request.requester?._id || request.requester;
+    const isRequester = requesterId && requesterId.toString() === user._id.toString();
+
+    if (!isRequester && !isPrincipal) {
+        return { allowed: false, statusCode: 403, message: 'Not authorized to view this request' };
+    }
+    if (req.departmentId) {
+        const reqDept = request.department?.toString();
+        const scopeDept = req.departmentId.toString();
+        if (!reqDept || reqDept !== scopeDept) {
+            return { allowed: false, statusCode: 403, message: 'Not in your department' };
+        }
+    }
+    return { allowed: true };
+};
 
 /**
  * @desc    Get requester context for form prefill (e.g. teacher: department + direct supervisor)
@@ -184,9 +227,8 @@ export const createAttendanceRequest = asyncHandler(async (req, res) => {
     }
 
     const requesterName = `${user.firstName} ${user.lastName}`.trim() || user.email;
-    const attachmentUrl = req.file ? getAttachmentUrl(req.file.filename) : null;
 
-    const request = await AttendanceRequest.create({
+    const request = new AttendanceRequest({
         school: schoolId,
         requester: user._id,
         requesterName,
@@ -202,9 +244,14 @@ export const createAttendanceRequest = asyncHandler(async (req, res) => {
         toTime: useDateRange ? '' : (toTime || ''),
         departmentOrSupervisor: departmentOrSupervisor || '',
         notes: notes || '',
-        attachmentUrl,
+        attachmentUrl: null,
+        attachmentFileName: req.file?.filename || null,
         status: 'pending',
     });
+    if (req.file?.filename) {
+        request.attachmentUrl = getAttachmentUrl(request._id);
+    }
+    await request.save();
 
     const populated = await AttendanceRequest.findById(request._id).populate('requestType');
     const principals = await getPrincipalsForRequest(schoolId, departmentId);
@@ -222,7 +269,7 @@ export const createAttendanceRequest = asyncHandler(async (req, res) => {
     res.status(201).json({
         success: true,
         message: 'Attendance request submitted. You will be notified when it is reviewed.',
-        data: { ...created.toObject(), academicYear },
+        data: { ...serializeAttendanceRequest(created), academicYear },
     });
 });
 
@@ -275,7 +322,7 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
         return res.status(200).json({
             success: true,
             data: {
-                items: requests,
+                items: requests.map(serializeAttendanceRequest),
                 pagination: {
                     page,
                     limit,
@@ -291,7 +338,7 @@ export const listAttendanceRequests = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        data: requests,
+        data: requests.map(serializeAttendanceRequest),
         academicYear
     });
 });
@@ -314,21 +361,58 @@ export const getAttendanceRequest = asyncHandler(async (req, res) => {
     if (!isDateInAcademicYear(request.requestDate || request.createdAt, dateFilter)) {
         return res.status(404).json({ success: false, message: `Request not found for academic year ${academicYear}` });
     }
-    const user = req.user;
-    const isPrincipal = ['admin', 'department_principal'].includes(user.role);
-    const requesterId = request.requester?._id || request.requester;
-    const isRequester = requesterId && requesterId.toString() === user._id.toString();
-    if (!isRequester && !isPrincipal) {
-        return res.status(403).json({ success: false, message: 'Not authorized to view this request' });
+    const access = canViewAttendanceRequest(req, request);
+    if (!access.allowed) {
+        return res.status(access.statusCode).json({ success: false, message: access.message });
     }
-    if (req.departmentId) {
-        const reqDept = request.department?.toString();
-        const scopeDept = req.departmentId.toString();
-        if (!reqDept || reqDept !== scopeDept) {
-            return res.status(403).json({ success: false, message: 'Not in your department' });
-        }
+    res.status(200).json({ success: true, data: { ...serializeAttendanceRequest(request), academicYear } });
+});
+
+/**
+ * @desc    Download attendance request attachment
+ * @route   GET /api/attendance-requests/:id/attachment
+ * @access  Private (requester or principal in scope)
+ */
+export const downloadAttendanceRequestAttachment = asyncHandler(async (req, res) => {
+    const { academicYear, dateFilter } = getAttendanceRequestYearScope(req);
+    const request = await AttendanceRequest.findById(req.params.id);
+    if (!request) {
+        return res.status(404).json({ success: false, message: 'Request not found' });
     }
-    res.status(200).json({ success: true, data: { ...request.toObject(), academicYear } });
+    if (!isDateInAcademicYear(request.requestDate || request.createdAt, dateFilter)) {
+        return res.status(404).json({ success: false, message: `Request not found for academic year ${academicYear}` });
+    }
+
+    const access = canViewAttendanceRequest(req, request);
+    if (!access.allowed) {
+        return res.status(access.statusCode).json({ success: false, message: access.message });
+    }
+
+    const fileName = resolveAttachmentFilename(request);
+    if (!fileName) {
+        return res.status(404).json({ success: false, message: 'Attachment not found' });
+    }
+
+    const basePath = path.resolve(attendanceRequestUploadDirectory);
+    const filePath = path.resolve(basePath, fileName);
+    if (!filePath.startsWith(basePath + path.sep) && filePath !== basePath) {
+        return res.status(400).json({ success: false, message: 'Invalid attachment path' });
+    }
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ success: false, message: 'Attachment file not found' });
+    }
+
+    const extension = path.extname(fileName).toLowerCase();
+    const mimeTypes = {
+        '.pdf': 'application/pdf',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png'
+    };
+    res.setHeader('Content-Type', mimeTypes[extension] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.sendFile(filePath);
 });
 
 /**
@@ -378,7 +462,7 @@ export const reviewAttendanceRequest = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         message: `Request ${status}`,
-        data: { ...updated.toObject(), academicYear },
+        data: { ...serializeAttendanceRequest(updated), academicYear },
     });
 });
 
@@ -420,6 +504,6 @@ export const cancelAttendanceRequest = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         message: 'Request cancelled',
-        data: updated
+        data: serializeAttendanceRequest(updated)
     });
 });

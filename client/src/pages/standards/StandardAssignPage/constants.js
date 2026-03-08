@@ -27,6 +27,7 @@ export const createInitialFormData = (semester = 1) => ({
     standardId: '',
     classId: '',
     subjectId: '',
+    preGeneratedQuestionCount: '10',
     semester: semester || 1,
     students: [],
     dueDate: '',

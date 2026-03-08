@@ -61,6 +61,12 @@ export const FEATURES = {
         label: 'Data Export',
         description: 'Export data for reporting and archival workflows.',
         plans: ['professional', 'enterprise']
+    },
+    aiEmailDrafts: {
+        key: 'aiEmailDrafts',
+        label: 'AI Email Drafts',
+        description: 'Generate AI-assisted email body drafts in the communication composer.',
+        plans: ['professional', 'enterprise']
     }
 };
 

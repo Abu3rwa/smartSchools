@@ -251,6 +251,49 @@ export const getAssignments = asyncHandler(async (req, res) => {
     });
 });
 
+export const getMyAssignmentsForStudent = asyncHandler(async (req, res) => {
+    const academicYear = resolveAcademicYearForRequest(req);
+    const student = await Student.findOne({
+        user: req.user._id,
+        school: req.schoolId,
+        academicYear,
+        status: 'active'
+    }).select('_id currentClass academicYear');
+
+    if (!student) {
+        return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const classId = toId(student.currentClass);
+    if (!classId) {
+        return res.json({ success: true, data: { items: [] } });
+    }
+
+    const rows = await Assignment.find({
+        school: req.schoolId,
+        academicYear,
+        class: classId,
+        status: { $ne: 'archived' },
+        $or: [
+            { scope: 'class' },
+            { scope: 'selected_students', studentIds: student._id },
+            { studentIds: student._id }
+        ]
+    })
+        .populate('assignmentType', 'key name')
+        .populate('class', 'name grade section')
+        .populate('subject', 'name code')
+        .sort({ dueDate: 1, assignedDate: -1, createdAt: -1 })
+        .lean();
+
+    res.json({
+        success: true,
+        data: {
+            items: rows.map(mapAssignmentSummary)
+        }
+    });
+});
+
 export const createAssignment = asyncHandler(async (req, res) => {
     await ensureDefaultAssignmentTypes(req.schoolId, req.user._id);
 

@@ -8,6 +8,7 @@ import LessonPlanCriteriaTab from './components/LessonPlanCriteriaTab';
 import SchoolYearTab from './components/SchoolYearTab';
 import BrandingTab from './components/BrandingTab';
 import GradingScalesTab from './components/GradingScalesTab';
+import CommunicationTab from './components/CommunicationTab';
 import useSchoolSettings from './hooks/useSchoolSettings';
 import './SchoolSettingsPage.css';
 
@@ -15,6 +16,7 @@ const SchoolSettingsPage = () => {
   const {
     canManageUsers,
     canManageSchoolSettings,
+    canManageCommunicationSettings,
     canManageGradeScaling,
     canAccessSchoolSettings,
     activeTab,
@@ -56,8 +58,10 @@ const SchoolSettingsPage = () => {
     schoolYearDatesSaving,
     schoolInfo,
     brandingLoading,
+    communicationSettings,
     handleUploadSchoolLogo,
     handleRemoveSchoolLogo,
+    handleToggleAiEmailDraft,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,
@@ -93,6 +97,7 @@ const SchoolSettingsPage = () => {
         onTabChange={setActiveTab}
         canManageUsers={canManageUsers}
         canManageSchoolSettings={canManageSchoolSettings}
+        canManageCommunicationSettings={canManageCommunicationSettings}
         canManageGradeScaling={canManageGradeScaling}
       />
 
@@ -171,6 +176,16 @@ const SchoolSettingsPage = () => {
           loading={brandingLoading}
           onUploadLogo={handleUploadSchoolLogo}
           onRemoveLogo={handleRemoveSchoolLogo}
+        />
+      )}
+
+      {activeTab === 'communication' && canManageCommunicationSettings && (
+        <CommunicationTab
+          loading={communicationSettings.loading}
+          saving={communicationSettings.saving}
+          featureAvailable={communicationSettings.featureAvailable}
+          aiEmailDraftEnabled={communicationSettings.aiEmailDraftEnabled}
+          onToggleAiEmailDraft={handleToggleAiEmailDraft}
         />
       )}
 

@@ -84,6 +84,11 @@ const attendanceRequestSchema = new mongoose.Schema({
         trim: true,
         default: null
     },
+    attachmentFileName: {
+        type: String,
+        trim: true,
+        default: null
+    },
     // Workflow
     status: {
         type: String,

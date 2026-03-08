@@ -12,14 +12,22 @@ const UpcomingDueDatesCard = ({ upcomingAssignments, todayStart }) => {
             ) : (
                 <ul className="due-list">
                     {upcomingAssignments.map((assignment) => (
-                        <li key={assignment._id} className="due-item">
+                        <li key={`${assignment.source}-${assignment.id || assignment._id}`} className="due-item">
                             <span className="due-code">
-                                {formatStandardLabel(assignment.standard) || assignment.standard?.code}
+                                {assignment.source === 'practice'
+                                    ? formatStandardLabel(assignment.standard) || assignment.standard?.code
+                                    : assignment.assignmentType?.name || 'Assignment'}
                             </span>
                             <span className="due-date">{formatDueDate(assignment.due, todayStart)}</span>
-                            <Link to={`/portal/practice/${assignment._id}`} className="link-sm">
-                                Practice
-                            </Link>
+                            {assignment.source === 'practice' ? (
+                                <Link to={`/portal/practice/${assignment._id}`} className="link-sm">
+                                    Practice
+                                </Link>
+                            ) : (
+                                <span className="link-sm" style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
+                                    {assignment.title || 'Class assignment'}
+                                </span>
+                            )}
                         </li>
                     ))}
                 </ul>

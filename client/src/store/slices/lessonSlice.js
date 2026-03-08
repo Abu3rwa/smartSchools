@@ -126,6 +126,21 @@ export const updateLessonPlanAdminNote = createAsyncThunk(
     }
 );
 
+export const reviewLessonPlan = createAsyncThunk(
+    'lessons/reviewLessonPlan',
+    async ({ id, finalStatus, comments = '' }, { rejectWithValue }) => {
+        try {
+            const response = await lessonService.reviewLessonPlan(id, { finalStatus, comments });
+            return { lessonId: id, ...response };
+        } catch (error) {
+            return rejectWithValue({
+                lessonId: id,
+                message: error.response?.data?.message || 'Failed to review lesson plan'
+            });
+        }
+    }
+);
+
 export const triggerLessonEvaluation = createAsyncThunk(
     'lessons/triggerLessonEvaluation',
     async ({ id, forceReevaluate = false, reason = '' }, { rejectWithValue }) => {
@@ -169,7 +184,9 @@ const lessonSlice = createSlice({
         evaluationHistoryLoadingByLessonId: {},
         evaluationErrorByLessonId: {},
         evaluationHistoryByLessonId: {},
-        evaluationMetaByLessonId: {}
+        evaluationMetaByLessonId: {},
+        reviewLoadingByLessonId: {},
+        reviewErrorByLessonId: {}
     },
     reducers: {
         clearError: (state) => {
@@ -234,6 +251,34 @@ const lessonSlice = createSlice({
                         state.lessons[index] = { ...state.lessons[index], ...lesson };
                     }
                 }
+            })
+            .addCase(reviewLessonPlan.pending, (state, action) => {
+                const lessonId = action.meta.arg.id;
+                state.reviewLoadingByLessonId[lessonId] = true;
+                state.reviewErrorByLessonId[lessonId] = null;
+            })
+            .addCase(reviewLessonPlan.fulfilled, (state, action) => {
+                const lessonId = action.payload.lessonId;
+                state.reviewLoadingByLessonId[lessonId] = false;
+                state.reviewErrorByLessonId[lessonId] = null;
+
+                const lesson = action.payload?.data?.lesson;
+                if (lesson) {
+                    const index = state.lessons.findIndex((l) => l._id === lesson._id);
+                    if (index !== -1) {
+                        state.lessons[index] = { ...state.lessons[index], ...lesson };
+                    } else {
+                        state.lessons.unshift(lesson);
+                    }
+                    if (state.currentLesson?._id === lesson._id) {
+                        state.currentLesson = { ...state.currentLesson, ...lesson };
+                    }
+                }
+            })
+            .addCase(reviewLessonPlan.rejected, (state, action) => {
+                const lessonId = action.payload?.lessonId || action.meta.arg.id;
+                state.reviewLoadingByLessonId[lessonId] = false;
+                state.reviewErrorByLessonId[lessonId] = action.payload?.message || 'Failed to review lesson plan';
             })
             .addCase(triggerLessonEvaluation.pending, (state, action) => {
                 const lessonId = action.meta.arg.id;
@@ -300,5 +345,7 @@ export const selectEvaluationHistoryLoadingByLessonId = (state) => state.lessons
 export const selectEvaluationErrorByLessonId = (state) => state.lessons.evaluationErrorByLessonId;
 export const selectEvaluationHistoryByLessonId = (state) => state.lessons.evaluationHistoryByLessonId;
 export const selectEvaluationMetaByLessonId = (state) => state.lessons.evaluationMetaByLessonId;
+export const selectReviewLoadingByLessonId = (state) => state.lessons.reviewLoadingByLessonId;
+export const selectReviewErrorByLessonId = (state) => state.lessons.reviewErrorByLessonId;
 
 export default lessonSlice.reducer;

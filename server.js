@@ -71,9 +71,11 @@ import assignmentRoutes from "./routes/assignmentRoutes.js";
 import assignmentTypeRoutes from "./routes/assignmentTypeRoutes.js";
 import gradingScaleRoutes from "./routes/gradingScaleRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
+import communicationEmailRoutes from "./routes/communicationEmailRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
+import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 // Validate environment variables
 validateEnvironment();
@@ -268,13 +270,12 @@ app.use("/api/assignments", assignmentRoutes);
 app.use("/api/assignment-types", assignmentTypeRoutes);
 app.use("/api/grading-scales", gradingScaleRoutes);
 app.use("/api/calendar", calendarRoutes);
+app.use("/api/communication-email", communicationEmailRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);
 
-// Serve uploaded files (attendance request attachments)
 const __dirnameServer = path.dirname(fileURLToPath(import.meta.url));
-app.use("/uploads", express.static(path.join(__dirnameServer, "uploads")));
 
 // Serve static assets in production
 
@@ -304,6 +305,7 @@ const PORT = process.env.PORT || 5000;
 const REMINDER_JOB_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const REVIEW_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
 
 const httpServer = createServer(app);
 initRealtimeGateway(httpServer);
@@ -371,7 +373,22 @@ const server = httpServer.listen(PORT, () => {
       } catch (err) {
         logger.error("Review scheduler job error:", err?.message || err);
       }
-    }, REVIEW_SCHEDULER_INTERVAL_MS);
+      }, REVIEW_SCHEDULER_INTERVAL_MS);
+  }
+
+  if (process.env.RUN_COMMUNICATION_EMAIL_SCHEDULER !== "false") {
+    const runCommunicationEmailScheduler = async () => {
+      try {
+        const result = await processDueScheduledCommunicationEmails();
+        if ((result?.claimed || 0) > 0) {
+          logger.info("Communication email scheduler run", result);
+        }
+      } catch (err) {
+        logger.error("Communication email scheduler error:", err?.message || err);
+      }
+    };
+    setTimeout(runCommunicationEmailScheduler, 30 * 1000);
+    setInterval(runCommunicationEmailScheduler, COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS);
   }
 });
 

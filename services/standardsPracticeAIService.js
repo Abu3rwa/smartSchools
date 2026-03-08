@@ -8,6 +8,14 @@ const AMBIGUOUS_MC_OPTION_PATTERN =
   /\b(all of the above|none of the above|both a and b|both a & b|both b and c|both c and d|all are correct|all are true)\b/i;
 const CONFUSING_TF_PATTERN =
   /\b(regardless of whether|unless|double negative|both true and false)\b/i;
+const SAFE_MC_DISTRACTOR_BANK = [
+  "An unrelated detail from a different topic.",
+  "A partially correct idea that misses the key concept.",
+  "A common mistake that does not match the standard.",
+  "A vague statement without enough evidence.",
+  "An incorrect interpretation of the main idea.",
+  "A response that ignores the required rule.",
+];
 
 const GRADE_WORD_BANDS = [
   { min: 1, max: 3, minWords: 30, maxWords: 60 },
@@ -268,7 +276,10 @@ class StandardsPracticeAIService {
       }
     }
 
-    console.error("Question generation failed after retries:", lastError);
+    console.warn(
+      "Question generation used fallback after retries:",
+      lastError?.message || "unknown generation error",
+    );
     const fallbackQuestion = this._buildFallbackQuestion({
       standard,
       subjectName,
@@ -449,7 +460,10 @@ class StandardsPracticeAIService {
       }
     }
 
-    console.error("Answer evaluation failed after retries:", lastError);
+    console.warn(
+      "Answer evaluation used fallback after retries:",
+      lastError?.message || "unknown evaluation error",
+    );
     return fallbackResult();
   }
 
@@ -593,7 +607,10 @@ class StandardsPracticeAIService {
       }
     }
 
-    console.error("True/False question generation failed after retries:", lastError);
+    console.warn(
+      "True/False generation used fallback after retries:",
+      lastError?.message || "unknown true/false generation error",
+    );
     const fallbackQuestion = this._buildFallbackQuestion({
       standard,
       subjectName,
@@ -979,53 +996,86 @@ Output JSON:
     optionMaxLength,
     seed,
   }) {
-    const cleaned = Array.isArray(options)
-      ? options.slice(0, 4).map((option, index) => ({
-          label: String(option?.label || MC_LABELS[index] || "")
-            .trim()
-            .toUpperCase(),
-          text: this._sanitizeText(option?.text || "", {
-            maxLength: optionMaxLength,
-            sentenceCase: true,
-          }),
-          originalIndex: index,
-        }))
-      : [];
-
-    if (cleaned.length !== 4 || cleaned.some((option) => !option.text)) {
-      throw new Error(
-        "Multiple-choice questions require exactly 4 non-empty options",
-      );
-    }
-
-    const normalizedTextValues = cleaned.map((option) =>
-      this._normalizeForComparison(option.text),
-    );
-    const hasDuplicateOptions =
-      new Set(normalizedTextValues.filter(Boolean)).size !== cleaned.length;
-    if (hasDuplicateOptions) {
-      throw new Error(
-        "Multiple-choice questions must have 4 distinct option texts",
-      );
-    }
-
-    if (cleaned.some((option) => AMBIGUOUS_MC_OPTION_PATTERN.test(option.text))) {
-      throw new Error("Multiple-choice options include ambiguous answer patterns");
-    }
-
+    const rawOptions = Array.isArray(options) ? options.slice(0, 4) : [];
     const normalizedAnswer = String(correctAnswer || "").trim().toUpperCase();
-    let correctIndex = cleaned.findIndex(
-      (option) => option.label === normalizedAnswer,
+    const preferredCorrectByLabel = rawOptions.find(
+      (option) =>
+        String(option?.label || "")
+          .trim()
+          .toUpperCase() === normalizedAnswer,
     );
-    if (correctIndex < 0) {
+    const preferredCorrectText = this._sanitizeText(
+      preferredCorrectByLabel?.text || correctAnswer || "",
+      {
+        maxLength: optionMaxLength,
+        sentenceCase: true,
+      },
+    );
+
+    let cleaned = this._ensureDistinctMultipleChoiceOptions(
+      rawOptions.map((option, index) => ({
+        label: String(option?.label || MC_LABELS[index] || "")
+          .trim()
+          .toUpperCase(),
+        text: this._sanitizeText(option?.text || "", {
+          maxLength: optionMaxLength,
+          sentenceCase: true,
+        }),
+      })),
+      optionMaxLength,
+    ).slice(0, 4);
+
+    // Remove ambiguous options (e.g. "all of the above") and replace with safe distinct distractors.
+    const occupiedTexts = new Set(
+      cleaned.map((option) => this._normalizeMcOptionForComparison(option.text)),
+    );
+    cleaned = cleaned.map((option, index) => {
+      if (!AMBIGUOUS_MC_OPTION_PATTERN.test(option.text)) return option;
+      occupiedTexts.delete(this._normalizeMcOptionForComparison(option.text));
+      const replacementText = this._buildUniqueMcDistractorText({
+        occupiedTexts,
+        optionMaxLength,
+        preferredIndex: index,
+      });
+      occupiedTexts.add(this._normalizeMcOptionForComparison(replacementText));
+      return {
+        ...option,
+        text: replacementText,
+      };
+    });
+
+    cleaned = this._ensureDistinctMultipleChoiceOptions(cleaned, optionMaxLength).slice(
+      0,
+      4,
+    );
+
+    let correctIndex = -1;
+    const preferredCorrectNormalized = this._normalizeMcOptionForComparison(preferredCorrectText);
+    if (preferredCorrectNormalized) {
       correctIndex = cleaned.findIndex(
-        (option) => option.text.toUpperCase() === normalizedAnswer,
+        (option) =>
+          this._normalizeMcOptionForComparison(option.text) === preferredCorrectNormalized,
       );
     }
+    if (correctIndex < 0 && MC_LABELS.includes(normalizedAnswer)) {
+      correctIndex = MC_LABELS.indexOf(normalizedAnswer);
+    }
     if (correctIndex < 0) {
-      throw new Error(
-        "correctAnswer must map to one of the option labels or texts",
+      const normalizedAnswerText = this._normalizeMcOptionForComparison(
+        this._sanitizeText(correctAnswer || "", {
+          maxLength: optionMaxLength,
+          sentenceCase: true,
+        }),
       );
+      if (normalizedAnswerText) {
+        correctIndex = cleaned.findIndex(
+          (option) =>
+            this._normalizeMcOptionForComparison(option.text) === normalizedAnswerText,
+        );
+      }
+    }
+    if (correctIndex < 0 || correctIndex > 3) {
+      correctIndex = 0;
     }
 
     const shuffled = this._shuffleOptionsDeterministic(cleaned, correctIndex, seed);
@@ -1232,6 +1282,13 @@ Output JSON:
       .toLowerCase()
       .replace(/[`*_#>\-~]/g, " ")
       .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  _normalizeMcOptionForComparison(text) {
+    return String(text || "")
+      .toLowerCase()
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -1734,6 +1791,85 @@ Output JSON:
     return null;
   }
 
+  _buildUniqueMcDistractorText({
+    occupiedTexts = new Set(),
+    optionMaxLength = 180,
+    preferredIndex = 0,
+  } = {}) {
+    const preferredStart = Number.isFinite(Number(preferredIndex))
+      ? Math.max(0, Number(preferredIndex))
+      : 0;
+    const orderedBank = [
+      ...SAFE_MC_DISTRACTOR_BANK.slice(preferredStart),
+      ...SAFE_MC_DISTRACTOR_BANK.slice(0, preferredStart),
+    ];
+
+    for (const candidate of orderedBank) {
+      const sanitized = this._sanitizeText(candidate, {
+        maxLength: optionMaxLength,
+        sentenceCase: true,
+      });
+      const normalized = this._normalizeMcOptionForComparison(sanitized);
+      if (sanitized && normalized && !occupiedTexts.has(normalized)) {
+        return sanitized;
+      }
+    }
+
+    let counter = 1;
+    while (counter <= 50) {
+      const fallback = this._sanitizeText(`Alternative option ${counter}`, {
+        maxLength: optionMaxLength,
+        sentenceCase: true,
+      });
+      const normalized = this._normalizeMcOptionForComparison(fallback);
+      if (fallback && normalized && !occupiedTexts.has(normalized)) {
+        return fallback;
+      }
+      counter += 1;
+    }
+
+    return this._sanitizeText("Alternative option", {
+      maxLength: optionMaxLength,
+      sentenceCase: true,
+    });
+  }
+
+  _ensureDistinctMultipleChoiceOptions(options = [], optionMaxLength = 180) {
+    const normalizedInput = Array.isArray(options) ? options.slice(0, 4) : [];
+    const filledOptions = [...normalizedInput];
+
+    while (filledOptions.length < 4) {
+      const fallbackIndex = filledOptions.length;
+      filledOptions.push({
+        label: MC_LABELS[fallbackIndex],
+        text: "",
+      });
+    }
+
+    const seen = new Set();
+    return filledOptions.map((option, index) => {
+      const label = MC_LABELS[index];
+      const rawText = this._sanitizeText(option?.text || "", {
+        maxLength: optionMaxLength,
+        sentenceCase: true,
+      });
+      const normalizedRawText = this._normalizeMcOptionForComparison(rawText);
+      const hasRawText = Boolean(rawText && normalizedRawText);
+      const isDuplicateRaw = hasRawText && seen.has(normalizedRawText);
+      const isAmbiguousRaw = hasRawText && AMBIGUOUS_MC_OPTION_PATTERN.test(rawText);
+      const candidateText = !hasRawText || isDuplicateRaw || isAmbiguousRaw
+        ? this._buildUniqueMcDistractorText({
+            occupiedTexts: seen,
+            optionMaxLength,
+            preferredIndex: index,
+          })
+        : rawText;
+
+      seen.add(this._normalizeMcOptionForComparison(candidateText));
+      return { label, text: candidateText };
+    });
+  }
+
   _buildFallbackQuestion({
     standard,
     subjectName,
@@ -1850,14 +1986,37 @@ Output JSON:
     const selected = nonDuplicate || candidateQuestions[0];
 
     if (selected.questionType === "multiple_choice") {
-      const normalized = this._normalizeMultipleChoicePayload({
-        options: selected.options,
-        correctAnswer: selected.correctAnswer,
-        optionMaxLength: this._getTextLimitsByGrade(standard?.gradeLevel ?? null).optionMax,
-        seed: `${standardCode}|fallback|${selected.questionText}`,
-      });
-      selected.options = normalized.options;
-      selected.correctAnswer = normalized.correctAnswer;
+      const optionMaxLength = this._getTextLimitsByGrade(
+        standard?.gradeLevel ?? null,
+      ).optionMax;
+      try {
+        const normalized = this._normalizeMultipleChoicePayload({
+          options: selected.options,
+          correctAnswer: selected.correctAnswer,
+          optionMaxLength,
+          seed: `${standardCode}|fallback|${selected.questionText}`,
+        });
+        selected.options = normalized.options;
+        selected.correctAnswer = normalized.correctAnswer;
+      } catch (error) {
+        const safeOptions = this._ensureDistinctMultipleChoiceOptions(
+          selected.options,
+          optionMaxLength,
+        );
+        const normalized = this._normalizeMultipleChoicePayload({
+          options: safeOptions,
+          correctAnswer: "A",
+          optionMaxLength,
+          seed: `${standardCode}|fallback-safe|${selected.questionText}`,
+        });
+        selected.options = normalized.options;
+        selected.correctAnswer = normalized.correctAnswer;
+        selected.explanation = this._sanitizeText(
+          selected.explanation ||
+            "Select the option that best matches the standard focus.",
+          { maxLength: 320, sentenceCase: true },
+        );
+      }
     }
 
     return selected;

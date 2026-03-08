@@ -183,38 +183,57 @@ class GmailOAuthService {
     }
 
     /**
-     * Internal helper: build raw RFC 2822 email and send via Gmail API
-     * @param {object} oauth2Client - Configured OAuth2 client
-     * @param {string} from - From email
-     * @param {string} to - Recipient email
-     * @param {object} mailOptions - mail options (subject, text, html)
-     * @returns {Promise<object>} Gmail API response
+     * Build raw RFC 2822 email (supports HTML + MIME attachments).
+     * @param {object} message
+     * @returns {Promise<string>} base64url encoded message
      */
-    async sendViaGmailApi(oauth2Client, from, to, mailOptions) {
-        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    async buildRawGmailMessage(message = {}) {
+        const composer = nodemailer.createTransport({
+            streamTransport: true,
+            buffer: true,
+            newline: 'unix'
+        });
 
-        const subject = mailOptions.subject || '';
-        const text = mailOptions.text || '';
-        const html = mailOptions.html || text;
+        const info = await composer.sendMail({
+            from: message.from,
+            to: message.to,
+            ...(message.cc ? { cc: message.cc } : {}),
+            subject: message.subject || '',
+            text: message.text || '',
+            html: message.html || message.text || '',
+            attachments: Array.isArray(message.attachments) ? message.attachments : []
+        });
 
-        const emailLines = [
-            `From: ${from}`,
-            `To: ${to}`,
-            ...(mailOptions.cc ? [`Cc: ${mailOptions.cc}`] : []),
-            `Subject: ${subject}`,
-            'MIME-Version: 1.0',
-            'Content-Type: text/html; charset=utf-8',
-            '',
-            html
-        ];
+        const rawMessage = Buffer.isBuffer(info.message)
+            ? info.message
+            : Buffer.from(String(info.message || ''), 'utf8');
 
-        const email = emailLines.join('\r\n');
-
-        const encodedEmail = Buffer.from(email)
+        return rawMessage
             .toString('base64')
             .replace(/\+/g, '-')
             .replace(/\//g, '_')
             .replace(/=+$/, '');
+    }
+
+    /**
+     * Internal helper: send message via Gmail API
+     * @param {object} oauth2Client - Configured OAuth2 client
+     * @param {string} from - From email
+     * @param {string} to - Recipient email
+     * @param {object} mailOptions - mail options (subject, text, html, attachments)
+     * @returns {Promise<object>} Gmail API response
+     */
+    async sendViaGmailApi(oauth2Client, from, to, mailOptions) {
+        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+        const encodedEmail = await this.buildRawGmailMessage({
+            from,
+            to,
+            cc: mailOptions.cc,
+            subject: mailOptions.subject || '',
+            text: mailOptions.text || '',
+            html: mailOptions.html || mailOptions.text || '',
+            attachments: mailOptions.attachments || []
+        });
 
         return gmail.users.messages.send({
             userId: 'me',

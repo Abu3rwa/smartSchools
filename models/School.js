@@ -81,6 +81,12 @@ const schoolSchema = new mongoose.Schema({
                 default: '#1e40af'
             }
         },
+        communication: {
+            aiEmailDraftEnabled: {
+                type: Boolean,
+                default: true
+            }
+        },
         features: {
             ...schoolFeatureSchemaDefinition
         }

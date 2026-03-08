@@ -159,8 +159,280 @@
     color: var(--text-muted);
 }
 
+.standard-assign-form-body {
+    display: grid;
+    gap: var(--spacing-md);
+}
+
+.assign-stepper {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.assign-step {
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-radius: 10px;
+    min-height: 54px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.assign-step.active {
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 2px var(--primary-100, rgba(61, 159, 235, 0.15));
+}
+
+.assign-step.completed {
+    border-color: var(--success-400, #34d399);
+}
+
+.assign-step-index {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.assign-step.active .assign-step-index {
+    border-color: var(--primary-500);
+    color: var(--primary-700);
+}
+
+.assign-step-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.assign-summary-card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+    background: linear-gradient(
+        130deg,
+        var(--bg-card) 0%,
+        var(--bg-secondary) 100%
+    );
+}
+
+.assign-summary-card h4 {
+    margin: 0 0 10px;
+    font-size: 0.9rem;
+}
+
+.assign-summary-grid {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 6px 10px;
+    font-size: 0.82rem;
+}
+
+.assign-summary-grid span {
+    color: var(--text-muted);
+}
+
+.assign-summary-grid strong {
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.assign-step-section {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px;
+    background: var(--bg-card);
+}
+
+.assign-step-section h4 {
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+
+.assign-inline-hint {
+    display: block;
+    margin-top: 8px;
+}
+
+.assign-student-scope-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.assign-radio-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.assign-student-picker {
+    margin-top: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px;
+    background: var(--bg-secondary);
+}
+
+.assign-student-picker-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.assign-student-picker-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.assign-selected-chips {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.assign-selected-chip {
+    border: 1px solid var(--primary-200, rgba(61, 159, 235, 0.25));
+    background: var(--primary-50, rgba(61, 159, 235, 0.12));
+    color: var(--text-primary);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.assign-student-list {
+    margin-top: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    max-height: 200px;
+    overflow: auto;
+    display: grid;
+    gap: 8px;
+    background: var(--bg-card);
+}
+
+.assign-student-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.assign-selected-count {
+    display: block;
+    margin-top: 8px;
+}
+
+.assign-advanced-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.advanced-toggle {
+    cursor: pointer;
+    color: var(--primary-600);
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    padding: 0;
+}
+
+.assign-accordion-group {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px;
+    background: var(--bg-secondary);
+    display: grid;
+    gap: 10px;
+}
+
+.assign-accordion-item {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+}
+
+.assign-accordion-trigger {
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.assign-accordion-content {
+    border-top: 1px solid var(--border-color);
+    padding: 12px;
+}
+
+.assign-inline-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 15px;
+}
+
+.assign-checkbox-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.assign-step-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding-top: 4px;
+}
+
 @media (max-width: 768px) {
     .assign-cards {
         grid-template-columns: 1fr;
+    }
+
+    .assign-stepper {
+        grid-template-columns: 1fr;
+    }
+
+    .assign-summary-grid {
+        grid-template-columns: 100px 1fr;
+    }
+
+    .assign-student-picker-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .assign-student-picker-actions {
+        flex-wrap: wrap;
+    }
+
+    .assign-advanced-header {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }

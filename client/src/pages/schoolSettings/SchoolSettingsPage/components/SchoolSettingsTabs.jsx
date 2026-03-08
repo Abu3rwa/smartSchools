@@ -4,7 +4,8 @@ import {
   HiOutlineCalendar,
   HiOutlineDocumentText,
   HiOutlinePhotograph,
-  HiOutlineColorSwatch
+  HiOutlineColorSwatch,
+  HiOutlineMail
 } from 'react-icons/hi';
 
 const SchoolSettingsTabs = ({
@@ -12,6 +13,7 @@ const SchoolSettingsTabs = ({
   onTabChange,
   canManageUsers,
   canManageSchoolSettings,
+  canManageCommunicationSettings,
   canManageGradeScaling
 }) => (
   <div className="tabs">
@@ -58,6 +60,15 @@ const SchoolSettingsTabs = ({
       >
         <HiOutlinePhotograph size={18} />
         Branding
+      </button>
+    )}
+    {canManageCommunicationSettings && (
+      <button
+        className={`tab-btn ${activeTab === 'communication' ? 'active' : ''}`}
+        onClick={() => onTabChange('communication')}
+      >
+        <HiOutlineMail size={18} />
+        Communication
       </button>
     )}
     {canManageSchoolSettings && (

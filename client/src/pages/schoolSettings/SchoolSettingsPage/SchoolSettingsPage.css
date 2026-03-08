@@ -322,3 +322,16 @@
     gap: var(--spacing-xs);
     align-items: center;
 }
+
+.communication-settings-card {
+    padding: var(--spacing-lg);
+}
+
+.communication-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: var(--spacing-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+}

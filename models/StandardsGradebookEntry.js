@@ -97,6 +97,7 @@ standardsGradebookEntrySchema.index({ school: 1, assignment: 1, student: 1 }, { 
 standardsGradebookEntrySchema.index({ school: 1, assignment: 1, status: 1 });
 standardsGradebookEntrySchema.index({ school: 1, student: 1, createdAt: -1 });
 standardsGradebookEntrySchema.index({ school: 1, student: 1, academicYear: 1, semester: 1 });
+standardsGradebookEntrySchema.index({ school: 1, class: 1, subject: 1, standard: 1, student: 1 });
 
 standardsGradebookEntrySchema.plugin(tenantIsolationPlugin);
 

@@ -7,12 +7,12 @@ const AssignmentFiltersBar = ({
     classes
 }) => {
     return (
-        <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: '16px', alignItems: 'center', backgroundColor: 'var(--surface)' }}>
-            <span style={{ fontWeight: 500 }}>Filter by:</span>
+        <div className="assignment-filters-bar">
+            <span className="assignment-filters-label">Filter by</span>
             <select
+                className="assignment-filter-select"
                 value={filterTeacher}
                 onChange={(e) => setFilterTeacher(e.target.value)}
-                style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: '4px' }}
             >
                 <option value="">All Teachers</option>
                 {teachers.map((teacher) => (
@@ -22,9 +22,9 @@ const AssignmentFiltersBar = ({
                 ))}
             </select>
             <select
+                className="assignment-filter-select"
                 value={filterClass}
                 onChange={(e) => setFilterClass(e.target.value)}
-                style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: '4px' }}
             >
                 <option value="">All Classes</option>
                 {classes.map((classItem) => (

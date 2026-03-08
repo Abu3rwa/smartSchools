@@ -63,9 +63,15 @@ const useStandardAssignPageData = () => {
     const [editingAssignmentId, setEditingAssignmentId] = useState(null);
     const [formData, setFormData] = useState(createInitialFormData(selectedSemester));
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [poolActionLoadingId, setPoolActionLoadingId] = useState(null);
 
     const isAdmin = user?.role === 'admin';
     const isTeacher = user?.role === 'teacher';
+    const isDepartmentPrincipal = user?.role === 'department_principal';
+    const canApproveQuestionPool =
+        isAdmin ||
+        isDepartmentPrincipal ||
+        (Array.isArray(user?.permissions) && user.permissions.includes('review_standards_questions'));
 
     const selectedClass = classes.find((schoolClass) => schoolClass._id === formData.classId);
     const classSubjects = getScopedClassSubjects(selectedClass, isTeacher, user?._id);
@@ -228,6 +234,8 @@ const useStandardAssignPageData = () => {
         const payload = {
             ...formData,
             title,
+            preGeneratedQuestionCount:
+                parseNullablePositiveInt(formData.preGeneratedQuestionCount) || 10,
             semester: parseNullablePositiveInt(formData.semester) || selectedSemester || 1,
             practiceConfig: {
                 ...formData.practiceConfig,
@@ -359,6 +367,28 @@ const useStandardAssignPageData = () => {
         }
     };
 
+    const runQuestionPoolAction = async (assignmentId, action) => {
+        setPoolActionLoadingId(assignmentId);
+        try {
+            const response = await api.post(
+                `/standard-assignments/${assignmentId}/question-pool/${action}`
+            );
+            toast.success(response?.data?.message || 'Question pool updated');
+            dispatch(fetchAssignments({ academicYear, semester: selectedSemester }));
+        } catch (error) {
+            toast.error(error?.response?.data?.message || 'Failed to update question pool');
+        } finally {
+            setPoolActionLoadingId(null);
+        }
+    };
+
+    const handleReviewQuestionPool = async (assignmentId) =>
+        runQuestionPoolAction(assignmentId, 'review');
+    const handleApproveQuestionPool = async (assignmentId) =>
+        runQuestionPoolAction(assignmentId, 'approve');
+    const handlePublishQuestionPool = async (assignmentId) =>
+        runQuestionPoolAction(assignmentId, 'publish');
+
     return {
         standards,
         assignments,
@@ -387,8 +417,10 @@ const useStandardAssignPageData = () => {
         setFormData,
         showAdvanced,
         setShowAdvanced,
+        poolActionLoadingId,
         isAdmin,
         isTeacher,
+        canApproveQuestionPool,
         selectedClass,
         classSubjects,
         subjectOptions,
@@ -407,6 +439,9 @@ const useStandardAssignPageData = () => {
         closeAssessmentGradebookModal,
         retryAssessmentGradebookLoad,
         handleReleaseAssessmentResults,
+        handleReviewQuestionPool,
+        handleApproveQuestionPool,
+        handlePublishQuestionPool,
         getEntityId,
         getMasteryColor,
         getProgressStatusDisplay,

@@ -8,12 +8,14 @@ import {
   deleteLesson,
   generateSection,
   updateLessonPlanAdminNote,
+  reviewLessonPlan,
   triggerLessonEvaluation,
   fetchLessonEvaluationHistory,
   selectEvaluationLoadingByLessonId,
   selectEvaluationHistoryLoadingByLessonId,
   selectEvaluationErrorByLessonId,
   selectEvaluationHistoryByLessonId,
+  selectReviewLoadingByLessonId,
 } from '../../../store/slices/lessonSlice.js';
 import LessonPlanFormModal from '../../../components/lessonPlan/LessonPlanFormModal.jsx';
 import EvaluationFeedbackModal from '../../../components/lessonPlan/EvaluationFeedbackModal.jsx';
@@ -24,6 +26,7 @@ import useLessonPlanData from './hooks/useLessonPlanData.js';
 import LessonPlanToolbar from './components/LessonPlanToolbar.jsx';
 import LessonPlanTable from './components/LessonPlanTable.jsx';
 import AdminNoteModal from './components/AdminNoteModal.jsx';
+import ReviewStatusModal from './components/ReviewStatusModal.jsx';
 import './LessonPlanPage.css';
 
 const LessonPlanPage = () => {
@@ -32,10 +35,12 @@ const LessonPlanPage = () => {
   const evaluationHistoryLoadingByLessonId = useSelector(selectEvaluationHistoryLoadingByLessonId);
   const evaluationErrorByLessonId = useSelector(selectEvaluationErrorByLessonId);
   const evaluationHistoryByLessonId = useSelector(selectEvaluationHistoryByLessonId);
+  const reviewLoadingByLessonId = useSelector(selectReviewLoadingByLessonId);
   const {
     canManageLessonPlans,
     canFilterBySubject,
     canFilterAsAdmin,
+    canReviewLessonPlans,
     canManageLesson,
   } = useLessonPlanPermissions();
 
@@ -76,6 +81,12 @@ const LessonPlanPage = () => {
   const [adminNoteSaving, setAdminNoteSaving] = useState(false);
   const [evaluationLessonId, setEvaluationLessonId] = useState(null);
   const [showEvaluationModal, setShowEvaluationModal] = useState(false);
+  const [reviewModalState, setReviewModalState] = useState({
+    open: false,
+    lessonId: null,
+    lessonTitle: '',
+    finalStatus: 'approved',
+  });
 
   const openCreate = () => {
     setEditingId(null);
@@ -239,6 +250,46 @@ const LessonPlanPage = () => {
     }
   };
 
+  const handleReviewLessonStatus = async ({ lessonId, finalStatus, comments = '' }) => {
+    const result = await dispatch(
+      reviewLessonPlan({
+        id: lessonId,
+        finalStatus,
+        comments,
+      })
+    );
+
+    if (reviewLessonPlan.fulfilled.match(result)) {
+      const label = String(finalStatus || '').replace('_', ' ');
+      toast.success(`Lesson plan marked as ${label}`);
+    } else {
+      toast.error(result.payload?.message || 'Failed to update lesson status');
+    }
+  };
+
+  const openReviewModal = ({ lesson, finalStatus }) => {
+    setReviewModalState({
+      open: true,
+      lessonId: lesson?._id || null,
+      lessonTitle: lesson?.title || '',
+      finalStatus,
+    });
+  };
+
+  const closeReviewModal = () => {
+    setReviewModalState((prev) => ({
+      ...prev,
+      open: false,
+    }));
+  };
+
+  const handleConfirmReviewModal = async (comments) => {
+    const { lessonId, finalStatus } = reviewModalState;
+    if (!lessonId) return;
+    await handleReviewLessonStatus({ lessonId, finalStatus, comments });
+    closeReviewModal();
+  };
+
   const showToolbar = canFilterBySubject || canFilterAsAdmin;
 
   return (
@@ -285,13 +336,16 @@ const LessonPlanPage = () => {
             lessons={lessons}
             canFilterAsAdmin={canFilterAsAdmin}
             canManageLessonPlans={canManageLessonPlans}
+            canReviewLessonPlans={canReviewLessonPlans}
             canManageLesson={canManageLesson}
             onEdit={openEdit}
             onDelete={handleDelete}
             onAdminNote={openAdminNote}
             onOpenEvaluation={openEvaluationModal}
             onTriggerEvaluation={handleTriggerEvaluation}
+            onRequestReviewAction={openReviewModal}
             evaluationLoadingByLessonId={evaluationLoadingByLessonId}
+            reviewLoadingByLessonId={reviewLoadingByLessonId}
           />
         )}
       </div>
@@ -316,6 +370,15 @@ const LessonPlanPage = () => {
         onClose={closeAdminNoteModal}
         onSave={handleSaveAdminNote}
         saving={adminNoteSaving}
+      />
+
+      <ReviewStatusModal
+        open={reviewModalState.open}
+        lessonTitle={reviewModalState.lessonTitle}
+        finalStatus={reviewModalState.finalStatus}
+        saving={Boolean(reviewLoadingByLessonId?.[reviewModalState.lessonId])}
+        onClose={closeReviewModal}
+        onConfirm={handleConfirmReviewModal}
       />
 
       <EvaluationFeedbackModal

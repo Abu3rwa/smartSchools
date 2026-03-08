@@ -45,11 +45,11 @@ router.route('/:id')
     .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getStudent)
     .put(authorize('admin'), validationRules.mongoId, validate, updateStudent)
     .delete(authorize('admin'), validationRules.mongoId, validate, deleteStudent);
-router.post('/bulk-enroll', authorize('admin'), bulkEnrollStudents);
-router.post('/:id/create-login', authorize('admin'), createStudentLogin);
-router.post('/:id/reset-password', authorize('admin'), resetStudentPassword);
-router.post('/:id/send-parent-credentials', authorize('admin'), sendParentCredentials);
-router.put('/:id/transfer', authorize('admin'), validationRules.mongoId, validate, transferStudent);
+router.post('/bulk-enroll', authorize('admin'), validationRules.bulkEnrollStudents, validate, bulkEnrollStudents);
+router.post('/:id/create-login', authorize('admin'), validationRules.mongoId, validationRules.createStudentLogin, validate, createStudentLogin);
+router.post('/:id/reset-password', authorize('admin'), validationRules.mongoId, validate, resetStudentPassword);
+router.post('/:id/send-parent-credentials', authorize('admin'), validationRules.mongoId, validate, sendParentCredentials);
+router.put('/:id/transfer', authorize('admin'), validationRules.mongoId, validationRules.transferStudent, validate, transferStudent);
 router.put('/:id/enroll', authorize('admin'), validationRules.mongoId, validate, enrollStudent);
 
 export default router;

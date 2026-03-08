@@ -65,7 +65,22 @@ export const PERMISSIONS = {
     GRADE_ASSIGNMENTS: 'grade_assignments',
     
     // Notifications
-    SEND_NOTIFICATIONS: 'send_notifications'
+    SEND_NOTIFICATIONS: 'send_notifications',
+
+    // Communication (email composer)
+    SEND_COMMUNICATION_EMAILS: 'send_communication_emails',
+    MESSAGE_OWN_STUDENTS: 'message_own_students',
+    MESSAGE_OWN_STUDENT_PARENTS: 'message_own_student_parents',
+    MESSAGE_DEPARTMENT_STUDENTS: 'message_department_students',
+    MESSAGE_DEPARTMENT_PARENTS: 'message_department_parents',
+    MESSAGE_DEPARTMENT_TEACHERS: 'message_department_teachers',
+    MESSAGE_DEPARTMENT_EVERYONE: 'message_department_everyone',
+    MESSAGE_SCHOOL_STUDENTS: 'message_school_students',
+    MESSAGE_SCHOOL_PARENTS: 'message_school_parents',
+    MESSAGE_SCHOOL_TEACHERS: 'message_school_teachers',
+    MESSAGE_SCHOOL_EVERYONE: 'message_school_everyone',
+    MESSAGE_ASSIGNED_SUBORDINATES: 'message_assigned_subordinates',
+    DELEGATED_COMMUNICATION_SCOPE: 'delegated_communication_scope'
 };
 
 export const PERMISSION_DEFINITIONS = {
@@ -227,6 +242,71 @@ export const PERMISSION_DEFINITIONS = {
     [PERMISSIONS.SEND_NOTIFICATIONS]: {
         label: 'Send Notifications',
         description: 'Send notifications to users',
+        category: 'operations'
+    },
+    [PERMISSIONS.SEND_COMMUNICATION_EMAILS]: {
+        label: 'Send Communication Emails',
+        description: 'Access the scoped email composer for school communication',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_OWN_STUDENTS]: {
+        label: 'Message Own Students',
+        description: 'Send emails to students in your assigned classes/subjects',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_OWN_STUDENT_PARENTS]: {
+        label: 'Message Own Student Parents',
+        description: 'Send emails to parents of students in your assigned classes/subjects',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_DEPARTMENT_STUDENTS]: {
+        label: 'Message Department Students',
+        description: 'Send emails to students in assigned department scope',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_DEPARTMENT_PARENTS]: {
+        label: 'Message Department Parents',
+        description: 'Send emails to parents in assigned department scope',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_DEPARTMENT_TEACHERS]: {
+        label: 'Message Department Teachers',
+        description: 'Send emails to teachers in assigned department scope',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_DEPARTMENT_EVERYONE]: {
+        label: 'Message Department Everyone',
+        description: 'Send emails to everyone in assigned department scope',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_SCHOOL_STUDENTS]: {
+        label: 'Message School Students',
+        description: 'Send emails to all students in the school',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_SCHOOL_PARENTS]: {
+        label: 'Message School Parents',
+        description: 'Send emails to all parents in the school',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_SCHOOL_TEACHERS]: {
+        label: 'Message School Teachers',
+        description: 'Send emails to all teachers in the school',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_SCHOOL_EVERYONE]: {
+        label: 'Message School Everyone',
+        description: 'Send emails to everyone in the school',
+        category: 'operations'
+    },
+    [PERMISSIONS.MESSAGE_ASSIGNED_SUBORDINATES]: {
+        label: 'Message Assigned Subordinates',
+        description: 'Send emails to assigned subordinate staff',
+        category: 'operations'
+    },
+    [PERMISSIONS.DELEGATED_COMMUNICATION_SCOPE]: {
+        label: 'Delegated Communication Scope',
+        description: 'Use delegated communication scope metadata',
         category: 'operations'
     }
 };

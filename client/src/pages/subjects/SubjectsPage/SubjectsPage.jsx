@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { Navigate } from 'react-router-dom';
 import {
     fetchSubjects,
     selectSubjects,
@@ -48,6 +49,10 @@ const SubjectsPage = () => {
     useEffect(() => {
         dispatch(fetchSubjects());
     }, [dispatch]);
+
+    if (isAdmin) {
+        return <Navigate to="/portal/timetable#subjects" replace />;
+    }
 
     const handleCloseModal = () => {
         setShowModal(false);

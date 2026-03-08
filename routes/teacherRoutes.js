@@ -27,13 +27,13 @@ router.get('/my-classes', authorize('teacher'), getMyClasses);
 
 // CRUD: admin sees all; department_principal sees only their department
 router.route('/')
-    .get(authorize('admin', 'department_principal', 'teacher'), getTeachers)
+    .get(authorize('admin', 'department_principal'), getTeachers)
     .post(authorize('admin', 'department_principal'), validationRules.createTeacher, validate, createTeacher);
 
 router.post('/import', authorize('admin', 'department_principal'), importTeachers);
 
 router.route('/:id')
-    .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getTeacher)
+    .get(authorize('admin', 'department_principal'), validationRules.mongoId, validate, getTeacher)
     .put(authorize('admin', 'department_principal'), validationRules.mongoId, validate, updateTeacher)
     .delete(authorize('admin', 'department_principal'), validationRules.mongoId, validate, deleteTeacher);
 

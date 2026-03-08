@@ -29,6 +29,7 @@ const useSchoolSettings = () => {
   const canManageUsers = user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_USERS);
   const canManageSchoolSettings =
     user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_SCHOOL_SETTINGS);
+  const canManageCommunicationSettings = user?.role === 'admin';
   const canManageGradeScaling =
     user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_GRADE_SCALING);
   const canAccessSchoolSettings = canManageUsers || canManageSchoolSettings || canManageGradeScaling;
@@ -68,6 +69,12 @@ const useSchoolSettings = () => {
   const [schoolYearDatesSaving, setSchoolYearDatesSaving] = useState(false);
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [brandingLoading, setBrandingLoading] = useState(false);
+  const [communicationSettings, setCommunicationSettings] = useState({
+    loading: false,
+    saving: false,
+    featureAvailable: false,
+    aiEmailDraftEnabled: true
+  });
   const [gradingScales, setGradingScales] = useState([]);
   const [gradingScalesLoading, setGradingScalesLoading] = useState(false);
   const [gradingScaleSubmitting, setGradingScaleSubmitting] = useState(false);
@@ -109,6 +116,7 @@ const useSchoolSettings = () => {
       canManageSchoolSettings ? 'lessonplancriteria' : null,
       canManageGradeScaling ? 'gradingscales' : null,
       canManageSchoolSettings ? 'branding' : null,
+      canManageCommunicationSettings ? 'communication' : null,
       canManageSchoolSettings ? 'schoolyear' : null
     ].filter(Boolean);
 
@@ -119,7 +127,7 @@ const useSchoolSettings = () => {
     if (!allowedTabs.includes(activeTab)) {
       setActiveTab(allowedTabs[0]);
     }
-  }, [activeTab, canManageGradeScaling, canManageSchoolSettings, canManageUsers]);
+  }, [activeTab, canManageCommunicationSettings, canManageGradeScaling, canManageSchoolSettings, canManageUsers]);
 
   const fetchSchoolUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -157,6 +165,34 @@ const useSchoolSettings = () => {
       loadSchoolProfile();
     }
   }, [canManageSchoolSettings, loadSchoolProfile]);
+
+  const fetchCommunicationSettings = useCallback(async () => {
+    if (!canManageCommunicationSettings) return;
+    setCommunicationSettings((prev) => ({ ...prev, loading: true }));
+    try {
+      const response = await api.get('/schools/me/communication-settings');
+      if (response.data?.success) {
+        setCommunicationSettings((prev) => ({
+          ...prev,
+          loading: false,
+          featureAvailable: Boolean(response.data.data?.featureAvailable),
+          aiEmailDraftEnabled: response.data.data?.aiEmailDraftEnabled !== false
+        }));
+      } else {
+        setCommunicationSettings((prev) => ({ ...prev, loading: false }));
+        toast.error(response.data?.message || 'Failed to load communication settings');
+      }
+    } catch (error) {
+      setCommunicationSettings((prev) => ({ ...prev, loading: false }));
+      toast.error(error.response?.data?.message || 'Failed to load communication settings');
+    }
+  }, [canManageCommunicationSettings]);
+
+  useEffect(() => {
+    if (activeTab === 'communication' && canManageCommunicationSettings) {
+      fetchCommunicationSettings();
+    }
+  }, [activeTab, canManageCommunicationSettings, fetchCommunicationSettings]);
 
   const fetchGradingScales = useCallback(async () => {
     if (!canManageGradeScaling) return;
@@ -220,6 +256,31 @@ const useSchoolSettings = () => {
       setBrandingLoading(false);
     }
   }, []);
+
+  const handleToggleAiEmailDraft = useCallback(async (enabled) => {
+    if (!canManageCommunicationSettings) return;
+    setCommunicationSettings((prev) => ({ ...prev, saving: true }));
+    try {
+      const response = await api.patch('/schools/me/communication-settings', {
+        aiEmailDraftEnabled: Boolean(enabled)
+      });
+      if (response.data?.success) {
+        setCommunicationSettings((prev) => ({
+          ...prev,
+          saving: false,
+          aiEmailDraftEnabled: response.data.data?.aiEmailDraftEnabled !== false,
+          featureAvailable: Boolean(response.data.data?.featureAvailable)
+        }));
+        toast.success('Communication settings updated');
+      } else {
+        setCommunicationSettings((prev) => ({ ...prev, saving: false }));
+        toast.error(response.data?.message || 'Failed to update communication settings');
+      }
+    } catch (error) {
+      setCommunicationSettings((prev) => ({ ...prev, saving: false }));
+      toast.error(error.response?.data?.message || 'Failed to update communication settings');
+    }
+  }, [canManageCommunicationSettings]);
 
   const loadAcademicYearData = useCallback(async () => {
     try {
@@ -684,6 +745,7 @@ const useSchoolSettings = () => {
     user,
     canManageUsers,
     canManageSchoolSettings,
+    canManageCommunicationSettings,
     canManageGradeScaling,
     canAccessSchoolSettings,
     activeTab,
@@ -725,8 +787,10 @@ const useSchoolSettings = () => {
     schoolYearDatesSaving,
     schoolInfo,
     brandingLoading,
+    communicationSettings,
     handleUploadSchoolLogo,
     handleRemoveSchoolLogo,
+    handleToggleAiEmailDraft,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,

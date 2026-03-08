@@ -274,6 +274,79 @@ router.put('/me/logo', requireSchoolContext, authorize('admin'), upload.single('
 }));
 
 /**
+ * @desc    Get school communication settings (AI draft controls)
+ * @route   GET /api/schools/me/communication-settings
+ * @access  Private (Admin)
+ */
+router.get('/me/communication-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const [school, featureContext] = await Promise.all([
+        School.findById(req.schoolId).select('settings.communication'),
+        resolveSchoolFeatureContext(req.schoolId)
+    ]);
+    if (!school || !featureContext) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const featureAvailable = Boolean(featureContext.features?.aiEmailDrafts);
+    const aiEmailDraftEnabled = school.settings?.communication?.aiEmailDraftEnabled !== false;
+
+    res.json({
+        success: true,
+        data: {
+            aiEmailDraftEnabled,
+            featureAvailable
+        }
+    });
+}));
+
+/**
+ * @desc    Update school communication settings (AI draft controls)
+ * @route   PATCH /api/schools/me/communication-settings
+ * @access  Private (Admin)
+ */
+router.patch('/me/communication-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const nextValue = req.body?.aiEmailDraftEnabled;
+    if (typeof nextValue !== 'boolean') {
+        return res.status(400).json({
+            success: false,
+            message: 'aiEmailDraftEnabled must be a boolean'
+        });
+    }
+
+    const [school, featureContext] = await Promise.all([
+        School.findById(req.schoolId),
+        resolveSchoolFeatureContext(req.schoolId)
+    ]);
+    if (!school || !featureContext) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const featureAvailable = Boolean(featureContext.features?.aiEmailDrafts);
+    if (nextValue === true && !featureAvailable) {
+        return res.status(403).json({
+            success: false,
+            message: 'AI Email Drafts are not available on the current subscription plan',
+            code: 'FEATURE_LOCKED',
+            requiredFeature: 'aiEmailDrafts'
+        });
+    }
+
+    school.settings = school.settings || {};
+    school.settings.communication = school.settings.communication || {};
+    school.settings.communication.aiEmailDraftEnabled = nextValue;
+    await school.save();
+
+    res.json({
+        success: true,
+        message: 'Communication settings updated',
+        data: {
+            aiEmailDraftEnabled: school.settings.communication.aiEmailDraftEnabled !== false,
+            featureAvailable
+        }
+    });
+}));
+
+/**
  * @desc    Remove school logo
  * @route   DELETE /api/schools/me/logo
  * @access  Private (Admin)

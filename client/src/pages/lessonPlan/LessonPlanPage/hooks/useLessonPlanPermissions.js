@@ -18,6 +18,8 @@ export default function useLessonPlanPermissions() {
     user?.role === 'department_principal' ||
     userPermissions.includes(PERMISSIONS.REVIEW_LESSON_PLANS);
 
+  const canReviewLessonPlans = canFilterAsAdmin;
+
   const canManageLesson = (lesson) => {
     if (!canManageLessonPlans) return false;
     if (user?.role === 'admin') return true;
@@ -30,6 +32,7 @@ export default function useLessonPlanPermissions() {
     canManageLessonPlans,
     canFilterBySubject,
     canFilterAsAdmin,
+    canReviewLessonPlans,
     canManageLesson,
   };
 }

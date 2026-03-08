@@ -19,6 +19,7 @@ const StudentDashboardPage = () => {
         user,
         schedule,
         grades,
+        classAssignments,
         dataLoading
     } = useStudentDashboardData();
 
@@ -27,8 +28,8 @@ const StudentDashboardPage = () => {
 
     const todayStart = useMemo(() => getTodayStart(), []);
     const upcomingAssignments = useMemo(() => {
-        return getUpcomingAssignments(assignments, todayStart);
-    }, [assignments, todayStart]);
+        return getUpcomingAssignments(assignments, classAssignments, todayStart);
+    }, [assignments, classAssignments, todayStart]);
 
     return (
         <div className="student-dashboard">

@@ -1,5 +1,6 @@
 import { HiOutlineX } from 'react-icons/hi';
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 
 const NotificationDetailsModal = ({
   notification,
@@ -11,10 +12,16 @@ const NotificationDetailsModal = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="email-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="email-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notification-details-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="email-modal-header">
-          <h2>Notification Details</h2>
-          <button className="icon-btn muted" onClick={onClose}>
+          <h2 id="notification-details-title">Notification Details</h2>
+          <button className="icon-btn muted" onClick={onClose} aria-label="Close notification details">
             <HiOutlineX size={24} />
           </button>
         </div>
@@ -53,7 +60,7 @@ const NotificationDetailsModal = ({
               {(notification.htmlContent || notification.body) ? (
                 <div
                   dangerouslySetInnerHTML={{
-                    __html: notification.htmlContent || notification.body,
+                    __html: DOMPurify.sanitize(notification.htmlContent || notification.body),
                   }}
                 />
               ) : notification.message ? (

@@ -30,8 +30,8 @@ const TeachersTable = ({
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Employee ID</th>
-                        <th>Department</th>
+                         
+                        
                         <th>Email</th>
                         <th>Subjects</th>
                         <th>Actions</th>
@@ -46,12 +46,7 @@ const TeachersTable = ({
                                     <span>{getTeacherFullName(teacher)}</span>
                                 </div>
                             </td>
-                            <td>
-                                <span className="employee-id-badge">{teacher.employeeId}</span>
-                            </td>
-                            <td>
-                                <span>{teacher.department?.name ?? '—'}</span>
-                            </td>
+                           
                             <td>
                                 <div className="contact-cell">
                                     <HiOutlineMail />

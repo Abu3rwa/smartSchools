@@ -12,6 +12,24 @@ const api = axios.create({
     }
 });
 
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const subscribeTokenRefresh = (callback) => {
+    refreshSubscribers.push(callback);
+};
+
+const onRefreshed = (nextToken) => {
+    refreshSubscribers.forEach((callback) => callback(nextToken));
+    refreshSubscribers = [];
+};
+
+const clearAuthStorage = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+};
+
 // Request interceptor - add auth token
 api.interceptors.request.use(
     (config) => {
@@ -41,13 +59,73 @@ api.interceptors.request.use(
 // Response interceptor - handle errors
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            // Token expired or invalid
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = '/';
+    async (error) => {
+        const originalRequest = error.config || {};
+        const status = error.response?.status;
+        const requestUrl = String(originalRequest.url || '');
+
+        if (status === 401 && !requestUrl.includes('/auth/refresh') && !originalRequest._retry) {
+            const refreshToken = localStorage.getItem('refreshToken');
+            if (!refreshToken) {
+                clearAuthStorage();
+                window.location.href = '/login';
+                return Promise.reject(error);
+            }
+
+            if (isRefreshing) {
+                return new Promise((resolve, reject) => {
+                    subscribeTokenRefresh((nextToken) => {
+                        if (!nextToken) {
+                            reject(error);
+                            return;
+                        }
+                        originalRequest.headers = originalRequest.headers || {};
+                        originalRequest.headers.Authorization = `Bearer ${nextToken}`;
+                        resolve(api(originalRequest));
+                    });
+                });
+            }
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            try {
+                const refreshResponse = await axios.post(
+                    `${API_URL}/auth/refresh`,
+                    { refreshToken },
+                    { headers: { 'Content-Type': 'application/json' } }
+                );
+
+                const nextToken = refreshResponse?.data?.data?.token;
+                const nextRefreshToken = refreshResponse?.data?.data?.refreshToken;
+                if (!nextToken) {
+                    throw new Error('Token refresh failed');
+                }
+
+                localStorage.setItem('token', nextToken);
+                if (nextRefreshToken) {
+                    localStorage.setItem('refreshToken', nextRefreshToken);
+                }
+
+                onRefreshed(nextToken);
+                originalRequest.headers = originalRequest.headers || {};
+                originalRequest.headers.Authorization = `Bearer ${nextToken}`;
+                return api(originalRequest);
+            } catch (refreshError) {
+                onRefreshed(null);
+                clearAuthStorage();
+                window.location.href = '/login';
+                return Promise.reject(refreshError);
+            } finally {
+                isRefreshing = false;
+            }
         }
+
+        if (status === 401) {
+            clearAuthStorage();
+            window.location.href = '/login';
+        }
+
         return Promise.reject(error);
     }
 );

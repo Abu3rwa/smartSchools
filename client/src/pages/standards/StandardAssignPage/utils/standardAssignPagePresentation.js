@@ -74,6 +74,9 @@ export const buildAssignmentEditForm = (assignment, selectedSemester) => {
         standardId: assignment?.standard?._id || assignment?.standard || '',
         classId: assignment?.class?._id || assignment?.class || '',
         subjectId: assignment?.subject?._id || assignment?.subject || '',
+        preGeneratedQuestionCount: String(
+            assignment?.questionWorkflow?.preGeneratedQuestionCount || 10
+        ),
         semester: assignment?.semester || selectedSemester || 1,
         students: Array.isArray(assignment?.students)
             ? assignment.students.map((student) => student?._id || student).filter(Boolean)

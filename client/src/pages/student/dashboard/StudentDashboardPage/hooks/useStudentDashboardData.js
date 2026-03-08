@@ -13,6 +13,7 @@ const useStudentDashboardData = () => {
 
     const [schedule, setSchedule] = useState([]);
     const [grades, setGrades] = useState([]);
+    const [classAssignments, setClassAssignments] = useState([]);
     const [dataLoading, setDataLoading] = useState(true);
 
     useEffect(() => {
@@ -25,18 +26,22 @@ const useStudentDashboardData = () => {
 
         Promise.all([
             api.get('/timetable/my-schedule'),
-            api.get('/grades/my-grades').catch(() => ({ data: { data: { grades: [] } } }))
+            api.get('/grades/my-grades').catch(() => ({ data: { data: { grades: [] } } })),
+            api.get('/assignments/my').catch(() => ({ data: { data: { items: [] } } }))
         ])
-            .then(([scheduleResponse, gradesResponse]) => {
+            .then(([scheduleResponse, gradesResponse, assignmentResponse]) => {
                 if (cancelled) return;
 
                 setSchedule(scheduleResponse.data?.data?.schedule || []);
                 const gradeList = gradesResponse.data?.data?.grades || [];
                 setGrades(Array.isArray(gradeList) ? gradeList.slice(0, MAX_RECENT_GRADES) : []);
+                const assignmentList = assignmentResponse.data?.data?.items || [];
+                setClassAssignments(Array.isArray(assignmentList) ? assignmentList : []);
             })
             .catch(() => {
                 if (!cancelled) {
                     setGrades([]);
+                    setClassAssignments([]);
                 }
             })
             .finally(() => {
@@ -56,6 +61,7 @@ const useStudentDashboardData = () => {
         user,
         schedule,
         grades,
+        classAssignments,
         dataLoading
     };
 };

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { decryptSecret, encryptSecret } from '../utils/secretCrypto.js';
 
 const userSchema = new mongoose.Schema({
     email: {
@@ -72,7 +73,20 @@ const userSchema = new mongoose.Schema({
             'edit_grades',
             'send_notifications',
             'manage_departments',
-            'manage_school_settings'
+            'manage_school_settings',
+            'send_communication_emails',
+            'message_own_students',
+            'message_own_student_parents',
+            'message_department_students',
+            'message_department_parents',
+            'message_department_teachers',
+            'message_department_everyone',
+            'message_school_students',
+            'message_school_parents',
+            'message_school_teachers',
+            'message_school_everyone',
+            'message_assigned_subordinates',
+            'delegated_communication_scope'
         ],
         default: []
     },
@@ -146,8 +160,16 @@ const userSchema = new mongoose.Schema({
             lowercase: true,
             trim: true
         },
-        accessToken: String,
-        refreshToken: String,
+        accessToken: {
+            type: String,
+            get: decryptSecret,
+            set: encryptSecret
+        },
+        refreshToken: {
+            type: String,
+            get: decryptSecret,
+            set: encryptSecret
+        },
         expiryDate: Date,
         isActive: {
             type: Boolean,

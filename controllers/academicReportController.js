@@ -3,6 +3,16 @@ import Student from '../models/Student.js';
 import gradeService from '../services/gradeService.js';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { resolveRequestedAcademicYear } from '../utils/academicYear.js';
+import { getTeacherClassIds, resolveTeacherProfile } from '../helpers/teacherScoping.js';
+
+const ensureTeacherCanAccessStudent = async (req, student) => {
+    if (req.user.role !== 'teacher') return true;
+    const teacherProfile = await resolveTeacherProfile(req);
+    if (!teacherProfile) return false;
+    const teacherClassIds = await getTeacherClassIds(teacherProfile._id);
+    const studentClassId = student?.currentClass?.toString();
+    return Boolean(studentClassId && teacherClassIds.some((id) => id.toString() === studentClassId));
+};
 
 /**
  * @desc    Generate AI Report for a student
@@ -16,6 +26,10 @@ export const generateAIReport = asyncHandler(async (req, res) => {
     const student = await Student.findById(studentId);
     if (!student) {
         return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    if (!(await ensureTeacherCanAccessStudent(req, student))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to access this student report' });
     }
 
     // 2. Fetch Grades (Context)
@@ -90,6 +104,10 @@ export const generateAIReportByDateRange = asyncHandler(async (req, res) => {
     const student = await Student.findById(studentId);
     if (!student) {
         return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    if (!(await ensureTeacherCanAccessStudent(req, student))) {
+        return res.status(403).json({ success: false, message: 'Not authorized to access this student report' });
     }
 
     // 2. Fetch Grades for the date range

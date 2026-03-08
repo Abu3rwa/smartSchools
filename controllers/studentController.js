@@ -303,6 +303,23 @@ export const getStudent = asyncHandler(async (req, res) => {
         });
     }
 
+    // Access Control: Teachers can only view students in their assigned classes
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        const teacherClassIds = await getTeacherClassIds(teacher._id);
+        const currentClassId = student.currentClass?._id?.toString() || student.currentClass?.toString();
+        const canAccess = currentClassId && teacherClassIds.some((id) => id.toString() === currentClassId);
+        if (!canAccess) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to view this student'
+            });
+        }
+    }
+
     // Department scope: department-scoped principal cannot see student with no department or other department
     if (req.departmentId) {
         const studentDeptId = student.department?._id || student.department;
@@ -968,24 +985,21 @@ export const sendParentCredentials = asyncHandler(async (req, res) => {
  */
 export const transferStudent = asyncHandler(async (req, res) => {
     const { newClassId, reason } = req.body;
-
-    const student = await Student.findByIdAndUpdate(
-        req.params.id,
-        {
-            currentClass: newClassId,
-            $push: {
-                notes: `Transferred on ${new Date().toLocaleDateString()}. Reason: ${reason || 'N/A'}`
-            }
-        },
-        { new: true }
-    ).populate('currentClass', 'name grade section');
-
+    const student = await Student.findById(req.params.id);
     if (!student) {
         return res.status(404).json({
             success: false,
             message: 'Student not found'
         });
     }
+
+    const transferNote = `Transferred on ${new Date().toLocaleDateString()}. Reason: ${reason || 'N/A'}`;
+    const existingNotes = String(student.notes || '').trim();
+    student.currentClass = newClassId;
+    student.notes = existingNotes ? `${existingNotes}\n${transferNote}` : transferNote;
+    await student.save();
+
+    await student.populate('currentClass', 'name grade section');
 
     res.json({
         success: true,

@@ -239,6 +239,8 @@ subscriptionSchema.index({ plan: 1 });
 // Static methods to get plan configurations
 subscriptionSchema.statics.getPlanConfig = async function(plan) {
     const normalizedPlan = normalizePlan(plan);
+    const defaultConfig = getDefaultPlanConfig(normalizedPlan);
+    const defaultFeatures = defaultConfig?.features || getFeaturesForPlan(normalizedPlan);
     const dbPlan = await SubscriptionPlan.findOne({ key: normalizedPlan })
         .select('key name description limits features billing isActive')
         .setOptions({ skipTenantFilter: true })
@@ -253,12 +255,14 @@ subscriptionSchema.statics.getPlanConfig = async function(plan) {
             currency: dbPlan.billing?.currency || 'USD',
             interval: dbPlan.billing?.interval || 'month',
             limits: dbPlan.limits || {},
-            features: dbPlan.features || {},
+            features: {
+                ...defaultFeatures,
+                ...(dbPlan.features || {})
+            },
             isActive: dbPlan.isActive !== false
         };
     }
 
-    const defaultConfig = getDefaultPlanConfig(normalizedPlan);
     if (!defaultConfig) return null;
 
     return {

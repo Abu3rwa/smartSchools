@@ -51,6 +51,10 @@ export const validationRules = {
         body('firstName').notEmpty().trim().withMessage('First name is required'),
         body('lastName').notEmpty().trim().withMessage('Last name is required'),
         body('email').isEmail().withMessage('Valid email is required'),
+        body('password')
+            .optional()
+            .isLength({ min: 8 })
+            .withMessage('Password must be at least 8 characters when provided'),
         // body('employeeId').notEmpty().withMessage('Employee ID is required') // Auto-generated
     ],
 
@@ -99,5 +103,36 @@ export const validationRules = {
     reviewAttendanceRequest: [
         body('status').isIn(['approved', 'rejected']).withMessage('status must be approved or rejected'),
         body('reviewNote').optional().trim().isString()
+    ],
+
+    bulkEnrollStudents: [
+        body('studentIds')
+            .isArray({ min: 1 })
+            .withMessage('studentIds must be a non-empty array'),
+        body('studentIds.*')
+            .isMongoId()
+            .withMessage('Each studentId must be a valid ID'),
+        body('classId')
+            .isMongoId()
+            .withMessage('classId must be a valid ID')
+    ],
+
+    createStudentLogin: [
+        body('email')
+            .optional()
+            .isEmail()
+            .withMessage('email must be valid when provided')
+    ],
+
+    transferStudent: [
+        body('newClassId')
+            .isMongoId()
+            .withMessage('newClassId must be a valid class ID'),
+        body('reason')
+            .optional()
+            .isString()
+            .trim()
+            .isLength({ max: 500 })
+            .withMessage('reason must be at most 500 characters')
     ]
 };

@@ -47,6 +47,12 @@ const lessonService = {
     getLessonEvaluationHistory: async (id, params = {}) => {
         const response = await api.get(`/lessons/${id}/evaluation/history`, { params });
         return response.data;
+    },
+
+    // Review lesson plan manually (approve / needs revision / reject)
+    reviewLessonPlan: async (id, payload) => {
+        const response = await api.post(`/lessons/${id}/review`, payload);
+        return response.data;
     }
 };
 

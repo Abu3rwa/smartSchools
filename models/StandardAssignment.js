@@ -112,6 +112,59 @@ const standardAssignmentSchema = new mongoose.Schema({
             default: null
         }
     },
+    questionWorkflow: {
+        requireApprovalBeforeStudentAccess: {
+            type: Boolean,
+            default: true
+        },
+        preGeneratedQuestionCount: {
+            type: Number,
+            min: 1,
+            max: 100,
+            default: 10
+        },
+        status: {
+            type: String,
+            enum: ['draft', 'reviewed', 'approved', 'published'],
+            default: 'draft'
+        },
+        currentPoolVersion: {
+            type: Number,
+            min: 1,
+            default: 1
+        },
+        generatedAt: {
+            type: Date,
+            default: null
+        },
+        reviewedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        reviewedAt: {
+            type: Date,
+            default: null
+        },
+        approvedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        approvedAt: {
+            type: Date,
+            default: null
+        },
+        publishedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        publishedAt: {
+            type: Date,
+            default: null
+        }
+    },
     isActive: {
         type: Boolean,
         default: true
@@ -127,6 +180,7 @@ standardAssignmentSchema.index({ school: 1, standard: 1 });
 standardAssignmentSchema.index({ school: 1, students: 1 });
 standardAssignmentSchema.index({ school: 1, class: 1, subject: 1, createdAt: -1 });
 standardAssignmentSchema.index({ school: 1, academicYear: 1, semester: 1, class: 1 });
+standardAssignmentSchema.index({ school: 1, class: 1, subject: 1, standard: 1, 'questionWorkflow.status': 1 });
 
 // Apply tenant isolation plugin
 standardAssignmentSchema.plugin(tenantIsolationPlugin);

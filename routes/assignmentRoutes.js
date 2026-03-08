@@ -4,6 +4,7 @@ import {
     deleteAssignment,
     getAssignmentGradebook,
     getAssignments,
+    getMyAssignmentsForStudent,
     gradeAssignment,
     publishAssignment,
     updateAssignment
@@ -19,6 +20,7 @@ router.use(protect);
 router.use(requireSchoolContext);
 
 router.get('/', authorize('teacher', 'admin', 'department_principal'), getAssignments);
+router.get('/my', authorize('student'), getMyAssignmentsForStudent);
 
 router.post(
     '/',

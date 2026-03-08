@@ -21,6 +21,12 @@ const StandardAssignList = ({
     onEdit,
     onViewAssessmentGradebook,
     onDelete,
+    onReviewQuestionPool,
+    onApproveQuestionPool,
+    onPublishQuestionPool,
+    canApproveQuestionPool,
+    isTeacher,
+    poolActionLoadingId,
     getStandardDescription
 }) => {
     if (loading && !assignments.length) {
@@ -77,6 +83,14 @@ const StandardAssignList = ({
                                 : 'Practice'}
                         </span>
                         <span>
+                            <HiOutlineBookOpen size={14} /> Workflow:{' '}
+                            {assignment.questionWorkflow?.status || 'legacy'}
+                        </span>
+                        <span>
+                            <HiOutlineBookOpen size={14} /> Pool Size:{' '}
+                            {assignment.questionWorkflow?.preGeneratedQuestionCount || 0}
+                        </span>
+                        <span>
                             <HiOutlineCalendar size={14} /> AY: {assignment.academicYear || academicYear}
                         </span>
                         <span>
@@ -112,6 +126,36 @@ const StandardAssignList = ({
                                 onClick={() => onEdit(assignment)}
                             >
                                 <HiOutlinePencilAlt size={16} /> Edit
+                            </button>
+                        )}
+                        {isTeacher && assignment.questionWorkflow?.status === 'draft' && (
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => onReviewQuestionPool(assignment._id)}
+                                disabled={poolActionLoadingId === assignment._id}
+                            >
+                                <HiOutlineEye size={16} />
+                                {poolActionLoadingId === assignment._id ? 'Reviewing...' : 'Submit Review'}
+                            </button>
+                        )}
+                        {canApproveQuestionPool && assignment.questionWorkflow?.status === 'reviewed' && (
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => onApproveQuestionPool(assignment._id)}
+                                disabled={poolActionLoadingId === assignment._id}
+                            >
+                                <HiOutlineEye size={16} />
+                                {poolActionLoadingId === assignment._id ? 'Approving...' : 'Approve Pool'}
+                            </button>
+                        )}
+                        {canApproveQuestionPool && assignment.questionWorkflow?.status === 'approved' && (
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => onPublishQuestionPool(assignment._id)}
+                                disabled={poolActionLoadingId === assignment._id}
+                            >
+                                <HiOutlineEye size={16} />
+                                {poolActionLoadingId === assignment._id ? 'Publishing...' : 'Publish Pool'}
                             </button>
                         )}
                         {assignment.practiceConfig?.sessionType === 'assessment' && (

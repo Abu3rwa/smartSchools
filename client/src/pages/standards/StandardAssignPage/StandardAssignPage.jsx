@@ -31,8 +31,10 @@ const StandardAssignPage = () => {
         setFormData,
         showAdvanced,
         setShowAdvanced,
+        poolActionLoadingId,
         isAdmin,
         isTeacher,
+        canApproveQuestionPool,
         selectedClass,
         classSubjects,
         subjectOptions,
@@ -55,6 +57,9 @@ const StandardAssignPage = () => {
         closeAssessmentGradebookModal,
         retryAssessmentGradebookLoad,
         handleReleaseAssessmentResults,
+        handleReviewQuestionPool,
+        handleApproveQuestionPool,
+        handlePublishQuestionPool,
         getEntityId,
         getMasteryColor,
         getProgressStatusDisplay,
@@ -78,6 +83,12 @@ const StandardAssignPage = () => {
                 onEdit={handleEdit}
                 onViewAssessmentGradebook={handleViewAssessmentGradebook}
                 onDelete={handleDelete}
+                onReviewQuestionPool={handleReviewQuestionPool}
+                onApproveQuestionPool={handleApproveQuestionPool}
+                onPublishQuestionPool={handlePublishQuestionPool}
+                canApproveQuestionPool={canApproveQuestionPool}
+                isTeacher={isTeacher}
+                poolActionLoadingId={poolActionLoadingId}
                 getStandardDescription={getStandardDescription}
             />
 

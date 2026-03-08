@@ -5,6 +5,7 @@ import PracticeSession from "../models/PracticeSession.js";
 import PracticeIntegrityEvent from "../models/PracticeIntegrityEvent.js";
 import MasteryRecord from "../models/MasteryRecord.js";
 import StandardsGradebookEntry from "../models/StandardsGradebookEntry.js";
+import StandardQuestionPool from "../models/StandardQuestionPool.js";
 import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
 import { scheduleFromAttempt } from "../services/reviewSchedulerService.js";
 import { upsertInterventionCase } from "../services/interventionQueueService.js";
@@ -443,6 +444,23 @@ const buildAssessmentScore = ({ correctCount, totalAnswered, maxMarks }) => {
 const percentageToScale4 = (percentageValue) => {
   const pct = Math.max(0, Math.min(100, Number(percentageValue || 0)));
   return Number((pct / 25).toFixed(2));
+};
+
+const getPublishedQuestionPool = async ({ schoolId, assignmentId }) => {
+  return StandardQuestionPool.findOne({
+    school: schoolId,
+    assignment: assignmentId,
+    status: "published",
+    isActive: true,
+  })
+    .select("questions generatedQuestionCount currentVersion status")
+    .lean();
+};
+
+const selectPoolQuestion = ({ poolQuestions = [], attemptCount = 0 }) => {
+  if (!Array.isArray(poolQuestions) || poolQuestions.length === 0) return null;
+  const index = attemptCount % poolQuestions.length;
+  return poolQuestions[index] || null;
 };
 
 const upsertAssessmentGradebookProgress = async ({
@@ -984,6 +1002,30 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     });
   }
 
+  const workflow = assignment.questionWorkflow || null;
+  const requiresPublishedPool = workflow
+    ? workflow.requireApprovalBeforeStudentAccess !== false
+    : false;
+  const publishedQuestionPool = await getPublishedQuestionPool({
+    schoolId: req.schoolId,
+    assignmentId: assignment._id,
+  });
+
+  // Do not block student practice when a curated pool has not been published yet.
+  // If no published pool exists, the service falls back to generating questions dynamically.
+  if (
+    requiresPublishedPool &&
+    (!publishedQuestionPool ||
+      !Array.isArray(publishedQuestionPool.questions) ||
+      publishedQuestionPool.questions.length === 0)
+  ) {
+    logger.info("practice_assignment_pool_not_published_fallback", {
+      schoolId: req.schoolId,
+      assignmentId: assignment._id?.toString(),
+      studentId: student._id?.toString(),
+    });
+  }
+
   // Check if already mastered (use persisted + rolling logic)
   const mastery = await PracticeAttempt.calculateMastery(
     student._id,
@@ -1112,81 +1154,103 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   });
 
   const subjectName = assignment.subject?.name || "General Studies";
-  const preferredTrueFalseAnswer =
-    effectiveQuestionType === "true_false"
-      ? resolvePreferredTrueFalseAnswer(
-          recentAttempts.slice(0, ACCURACY_WINDOW),
-          attemptCount + 1
-        )
-      : null;
-
-  // Generate question with hard guard against duplicate MCQ options.
-  const generationQuestions = [...previousQuestions];
-  const generationFingerprints = [...previousQuestionFingerprints];
   let question = null;
-  for (let generationAttempt = 0; generationAttempt < 3; generationAttempt += 1) {
-    const candidate = await standardsPracticeAIService.generateQuestion({
-      standard: assignment.standard,
-      subjectName,
-      difficulty: effectiveDifficulty,
-      questionType: effectiveQuestionType,
-      trueFalseTargetAnswer: preferredTrueFalseAnswer,
-      previousQuestions: generationQuestions,
-      previousQuestionFingerprints: generationFingerprints,
-      recentAttempts: sessionAttempts.slice(0, 12),
-      studentFirstName: student.firstName || "",
-      contextHints: {
-        recentTopics: sessionContext.recentTopics,
-        recentMistakes: sessionContext.recentMistakes,
-        confidenceHint: sessionContext.confidenceHint,
-      },
-      attemptNumber: attemptCount + 1 + generationAttempt,
-    });
 
-    if (!hasDuplicateMultipleChoiceOptions(candidate)) {
-      question = candidate;
-      break;
+  if (publishedQuestionPool?.questions?.length > 0) {
+    const poolQuestion = selectPoolQuestion({
+      poolQuestions: publishedQuestionPool.questions,
+      attemptCount,
+    });
+    if (!poolQuestion) {
+      return res.status(503).json({
+        success: false,
+        message: "Published question pool is empty. Please contact your teacher.",
+      });
+    }
+    question = {
+      questionText: poolQuestion.questionText,
+      questionType: poolQuestion.questionType,
+      options: poolQuestion.options || [],
+      correctAnswer: poolQuestion.correctAnswer,
+      explanation: poolQuestion.explanation || "",
+      difficulty: poolQuestion.difficulty || effectiveDifficulty,
+      tokenUsage: null,
+    };
+  } else {
+    const preferredTrueFalseAnswer =
+      effectiveQuestionType === "true_false"
+        ? resolvePreferredTrueFalseAnswer(
+            recentAttempts.slice(0, ACCURACY_WINDOW),
+            attemptCount + 1
+          )
+        : null;
+
+    // Legacy fallback path for older assignments without question workflow.
+    const generationQuestions = [...previousQuestions];
+    const generationFingerprints = [...previousQuestionFingerprints];
+    for (let generationAttempt = 0; generationAttempt < 3; generationAttempt += 1) {
+      const candidate = await standardsPracticeAIService.generateQuestion({
+        standard: assignment.standard,
+        subjectName,
+        difficulty: effectiveDifficulty,
+        questionType: effectiveQuestionType,
+        trueFalseTargetAnswer: preferredTrueFalseAnswer,
+        previousQuestions: generationQuestions,
+        previousQuestionFingerprints: generationFingerprints,
+        recentAttempts: sessionAttempts.slice(0, 12),
+        studentFirstName: student.firstName || "",
+        contextHints: {
+          recentTopics: sessionContext.recentTopics,
+          recentMistakes: sessionContext.recentMistakes,
+          confidenceHint: sessionContext.confidenceHint,
+        },
+        attemptNumber: attemptCount + 1 + generationAttempt,
+      });
+
+      if (!hasDuplicateMultipleChoiceOptions(candidate)) {
+        question = candidate;
+        break;
+      }
+
+      generationQuestions.push(candidate.questionText || "");
+      generationFingerprints.push(buildQuestionFingerprint(candidate.questionText || ""));
+      logger.warn("practice_duplicate_mcq_options_regenerated", {
+        schoolId: req.schoolId,
+        assignmentId: assignment._id,
+        studentId: student._id,
+        generationAttempt: generationAttempt + 1,
+      });
     }
 
-    generationQuestions.push(candidate.questionText || "");
-    generationFingerprints.push(buildQuestionFingerprint(candidate.questionText || ""));
-    logger.warn("practice_duplicate_mcq_options_regenerated", {
-      schoolId: req.schoolId,
-      assignmentId: assignment._id,
-      studentId: student._id,
-      generationAttempt: generationAttempt + 1,
-    });
-  }
+    if (!question) {
+      return res.status(503).json({
+        success: false,
+        message: "Could not generate a clear multiple-choice question. Please try again.",
+      });
+    }
 
-  if (!question) {
-    return res.status(503).json({
-      success: false,
-      message: "Could not generate a clear multiple-choice question. Please try again.",
-    });
-  }
-
-  // Log AI usage
-  if (question.tokenUsage && question.tokenUsage.total > 0) {
-    await logAIUsage({
-      model: "gemini-2.5-flash-lite",
-      feature: "practice_question",
-      schoolId: req.schoolId,
-      userId: req.user._id,
-      studentId: student._id,
-      entityType: "StandardAssignment",
-      entityId: assignment._id,
-      metadata: {
-        questionType: effectiveQuestionType,
-        difficulty: effectiveDifficulty,
-        standardId: assignment.standard._id,
-        trueFalseTargetAnswer: preferredTrueFalseAnswer,
-      },
-      response: {
-        inputtokenCount: question.tokenUsage.input,
-        outputtokenCount: question.tokenUsage.output,
-        totalTokenCount: question.tokenUsage.total,
-      },
-    });
+    if (question.tokenUsage && question.tokenUsage.total > 0) {
+      await logAIUsage({
+        model: "gemini-2.5-flash-lite",
+        feature: "practice_question",
+        schoolId: req.schoolId,
+        userId: req.user._id,
+        studentId: student._id,
+        entityType: "StandardAssignment",
+        entityId: assignment._id,
+        metadata: {
+          questionType: effectiveQuestionType,
+          difficulty: effectiveDifficulty,
+          standardId: assignment.standard._id,
+          trueFalseTargetAnswer: preferredTrueFalseAnswer,
+        },
+        response: {
+          inputtokenCount: question.tokenUsage.input,
+          outputtokenCount: question.tokenUsage.output,
+          totalTokenCount: question.tokenUsage.total,
+        },
+      });
+    }
   }
 
   // Save the attempt (pending answer)
@@ -2369,6 +2433,131 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
       },
       academicYear: effectiveAcademicYear,
       semester: assignment.semester || null,
+    },
+  });
+});
+
+/**
+ * @desc    Get averaged standards gradebook across repeated formal assessments
+ * @route   GET /api/practice/assessment/standard-average
+ * @access  Private (Admin, Teacher)
+ */
+export const getStandardAverageGradebook = asyncHandler(async (req, res) => {
+  const { classId, subjectId, standardId } = req.query || {};
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const effectiveSemester = resolveSemesterForRequest(req);
+
+  if (!classId || !subjectId || !standardId) {
+    return res.status(400).json({
+      success: false,
+      message: "classId, subjectId and standardId are required",
+    });
+  }
+
+  const assignments = await StandardAssignment.find({
+    school: req.schoolId,
+    isActive: true,
+    class: classId,
+    subject: subjectId,
+    standard: standardId,
+    "practiceConfig.sessionType": "assessment",
+    $or: [{ semester: effectiveSemester }, { semester: null }, { semester: { $exists: false } }],
+  })
+    .select("_id title class subject standard academicYear semester")
+    .lean();
+
+  const assignmentIds = assignments.map((item) => item._id);
+  const students = await Student.find({
+    currentClass: classId,
+    status: "active",
+    academicYear: effectiveAcademicYear,
+  })
+    .select("firstName lastName studentId")
+    .lean();
+
+  const entries = assignmentIds.length > 0
+    ? await StandardsGradebookEntry.find({
+        school: req.schoolId,
+        assignment: { $in: assignmentIds },
+        class: classId,
+        subject: subjectId,
+        standard: standardId,
+      })
+        .select("student assignment percentage score maxScore status submittedAt releasedAt")
+        .lean()
+    : [];
+
+  const entriesByStudent = new Map();
+  entries.forEach((entry) => {
+    const key = entry.student.toString();
+    if (!entriesByStudent.has(key)) {
+      entriesByStudent.set(key, []);
+    }
+    entriesByStudent.get(key).push(entry);
+  });
+
+  const rows = students.map((student) => {
+    const list = entriesByStudent.get(student._id.toString()) || [];
+    const percentages = list
+      .map((entry) => Number(entry.percentage))
+      .filter((value) => Number.isFinite(value));
+    const averagePercentage = percentages.length > 0
+      ? Number((percentages.reduce((sum, value) => sum + value, 0) / percentages.length).toFixed(2))
+      : null;
+
+    return {
+      student,
+      attemptCount: list.length,
+      gradedAttemptCount: percentages.length,
+      averagePercentage,
+      averageScale4: Number.isFinite(averagePercentage) ? percentageToScale4(averagePercentage) : null,
+      attempts: list
+        .map((entry) => ({
+          assignmentId: entry.assignment,
+          percentage: entry.percentage,
+          score: entry.score,
+          maxScore: entry.maxScore,
+          status: entry.status,
+          submittedAt: entry.submittedAt || null,
+          releasedAt: entry.releasedAt || null,
+        }))
+        .sort((left, right) => {
+          const leftTime = left.submittedAt ? new Date(left.submittedAt).getTime() : 0;
+          const rightTime = right.submittedAt ? new Date(right.submittedAt).getTime() : 0;
+          return rightTime - leftTime;
+        }),
+    };
+  });
+
+  const gradedRows = rows.filter((row) => Number.isFinite(row.averagePercentage));
+  const classAveragePercentage = gradedRows.length > 0
+    ? Number(
+        (
+          gradedRows.reduce((sum, row) => sum + Number(row.averagePercentage || 0), 0) /
+          gradedRows.length
+        ).toFixed(2)
+      )
+    : 0;
+
+  res.json({
+    success: true,
+    data: {
+      rows,
+      assignmentCount: assignments.length,
+      assignments,
+      summary: {
+        totalStudents: rows.length,
+        gradedStudents: gradedRows.length,
+        classAveragePercentage,
+        classAverageScale4: percentageToScale4(classAveragePercentage),
+      },
+      filters: {
+        classId,
+        subjectId,
+        standardId,
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
+      },
     },
   });
 });
