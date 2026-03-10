@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import api from '../../../../config/api';
 import { PERMISSIONS } from '../../../../constants/permissions';
@@ -24,6 +25,7 @@ import { isConsecutiveAcademicYear, isValidAcademicYear, normalizePermissions } 
 const useSchoolSettings = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { t } = useTranslation(['schoolSettings']);
   const user = useSelector(selectUser);
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
   const canManageUsers = user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_USERS);
@@ -137,11 +139,11 @@ const useSchoolSettings = () => {
         setUsers(response.data.data.users);
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load users');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.loadUsersFailed'));
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (canManageUsers && activeTab === 'users') {
@@ -156,9 +158,9 @@ const useSchoolSettings = () => {
         setSchoolInfo(response.data.data?.school || null);
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load school profile');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.loadSchoolProfileFailed'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (canManageSchoolSettings) {
@@ -180,13 +182,13 @@ const useSchoolSettings = () => {
         }));
       } else {
         setCommunicationSettings((prev) => ({ ...prev, loading: false }));
-        toast.error(response.data?.message || 'Failed to load communication settings');
+        toast.error(response.data?.message || t('schoolSettings:toast.loadCommunicationSettingsFailed'));
       }
     } catch (error) {
       setCommunicationSettings((prev) => ({ ...prev, loading: false }));
-      toast.error(error.response?.data?.message || 'Failed to load communication settings');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.loadCommunicationSettingsFailed'));
     }
-  }, [canManageCommunicationSettings]);
+  }, [canManageCommunicationSettings, t]);
 
   useEffect(() => {
     if (activeTab === 'communication' && canManageCommunicationSettings) {
@@ -202,14 +204,14 @@ const useSchoolSettings = () => {
       if (response.data?.success) {
         setGradingScales(response.data?.data?.items || []);
       } else {
-        toast.error(response.data?.message || 'Failed to load grading scales');
+        toast.error(response.data?.message || t('schoolSettings:toast.loadGradingScalesFailed'));
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load grading scales');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.loadGradingScalesFailed'));
     } finally {
       setGradingScalesLoading(false);
     }
-  }, [canManageGradeScaling]);
+  }, [canManageGradeScaling, t]);
 
   useEffect(() => {
     if (activeTab === 'gradingscales' && canManageGradeScaling) {
@@ -229,16 +231,16 @@ const useSchoolSettings = () => {
       });
       if (response.data?.success) {
         setSchoolInfo((prev) => response.data.data?.school || prev);
-        toast.success('School logo updated');
+        toast.success(t('schoolSettings:toast.schoolLogoUpdated'));
       } else {
-        toast.error(response.data?.message || 'Failed to update school logo');
+        toast.error(response.data?.message || t('schoolSettings:toast.schoolLogoUpdateFailed'));
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to update school logo');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.schoolLogoUpdateFailed'));
     } finally {
       setBrandingLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const handleRemoveSchoolLogo = useCallback(async () => {
     setBrandingLoading(true);
@@ -246,16 +248,16 @@ const useSchoolSettings = () => {
       const response = await api.delete('/schools/me/logo');
       if (response.data?.success) {
         setSchoolInfo((prev) => response.data.data?.school || prev);
-        toast.success('School logo removed');
+        toast.success(t('schoolSettings:toast.schoolLogoRemoved'));
       } else {
-        toast.error(response.data?.message || 'Failed to remove school logo');
+        toast.error(response.data?.message || t('schoolSettings:toast.schoolLogoRemoveFailed'));
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to remove school logo');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.schoolLogoRemoveFailed'));
     } finally {
       setBrandingLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const handleToggleAiEmailDraft = useCallback(async (enabled) => {
     if (!canManageCommunicationSettings) return;
@@ -271,16 +273,16 @@ const useSchoolSettings = () => {
           aiEmailDraftEnabled: response.data.data?.aiEmailDraftEnabled !== false,
           featureAvailable: Boolean(response.data.data?.featureAvailable)
         }));
-        toast.success('Communication settings updated');
+        toast.success(t('schoolSettings:toast.communicationSettingsUpdated'));
       } else {
         setCommunicationSettings((prev) => ({ ...prev, saving: false }));
-        toast.error(response.data?.message || 'Failed to update communication settings');
+        toast.error(response.data?.message || t('schoolSettings:toast.communicationSettingsUpdateFailed'));
       }
     } catch (error) {
       setCommunicationSettings((prev) => ({ ...prev, saving: false }));
-      toast.error(error.response?.data?.message || 'Failed to update communication settings');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.communicationSettingsUpdateFailed'));
     }
-  }, [canManageCommunicationSettings]);
+  }, [canManageCommunicationSettings, t]);
 
   const loadAcademicYearData = useCallback(async () => {
     try {
@@ -298,7 +300,7 @@ const useSchoolSettings = () => {
         }
       }
     } catch (error) {
-      toast.error('Failed to load academic years');
+      toast.error(t('schoolSettings:toast.loadAcademicYearsFailed'));
     }
 
     try {
@@ -310,9 +312,9 @@ const useSchoolSettings = () => {
         setSchoolYearEndDate(end ? end.toISOString().slice(0, 10) : '');
       }
     } catch (error) {
-      toast.error('Failed to load school year dates');
+      toast.error(t('schoolSettings:toast.loadSchoolYearDatesFailed'));
     }
-  }, [fromYear, toYear]);
+  }, [fromYear, t, toYear]);
 
   useEffect(() => {
     if (canManageSchoolSettings && activeTab === 'schoolyear') {
@@ -322,7 +324,7 @@ const useSchoolSettings = () => {
 
   const handleCopyClasses = useCallback(async () => {
     if (!fromYear || !toYear) {
-      toast.error('Select from and to years');
+      toast.error(t('schoolSettings:toast.selectFromAndToYears'));
       return;
     }
     setRolloverLoading(true);
@@ -333,22 +335,22 @@ const useSchoolSettings = () => {
         toAcademicYear: toYear
       });
       if (res.data.success) {
-        toast.success(res.data.message);
+        toast.success(res.data.message || t('schoolSettings:toast.classesCreated'));
         setClassesCreated(res.data.data.count);
         setAcademicYears((prev) => (prev.includes(toYear) ? prev : [...prev, toYear].sort()));
       } else {
-        toast.error(res.data.message || 'Failed to create classes');
+        toast.error(res.data.message || t('schoolSettings:toast.createClassesFailed'));
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create classes');
+      toast.error(err.response?.data?.message || t('schoolSettings:toast.createClassesFailed'));
     } finally {
       setRolloverLoading(false);
     }
-  }, [fromYear, toYear]);
+  }, [fromYear, t, toYear]);
 
   const handleDeactivateYear = useCallback(async () => {
     if (!fromYear) {
-      toast.error('Select the year to deactivate');
+      toast.error(t('schoolSettings:toast.selectYearToDeactivate'));
       return;
     }
     setRolloverLoading(true);
@@ -356,24 +358,24 @@ const useSchoolSettings = () => {
     try {
       const res = await api.post('/schools/me/rollover/deactivate-year', { academicYear: fromYear });
       if (res.data.success) {
-        toast.success(res.data.message);
+        toast.success(res.data.message || t('schoolSettings:toast.deactivateYearSuccess'));
         setDeactivateCount(res.data.data.modifiedCount);
       } else {
-        toast.error(res.data.message || 'Failed to deactivate');
+        toast.error(res.data.message || t('schoolSettings:toast.deactivateYearFailed'));
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to deactivate');
+      toast.error(err.response?.data?.message || t('schoolSettings:toast.deactivateYearFailed'));
     } finally {
       setRolloverLoading(false);
     }
-  }, [fromYear]);
+  }, [fromYear, t]);
 
   const handlePromoteStudents = useCallback(async () => {
     if (!fromYear || !toYear) {
-      toast.error('Select from and to years');
+      toast.error(t('schoolSettings:toast.selectFromAndToYears'));
       return;
     }
-    if (!window.confirm(`Promote students from ${fromYear} to ${toYear}? This will update all active students.`)) {
+    if (!window.confirm(t('schoolSettings:confirm.promoteStudents', { fromYear, toYear }))) {
       return;
     }
     setRolloverLoading(true);
@@ -385,40 +387,40 @@ const useSchoolSettings = () => {
         options: { graduateGrade: 12, defaultSection: 'A' }
       });
       if (res.data.success) {
-        toast.success(res.data.message);
+        toast.success(res.data.message || t('schoolSettings:toast.promoteSuccess'));
         setPromoteResult(res.data.data);
       } else {
-        toast.error(res.data.message || 'Failed to promote');
+        toast.error(res.data.message || t('schoolSettings:toast.promoteFailed'));
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to promote');
+      toast.error(err.response?.data?.message || t('schoolSettings:toast.promoteFailed'));
     } finally {
       setRolloverLoading(false);
     }
-  }, [fromYear, toYear]);
+  }, [fromYear, t, toYear]);
 
   const handleSwitchToNewYear = useCallback(async () => {
     if (!toYear || !isConsecutiveAcademicYear(toYear)) {
-      toast.error('Enter a valid academic year like 2026-2027');
+      toast.error(t('schoolSettings:toast.invalidAcademicYear'));
       return;
     }
 
     const result = await dispatch(updateSchoolAcademicYear(toYear));
     if (updateSchoolAcademicYear.fulfilled.match(result)) {
-      toast.success(`School academic year set to ${result.payload}`);
+      toast.success(t('schoolSettings:toast.academicYearSet', { year: result.payload }));
       setAcademicYears((prev) => (prev.includes(result.payload) ? prev : [...prev, result.payload].sort()));
     } else {
-      toast.error(result.payload || 'Failed to update school academic year');
+      toast.error(result.payload || t('schoolSettings:toast.updateAcademicYearFailed'));
     }
-  }, [dispatch, toYear]);
+  }, [dispatch, t, toYear]);
 
   const handleSaveSchoolYearDates = useCallback(async () => {
     if (!schoolYearStartDate || !schoolYearEndDate) {
-      toast.error('Start and end dates are required');
+      toast.error(t('schoolSettings:toast.schoolYearDatesRequired'));
       return;
     }
     if (schoolYearEndDate < schoolYearStartDate) {
-      toast.error('End date must be on or after start date');
+      toast.error(t('schoolSettings:toast.schoolYearEndDateInvalid'));
       return;
     }
 
@@ -429,16 +431,16 @@ const useSchoolSettings = () => {
         endDate: schoolYearEndDate
       });
       if (res.data.success) {
-        toast.success(res.data.message || 'School year dates updated');
+        toast.success(res.data.message || t('schoolSettings:toast.schoolYearDatesUpdated'));
       } else {
-        toast.error(res.data.message || 'Failed to update school year dates');
+        toast.error(res.data.message || t('schoolSettings:toast.schoolYearDatesUpdateFailed'));
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update school year dates');
+      toast.error(err.response?.data?.message || t('schoolSettings:toast.schoolYearDatesUpdateFailed'));
     } finally {
       setSchoolYearDatesSaving(false);
     }
-  }, [schoolYearEndDate, schoolYearStartDate]);
+  }, [schoolYearEndDate, schoolYearStartDate, t]);
 
   const handleDeptSubmit = useCallback(
     async (event) => {
@@ -449,16 +451,16 @@ const useSchoolSettings = () => {
           ? await dispatch(updateDepartment({ id: editingDeptId, data: deptFormData }))
           : await dispatch(createDepartment(deptFormData));
         if (createDepartment.fulfilled.match(result) || updateDepartment.fulfilled.match(result)) {
-          toast.success(editingDeptId ? 'Department updated' : 'Department created');
+          toast.success(editingDeptId ? t('schoolSettings:toast.departmentUpdated') : t('schoolSettings:toast.departmentCreated'));
           handleCloseDeptModal();
         } else {
-          toast.error(result.payload || 'Failed to save department');
+          toast.error(result.payload || t('schoolSettings:toast.saveDepartmentFailed'));
         }
       } finally {
         setSubmittingDept(false);
       }
     },
-    [deptFormData, dispatch, editingDeptId]
+    [deptFormData, dispatch, editingDeptId, t]
   );
 
   const handleEditDept = useCallback((dept) => {
@@ -472,14 +474,14 @@ const useSchoolSettings = () => {
   }, []);
 
   const handleDeleteDept = useCallback(async (id) => {
-    if (!window.confirm('Are you sure you want to delete this department?')) return;
+    if (!window.confirm(t('schoolSettings:confirm.deleteDepartment'))) return;
     const result = await dispatch(deleteDepartment(id));
     if (deleteDepartment.fulfilled.match(result)) {
-      toast.success('Department deleted');
+      toast.success(t('schoolSettings:toast.departmentDeleted'));
     } else {
-      toast.error(result.payload || 'Failed to delete department');
+      toast.error(result.payload || t('schoolSettings:toast.deleteDepartmentFailed'));
     }
-  }, [dispatch]);
+  }, [dispatch, t]);
 
   const handleCloseDeptModal = useCallback(() => {
     setShowDeptModal(false);
@@ -507,7 +509,7 @@ const useSchoolSettings = () => {
     async (event) => {
       event.preventDefault();
       if (!canManageUsers) {
-        toast.error('You do not have permission to manage users');
+        toast.error(t('schoolSettings:toast.noPermissionManageUsers'));
         return;
       }
       setSubmittingUser(true);
@@ -519,20 +521,20 @@ const useSchoolSettings = () => {
           permissions: normalizedPermissions
         });
         if (response.data.success) {
-          toast.success('User updated');
+          toast.success(t('schoolSettings:toast.userUpdated'));
           setShowUserModal(false);
           setEditingUser(null);
           fetchSchoolUsers();
         } else {
-          toast.error(response.data.message || 'Failed to update user');
+          toast.error(response.data.message || t('schoolSettings:toast.updateUserFailed'));
         }
       } catch (error) {
-        toast.error(error.response?.data?.message || 'Failed to update user');
+        toast.error(error.response?.data?.message || t('schoolSettings:toast.updateUserFailed'));
       } finally {
         setSubmittingUser(false);
       }
     },
-    [canManageUsers, editingUser?._id, fetchSchoolUsers, userFormData.department, userFormData.permissions, userFormData.role]
+    [canManageUsers, editingUser?._id, fetchSchoolUsers, t, userFormData.department, userFormData.permissions, userFormData.role]
   );
 
   const handleCloseUserModal = useCallback(() => {
@@ -637,7 +639,7 @@ const useSchoolSettings = () => {
   const handleSaveGradingScale = useCallback(async (event) => {
     event.preventDefault();
     if (!canManageGradeScaling) {
-      toast.error('You do not have permission to manage grading scales');
+      toast.error(t('schoolSettings:toast.noPermissionManageGradingScales'));
       return;
     }
 
@@ -657,11 +659,11 @@ const useSchoolSettings = () => {
     };
 
     if (!payload.name) {
-      toast.error('Scale name is required');
+      toast.error(t('schoolSettings:toast.scaleNameRequired'));
       return;
     }
     if (!Array.isArray(payload.bands) || payload.bands.length === 0) {
-      toast.error('At least one grading band is required');
+      toast.error(t('schoolSettings:toast.gradingBandRequired'));
       return;
     }
 
@@ -672,14 +674,14 @@ const useSchoolSettings = () => {
         : await api.post('/grading-scales', payload);
 
       if (response.data?.success) {
-        toast.success(editingGradingScaleId ? 'Grading scale updated' : 'Grading scale created');
+        toast.success(editingGradingScaleId ? t('schoolSettings:toast.gradingScaleUpdated') : t('schoolSettings:toast.gradingScaleCreated'));
         closeGradingScaleForm();
         fetchGradingScales();
       } else {
-        toast.error(response.data?.message || 'Failed to save grading scale');
+        toast.error(response.data?.message || t('schoolSettings:toast.saveGradingScaleFailed'));
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to save grading scale');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.saveGradingScaleFailed'));
     } finally {
       setGradingScaleSubmitting(false);
     }
@@ -692,7 +694,8 @@ const useSchoolSettings = () => {
     gradingScaleFormData.description,
     gradingScaleFormData.isActive,
     gradingScaleFormData.name,
-    gradingScaleFormData.sortOrder
+    gradingScaleFormData.sortOrder,
+    t
   ]);
 
   const handleSetDefaultGradingScale = useCallback(async (scaleId) => {
@@ -700,32 +703,32 @@ const useSchoolSettings = () => {
     try {
       const response = await api.patch(`/grading-scales/${scaleId}/default`);
       if (response.data?.success) {
-        toast.success('Default grading scale updated');
+        toast.success(t('schoolSettings:toast.defaultGradingScaleUpdated'));
         fetchGradingScales();
       } else {
-        toast.error(response.data?.message || 'Failed to set default grading scale');
+        toast.error(response.data?.message || t('schoolSettings:toast.setDefaultGradingScaleFailed'));
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to set default grading scale');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.setDefaultGradingScaleFailed'));
     }
-  }, [canManageGradeScaling, fetchGradingScales]);
+  }, [canManageGradeScaling, fetchGradingScales, t]);
 
   const handleDeleteGradingScale = useCallback(async (scale) => {
     if (!canManageGradeScaling || !scale?.id) return;
-    if (!window.confirm(`Delete grading scale "${scale.name}"?`)) return;
+    if (!window.confirm(t('schoolSettings:confirm.deleteGradingScale', { name: scale.name }))) return;
 
     try {
       const response = await api.delete(`/grading-scales/${scale.id}`);
       if (response.data?.success) {
-        toast.success('Grading scale deleted');
+        toast.success(t('schoolSettings:toast.gradingScaleDeleted'));
         fetchGradingScales();
       } else {
-        toast.error(response.data?.message || 'Failed to delete grading scale');
+        toast.error(response.data?.message || t('schoolSettings:toast.deleteGradingScaleFailed'));
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to delete grading scale');
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.deleteGradingScaleFailed'));
     }
-  }, [canManageGradeScaling, fetchGradingScales]);
+  }, [canManageGradeScaling, fetchGradingScales, t]);
 
   const departmentModalState = useMemo(() => ({
     open: showDeptModal,

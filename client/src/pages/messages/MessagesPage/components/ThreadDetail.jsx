@@ -1,4 +1,5 @@
 import { HiOutlineChatAlt2 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import { formatTimestamp } from '../utils/messagePresentation';
 
 const ThreadDetail = ({
@@ -18,6 +19,7 @@ const ThreadDetail = ({
     onSendReply,
     sendingReply
 }) => {
+    const { t } = useTranslation(['messages']);
     const grouped = groupedThreadMessages || { older: [], yesterday: [], today: [] };
 
     return (
@@ -25,8 +27,8 @@ const ThreadDetail = ({
             {!selectedThread && !loadingDetail && (
                 <div className="detail-empty">
                     <HiOutlineChatAlt2 size={32} />
-                    <h3>Select a conversation</h3>
-                    <p className="text-muted">Choose a thread from the inbox to read messages.</p>
+                    <h3>{t('messages:detail.selectConversation')}</h3>
+                    <p className="text-muted">{t('messages:detail.selectConversationHint')}</p>
                 </div>
             )}
 
@@ -41,20 +43,24 @@ const ThreadDetail = ({
                     <div className="detail-header">
                         <div>
                             <button type="button" className="detail-back" onClick={onBack}>
-                                Back to conversations
+                                {t('messages:detail.backToConversations')}
                             </button>
                             <h2>{threadDetail.thread?.subject || selectedThread.subject}</h2>
                             <p className="text-muted">
                                 {threadDetail.thread?.participantsLabel || selectedThread.participantsLabel}
                             </p>
                         </div>
-                        {threadDetail.thread?.isClosed && <span className="closed-pill">Closed</span>}
+                        {threadDetail.thread?.isClosed && <span className="closed-pill">{t('messages:detail.closed')}</span>}
                     </div>
                     <div className="message-list" ref={messageListRef}>
                         {grouped.older.length > 0 && (
                             <div className="message-section">
                                 <button type="button" className="message-section-toggle" onClick={onToggleOlder}>
-                                    <span>{showOlderMessages ? 'Hide older messages' : 'Show older messages'}</span>
+                                    <span>
+                                        {showOlderMessages
+                                            ? t('messages:detail.hideOlder')
+                                            : t('messages:detail.showOlder')}
+                                    </span>
                                     <span className="message-section-count">{grouped.older.length}</span>
                                 </button>
                                 {showOlderMessages &&
@@ -76,7 +82,11 @@ const ThreadDetail = ({
                         {grouped.yesterday.length > 0 && (
                             <div className="message-section">
                                 <button type="button" className="message-section-toggle" onClick={onToggleYesterday}>
-                                    <span>{showYesterdayMessages ? 'Hide yesterday messages' : 'Show yesterday messages'}</span>
+                                    <span>
+                                        {showYesterdayMessages
+                                            ? t('messages:detail.hideYesterday')
+                                            : t('messages:detail.showYesterday')}
+                                    </span>
                                     <span className="message-section-count">{grouped.yesterday.length}</span>
                                 </button>
                                 {showYesterdayMessages &&
@@ -97,7 +107,7 @@ const ThreadDetail = ({
 
                         <div className="message-section">
                             <div className="message-section-header">
-                                <span>Today</span>
+                                <span>{t('messages:detail.today')}</span>
                                 <span className="message-section-count">{grouped.today.length}</span>
                             </div>
                             {grouped.today.map((message) => (
@@ -114,20 +124,20 @@ const ThreadDetail = ({
                             ))}
                             {grouped.today.length === 0 && (
                                 <div className="thread-empty compact">
-                                    <p>No messages today yet.</p>
+                                    <p>{t('messages:detail.noMessagesToday')}</p>
                                 </div>
                             )}
                         </div>
                         <div ref={messageListEndRef} />
                     </div>
                     {threadDetail.thread?.isClosed ? (
-                        <div className="reply-closed">This conversation is closed.</div>
+                        <div className="reply-closed">{t('messages:detail.conversationClosed')}</div>
                     ) : (
                         <div className="reply-box">
                             <textarea
                                 value={replyBody}
                                 onChange={onReplyBodyChange}
-                                placeholder="Type your reply..."
+                                placeholder={t('messages:detail.replyPlaceholder')}
                                 rows={3}
                             />
                             <button
@@ -136,7 +146,7 @@ const ThreadDetail = ({
                                 onClick={onSendReply}
                                 disabled={sendingReply || replyBody.trim().length === 0}
                             >
-                                {sendingReply ? 'Sending...' : 'Send Reply'}
+                                {sendingReply ? t('messages:detail.sending') : t('messages:detail.sendReply')}
                             </button>
                         </div>
                     )}

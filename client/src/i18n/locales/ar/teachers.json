@@ -1,0 +1,79 @@
+{
+  "page": {
+    "title": "المعلمون",
+    "subtitle": "إدارة الكادر التعليمي وتوزيع الحصص"
+  },
+  "filters": {
+    "searchPlaceholder": "ابحث عن المعلمين..."
+  },
+  "table": {
+    "columns": {
+      "name": "الاسم",
+      "email": "البريد الإلكتروني",
+      "subjects": "المواد",
+      "actions": "الإجراءات"
+    }
+  },
+  "empty": {
+    "noTeachers": "لا يوجد معلمون"
+  },
+  "actions": {
+    "importCsv": "استيراد CSV",
+    "addTeacher": "إضافة معلم",
+    "viewDetails": "عرض التفاصيل",
+    "editTeacher": "تعديل المعلم",
+    "assignClasses": "توزيع الفصول",
+    "assign": "توزيع",
+    "deleteTeacher": "حذف المعلم",
+    "creating": "جارٍ الإنشاء...",
+    "updating": "جارٍ التحديث...",
+    "updateTeacher": "تحديث المعلم",
+    "assigning": "جارٍ التوزيع..."
+  },
+  "modal": {
+    "editTitle": "تعديل المعلم",
+    "createTitle": "إضافة معلم جديد"
+  },
+  "form": {
+    "firstName": "الاسم الأول *",
+    "lastName": "اسم العائلة *",
+    "email": "البريد الإلكتروني *",
+    "phone": "الهاتف",
+    "department": "القسم",
+    "noDepartment": "— بدون قسم —",
+    "qualification": "المؤهل",
+    "qualificationPlaceholder": "مثال: بكالوريوس تربية، ماجستير علوم",
+    "subjectsHint": "المواد (اضغط Ctrl لاختيار أكثر من مادة)"
+  },
+  "assignments": {
+    "title": "توزيع الفصول على {{name}}",
+    "class": "الفصل *",
+    "selectClass": "اختر فصلاً",
+    "subject": "المادة *",
+    "selectSubject": "اختر مادة",
+    "setAsClassTeacher": "تعيين كمعلم فصل",
+    "addAnotherClass": "إضافة فصل آخر"
+  },
+  "confirm": {
+    "deleteTeacher": "هل أنت متأكد من حذف {{name}}؟"
+  },
+  "toast": {
+    "created": "تم إنشاء المعلم بنجاح!",
+    "createFailed": "فشل إنشاء المعلم",
+    "updated": "تم تحديث المعلم بنجاح!",
+    "updateFailed": "فشل تحديث المعلم",
+    "deleted": "تم حذف المعلم بنجاح!",
+    "deleteFailed": "فشل حذف المعلم",
+    "selectClassAndSubject": "يرجى اختيار فصل واحد على الأقل ومادة واحدة",
+    "assigned": "تم توزيع الفصول بنجاح!",
+    "assignFailed": "فشل توزيع الفصول",
+    "selectCsv": "يرجى اختيار ملف CSV",
+    "noValidRows": "لا توجد صفوف صالحة في CSV",
+    "imported": "تم استيراد {{count}} معلمين",
+    "importFailedRows": "فشل {{count}} من صفوف المعلمين",
+    "importSkippedRows": "تم تخطي {{count}} من صفوف المعلمين",
+    "importFailed": "فشل استيراد المعلمين",
+    "importRowError": "الصف {{row}} {{field}}{{message}}",
+    "importValidationFailed": "فشل التحقق أثناء الاستيراد"
+  }
+}

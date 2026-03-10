@@ -1,7 +1,8 @@
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { selectUser } from '../../../store/slices/authSlice';
 import { selectTheme, setTheme } from '../../../store/slices/uiSlice';
-import { HiOutlineCog, HiOutlineMoon, HiOutlineSun } from 'react-icons/hi';
+import { HiOutlineMoon, HiOutlineSun } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import '../../../components/superAdmin/SuperAdminBase.css';
 
@@ -9,19 +10,22 @@ const SuperAdminSettingsPage = () => {
     const dispatch = useDispatch();
     const user = useSelector(selectUser);
     const theme = useSelector(selectTheme);
+    const { t } = useTranslation(['superAdminSettings']);
 
     const handleThemeChange = (newTheme) => {
         dispatch(setTheme(newTheme));
-        toast.success(`Theme changed to ${newTheme} mode`);
+        toast.success(t('superAdminSettings:toast.themeChanged', {
+            theme: t(`superAdminSettings:theme.${newTheme}`)
+        }));
     };
 
     return (
         <div className="admin-dashboard">
-            <h1>Platform Settings</h1>
+            <h1>{t('superAdminSettings:page.title')}</h1>
 
             <div className="admin-section">
                 <div className="admin-section-header">
-                    <h2>Appearance</h2>
+                    <h2>{t('superAdminSettings:sections.appearance')}</h2>
                 </div>
                 <div style={{ padding: 'var(--spacing-lg)' }}>
                     <div className="admin-toolbar">
@@ -30,14 +34,14 @@ const SuperAdminSettingsPage = () => {
                         onClick={() => handleThemeChange('light')}
                     >
                         <HiOutlineSun size={16} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                        Light
+                        {t('superAdminSettings:theme.light')}
                     </button>
                     <button
                         className={`admin-action-btn ${theme === 'dark' ? 'primary' : ''}`}
                         onClick={() => handleThemeChange('dark')}
                     >
                         <HiOutlineMoon size={16} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                        Dark
+                        {t('superAdminSettings:theme.dark')}
                     </button>
                     </div>
                 </div>
@@ -45,18 +49,18 @@ const SuperAdminSettingsPage = () => {
 
             <div className="admin-section">
                 <div className="admin-section-header">
-                    <h2>Account</h2>
+                    <h2>{t('superAdminSettings:sections.account')}</h2>
                 </div>
                 <div style={{ padding: 'var(--spacing-lg)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                            <strong>Name:</strong> {user?.firstName} {user?.lastName}
+                            <strong>{t('superAdminSettings:account.name')}:</strong> {user?.firstName} {user?.lastName}
                         </p>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                            <strong>Email:</strong> {user?.email}
+                            <strong>{t('superAdminSettings:account.email')}:</strong> {user?.email}
                         </p>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                            <strong>Role:</strong> Super Admin
+                            <strong>{t('superAdminSettings:account.role')}:</strong> {t('superAdminSettings:account.superAdmin')}
                         </p>
                     </div>
                 </div>
@@ -64,11 +68,11 @@ const SuperAdminSettingsPage = () => {
 
             <div className="admin-section">
                 <div className="admin-section-header">
-                    <h2>Platform</h2>
+                    <h2>{t('superAdminSettings:sections.platform')}</h2>
                 </div>
                 <div style={{ padding: 'var(--spacing-lg)', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                    <p>GradeBook Platform v1.0</p>
-                    <p style={{ marginTop: 'var(--spacing-xs)' }}>Billing, Stripe integration, and advanced platform settings coming soon.</p>
+                    <p>{t('superAdminSettings:platform.version')}</p>
+                    <p style={{ marginTop: 'var(--spacing-xs)' }}>{t('superAdminSettings:platform.comingSoon')}</p>
                 </div>
             </div>
         </div>

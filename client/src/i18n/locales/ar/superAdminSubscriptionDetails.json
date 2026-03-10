@@ -1,0 +1,150 @@
+{
+  "loading": {
+    "message": "جاري تحميل تفاصيل الاشتراك..."
+  },
+  "header": {
+    "backToSubscriptions": "العودة إلى الاشتراكات"
+  },
+  "actions": {
+    "edit": "تعديل الاشتراك",
+    "cancel": "إلغاء",
+    "cancelSubscription": "إلغاء الاشتراك",
+    "keepSubscription": "الإبقاء على الاشتراك",
+    "recordCashPayment": "تسجيل دفعة نقدية",
+    "recordPayment": "تسجيل الدفعة",
+    "reset": "إعادة تعيين",
+    "saveFeatureOverrides": "حفظ تخصيصات الميزات",
+    "saving": "جاري الحفظ...",
+    "updateSubscription": "تحديث الاشتراك",
+    "export": "تصدير"
+  },
+  "tabs": {
+    "overview": "نظرة عامة",
+    "usage": "الاستخدام",
+    "billing": "الفوترة",
+    "features": "الميزات"
+  },
+  "overview": {
+    "subscriptionDetails": "تفاصيل الاشتراك",
+    "schoolInformation": "معلومات المدرسة",
+    "paymentInformation": "معلومات الدفع"
+  },
+  "labels": {
+    "plan": "الخطة",
+    "status": "الحالة",
+    "monthlyCost": "التكلفة الشهرية",
+    "billingCycle": "دورة الفوترة",
+    "created": "تاريخ الإنشاء",
+    "trialEnds": "نهاية الفترة التجريبية",
+    "schoolName": "اسم المدرسة",
+    "adminName": "اسم المسؤول",
+    "email": "البريد الإلكتروني",
+    "phone": "الهاتف",
+    "address": "العنوان",
+    "paymentMethod": "طريقة الدفع",
+    "lastPayment": "آخر دفعة",
+    "nextBilling": "الفوترة القادمة",
+    "totalInvoices": "إجمالي الفواتير",
+    "notes": "ملاحظات"
+  },
+  "common": {
+    "na": "غير متوفر",
+    "noPaymentsYet": "لا توجد دفعات بعد",
+    "cash": "نقدًا",
+    "infinity": "∞"
+  },
+  "status": {
+    "active": "نشط",
+    "trial": "تجريبي",
+    "suspended": "معلّق",
+    "cancelled": "ملغى",
+    "inactive": "غير نشط"
+  },
+  "plan": {
+    "starter": "مبتدئة",
+    "professional": "احترافية",
+    "enterprise": "مؤسسية"
+  },
+  "interval": {
+    "month": "شهري",
+    "year": "سنوي"
+  },
+  "paymentMethod": {
+    "cash": "نقدًا",
+    "stripe": "Stripe",
+    "card": "بطاقة",
+    "bank_transfer": "تحويل بنكي",
+    "paypal": "PayPal"
+  },
+  "billing": {
+    "title": "سجل الفوترة",
+    "table": {
+      "invoiceNumber": "رقم الفاتورة",
+      "date": "التاريخ",
+      "amount": "المبلغ",
+      "status": "الحالة",
+      "actions": "الإجراءات"
+    },
+    "empty": {
+      "title": "لا يوجد سجل فوترة",
+      "description": "لا توجد فواتير لهذا الاشتراك حتى الآن."
+    }
+  },
+  "invoiceStatus": {
+    "paid": "مدفوعة",
+    "open": "مفتوحة",
+    "draft": "مسودة",
+    "pending": "قيد الانتظار",
+    "failed": "فشلت",
+    "void": "ملغاة",
+    "uncollectible": "غير قابلة للتحصيل",
+    "unpaid": "غير مدفوعة"
+  },
+  "usage": {
+    "resourceUsage": "استخدام الموارد",
+    "students": "الطلاب",
+    "teachers": "المعلمون",
+    "classes": "الفصول",
+    "storage": "التخزين",
+    "usageTrends": "اتجاهات الاستخدام",
+    "usageTrendsPlaceholder": "ستتوفر مخططات اتجاهات الاستخدام قريبًا."
+  },
+  "features": {
+    "description": "يمكن لمسؤولي النظام تعديل الميزات الفردية لهذا الاشتراك.",
+    "sections": {
+      "core": "الميزات الأساسية",
+      "communication": "التواصل",
+      "analyticsReporting": "التحليلات والتقارير",
+      "advanced": "متقدم"
+    },
+    "items": {
+      "emailNotifications": "إشعارات البريد الإلكتروني",
+      "dataExport": "تصدير البيانات",
+      "parentPortal": "بوابة أولياء الأمور",
+      "advancedAnalytics": "تحليلات متقدمة",
+      "customReports": "تقارير مخصصة",
+      "apiAccess": "الوصول إلى API",
+      "prioritySupport": "دعم ذو أولوية",
+      "customBranding": "هوية مرئية مخصصة"
+    }
+  },
+  "modal": {
+    "edit": {
+      "title": "تعديل الاشتراك",
+      "notesPlaceholder": "أضف ملاحظات حول تغيير الاشتراك..."
+    },
+    "cancel": {
+      "title": "إلغاء الاشتراك",
+      "confirmTitle": "هل أنت متأكد أنك تريد إلغاء هذا الاشتراك؟",
+      "confirmDescription": "سيؤدي هذا الإجراء إلى إلغاء اشتراك {{schoolName}}. ستفقد المدرسة الوصول إلى الميزات المميزة عند نهاية دورة الفوترة."
+    },
+    "payment": {
+      "title": "تسجيل دفعة نقدية",
+      "amountLabel": "المبلغ ({{currency}})",
+      "amountPlaceholder": "أدخل مبلغ الدفعة",
+      "receiptLabel": "رقم الإيصال (اختياري)",
+      "receiptPlaceholder": "مثال: REC-001",
+      "notesPlaceholder": "مثال: تم استلام دفعة نقدية في المكتب"
+    }
+  }
+}

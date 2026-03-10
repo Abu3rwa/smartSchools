@@ -4,6 +4,7 @@ import gradeService from '../services/gradeService.js';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { resolveRequestedAcademicYear } from '../utils/academicYear.js';
 import { getTeacherClassIds, resolveTeacherProfile } from '../helpers/teacherScoping.js';
+import { resolveRequestedLanguages } from '../utils/aiLanguageUtils.js';
 
 const ensureTeacherCanAccessStudent = async (req, student) => {
     if (req.user.role !== 'teacher') return true;
@@ -20,7 +21,15 @@ const ensureTeacherCanAccessStudent = async (req, student) => {
  * @access  Private (Teacher/Admin)
  */
 export const generateAIReport = asyncHandler(async (req, res) => {
-    const { studentId, academicYear, period } = req.body;
+    const {
+        studentId,
+        academicYear,
+        period,
+        language,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage
+    } = req.body;
 
     // 1. Fetch Student
     const student = await Student.findById(studentId);
@@ -50,11 +59,24 @@ export const generateAIReport = asyncHandler(async (req, res) => {
 
     // 3. Generate Report via AI Service (lazy load to ensure env vars are loaded)
     const { default: aiService } = await import('../services/aiservice.js');
+    const normalizedRequestedLanguages = resolveRequestedLanguages({
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language,
+        max: 2
+    });
     const reportText = await aiService.generateStudentReport(
         student,
         grades,
         currentPeriod,
-        req.user
+        req.user,
+        {
+            language,
+            requestedLanguages: normalizedRequestedLanguages,
+            primaryLanguage,
+            secondaryLanguage
+        }
     );
 
     res.json({
@@ -62,6 +84,7 @@ export const generateAIReport = asyncHandler(async (req, res) => {
         data: {
             report: reportText,
             studentId,
+            requestedLanguages: normalizedRequestedLanguages,
             generatedAt: new Date()
         }
     });
@@ -73,7 +96,16 @@ export const generateAIReport = asyncHandler(async (req, res) => {
  * @access  Private (Teacher/Admin)
  */
 export const generateAIReportByDateRange = asyncHandler(async (req, res) => {
-    const { studentId, startDate, endDate, periodLabel } = req.body;
+    const {
+        studentId,
+        startDate,
+        endDate,
+        periodLabel,
+        language,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage
+    } = req.body;
 
     // Validate dates
     if (!startDate || !endDate) {
@@ -124,12 +156,25 @@ export const generateAIReportByDateRange = asyncHandler(async (req, res) => {
 
     // 3. Generate Report via AI Service (lazy load to ensure env vars are loaded)
     const { default: aiService } = await import('../services/aiservice.js');
+    const normalizedRequestedLanguages = resolveRequestedLanguages({
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language,
+        max: 2
+    });
     const reportText = await aiService.generateDateRangeReport(
         student,
         grades,
         start,
         end,
-        req.user
+        req.user,
+        {
+            language,
+            requestedLanguages: normalizedRequestedLanguages,
+            primaryLanguage,
+            secondaryLanguage
+        }
     );
 
     const periodDisplay = periodLabel || aiService.formatDateRange(start, end);
@@ -142,6 +187,7 @@ export const generateAIReportByDateRange = asyncHandler(async (req, res) => {
             startDate: start,
             endDate: end,
             period: periodDisplay,
+            requestedLanguages: normalizedRequestedLanguages,
             generatedAt: new Date()
         }
     });
@@ -153,7 +199,14 @@ export const generateAIReportByDateRange = asyncHandler(async (req, res) => {
  * @access  Private (Teacher/Admin)
  */
 export const generatePredefinedReport = asyncHandler(async (req, res) => {
-    const { studentId, periodType } = req.body; // periodType: 'this-week', 'this-month', 'last-month', etc.
+    const {
+        studentId,
+        periodType,
+        language,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage
+    } = req.body; // periodType: 'this-week', 'this-month', 'last-month', etc.
 
     const now = new Date();
     let startDate, endDate, periodLabel;
@@ -194,7 +247,11 @@ export const generatePredefinedReport = asyncHandler(async (req, res) => {
         studentId,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        periodLabel
+        periodLabel,
+        language,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage
     };
 
     return generateAIReportByDateRange(req, res);

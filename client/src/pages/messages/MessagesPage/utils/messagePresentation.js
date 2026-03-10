@@ -19,15 +19,17 @@ export const formatStudentNames = (studentNames) => {
     return studentNames.join(', ');
 };
 
-export const formatClassLabel = (classOption) => {
-    if (!classOption) return 'Class';
+export const formatClassLabel = (classOption, t) => {
+    if (!classOption) return t('messages:compose.classFallback');
     if (classOption.label) return classOption.label;
 
     const parts = [];
     if (classOption.name) parts.push(classOption.name);
-    if (classOption.grade != null) parts.push(`Grade ${classOption.grade}`);
+    if (classOption.grade != null) {
+        parts.push(t('messages:compose.gradeLabel', { grade: classOption.grade }));
+    }
     if (classOption.section) parts.push(classOption.section);
-    return parts.join(' · ') || 'Class';
+    return parts.join(' · ') || t('messages:compose.classFallback');
 };
 
 export const groupMessagesByAge = (messages = []) => {

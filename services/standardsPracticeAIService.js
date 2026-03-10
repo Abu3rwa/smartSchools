@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { connectAi } from "../utils/connectAi.js";
+import { getLanguageLabel, normalizeRequestedLanguages } from "../utils/aiLanguageUtils.js";
 
 const QUESTION_TYPES = ["multiple_choice", "short_answer", "true_false"];
 const MAX_AI_RETRIES = 2;
 const MC_LABELS = ["A", "B", "C", "D"];
 const AMBIGUOUS_MC_OPTION_PATTERN =
   /\b(all of the above|none of the above|both a and b|both a & b|both b and c|both c and d|all are correct|all are true)\b/i;
+const LEGACY_MC_OPTION_SUFFIX_PATTERN =
+  /\s*\((?:choice|option)\s*[a-z]?\s*\d+\)\s*$/i;
 const CONFUSING_TF_PATTERN =
   /\b(regardless of whether|unless|double negative|both true and false)\b/i;
 const SAFE_MC_DISTRACTOR_BANK = [
@@ -174,6 +177,31 @@ const trueFalsePairSchema = z
  * Generates questions and evaluates student answers
  */
 class StandardsPracticeAIService {
+  _resolveRequestedLanguages(requestedLanguages) {
+    return normalizeRequestedLanguages(requestedLanguages, {
+      max: 2,
+      fallback: ["en"],
+    });
+  }
+
+  _buildPromptLanguageRule(requestedLanguages) {
+    const resolved = this._resolveRequestedLanguages(requestedLanguages);
+    const primary = resolved[0] || "en";
+    const secondary = resolved[1] || null;
+    const primaryLabel = getLanguageLabel(primary);
+    const secondaryLabel = secondary ? getLanguageLabel(secondary) : null;
+
+    if (!secondary) {
+      return `LANGUAGE RULE: Write all natural-language text fields in ${primaryLabel} (${primary}) only.`;
+    }
+
+    return `LANGUAGE RULE: Write bilingual text for each natural-language field.
+- First segment in ${primaryLabel} (${primary})
+- Then " / "
+- Then equivalent segment in ${secondaryLabel} (${secondary})
+Do not change JSON keys or structural fields.`;
+  }
+
   /**
    * Generate a practice question for a given standard
    * @param {Object} options
@@ -190,6 +218,7 @@ class StandardsPracticeAIService {
       subjectName,
       difficulty = "medium",
       questionType = "multiple_choice",
+      requestedLanguages = ["en"],
       trueFalseTargetAnswer = null,
       previousQuestions = [],
       previousQuestionFingerprints = [],
@@ -205,6 +234,7 @@ class StandardsPracticeAIService {
       return this._generateTrueFalseQuestion({
         standard,
         subjectName,
+        requestedLanguages,
         difficulty,
         trueFalseTargetAnswer: normalizedTrueFalseTarget,
         previousQuestions,
@@ -231,6 +261,7 @@ class StandardsPracticeAIService {
         const prompt = this._buildGeneratePrompt({
           standard,
           subjectName,
+          requestedLanguages,
           difficulty,
           questionType,
           trueFalseTargetAnswer: normalizedTrueFalseTarget,
@@ -283,6 +314,7 @@ class StandardsPracticeAIService {
     const fallbackQuestion = this._buildFallbackQuestion({
       standard,
       subjectName,
+      requestedLanguages,
       difficulty,
       questionType,
       studentFirstName,
@@ -319,6 +351,7 @@ class StandardsPracticeAIService {
       questionOptions = [],
       studentFirstName = "",
       subjectName = "",
+      requestedLanguages = ["en"],
       gradeLevel = standard?.gradeLevel ?? null,
       difficulty = "medium",
       attemptNumber = 1,
@@ -400,6 +433,7 @@ class StandardsPracticeAIService {
           standard,
           studentFirstName,
           subjectName,
+          requestedLanguages,
           questionType,
           difficulty,
           gradeLevel,
@@ -470,6 +504,7 @@ class StandardsPracticeAIService {
   async _generateTrueFalseQuestion({
     standard,
     subjectName,
+    requestedLanguages = ["en"],
     difficulty = "medium",
     trueFalseTargetAnswer = null,
     previousQuestions = [],
@@ -496,6 +531,7 @@ class StandardsPracticeAIService {
         const prompt = this._buildTrueFalsePairPrompt({
           standard,
           subjectName,
+          requestedLanguages,
           difficulty,
           studentFirstName,
           recentAttempts,
@@ -614,6 +650,7 @@ class StandardsPracticeAIService {
     const fallbackQuestion = this._buildFallbackQuestion({
       standard,
       subjectName,
+      requestedLanguages,
       difficulty,
       questionType: "true_false",
       trueFalseTargetAnswer: targetAnswer,
@@ -631,6 +668,7 @@ class StandardsPracticeAIService {
   _buildTrueFalsePairPrompt({
     standard,
     subjectName,
+    requestedLanguages = ["en"],
     difficulty,
     studentFirstName,
     recentAttempts = [],
@@ -663,6 +701,7 @@ STANDARD CODE: ${standard?.code || "N/A"}
 STANDARD NAME: ${standard?.name || "N/A"}
 STANDARD DESCRIPTION: ${standard?.description || "N/A"}
 REQUESTED DIFFICULTY: ${difficulty}
+${this._buildPromptLanguageRule(requestedLanguages)}
 
 TASK:
 - Produce one objectively TRUE statement and one objectively FALSE statement about the same concept in this standard.
@@ -694,6 +733,7 @@ ${retrySection}`;
   _buildGeneratePrompt({
     standard,
     subjectName,
+    requestedLanguages = ["en"],
     difficulty,
     questionType,
     trueFalseTargetAnswer = null,
@@ -769,6 +809,7 @@ REQUESTED DIFFICULTY: ${difficulty}
 REQUESTED QUESTION TYPE: ${questionType}
 ${typeInstructions[questionType] || typeInstructions.multiple_choice}
 ${trueFalseTargetInstruction}
+${this._buildPromptLanguageRule(requestedLanguages)}
 
 SESSION AWARENESS:
 - Recent topics practiced: ${topicHints}
@@ -810,6 +851,7 @@ OUTPUT JSON SHAPE:
     standard,
     studentFirstName,
     subjectName,
+    requestedLanguages = ["en"],
     questionType,
     difficulty,
     gradeLevel,
@@ -860,6 +902,7 @@ Rules:
 - Be fair on wording differences if concept is correct.
 - Personalize warmly for a student by first name.
 - Keep language age-appropriate and teacher-like.
+- ${this._buildPromptLanguageRule(requestedLanguages)}
 - Keep "feedback" between ${wordRange.minWords} and ${wordRange.maxWords} words.
 - Put first name in feedbackParts.personalGreeting.
 - Do not mention AI/model behavior.
@@ -1005,7 +1048,9 @@ Output JSON:
           .toUpperCase() === normalizedAnswer,
     );
     const preferredCorrectText = this._sanitizeText(
-      preferredCorrectByLabel?.text || correctAnswer || "",
+      this._stripLegacyMcOptionSuffix(
+        preferredCorrectByLabel?.text || correctAnswer || "",
+      ),
       {
         maxLength: optionMaxLength,
         sentenceCase: true,
@@ -1017,7 +1062,7 @@ Output JSON:
         label: String(option?.label || MC_LABELS[index] || "")
           .trim()
           .toUpperCase(),
-        text: this._sanitizeText(option?.text || "", {
+        text: this._sanitizeText(this._stripLegacyMcOptionSuffix(option?.text || ""), {
           maxLength: optionMaxLength,
           sentenceCase: true,
         }),
@@ -1062,7 +1107,7 @@ Output JSON:
     }
     if (correctIndex < 0) {
       const normalizedAnswerText = this._normalizeMcOptionForComparison(
-        this._sanitizeText(correctAnswer || "", {
+        this._sanitizeText(this._stripLegacyMcOptionSuffix(correctAnswer || ""), {
           maxLength: optionMaxLength,
           sentenceCase: true,
         }),
@@ -1286,8 +1331,12 @@ Output JSON:
       .trim();
   }
 
+  _stripLegacyMcOptionSuffix(text) {
+    return String(text || "").replace(LEGACY_MC_OPTION_SUFFIX_PATTERN, "").trim();
+  }
+
   _normalizeMcOptionForComparison(text) {
-    return String(text || "")
+    return this._stripLegacyMcOptionSuffix(text)
       .toLowerCase()
       .replace(/\s+/g, " ")
       .trim();
@@ -1628,17 +1677,18 @@ Output JSON:
       );
 
     if (option?.text) {
+      const cleanOptionText = this._stripLegacyMcOptionSuffix(option.text || "");
       const normalizedLabel = this._normalizeForComparison(option.label || "");
-      const normalizedText = this._normalizeForComparison(option.text || "");
+      const normalizedText = this._normalizeForComparison(cleanOptionText);
       if (normalizedLabel && normalizedLabel === normalizedText) {
-        return this._sanitizeText(option.text || "", {
+        return this._sanitizeText(cleanOptionText, {
           maxLength: 220,
           sentenceCase: false,
         });
       }
-      return `${option.label}. ${option.text}`;
+      return `${option.label}. ${cleanOptionText}`;
     }
-    return this._sanitizeText(correctAnswer || "", {
+    return this._sanitizeText(this._stripLegacyMcOptionSuffix(correctAnswer || ""), {
       maxLength: 220,
       sentenceCase: false,
     });
@@ -1853,17 +1903,22 @@ Output JSON:
         maxLength: optionMaxLength,
         sentenceCase: true,
       });
-      const normalizedRawText = this._normalizeMcOptionForComparison(rawText);
-      const hasRawText = Boolean(rawText && normalizedRawText);
+      const cleanedRawText = this._sanitizeText(this._stripLegacyMcOptionSuffix(rawText), {
+        maxLength: optionMaxLength,
+        sentenceCase: true,
+      });
+      const normalizedRawText = this._normalizeMcOptionForComparison(cleanedRawText);
+      const hasRawText = Boolean(cleanedRawText && normalizedRawText);
       const isDuplicateRaw = hasRawText && seen.has(normalizedRawText);
-      const isAmbiguousRaw = hasRawText && AMBIGUOUS_MC_OPTION_PATTERN.test(rawText);
+      const isAmbiguousRaw =
+        hasRawText && AMBIGUOUS_MC_OPTION_PATTERN.test(cleanedRawText);
       const candidateText = !hasRawText || isDuplicateRaw || isAmbiguousRaw
         ? this._buildUniqueMcDistractorText({
             occupiedTexts: seen,
             optionMaxLength,
             preferredIndex: index,
           })
-        : rawText;
+        : cleanedRawText;
 
       seen.add(this._normalizeMcOptionForComparison(candidateText));
       return { label, text: candidateText };

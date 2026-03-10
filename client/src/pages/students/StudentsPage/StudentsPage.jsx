@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { fetchStudents, selectStudents, selectStudentsLoading, createStudent, updateStudent, deleteStudent, importStudents, createStudentLogin, bulkCreateStudentLogin, resetStudentPassword, sendParentCredentials } from '../../../store/slices/studentSlice';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
@@ -21,6 +22,7 @@ import {
 
 const StudentsPage = () => {
     const dispatch = useDispatch();
+    const { t } = useTranslation(['students']);
     const [searchParams, setSearchParams] = useSearchParams();
     const searchFromUrl = searchParams.get('search') || '';
     const students = useSelector(selectStudents);
@@ -109,11 +111,11 @@ const StudentsPage = () => {
         }
 
         if ((isEditing ? updateStudent : createStudent).fulfilled.match(result)) {
-            toast.success(isEditing ? 'Student updated successfully!' : 'Student created successfully!');
+            toast.success(isEditing ? t('students:toast.updated') : t('students:toast.created'));
             setShowModal(false);
             resetForm();
         } else {
-            toast.error(result.payload || `Failed to ${isEditing ? 'update' : 'create'} student`);
+            toast.error(result.payload || (isEditing ? t('students:toast.updateFailed') : t('students:toast.createFailed')));
         }
     };
 
@@ -206,14 +208,14 @@ const StudentsPage = () => {
             });
             setShowCredentials(true);
             dispatch(fetchStudents()); // refresh list to show linked user
-            toast.success('Login account created!');
+            toast.success(t('students:toast.loginCreated'));
         } else {
-            toast.error(result.payload || 'Failed to create login');
+            toast.error(result.payload || t('students:toast.loginCreateFailed'));
         }
     };
 
     const handleResetPassword = async (student) => {
-        if (!window.confirm(`Reset password for ${student.firstName} ${student.lastName}?`)) return;
+        if (!window.confirm(t('students:confirm.resetPassword', { name: `${student.firstName} ${student.lastName}` }))) return;
         const result = await dispatch(resetStudentPassword(student._id));
         if (resetStudentPassword.fulfilled.match(result)) {
             setCredentials({
@@ -222,9 +224,9 @@ const StudentsPage = () => {
                 studentName: `${student.firstName} ${student.lastName}`
             });
             setShowCredentials(true);
-            toast.success('Password reset successfully!');
+            toast.success(t('students:toast.passwordReset'));
         } else {
-            toast.error(result.payload || 'Failed to reset password');
+            toast.error(result.payload || t('students:toast.passwordResetFailed'));
         }
     };
 
@@ -236,12 +238,15 @@ const StudentsPage = () => {
         ].filter(Boolean).length;
 
         if (parentEmailCount === 0) {
-            toast.error('No parent/guardian email found for this student');
+            toast.error(t('students:toast.noParentEmail'));
             return;
         }
 
         const confirmed = window.confirm(
-            `Send mobile app login credentials to ${parentEmailCount} parent contact(s) for ${student.firstName} ${student.lastName}?\n\nThis will create or reset their parent account password.`
+            t('students:confirm.sendParentCredentials', {
+                count: parentEmailCount,
+                name: `${student.firstName} ${student.lastName}`
+            })
         );
         if (!confirmed) return;
 
@@ -252,17 +257,17 @@ const StudentsPage = () => {
         if (sendParentCredentials.fulfilled.match(result)) {
             setParentCredentialsResult(result.payload.data);
             setShowParentCredentialsResult(true);
-            toast.success(result.payload.message || 'Parent credentials sent');
+            toast.success(result.payload.message || t('students:toast.parentCredentialsSent'));
         } else {
-            toast.error(result.payload || 'Failed to send parent credentials');
+            toast.error(result.payload || t('students:toast.parentCredentialsFailed'));
         }
     };
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text).then(() => {
-            toast.success('Copied to clipboard!');
+            toast.success(t('students:toast.copied'));
         }).catch(() => {
-            toast.error('Failed to copy');
+            toast.error(t('students:toast.copyFailed'));
         });
     };
 
@@ -304,9 +309,9 @@ const StudentsPage = () => {
             setShowBulkCredentials(true);
             setSelectedStudentIds(new Set());
             dispatch(fetchStudents());
-            toast.success(result.payload.message || 'Logins created');
+            toast.success(result.payload.message || t('students:toast.loginsCreated'));
         } else {
-            toast.error(result.payload || 'Failed to create logins');
+            toast.error(result.payload || t('students:toast.loginsCreateFailed'));
         }
     };
 
@@ -324,7 +329,7 @@ const StudentsPage = () => {
         a.download = 'student_login_credentials.csv';
         a.click();
         URL.revokeObjectURL(url);
-        toast.success('CSV downloaded');
+        toast.success(t('students:toast.csvDownloaded'));
     };
 
     const copyAllBulkCredentials = () => {
@@ -347,7 +352,7 @@ const StudentsPage = () => {
     const parseCSV = (text) => {
         const lines = text.split(/\r?\n/).filter(line => line.trim());
         if (lines.length < 2) {
-            setCsvErrors(['CSV must have a header row and at least one data row']);
+            setCsvErrors([t('students:import.csvMustHaveHeader')]);
             return;
         }
 
@@ -355,7 +360,7 @@ const StudentsPage = () => {
         const requiredHeaders = ['firstName', 'lastName', 'dateOfBirth', 'gender'];
         const missing = requiredHeaders.filter(h => !headers.includes(h));
         if (missing.length > 0) {
-            setCsvErrors([`Missing required columns: ${missing.join(', ')}`]);
+            setCsvErrors([t('students:import.missingRequiredColumns', { columns: missing.join(', ') })]);
             return;
         }
 
@@ -365,7 +370,7 @@ const StudentsPage = () => {
         for (let i = 1; i < lines.length; i++) {
             const values = lines[i].split(',').map(v => v.trim());
             if (values.length !== headers.length) {
-                parseErrors.push(`Row ${i}: Expected ${headers.length} columns, got ${values.length}`);
+                parseErrors.push(t('students:import.invalidColumnCount', { row: i, expected: headers.length, actual: values.length }));
                 continue;
             }
             const row = {};
@@ -382,7 +387,7 @@ const StudentsPage = () => {
         if (!file) return;
 
         if (!file.name.endsWith('.csv')) {
-            setCsvErrors(['Please select a .csv file']);
+            setCsvErrors([t('students:toast.selectCsv')]);
             return;
         }
 
@@ -394,11 +399,11 @@ const StudentsPage = () => {
 
     const handleImport = async () => {
         if (!importClassId) {
-            toast.error('Please select a class');
+            toast.error(t('students:toast.selectClass'));
             return;
         }
         if (csvData.length === 0) {
-            toast.error('No valid data to import');
+            toast.error(t('students:toast.noValidData'));
             return;
         }
 
@@ -412,10 +417,10 @@ const StudentsPage = () => {
                 dispatch(fetchStudents());
             }
             if (result.payload.data.failed > 0) {
-                toast.error(`${result.payload.data.failed} rows failed`);
+                toast.error(t('students:toast.rowsFailed', { count: result.payload.data.failed }));
             }
         } else {
-            toast.error(result.payload?.message || 'Import failed');
+            toast.error(result.payload?.message || t('students:toast.importFailed'));
         }
         setImporting(false);
     };
@@ -461,8 +466,8 @@ const StudentsPage = () => {
             {/* Header */}
             <div className="page-header">
                 <div>
-                    <h1>Students</h1>
-                    <p className="text-muted">Manage student records and view performance</p>
+                    <h1>{t('students:page.title')}</h1>
+                    <p className="text-muted">{t('students:page.subtitle')}</p>
                 </div>
                 {isAdmin && (
                     <div className="header-actions">
@@ -470,18 +475,18 @@ const StudentsPage = () => {
                             className="btn btn-outline"
                             onClick={handleBulkCreateLogin}
                             disabled={selectedStudentIds.size === 0 || bulkLoginLoading}
-                            title={selectedStudentIds.size === 0 ? 'Select students without a login first' : ''}
+                            title={selectedStudentIds.size === 0 ? t('students:actions.selectWithoutLoginFirst') : ''}
                         >
                             <HiOutlineUserAdd size={20} />
-                            Create logins for selected ({selectedStudentIds.size})
+                            {t('students:actions.createLoginsForSelected', { count: selectedStudentIds.size })}
                         </button>
                         <button className="btn btn-outline" onClick={() => setShowImportModal(true)}>
                             <HiOutlineUpload size={20} />
-                            Import CSV
+                            {t('students:actions.importCsv')}
                         </button>
                         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
                             <HiOutlinePlus size={20} />
-                            Add Student
+                            {t('students:actions.addStudent')}
                         </button>
                     </div>
                 )}
@@ -493,14 +498,14 @@ const StudentsPage = () => {
                     <HiOutlineSearch className="search-icon" />
                     <input
                         type="text"
-                        placeholder="Search students..."
+                        placeholder={t('students:filters.searchPlaceholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
                 <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)}>
-                    <option value="">All Classes</option>
-                    <option value="unassigned">Unassigned Students</option>
+                    <option value="">{t('students:filters.allClasses')}</option>
+                    <option value="unassigned">{t('students:filters.unassignedStudents')}</option>
                     {classes.map(cls => (
                         <option key={cls._id} value={cls._id}>{cls.name}</option>
                     ))}

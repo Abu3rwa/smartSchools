@@ -1,4 +1,5 @@
 import { HiOutlineInbox } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import { formatTimestamp } from '../utils/messagePresentation';
 
 const ThreadList = ({
@@ -13,56 +14,65 @@ const ThreadList = ({
     onSelectThread,
     onScroll
 }) => (
-    <div className="thread-list">
-        <div className="thread-list-header">
-            <div className="thread-list-title">
-                <HiOutlineInbox size={18} />
-                <span>Inbox</span>
-                {unreadCount > 0 && <span className="unread-pill">{unreadCount}</span>}
+}) => {
+    const { t } = useTranslation(['messages']);
+
+    return (
+        <div className="thread-list">
+            <div className="thread-list-header">
+                <div className="thread-list-title">
+                    <HiOutlineInbox size={18} />
+                    <span>{t('messages:list.inbox')}</span>
+                    {unreadCount > 0 && <span className="unread-pill">{unreadCount}</span>}
+                </div>
+                <label className="toggle">
+                    <input type="checkbox" checked={unreadOnly} onChange={onToggleUnread} />
+                    <span>{t('messages:list.unreadOnly')}</span>
+                </label>
             </div>
-            <label className="toggle">
-                <input type="checkbox" checked={unreadOnly} onChange={onToggleUnread} />
-                <span>Unread only</span>
-            </label>
-        </div>
 
-        <div className="thread-list-body" ref={listRef} onScroll={onScroll}>
-            {loadingThreads && (
-                <div className="loading-container">
-                    <div className="spinner"></div>
-                </div>
-            )}
-
-            {!loadingThreads && threads.length === 0 && (
-                <div className="thread-empty">
-                    <HiOutlineInbox size={28} />
-                    <p>No conversations yet</p>
-                    <span className="text-muted">Start a new thread to reach families and students.</span>
-                </div>
-            )}
-
-            {threads.map((thread) => (
-                <button
-                    key={thread.id}
-                    type="button"
-                    className={`thread-item ${thread.unreadCount > 0 ? 'unread' : ''} ${
-                        selectedThreadId === thread.id ? 'active' : ''
-                    }`}
-                    onClick={() => onSelectThread(thread)}
-                >
-                    <div className="thread-row">
-                        <span className="thread-subject">{thread.subject}</span>
-                        <span className="thread-date">{formatTimestamp(thread.lastMessageAt)}</span>
+            <div className="thread-list-body" ref={listRef} onScroll={onScroll}>
+                {loadingThreads && (
+                    <div className="loading-container">
+                        <div className="spinner"></div>
                     </div>
-                    <span className="thread-participants">{thread.participantsLabel || 'Parent'}</span>
-                    <span className="thread-preview">{thread.preview || 'No messages yet.'}</span>
-                    {thread.unreadCount > 0 && <span className="thread-unread">{thread.unreadCount} new</span>}
-                </button>
-            ))}
+                )}
 
-            {loadingMore && <div className="loading-more">Loading more...</div>}
+                {!loadingThreads && threads.length === 0 && (
+                    <div className="thread-empty">
+                        <HiOutlineInbox size={28} />
+                        <p>{t('messages:list.emptyTitle')}</p>
+                        <span className="text-muted">{t('messages:list.emptySubtitle')}</span>
+                    </div>
+                )}
+
+                {threads.map((thread) => (
+                    <button
+                        key={thread.id}
+                        type="button"
+                        className={`thread-item ${thread.unreadCount > 0 ? 'unread' : ''} ${
+                            selectedThreadId === thread.id ? 'active' : ''
+                        }`}
+                        onClick={() => onSelectThread(thread)}
+                    >
+                        <div className="thread-row">
+                            <span className="thread-subject">{thread.subject}</span>
+                            <span className="thread-date">{formatTimestamp(thread.lastMessageAt)}</span>
+                        </div>
+                        <span className="thread-participants">{thread.participantsLabel || t('messages:list.parentFallback')}</span>
+                        <span className="thread-preview">{thread.preview || t('messages:list.noMessages')}</span>
+                        {thread.unreadCount > 0 && (
+                            <span className="thread-unread">
+                                {t('messages:list.newCount', { count: thread.unreadCount })}
+                            </span>
+                        )}
+                    </button>
+                ))}
+
+                {loadingMore && <div className="loading-more">{t('messages:list.loadingMore')}</div>}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 export default ThreadList;

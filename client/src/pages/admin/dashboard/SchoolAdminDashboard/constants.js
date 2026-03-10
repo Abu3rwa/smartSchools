@@ -36,8 +36,8 @@ export const CHART_STYLES = {
 };
 
 export const QUICK_ACTIONS = [
-    { label: 'View Classes', path: '/portal/classes' },
-    { label: 'View Attendance', path: '/portal/attendance/admin' },
-    { label: 'View Students', path: '/portal/students' },
-    { label: 'View Analytics', path: '/portal/students' },
+    { key: 'viewClasses', path: '/portal/classes' },
+    { key: 'viewAttendance', path: '/portal/attendance/admin' },
+    { key: 'viewStudents', path: '/portal/students' },
+    { key: 'viewAnalytics', path: '/portal/students' },
 ];

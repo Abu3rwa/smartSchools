@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     Box,
     Chip,
@@ -37,6 +38,7 @@ import useNotificationsData from './hooks/useNotificationsData';
 import { QUICK_HOUR_OPTIONS } from './constants';
 import {
     getStatusCategory,
+    getStatusLabel,
     getTypeLabel
 } from './utils/notificationPresentation';
 import NotificationDetailsModal from './components/NotificationDetailsModal';
@@ -44,6 +46,7 @@ import './NotificationsPage.css';
 
 const NotificationsPage = () => {
     const navigate = useNavigate();
+    const { t } = useTranslation(['notifications']);
     const theme = useTheme();
     const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
     const user = useSelector(selectUser);
@@ -92,7 +95,7 @@ const NotificationsPage = () => {
         <Chip
             size="small"
             icon={getStatusIcon(status)}
-            label={status}
+            label={getStatusLabel(status, t)}
             sx={{
                 textTransform: 'capitalize',
                 fontWeight: 600,
@@ -113,8 +116,6 @@ const NotificationsPage = () => {
             }}
         />
     );
-    const getTypeLabel = (type) => (type || 'notification').replace('_', ' ');
-
 
     const handleQuickSend = async (hours) => {
         setQuickSending(true);
@@ -122,10 +123,10 @@ const NotificationsPage = () => {
         try {
             const result = await notificationService.runAttendanceReminder(hours);
             setQuickResult(result);
-            toast.success(`Sent ${result.results.sent} reminder(s)`);
+            toast.success(t('notifications:toasts.remindersSent', { count: result.results.sent }));
             refetchHistory();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to send reminders');
+            toast.error(error.response?.data?.message || t('notifications:toasts.remindersFailed'));
         } finally {
             setQuickSending(false);
         }
@@ -135,8 +136,8 @@ const NotificationsPage = () => {
         <div className="notifications-page">
             <div className="page-header">
                 <div>
-                    <h1>Notifications</h1>
-                    <p className="text-muted">Send grade updates and reports to parents</p>
+                    <h1>{t('notifications:page.title')}</h1>
+                    <p className="text-muted">{t('notifications:page.subtitle')}</p>
                 </div>
 
             </div>
@@ -155,10 +156,10 @@ const NotificationsPage = () => {
                 }}
             >
                 {[
-                    { label: 'Total Sent', value: totalSent, icon: <HiOutlineMail size={20} /> },
-                    { label: 'Delivered', value: deliveredCount, icon: <HiOutlineCheckCircle size={20} />, tone: 'success' },
-                    { label: 'Pending', value: pendingCount, icon: <HiOutlineClock size={20} />, tone: 'warning' },
-                    { label: 'Failed', value: failedCount, icon: <HiOutlineXCircle size={20} />, tone: 'error' }
+                    { label: t('notifications:stats.totalSent'), value: totalSent, icon: <HiOutlineMail size={20} /> },
+                    { label: t('notifications:stats.delivered'), value: deliveredCount, icon: <HiOutlineCheckCircle size={20} />, tone: 'success' },
+                    { label: t('notifications:stats.pending'), value: pendingCount, icon: <HiOutlineClock size={20} />, tone: 'warning' },
+                    { label: t('notifications:stats.failed'), value: failedCount, icon: <HiOutlineXCircle size={20} />, tone: 'error' }
                 ].map((item) => (
                     <Paper
                         key={item.label}
@@ -219,13 +220,13 @@ const NotificationsPage = () => {
                     className={`tab ${activeTab === 'history' ? 'active' : ''}`}
                     onClick={() => setActiveTab('history')}
                 >
-                    Notification History
+                    {t('notifications:tabs.history')}
                 </button>
                 <button
                     className={`tab ${activeTab === 'stats' ? 'active' : ''}`}
                     onClick={() => setActiveTab('stats')}
                 >
-                    Statistics
+                    {t('notifications:tabs.statistics')}
                 </button>
                 {isAdmin && (
                     <button
@@ -233,7 +234,7 @@ const NotificationsPage = () => {
                         onClick={() => setActiveTab('attendance')}
                     >
                         <HiOutlineBell size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                        Attendance Reminders
+                        {t('notifications:tabs.attendanceReminders')}
                     </button>
                 )}
             </div>
@@ -250,7 +251,7 @@ const NotificationsPage = () => {
                     >
                         <TextField
                             size="small"
-                            placeholder="Search by recipient, subject, or type..."
+                            placeholder={t('notifications:filters.searchPlaceholder')}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             sx={{ flex: 1, minWidth: { xs: '100%', md: 320 } }}
@@ -270,28 +271,28 @@ const NotificationsPage = () => {
                             <TextField
                                 select
                                 size="small"
-                                label="Status"
+                                label={t('notifications:filters.status')}
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
                                 sx={{ minWidth: 160 }}
                             >
-                                <MenuItem value="all">All</MenuItem>
-                                <MenuItem value="sent">Sent</MenuItem>
-                                <MenuItem value="pending">Pending</MenuItem>
-                                <MenuItem value="failed">Failed</MenuItem>
+                                <MenuItem value="all">{t('notifications:common.all')}</MenuItem>
+                                <MenuItem value="sent">{t('notifications:status.sent')}</MenuItem>
+                                <MenuItem value="pending">{t('notifications:status.pending')}</MenuItem>
+                                <MenuItem value="failed">{t('notifications:status.failed')}</MenuItem>
                             </TextField>
                             <TextField
                                 select
                                 size="small"
-                                label="Type"
+                                label={t('notifications:filters.type')}
                                 value={typeFilter}
                                 onChange={(e) => setTypeFilter(e.target.value)}
                                 sx={{ minWidth: 180 }}
                             >
-                                <MenuItem value="all">All</MenuItem>
+                                <MenuItem value="all">{t('notifications:common.all')}</MenuItem>
                                 {notificationTypes.map((type) => (
                                     <MenuItem key={type} value={type}>
-                                        {getTypeLabel(type)}
+                                        {getTypeLabel(type, t)}
                                     </MenuItem>
                                 ))}
                             </TextField>
@@ -318,7 +319,7 @@ const NotificationsPage = () => {
                                     <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
                                         <Box sx={{ minWidth: 0 }}>
                                             <Box sx={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                                                {notification.subject || 'No subject'}
+                                                {notification.subject || t('notifications:labels.noSubject')}
                                             </Box>
                                             <Box sx={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                                                 {notification.recipientEmail}
@@ -330,7 +331,7 @@ const NotificationsPage = () => {
                             ))}
                             {filteredNotifications.length === 0 && (
                                 <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', color: 'var(--text-muted)' }}>
-                                    No notifications match your filters
+                                    {t('notifications:labels.noMatch')}
                                 </Paper>
                             )}
                         </Stack>
@@ -339,10 +340,10 @@ const NotificationsPage = () => {
                             <Table size={isSmDown ? 'small' : 'medium'}>
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell>Status</TableCell>
-                                        <TableCell>Subject</TableCell>
-                                        {!isSmDown && <TableCell>Date</TableCell>}
-                                        <TableCell>Type</TableCell>
+                                        <TableCell>{t('notifications:table.status')}</TableCell>
+                                        <TableCell>{t('notifications:table.subject')}</TableCell>
+                                        {!isSmDown && <TableCell>{t('notifications:table.date')}</TableCell>}
+                                        <TableCell>{t('notifications:table.type')}</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -365,7 +366,7 @@ const NotificationsPage = () => {
                                             <TableCell>
                                                 <Chip
                                                     size="small"
-                                                    label={getTypeLabel(notification.type)}
+                                                    label={getTypeLabel(notification.type, t)}
                                                     sx={{
                                                         textTransform: 'capitalize',
                                                         fontWeight: 600,
@@ -380,7 +381,7 @@ const NotificationsPage = () => {
                                     {filteredNotifications.length === 0 && (
                                         <TableRow>
                                             <TableCell colSpan={tableColumnCount} className="empty-row">
-                                                No notifications match your filters
+                                                {t('notifications:labels.noMatch')}
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -398,21 +399,21 @@ const NotificationsPage = () => {
                         <HiOutlineMail size={32} />
                         <div>
                             <span className="stat-value">{totalSent}</span>
-                            <span className="stat-label">Total Sent</span>
+                            <span className="stat-label">{t('notifications:stats.totalSent')}</span>
                         </div>
                     </div>
                     <div className="stat-card">
                         <HiOutlineCheckCircle size={32} />
                         <div>
                             <span className="stat-value">{deliveredCount}</span>
-                            <span className="stat-label">Delivered</span>
+                            <span className="stat-label">{t('notifications:stats.delivered')}</span>
                         </div>
                     </div>
                     <div className="stat-card">
                         <HiOutlineXCircle size={32} />
                         <div>
                             <span className="stat-value">{failedCount}</span>
-                            <span className="stat-label">Failed</span>
+                            <span className="stat-label">{t('notifications:stats.failed')}</span>
                         </div>
                     </div>
                 </div>
@@ -425,9 +426,9 @@ const NotificationsPage = () => {
                         <div className="quick-panel-header">
                             <HiOutlineBell size={22} />
                             <div>
-                                <h3 style={{ margin: 0 }}>Quick Send Reminders</h3>
+                                <h3 style={{ margin: 0 }}>{t('notifications:attendance.quickTitle')}</h3>
                                 <p className="text-muted" style={{ margin: '4px 0 0', fontSize: '0.85rem' }}>
-                                    Notify teachers who missed recording attendance
+                                    {t('notifications:attendance.quickSubtitle')}
                                 </p>
                             </div>
                         </div>
@@ -441,7 +442,7 @@ const NotificationsPage = () => {
                                     disabled={quickSending}
                                 >
                                     <HiOutlinePaperAirplane size={16} />
-                                    <span>{opt.label} ago</span>
+                                    <span>{t('notifications:attendance.hoursAgo', { hours: opt.label })}</span>
                                 </button>
                             ))}
                         </div>
@@ -449,7 +450,7 @@ const NotificationsPage = () => {
                         {quickSending && (
                             <div className="quick-sending-indicator">
                                 <div className="spinner" style={{ width: 20, height: 20 }}></div>
-                                <span>Sending reminders...</span>
+                                <span>{t('notifications:attendance.sending')}</span>
                             </div>
                         )}
 
@@ -457,14 +458,14 @@ const NotificationsPage = () => {
                             <div className="quick-result">
                                 <div className="quick-result-stats">
                                     <span className="quick-stat">
-                                        <strong>{quickResult.results.sent}</strong> sent
+                                        <strong>{quickResult.results.sent}</strong> {t('notifications:attendance.sent')}
                                     </span>
                                     <span className="quick-stat muted">
-                                        <strong>{quickResult.results.skipped}</strong> skipped
+                                        <strong>{quickResult.results.skipped}</strong> {t('notifications:attendance.skipped')}
                                     </span>
                                     {quickResult.results.failed > 0 && (
                                         <span className="quick-stat error">
-                                            <strong>{quickResult.results.failed}</strong> failed
+                                            <strong>{quickResult.results.failed}</strong> {t('notifications:attendance.failed')}
                                         </span>
                                     )}
                                 </div>
@@ -475,7 +476,7 @@ const NotificationsPage = () => {
                             className="view-all-link"
                             onClick={() => navigate('/portal/attendance-reminders')}
                         >
-                            View full reminder history & advanced options
+                            {t('notifications:attendance.viewHistory')}
                             <HiOutlineArrowRight size={16} />
                         </button>
                     </div>
@@ -488,6 +489,7 @@ const NotificationsPage = () => {
                 onClose={() => setSelectedNotification(null)}
                 getStatusIcon={getStatusIcon}
                 getTypeLabel={getTypeLabel}
+                getStatusLabel={getStatusLabel}
             />
 
         </div>

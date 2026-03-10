@@ -1,0 +1,62 @@
+{
+  "header": {
+    "title": "School Dashboard",
+    "subtitle": "Welcome back, {{firstName}}. Here's your school overview for {{todayLabel}}."
+  },
+  "stats": {
+    "totalStudents": "Total Students",
+    "totalClasses": "Total Classes",
+    "teachers": "Teachers",
+    "activeTeachers": "{{count}} active",
+    "attendanceRate": "Attendance Rate",
+    "attendanceToday": "{{present}}/{{total}} today",
+    "noData": "No attendance data yet"
+  },
+  "common": {
+    "viewAll": "View All",
+    "viewDetails": "View Details",
+    "unassigned": "Unassigned",
+    "classFallback": "Class",
+    "noDataShort": "N/A"
+  },
+  "classDistribution": {
+    "title": "Class Distribution",
+    "students": "Students"
+  },
+  "performanceTrend": {
+    "title": "Performance Trend",
+    "subtitle": "Average grades over time",
+    "average": "Average"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "items": {
+      "viewClasses": "View Classes",
+      "viewAttendance": "View Attendance",
+      "viewStudents": "View Students",
+      "viewAnalytics": "View Analytics"
+    }
+  },
+  "attendanceCard": {
+    "title": "Attendance Snapshot",
+    "present": "Present",
+    "absent": "Absent",
+    "classes": "Classes"
+  },
+  "recentStudents": {
+    "title": "Recent Students",
+    "empty": "No recent students found"
+  },
+  "classesOverview": {
+    "title": "Classes Overview",
+    "studentCount": "{{count}} students",
+    "empty": "No classes found"
+  },
+  "loading": {
+    "message": "Loading dashboard..."
+  },
+  "error": {
+    "message": "Unable to load dashboard. {{message}}",
+    "retry": "Retry"
+  }
+}

@@ -1,6 +1,9 @@
+import { AI_LANGUAGE_OPTIONS } from '../../../constants/aiLanguages';
+
 export const QUESTION_TYPE_OPTIONS = ['multiple_choice', 'short_answer', 'true_false'];
 export const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard'];
 export const SEMESTER_OPTIONS = [1, 2];
+export const AI_STANDARD_LANGUAGE_OPTIONS = AI_LANGUAGE_OPTIONS;
 
 export const DEFAULT_PRACTICE_CONFIG = {
     sessionType: 'practice',
@@ -32,6 +35,7 @@ export const createInitialFormData = (semester = 1) => ({
     students: [],
     dueDate: '',
     instructions: '',
+    aiLanguages: ['en'],
     practiceConfig: {
         ...DEFAULT_PRACTICE_CONFIG,
         allowedQuestionTypes: [...DEFAULT_PRACTICE_CONFIG.allowedQuestionTypes],

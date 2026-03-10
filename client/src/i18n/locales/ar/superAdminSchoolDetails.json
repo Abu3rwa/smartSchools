@@ -1,0 +1,97 @@
+{
+  "toast": {
+    "loadFailed": "فشل تحميل تفاصيل المدرسة",
+    "statusActivated": "تم تفعيل المدرسة بنجاح",
+    "statusSuspended": "تم تعليق المدرسة بنجاح",
+    "updateStatusFailed": "فشل تحديث حالة المدرسة"
+  },
+  "common": {
+    "na": "غير متوفر",
+    "yes": "نعم",
+    "no": "لا",
+    "enabled": "مفعّل",
+    "disabled": "معطّل"
+  },
+  "empty": {
+    "schoolNotFound": "المدرسة غير موجودة"
+  },
+  "header": {
+    "backToSchools": "العودة إلى المدارس"
+  },
+  "actions": {
+    "suspend": "تعليق",
+    "activate": "تفعيل",
+    "settings": "الإعدادات"
+  },
+  "tabs": {
+    "overview": "نظرة عامة",
+    "users": "المستخدمون",
+    "subscription": "الاشتراك",
+    "settings": "الإعدادات"
+  },
+  "badge": {
+    "plan": "خطة {{plan}}"
+  },
+  "status": {
+    "active": "نشطة",
+    "suspended": "معلقة",
+    "trial": "تجريبية",
+    "inactive": "غير نشطة",
+    "cancelled": "ملغاة"
+  },
+  "plan": {
+    "starter": "مبتدئة",
+    "professional": "احترافية",
+    "enterprise": "مؤسسية"
+  },
+  "overview": {
+    "totalUsers": "إجمالي المستخدمين",
+    "students": "الطلاب",
+    "teachers": "المعلمون",
+    "classes": "الفصول"
+  },
+  "contact": {
+    "title": "معلومات التواصل",
+    "adminEmail": "بريد المسؤول",
+    "supportEmail": "بريد الدعم",
+    "phone": "الهاتف",
+    "address": "العنوان"
+  },
+  "timeline": {
+    "title": "الجدول الزمني",
+    "created": "تاريخ الإنشاء",
+    "lastUpdated": "آخر تحديث",
+    "subscriptionStart": "بداية الاشتراك",
+    "subscriptionEnd": "نهاية الاشتراك"
+  },
+  "users": {
+    "administrators": "المسؤولون",
+    "teachers": "المعلمون",
+    "students": "الطلاب",
+    "classes": "الفصول",
+    "recentActivityTitle": "النشاط الأخير",
+    "recentActivityPlaceholder": "سيتم عرض نشاط المستخدمين وسجل تسجيل الدخول هنا"
+  },
+  "subscription": {
+    "currentPlan": "الخطة الحالية: {{plan}}",
+    "maxStudents": "الحد الأقصى للطلاب: {{value}}",
+    "status": "الحالة: {{status}}",
+    "currentStudents": "الطلاب الحاليون: {{value}}",
+    "parentPortal": "بوابة أولياء الأمور: {{value}}",
+    "advancedAnalytics": "التحليلات المتقدمة: {{value}}",
+    "customReports": "التقارير المخصصة: {{value}}",
+    "emailNotifications": "إشعارات البريد: {{value}}",
+    "infoTitle": "معلومات الاشتراك",
+    "stripeCustomerId": "معرّف عميل Stripe",
+    "stripeSubscriptionId": "معرّف اشتراك Stripe",
+    "trialEnds": "نهاية الفترة التجريبية",
+    "currentPeriodEnd": "نهاية الفترة الحالية",
+    "cancelAtPeriodEnd": "الإلغاء عند نهاية الفترة",
+    "lastBilledAmount": "آخر مبلغ مفوتر",
+    "lastInvoiceDate": "تاريخ آخر فاتورة"
+  },
+  "settings": {
+    "title": "إعدادات المدرسة",
+    "placeholder": "سيتم عرض الإعدادات العامة والمتقدمة هنا"
+  }
+}

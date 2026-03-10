@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     fetchTeachers,
     selectTeachers,
@@ -29,6 +30,7 @@ import './TeachersPage.css';
 const TeachersPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { t } = useTranslation(['teachers']);
     const teachers = useSelector(selectTeachers);
     const subjects = useSelector(selectSubjects);
     const classes = useSelector(selectClasses);
@@ -81,11 +83,11 @@ const TeachersPage = () => {
                 department: formData.department || null
             }));
             if (createTeacher.fulfilled.match(result)) {
-                toast.success('Teacher created successfully!');
+                toast.success(t('teachers:toast.created'));
                 setShowModal(false);
                 resetFormData();
             } else {
-                toast.error(result.payload || 'Failed to create teacher');
+                toast.error(result.payload || t('teachers:toast.createFailed'));
             }
         } finally {
             setSubmitting(false);
@@ -110,12 +112,12 @@ const TeachersPage = () => {
             }));
 
             if (updateTeacher.fulfilled.match(result)) {
-                toast.success('Teacher updated successfully!');
+                toast.success(t('teachers:toast.updated'));
                 setShowEditModal(false);
                 setEditingTeacher(null);
                 resetFormData();
             } else {
-                toast.error(result.payload || 'Failed to update teacher');
+                toast.error(result.payload || t('teachers:toast.updateFailed'));
             }
         } finally {
             setSubmitting(false);
@@ -123,19 +125,19 @@ const TeachersPage = () => {
     };
 
     const handleDeleteTeacher = async (teacher) => {
-        if (!window.confirm(`Are you sure you want to delete ${teacher.user?.firstName} ${teacher.user?.lastName}?`)) {
+        if (!window.confirm(t('teachers:confirm.deleteTeacher', { name: `${teacher.user?.firstName || ''} ${teacher.user?.lastName || ''}`.trim() }))) {
             return;
         }
 
         try {
             const result = await dispatch(deleteTeacher(teacher._id));
             if (deleteTeacher.fulfilled.match(result)) {
-                toast.success('Teacher deleted successfully!');
+                toast.success(t('teachers:toast.deleted'));
             } else {
-                toast.error(result.payload || 'Failed to delete teacher');
+                toast.error(result.payload || t('teachers:toast.deleteFailed'));
             }
         } catch (error) {
-            toast.error('Failed to delete teacher');
+            toast.error(t('teachers:toast.deleteFailed'));
         }
     };
 
@@ -150,7 +152,7 @@ const TeachersPage = () => {
 
         const validAssignments = assignments.filter((assignment) => assignment.classId && assignment.subjectId);
         if (validAssignments.length === 0) {
-            toast.error('Please select at least one class and subject');
+            toast.error(t('teachers:toast.selectClassAndSubject'));
             return;
         }
 
@@ -164,12 +166,12 @@ const TeachersPage = () => {
             }));
 
             if (assignMultipleClassesToTeacher.fulfilled.match(result)) {
-                toast.success('Classes assigned successfully!');
+                toast.success(t('teachers:toast.assigned'));
                 setShowAssignModal(false);
                 setSelectedTeacher(null);
                 resetAssignments();
             } else {
-                toast.error(result.payload || 'Failed to assign classes');
+                toast.error(result.payload || t('teachers:toast.assignFailed'));
             }
         } finally {
             setSubmitting(false);
@@ -186,7 +188,7 @@ const TeachersPage = () => {
         if (!file) return;
 
         if (!file.name.toLowerCase().endsWith('.csv')) {
-            toast.error('Please select a CSV file');
+            toast.error(t('teachers:toast.selectCsv'));
             return;
         }
 
@@ -198,7 +200,7 @@ const TeachersPage = () => {
             return;
         }
         if (rows.length === 0) {
-            toast.error('No valid rows found in CSV');
+            toast.error(t('teachers:toast.noValidRows'));
             return;
         }
 
@@ -207,11 +209,11 @@ const TeachersPage = () => {
             const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
             const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
             const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
-            toast.success(response?.message || `Imported ${imported} teachers`);
+            toast.success(response?.message || t('teachers:toast.imported', { count: imported }));
             if (failed > 0) {
-                toast.error(`${failed} teacher rows failed`);
+                toast.error(t('teachers:toast.importFailedRows', { count: failed }));
             } else if (skipped > 0) {
-                toast(`${skipped} teacher rows skipped`);
+                toast(t('teachers:toast.importSkippedRows', { count: skipped }));
             }
             dispatch(fetchTeachers());
         } catch (importError) {
@@ -220,14 +222,18 @@ const TeachersPage = () => {
             const skipped = responseData?.summary?.skippedRows ?? responseData?.data?.skipped ?? 0;
             const rowErrors = responseData?.errors || responseData?.data?.errors || [];
 
-            toast.error(responseData?.message || 'Failed to import teachers');
+            toast.error(responseData?.message || t('teachers:toast.importFailed'));
 
             if (failed > 0 && rowErrors.length > 0) {
                 const firstError = rowErrors[0];
                 const field = firstError?.field ? `${firstError.field}: ` : '';
-                toast.error(`Row ${firstError?.row || '?'} ${field}${firstError?.message || 'Import validation failed'}`);
+                toast.error(t('teachers:toast.importRowError', {
+                    row: firstError?.row || '?',
+                    field,
+                    message: firstError?.message || t('teachers:toast.importValidationFailed')
+                }));
             } else if (failed === 0 && skipped > 0) {
-                toast(`${skipped} teacher rows skipped`);
+                toast(t('teachers:toast.importSkippedRows', { count: skipped }));
             }
         }
     };

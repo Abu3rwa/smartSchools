@@ -26,13 +26,31 @@ export const getIncidentTypeIcon = (type) => {
     return <HiOutlineX className="text-warning" />;
 };
 
-export const formatStudentClassLabel = (student) => {
+export const formatTokenLabel = (value = '') =>
+    String(value || '')
+        .split('_')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+
+export const getTranslatedValue = (t, keyPrefix, value) =>
+    t(`${keyPrefix}.${value}`, {
+        defaultValue: formatTokenLabel(value)
+    });
+
+export const formatStudentClassLabel = (student, t) => {
     const studentClass = student?.currentClass;
-    if (!studentClass || typeof studentClass !== 'object') return 'Not assigned';
+    if (!studentClass || typeof studentClass !== 'object') {
+        return t('behaviorManagement:common.notAssigned');
+    }
     const parts = [
         studentClass.name,
-        studentClass.grade ? `Grade ${studentClass.grade}` : null,
-        studentClass.section ? `Section ${studentClass.section}` : null
+        studentClass.grade
+            ? t('behaviorManagement:common.gradeValue', { grade: studentClass.grade })
+            : null,
+        studentClass.section
+            ? t('behaviorManagement:common.sectionValue', { section: studentClass.section })
+            : null
     ].filter(Boolean);
     return parts.join(' • ');
 };

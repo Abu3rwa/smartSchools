@@ -1,10 +1,14 @@
+import { useTranslation } from 'react-i18next';
+
 const ErrorState = ({
     message,
     emptyText = '',
-    retryLabel = 'Retry',
+    retryLabel,
     onRetry,
     disableRetry = false
 }) => {
+    const { t } = useTranslation(['standardAssign']);
+
     return (
         <div className="assign-empty" style={{ padding: 'var(--spacing-lg) 0' }}>
             <p>{message || emptyText}</p>
@@ -15,7 +19,7 @@ const ErrorState = ({
                     onClick={onRetry}
                     disabled={disableRetry}
                 >
-                    {retryLabel}
+                    {retryLabel || t('standardAssign:actions.retry')}
                 </button>
             )}
         </div>

@@ -1,5 +1,6 @@
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
+import { useTranslation } from 'react-i18next';
 
 const StandardAssignProgressModal = ({
     show,
@@ -12,13 +13,15 @@ const StandardAssignProgressModal = ({
     getProgressStatusDisplay,
     getMasteryColor
 }) => {
+    const { t } = useTranslation(['standardAssign']);
+
     if (!show) return null;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 650 }}>
                 <div className="modal-header">
-                    <h3>Student Progress</h3>
+                    <h3>{t('standardAssign:progress.title')}</h3>
                     <button className="modal-close" onClick={onClose}>
                         &times;
                     </button>
@@ -28,7 +31,7 @@ const StandardAssignProgressModal = ({
                         <LoadingState />
                     ) : !assignmentProgress ? (
                         <ErrorState
-                            message={standardsError || 'Unable to load progress for this assignment.'}
+                            message={standardsError || t('standardAssign:error.unableToLoadProgress')}
                             onRetry={onRetry}
                             disableRetry={!progressAssignmentId}
                         />
@@ -55,20 +58,20 @@ const StandardAssignProgressModal = ({
                                 }}
                             >
                                 <span>
-                                    Total: <strong>{assignmentProgress.summary?.totalStudents}</strong>
+                                    {t('standardAssign:progress.total')} <strong>{assignmentProgress.summary?.totalStudents}</strong>
                                 </span>
                                 <span style={{ color: 'var(--success-600, #059669)' }}>
-                                    Mastered: <strong>{assignmentProgress.summary?.mastered}</strong>
+                                    {t('standardAssign:progress.mastered')} <strong>{assignmentProgress.summary?.mastered}</strong>
                                 </span>
                                 <span style={{ color: 'var(--warning-600, #d97706)' }}>
-                                    In Progress: <strong>{assignmentProgress.summary?.inProgress}</strong>
+                                    {t('standardAssign:progress.inProgress')} <strong>{assignmentProgress.summary?.inProgress}</strong>
                                 </span>
                                 <span style={{ color: 'var(--error-600, #b91c1c)' }}>
-                                    Needs Review:{' '}
+                                    {t('standardAssign:progress.needsReview')}{' '}
                                     <strong>{assignmentProgress.summary?.needsReview || 0}</strong>
                                 </span>
                                 <span>
-                                    Not Started: <strong>{assignmentProgress.summary?.notStarted}</strong>
+                                    {t('standardAssign:progress.notStarted')} <strong>{assignmentProgress.summary?.notStarted}</strong>
                                 </span>
                             </div>
                             <div className="progress-list">
@@ -91,7 +94,7 @@ const StandardAssignProgressModal = ({
                                                 </span>
                                                 <span>
                                                     {studentProgress.mastery.correctCount}/
-                                                    {studentProgress.mastery.totalAttempts} correct
+                                                    {studentProgress.mastery.totalAttempts} {t('standardAssign:progress.correct')}
                                                 </span>
                                                 <div className="progress-bar-mini">
                                                     <div
@@ -106,7 +109,7 @@ const StandardAssignProgressModal = ({
                                                 <span>{studentProgress.mastery.percentage}%</span>
                                                 {studentProgress.mastery.isMastered && (
                                                     <span className="mastery-badge mastered">
-                                                        Mastered
+                                                        {t('standardAssign:progress.masteredBadge')}
                                                     </span>
                                                 )}
                                             </div>

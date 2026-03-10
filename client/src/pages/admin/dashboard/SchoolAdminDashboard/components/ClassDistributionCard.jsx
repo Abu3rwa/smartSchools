@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import {
     ResponsiveContainer,
     BarChart,
@@ -17,8 +18,10 @@ import { truncateClassLabel } from '../utils/schoolAdminDashboardPresentation.js
  * Class distribution bar chart card. Uses existing CSS: btn-link.
  */
 export default function ClassDistributionCard({ data }) {
+    const { t, i18n } = useTranslation(['adminDashboard']);
     const theme = useTheme();
     const isSm = useMediaQuery(theme.breakpoints.down('sm'));
+    const isRtl = i18n.dir() === 'rtl';
 
     if (!data || data.length === 0) return null;
 
@@ -32,10 +35,10 @@ export default function ClassDistributionCard({ data }) {
                 }}
             >
                 <Typography component="h3" sx={CARD_TITLE_SX}>
-                    Class Distribution
+                    {t('adminDashboard:classDistribution.title')}
                 </Typography>
                 <Link to="/portal/classes" className="btn-link">
-                    View All <HiOutlineArrowRight size={16} />
+                    {t('adminDashboard:common.viewAll')} <HiOutlineArrowRight size={16} style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />
                 </Link>
             </Box>
             <Box
@@ -99,6 +102,7 @@ export default function ClassDistributionCard({ data }) {
                             dataKey="students"
                             fill="var(--primary, #5aaeee)"
                             radius={[4, 4, 0, 0]}
+                            name={t('adminDashboard:classDistribution.students')}
                         />
                     </BarChart>
                 </ResponsiveContainer>

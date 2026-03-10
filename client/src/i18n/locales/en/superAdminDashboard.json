@@ -1,0 +1,59 @@
+{
+  "header": {
+    "title": "Platform Analytics",
+    "subtitle": "SaaS business metrics and engagement overview"
+  },
+  "common": {
+    "period": "Period",
+    "school": "School"
+  },
+  "stats": {
+    "totalSchools": "Total Schools",
+    "totalUsers": "Total Users",
+    "totalStudents": "Total Students",
+    "monthlyRecurringRevenue": "Monthly Recurring Revenue"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "addSchool": "Add School",
+    "viewAllSchools": "View all schools"
+  },
+  "analytics": {
+    "revenueGrowthTitle": "Revenue & Growth",
+    "revenueGrowthSubtitle": "New subscriptions and recurring revenue over the last year.",
+    "notEnoughData": "Not enough data yet.",
+    "currentMrr": "Current MRR",
+    "totalCollected": "Total collected",
+    "plansTitle": "Plans",
+    "plansSubtitle": "Distribution of schools across subscription plans.",
+    "noSubscriptions": "No subscriptions yet.",
+    "studentDistribution": "Student Distribution"
+  },
+  "charts": {
+    "revenue": "Revenue"
+  },
+  "schools": {
+    "title": "Schools",
+    "empty": "No schools yet. Create your first school to get started.",
+    "table": {
+      "school": "School",
+      "admin": "Admin",
+      "users": "Users",
+      "students": "Students",
+      "plan": "Plan",
+      "status": "Status"
+    }
+  },
+  "plan": {
+    "starter": "Starter",
+    "professional": "Professional",
+    "enterprise": "Enterprise"
+  },
+  "status": {
+    "active": "Active",
+    "trial": "Trial",
+    "suspended": "Suspended",
+    "cancelled": "Cancelled",
+    "inactive": "Inactive"
+  }
+}

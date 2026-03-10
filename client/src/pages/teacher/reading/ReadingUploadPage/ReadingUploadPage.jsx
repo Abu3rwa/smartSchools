@@ -1,5 +1,6 @@
 import { HiOutlineArrowLeft, HiOutlineDocumentAdd } from "react-icons/hi";
 import { useReadingUploadData } from "./hooks/useReadingUploadData.js";
+import { AI_LANGUAGE_OPTIONS } from "../../../../constants/aiLanguages.js";
 import "./ReadingUploadPage.css";
 
 export default function ReadingUploadPage() {
@@ -18,6 +19,10 @@ export default function ReadingUploadPage() {
     setClassId,
     generateVersions,
     setGenerateVersions,
+    aiPrimaryLanguage,
+    setAiPrimaryLanguage,
+    aiSecondaryLanguage,
+    setAiSecondaryLanguage,
     uploading,
     classes,
     handleSubmit,
@@ -107,6 +112,42 @@ export default function ReadingUploadPage() {
             Improves simplification and questions using this class&apos;s reading
             levels
           </span>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="aiPrimaryLanguage">Primary AI language</label>
+            <select
+              id="aiPrimaryLanguage"
+              value={aiPrimaryLanguage}
+              onChange={(e) => {
+                const nextPrimary = e.target.value;
+                setAiPrimaryLanguage(nextPrimary);
+                if (nextPrimary === aiSecondaryLanguage) {
+                  setAiSecondaryLanguage("");
+                }
+              }}
+            >
+              {AI_LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="aiSecondaryLanguage">Secondary AI language (optional)</label>
+            <select
+              id="aiSecondaryLanguage"
+              value={aiSecondaryLanguage}
+              onChange={(e) => setAiSecondaryLanguage(e.target.value)}
+            >
+              <option value="">None</option>
+              {AI_LANGUAGE_OPTIONS
+                .filter((option) => option.value !== aiPrimaryLanguage)
+                .map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+            </select>
+          </div>
         </div>
 
         <div className="form-group">

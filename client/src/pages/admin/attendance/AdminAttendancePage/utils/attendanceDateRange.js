@@ -41,11 +41,11 @@ export function navigateDateByViewMode(currentDate, viewMode, direction) {
     return newDate;
 }
 
-export function getDateRangeText(currentDate, viewMode) {
+export function getDateRangeText(currentDate, viewMode, locale = undefined) {
     const today = new Date(currentDate);
 
     if (viewMode === VIEW_MODES.TODAY) {
-        return today.toLocaleDateString('en-US', {
+        return today.toLocaleDateString(locale, {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
@@ -58,16 +58,20 @@ export function getDateRangeText(currentDate, viewMode) {
         startOfWeek.setDate(today.getDate() - today.getDay());
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
-        return `${startOfWeek.toLocaleDateString()} - ${endOfWeek.toLocaleDateString()}`;
+        return `${startOfWeek.toLocaleDateString(locale)} - ${endOfWeek.toLocaleDateString(locale)}`;
     }
 
-    return today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    return today.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
 }
 
-export function formatDateTime(date) {
-    return new Date(date).toLocaleString();
+export function formatDateTime(date, locale = undefined) {
+    return new Date(date).toLocaleString(locale);
 }
 
-export function formatTime(date) {
-    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+export function formatTime(date, locale = undefined) {
+    return new Date(date).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+}
+
+export function formatDate(date, locale = undefined) {
+    return new Date(date).toLocaleDateString(locale);
 }

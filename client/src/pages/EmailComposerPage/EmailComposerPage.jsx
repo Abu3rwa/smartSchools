@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { HiOutlineClock, HiOutlineSparkles } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import Editor, {
     BtnBold,
     BtnBulletList,
@@ -23,8 +24,9 @@ import {
     removeCommunicationAttachment,
     sendCommunicationEmail,
     uploadCommunicationAttachments
-} from '../../../api/communicationEmailApi';
-import UpgradePrompt from '../../../components/UpgradePrompt';
+} from '../../api/communicationEmailApi';
+import UpgradePrompt from '../../components/UpgradePrompt';
+import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../constants/aiLanguages';
 import './EmailComposerPage.css';
 
 const DEFAULT_FIELD_STATE = {
@@ -97,6 +99,7 @@ const formatFileSize = (bytes) => {
 const isGroupToken = (token) => token?.tokenType === 'group';
 
 const RecipientSelectorField = ({
+    t,
     fieldKey,
     label,
     state,
@@ -107,7 +110,7 @@ const RecipientSelectorField = ({
     onAddToken,
     onRemoveToken
 }) => {
-    const placeholder = `Search ${label.toLowerCase()}...`;
+    const placeholder = t('recipients.searchPlaceholder', { label });
 
     return (
         <div className="recipient-field">
@@ -118,21 +121,23 @@ const RecipientSelectorField = ({
                         className={`recipient-chip ${isGroupToken(token) ? 'group' : 'individual'} audience-${token.audience || fieldKey}`}
                         title={token.subtitle || token.label}
                     >
-                        <span className="chip-audience">{token.audience || fieldKey}</span>
+                        <span className="chip-audience">
+                            {t(`recipients.audience.${token.audience || fieldKey}`, { defaultValue: token.audience || fieldKey })}
+                        </span>
                         <span className="chip-label">{token.label}</span>
                         <button
                             type="button"
                             className="chip-remove"
                             onClick={() => onRemoveToken(fieldKey, token.key)}
                             disabled={disabled}
-                            aria-label={`Remove ${token.label}`}
+                            aria-label={t('recipients.removeRecipientAria', { name: token.label })}
                         >
                             ×
                         </button>
                     </span>
                 ))}
                 {state.selected.length === 0 && (
-                    <span className="recipient-empty">No recipients selected</span>
+                    <span className="recipient-empty">{t('recipients.empty')}</span>
                 )}
             </div>
 
@@ -148,9 +153,9 @@ const RecipientSelectorField = ({
 
             {state.open && (
                 <div className="recipient-suggestions">
-                    {state.loading && <div className="recipient-suggestion-row muted">Loading suggestions...</div>}
+                    {state.loading && <div className="recipient-suggestion-row muted">{t('recipients.loadingSuggestions')}</div>}
                     {!state.loading && state.options.length === 0 && (
-                        <div className="recipient-suggestion-row muted">No suggestions in your allowed scope</div>
+                        <div className="recipient-suggestion-row muted">{t('recipients.noSuggestionsInScope')}</div>
                     )}
                     {!state.loading && state.options.map((option) => (
                         <button
@@ -161,7 +166,7 @@ const RecipientSelectorField = ({
                             onClick={() => onAddToken(fieldKey, option)}
                         >
                             <span className={`suggestion-type ${option.tokenType || 'group'}`}>
-                                {option.tokenType || 'group'}
+                                {t(`recipients.tokenType.${option.tokenType || 'group'}`)}
                             </span>
                             <span className="suggestion-main">
                                 <span className="suggestion-label">{option.label}</span>
@@ -177,7 +182,7 @@ const RecipientSelectorField = ({
     );
 };
 
-const RichTextEditor = ({ value, onChange, disabled }) => {
+const RichTextEditor = ({ value, onChange, disabled, t }) => {
     const handleChange = (event) => {
         onChange(event?.target?.value || '');
     };
@@ -188,7 +193,7 @@ const RichTextEditor = ({ value, onChange, disabled }) => {
                 value={value}
                 onChange={handleChange}
                 disabled={disabled}
-                placeholder="Write your email message..."
+                placeholder={t('fields.messagePlaceholder')}
             >
                 <Toolbar>
                     <BtnUndo />
@@ -207,6 +212,7 @@ const RichTextEditor = ({ value, onChange, disabled }) => {
 };
 
 const EmailComposerPage = () => {
+    const { t } = useTranslation(['emailComposer']);
     const [config, setConfig] = useState(null);
     const [loadingConfig, setLoadingConfig] = useState(true);
     const [fields, setFields] = useState(initialFields);
@@ -228,6 +234,8 @@ const EmailComposerPage = () => {
     const [showAiDraftModal, setShowAiDraftModal] = useState(false);
     const [aiDraftPrompt, setAiDraftPrompt] = useState('');
     const [aiDraftTone, setAiDraftTone] = useState('professional');
+    const [aiDraftPrimaryLanguage, setAiDraftPrimaryLanguage] = useState('en');
+    const [aiDraftSecondaryLanguage, setAiDraftSecondaryLanguage] = useState('');
     const [generatingAiDraft, setGeneratingAiDraft] = useState(false);
     const [draftHydrated, setDraftHydrated] = useState(false);
     const fileInputRef = useRef(null);
@@ -266,11 +274,11 @@ const EmailComposerPage = () => {
             const data = await fetchCommunicationComposerConfig();
             setConfig(data);
         } catch (error) {
-            toast.error(error.message || 'Failed to load composer');
+            toast.error(error.message || t('errors.loadComposer'));
         } finally {
             setLoadingConfig(false);
         }
-    }, []);
+    }, [t]);
 
     const loadHistory = useCallback(async () => {
         setHistoryLoading(true);
@@ -278,11 +286,11 @@ const EmailComposerPage = () => {
             const data = await fetchCommunicationEmailHistory({ page: 1, limit: 15 });
             setHistory(data.items || []);
         } catch (error) {
-            toast.error(error.message || 'Failed to load history');
+            toast.error(error.message || t('errors.loadHistory'));
         } finally {
             setHistoryLoading(false);
         }
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         loadComposerConfig();
@@ -299,6 +307,8 @@ const EmailComposerPage = () => {
                 setSubject(String(parsed?.subject || ''));
                 setBodyHtml(String(parsed?.bodyHtml || DEFAULT_BODY_HTML) || DEFAULT_BODY_HTML);
                 setAiDraftTone(String(parsed?.aiDraftTone || 'professional'));
+                setAiDraftPrimaryLanguage(String(parsed?.aiDraftPrimaryLanguage || 'en'));
+                setAiDraftSecondaryLanguage(String(parsed?.aiDraftSecondaryLanguage || ''));
                 setDeliveryMode(parsed?.deliveryMode === 'schedule' ? 'schedule' : 'now');
                 setScheduledForLocal(String(parsed?.scheduledForLocal || ''));
                 setFields({
@@ -330,6 +340,8 @@ const EmailComposerPage = () => {
             subject: String(subject || ''),
             bodyHtml: String(bodyHtml || DEFAULT_BODY_HTML) || DEFAULT_BODY_HTML,
             aiDraftTone: String(aiDraftTone || 'professional'),
+            aiDraftPrimaryLanguage: String(aiDraftPrimaryLanguage || 'en'),
+            aiDraftSecondaryLanguage: String(aiDraftSecondaryLanguage || ''),
             deliveryMode,
             scheduledForLocal: String(scheduledForLocal || ''),
             fields: {
@@ -342,6 +354,8 @@ const EmailComposerPage = () => {
         window.localStorage.setItem(draftStorageKey, JSON.stringify(payload));
     }, [
         aiDraftTone,
+        aiDraftPrimaryLanguage,
+        aiDraftSecondaryLanguage,
         attachments,
         bodyHtml,
         config,
@@ -397,9 +411,9 @@ const EmailComposerPage = () => {
                     options: []
                 }
             }));
-            toast.error(error.message || 'Failed to load recipient suggestions');
+            toast.error(error.message || t('errors.loadRecipientSuggestions'));
         }
-    }, []);
+    }, [t]);
 
     const handleFieldFocus = useCallback((fieldKey) => {
         setFields((previous) => ({
@@ -501,7 +515,7 @@ const EmailComposerPage = () => {
         if (incomingFiles.length === 0) return;
         const remainingSlots = Math.max(0, 5 - attachments.length);
         if (remainingSlots <= 0) {
-            toast.error('Maximum 5 attachments are allowed');
+            toast.error(t('errors.maxAttachments'));
             event.target.value = '';
             return;
         }
@@ -511,43 +525,52 @@ const EmailComposerPage = () => {
             const result = await uploadCommunicationAttachments(files);
             setAttachments((previous) => [...previous, ...(result.attachments || [])]);
             if (incomingFiles.length > remainingSlots) {
-                toast.error(`Only ${remainingSlots} attachment(s) were added (max 5)`);
+                toast.error(t('errors.limitedAttachmentsAdded', { count: remainingSlots }));
             }
         } catch (error) {
-            toast.error(error.message || 'Failed to upload attachment(s)');
+            toast.error(error.message || t('errors.uploadAttachment'));
         } finally {
             setUploadingAttachments(false);
             event.target.value = '';
         }
-    }, [attachments.length]);
+    }, [attachments.length, t]);
 
     const handleRemoveAttachment = useCallback(async (attachmentId) => {
         try {
             await removeCommunicationAttachment(attachmentId);
             setAttachments((previous) => previous.filter((attachment) => attachment.id !== attachmentId));
         } catch (error) {
-            toast.error(error.message || 'Failed to remove attachment');
+            toast.error(error.message || t('errors.removeAttachment'));
         }
-    }, []);
+    }, [t]);
 
     const handleGenerateAiDraft = useCallback(async () => {
         const prompt = aiDraftPrompt.trim();
         if (!prompt) {
-            toast.error('Please describe what you want the email to say');
+            toast.error(t('errors.aiPromptRequired'));
             return;
         }
         if (!aiDraftCapability.canUse) {
             toast.error(aiDraftCapability.reason === 'disabled_by_school_admin'
-                ? 'AI drafting is disabled by your school administrator'
-                : 'AI drafting is not available on your school plan');
+                ? t('ai.disabledByAdmin')
+                : t('ai.notAvailableOnPlan'));
             return;
         }
 
         setGeneratingAiDraft(true);
         try {
+            const requestedLanguages = buildRequestedLanguages(
+                aiDraftPrimaryLanguage,
+                aiDraftSecondaryLanguage
+            );
+            const normalizedRequestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];
             const result = await generateCommunicationEmailDraft({
                 prompt,
                 tone: aiDraftTone,
+                requestedLanguages: normalizedRequestedLanguages,
+                primaryLanguage: aiDraftPrimaryLanguage,
+                secondaryLanguage: aiDraftSecondaryLanguage,
+                language: toLegacyLanguageValue(normalizedRequestedLanguages),
                 toParents: fields.parents.selected,
                 toTeachers: fields.teachers.selected,
                 toStudents: fields.students.selected
@@ -555,9 +578,9 @@ const EmailComposerPage = () => {
             setBodyHtml(result.bodyHtml || DEFAULT_BODY_HTML);
             setShowAiDraftModal(false);
             setAiDraftPrompt('');
-            toast.success('AI draft generated');
+            toast.success(t('success.aiDraftGenerated'));
         } catch (error) {
-            toast.error(error.message || 'Failed to generate AI draft');
+            toast.error(error.message || t('errors.generateAiDraft'));
         } finally {
             setGeneratingAiDraft(false);
         }
@@ -565,10 +588,13 @@ const EmailComposerPage = () => {
         aiDraftCapability.canUse,
         aiDraftCapability.reason,
         aiDraftPrompt,
+        aiDraftPrimaryLanguage,
+        aiDraftSecondaryLanguage,
         aiDraftTone,
         fields.parents.selected,
         fields.students.selected,
-        fields.teachers.selected
+        fields.teachers.selected,
+        t
     ]);
 
     const handleDownloadAttachment = useCallback(async (attachment) => {
@@ -576,37 +602,37 @@ const EmailComposerPage = () => {
         try {
             await downloadCommunicationAttachment(attachment);
         } catch (error) {
-            toast.error(error.message || 'Failed to download attachment');
+            toast.error(error.message || t('errors.downloadAttachment'));
         } finally {
             setDownloadingAttachmentId(null);
         }
-    }, []);
+    }, [t]);
 
     const handlePreviewSend = useCallback(async () => {
         if (!subject.trim()) {
-            toast.error('Subject is required');
+            toast.error(t('errors.subjectRequired'));
             return;
         }
         if (!bodyHtml || bodyHtml.replace(/<[^>]*>/g, '').trim().length === 0) {
-            toast.error('Message body is required');
+            toast.error(t('errors.messageRequired'));
             return;
         }
         if (totalSelected === 0) {
-            toast.error('Select at least one recipient token');
+            toast.error(t('errors.recipientRequired'));
             return;
         }
         if (deliveryMode === 'schedule') {
             if (!scheduledForLocal) {
-                toast.error('Choose a scheduled date/time');
+                toast.error(t('errors.scheduleDateRequired'));
                 return;
             }
             const scheduledDate = new Date(scheduledForLocal);
             if (Number.isNaN(scheduledDate.getTime())) {
-                toast.error('Invalid scheduled date/time');
+                toast.error(t('errors.invalidScheduleDate'));
                 return;
             }
             if (scheduledDate.getTime() <= Date.now() + 60 * 1000) {
-                toast.error('Scheduled time must be at least 1 minute in the future');
+                toast.error(t('errors.scheduleMustBeFuture'));
                 return;
             }
         }
@@ -615,9 +641,9 @@ const EmailComposerPage = () => {
             const preview = await previewCommunicationRecipients(selectedPayload);
             setPreviewModal(preview);
         } catch (error) {
-            toast.error(error.message || 'Failed to preview recipients');
+            toast.error(error.message || t('errors.previewRecipients'));
         }
-    }, [bodyHtml, deliveryMode, scheduledForLocal, selectedPayload, subject, totalSelected]);
+    }, [bodyHtml, deliveryMode, scheduledForLocal, selectedPayload, subject, t, totalSelected]);
 
     const handleConfirmSend = useCallback(async () => {
         if (!previewModal) return;
@@ -635,19 +661,19 @@ const EmailComposerPage = () => {
                     : {})
             });
             if (result.status === 'scheduled') {
-                toast.success(`Email scheduled for ${formatDateTime(result.scheduledFor)}`);
+                toast.success(t('success.emailScheduledFor', { when: formatDateTime(result.scheduledFor) }));
             } else if (result.status === 'partial') {
-                toast.success(`Sent with partial failures (${result.totalSent} sent, ${result.totalFailed} failed)`);
+                toast.success(t('success.partialSend', { sent: result.totalSent, failed: result.totalFailed }));
             } else if (result.status === 'failed') {
-                toast.error('Email sending failed');
+                toast.error(t('errors.emailSendFailed'));
             } else {
-                toast.success(`Email sent to ${result.totalSent} recipients`);
+                toast.success(t('success.emailSentToRecipients', { count: result.totalSent }));
             }
             setPreviewModal(null);
             await clearComposer({ cleanupUploads: false, clearStoredDraft: true });
             await loadHistory();
         } catch (error) {
-            toast.error(error.message || 'Failed to send communication email');
+            toast.error(error.message || t('errors.sendCommunicationEmail'));
         } finally {
             setSending(false);
         }
@@ -660,16 +686,17 @@ const EmailComposerPage = () => {
         previewModal,
         scheduledForLocal,
         selectedPayload,
-        subject
+        subject,
+        t
     ]);
 
     if (loadingConfig) {
         return (
             <div className="email-composer-page">
                 <div className="page-header">
-                    <h1>Email Composer</h1>
+                    <h1>{t('title')}</h1>
                 </div>
-                <div className="email-composer-card">Loading composer...</div>
+                <div className="email-composer-card">{t('loadingComposer')}</div>
             </div>
         );
     }
@@ -678,10 +705,10 @@ const EmailComposerPage = () => {
         return (
             <div className="email-composer-page">
                 <div className="page-header">
-                    <h1>Email Composer</h1>
+                    <h1>{t('title')}</h1>
                 </div>
                 <div className="email-composer-card">
-                    You do not currently have communication scope to send email from this screen.
+                    {t('noScopeMessage')}
                 </div>
             </div>
         );
@@ -690,13 +717,13 @@ const EmailComposerPage = () => {
     return (
         <div className="email-composer-page">
             <div className="page-header">
-                <h1>Email Composer</h1>
-                <p className="text-muted">QuickSchools-style scoped communication for students, parents, and teachers.</p>
+                <h1>{t('title')}</h1>
+                <p className="text-muted">{t('subtitle')}</p>
             </div>
 
             <div className="email-composer-card">
                 <div className="email-row">
-                    <label>Email from</label>
+                    <label>{t('fields.emailFrom')}</label>
                     <div className="email-row-input">
                         <input
                             type="text"
@@ -709,11 +736,12 @@ const EmailComposerPage = () => {
                 </div>
 
                 <div className="email-row">
-                    <label>To the parents of</label>
+                    <label>{t('fields.toParents')}</label>
                     <div className="email-row-input">
                         <RecipientSelectorField
+                            t={t}
                             fieldKey="parents"
-                            label="Parents"
+                            label={t('recipients.labels.parents')}
                             state={fields.parents}
                             disabled={sending}
                             onFocus={handleFieldFocus}
@@ -726,11 +754,12 @@ const EmailComposerPage = () => {
                 </div>
 
                 <div className="email-row">
-                    <label>To teachers</label>
+                    <label>{t('fields.toTeachers')}</label>
                     <div className="email-row-input">
                         <RecipientSelectorField
+                            t={t}
                             fieldKey="teachers"
-                            label="Teachers"
+                            label={t('recipients.labels.teachers')}
                             state={fields.teachers}
                             disabled={sending}
                             onFocus={handleFieldFocus}
@@ -743,11 +772,12 @@ const EmailComposerPage = () => {
                 </div>
 
                 <div className="email-row">
-                    <label>To students</label>
+                    <label>{t('fields.toStudents')}</label>
                     <div className="email-row-input">
                         <RecipientSelectorField
+                            t={t}
                             fieldKey="students"
-                            label="Students"
+                            label={t('recipients.labels.students')}
                             state={fields.students}
                             disabled={sending}
                             onFocus={handleFieldFocus}
@@ -760,7 +790,7 @@ const EmailComposerPage = () => {
                 </div>
 
                 <div className="email-row">
-                    <label>Subject</label>
+                    <label>{t('fields.subject')}</label>
                     <div className="email-row-input">
                         <input
                             type="text"
@@ -773,7 +803,7 @@ const EmailComposerPage = () => {
                 </div>
 
                 <div className="email-row">
-                    <label>Delivery</label>
+                    <label>{t('fields.delivery')}</label>
                     <div className="email-row-input">
                         <div className="delivery-controls">
                             <label className="delivery-option">
@@ -785,7 +815,7 @@ const EmailComposerPage = () => {
                                     onChange={() => setDeliveryMode('now')}
                                     disabled={sending || uploadingAttachments}
                                 />
-                                <span>Send now</span>
+                                <span>{t('delivery.sendNow')}</span>
                             </label>
                             <label className="delivery-option">
                                 <input
@@ -796,7 +826,7 @@ const EmailComposerPage = () => {
                                     onChange={() => setDeliveryMode('schedule')}
                                     disabled={sending || uploadingAttachments}
                                 />
-                                <span>Schedule send</span>
+                                <span>{t('delivery.scheduleSend')}</span>
                             </label>
                         </div>
                         {deliveryMode === 'schedule' && (
@@ -818,7 +848,7 @@ const EmailComposerPage = () => {
                 </div>
 
                 <div className="email-row">
-                    <label>Message</label>
+                    <label>{t('fields.message')}</label>
                     <div className="email-row-input">
                         <div className="ai-draft-toolbar">
                             {aiDraftCapability.canUse && (
@@ -829,7 +859,7 @@ const EmailComposerPage = () => {
                                     disabled={sending || uploadingAttachments || generatingAiDraft}
                                 >
                                     <HiOutlineSparkles aria-hidden="true" />
-                                    <span>{generatingAiDraft ? 'Generating draft...' : 'AI Draft'}</span>
+                                    <span>{generatingAiDraft ? t('ai.generatingDraft') : t('ai.draftButton')}</span>
                                 </button>
                             )}
                             {!aiDraftCapability.canUse && aiDraftCapability.reason === 'plan_locked' && (
@@ -837,16 +867,16 @@ const EmailComposerPage = () => {
                             )}
                             {!aiDraftCapability.canUse && aiDraftCapability.reason === 'disabled_by_school_admin' && (
                                 <span className="text-muted">
-                                    AI drafting is disabled by your school administrator.
+                                    {t('ai.disabledByAdmin')}
                                 </span>
                             )}
                         </div>
-                        <RichTextEditor value={bodyHtml} onChange={setBodyHtml} disabled={sending} />
+                        <RichTextEditor value={bodyHtml} onChange={setBodyHtml} disabled={sending} t={t} />
                     </div>
                 </div>
 
                 <div className="email-row">
-                    <label>Attachment</label>
+                    <label>{t('fields.attachment')}</label>
                     <div className="email-row-input">
                         {config.capabilities.attachmentsSupported ? (
                             <div className="attachments-panel">
@@ -865,9 +895,9 @@ const EmailComposerPage = () => {
                                         onClick={() => fileInputRef.current?.click()}
                                         disabled={sending || uploadingAttachments || attachments.length >= 5}
                                     >
-                                        {uploadingAttachments ? 'Uploading...' : 'Attach file'}
+                                        {uploadingAttachments ? t('attachments.uploading') : t('attachments.attachFile')}
                                     </button>
-                                    <span className="text-muted">{attachments.length}/5 attached</span>
+                                    <span className="text-muted">{t('attachments.attachedCount', { count: attachments.length })}</span>
                                 </div>
                                 {attachments.length > 0 && (
                                     <div className="attachments-list">
@@ -889,7 +919,7 @@ const EmailComposerPage = () => {
                                                     className="chip-remove"
                                                     onClick={() => handleRemoveAttachment(attachment.id)}
                                                     disabled={sending}
-                                                    aria-label={`Remove attachment ${attachment.originalName}`}
+                                                    aria-label={t('attachments.removeAttachmentAria', { name: attachment.originalName })}
                                                 >
                                                     ×
                                                 </button>
@@ -899,7 +929,7 @@ const EmailComposerPage = () => {
                                 )}
                             </div>
                         ) : (
-                            <span className="text-muted">Attachments are not enabled in the current email transport.</span>
+                            <span className="text-muted">{t('attachments.notEnabled')}</span>
                         )}
                     </div>
                 </div>
@@ -911,7 +941,7 @@ const EmailComposerPage = () => {
                         onClick={() => { void clearComposer(); }}
                         disabled={sending || uploadingAttachments}
                     >
-                        Clear
+                        {t('actions.clear')}
                     </button>
                     <button
                         type="button"
@@ -919,29 +949,29 @@ const EmailComposerPage = () => {
                         onClick={handlePreviewSend}
                         disabled={sending || uploadingAttachments}
                     >
-                        {deliveryMode === 'schedule' ? 'Schedule' : 'Send'}
+                        {deliveryMode === 'schedule' ? t('actions.schedule') : t('actions.send')}
                     </button>
                 </div>
             </div>
 
             <div className="email-history-card">
-                <h2>Recent Sent Emails</h2>
-                {historyLoading && <div className="text-muted">Loading history...</div>}
+                <h2>{t('history.title')}</h2>
+                {historyLoading && <div className="text-muted">{t('history.loading')}</div>}
                 {!historyLoading && history.length === 0 && (
-                    <div className="text-muted">No sent email history yet.</div>
+                    <div className="text-muted">{t('history.empty')}</div>
                 )}
                 {!historyLoading && history.length > 0 && (
                     <div className="history-table">
                         <div className="history-head">
-                            <span>Subject</span>
-                            <span>Status</span>
-                            <span>Recipients</span>
-                            <span>When</span>
+                            <span>{t('history.columns.subject')}</span>
+                            <span>{t('history.columns.status')}</span>
+                            <span>{t('history.columns.recipients')}</span>
+                            <span>{t('history.columns.when')}</span>
                         </div>
                         {history.map((item) => (
                             <div key={item._id} className="history-row">
                                 <span>{item.subject}</span>
-                                <span className={`status-pill ${item.status}`}>{item.status}</span>
+                                <span className={`status-pill ${item.status}`}>{t(`history.status.${item.status}`, { defaultValue: item.status })}</span>
                                 <span>{item.recipientSummary?.totalSent || item.recipientSummary?.totalResolved || 0}</span>
                                 <span>{formatDateTime(
                                     item.status === 'scheduled'
@@ -964,39 +994,80 @@ const EmailComposerPage = () => {
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="modal-header">
-                            <h2 id="email-composer-ai-draft-title">Generate AI Email Draft</h2>
+                            <h2 id="email-composer-ai-draft-title">{t('ai.modalTitle')}</h2>
                             <button
                                 type="button"
                                 className="modal-close"
                                 onClick={() => setShowAiDraftModal(false)}
-                                aria-label="Close AI draft modal"
+                                aria-label={t('ai.closeModalAria')}
                             >
                                 ×
                             </button>
                         </div>
                         <div className="modal-body">
                             <div className="form-group">
-                                <label htmlFor="ai-draft-tone">Tone</label>
+                                <label htmlFor="ai-draft-tone">{t('ai.toneLabel')}</label>
                                 <select
                                     id="ai-draft-tone"
                                     value={aiDraftTone}
                                     onChange={(event) => setAiDraftTone(event.target.value)}
                                     disabled={generatingAiDraft}
                                 >
-                                    <option value="professional">Professional</option>
-                                    <option value="formal">Formal</option>
-                                    <option value="warm">Warm</option>
-                                    <option value="concise">Concise</option>
-                                    <option value="friendly">Friendly</option>
+                                    <option value="professional">{t('ai.tones.professional')}</option>
+                                    <option value="formal">{t('ai.tones.formal')}</option>
+                                    <option value="warm">{t('ai.tones.warm')}</option>
+                                    <option value="concise">{t('ai.tones.concise')}</option>
+                                    <option value="friendly">{t('ai.tones.friendly')}</option>
                                 </select>
                             </div>
+                            <div className="form-group ai-language-grid">
+                                <div>
+                                    <label htmlFor="ai-draft-primary-language">{t('ai.primaryLanguageLabel')}</label>
+                                    <select
+                                        id="ai-draft-primary-language"
+                                        value={aiDraftPrimaryLanguage}
+                                        onChange={(event) => {
+                                            const nextPrimary = String(event.target.value || 'en');
+                                            setAiDraftPrimaryLanguage(nextPrimary);
+                                            if (nextPrimary === aiDraftSecondaryLanguage) {
+                                                setAiDraftSecondaryLanguage('');
+                                            }
+                                        }}
+                                        disabled={generatingAiDraft}
+                                    >
+                                        {AI_LANGUAGE_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="ai-draft-secondary-language">{t('ai.secondaryLanguageLabel')}</label>
+                                    <select
+                                        id="ai-draft-secondary-language"
+                                        value={aiDraftSecondaryLanguage}
+                                        onChange={(event) => setAiDraftSecondaryLanguage(event.target.value)}
+                                        disabled={generatingAiDraft}
+                                    >
+                                        <option value="">{t('ai.secondaryLanguagePlaceholder')}</option>
+                                        {AI_LANGUAGE_OPTIONS
+                                            .filter((option) => option.value !== aiDraftPrimaryLanguage)
+                                            .map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                    </select>
+                                </div>
+                            </div>
                             <div className="form-group">
-                                <label htmlFor="ai-draft-prompt">What should this email say?</label>
+                                <label htmlFor="ai-draft-prompt">{t('ai.promptLabel')}</label>
                                 <textarea
                                     id="ai-draft-prompt"
                                     value={aiDraftPrompt}
                                     onChange={(event) => setAiDraftPrompt(event.target.value)}
-                                    placeholder="Example: Draft a short update for parents about next week's science fair schedule and what students should bring."
+                                    placeholder={t('ai.promptPlaceholder')}
                                     rows={6}
                                     maxLength={2000}
                                     disabled={generatingAiDraft}
@@ -1006,7 +1077,7 @@ const EmailComposerPage = () => {
                         </div>
                         <div className="modal-footer">
                             <button type="button" className="btn btn-secondary" onClick={() => setShowAiDraftModal(false)} disabled={generatingAiDraft}>
-                                Cancel
+                                {t('actions.cancel')}
                             </button>
                             <button
                                 type="button"
@@ -1014,7 +1085,7 @@ const EmailComposerPage = () => {
                                 onClick={handleGenerateAiDraft}
                                 disabled={generatingAiDraft}
                             >
-                                {generatingAiDraft ? 'Generating...' : 'Generate Draft'}
+                                {generatingAiDraft ? t('ai.generating') : t('ai.generateDraft')}
                             </button>
                         </div>
                     </div>
@@ -1031,12 +1102,12 @@ const EmailComposerPage = () => {
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="modal-header">
-                            <h2 id="email-composer-preview-title">Confirm Recipients Before Send</h2>
+                            <h2 id="email-composer-preview-title">{t('preview.title')}</h2>
                             <button
                                 type="button"
                                 className="modal-close"
                                 onClick={() => setPreviewModal(null)}
-                                aria-label="Close recipient preview"
+                                aria-label={t('preview.closeModalAria')}
                             >
                                 ×
                             </button>
@@ -1044,7 +1115,7 @@ const EmailComposerPage = () => {
                         <div className="modal-body">
                             {previewModal.blockedTokens?.length > 0 && (
                                 <div className="preview-error">
-                                    <strong>Blocked tokens:</strong>
+                                    <strong>{t('preview.blockedTokens')}:</strong>
                                     <ul>
                                         {previewModal.blockedTokens.map((token) => (
                                             <li key={token.key}>{token.key} - {token.reason}</li>
@@ -1055,34 +1126,36 @@ const EmailComposerPage = () => {
 
                             <div className="preview-summary">
                                 <div>
-                                    Delivery: <strong>{deliveryMode === 'schedule' ? 'Scheduled' : 'Send now'}</strong>
+                                    {t('preview.delivery')}: <strong>{deliveryMode === 'schedule' ? t('preview.scheduled') : t('delivery.sendNow')}</strong>
                                 </div>
                                 {deliveryMode === 'schedule' && (
                                     <div>
-                                        Scheduled for: <strong>{scheduledForLocal ? formatDateTime(new Date(scheduledForLocal)) : '—'}</strong>
+                                        {t('preview.scheduledFor')}: <strong>{scheduledForLocal ? formatDateTime(new Date(scheduledForLocal)) : '—'}</strong>
                                     </div>
                                 )}
-                                <div>Student emails: <strong>{previewModal.recipientSummary?.students || 0}</strong></div>
-                                <div>Parent emails: <strong>{previewModal.recipientSummary?.parents || 0}</strong></div>
-                                <div>Teacher emails: <strong>{previewModal.recipientSummary?.teachers || 0}</strong></div>
-                                <div>Duplicates removed: <strong>{previewModal.recipientSummary?.duplicatesRemoved || 0}</strong></div>
-                                <div>Invalid excluded: <strong>{previewModal.recipientSummary?.invalidExcluded || 0}</strong></div>
-                                <div>Total final recipients: <strong>{previewModal.recipientSummary?.totalResolved || 0}</strong></div>
-                                <div>Attachments: <strong>{attachments.length}</strong></div>
+                                <div>{t('preview.studentEmails')}: <strong>{previewModal.recipientSummary?.students || 0}</strong></div>
+                                <div>{t('preview.parentEmails')}: <strong>{previewModal.recipientSummary?.parents || 0}</strong></div>
+                                <div>{t('preview.teacherEmails')}: <strong>{previewModal.recipientSummary?.teachers || 0}</strong></div>
+                                <div>{t('preview.duplicatesRemoved')}: <strong>{previewModal.recipientSummary?.duplicatesRemoved || 0}</strong></div>
+                                <div>{t('preview.invalidExcluded')}: <strong>{previewModal.recipientSummary?.invalidExcluded || 0}</strong></div>
+                                <div>{t('preview.totalFinalRecipients')}: <strong>{previewModal.recipientSummary?.totalResolved || 0}</strong></div>
+                                <div>{t('preview.attachments')}: <strong>{attachments.length}</strong></div>
                             </div>
 
                             <div className="preview-recipient-list">
                                 {(previewModal.recipientSample || []).slice(0, 40).map((recipient, index) => (
                                     <div key={`${recipient.email}-${index}`} className="preview-recipient-row">
                                         <span>{recipient.email}</span>
-                                        <span className={`category-pill ${recipient.category}`}>{recipient.category}</span>
+                                        <span className={`category-pill ${recipient.category}`}>
+                                            {t(`preview.category.${recipient.category}`, { defaultValue: recipient.category })}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
                         </div>
                         <div className="modal-footer">
                             <button type="button" className="btn btn-secondary" onClick={() => setPreviewModal(null)} disabled={sending}>
-                                Cancel
+                                {t('actions.cancel')}
                             </button>
                             <button
                                 type="button"
@@ -1091,8 +1164,8 @@ const EmailComposerPage = () => {
                                 disabled={sending || (previewModal.blockedTokens || []).length > 0}
                             >
                                 {sending
-                                    ? (deliveryMode === 'schedule' ? 'Scheduling...' : 'Sending...')
-                                    : (deliveryMode === 'schedule' ? 'Confirm & Schedule' : 'Confirm & Send')}
+                                    ? (deliveryMode === 'schedule' ? t('actions.scheduling') : t('actions.sending'))
+                                    : (deliveryMode === 'schedule' ? t('actions.confirmAndSchedule') : t('actions.confirmAndSend'))}
                             </button>
                         </div>
                     </div>

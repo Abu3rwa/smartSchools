@@ -100,13 +100,27 @@ export const fetchClassAnalytics = createAsyncThunk(
 
 export const fetchClassInsights = createAsyncThunk(
     'classes/fetchClassInsights',
-    async ({ classId, academicYear, startDate, endDate, includeAnalytics } = {}, { rejectWithValue }) => {
+    async ({
+        classId,
+        academicYear,
+        startDate,
+        endDate,
+        includeAnalytics,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language
+    } = {}, { rejectWithValue }) => {
         try {
             const params = {};
             if (academicYear) params.academicYear = academicYear;
             if (startDate) params.startDate = startDate;
             if (endDate) params.endDate = endDate;
             if (includeAnalytics) params.includeAnalytics = 'true';
+            if (requestedLanguages) params.requestedLanguages = requestedLanguages;
+            if (primaryLanguage) params.primaryLanguage = primaryLanguage;
+            if (secondaryLanguage) params.secondaryLanguage = secondaryLanguage;
+            if (language) params.language = language;
             const response = await api.get(`/classes/${classId}/insights`, { params });
             return response.data;
         } catch (error) {

@@ -1,3 +1,5 @@
+import { AI_LANGUAGE_OPTIONS } from '../../../constants/aiLanguages';
+
 export const REPORT_TYPES = [
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
@@ -6,18 +8,14 @@ export const REPORT_TYPES = [
   { value: 'custom', label: 'Custom' }
 ];
 
-export const REPORT_LANGUAGES = [
-  { value: 'english', label: 'English' },
-  { value: 'arabic', label: 'Arabic' },
-  { value: 'bilingual', label: 'Bilingual' }
-];
+export const REPORT_LANGUAGES = AI_LANGUAGE_OPTIONS;
 
 export const DEFAULT_FILTERS = { type: '', language: '' };
 
 export const createEmptyTemplateForm = () => ({
   name: '',
   type: 'monthly',
-  language: 'english',
+  language: 'en',
   customPrompt: '',
   variables: []
 });

@@ -13,6 +13,7 @@ import {
     HiOutlinePencil,
     HiOutlineMail
 } from 'react-icons/hi';
+import { AI_LANGUAGE_OPTIONS } from '../../constants/aiLanguages';
 import './AIReportModal.css';
 
 /**
@@ -28,6 +29,10 @@ const AIReportModal = ({
     aiAnalysis = null,
     reportContent = null,
     timestamp = null,
+    primaryLanguage = 'en',
+    secondaryLanguage = '',
+    onPrimaryLanguageChange = () => {},
+    onSecondaryLanguageChange = () => {},
     status = null // optional external status: 'idle' | 'generating' | 'complete' | 'error'
 }) => {
     const [periodType, setPeriodType] = useState('predefined');
@@ -432,6 +437,46 @@ const AIReportModal = ({
                     {/* Report Generation Form */}
                     {localStatus !== 'generating' && (
                         <form onSubmit={handleSubmit}>
+                            <div className="date-range-fields">
+                                <div className="form-group">
+                                    <label className="form-label" htmlFor="report-primary-language">Primary Language</label>
+                                    <select
+                                        id="report-primary-language"
+                                        className="form-input"
+                                        value={primaryLanguage}
+                                        onChange={(event) => {
+                                            const nextPrimary = event.target.value;
+                                            onPrimaryLanguageChange(nextPrimary);
+                                            if (nextPrimary === secondaryLanguage) {
+                                                onSecondaryLanguageChange('');
+                                            }
+                                        }}
+                                        disabled={isLoading}
+                                    >
+                                        {AI_LANGUAGE_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label" htmlFor="report-secondary-language">Secondary Language (Optional)</label>
+                                    <select
+                                        id="report-secondary-language"
+                                        className="form-input"
+                                        value={secondaryLanguage}
+                                        onChange={(event) => onSecondaryLanguageChange(event.target.value)}
+                                        disabled={isLoading}
+                                    >
+                                        <option value="">None</option>
+                                        {AI_LANGUAGE_OPTIONS
+                                            .filter((option) => option.value !== primaryLanguage)
+                                            .map((option) => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                    </select>
+                                </div>
+                            </div>
+
                             <div className="form-group">
                                 <label className="form-label">Report Period</label>
                                 <div className="radio-group">

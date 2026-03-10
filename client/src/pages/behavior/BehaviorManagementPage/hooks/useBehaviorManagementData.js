@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { selectUser } from '../../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
 import api from '../../../../config/api';
@@ -9,6 +10,7 @@ import { getStudentClassId } from '../utils/behaviorPresentation.jsx';
 const useBehaviorManagementData = () => {
     const user = useSelector(selectUser);
     const academicYear = useSelector(selectCurrentAcademicYear);
+    const { t } = useTranslation(['behaviorManagement']);
     const [incidents, setIncidents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -67,7 +69,7 @@ const useBehaviorManagementData = () => {
                 setIncidents(response.data.data.incidents);
             }
         } catch (error) {
-            toast.error('Failed to load behavior incidents');
+            toast.error(t('behaviorManagement:error.failedToLoadIncidents'));
         } finally {
             setLoading(false);
         }
@@ -150,7 +152,7 @@ const useBehaviorManagementData = () => {
                 setShowModal(true);
             }
         } catch (error) {
-            toast.error('Failed to load incident details');
+            toast.error(t('behaviorManagement:error.failedToLoadIncidentDetails'));
         }
     };
 
@@ -185,7 +187,7 @@ const useBehaviorManagementData = () => {
                 // Update
                 const response = await api.put(`/student-behavior/${selectedIncident._id}`, formData);
                 if (response.data.success) {
-                    toast.success('Incident updated successfully');
+                    toast.success(t('behaviorManagement:toasts.incidentUpdated'));
                     setShowModal(false);
                     fetchIncidents();
                 }
@@ -193,41 +195,41 @@ const useBehaviorManagementData = () => {
                 // Create
                 const response = await api.post('/student-behavior', formData);
                 if (response.data.success) {
-                    toast.success('Incident created successfully');
+                    toast.success(t('behaviorManagement:toasts.incidentCreated'));
                     setShowModal(false);
                     fetchIncidents();
                 }
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to save incident');
+            toast.error(error.response?.data?.message || t('behaviorManagement:error.failedToSaveIncident'));
         }
     };
 
     const handleResolve = async (incidentId) => {
-        if (!window.confirm('Mark this incident as resolved?')) return;
+        if (!window.confirm(t('behaviorManagement:confirm.resolveIncident'))) return;
         
         try {
             const response = await api.patch(`/student-behavior/${incidentId}/resolve`);
             if (response.data.success) {
-                toast.success('Incident marked as resolved');
+                toast.success(t('behaviorManagement:toasts.incidentResolved'));
                 fetchIncidents();
             }
         } catch (error) {
-            toast.error('Failed to resolve incident');
+            toast.error(t('behaviorManagement:error.failedToResolveIncident'));
         }
     };
 
     const handleDelete = async (incidentId) => {
-        if (!window.confirm('Are you sure you want to delete this incident?')) return;
+        if (!window.confirm(t('behaviorManagement:confirm.deleteIncident'))) return;
         
         try {
             const response = await api.delete(`/student-behavior/${incidentId}`);
             if (response.data.success) {
-                toast.success('Incident deleted successfully');
+                toast.success(t('behaviorManagement:toasts.incidentDeleted'));
                 fetchIncidents();
             }
         } catch (error) {
-            toast.error('Failed to delete incident');
+            toast.error(t('behaviorManagement:error.failedToDeleteIncident'));
         }
     };
 

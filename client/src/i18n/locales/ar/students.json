@@ -1,0 +1,301 @@
+{
+  "page": {
+    "title": "الطلاب",
+    "subtitle": "إدارة سجلات الطلاب ومتابعة الأداء"
+  },
+  "filters": {
+    "searchPlaceholder": "ابحث عن الطلاب...",
+    "allClasses": "كل الفصول",
+    "unassignedStudents": "طلاب غير مخصصين"
+  },
+  "actions": {
+    "selectWithoutLoginFirst": "اختر طلاباً بدون حساب أولاً",
+    "createLoginsForSelected": "إنشاء حسابات للمحدد ({{count}})",
+    "importCsv": "استيراد CSV",
+    "addStudent": "إضافة طالب",
+    "updateStudent": "تحديث الطالب",
+    "resetPassword": "إعادة تعيين كلمة المرور",
+    "createLoginAccount": "إنشاء حساب دخول",
+    "createLogin": "إنشاء تسجيل دخول",
+    "sendingCredentials": "جارٍ إرسال بيانات الدخول...",
+    "sendParentAppCredentials": "إرسال بيانات دخول ولي الأمر",
+    "noParentEmailOnFile": "لا يوجد بريد ولي أمر مسجل",
+    "editStudent": "تعديل الطالب",
+    "deleteStudent": "حذف الطالب",
+    "copyEmail": "نسخ البريد",
+    "copyPassword": "نسخ كلمة المرور",
+    "copyAll": "نسخ الكل",
+    "downloadCsv": "تنزيل CSV",
+    "importing": "جارٍ الاستيراد...",
+    "importStudents_zero": "استيراد {{count}} طالب",
+    "importStudents_one": "استيراد {{count}} طالب",
+    "importStudents_two": "استيراد {{count}} طالبان",
+    "importStudents_few": "استيراد {{count}} طلاب",
+    "importStudents_many": "استيراد {{count}} طالباً",
+    "importStudents_other": "استيراد {{count}} طالب"
+  },
+  "table": {
+    "selectAllWithoutLogin": "تحديد الكل بدون حساب",
+    "selectForBulkLogin": "تحديد لإنشاء حسابات جماعية",
+    "hasLogin": "لديه حساب",
+    "noEmail": "لا يوجد بريد",
+    "unassigned": "غير مخصص",
+    "columns": {
+      "student": "الطالب",
+      "id": "المعرّف",
+      "class": "الفصل",
+      "department": "القسم",
+      "gender": "الجنس",
+      "status": "الحالة",
+      "login": "تسجيل الدخول",
+      "actions": "الإجراءات",
+      "firstName": "الاسم الأول",
+      "lastName": "اسم العائلة",
+      "dob": "تاريخ الميلاد",
+      "email": "البريد الإلكتروني"
+    }
+  },
+  "genders": {
+    "male": "ذكر",
+    "female": "أنثى",
+    "other": "أخرى"
+  },
+  "status": {
+    "active": "نشط",
+    "inactive": "غير نشط"
+  },
+  "empty": {
+    "noStudents": "لا يوجد طلاب"
+  },
+  "modal": {
+    "editTitle": "تعديل الطالب",
+    "createTitle": "إضافة طالب جديد"
+  },
+  "form": {
+    "studentInformation": "معلومات الطالب",
+    "firstName": "الاسم الأول *",
+    "lastName": "اسم العائلة *",
+    "studentId": "رقم الطالب *",
+    "email": "البريد الإلكتروني",
+    "dateOfBirth": "تاريخ الميلاد *",
+    "gender": "الجنس *",
+    "selectGender": "اختر الجنس *",
+    "assignToClass": "تعيين إلى فصل",
+    "selectClass": "اختر فصلاً",
+    "department": "القسم",
+    "noDepartment": "— بدون قسم —",
+    "parentGuardianInformation": "معلومات ولي الأمر/الوصي",
+    "motherName": "اسم الأم",
+    "motherPhone": "هاتف الأم",
+    "motherEmail": "بريد الأم",
+    "fatherName": "اسم الأب",
+    "fatherPhone": "هاتف الأب",
+    "fatherEmail": "بريد الأب"
+  },
+  "import": {
+    "title": "استيراد الطلاب من CSV",
+    "assignToClass": "تعيين إلى فصل *",
+    "csvFile": "ملف CSV *",
+    "selectCsvFile": "انقر لاختيار ملف CSV",
+    "downloadTemplate": "تنزيل القالب",
+    "parseErrors": "أخطاء التحليل",
+    "readyToImport_zero": "{{count}} طالب جاهز للاستيراد",
+    "readyToImport_one": "{{count}} طالب جاهز للاستيراد",
+    "readyToImport_two": "{{count}} طالبان جاهزان للاستيراد",
+    "readyToImport_few": "{{count}} طلاب جاهزون للاستيراد",
+    "readyToImport_many": "{{count}} طالباً جاهزاً للاستيراد",
+    "readyToImport_other": "{{count}} طالب جاهز للاستيراد",
+    "showingFirstRows": "يتم عرض أول {{shown}} من أصل {{total}} صف",
+    "failedRows": "الصفوف الفاشلة",
+    "rowError": "الصف {{row}}: {{message}}",
+    "csvMustHaveHeader": "يجب أن يحتوي CSV على صف عناوين وعلى الأقل صف بيانات واحد",
+    "missingRequiredColumns": "الأعمدة المطلوبة المفقودة: {{columns}}",
+    "invalidColumnCount": "الصف {{row}}: المتوقع {{expected}} عموداً، الموجود {{actual}}"
+  },
+  "credentials": {
+    "studentLoginTitle": "بيانات دخول الطالب",
+    "copyNow": "انسخ هذه البيانات الآن!",
+    "passwordCannotBeViewedAgain": "لا يمكن عرض كلمة المرور مرة أخرى.",
+    "password": "كلمة المرور",
+    "bulkLoginTitle": "بيانات دخول جماعية",
+    "copyOrDownloadNow": "انسخ أو نزّل هذه البيانات الآن!",
+    "passwordsCannotBeViewedAgain": "لا يمكن عرض كلمات المرور مرة أخرى.",
+    "issues": "المشكلات",
+    "parentAppTitle": "بيانات دخول تطبيق ولي الأمر",
+    "emailed": "تم إرسال البيانات بالبريد.",
+    "copyForManualShare": "انسخها الآن إذا أردت مشاركتها يدوياً.",
+    "contact": "جهة الاتصال",
+    "emailedStatus": "تم الإرسال",
+    "createdOnly": "تم الإنشاء فقط",
+    "enterEmailForLogin": "أدخل بريدًا لإنشاء الدخول",
+    "studentHasNoEmail": "لا يملك بريداً إلكترونياً مسجلاً. أدخل بريداً لإنشاء حساب الدخول.",
+    "emailAddress": "عنوان البريد الإلكتروني *",
+    "emailPlaceholder": "student@example.com"
+  },
+  "confirm": {
+    "resetPassword": "إعادة تعيين كلمة المرور لـ {{name}}؟",
+    "sendParentCredentials": "إرسال بيانات دخول تطبيق الهاتف إلى {{count}} من جهات الاتصال لولي الأمر للطالب {{name}}؟\n\nسيؤدي ذلك إلى إنشاء حساب ولي الأمر أو إعادة تعيين كلمة مروره.",
+    "deleteStudent": "حذف {{name}}؟"
+  },
+  "toast": {
+    "created": "تم إنشاء الطالب بنجاح!",
+    "createFailed": "فشل إنشاء الطالب",
+    "updated": "تم تحديث الطالب بنجاح!",
+    "updateFailed": "فشل تحديث الطالب",
+    "deleted": "تم حذف الطالب",
+    "deleteFailed": "فشل الحذف",
+    "loginCreated": "تم إنشاء حساب الدخول!",
+    "loginCreateFailed": "فشل إنشاء حساب الدخول",
+    "passwordReset": "تمت إعادة تعيين كلمة المرور بنجاح!",
+    "passwordResetFailed": "فشل إعادة تعيين كلمة المرور",
+    "noParentEmail": "لا يوجد بريد لولي الأمر لهذا الطالب",
+    "parentCredentialsSent": "تم إرسال بيانات ولي الأمر",
+    "parentCredentialsFailed": "فشل إرسال بيانات ولي الأمر",
+    "copied": "تم النسخ إلى الحافظة!",
+    "copyFailed": "فشل النسخ",
+    "loginsCreated": "تم إنشاء الحسابات",
+    "loginsCreateFailed": "فشل إنشاء الحسابات",
+    "csvDownloaded": "تم تنزيل CSV",
+    "selectCsv": "يرجى اختيار ملف CSV",
+    "selectClass": "يرجى اختيار فصل",
+    "noValidData": "لا توجد بيانات صالحة للاستيراد",
+    "rowsFailed": "فشل {{count}} صف",
+    "importFailed": "فشل الاستيراد"
+  },
+  "detail": {
+    "common": {
+      "na": "غير متوفر",
+      "dash": "—"
+    },
+    "actions": {
+      "backToStudents": "العودة إلى الطلاب"
+    },
+    "errors": {
+      "studentNotFound": "الطالب غير موجود"
+    },
+    "report": {
+      "customPeriod": "فترة مخصصة"
+    },
+    "toast": {
+      "dailyReportSent": "تم إرسال تقرير أعمال الصف اليومية!",
+      "dailyReportFailed": "فشل إرسال التقرير اليومي",
+      "reportGenerated": "تم إنشاء التقرير. راجعه وعدله قبل الإرسال.",
+      "reportGenerateFailed": "فشل إنشاء تقرير الذكاء الاصطناعي",
+      "reportSent": "تم إرسال تقرير الذكاء الاصطناعي إلى أولياء الأمور بنجاح.",
+      "reportSendFailed": "فشل إرسال تقرير الذكاء الاصطناعي",
+      "photoUpdated": "تم تحديث صورة الطالب",
+      "photoUpdateFailed": "فشل تحديث صورة الطالب",
+      "photoRemoved": "تم حذف صورة الطالب",
+      "photoRemoveFailed": "فشل حذف صورة الطالب"
+    },
+    "overview": {
+      "studentPhoto": "صورة الطالب",
+      "noStudentId": "لا يوجد رقم طالب",
+      "unassignedClass": "فصل غير مخصص",
+      "noAcademicYear": "لا توجد سنة أكاديمية",
+      "statusUnknown": "غير معروف",
+      "actions": {
+        "sendDailyReportTitle": "إرسال درجات أعمال الصف لليوم فقط",
+        "sendDailyClasswork": "إرسال أعمال الصف اليومية",
+        "sending": "جارٍ الإرسال...",
+        "generateAiReportTitle": "إنشاء تقرير تقدم بالذكاء الاصطناعي",
+        "generateAiReport": "إنشاء تقرير بالذكاء الاصطناعي",
+        "generating": "جارٍ الإنشاء...",
+        "weeklyFullReport": "التقرير الأسبوعي الكامل",
+        "viewGradeReport": "عرض تقرير الدرجات",
+        "viewGradebook": "عرض سجل الدرجات"
+      }
+    },
+    "info": {
+      "personalInformation": "المعلومات الشخصية",
+      "dateOfBirth": "تاريخ الميلاد",
+      "age": "العمر",
+      "ageYears": "{{count}} سنة",
+      "gender": "الجنس",
+      "class": "الفصل",
+      "unassigned": "غير مخصص",
+      "academicYear": "السنة الأكاديمية",
+      "enrollmentDate": "تاريخ التسجيل",
+      "enrollmentHistory": "سجل التسجيل",
+      "left": "تاريخ المغادرة",
+      "parentGuardianInformation": "معلومات ولي الأمر/الوصي",
+      "father": "الأب",
+      "mother": "الأم",
+      "noContactDetails": "لا توجد بيانات تواصل.",
+      "noParentDetails": "لم تتم إضافة بيانات ولي الأمر أو الوصي.",
+      "address": "العنوان"
+    },
+    "insights": {
+      "studentPerformanceOverview": "نظرة عامة على أداء الطالب",
+      "loadingPerformanceData": "جارٍ تحميل بيانات الأداء...",
+      "overallAverage": "المتوسط العام",
+      "gradedEntries": "عدد الدرجات المسجلة",
+      "assignmentCompletion": "نسبة إنجاز الواجبات",
+      "bestSubject": "أفضل مادة",
+      "schoolYear": "السنة الدراسية",
+      "allSchoolYears": "كل السنوات الدراسية",
+      "semester": "الفصل الدراسي",
+      "allSemesters": "كل الفصول الدراسية",
+      "semester1": "الفصل الدراسي الأول",
+      "semester2": "الفصل الدراسي الثاني",
+      "subjectPerformance": "أداء المواد",
+      "subjectPerformanceChartType": "نوع مخطط أداء المواد",
+      "monthlyTrend": "الاتجاه الشهري",
+      "monthlyTrendChartType": "نوع مخطط الاتجاه الشهري",
+      "column": "أعمدة",
+      "line": "خط",
+      "subject": "المادة",
+      "allSubjects": "كل المواد",
+      "unknownSubject": "مادة غير معروفة",
+      "category": "الفئة",
+      "allCategories": "كل الفئات",
+      "grade": "التقدير",
+      "notGraded": "غير مُقيّم",
+      "noSubjectPerformanceData": "لا توجد بيانات أداء مواد حتى الآن.",
+      "noMonthlyTrendAvailable": "لا يوجد اتجاه شهري متاح حتى الآن.",
+      "noGradeDataForSelection": "لا توجد بيانات درجات للمادة/الفئة المحددة في هذه السنة الدراسية والفصل الدراسي.",
+      "assignmentsAndGradeEntries": "الواجبات وإدخالات الدرجات",
+      "showingLatest": "عرض أحدث {{count}}",
+      "noAssignmentsOrGrades": "لا توجد واجبات أو إدخالات درجات لهذا الطالب حتى الآن.",
+      "columns": {
+        "title": "العنوان",
+        "subject": "المادة",
+        "type": "النوع",
+        "date": "التاريخ",
+        "score": "الدرجة",
+        "status": "الحالة"
+      },
+      "categories": {
+        "classwork": "أعمال الصف",
+        "homework": "الواجب المنزلي",
+        "quiz": "اختبار قصير",
+        "project": "مشروع",
+        "participation": "المشاركة",
+        "test": "اختبار",
+        "exam": "امتحان",
+        "other": "أخرى"
+      },
+      "types": {
+        "assignment": "واجب",
+        "classwork": "أعمال الصف",
+        "homework": "واجب منزلي",
+        "quiz": "اختبار قصير",
+        "project": "مشروع",
+        "participation": "مشاركة",
+        "test": "اختبار",
+        "exam": "امتحان",
+        "daily": "يومي",
+        "weekly": "أسبوعي",
+        "monthly_test": "اختبار",
+        "semester_exam": "امتحان",
+        "other": "أخرى"
+      },
+      "statuses": {
+        "graded": "مُقيّم",
+        "recorded": "مسجل",
+        "overdue": "متأخر",
+        "pending": "قيد الانتظار"
+      }
+    }
+  }
+}

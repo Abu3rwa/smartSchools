@@ -1,6 +1,6 @@
-export const formatDate = (value) =>
+export const formatDate = (value, locale = undefined) =>
   value
-    ? new Date(value).toLocaleDateString(undefined, {
+    ? new Date(value).toLocaleDateString(locale, {
         year: 'numeric',
         month: 'short',
         day: 'numeric'

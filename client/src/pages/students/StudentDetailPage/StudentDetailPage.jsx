@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     fetchStudent,
     selectCurrentStudent,
@@ -19,9 +20,11 @@ import StudentOverviewHeader from './components/StudentOverviewHeader';
 import StudentInformationGrid from './components/StudentInformationGrid';
 import StudentInsightsSection from './components/StudentInsightsSection';
 import useStudentAcademicInsights from './hooks/useStudentAcademicInsights';
+import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
 import './StudentDetailPage.css';
 
 const StudentDetailPage = () => {
+    const { t } = useTranslation(['students']);
     const { id } = useParams();
     const dispatch = useDispatch();
     const student = useSelector(selectCurrentStudent);
@@ -35,6 +38,8 @@ const StudentDetailPage = () => {
     const [generatedReportContent, setGeneratedReportContent] = useState('');
     const [generatedReportPeriod, setGeneratedReportPeriod] = useState('');
     const [reportGeneratedAt, setReportGeneratedAt] = useState(null);
+    const [aiPrimaryLanguage, setAiPrimaryLanguage] = useState('en');
+    const [aiSecondaryLanguage, setAiSecondaryLanguage] = useState('');
     const [schoolYearFilter, setSchoolYearFilter] = useState('');
     const [semesterFilter, setSemesterFilter] = useState('');
 
@@ -85,36 +90,42 @@ const StudentDetailPage = () => {
         }));
 
         if (sendDailyReport.fulfilled.match(result)) {
-            toast.success('Daily classwork report sent!');
+            toast.success(t('detail.toast.dailyReportSent'));
         } else {
-            toast.error(result.payload || 'Failed to send daily report');
+            toast.error(result.payload || t('detail.toast.dailyReportFailed'));
         }
     };
 
     const handleGenerateAIReport = async (payload, periodType) => {
         setGeneratingAIReport(true);
         try {
+            const requestedLanguages = buildRequestedLanguages(aiPrimaryLanguage, aiSecondaryLanguage);
+            const normalizedRequestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];
             const endpoint = periodType === 'predefined' 
                 ? '/reports/generate-predefined'
                 : '/reports/generate-ai-range';
             
             const reportResponse = await api.post(endpoint, {
                 studentId: id,
+                language: toLegacyLanguageValue(normalizedRequestedLanguages),
+                requestedLanguages: normalizedRequestedLanguages,
+                primaryLanguage: aiPrimaryLanguage,
+                secondaryLanguage: aiSecondaryLanguage,
                 ...payload
             });
 
             if (!reportResponse.data.success) {
-                throw new Error(reportResponse.data.message || 'Failed to generate report');
+                throw new Error(reportResponse.data.message || t('detail.toast.reportGenerateFailed'));
             }
 
             const { report, period } = reportResponse.data.data;
             setGeneratedReportContent(report);
-            setGeneratedReportPeriod(period || 'Custom Period');
+            setGeneratedReportPeriod(period || t('detail.report.customPeriod'));
             setReportGeneratedAt(new Date().toISOString());
-            toast.success('Report generated. Review and edit before sending.');
+            toast.success(t('detail.toast.reportGenerated'));
         } catch (error) {
             console.error('Error in AI report generation:', error);
-            toast.error(error.response?.data?.message || error.message || 'Failed to generate AI report');
+            toast.error(error.response?.data?.message || error.message || t('detail.toast.reportGenerateFailed'));
             throw error;
         } finally {
             setGeneratingAIReport(false);
@@ -125,21 +136,21 @@ const StudentDetailPage = () => {
         try {
             const sendResponse = await api.post(`/notifications/send-ai-report/${id}`, {
                 reportContent,
-                period: generatedReportPeriod || 'Custom Period'
+                period: generatedReportPeriod || t('detail.report.customPeriod')
             });
 
             if (!sendResponse.data.success) {
-                throw new Error(sendResponse.data.message || 'Failed to send report');
+                throw new Error(sendResponse.data.message || t('detail.toast.reportSendFailed'));
             }
 
-            toast.success('AI report sent to parents successfully.');
+            toast.success(t('detail.toast.reportSent'));
             setShowAIReportModal(false);
             setGeneratedReportContent('');
             setGeneratedReportPeriod('');
             setReportGeneratedAt(null);
         } catch (error) {
             console.error('Error sending AI report:', error);
-            toast.error(error.response?.data?.message || error.message || 'Failed to send AI report');
+            toast.error(error.response?.data?.message || error.message || t('detail.toast.reportSendFailed'));
             throw error;
         }
     };
@@ -151,9 +162,9 @@ const StudentDetailPage = () => {
         setPhotoUploading(false);
 
         if (uploadStudentPhoto.fulfilled.match(result)) {
-            toast.success('Student photo updated');
+            toast.success(t('detail.toast.photoUpdated'));
         } else {
-            toast.error(result.payload || 'Failed to update student photo');
+            toast.error(result.payload || t('detail.toast.photoUpdateFailed'));
         }
     };
 
@@ -164,9 +175,9 @@ const StudentDetailPage = () => {
         setPhotoUploading(false);
 
         if (removeStudentPhoto.fulfilled.match(result)) {
-            toast.success('Student photo removed');
+            toast.success(t('detail.toast.photoRemoved'));
         } else {
-            toast.error(result.payload || 'Failed to remove student photo');
+            toast.error(result.payload || t('detail.toast.photoRemoveFailed'));
         }
     };
 
@@ -181,8 +192,8 @@ const StudentDetailPage = () => {
     if (!student) {
         return (
             <div className="not-found">
-                <h2>Student not found</h2>
-                <Link to="/portal/students" className="btn btn-secondary">Back to Students</Link>
+                <h2>{t('detail.errors.studentNotFound')}</h2>
+                <Link to="/portal/students" className="btn btn-secondary">{t('detail.actions.backToStudents')}</Link>
             </div>
         );
     }
@@ -191,7 +202,7 @@ const StudentDetailPage = () => {
         <div className="student-detail-page-wrapper">
             <div className="student-detail-page">
                 <Link to="/portal/students" className="student-back-link">
-                    Back to Students
+                    {t('detail.actions.backToStudents')}
                 </Link>
 
                 <StudentOverviewHeader
@@ -234,6 +245,10 @@ const StudentDetailPage = () => {
                 studentName={`${student.firstName} ${student.lastName}`}
                 reportContent={generatedReportContent}
                 timestamp={reportGeneratedAt}
+                primaryLanguage={aiPrimaryLanguage}
+                secondaryLanguage={aiSecondaryLanguage}
+                onPrimaryLanguageChange={setAiPrimaryLanguage}
+                onSecondaryLanguageChange={setAiSecondaryLanguage}
             />
         </div>
     );

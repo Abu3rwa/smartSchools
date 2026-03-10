@@ -4,6 +4,7 @@ import {
     HiOutlineClipboardCopy,
     HiOutlineDownload
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 export const CredentialsModal = ({
     showCredentials,
@@ -11,39 +12,40 @@ export const CredentialsModal = ({
     credentials,
     copyToClipboard
 }) => {
+    const { t } = useTranslation(['students']);
     if (!showCredentials || !credentials) return null;
 
     return (
         <div className="modal-overlay" onClick={() => setShowCredentials(false)}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
                 <div className="modal-header">
-                    <h3>Student Login Credentials</h3>
+                    <h3>{t('students:credentials.studentLoginTitle')}</h3>
                     <button className="modal-close" onClick={() => setShowCredentials(false)}>&times;</button>
                 </div>
                 <div className="modal-body">
                     <div className="credentials-card">
                         <p className="credentials-warning">
                             <HiOutlineExclamationCircle size={18} />
-                            <strong>Copy these credentials now!</strong> The password cannot be viewed again.
+                            <strong>{t('students:credentials.copyNow')}</strong> {t('students:credentials.passwordCannotBeViewedAgain')}
                         </p>
                         <div className="credentials-row">
-                            <label>Student</label>
+                            <label>{t('students:table.columns.student')}</label>
                             <span>{credentials.studentName}</span>
                         </div>
                         <div className="credentials-row">
-                            <label>Email</label>
+                            <label>{t('students:table.columns.email')}</label>
                             <div className="credentials-value">
                                 <code>{credentials.email}</code>
-                                <button className="btn-icon" onClick={() => copyToClipboard(credentials.email)} title="Copy email">
+                                <button className="btn-icon" onClick={() => copyToClipboard(credentials.email)} title={t('students:actions.copyEmail')}>
                                     <HiOutlineClipboardCopy size={16} />
                                 </button>
                             </div>
                         </div>
                         <div className="credentials-row">
-                            <label>Password</label>
+                            <label>{t('students:credentials.password')}</label>
                             <div className="credentials-value">
                                 <code className="password-display">{credentials.tempPassword}</code>
-                                <button className="btn-icon" onClick={() => copyToClipboard(credentials.tempPassword)} title="Copy password">
+                                <button className="btn-icon" onClick={() => copyToClipboard(credentials.tempPassword)} title={t('students:actions.copyPassword')}>
                                     <HiOutlineClipboardCopy size={16} />
                                 </button>
                             </div>
@@ -51,18 +53,18 @@ export const CredentialsModal = ({
                         <button
                             className="btn btn-outline btn-sm mt-md"
                             onClick={() => {
-                                const text = `Student: ${credentials.studentName}\nEmail: ${credentials.email}\nPassword: ${credentials.tempPassword}`;
+                                const text = `${t('students:table.columns.student')}: ${credentials.studentName}\n${t('students:table.columns.email')}: ${credentials.email}\n${t('students:credentials.password')}: ${credentials.tempPassword}`;
                                 copyToClipboard(text);
                             }}
                         >
                             <HiOutlineClipboardCopy size={16} />
-                            Copy All
+                            {t('students:actions.copyAll')}
                         </button>
                     </div>
                 </div>
                 <div className="modal-footer">
                     <button className="btn btn-primary" onClick={() => setShowCredentials(false)}>
-                        Done
+                        {t('common:actions.done')}
                     </button>
                 </div>
             </div>
@@ -78,20 +80,21 @@ export const BulkCredentialsModal = ({
     downloadBulkCredentialsCSV,
     copyAllBulkCredentials
 }) => {
+    const { t } = useTranslation(['students']);
     if (!showBulkCredentials || !bulkCredentials) return null;
 
     return (
         <div className="modal-overlay" onClick={() => { setShowBulkCredentials(false); setBulkCredentials(null); }}>
             <div className="modal modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
                 <div className="modal-header">
-                    <h3>Bulk Login Credentials</h3>
+                    <h3>{t('students:credentials.bulkLoginTitle')}</h3>
                     <button className="modal-close" onClick={() => { setShowBulkCredentials(false); setBulkCredentials(null); }}>&times;</button>
                 </div>
                 <div className="modal-body">
                     <div className="credentials-card">
                         <p className="credentials-warning">
                             <HiOutlineExclamationCircle size={18} />
-                            <strong>Copy or download these credentials now!</strong> Passwords cannot be viewed again.
+                            <strong>{t('students:credentials.copyOrDownloadNow')}</strong> {t('students:credentials.passwordsCannotBeViewedAgain')}
                         </p>
                         {bulkCredentials.created?.length > 0 && (
                             <>
@@ -99,9 +102,9 @@ export const BulkCredentialsModal = ({
                                     <table>
                                         <thead>
                                             <tr>
-                                                <th>Student Name</th>
-                                                <th>Email</th>
-                                                <th>Password</th>
+                                                <th>{t('students:table.columns.student')}</th>
+                                                <th>{t('students:table.columns.email')}</th>
+                                                <th>{t('students:credentials.password')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -118,18 +121,18 @@ export const BulkCredentialsModal = ({
                                 <div className="bulk-credentials-actions">
                                     <button type="button" className="btn btn-outline btn-sm" onClick={downloadBulkCredentialsCSV}>
                                         <HiOutlineDownload size={16} />
-                                        Download CSV
+                                        {t('students:actions.downloadCsv')}
                                     </button>
                                     <button type="button" className="btn btn-outline btn-sm" onClick={copyAllBulkCredentials}>
                                         <HiOutlineClipboardCopy size={16} />
-                                        Copy All
+                                        {t('students:actions.copyAll')}
                                     </button>
                                 </div>
                             </>
                         )}
                         {bulkCredentials.errors?.length > 0 && (
                             <div className="import-errors mt-md">
-                                <h4><HiOutlineExclamationCircle /> Issues</h4>
+                                <h4><HiOutlineExclamationCircle /> {t('students:credentials.issues')}</h4>
                                 <ul>
                                     {bulkCredentials.errors.map((err, i) => (
                                         <li key={i}>
@@ -143,7 +146,7 @@ export const BulkCredentialsModal = ({
                 </div>
                 <div className="modal-footer">
                     <button className="btn btn-primary" onClick={() => { setShowBulkCredentials(false); setBulkCredentials(null); }}>
-                        Done
+                        {t('common:actions.done')}
                     </button>
                 </div>
             </div>
@@ -158,23 +161,24 @@ export const ParentCredentialsModal = ({
     setParentCredentialsResult,
     copyAllParentCredentials
 }) => {
+    const { t } = useTranslation(['students']);
     if (!showParentCredentialsResult || !parentCredentialsResult) return null;
 
     return (
         <div className="modal-overlay" onClick={() => { setShowParentCredentialsResult(false); setParentCredentialsResult(null); }}>
             <div className="modal modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: 620 }}>
                 <div className="modal-header">
-                    <h3>Parent App Credentials</h3>
+                    <h3>{t('students:credentials.parentAppTitle')}</h3>
                     <button className="modal-close" onClick={() => { setShowParentCredentialsResult(false); setParentCredentialsResult(null); }}>&times;</button>
                 </div>
                 <div className="modal-body">
                     <div className="credentials-card">
                         <p className="credentials-warning">
                             <HiOutlineExclamationCircle size={18} />
-                            <strong>Credentials were emailed.</strong> Copy these now if you need to share manually.
+                            <strong>{t('students:credentials.emailed')}</strong> {t('students:credentials.copyForManualShare')}
                         </p>
                         <div className="credentials-row">
-                            <label>Student</label>
+                            <label>{t('students:table.columns.student')}</label>
                             <span>{parentCredentialsResult.studentName}</span>
                         </div>
                         {parentCredentialsResult.sent?.length > 0 && (
@@ -183,10 +187,10 @@ export const ParentCredentialsModal = ({
                                     <table>
                                         <thead>
                                             <tr>
-                                                <th>Contact</th>
-                                                <th>Email</th>
-                                                <th>Password</th>
-                                                <th>Status</th>
+                                                <th>{t('students:credentials.contact')}</th>
+                                                <th>{t('students:table.columns.email')}</th>
+                                                <th>{t('students:credentials.password')}</th>
+                                                <th>{t('students:table.columns.status')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -197,7 +201,7 @@ export const ParentCredentialsModal = ({
                                                     <td><code className="password-display font-mono text-sm">{item.tempPassword}</code></td>
                                                     <td>
                                                         <span className={`badge badge-${item.emailSent ? 'success' : 'warning'}`}>
-                                                            {item.emailSent ? 'Emailed' : 'Created only'}
+                                                            {item.emailSent ? t('students:credentials.emailedStatus') : t('students:credentials.createdOnly')}
                                                         </span>
                                                     </td>
                                                 </tr>
@@ -208,14 +212,14 @@ export const ParentCredentialsModal = ({
                                 <div className="bulk-credentials-actions mt-md">
                                     <button type="button" className="btn btn-outline btn-sm" onClick={copyAllParentCredentials}>
                                         <HiOutlineClipboardCopy size={16} />
-                                        Copy All
+                                        {t('students:actions.copyAll')}
                                     </button>
                                 </div>
                             </>
                         )}
                         {parentCredentialsResult.errors?.length > 0 && (
                             <div className="import-errors mt-md">
-                                <h4><HiOutlineExclamationCircle /> Issues</h4>
+                                <h4><HiOutlineExclamationCircle /> {t('students:credentials.issues')}</h4>
                                 <ul>
                                     {parentCredentialsResult.errors.map((err, index) => (
                                         <li key={`${err.email || 'unknown'}-${index}`}>
@@ -229,7 +233,7 @@ export const ParentCredentialsModal = ({
                 </div>
                 <div className="modal-footer">
                     <button className="btn btn-primary" onClick={() => { setShowParentCredentialsResult(false); setParentCredentialsResult(null); }}>
-                        Done
+                        {t('common:actions.done')}
                     </button>
                 </div>
             </div>
@@ -245,27 +249,29 @@ export const EmailPromptModal = ({
     setLoginEmail,
     doCreateLogin
 }) => {
+    const { t } = useTranslation(['students']);
     if (!showLoginEmailPrompt || !loginTargetStudent) return null;
 
     return (
         <div className="modal-overlay" onClick={() => setShowLoginEmailPrompt(false)}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
                 <div className="modal-header">
-                    <h3>Enter Email for Login</h3>
+                    <h3>{t('students:credentials.enterEmailForLogin')}</h3>
                     <button className="modal-close" onClick={() => setShowLoginEmailPrompt(false)}>&times;</button>
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); doCreateLogin(loginTargetStudent, loginEmail); }}>
                     <div className="modal-body">
                         <p className="text-muted">
-                            <strong>{loginTargetStudent.firstName} {loginTargetStudent.lastName}</strong> doesn't have an email on file. Enter one to create their login account.
+                            <strong>{loginTargetStudent.firstName} {loginTargetStudent.lastName}</strong>{' '}
+                            {t('students:credentials.studentHasNoEmail')}
                         </p>
                         <div className="form-group">
-                            <label>Email Address *</label>
+                            <label>{t('students:credentials.emailAddress')}</label>
                             <input
                                 type="email"
                                 value={loginEmail}
                                 onChange={(e) => setLoginEmail(e.target.value)}
-                                placeholder="student@example.com"
+                                placeholder={t('students:credentials.emailPlaceholder')}
                                 required
                                 autoFocus
                             />
@@ -273,10 +279,10 @@ export const EmailPromptModal = ({
                     </div>
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={() => setShowLoginEmailPrompt(false)}>
-                            Cancel
+                            {t('common:actions.cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={!loginEmail}>
-                            Create Login
+                            {t('students:actions.createLogin')}
                         </button>
                     </div>
                 </form>

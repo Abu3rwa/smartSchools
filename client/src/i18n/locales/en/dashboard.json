@@ -1,0 +1,49 @@
+{
+  "header": {
+    "welcome": "Welcome back, {{firstName}}! 👋",
+    "subtitle": "Here's what's happening with your classes today.",
+    "enterGrades": "Enter Grades"
+  },
+  "loadingState": {
+    "message": "Loading dashboard..."
+  },
+  "errorState": {
+    "message": "Error loading dashboard: {{error}}",
+    "retry": "Retry"
+  },
+  "stats": {
+    "totalStudents": "Total Students",
+    "totalClasses": "Total Classes",
+    "totalGrades": "Grades Entered",
+    "avgPerformance": "Avg. Performance"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "enterGrades": "Enter Grades",
+    "viewClasses": "View Classes",
+    "sendReports": "Send Reports",
+    "viewAnalytics": "View Analytics"
+  },
+  "recentStudents": {
+    "title": "Recent Students",
+    "empty": "No students found. Add some students to get started."
+  },
+  "classesOverview": {
+    "title": "Classes Overview",
+    "studentCount_zero": "{{count}} students",
+    "studentCount_one": "{{count}} student",
+    "studentCount_two": "{{count}} students",
+    "studentCount_few": "{{count}} students",
+    "studentCount_many": "{{count}} students",
+    "studentCount_other": "{{count}} students",
+    "empty": "No classes found. Create a class to get started."
+  },
+  "performance": {
+    "title": "Performance Trends",
+    "comingSoon": "Performance analytics coming soon"
+  },
+  "common": {
+    "viewAll": "View All",
+    "unassigned": "Unassigned"
+  }
+}

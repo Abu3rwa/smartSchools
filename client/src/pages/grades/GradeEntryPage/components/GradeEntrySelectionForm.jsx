@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { GRADE_CATEGORY_OPTIONS } from '../constants';
 
 const GradeEntrySelectionForm = ({
@@ -17,13 +18,15 @@ const GradeEntrySelectionForm = ({
     availableClasses,
     availableSubjects
 }) => {
+    const { t } = useTranslation(['grades']);
+
     return (
         <div className="card selection-card">
             <div className="selection-grid">
                 <div className="form-group">
-                    <label>Select Class *</label>
+                    <label>{t('grades:entry.form.selectClass')}</label>
                     <select value={selectedClass} onChange={(event) => onClassChange(event.target.value)} required>
-                        <option value="">Choose a class</option>
+                        <option value="">{t('grades:entry.form.chooseClass')}</option>
                         {availableClasses.map((item) => (
                             <option key={item._id} value={item._id}>{item.name}</option>
                         ))}
@@ -31,14 +34,14 @@ const GradeEntrySelectionForm = ({
                 </div>
 
                 <div className="form-group">
-                    <label>Select Subject *</label>
+                    <label>{t('grades:entry.form.selectSubject')}</label>
                     <select
                         value={selectedSubject}
                         onChange={(event) => onSubjectChange(event.target.value)}
                         required
                         disabled={!selectedClass}
                     >
-                        <option value="">Choose a subject</option>
+                        <option value="">{t('grades:entry.form.chooseSubject')}</option>
                         {availableSubjects.map((subject) => (
                             <option key={subject._id} value={subject._id}>
                                 {subject.name} ({subject.code})
@@ -48,19 +51,21 @@ const GradeEntrySelectionForm = ({
                 </div>
 
                 <div className="form-group">
-                    <label>Category *</label>
+                    <label>{t('grades:entry.form.category')}</label>
                     <div className="category-selection">
                         <select value={selectedCategory} onChange={(event) => onCategoryChange(event.target.value)} required>
                             {GRADE_CATEGORY_OPTIONS.map((category) => (
-                                <option key={category} value={category}>{category}</option>
+                                <option key={category} value={category}>
+                                    {t(`grades:categories.${category}`, { defaultValue: category })}
+                                </option>
                             ))}
-                            <option value="Custom">Custom...</option>
+                            <option value="Custom">{t('grades:entry.form.customCategory')}</option>
                         </select>
 
                         {selectedCategory === 'Custom' && (
                             <input
                                 type="text"
-                                placeholder="Enter category name"
+                                placeholder={t('grades:entry.form.customCategoryPlaceholder')}
                                 value={customCategory}
                                 onChange={(event) => onCustomCategoryChange(event.target.value)}
                                 className="mt-sm"
@@ -71,7 +76,7 @@ const GradeEntrySelectionForm = ({
                 </div>
 
                 <div className="form-group">
-                    <label>Date</label>
+                    <label>{t('grades:entry.form.date')}</label>
                     <input
                         type="date"
                         value={selectedDate}
@@ -81,7 +86,7 @@ const GradeEntrySelectionForm = ({
                 </div>
 
                 <div className="form-group">
-                    <label>Max Marks</label>
+                    <label>{t('grades:entry.form.maxMarks')}</label>
                     <input
                         type="number"
                         value={maxMarks}

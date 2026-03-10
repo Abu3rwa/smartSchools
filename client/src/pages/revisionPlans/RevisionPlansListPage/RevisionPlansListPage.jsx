@@ -16,6 +16,7 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import {
   HiOutlinePlus,
   HiOutlineCalendar,
@@ -35,6 +36,7 @@ const getStatusColor = (status) => {
  * Student + Teacher shared (role-based content).
  */
 export default function RevisionPlansListPage() {
+  const { t } = useTranslation(["revisionPlans"]);
   const theme = useTheme();
   const isSm = useMediaQuery(theme.breakpoints.down("sm"));
   const isMd = useMediaQuery(theme.breakpoints.down("md"));
@@ -64,12 +66,12 @@ export default function RevisionPlansListPage() {
       >
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
-            Revision Plans
+            {t("revisionPlans:list.title")}
           </Typography>
           <Typography variant="body1" color="text.secondary">
             {isStudent
-              ? "Your personalized exam revision plans"
-              : "View and manage revision plans for your students"}
+              ? t("revisionPlans:list.studentSubtitle")
+              : t("revisionPlans:list.teacherSubtitle")}
             {academicYear ? ` (${academicYear})` : ""}
           </Typography>
         </Box>
@@ -83,16 +85,16 @@ export default function RevisionPlansListPage() {
         >
           {isTeacher && (
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Status</InputLabel>
+              <InputLabel>{t("revisionPlans:common.status")}</InputLabel>
               <Select
                 value={statusFilter}
-                label="Status"
+                label={t("revisionPlans:common.status")}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="completed">Completed</MenuItem>
-                <MenuItem value="abandoned">Abandoned</MenuItem>
+                <MenuItem value="">{t("revisionPlans:common.all")}</MenuItem>
+                <MenuItem value="active">{t("revisionPlans:status.active")}</MenuItem>
+                <MenuItem value="completed">{t("revisionPlans:status.completed")}</MenuItem>
+                <MenuItem value="abandoned">{t("revisionPlans:status.abandoned")}</MenuItem>
               </Select>
             </FormControl>
           )}
@@ -102,7 +104,7 @@ export default function RevisionPlansListPage() {
             onClick={handleCreate}
             sx={{ whiteSpace: "nowrap" }}
           >
-            {isStudent ? "New Plan" : "Create Plan"}
+            {isStudent ? t("revisionPlans:list.newPlan") : t("revisionPlans:list.createPlan")}
           </Button>
         </Box>
       </Box>
@@ -127,19 +129,19 @@ export default function RevisionPlansListPage() {
             }}
           />
           <Typography variant="h6" gutterBottom>
-            No revision plans yet
+            {t("revisionPlans:list.emptyTitle")}
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
             {isStudent
-              ? "Create a plan to get a personalized study schedule before your exam."
-              : "Create a revision plan for a student to get started."}
+              ? t("revisionPlans:list.emptyStudent")
+              : t("revisionPlans:list.emptyTeacher")}
           </Typography>
           <Button
             variant="contained"
             onClick={handleCreate}
             startIcon={<HiOutlinePlus size={18} />}
           >
-            Create plan
+            {t("revisionPlans:list.createPlan")}
           </Button>
         </Paper>
       ) : (
@@ -175,10 +177,10 @@ export default function RevisionPlansListPage() {
                       >
                         {plan.examLabel ||
                           plan.subject?.name ||
-                          "Revision Plan"}
+                          t("revisionPlans:list.planFallback")}
                       </Typography>
                       <Chip
-                        label={plan.status}
+                        label={t(`revisionPlans:status.${plan.status}`, { defaultValue: plan.status })}
                         size="small"
                         color={getStatusColor(plan.status)}
                         sx={{ textTransform: "capitalize" }}
@@ -189,7 +191,7 @@ export default function RevisionPlansListPage() {
                       color="text.secondary"
                       gutterBottom
                     >
-                      {plan.subject?.name} • Exam:{" "}
+                      {plan.subject?.name} • {t("revisionPlans:common.examLabel")}{" "}
                       {plan.examDate &&
                         format(new Date(plan.examDate), "MMM d, yyyy")}
                     </Typography>
@@ -219,7 +221,7 @@ export default function RevisionPlansListPage() {
                           display="block"
                           mt={1}
                         >
-                          {plan.daysUntilExam} days until exam
+                          {t("revisionPlans:list.daysUntilExam", { count: plan.daysUntilExam })}
                         </Typography>
                       )}
                   </CardContent>

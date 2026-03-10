@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createEmptyTemplateForm, DEFAULT_FILTERS } from '../constants';
 
+const normalizeLanguageValue = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'english') return 'en';
+  if (normalized === 'arabic') return 'ar';
+  return normalized;
+};
+
 const useReportTemplates = ({ token }) => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +54,7 @@ const useReportTemplates = ({ token }) => {
     setFormData({
       name: template.name,
       type: template.type,
-      language: template.language,
+      language: normalizeLanguageValue(template.language),
       customPrompt: template.customPrompt,
       variables: template.variables || []
     });
@@ -123,7 +130,12 @@ const useReportTemplates = ({ token }) => {
   const filteredTemplates = useMemo(() => {
     return templates.filter((template) => {
       if (filters.type && template.type !== filters.type) return false;
-      if (filters.language && template.language !== filters.language) return false;
+      if (
+        filters.language &&
+        normalizeLanguageValue(template.language) !== normalizeLanguageValue(filters.language)
+      ) {
+        return false;
+      }
       return true;
     });
   }, [filters.language, filters.type, templates]);

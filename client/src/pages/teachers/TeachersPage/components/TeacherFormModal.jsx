@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 const TeacherFormModal = ({
     open,
     mode,
@@ -9,6 +11,7 @@ const TeacherFormModal = ({
     onClose,
     onSubmit
 }) => {
+    const { t } = useTranslation(['teachers']);
     if (!open) return null;
 
     const isEdit = mode === 'edit';
@@ -17,14 +20,14 @@ const TeacherFormModal = ({
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal modal-lg" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>{isEdit ? 'Edit Teacher' : 'Add New Teacher'}</h3>
+                    <h3>{isEdit ? t('teachers:modal.editTitle') : t('teachers:modal.createTitle')}</h3>
                     <button className="modal-close" onClick={onClose}>&times;</button>
                 </div>
                 <form onSubmit={onSubmit}>
                     <div className="modal-body">
                         <div className="form-row">
                             <div className="form-group">
-                                <label>First Name *</label>
+                                <label>{t('teachers:form.firstName')}</label>
                                 <input
                                     type="text"
                                     value={formData.firstName}
@@ -33,7 +36,7 @@ const TeacherFormModal = ({
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Last Name *</label>
+                                <label>{t('teachers:form.lastName')}</label>
                                 <input
                                     type="text"
                                     value={formData.lastName}
@@ -44,7 +47,7 @@ const TeacherFormModal = ({
                         </div>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Email *</label>
+                                <label>{t('teachers:form.email')}</label>
                                 <input
                                     type="email"
                                     value={formData.email}
@@ -53,7 +56,7 @@ const TeacherFormModal = ({
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Phone</label>
+                                <label>{t('teachers:form.phone')}</label>
                                 <input
                                     type="tel"
                                     value={formData.phone}
@@ -63,29 +66,29 @@ const TeacherFormModal = ({
                         </div>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Department</label>
+                                <label>{t('teachers:form.department')}</label>
                                 <select
                                     value={formData.department}
                                     onChange={(event) => setFormData({ ...formData, department: event.target.value })}
                                 >
-                                    <option value="">— No department —</option>
+                                    <option value="">{t('teachers:form.noDepartment')}</option>
                                     {departments.map((department) => (
                                         <option key={department._id} value={department._id}>{department.name}</option>
                                     ))}
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Qualification</label>
+                                <label>{t('teachers:form.qualification')}</label>
                                 <input
                                     type="text"
                                     value={formData.qualification}
                                     onChange={(event) => setFormData({ ...formData, qualification: event.target.value })}
-                                    placeholder="e.g., B.Ed, M.Sc"
+                                    placeholder={t('teachers:form.qualificationPlaceholder')}
                                 />
                             </div>
                         </div>
                         <div className="form-group">
-                            <label>Subjects (hold Ctrl to select multiple)</label>
+                            <label>{t('teachers:form.subjectsHint')}</label>
                             <select
                                 multiple
                                 value={formData.subjects}
@@ -105,10 +108,12 @@ const TeacherFormModal = ({
                     </div>
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>
-                            Cancel
+                            {t('common:actions.cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={submitting}>
-                            {submitting ? (isEdit ? 'Updating...' : 'Creating...') : (isEdit ? 'Update Teacher' : 'Add Teacher')}
+                            {submitting
+                                ? (isEdit ? t('teachers:actions.updating') : t('teachers:actions.creating'))
+                                : (isEdit ? t('teachers:actions.updateTeacher') : t('teachers:actions.addTeacher'))}
                         </button>
                     </div>
                 </form>

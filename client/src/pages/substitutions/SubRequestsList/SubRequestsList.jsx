@@ -1,5 +1,6 @@
 import { Alert, Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import PageContainer from '../../../components/layout/PageContainer';
 import { STATUS_OPTIONS } from './constants';
 import SubRequestsListHeader from './components/SubRequestsListHeader';
@@ -10,6 +11,7 @@ import SubRequestsSkeleton from './components/SubRequestsSkeleton';
 import useSubRequestsList from './hooks/useSubRequestsList';
 
 const SubRequestsList = () => {
+  const { t } = useTranslation(['subRequestsList', 'common']);
   const navigate = useNavigate();
   const {
     loading,
@@ -49,7 +51,7 @@ const SubRequestsList = () => {
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
+            {error || t('subRequestsList:error.loadFailed')}
           </Alert>
         )}
 

@@ -1,6 +1,7 @@
 import StandardAssignment from '../models/StandardAssignment.js';
 import StandardQuestionPool from '../models/StandardQuestionPool.js';
 import Standard from '../models/Standard.js';
+import Subject from '../models/Subject.js';
 import Student from '../models/Student.js';
 import PracticeAttempt from '../models/PracticeAttempt.js';
 import Class from '../models/Class.js';
@@ -15,6 +16,7 @@ import {
     isClassInAcademicYear,
     resolveAcademicYearForRequest
 } from '../helpers/academicYearScope.js';
+import { resolveRequestedLanguages } from '../utils/aiLanguageUtils.js';
 
 const normalizeTitle = (value = '') => String(value || '').trim();
 const normalizeComparableTitle = (value = '') => normalizeTitle(value).toLowerCase();
@@ -75,6 +77,7 @@ const buildQuestionPool = async ({
     subjectName,
     questionCount,
     practiceConfig,
+    generationLanguages = ['en'],
 }) => {
     const allowedQuestionTypes =
         Array.isArray(practiceConfig?.allowedQuestionTypes) && practiceConfig.allowedQuestionTypes.length > 0
@@ -97,6 +100,7 @@ const buildQuestionPool = async ({
                 subjectName,
                 difficulty,
                 questionType,
+                requestedLanguages: generationLanguages,
                 previousQuestions,
                 previousQuestionFingerprints: [],
                 recentAttempts: [],
@@ -331,7 +335,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
         instructions,
         practiceConfig,
         assessmentConfig,
-        preGeneratedQuestionCount
+        preGeneratedQuestionCount,
+        aiLanguages
     } = req.body;
     const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const requestedSemester = normalizeSemester(req.body?.semester);
@@ -385,6 +390,15 @@ export const createAssignment = asyncHandler(async (req, res) => {
             message: 'This subject is not configured for the selected class'
         });
     }
+    const subjectDoc = await Subject.findById(subjectId).select('name').lean();
+    if (!subjectDoc) {
+        return res.status(404).json({ success: false, message: 'Subject not found' });
+    }
+    const generationLanguages = resolveRequestedLanguages({
+        requestedLanguages: aiLanguages,
+        subjectName: subjectDoc?.name || '',
+        max: 2
+    });
 
     // Resolve teacher
     let teacherId;
@@ -454,11 +468,15 @@ export const createAssignment = asyncHandler(async (req, res) => {
         parsedAssessmentConfig = parsed.data;
     }
 
+    const resolvedSessionType =
+        parsedConfig?.sessionType || practiceConfig?.sessionType || 'practice';
+    const requiresReviewedPoolBeforeAccess = resolvedSessionType === 'assessment';
+
     const resolvedTitle = normalizeTitle(req.body?.title)
         || buildDefaultAssignmentTitle({
             standard,
             classDoc,
-            sessionType: parsedConfig?.sessionType || practiceConfig?.sessionType || 'practice'
+            sessionType: resolvedSessionType
         });
     const assignmentSemester = requestedSemester
         || resolveSemesterFromDate(dueDate || new Date());
@@ -497,11 +515,12 @@ export const createAssignment = asyncHandler(async (req, res) => {
         practiceConfig: parsedConfig,
         assessmentConfig: parsedAssessmentConfig,
         questionWorkflow: {
-            requireApprovalBeforeStudentAccess: false,
+            requireApprovalBeforeStudentAccess: requiresReviewedPoolBeforeAccess,
             preGeneratedQuestionCount: resolvePreGeneratedQuestionCount(
                 preGeneratedQuestionCount,
                 parsedConfig?.questionLimit || practiceConfig?.questionLimit
             ),
+            aiLanguages: generationLanguages,
             status: 'draft',
             currentPoolVersion: 1,
             generatedAt: new Date()
@@ -519,9 +538,10 @@ export const createAssignment = asyncHandler(async (req, res) => {
     try {
         generatedQuestions = await buildQuestionPool({
             standard,
-            subjectName: 'General Studies',
+            subjectName: subjectDoc?.name || 'General Studies',
             questionCount: generatedCount,
             practiceConfig: resolvedPracticeConfig,
+            generationLanguages,
         });
     } catch (error) {
         generationError = error?.message || 'Question generation failed';
@@ -540,6 +560,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
                 class: assignment.class,
                 subject: assignment.subject,
                 generatedQuestionCount: generatedCount,
+                generationLanguages,
                 currentVersion: 1,
                 status: 'draft',
                 questions: generatedQuestions,
@@ -577,6 +598,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
             questionPool: {
                 status: 'draft',
                 generatedQuestionCount: generatedCount,
+                generationLanguages,
                 generatedQuestions: generatedQuestions.length,
                 generationError
             }
@@ -662,6 +684,10 @@ export const updateAssignment = asyncHandler(async (req, res) => {
             success: false,
             message: 'This subject is not configured for the selected class'
         });
+    }
+    const subjectDoc = await Subject.findById(nextSubjectId).select('name').lean();
+    if (!subjectDoc) {
+        return res.status(404).json({ success: false, message: 'Subject not found' });
     }
 
     let nextTeacherId = assignment.teacher?.toString();
@@ -820,6 +846,30 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         }
     }
 
+    if (req.body.aiLanguages !== undefined) {
+        const resolvedAiLanguages = resolveRequestedLanguages({
+            requestedLanguages: req.body.aiLanguages,
+            subjectName: subjectDoc?.name || '',
+            max: 2
+        });
+        updates.questionWorkflow = {
+            ...(assignment.questionWorkflow?.toObject?.() || assignment.questionWorkflow || {}),
+            ...(updates.questionWorkflow || {}),
+            aiLanguages: resolvedAiLanguages
+        };
+    }
+
+    const effectiveSessionType =
+        updates.practiceConfig?.sessionType
+        || assignment.practiceConfig?.sessionType
+        || 'practice';
+    const requiresReviewedPoolBeforeAccess = effectiveSessionType === 'assessment';
+    updates.questionWorkflow = {
+        ...(assignment.questionWorkflow?.toObject?.() || assignment.questionWorkflow || {}),
+        ...(updates.questionWorkflow || {}),
+        requireApprovalBeforeStudentAccess: requiresReviewedPoolBeforeAccess
+    };
+
     assignment = await StandardAssignment.findByIdAndUpdate(req.params.id, updates, {
         new: true,
         runValidators: true
@@ -854,6 +904,12 @@ export const getAssignmentQuestionPool = asyncHandler(async (req, res) => {
     const teacherOwnsAssignment = await ensureTeacherOwnsAssignment(req, assignment);
     if (!teacherOwnsAssignment) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+        return res.status(400).json({
+            success: false,
+            message: 'Question pool workflow is only available for formal assessments'
+        });
     }
 
     const pool = await StandardQuestionPool.findOne({
@@ -894,6 +950,12 @@ export const updateAssignmentQuestionPool = asyncHandler(async (req, res) => {
     const teacherOwnsAssignment = await ensureTeacherOwnsAssignment(req, assignment);
     if (!teacherOwnsAssignment) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+        return res.status(400).json({
+            success: false,
+            message: 'Question pool workflow is only available for formal assessments'
+        });
     }
 
     let pool = await StandardQuestionPool.findOne({
@@ -982,6 +1044,12 @@ export const reviewAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher' && !teacherOwnsAssignment) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
+    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+        return res.status(400).json({
+            success: false,
+            message: 'Question pool review is only available for formal assessments'
+        });
+    }
 
     const pool = await StandardQuestionPool.findOne({
         school: req.schoolId,
@@ -1032,6 +1100,12 @@ export const approveAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (!assignment || !assignment.isActive) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
+    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+        return res.status(400).json({
+            success: false,
+            message: 'Question pool approval is only available for formal assessments'
+        });
+    }
 
     const pool = await StandardQuestionPool.findOne({
         school: req.schoolId,
@@ -1080,6 +1154,12 @@ export const publishAssignmentQuestionPool = asyncHandler(async (req, res) => {
     const assignment = await StandardAssignment.findById(req.params.id);
     if (!assignment || !assignment.isActive) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+        return res.status(400).json({
+            success: false,
+            message: 'Question pool publishing is only available for formal assessments'
+        });
     }
 
     const pool = await StandardQuestionPool.findOne({

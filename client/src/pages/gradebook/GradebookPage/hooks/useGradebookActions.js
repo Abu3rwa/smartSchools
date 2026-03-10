@@ -1,5 +1,6 @@
 import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import api from '../../../../config/api';
 import { sendDailyClassworkUpdate } from '../../../../store/slices/notificationSlice';
 import { MONTHS } from '../constants';
@@ -7,6 +8,7 @@ import {
     buildPeriodLabel,
     getReportDateForAcademicMonth
 } from '../utils/gradebookPresentation';
+import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../../constants/aiLanguages';
 
 const useGradebookActions = ({
     classId,
@@ -26,7 +28,8 @@ const useGradebookActions = ({
     setIsEditingReport,
     setShowAIModal,
     setGeneratingAI,
-    aiLanguage,
+    aiPrimaryLanguage,
+    aiSecondaryLanguage,
     aiSendEmail,
     aiRecipients,
     setAiRecipients,
@@ -35,6 +38,7 @@ const useGradebookActions = ({
     isEditingReport,
     selectedStudentForAI
 }) => {
+    const { t } = useTranslation(['gradebook']);
     const dispatch = useDispatch();
 
     const handleGradeChange = (studentId, field, value) => {
@@ -71,7 +75,7 @@ const useGradebookActions = ({
             }));
 
         if (gradesToSubmit.length === 0) {
-            toast.error('Please enter at least one grade');
+            toast.error(t('gradebook:toasts.enterAtLeastOne'));
             return;
         }
 
@@ -87,24 +91,23 @@ const useGradebookActions = ({
                 grades: gradesToSubmit
             });
 
-            toast.success(`${gradesToSubmit.length} grades added successfully!`);
+            toast.success(t('gradebook:toasts.addedSuccessfully', { count: gradesToSubmit.length }));
             setShowAddModal(false);
             resetForm();
             fetchGrades();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to add grades');
+            toast.error(error.response?.data?.message || t('gradebook:toasts.addFailed'));
         }
     };
 
     const handleSendClassworkUpdate = async () => {
         if (!students.length) {
-            toast.error('No students in this class');
+            toast.error(t('gradebook:toasts.noStudents'));
             return;
         }
 
         const confirmed = window.confirm(
-            `Send daily classwork update to all ${students.length} students' parents?\n\n` +
-            'This will email them a summary of all classwork grades for this month.'
+            t('gradebook:toasts.confirmSendReports', { count: students.length })
         );
 
         if (!confirmed) {
@@ -133,9 +136,9 @@ const useGradebookActions = ({
         await Promise.all(notifications);
 
         if (successCount > 0) {
-            toast.success(`Sent updates to ${successCount} parents${failCount > 0 ? ` (${failCount} failed)` : ''}`);
+            toast.success(t('gradebook:toasts.sentUpdates', { success: successCount, failed: failCount }));
         } else {
-            toast.error('Failed to send notifications');
+            toast.error(t('gradebook:toasts.sendNotificationsFailed'));
         }
     };
 
@@ -160,10 +163,18 @@ const useGradebookActions = ({
 
         setGeneratingAI(true);
         try {
+            const requestedLanguages = buildRequestedLanguages(
+                aiPrimaryLanguage,
+                aiSecondaryLanguage
+            );
+            const normalizedRequestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];
             const response = await api.post('/reports/generate-advanced', {
                 studentId: selectedStudentForAI._id,
                 reportType: 'monthly',
-                language: aiLanguage,
+                language: toLegacyLanguageValue(normalizedRequestedLanguages),
+                requestedLanguages: normalizedRequestedLanguages,
+                primaryLanguage: aiPrimaryLanguage,
+                secondaryLanguage: aiSecondaryLanguage,
                 sendEmail: aiSendEmail,
                 recipients: aiRecipients
             });
@@ -175,7 +186,7 @@ const useGradebookActions = ({
             }
         } catch (error) {
             console.error(error);
-            toast.error('Failed to generate report');
+            toast.error(t('gradebook:toasts.generateFailed'));
         } finally {
             setGeneratingAI(false);
         }
@@ -225,14 +236,14 @@ const useGradebookActions = ({
             });
 
             if (response.data?.success) {
-                toast.success('AI report sent to parent successfully!');
+                toast.success(t('gradebook:toasts.aiSent'));
                 setShowAIModal(false);
             } else {
-                toast.error(response.data?.message || 'Failed to send report');
+                toast.error(response.data?.message || t('gradebook:toasts.sendReportFailed'));
             }
         } catch (error) {
             console.error('Error sending AI report:', error);
-            toast.error(error.response?.data?.message || 'Failed to send report');
+            toast.error(error.response?.data?.message || t('gradebook:toasts.sendReportFailed'));
         }
     };
 

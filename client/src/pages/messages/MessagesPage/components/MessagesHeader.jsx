@@ -1,5 +1,6 @@
 import { HiOutlinePlus, HiOutlineRefresh } from 'react-icons/hi';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 
 const MessagesHeader = ({
     realtimeConnected,
@@ -8,33 +9,38 @@ const MessagesHeader = ({
     onCompose,
     showComposeButton
 }) => (
-    <div className="page-header">
-        <div>
-            <h1>Messages</h1>
-            <p className="text-muted">Communicate with parents and students in a shared inbox</p>
-        </div>
-        <div className="messages-header-actions">
-            <span className={`messages-live-pill ${realtimeConnected ? 'online' : 'offline'}`}>
-                <span className="messages-live-dot" />
-                {realtimeConnected ? 'Live' : 'Offline'}
-            </span>
-            {lastUpdatedAt && (
-                <span className="messages-updated text-muted">
-                    Updated {format(lastUpdatedAt, 'HH:mm')}
+}) => {
+    const { t } = useTranslation(['messages']);
+
+    return (
+        <div className="page-header">
+            <div>
+                <h1>{t('messages:header.title')}</h1>
+                <p className="text-muted">{t('messages:header.subtitle')}</p>
+            </div>
+            <div className="messages-header-actions">
+                <span className={`messages-live-pill ${realtimeConnected ? 'online' : 'offline'}`}>
+                    <span className="messages-live-dot" />
+                    {realtimeConnected ? t('messages:header.live') : t('messages:header.offline')}
                 </span>
-            )}
-            <button className="btn btn-secondary" onClick={onRefresh}>
-                <HiOutlineRefresh size={18} />
-                Refresh
-            </button>
-            {showComposeButton && (
-                <button className="btn btn-primary" onClick={onCompose}>
-                    <HiOutlinePlus size={18} />
-                    New Message
+                {lastUpdatedAt && (
+                    <span className="messages-updated text-muted">
+                        {t('messages:header.updatedAt', { time: format(lastUpdatedAt, 'HH:mm') })}
+                    </span>
+                )}
+                <button className="btn btn-secondary" onClick={onRefresh}>
+                    <HiOutlineRefresh size={18} />
+                    {t('messages:header.refresh')}
                 </button>
-            )}
+                {showComposeButton && (
+                    <button className="btn btn-primary" onClick={onCompose}>
+                        <HiOutlinePlus size={18} />
+                        {t('messages:header.newMessage')}
+                    </button>
+                )}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 export default MessagesHeader;

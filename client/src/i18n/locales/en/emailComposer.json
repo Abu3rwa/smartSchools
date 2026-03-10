@@ -1,0 +1,146 @@
+{
+  "title": "Email Composer",
+  "loadingComposer": "Loading composer...",
+  "noScopeMessage": "You do not currently have communication scope to send email from this screen.",
+  "subtitle": " Scoped communication for students, parents, and teachers.",
+  "fields": {
+    "emailFrom": "Email from",
+    "toParents": "To the parents of",
+    "toTeachers": "To teachers",
+    "toStudents": "To students",
+    "subject": "Subject",
+    "delivery": "Delivery",
+    "message": "Message",
+    "messagePlaceholder": "Write your email message...",
+    "attachment": "Attachment"
+  },
+  "recipients": {
+    "labels": {
+      "parents": "Parents",
+      "teachers": "Teachers",
+      "students": "Students"
+    },
+    "searchPlaceholder": "Search {{label}}...",
+    "removeRecipientAria": "Remove {{name}}",
+    "empty": "No recipients selected",
+    "loadingSuggestions": "Loading suggestions...",
+    "noSuggestionsInScope": "No suggestions in your allowed scope",
+    "tokenType": {
+      "group": "group",
+      "individual": "individual"
+    },
+    "audience": {
+      "parents": "parents",
+      "teachers": "teachers",
+      "students": "students"
+    }
+  },
+  "delivery": {
+    "sendNow": "Send now",
+    "scheduleSend": "Schedule send"
+  },
+  "ai": {
+    "disabledByAdmin": "AI drafting is disabled by your school administrator.",
+    "notAvailableOnPlan": "AI drafting is not available on your school plan",
+    "generatingDraft": "Generating draft...",
+    "draftButton": "AI Draft",
+    "modalTitle": "Generate AI Email Draft",
+    "closeModalAria": "Close AI draft modal",
+    "toneLabel": "Tone",
+    "tones": {
+      "professional": "Professional",
+      "formal": "Formal",
+      "warm": "Warm",
+      "concise": "Concise",
+      "friendly": "Friendly"
+    },
+    "primaryLanguageLabel": "Primary AI Language",
+    "secondaryLanguageLabel": "Secondary AI Language (Optional)",
+    "secondaryLanguagePlaceholder": "None",
+    "promptLabel": "What should this email say?",
+    "promptPlaceholder": "Example: Draft a short update for parents about next week's science fair schedule and what students should bring.",
+    "generating": "Generating...",
+    "generateDraft": "Generate Draft"
+  },
+  "attachments": {
+    "uploading": "Uploading...",
+    "attachFile": "Attach file",
+    "attachedCount": "{{count}}/5 attached",
+    "removeAttachmentAria": "Remove attachment {{name}}",
+    "notEnabled": "Attachments are not enabled in the current email transport."
+  },
+  "actions": {
+    "clear": "Clear",
+    "schedule": "Schedule",
+    "send": "Send",
+    "cancel": "Cancel",
+    "scheduling": "Scheduling...",
+    "sending": "Sending...",
+    "confirmAndSchedule": "Confirm & Schedule",
+    "confirmAndSend": "Confirm & Send"
+  },
+  "history": {
+    "title": "Recent Sent Emails",
+    "loading": "Loading history...",
+    "empty": "No sent email history yet.",
+    "columns": {
+      "subject": "Subject",
+      "status": "Status",
+      "recipients": "Recipients",
+      "when": "When"
+    },
+    "status": {
+      "scheduled": "Scheduled",
+      "sent": "Sent",
+      "partial": "Partial",
+      "failed": "Failed"
+    }
+  },
+  "preview": {
+    "title": "Confirm Recipients Before Send",
+    "closeModalAria": "Close recipient preview",
+    "blockedTokens": "Blocked tokens",
+    "delivery": "Delivery",
+    "scheduled": "Scheduled",
+    "scheduledFor": "Scheduled for",
+    "studentEmails": "Student emails",
+    "parentEmails": "Parent emails",
+    "teacherEmails": "Teacher emails",
+    "duplicatesRemoved": "Duplicates removed",
+    "invalidExcluded": "Invalid excluded",
+    "totalFinalRecipients": "Total final recipients",
+    "attachments": "Attachments",
+    "category": {
+      "student": "Student",
+      "parent": "Parent",
+      "teacher": "Teacher"
+    }
+  },
+  "errors": {
+    "loadComposer": "Failed to load composer",
+    "loadHistory": "Failed to load history",
+    "loadRecipientSuggestions": "Failed to load recipient suggestions",
+    "maxAttachments": "Maximum 5 attachments are allowed",
+    "limitedAttachmentsAdded": "Only {{count}} attachment(s) were added (max 5)",
+    "uploadAttachment": "Failed to upload attachment(s)",
+    "removeAttachment": "Failed to remove attachment",
+    "aiPromptRequired": "Please describe what you want the email to say",
+    "generateAiDraft": "Failed to generate AI draft",
+    "downloadAttachment": "Failed to download attachment",
+    "subjectRequired": "Subject is required",
+    "messageRequired": "Message body is required",
+    "recipientRequired": "Select at least one recipient token",
+    "scheduleDateRequired": "Choose a scheduled date/time",
+    "invalidScheduleDate": "Invalid scheduled date/time",
+    "scheduleMustBeFuture": "Scheduled time must be at least 1 minute in the future",
+    "previewRecipients": "Failed to preview recipients",
+    "emailSendFailed": "Email sending failed",
+    "sendCommunicationEmail": "Failed to send communication email"
+  },
+  "success": {
+    "aiDraftGenerated": "AI draft generated",
+    "emailScheduledFor": "Email scheduled for {{when}}",
+    "partialSend": "Sent with partial failures ({{sent}} sent, {{failed}} failed)",
+    "emailSentToRecipients": "Email sent to {{count}} recipients"
+  }
+}

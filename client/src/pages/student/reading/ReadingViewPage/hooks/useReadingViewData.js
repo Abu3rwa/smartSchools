@@ -63,6 +63,7 @@ export function useReadingViewData() {
           question,
           studentAnswer: answer,
           textExcerpt: bodyText.slice(0, 2500),
+          requestedLanguages: content?.text?.requestedLanguages,
         })
         .then((res) => {
           const feedback = res.data?.data?.feedback || 'No feedback returned.';

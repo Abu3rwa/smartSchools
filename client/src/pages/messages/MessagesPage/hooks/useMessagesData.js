@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import {
     fetchMessageThreads,
     fetchMessageThreadById,
@@ -8,6 +9,7 @@ import {
 } from '../../../../api/messagesApi';
 
 const useMessagesData = ({ pageLimit }) => {
+    const { t } = useTranslation(['messages']);
     const [threads, setThreads] = useState([]);
     const [pagination, setPagination] = useState({
         page: 1,
@@ -44,7 +46,7 @@ const useMessagesData = ({ pageLimit }) => {
             return data;
         } catch (error) {
             if (!silent) {
-                toast.error(error.message || 'Failed to load messages');
+                toast.error(error.message || t('messages:toasts.loadMessagesFailed'));
             }
             return null;
         } finally {
@@ -53,7 +55,7 @@ const useMessagesData = ({ pageLimit }) => {
             }
             setLoadingMore(false);
         }
-    }, [pagination.limit, unreadOnly]);
+    }, [pagination.limit, unreadOnly, t]);
 
     const refreshThreadDetail = useCallback(async (threadId) => {
         if (!threadId) return;
@@ -63,7 +65,7 @@ const useMessagesData = ({ pageLimit }) => {
         } catch (error) {
             // Keep silent during background refresh
         }
-    }, []);
+    }, [t]);
 
     const handleSelectThread = useCallback(async (thread) => {
         setSelectedThreadId(thread.id);
@@ -81,7 +83,7 @@ const useMessagesData = ({ pageLimit }) => {
                 setUnreadCount((prev) => Math.max(prev - (thread.unreadCount || 0), 0));
             }
         } catch (error) {
-            toast.error(error.message || 'Failed to load thread');
+            toast.error(error.message || t('messages:toasts.loadThreadFailed'));
         } finally {
             setLoadingDetail(false);
         }
@@ -119,11 +121,11 @@ const useMessagesData = ({ pageLimit }) => {
 
             setReplyBody('');
         } catch (error) {
-            toast.error(error.message || 'Failed to send reply');
+            toast.error(error.message || t('messages:toasts.replyFailed'));
         } finally {
             setSendingReply(false);
         }
-    }, [replyBody, selectedThreadId]);
+    }, [replyBody, selectedThreadId, t]);
 
     useEffect(() => {
         setSelectedThreadId(null);

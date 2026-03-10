@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     HiOutlineArrowLeft,
     HiOutlineBookOpen,
@@ -19,18 +20,20 @@ const GradebookHeader = ({
     hasStudents,
     onOpenAddModal
 }) => {
+    const { t } = useTranslation(['gradebook']);
+
     return (
         <>
             <Link to={`/portal/classes/${classId}`} className="back-link">
                 <HiOutlineArrowLeft />
-                Back to Class
+                {t('gradebook:header.backToClass')}
             </Link>
 
             <div className="gradebook-header">
                 <div>
                     <h1>
                         <HiOutlineBookOpen />
-                        Gradebook
+                        {t('gradebook:header.title')}
                     </h1>
                     <p className="text-muted">{className} • {academicYear}</p>
                 </div>
@@ -41,16 +44,18 @@ const GradebookHeader = ({
                             value={selectedCategoryFilter}
                             onChange={(event) => onCategoryFilterChange(event.target.value)}
                         >
-                            <option value="All">All Categories</option>
+                            <option value="All">{t('gradebook:categories.all')}</option>
                             {CATEGORY_FILTER_OPTIONS.map((category) => (
-                                <option key={category} value={category}>{category}</option>
+                                <option key={category} value={category}>
+                                    {t(`gradebook:categories.${category}`, { defaultValue: category })}
+                                </option>
                             ))}
                         </select>
                     </div>
 
                     <Link to="/portal/reports/generator" className="btn btn-outline">
                         <HiOutlineSparkles size={20} />
-                        Advanced Reports
+                        {t('gradebook:header.advancedReports')}
                     </Link>
 
                     <button
@@ -59,12 +64,12 @@ const GradebookHeader = ({
                         disabled={notificationSending || !hasStudents}
                     >
                         <HiOutlineMail size={20} />
-                        {notificationSending ? 'Sending...' : 'Send Reports'}
+                        {notificationSending ? t('gradebook:common.sending') : t('gradebook:header.sendReports')}
                     </button>
 
                     <button className="btn btn-primary" onClick={onOpenAddModal}>
                         <HiOutlinePlus size={20} />
-                        Add Grades
+                        {t('gradebook:header.addGrades')}
                     </button>
                 </div>
             </div>

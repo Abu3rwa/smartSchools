@@ -2,18 +2,18 @@ export const DEFAULT_PERIOD = 'month';
 export const DEFAULT_TAB = 'overview';
 
 export const PERIOD_OPTIONS = [
-    { value: 'week', label: 'Last Week' },
-    { value: 'month', label: 'Last Month' },
-    { value: 'quarter', label: 'Last Quarter' },
-    { value: 'year', label: 'Last Year' }
+    { value: 'week' },
+    { value: 'month' },
+    { value: 'quarter' },
+    { value: 'year' }
 ];
 
 export const EVENT_TYPE_OPTIONS = [
-    { value: '', label: 'All Events' },
-    { value: 'login', label: 'Login' },
-    { value: 'grade_created', label: 'Grade Created' },
-    { value: 'page_view', label: 'Page View' },
-    { value: 'feature_used', label: 'Feature Used' }
+    { value: '' },
+    { value: 'login' },
+    { value: 'grade_created' },
+    { value: 'page_view' },
+    { value: 'feature_used' }
 ];
 
 export const EVENT_TYPE_COLORS = {
@@ -29,13 +29,13 @@ export const EVENT_TYPE_COLORS = {
 };
 
 export const USAGE_FEATURE_ITEMS = [
-    { label: 'Grade Management', value: '1,234 uses' },
-    { label: 'Student Management', value: '856 uses' },
-    { label: 'Report Generation', value: '432 uses' }
+    { key: 'gradeManagement', value: '1,234' },
+    { key: 'studentManagement', value: '856' },
+    { key: 'reportGeneration', value: '432' }
 ];
 
 export const DEVICE_DISTRIBUTION_ITEMS = [
-    { label: 'Desktop', value: '65%' },
-    { label: 'Mobile', value: '25%' },
-    { label: 'Tablet', value: '10%' }
+    { key: 'desktop', value: '65%' },
+    { key: 'mobile', value: '25%' },
+    { key: 'tablet', value: '10%' }
 ];

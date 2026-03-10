@@ -1,0 +1,51 @@
+{
+  "header": {
+    "title": "قائمة طلبات البديل",
+    "subtitle": "اعرض وأدر طلبات الاستبدال."
+  },
+  "actions": {
+    "createSubRequest": "إنشاء طلب بديل",
+    "applyFilters": "تطبيق الفلاتر"
+  },
+  "filters": {
+    "status": {
+      "label": "الحالة",
+      "all": "كل الحالات"
+    },
+    "startDate": "تاريخ البداية",
+    "endDate": "تاريخ النهاية",
+    "absentTeacher": "المعلم الغائب",
+    "substituteTeacher": "المعلم البديل",
+    "all": "الكل"
+  },
+  "status": {
+    "submitted": "تم الإرسال",
+    "confirmed": "مؤكد",
+    "declined": "مرفوض",
+    "cancelled": "ملغي",
+    "expired": "منتهي"
+  },
+  "table": {
+    "date": "التاريخ",
+    "absentTeacher": "المعلم الغائب",
+    "coverageType": "نوع التغطية",
+    "status": "الحالة",
+    "createdBy": "أُنشئ بواسطة",
+    "updated": "آخر تحديث",
+    "actions": "الإجراءات"
+  },
+  "coverage": {
+    "single": "معلم واحد",
+    "perPeriod": "حسب الحصة"
+  },
+  "empty": {
+    "filtered": "لا توجد طلبات تطابق الفلاتر.",
+    "unfiltered": "لا توجد طلبات بديل."
+  },
+  "error": {
+    "loadFailed": "فشل تحميل طلبات البديل"
+  },
+  "common": {
+    "unknown": "غير معروف"
+  }
+}

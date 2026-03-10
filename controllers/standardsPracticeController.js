@@ -18,6 +18,12 @@ import {
   resolveAcademicYearForRequest,
 } from "../helpers/academicYearScope.js";
 import {
+  getTeacherClassIds,
+  isTeacherAuthorizedForClassSubject,
+  resolveTeacherProfile,
+} from "../helpers/teacherScoping.js";
+import { resolveRequestedLanguages } from "../utils/aiLanguageUtils.js";
+import {
   QUESTION_TYPES,
   DIFFICULTIES,
   generateQuestionResponseSchema,
@@ -41,6 +47,7 @@ const DEFAULT_ASSESSMENT_CONFIG = {
   resultsVisibility: "immediate",
   resultsReleaseAt: null,
 };
+const MC_LABELS = ["A", "B", "C", "D"];
 
 const resolveSemesterFromDate = (dateValue = new Date()) => {
   const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
@@ -257,10 +264,17 @@ const buildQuestionFingerprint = (text = "") =>
     .slice(0, 40)
     .join(" ");
 
+const LEGACY_OPTION_SUFFIX_PATTERN =
+  /\s*\((?:choice|option)\s*[a-z]?\s*\d+\)\s*$/i;
+
+const stripLegacyOptionSuffix = (text = "") =>
+  String(text || "").replace(LEGACY_OPTION_SUFFIX_PATTERN, "").trim();
+
 const normalizeOptionCollisionKey = (text = "") =>
-  String(text || "")
+  stripLegacyOptionSuffix(text)
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+    .replace(/\s+/g, " ")
+    .trim();
 
 const hasDuplicateMultipleChoiceOptions = (question) => {
   if (question?.questionType !== "multiple_choice") return false;
@@ -275,6 +289,50 @@ const hasDuplicateMultipleChoiceOptions = (question) => {
     seen.add(key);
   }
   return false;
+};
+
+const sanitizeServedMultipleChoiceQuestion = (
+  question,
+  { seed = "practice-mcq" } = {},
+) => {
+  if (!question || question.questionType !== "multiple_choice") {
+    return question;
+  }
+
+  const options = Array.isArray(question.options) ? question.options : [];
+  try {
+    const normalized = standardsPracticeAIService._normalizeMultipleChoicePayload({
+      options: options.map((option, index) => ({
+        label: String(option?.label || MC_LABELS[index] || "")
+          .trim()
+          .toUpperCase(),
+        text: stripLegacyOptionSuffix(option?.text || ""),
+      })),
+      correctAnswer: stripLegacyOptionSuffix(question.correctAnswer || ""),
+      optionMaxLength: 180,
+      seed,
+    });
+    return {
+      ...question,
+      options: normalized.options,
+      correctAnswer: normalized.correctAnswer,
+    };
+  } catch (error) {
+    logger.warn("practice_pool_mcq_sanitize_failed", {
+      seed,
+      error: error?.message || String(error),
+    });
+    return {
+      ...question,
+      options: options.map((option, index) => ({
+        label: String(option?.label || MC_LABELS[index] || "")
+          .trim()
+          .toUpperCase(),
+        text: stripLegacyOptionSuffix(option?.text || ""),
+      })),
+      correctAnswer: stripLegacyOptionSuffix(question.correctAnswer || ""),
+    };
+  }
 };
 
 const tokenizeForSemanticCheck = (text = "") =>
@@ -470,6 +528,7 @@ const upsertAssessmentGradebookProgress = async ({
   sessionId = null,
   status = "in_progress",
   submittedAt = null,
+  releasedAt = null,
 }) => {
   const answeredAttempts = await PracticeAttempt.find({
     school: schoolId,
@@ -512,6 +571,9 @@ const upsertAssessmentGradebookProgress = async ({
   if (submittedAt) {
     update.submittedAt = submittedAt;
   }
+  if (releasedAt) {
+    update.releasedAt = releasedAt;
+  }
 
   return StandardsGradebookEntry.findOneAndUpdate(
     { school: schoolId, assignment: assignment._id, student: studentId },
@@ -531,6 +593,41 @@ const getYearScopedClassIds = async (req, candidateClassIds = null) => {
     effectiveAcademicYear,
     classIds,
   };
+};
+
+const ensureTeacherCanAccessAssignment = async (req, assignment) => {
+  if (req.user?.role !== "teacher") return true;
+  const teacher = await resolveTeacherProfile(req);
+  if (!teacher) return false;
+
+  if (
+    assignment?.teacher &&
+    assignment.teacher.toString() === teacher._id.toString()
+  ) {
+    return true;
+  }
+
+  const classId = assignment?.class?._id || assignment?.class;
+  const subjectId = assignment?.subject?._id || assignment?.subject;
+  if (!classId || !subjectId) return false;
+
+  return isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
+};
+
+const ensureTeacherCanAccessClass = async (req, classId) => {
+  if (req.user?.role !== "teacher") return true;
+  const teacher = await resolveTeacherProfile(req);
+  if (!teacher) return false;
+  const teacherClassIds = await getTeacherClassIds(teacher._id);
+  const classIdSet = new Set(teacherClassIds.map((id) => id.toString()));
+  return classIdSet.has(String(classId || ""));
+};
+
+const ensureTeacherCanAccessClassSubject = async (req, classId, subjectId) => {
+  if (req.user?.role !== "teacher") return true;
+  const teacher = await resolveTeacherProfile(req);
+  if (!teacher) return false;
+  return isTeacherAuthorizedForClassSubject(teacher._id, classId, subjectId);
 };
 
 const getYearScopedAssignmentIds = async ({
@@ -1002,27 +1099,23 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     });
   }
 
-  const workflow = assignment.questionWorkflow || null;
-  const requiresPublishedPool = workflow
-    ? workflow.requireApprovalBeforeStudentAccess !== false
-    : false;
+  const isFormalAssessment = practiceConfig.sessionType === "assessment";
+  const requiresPublishedPool = isFormalAssessment;
   const publishedQuestionPool = await getPublishedQuestionPool({
     schoolId: req.schoolId,
     assignmentId: assignment._id,
   });
 
-  // Do not block student practice when a curated pool has not been published yet.
-  // If no published pool exists, the service falls back to generating questions dynamically.
   if (
     requiresPublishedPool &&
     (!publishedQuestionPool ||
       !Array.isArray(publishedQuestionPool.questions) ||
       publishedQuestionPool.questions.length === 0)
   ) {
-    logger.info("practice_assignment_pool_not_published_fallback", {
-      schoolId: req.schoolId,
-      assignmentId: assignment._id?.toString(),
-      studentId: student._id?.toString(),
+    return res.status(403).json({
+      success: false,
+      message:
+        "This assessment is not released yet. Your teacher must publish the reviewed question pool.",
     });
   }
 
@@ -1154,6 +1247,11 @@ export const generateQuestion = asyncHandler(async (req, res) => {
   });
 
   const subjectName = assignment.subject?.name || "General Studies";
+  const generationLanguages = resolveRequestedLanguages({
+    requestedLanguages: assignment?.questionWorkflow?.aiLanguages,
+    subjectName,
+    max: 2,
+  });
   let question = null;
 
   if (publishedQuestionPool?.questions?.length > 0) {
@@ -1176,6 +1274,9 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       difficulty: poolQuestion.difficulty || effectiveDifficulty,
       tokenUsage: null,
     };
+    question = sanitizeServedMultipleChoiceQuestion(question, {
+      seed: `${assignment._id}|${attemptCount + 1}|pool`,
+    });
   } else {
     const preferredTrueFalseAnswer =
       effectiveQuestionType === "true_false"
@@ -1192,6 +1293,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       const candidate = await standardsPracticeAIService.generateQuestion({
         standard: assignment.standard,
         subjectName,
+        requestedLanguages: generationLanguages,
         difficulty: effectiveDifficulty,
         questionType: effectiveQuestionType,
         trueFalseTargetAnswer: preferredTrueFalseAnswer,
@@ -1243,6 +1345,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
           difficulty: effectiveDifficulty,
           standardId: assignment.standard._id,
           trueFalseTargetAnswer: preferredTrueFalseAnswer,
+          generationLanguages,
         },
         response: {
           inputtokenCount: question.tokenUsage.input,
@@ -1252,6 +1355,10 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       });
     }
   }
+
+  question = sanitizeServedMultipleChoiceQuestion(question, {
+    seed: `${assignment._id}|${attemptCount + 1}|runtime`,
+  });
 
   // Save the attempt (pending answer)
   const attempt = await PracticeAttempt.create({
@@ -1324,7 +1431,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     )
     .populate({
       path: "assignment",
-      select: "subject class",
+      select: "subject class questionWorkflow",
       populate: [
         {
           path: "subject",
@@ -1399,6 +1506,11 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     questionOptions: attempt.options || [],
     studentFirstName: student.firstName || "",
     subjectName: attempt.assignment?.subject?.name || "",
+    requestedLanguages: resolveRequestedLanguages({
+      requestedLanguages: attempt.assignment?.questionWorkflow?.aiLanguages,
+      subjectName: attempt.assignment?.subject?.name || "",
+      max: 2,
+    }),
     gradeLevel: attempt.standard?.gradeLevel || null,
     difficulty: attempt.difficulty || "medium",
     attemptNumber: attempt.attemptNumber || 1,
@@ -1497,15 +1609,26 @@ export const submitAnswer = asyncHandler(async (req, res) => {
       attempt.assignment?._id || attempt.assignment
     ).select("assessmentConfig standard class subject academicYear semester");
     if (assessmentAssignment) {
-      const assessmentStatus =
+      const assessmentConfig = getAssessmentConfig(assessmentAssignment);
+      let assessmentStatus =
         session && session.status !== "active" ? "submitted" : "in_progress";
+      const submittedAt = assessmentStatus === "submitted" ? new Date() : null;
+      let releasedAt = null;
+      if (
+        assessmentStatus === "submitted" &&
+        assessmentConfig.resultsVisibility === "immediate"
+      ) {
+        assessmentStatus = "released";
+        releasedAt = submittedAt || new Date();
+      }
       await upsertAssessmentGradebookProgress({
         schoolId: req.schoolId,
         assignment: assessmentAssignment,
         studentId: student._id,
         sessionId: attempt.session || session?._id || null,
         status: assessmentStatus,
-        submittedAt: assessmentStatus === "submitted" ? new Date() : null,
+        submittedAt,
+        releasedAt,
       });
     }
   }
@@ -1715,6 +1838,15 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
       .status(404)
       .json({ success: false, message: "Student not found" });
   }
+  if (req.user?.role === "teacher") {
+    const teacherCanAccess = await ensureTeacherCanAccessClass(
+      req,
+      student.currentClass
+    );
+    if (!teacherCanAccess) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+  }
   if (yearClassIds.length === 0) {
     return res.json({
       success: true,
@@ -1848,6 +1980,13 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
       success: false,
       message: `Assignment not found for academic year ${effectiveAcademicYear}`,
     });
+  }
+  const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
+    req,
+    assignment
+  );
+  if (!teacherCanAccessAssignment) {
+    return res.status(403).json({ success: false, message: "Not authorized" });
   }
 
   // Get students
@@ -2006,16 +2145,19 @@ export const finalizeAssessment = asyncHandler(async (req, res) => {
     await session.save();
   }
 
+  const assessmentConfig = getAssessmentConfig(assignment);
+  const submittedAt = new Date();
+  const releaseNow = assessmentConfig.resultsVisibility === "immediate";
   const entry = await upsertAssessmentGradebookProgress({
     schoolId: req.schoolId,
     assignment,
     studentId: student._id,
     sessionId: session._id,
-    status: "submitted",
-    submittedAt: new Date(),
+    status: releaseNow ? "released" : "submitted",
+    submittedAt,
+    releasedAt: releaseNow ? submittedAt : null,
   });
 
-  const assessmentConfig = getAssessmentConfig(assignment);
   const now = new Date();
   const hasReleaseDate = Boolean(assessmentConfig.resultsReleaseAt);
   const isReleaseDateReached =
@@ -2305,6 +2447,13 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
       message: `Assignment not found for academic year ${effectiveAcademicYear}`,
     });
   }
+  const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
+    req,
+    assignment
+  );
+  if (!teacherCanAccessAssignment) {
+    return res.status(403).json({ success: false, message: "Not authorized" });
+  }
 
   const practiceConfig = getAssignmentPracticeConfig(assignment);
   if (practiceConfig.sessionType !== "assessment") {
@@ -2421,6 +2570,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
         standard: assignment.standard,
         class: assignment.class,
         subject: assignment.subject,
+        assessmentConfig: getAssessmentConfig(assignment),
         academicYear: assignment.academicYear || assignment.class?.academicYear || null,
         semester: assignment.semester || null,
       },
@@ -2452,6 +2602,14 @@ export const getStandardAverageGradebook = asyncHandler(async (req, res) => {
       success: false,
       message: "classId, subjectId and standardId are required",
     });
+  }
+  const teacherCanAccessClassSubject = await ensureTeacherCanAccessClassSubject(
+    req,
+    classId,
+    subjectId
+  );
+  if (!teacherCanAccessClassSubject) {
+    return res.status(403).json({ success: false, message: "Not authorized" });
   }
 
   const assignments = await StandardAssignment.find({
@@ -2583,6 +2741,13 @@ export const releaseAssessmentResults = asyncHandler(async (req, res) => {
       message: `Assignment not found for academic year ${effectiveAcademicYear}`,
     });
   }
+  const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
+    req,
+    assignment
+  );
+  if (!teacherCanAccessAssignment) {
+    return res.status(403).json({ success: false, message: "Not authorized" });
+  }
   const practiceConfig = getAssignmentPracticeConfig(assignment);
   if (practiceConfig.sessionType !== "assessment") {
     return res.status(400).json({
@@ -2596,7 +2761,7 @@ export const releaseAssessmentResults = asyncHandler(async (req, res) => {
     {
       school: req.schoolId,
       assignment: assignment._id,
-      status: { $in: ["submitted", "released"] },
+      status: "submitted",
     },
     {
       $set: { status: "released", releasedAt: now },
@@ -2608,11 +2773,15 @@ export const releaseAssessmentResults = asyncHandler(async (req, res) => {
     await assignment.save();
   }
 
+  const updatedCount = result.modifiedCount || 0;
   res.json({
     success: true,
-    message: "Assessment results released",
+    message:
+      updatedCount > 0
+        ? "Assessment results released"
+        : "No submitted results were pending release",
     data: {
-      updatedCount: result.modifiedCount || 0,
+      updatedCount,
       assignmentId: assignment._id,
       releasedAt: now,
     },
@@ -2732,6 +2901,13 @@ export const getIntegrityByAssignment = asyncHandler(async (req, res) => {
       message: `Assignment not found for academic year ${effectiveAcademicYear}`,
     });
   }
+  const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
+    req,
+    assignment
+  );
+  if (!teacherCanAccessAssignment) {
+    return res.status(403).json({ success: false, message: "Not authorized" });
+  }
 
   let students;
   const assignmentStudents = Array.isArray(assignment.students)
@@ -2827,6 +3003,15 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
       .status(404)
       .json({ success: false, message: "Student not found" });
   }
+  if (req.user?.role === "teacher") {
+    const teacherCanAccess = await ensureTeacherCanAccessClass(
+      req,
+      student.currentClass
+    );
+    if (!teacherCanAccess) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+  }
 
   const eventTypes = [
     "tab_hidden",
@@ -2851,6 +3036,13 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
         success: false,
         message: `Assignment not found for academic year ${effectiveAcademicYear}`,
       });
+    }
+    const teacherCanAccessAssignment = await ensureTeacherCanAccessAssignment(
+      req,
+      assignment
+    );
+    if (!teacherCanAccessAssignment) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
     }
     scopedAssignmentIds = [assignment._id];
   } else {

@@ -1,0 +1,59 @@
+{
+  "header": {
+    "title": "تحليلات المنصة",
+    "subtitle": "مؤشرات أعمال SaaS ونظرة عامة على التفاعل"
+  },
+  "common": {
+    "period": "الفترة",
+    "school": "مدرسة"
+  },
+  "stats": {
+    "totalSchools": "إجمالي المدارس",
+    "totalUsers": "إجمالي المستخدمين",
+    "totalStudents": "إجمالي الطلاب",
+    "monthlyRecurringRevenue": "الإيراد الشهري المتكرر"
+  },
+  "quickActions": {
+    "title": "إجراءات سريعة",
+    "addSchool": "إضافة مدرسة",
+    "viewAllSchools": "عرض جميع المدارس"
+  },
+  "analytics": {
+    "revenueGrowthTitle": "الإيراد والنمو",
+    "revenueGrowthSubtitle": "الاشتراكات الجديدة والإيراد المتكرر خلال السنة الماضية.",
+    "notEnoughData": "لا توجد بيانات كافية بعد.",
+    "currentMrr": "الإيراد الشهري المتكرر الحالي",
+    "totalCollected": "إجمالي المحصّل",
+    "plansTitle": "الخطط",
+    "plansSubtitle": "توزيع المدارس عبر خطط الاشتراك.",
+    "noSubscriptions": "لا توجد اشتراكات بعد.",
+    "studentDistribution": "توزيع الطلاب"
+  },
+  "charts": {
+    "revenue": "الإيراد"
+  },
+  "schools": {
+    "title": "المدارس",
+    "empty": "لا توجد مدارس بعد. أنشئ أول مدرسة للبدء.",
+    "table": {
+      "school": "المدرسة",
+      "admin": "المسؤول",
+      "users": "المستخدمون",
+      "students": "الطلاب",
+      "plan": "الخطة",
+      "status": "الحالة"
+    }
+  },
+  "plan": {
+    "starter": "مبتدئة",
+    "professional": "احترافية",
+    "enterprise": "مؤسسية"
+  },
+  "status": {
+    "active": "نشط",
+    "trial": "تجريبي",
+    "suspended": "معلّق",
+    "cancelled": "ملغى",
+    "inactive": "غير نشط"
+  }
+}

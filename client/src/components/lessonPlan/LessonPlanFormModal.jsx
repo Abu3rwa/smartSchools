@@ -5,6 +5,7 @@
 import AISuggestButton from './AISuggestButton.jsx';
 import StandardsSuggester from './StandardsSuggester.jsx';
 import { buildLessonPayload } from './lessonPlanConstants.js';
+import { AI_LANGUAGE_OPTIONS } from '../../constants/aiLanguages';
 
 const LessonPlanFormModal = ({
   open,
@@ -84,6 +85,41 @@ const LessonPlanFormModal = ({
                 </select>
               </div>
             </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Primary AI Language</label>
+                <select
+                  value={formData.aiPrimaryLanguage || 'en'}
+                  onChange={(e) => {
+                    const nextPrimary = e.target.value || 'en';
+                    const shouldResetSecondary = nextPrimary === (formData.aiSecondaryLanguage || '');
+                    setFormData({
+                      ...formData,
+                      aiPrimaryLanguage: nextPrimary,
+                      aiSecondaryLanguage: shouldResetSecondary ? '' : (formData.aiSecondaryLanguage || ''),
+                    });
+                  }}
+                >
+                  {AI_LANGUAGE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Secondary AI Language (optional)</label>
+                <select
+                  value={formData.aiSecondaryLanguage || ''}
+                  onChange={(e) => setFormData({ ...formData, aiSecondaryLanguage: e.target.value || '' })}
+                >
+                  <option value="">None</option>
+                  {AI_LANGUAGE_OPTIONS
+                    .filter((option) => option.value !== (formData.aiPrimaryLanguage || 'en'))
+                    .map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                </select>
+              </div>
+            </div>
 
             <div className="form-group form-group-with-suggest">
               <div>
@@ -101,6 +137,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.title}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 onSuggestion={(s) => setFormData({ ...formData, title: s })}
               />
             </div>
@@ -139,6 +177,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.summary}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 onSuggestion={(s) => setFormData({ ...formData, summary: s })}
               />
@@ -157,6 +197,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.description}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 summary={formData.summary}
                 onSuggestion={(s) => setFormData({ ...formData, description: s })}
@@ -176,6 +218,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.homework}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 summary={formData.summary}
                 onSuggestion={(s) => setFormData({ ...formData, homework: s })}
@@ -196,6 +240,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.previousKnowledge}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, previousKnowledge: s })
@@ -217,6 +263,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.teachingObjectives}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 summary={formData.summary}
                 onSuggestion={(s) =>
@@ -228,6 +276,8 @@ const LessonPlanFormModal = ({
             <StandardsSuggester
               subjectId={formData.subjectId}
               classId={formData.classId}
+              aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+              aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
               lessonText={`${formData.title || ''}\n${formData.summary || ''}\n${formData.description || ''}\n${formData.teachingObjectives || ''}`}
               selectedStandardIds={formData.standardIds}
               onSelectionChange={(ids) => setFormData({ ...formData, standardIds: ids })}
@@ -247,6 +297,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.vocabulary}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 onSuggestion={(s) => setFormData({ ...formData, vocabulary: s })}
               />
@@ -266,6 +318,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.characterTraitLinks}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, characterTraitLinks: s })
@@ -287,6 +341,8 @@ const LessonPlanFormModal = ({
                 currentValue={formData.techIntegration}
                 subjectId={formData.subjectId}
                 classId={formData.classId}
+                aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, techIntegration: s })
@@ -318,6 +374,8 @@ const LessonPlanFormModal = ({
                       stageIndex={index}
                       subjectId={formData.subjectId}
                       classId={formData.classId}
+                      aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
+                      aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                       title={formData.title}
                       summary={formData.summary}
                       onSuggestion={(s) => handleStageChange(index, 'procedure', s)}

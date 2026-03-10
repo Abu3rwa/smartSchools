@@ -1,4 +1,5 @@
 import { SUBJECT_TYPES } from '../constants';
+import { useTranslation } from 'react-i18next';
 
 const SubjectFormModal = ({
     open,
@@ -9,52 +10,53 @@ const SubjectFormModal = ({
     onClose,
     onSubmit
 }) => {
+    const { t } = useTranslation(['subjects']);
     if (!open) return null;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>{editingId ? 'Edit Subject' : 'Add New Subject'}</h3>
+                    <h3>{editingId ? t('subjects:modal.editTitle') : t('subjects:modal.createTitle')}</h3>
                     <button className="modal-close" onClick={onClose}>&times;</button>
                 </div>
                 <form onSubmit={onSubmit}>
                     <div className="modal-body">
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Subject Name *</label>
+                                <label>{t('subjects:form.subjectName')}</label>
                                 <input
                                     type="text"
                                     value={formData.name}
                                     onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                                     required
-                                    placeholder="e.g., Mathematics"
+                                    placeholder={t('subjects:form.subjectNamePlaceholder')}
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Code *</label>
+                                <label>{t('subjects:form.code')}</label>
                                 <input
                                     type="text"
                                     value={formData.code}
                                     onChange={(event) => setFormData({ ...formData, code: event.target.value.toUpperCase() })}
                                     required
-                                    placeholder="e.g., MATH"
+                                    placeholder={t('subjects:form.codePlaceholder')}
                                     maxLength={6}
                                 />
                             </div>
                         </div>
                         <div className="form-group">
-                            <label>Description</label>
+                            <label>{t('subjects:form.description')}</label>
                             <textarea
                                 value={formData.description}
                                 onChange={(event) => setFormData({ ...formData, description: event.target.value })}
                                 rows={3}
-                                placeholder="Brief description of the subject"
+                                placeholder={t('subjects:form.descriptionPlaceholder')}
                             />
                         </div>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Daily Max Marks</label>
+                                <label>{t('subjects:form.dailyMaxMarks')}</label>
                                 <input
                                     type="number"
                                     value={formData.dailyMaxMarks}
@@ -65,7 +67,7 @@ const SubjectFormModal = ({
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Exam Max Marks</label>
+                                <label>{t('subjects:form.examMaxMarks')}</label>
                                 <input
                                     type="number"
                                     value={formData.maxMarks}
@@ -78,7 +80,7 @@ const SubjectFormModal = ({
                         </div>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Passing Marks</label>
+                                <label>{t('subjects:form.passingMarks')}</label>
                                 <input
                                     type="number"
                                     value={formData.passingMarks}
@@ -89,14 +91,14 @@ const SubjectFormModal = ({
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Type</label>
+                                <label>{t('subjects:form.type')}</label>
                                 <select
                                     value={formData.type}
                                     onChange={(event) => setFormData({ ...formData, type: event.target.value })}
                                 >
                                     {SUBJECT_TYPES.map((typeOption) => (
                                         <option key={typeOption.value} value={typeOption.value}>
-                                            {typeOption.label}
+                                            {t(`subjects:${typeOption.labelKey}`)}
                                         </option>
                                     ))}
                                 </select>
@@ -105,10 +107,10 @@ const SubjectFormModal = ({
                     </div>
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>
-                            Cancel
+                            {t('common:actions.cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={submitting}>
-                            {submitting ? 'Saving...' : (editingId ? 'Update Subject' : 'Add Subject')}
+                            {submitting ? t('subjects:actions.saving') : (editingId ? t('subjects:actions.updateSubject') : t('subjects:actions.addSubject'))}
                         </button>
                     </div>
                 </form>

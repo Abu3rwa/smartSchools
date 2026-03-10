@@ -1,0 +1,68 @@
+{
+  "page": {
+    "title": "الإشعارات",
+    "subtitle": "أرسل تحديثات الدرجات والتقارير إلى أولياء الأمور"
+  },
+  "stats": {
+    "totalSent": "إجمالي المرسل",
+    "delivered": "تم التسليم",
+    "pending": "قيد الانتظار",
+    "failed": "فشل"
+  },
+  "tabs": {
+    "history": "سجل الإشعارات",
+    "statistics": "الإحصاءات",
+    "attendanceReminders": "تذكيرات الحضور"
+  },
+  "filters": {
+    "searchPlaceholder": "ابحث بالمستلم أو الموضوع أو النوع...",
+    "status": "الحالة",
+    "type": "النوع"
+  },
+  "common": {
+    "all": "الكل"
+  },
+  "status": {
+    "sent": "تم الإرسال",
+    "pending": "قيد الانتظار",
+    "failed": "فشل"
+  },
+  "labels": {
+    "noSubject": "بدون موضوع",
+    "noMatch": "لا توجد إشعارات مطابقة للفلاتر"
+  },
+  "table": {
+    "status": "الحالة",
+    "subject": "الموضوع",
+    "date": "التاريخ",
+    "type": "النوع"
+  },
+  "attendance": {
+    "quickTitle": "إرسال تذكيرات سريع",
+    "quickSubtitle": "إخطار المعلمين الذين لم يسجلوا الحضور",
+    "hoursAgo": "منذ {{hours}}",
+    "sending": "جارٍ إرسال التذكيرات...",
+    "sent": "مرسل",
+    "skipped": "تم التخطي",
+    "failed": "فشل",
+    "viewHistory": "عرض سجل التذكيرات الكامل والخيارات المتقدمة"
+  },
+  "toasts": {
+    "remindersSent": "تم إرسال {{count}} تذكير",
+    "remindersFailed": "فشل إرسال التذكيرات"
+  },
+  "modal": {
+    "title": "تفاصيل الإشعار",
+    "closeAria": "إغلاق تفاصيل الإشعار",
+    "status": "الحالة",
+    "type": "النوع",
+    "date": "التاريخ",
+    "recipient": "المستلم",
+    "student": "الطالب",
+    "noContent": "لا يوجد محتوى متاح.",
+    "errorProcessing": "خطأ أثناء معالجة الرسالة"
+  },
+  "types": {
+    "notification": "إشعار"
+  }
+}

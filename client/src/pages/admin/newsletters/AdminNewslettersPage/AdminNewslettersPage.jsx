@@ -23,6 +23,8 @@ import {
 
 import './AdminNewslettersPage.css';
 
+const EMPTY_SECTIONS = [];
+
 const AdminNewslettersPage = () => {
   const dispatch = useDispatch();
   const academicYear = useSelector(selectCurrentAcademicYear);
@@ -58,7 +60,7 @@ const AdminNewslettersPage = () => {
 
   const details = admin.issueDetails;
   const issue = details?.issue;
-  const sections = details?.sections || [];
+  const sections = details?.sections || EMPTY_SECTIONS;
   const readiness = details?.readiness;
   const expectedSubjects = details?.expectedSubjects || [];
   const summary = admin.summary;
@@ -68,7 +70,7 @@ const AdminNewslettersPage = () => {
 
   useEffect(() => {
     if (!sections.length) {
-      setSectionEdits({});
+      setSectionEdits((previous) => (Object.keys(previous).length ? {} : previous));
       return;
     }
 
@@ -76,7 +78,20 @@ const AdminNewslettersPage = () => {
     sections.forEach((section) => {
       next[section._id] = section.content || '';
     });
-    setSectionEdits(next);
+                                                                                                                                                          
+    setSectionEdits((previous) => {
+      const prevKeys = Object.keys(previous);
+      const nextKeys = Object.keys(next);
+      if (prevKeys.length !== nextKeys.length) return next;
+
+      for (const key of nextKeys) {
+        if (previous[key] !== next[key]) {
+          return next;
+        }
+      }
+
+      return previous;
+    });
   }, [sections]);
 
   const toggleExclude = async (subjectId) => {

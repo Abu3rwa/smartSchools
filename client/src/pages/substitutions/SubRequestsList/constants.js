@@ -1,10 +1,10 @@
 export const STATUS_OPTIONS = [
-  { value: '', label: 'All' },
-  { value: 'SUBMITTED', label: 'Submitted' },
-  { value: 'CONFIRMED', label: 'Confirmed' },
-  { value: 'DECLINED', label: 'Declined' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-  { value: 'EXPIRED', label: 'Expired' }
+  { value: '', labelKey: 'filters.status.all' },
+  { value: 'SUBMITTED', labelKey: 'status.submitted' },
+  { value: 'CONFIRMED', labelKey: 'status.confirmed' },
+  { value: 'DECLINED', labelKey: 'status.declined' },
+  { value: 'CANCELLED', labelKey: 'status.cancelled' },
+  { value: 'EXPIRED', labelKey: 'status.expired' }
 ];
 
 export const DEFAULT_FILTERS = {

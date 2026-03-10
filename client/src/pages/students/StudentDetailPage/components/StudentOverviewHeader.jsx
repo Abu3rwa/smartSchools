@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     HiOutlineChartBar,
     HiOutlineClipboardList,
@@ -18,6 +19,7 @@ const StudentOverviewHeader = ({
     onUploadStudentPhoto,
     onRemoveStudentPhoto
 }) => {
+    const { t } = useTranslation(['students']);
     if (!student) return null;
 
     return (
@@ -31,7 +33,7 @@ const StudentOverviewHeader = ({
                                 onUpload={onUploadStudentPhoto}
                                 onDelete={onRemoveStudentPhoto}
                                 isUploading={photoUploading}
-                                label="Student Photo"
+                                label={t('detail.overview.studentPhoto')}
                                 shape="circular"
                             />
                         </div>
@@ -50,49 +52,50 @@ const StudentOverviewHeader = ({
 
                     <div className="student-profile-content">
                         <h1>{student.firstName} {student.lastName}</h1>
-                        <p className="student-id">{student.studentId || 'No student ID'}</p>
+                        <p className="student-id">{student.studentId || t('detail.overview.noStudentId')}</p>
                         <p className="student-subline">
-                            {student.currentClass?.name || 'Unassigned Class'} • {student.academicYear || 'No Academic Year'}
+                            {student.currentClass?.name || t('detail.overview.unassignedClass')} • {student.academicYear || t('detail.overview.noAcademicYear')}
                         </p>
                         <span className={`badge badge-${student.status === 'active' ? 'success' : 'warning'}`}>
-                            {student.status || 'unknown'}
+                            {student.status ? t(`status.${String(student.status).toLowerCase()}`, { defaultValue: student.status }) : t('detail.overview.statusUnknown')}
                         </span>
                     </div>
                 </div>
 
-                <div className="header-actions">
+                
+            </div>
+            <div className="header-actions">
                     <button
                         className="btn btn-secondary"
                         onClick={onSendDailyReport}
                         disabled={sending}
-                        title="Send only classwork grades for today"
+                        title={t('detail.overview.actions.sendDailyReportTitle')}
                     >
                         <HiOutlineClipboardList />
-                        {sending ? 'Sending...' : 'Send Daily Classwork'}
+                        {sending ? t('detail.overview.actions.sending') : t('detail.overview.actions.sendDailyClasswork')}
                     </button>
                     <button
                         className="btn btn-secondary"
                         onClick={onOpenAIReport}
                         disabled={generatingAIReport}
-                        title="Generate AI-powered progress report"
+                        title={t('detail.overview.actions.generateAiReportTitle')}
                     >
                         <HiOutlineDocumentText />
-                        {generatingAIReport ? 'Generating...' : 'Generate AI Report'}
+                        {generatingAIReport ? t('detail.overview.actions.generating') : t('detail.overview.actions.generateAiReport')}
                     </button>
                     <Link to={`/portal/grades/weekly/${student._id}`} className="btn btn-secondary">
                         <HiOutlineClock />
-                        Weekly Full Report
+                        {t('detail.overview.actions.weeklyFullReport')}
                     </Link>
                     <Link to={`/portal/grades/report/${student._id}`} className="btn btn-primary">
                         <HiOutlineChartBar />
-                        View Grade Report
+                        {t('detail.overview.actions.viewGradeReport')}
                     </Link>
                     <Link to={`/portal/grades/student/${student._id}`} className="btn btn-secondary">
                         <HiOutlineClipboardList />
-                        View Gradebook
+                        {t('detail.overview.actions.viewGradebook')}
                     </Link>
                 </div>
-            </div>
         </div>
     );
 };

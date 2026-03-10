@@ -1,0 +1,92 @@
+{
+  "header": {
+    "title": "الواجبات",
+    "subtitle": "سير عمل يعتمد على الواجبات لكل الدرجات الجديدة"
+  },
+  "filters": {
+    "class": "الصف",
+    "selectClass": "اختر الصف",
+    "subject": "المادة",
+    "allSubjects": "كل المواد",
+    "status": "الحالة"
+  },
+  "status": {
+    "all": "الكل",
+    "draft": "مسودة",
+    "published": "منشور",
+    "closed": "مغلق",
+    "archived": "مؤرشف"
+  },
+  "table": {
+    "title": "الواجبات",
+    "loading": "جارٍ تحميل الواجبات...",
+    "empty": "لا توجد واجبات مطابقة للفلاتر الحالية.",
+    "columns": {
+      "title": "العنوان",
+      "type": "النوع",
+      "status": "الحالة",
+      "due": "موعد التسليم",
+      "max": "الحد الأقصى",
+      "actions": "الإجراءات"
+    }
+  },
+  "actions": {
+    "publish": "نشر",
+    "grade": "تصحيح",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "cancelEdit": "إلغاء التعديل",
+    "saveChanges": "حفظ التغييرات",
+    "createAssignment": "إنشاء واجب"
+  },
+  "form": {
+    "editTitle": "تعديل الواجب",
+    "createTitle": "إنشاء واجب",
+    "type": "النوع",
+    "title": "العنوان",
+    "titlePlaceholder": "عنوان الواجب",
+    "dueDate": "تاريخ الاستحقاق",
+    "maxMarks": "الدرجة القصوى",
+    "instructions": "التعليمات",
+    "instructionsPlaceholder": "تعليمات الواجب",
+    "publishNow": "نشر الآن",
+    "notifyOnAssign": "إشعار عند الإسناد",
+    "notifyOnGrade": "إشعار عند التصحيح"
+  },
+  "gradePanel": {
+    "title": "تصحيح: {{title}}",
+    "columns": {
+      "student": "الطالب",
+      "marks": "الدرجات",
+      "remarks": "ملاحظات",
+      "status": "الحالة"
+    },
+    "optional": "اختياري",
+    "save": "حفظ درجات الواجب"
+  },
+  "common": {
+    "empty": "-",
+    "close": "إغلاق",
+    "saving": "جارٍ الحفظ..."
+  },
+  "toasts": {
+    "loadTypesFailed": "فشل تحميل أنواع الواجبات",
+    "loadAssignmentsFailed": "فشل تحميل الواجبات",
+    "selectClassSubject": "اختر الصف والمادة أولًا",
+    "typeTitleRequired": "نوع الواجب والعنوان مطلوبان",
+    "updated": "تم تحديث الواجب",
+    "created": "تم إنشاء الواجب",
+    "updateFailed": "فشل تحديث الواجب",
+    "createFailed": "فشل إنشاء الواجب",
+    "confirmDelete": "حذف \"{{title}}\"؟\n\nسيتم حذف الواجب وكل الدرجات المدخلة له نهائيًا.",
+    "deletedWithGrades": "تم حذف الواجب. وتم حذف {{count}} درجة مرتبطة أيضًا.",
+    "deleted": "تم حذف الواجب",
+    "deleteFailed": "فشل حذف الواجب",
+    "published": "تم نشر الواجب",
+    "publishFailed": "فشل نشر الواجب",
+    "loadGradesFailed": "فشل تحميل درجات الواجب",
+    "enterGrade": "أدخل درجة واحدة على الأقل",
+    "gradesSaved": "تم حفظ الدرجات",
+    "saveGradesFailed": "فشل حفظ الدرجات"
+  }
+}

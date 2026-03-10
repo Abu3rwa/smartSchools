@@ -1,0 +1,34 @@
+{
+  "header": {
+    "title": "My Attendance Requests",
+    "subtitle": "View and submit attendance or leave requests."
+  },
+  "actions": {
+    "newRequest": "New request",
+    "submitFirstRequest": "Submit your first request"
+  },
+  "table": {
+    "date": "Date",
+    "type": "Type",
+    "time": "Time",
+    "status": "Status",
+    "reviewNote": "Review note"
+  },
+  "status": {
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  },
+  "loading": {
+    "message": "Loading requests..."
+  },
+  "empty": {
+    "message": "No attendance requests yet."
+  },
+  "toast": {
+    "loadFailed": "Failed to load attendance requests"
+  },
+  "common": {
+    "dash": "—"
+  }
+}

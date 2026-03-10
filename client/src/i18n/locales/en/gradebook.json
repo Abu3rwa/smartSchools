@@ -1,0 +1,113 @@
+{
+  "redirect": {
+    "title": "Gradebook",
+    "noClasses": "No classes available for gradebook.",
+    "selectClass": "Select Class",
+    "open": "Open Gradebook"
+  },
+  "header": {
+    "backToClass": "Back to Class",
+    "title": "Gradebook",
+    "advancedReports": "Advanced Reports",
+    "sendReports": "Send Reports",
+    "addGrades": "Add Grades"
+  },
+  "common": {
+    "sending": "Sending...",
+    "cancel": "Cancel",
+    "emptySymbol": "-"
+  },
+  "categories": {
+    "all": "All Categories",
+    "Classwork": "Classwork",
+    "Homework": "Homework",
+    "Test": "Test",
+    "Quiz": "Quiz",
+    "Project": "Project",
+    "Custom": "Custom"
+  },
+  "filters": {
+    "subject": "Subject",
+    "selectSubject": "Select Subject",
+    "month": "Month"
+  },
+  "table": {
+    "columns": {
+      "student": "Student",
+      "categoryAvg": "{{category}} (Avg %)",
+      "overallAvg": "Overall (Avg %)"
+    },
+    "generateProgressReport": "Generate Progress Report",
+    "noStudents": "No students in this class",
+    "classAverage": "Class Average",
+    "noGradesForMonth": "No grades found for this month."
+  },
+  "addModal": {
+    "title": "Add Grades",
+    "date": "Date *",
+    "category": "Category *",
+    "customCategory": "Custom...",
+    "customCategoryPlaceholder": "Enter category name",
+    "maxMarks": "Max Marks",
+    "titleOptional": "Title (Optional)",
+    "titlePlaceholder": "e.g., Chapter 5 Quiz",
+    "columns": {
+      "student": "Student",
+      "marks": "Marks (/{{maxMarks}})",
+      "notes": "Notes"
+    },
+    "notePlaceholder": "Add note...",
+    "save": "Save Grades"
+  },
+  "ai": {
+    "title": "AI Progress Report",
+    "forStudent": "for {{firstName}} {{lastName}}",
+    "generateDescription": "Generate a personalized progress report based on recent grades, behavior notes, and improvement trends.",
+    "generating": "Generating...",
+    "generate": "Generate",
+    "primaryLanguage": "Primary Report Language",
+    "secondaryLanguage": "Secondary Report Language (Optional)",
+    "none": "None",
+    "sendViaEmail": "Send report via email after generation",
+    "emailRecipients": "Email Recipients",
+    "recipients": {
+      "mother": "mother",
+      "father": "father",
+      "student": "student",
+      "teacher": "teacher"
+    },
+    "previewTitle": "Student Progress Report",
+    "editModeActive": "Edit Mode Active:",
+    "editModeDescription": "Click directly in the text above to edit. You can modify text, add paragraphs, or change formatting. Click \"Save Edits\" when done to preview your changes.",
+    "regenerate": "Regenerate",
+    "saveEdits": "Save Edits",
+    "editReport": "Edit Report",
+    "sendToParents": "Send to Parents"
+  },
+  "months": {
+    "1": "January",
+    "2": "February",
+    "3": "March",
+    "4": "April",
+    "5": "May",
+    "6": "June",
+    "7": "July",
+    "8": "August",
+    "9": "September",
+    "10": "October",
+    "11": "November",
+    "12": "December"
+  },
+  "toasts": {
+    "enterAtLeastOne": "Please enter at least one grade",
+    "addedSuccessfully": "{{count}} grades added successfully!",
+    "addFailed": "Failed to add grades",
+    "noStudents": "No students in this class",
+    "confirmSendReports": "Send daily classwork update to all {{count}} students' parents?\n\nThis will email them a summary of all classwork grades for this month.",
+    "sentUpdates": "Sent updates to {{success}} parents ({{failed}} failed)",
+    "sendNotificationsFailed": "Failed to send notifications",
+    "generateFailed": "Failed to generate report",
+    "aiSent": "AI report sent to parent successfully!",
+    "sendReportFailed": "Failed to send report"
+  }
+}

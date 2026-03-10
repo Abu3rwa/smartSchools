@@ -3,6 +3,7 @@ import {
     HiOutlinePencil,
     HiOutlineTrash
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import { getSubjectTypeBadge } from '../utils/subjectPresentation';
 
 const SubjectsTable = ({
@@ -14,6 +15,8 @@ const SubjectsTable = ({
     onEdit,
     onDelete
 }) => {
+    const { t } = useTranslation(['subjects']);
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -27,7 +30,7 @@ const SubjectsTable = ({
             <div className="error-container">
                 <p className="error-message">{error}</p>
                 <button className="btn btn-primary" onClick={onRetry}>
-                    Retry
+                    {t('common:actions.retry')}
                 </button>
             </div>
         );
@@ -43,10 +46,10 @@ const SubjectsTable = ({
                 >
                     {isAdmin && (
                         <div className="subject-actions-overlay">
-                            <button onClick={() => onEdit(subject)} className="btn-icon" title="Edit">
+                            <button onClick={() => onEdit(subject)} className="btn-icon" title={t('common:actions.edit')}>
                                 <HiOutlinePencil />
                             </button>
-                            <button onClick={() => onDelete(subject._id)} className="btn-icon text-danger" title="Delete">
+                            <button onClick={() => onDelete(subject._id)} className="btn-icon text-danger" title={t('common:actions.delete')}>
                                 <HiOutlineTrash />
                             </button>
                         </div>
@@ -60,10 +63,10 @@ const SubjectsTable = ({
                     </div>
                     <div className="subject-meta">
                         <span className={`badge badge-${getSubjectTypeBadge(subject.type)}`}>
-                            {subject.type}
+                            {t(`subjects:types.${subject.type}`)}
                         </span>
                         <span className="marks-info">
-                            Daily: {subject.dailyMaxMarks} | Max: {subject.maxMarks}
+                            {t('subjects:table.marksInfo', { daily: subject.dailyMaxMarks, max: subject.maxMarks })}
                         </span>
                     </div>
                 </div>
@@ -71,7 +74,7 @@ const SubjectsTable = ({
             {subjects.length === 0 && (
                 <div className="empty-state">
                     <HiOutlineBookOpen size={48} />
-                    <p>No subjects found</p>
+                    <p>{t('subjects:empty.noSubjects')}</p>
                 </div>
             )}
         </div>

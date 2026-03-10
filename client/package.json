@@ -7,9 +7,13 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "i18n:check:keys": "node scripts/i18n/checkLocaleParity.mjs",
+    "i18n:check:landing": "node scripts/i18n/checkLandingNamespace.mjs",
+    "i18n:check": "npm run i18n:check:keys && npm run i18n:check:landing"
   },
   "dependencies": {
+    "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/material": "^7.3.8",
@@ -19,15 +23,21 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dompurify": "^3.3.1",
+    "i18next": "^25.8.14",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "i18next-resources-to-backend": "^1.2.1",
     "isomorphic-dompurify": "^2.30.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.6.0",
+    "react-i18next": "^16.5.6",
     "react-icons": "^5.5.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.13.0",
     "react-simple-wysiwyg": "^3.4.1",
     "recharts": "^3.7.0",
+    "stylis": "^4.3.6",
+    "stylis-plugin-rtl": "^2.1.1",
     "vite": "^7.3.1"
   },
   "devDependencies": {

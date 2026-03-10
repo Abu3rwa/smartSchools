@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   fetchSubscriptions,
   fetchSubscriptionAnalytics,
@@ -47,6 +48,8 @@ import "./SuperAdminSubscriptionsPage.css";
 const SuperAdminSubscriptionsPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation(["superAdminSubscriptions"]);
+  const locale = i18n.resolvedLanguage === "ar" ? "ar" : "en-US";
 
   // Redux state
   const subscriptions = useSelector(selectSubscriptions);
@@ -177,7 +180,7 @@ const SuperAdminSubscriptionsPage = () => {
     } catch (requestError) {
       toast.error(
         requestError.response?.data?.message ||
-          "Failed to load subscription plans",
+          t("superAdminSubscriptions:toast.loadPlansFailed"),
       );
     }
   };
@@ -295,11 +298,11 @@ const SuperAdminSubscriptionsPage = () => {
 
   const handleCreateSubscription = async () => {
     if (!createForm.schoolId) {
-      toast.error("Please select a school");
+      toast.error(t("superAdminSubscriptions:toast.selectSchoolRequired"));
       return;
     }
     if (activePlans.length === 0) {
-      toast.error("No active plans available. Activate a plan first.");
+      toast.error(t("superAdminSubscriptions:toast.noActivePlans"));
       return;
     }
 
@@ -383,7 +386,7 @@ const SuperAdminSubscriptionsPage = () => {
 
   const handleSavePlan = async () => {
     if (!planForm.key || !planForm.name) {
-      toast.error("Plan key and name are required");
+      toast.error(t("superAdminSubscriptions:toast.planKeyAndNameRequired"));
       return;
     }
 
@@ -411,10 +414,10 @@ const SuperAdminSubscriptionsPage = () => {
 
       if (editingPlanId) {
         await api.put(`/subscriptions/plans/${editingPlanId}`, payload);
-        toast.success("Plan updated");
+        toast.success(t("superAdminSubscriptions:toast.planUpdated"));
       } else {
         await api.post("/subscriptions/plans", payload);
-        toast.success("Plan created");
+        toast.success(t("superAdminSubscriptions:toast.planCreated"));
       }
 
       await Promise.all([
@@ -425,7 +428,8 @@ const SuperAdminSubscriptionsPage = () => {
       openCreatePlanForm();
     } catch (requestError) {
       toast.error(
-        requestError.response?.data?.message || "Failed to save plan",
+        requestError.response?.data?.message ||
+          t("superAdminSubscriptions:toast.savePlanFailed"),
       );
     } finally {
       setSavingPlan(false);
@@ -437,11 +441,16 @@ const SuperAdminSubscriptionsPage = () => {
       await api.patch(`/subscriptions/plans/${plan._id}/status`, {
         isActive: !(plan.isActive !== false),
       });
-      toast.success(`Plan ${plan.isActive ? "deactivated" : "activated"}`);
+      toast.success(
+        plan.isActive
+          ? t("superAdminSubscriptions:toast.planDeactivated")
+          : t("superAdminSubscriptions:toast.planActivated"),
+      );
       await Promise.all([loadPlans(), dispatch(fetchSubscriptions())]);
     } catch (requestError) {
       toast.error(
-        requestError.response?.data?.message || "Failed to update plan status",
+        requestError.response?.data?.message ||
+          t("superAdminSubscriptions:toast.updatePlanStatusFailed"),
       );
     }
   };
@@ -478,6 +487,13 @@ const SuperAdminSubscriptionsPage = () => {
     }
   };
 
+  const getStatusLabel = (status = "") => {
+    const normalized = String(status || "").toLowerCase();
+    return t(`superAdminSubscriptions:status.${normalized}`, {
+      defaultValue: normalized,
+    });
+  };
+
   const getPlanBadgeColor = (plan) => {
     switch (plan) {
       case "starter":
@@ -492,14 +508,27 @@ const SuperAdminSubscriptionsPage = () => {
   };
 
   const formatCurrency = (amount, currency = "USD") => {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: currency,
     }).format(amount);
   };
 
+  const getIntervalLabel = (interval = "") => {
+    const normalized = String(interval || "").toLowerCase();
+    return t(`superAdminSubscriptions:interval.${normalized}`, {
+      defaultValue: normalized,
+    });
+  };
+
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString(locale);
+  };
+
+  const getFeatureDefinitionLabel = (featureKey = "", fallbackLabel = "") => {
+    return t(`superAdminSubscriptions:feature.${featureKey}`, {
+      defaultValue: fallbackLabel || featureKey,
+    });
   };
 
   const displayedPlanDistribution =
@@ -514,17 +543,17 @@ const SuperAdminSubscriptionsPage = () => {
       : [
           {
             key: "starter",
-            name: "Starter",
+            name: getPlanDisplayName("starter"),
             count: statistics.starterCount || 0,
           },
           {
             key: "professional",
-            name: "Professional",
+            name: getPlanDisplayName("professional"),
             count: statistics.professionalCount || 0,
           },
           {
             key: "enterprise",
-            name: "Enterprise",
+            name: getPlanDisplayName("enterprise"),
             count: statistics.enterpriseCount || 0,
           },
         ];
@@ -533,7 +562,7 @@ const SuperAdminSubscriptionsPage = () => {
     return (
       <div className="admin-subscriptions-loading">
         <div className="spinner"></div>
-        <p>Loading subscriptions...</p>
+        <p>{t("superAdminSubscriptions:loading.subscriptions")}</p>
       </div>
     );
   }
@@ -544,8 +573,8 @@ const SuperAdminSubscriptionsPage = () => {
       <div className="page-header">
         <div className="header-content">
           <div className="header-title">
-            <h1>Subscription Management</h1>
-            <p>Manage all school subscriptions and billing</p>
+            <h1>{t("superAdminSubscriptions:header.title")}</h1>
+            <p>{t("superAdminSubscriptions:header.subtitle")}</p>
           </div>
           <div className="header-actions">
             <button
@@ -553,7 +582,7 @@ const SuperAdminSubscriptionsPage = () => {
               onClick={() => setShowAnalyticsModal(true)}
             >
               <HiOutlineChartBar size={20} />
-              Analytics
+              {t("superAdminSubscriptions:actions.analytics")}
             </button>
             <button
               className="btn btn-secondary"
@@ -563,14 +592,14 @@ const SuperAdminSubscriptionsPage = () => {
               }}
             >
               <HiOutlineCog size={20} />
-              Manage Plans
+              {t("superAdminSubscriptions:actions.managePlans")}
             </button>
             <button
               className="btn btn-primary"
               onClick={() => setShowCreateModal(true)}
             >
               <HiOutlinePlus size={20} />
-              Create Subscription
+              {t("superAdminSubscriptions:actions.createSubscription")}
             </button>
           </div>
         </div>
@@ -584,7 +613,7 @@ const SuperAdminSubscriptionsPage = () => {
           </div>
           <div className="stat-content">
             <h3>{statistics.totalSubscriptions}</h3>
-            <p>Total Subscriptions</p>
+            <p>{t("superAdminSubscriptions:stats.totalSubscriptions")}</p>
           </div>
         </div>
         <div className="stat-card">
@@ -593,7 +622,7 @@ const SuperAdminSubscriptionsPage = () => {
           </div>
           <div className="stat-content">
             <h3>{statistics.activeSubscriptions}</h3>
-            <p>Active Subscriptions</p>
+            <p>{t("superAdminSubscriptions:stats.activeSubscriptions")}</p>
           </div>
         </div>
         <div className="stat-card">
@@ -602,7 +631,7 @@ const SuperAdminSubscriptionsPage = () => {
           </div>
           <div className="stat-content">
             <h3>{statistics.trialSubscriptions}</h3>
-            <p>Trial Subscriptions</p>
+            <p>{t("superAdminSubscriptions:stats.trialSubscriptions")}</p>
           </div>
         </div>
         <div className="stat-card">
@@ -611,14 +640,14 @@ const SuperAdminSubscriptionsPage = () => {
           </div>
           <div className="stat-content">
             <h3>{formatCurrency(statistics.totalRevenue)}</h3>
-            <p>Total Revenue</p>
+            <p>{t("superAdminSubscriptions:stats.totalRevenue")}</p>
           </div>
         </div>
       </div>
 
       {/* Plan Distribution */}
       <div className="plan-distribution">
-        <h3>Plan Distribution</h3>
+        <h3>{t("superAdminSubscriptions:planDistribution.title")}</h3>
         <div className="plan-stats">
           {displayedPlanDistribution.map((entry) => (
             <div className="plan-stat" key={entry.key}>
@@ -638,7 +667,7 @@ const SuperAdminSubscriptionsPage = () => {
             <HiOutlineSearch size={20} className="search-icon" />
             <input
               type="text"
-              placeholder="Search subscriptions..."
+              placeholder={t("superAdminSubscriptions:search.placeholder")}
               value={searchTerm}
               onChange={handleSearch}
             />
@@ -648,33 +677,47 @@ const SuperAdminSubscriptionsPage = () => {
             onClick={() => setShowFilters(!showFilters)}
           >
             <HiOutlineFilter size={20} />
-            Filters
+            {t("superAdminSubscriptions:filters.button")}
           </button>
         </div>
 
         {showFilters && (
           <div className="filters-panel">
             <div className="filter-group">
-              <label>Status</label>
+              <label>{t("superAdminSubscriptions:filters.statusLabel")}</label>
               <select
                 value={statusFilter}
                 onChange={(e) => handleFilter("status", e.target.value)}
               >
-                <option value="">All Statuses</option>
-                <option value="active">Active</option>
-                <option value="trial">Trial</option>
-                <option value="suspended">Suspended</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="inactive">Inactive</option>
+                <option value="">
+                  {t("superAdminSubscriptions:filters.allStatuses")}
+                </option>
+                <option value="active">
+                  {t("superAdminSubscriptions:status.active")}
+                </option>
+                <option value="trial">
+                  {t("superAdminSubscriptions:status.trial")}
+                </option>
+                <option value="suspended">
+                  {t("superAdminSubscriptions:status.suspended")}
+                </option>
+                <option value="cancelled">
+                  {t("superAdminSubscriptions:status.cancelled")}
+                </option>
+                <option value="inactive">
+                  {t("superAdminSubscriptions:status.inactive")}
+                </option>
               </select>
             </div>
             <div className="filter-group">
-              <label>Plan</label>
+              <label>{t("superAdminSubscriptions:filters.planLabel")}</label>
               <select
                 value={planFilter}
                 onChange={(e) => handleFilter("plan", e.target.value)}
               >
-                <option value="">All Plans</option>
+                <option value="">
+                  {t("superAdminSubscriptions:filters.allPlans")}
+                </option>
                 {plans.map((plan) => (
                   <option key={plan._id || plan.key} value={plan.key}>
                     {plan.name}
@@ -691,14 +734,14 @@ const SuperAdminSubscriptionsPage = () => {
         <table className="subscriptions-table">
           <thead>
             <tr>
-              <th>School</th>
-              <th>Plan</th>
-              <th>Status</th>
-              <th>Amount</th>
-              <th>Billing Cycle</th>
-              <th>Next Billing</th>
-              <th>Usage</th>
-              <th>Actions</th>
+              <th>{t("superAdminSubscriptions:table.school")}</th>
+              <th>{t("superAdminSubscriptions:table.plan")}</th>
+              <th>{t("superAdminSubscriptions:table.status")}</th>
+              <th>{t("superAdminSubscriptions:table.amount")}</th>
+              <th>{t("superAdminSubscriptions:table.billingCycle")}</th>
+              <th>{t("superAdminSubscriptions:table.nextBilling")}</th>
+              <th>{t("superAdminSubscriptions:table.usage")}</th>
+              <th>{t("superAdminSubscriptions:table.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -708,9 +751,13 @@ const SuperAdminSubscriptionsPage = () => {
                   <div className="school-info">
                     <div
                       className="school-name"
-                      title={subscription.school?.name || "Unknown School"}
+                      title={
+                        subscription.school?.name ||
+                        t("superAdminSubscriptions:common.unknownSchool")
+                      }
                     >
-                      {subscription.school?.name || "Unknown School"}
+                      {subscription.school?.name ||
+                        t("superAdminSubscriptions:common.unknownSchool")}
                     </div>
                     <div
                       className="school-email"
@@ -733,20 +780,19 @@ const SuperAdminSubscriptionsPage = () => {
                     className={`status-badge ${getStatusColor(subscription.status)}`}
                   >
                     {getStatusIcon(subscription.status)}
-                    {subscription.status.charAt(0).toUpperCase() +
-                      subscription.status.slice(1)}
+                    {getStatusLabel(subscription.status)}
                   </span>
                 </td>
                 <td>{formatCurrency(subscription.billing.amount)}</td>
                 <td>
                   <span className="billing-cycle">
-                    {subscription.billing.interval}
+                    {getIntervalLabel(subscription.billing.interval)}
                   </span>
                 </td>
                 <td>
                   {subscription.billing.nextBillingAt
                     ? formatDate(subscription.billing.nextBillingAt)
-                    : "N/A"}
+                    : t("superAdminSubscriptions:common.na")}
                 </td>
                 <td>
                   <div className="usage-info">
@@ -775,20 +821,20 @@ const SuperAdminSubscriptionsPage = () => {
                       className="view-action-btn view"
                       onClick={() => handleViewDetails(subscription)}
                     >
-                      View Details
+                      {t("superAdminSubscriptions:actions.viewDetails")}
                     </button>
                     <button
                       className="edit-action-btn edit"
                       onClick={() => handleEditSubscription(subscription)}
                     >
-                      Edit
+                      {t("superAdminSubscriptions:actions.edit")}
                     </button>
                     {subscription.status !== "cancelled" && (
                       <button
                         className="cancel-action-btn cancel"
                         onClick={() => handleCancelSubscription(subscription)}
                       >
-                        Cancel Subscription
+                        {t("superAdminSubscriptions:actions.cancelSubscription")}
                       </button>
                     )}
                   </div>
@@ -803,10 +849,8 @@ const SuperAdminSubscriptionsPage = () => {
             <div className="empty-icon">
               <HiOutlineCreditCard size={48} />
             </div>
-            <h3>No subscriptions found</h3>
-            <p>
-              Try adjusting your search criteria or create a new subscription.
-            </p>
+            <h3>{t("superAdminSubscriptions:empty.title")}</h3>
+            <p>{t("superAdminSubscriptions:empty.description")}</p>
           </div>
         )}
       </div>
@@ -816,7 +860,7 @@ const SuperAdminSubscriptionsPage = () => {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Edit Subscription</h2>
+              <h2>{t("superAdminSubscriptions:modal.editSubscription.title")}</h2>
               <button
                 className="modal-close"
                 onClick={() => setShowEditModal(false)}
@@ -826,7 +870,7 @@ const SuperAdminSubscriptionsPage = () => {
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label>Plan</label>
+                <label>{t("superAdminSubscriptions:labels.plan")}</label>
                 <select
                   id="editSubscriptionPlan"
                   defaultValue={selectedSubscription.plan}
@@ -841,22 +885,32 @@ const SuperAdminSubscriptionsPage = () => {
                 </select>
               </div>
               <div className="form-group">
-                <label>Status</label>
+                <label>{t("superAdminSubscriptions:labels.status")}</label>
                 <select
                   id="editSubscriptionStatus"
                   defaultValue={selectedSubscription.status}
                 >
-                  <option value="trial">Trial</option>
-                  <option value="active">Active</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="inactive">Inactive</option>
+                  <option value="trial">
+                    {t("superAdminSubscriptions:status.trial")}
+                  </option>
+                  <option value="active">
+                    {t("superAdminSubscriptions:status.active")}
+                  </option>
+                  <option value="suspended">
+                    {t("superAdminSubscriptions:status.suspended")}
+                  </option>
+                  <option value="inactive">
+                    {t("superAdminSubscriptions:status.inactive")}
+                  </option>
                 </select>
               </div>
               <div className="form-group">
-                <label>Notes</label>
+                <label>{t("superAdminSubscriptions:labels.notes")}</label>
                 <textarea
                   id="editSubscriptionNotes"
-                  placeholder="Add notes about this subscription change..."
+                  placeholder={t(
+                    "superAdminSubscriptions:modal.editSubscription.notesPlaceholder",
+                  )}
                   defaultValue={selectedSubscription.metadata?.notes || ""}
                   rows="3"
                 ></textarea>
@@ -867,7 +921,7 @@ const SuperAdminSubscriptionsPage = () => {
                 className="btn btn-secondary"
                 onClick={() => setShowEditModal(false)}
               >
-                Cancel
+                {t("superAdminSubscriptions:actions.cancel")}
               </button>
               <button
                 className="btn btn-primary"
@@ -889,7 +943,7 @@ const SuperAdminSubscriptionsPage = () => {
                   });
                 }}
               >
-                Update Subscription
+                {t("superAdminSubscriptions:actions.updateSubscription")}
               </button>
             </div>
           </div>
@@ -901,7 +955,7 @@ const SuperAdminSubscriptionsPage = () => {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Cancel Subscription</h2>
+              <h2>{t("superAdminSubscriptions:modal.cancelSubscription.title")}</h2>
               <button
                 className="modal-close"
                 onClick={() => setShowCancelModal(false)}
@@ -912,12 +966,18 @@ const SuperAdminSubscriptionsPage = () => {
             <div className="modal-body">
               <div className="warning-message">
                 <HiOutlineXCircle size={48} />
-                <h3>Are you sure you want to cancel this subscription?</h3>
+                <h3>
+                  {t(
+                    "superAdminSubscriptions:modal.cancelSubscription.confirmTitle",
+                  )}
+                </h3>
                 <p>
-                  This action will cancel the subscription for{" "}
-                  <strong>{selectedSubscription.school?.name}</strong>. The
-                  school will lose access to premium features at the end of the
-                  billing period.
+                  {t(
+                    "superAdminSubscriptions:modal.cancelSubscription.confirmDescription",
+                    {
+                      schoolName: selectedSubscription.school?.name,
+                    },
+                  )}
                 </p>
               </div>
             </div>
@@ -926,10 +986,10 @@ const SuperAdminSubscriptionsPage = () => {
                 className="btn btn-secondary"
                 onClick={() => setShowCancelModal(false)}
               >
-                Keep Subscription
+                {t("superAdminSubscriptions:actions.keepSubscription")}
               </button>
               <button className="btn btn-danger" onClick={handleConfirmCancel}>
-                Cancel Subscription
+                {t("superAdminSubscriptions:actions.cancelSubscription")}
               </button>
             </div>
           </div>
@@ -941,7 +1001,7 @@ const SuperAdminSubscriptionsPage = () => {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h2>Create Subscription</h2>
+              <h2>{t("superAdminSubscriptions:modal.createSubscription.title")}</h2>
               <button
                 className="modal-close"
                 onClick={() => setShowCreateModal(false)}
@@ -951,14 +1011,18 @@ const SuperAdminSubscriptionsPage = () => {
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label>School *</label>
+                <label>{t("superAdminSubscriptions:labels.schoolRequired")}</label>
                 <select
                   value={createForm.schoolId}
                   onChange={(e) =>
                     setCreateForm({ ...createForm, schoolId: e.target.value })
                   }
                 >
-                  <option value="">Select a school...</option>
+                  <option value="">
+                    {t(
+                      "superAdminSubscriptions:modal.createSubscription.selectSchoolPlaceholder",
+                    )}
+                  </option>
                   {(schools || []).map((school) => (
                     <option key={school._id} value={school._id}>
                       {school.name}
@@ -967,7 +1031,7 @@ const SuperAdminSubscriptionsPage = () => {
                 </select>
               </div>
               <div className="form-group">
-                <label>Plan</label>
+                <label>{t("superAdminSubscriptions:labels.plan")}</label>
                 <select
                   value={activePlans.length === 0 ? "" : createForm.plan}
                   onChange={(e) =>
@@ -976,7 +1040,11 @@ const SuperAdminSubscriptionsPage = () => {
                   disabled={activePlans.length === 0}
                 >
                   {activePlans.length === 0 ? (
-                    <option value="">No active plans available</option>
+                    <option value="">
+                      {t(
+                        "superAdminSubscriptions:modal.createSubscription.noActivePlans",
+                      )}
+                    </option>
                   ) : (
                     activePlans.map((plan) => (
                       <option key={plan._id || plan.key} value={plan.key}>
@@ -985,27 +1053,33 @@ const SuperAdminSubscriptionsPage = () => {
                           plan.billing?.amount || 0,
                           plan.billing?.currency || "USD",
                         )}
-                        /{plan.billing?.interval || "month"})
+                        /{getIntervalLabel(plan.billing?.interval || "month")})
                       </option>
                     ))
                   )}
                 </select>
               </div>
               <div className="form-group">
-                <label>Initial Status</label>
+                <label>
+                  {t("superAdminSubscriptions:labels.initialStatus")}
+                </label>
                 <select
                   value={createForm.status}
                   onChange={(e) =>
                     setCreateForm({ ...createForm, status: e.target.value })
                   }
                 >
-                  <option value="trial">Trial</option>
-                  <option value="active">Active</option>
+                  <option value="trial">
+                    {t("superAdminSubscriptions:status.trial")}
+                  </option>
+                  <option value="active">
+                    {t("superAdminSubscriptions:status.active")}
+                  </option>
                 </select>
               </div>
               {createForm.status === "trial" && (
                 <div className="form-group">
-                  <label>Trial Days</label>
+                  <label>{t("superAdminSubscriptions:labels.trialDays")}</label>
                   <input
                     type="number"
                     value={createForm.trialDays}
@@ -1021,13 +1095,15 @@ const SuperAdminSubscriptionsPage = () => {
                 </div>
               )}
               <div className="form-group">
-                <label>Notes</label>
+                <label>{t("superAdminSubscriptions:labels.notes")}</label>
                 <textarea
                   value={createForm.notes}
                   onChange={(e) =>
                     setCreateForm({ ...createForm, notes: e.target.value })
                   }
-                  placeholder="Optional notes about this subscription..."
+                  placeholder={t(
+                    "superAdminSubscriptions:modal.createSubscription.notesPlaceholder",
+                  )}
                   rows="3"
                 ></textarea>
               </div>
@@ -1037,7 +1113,7 @@ const SuperAdminSubscriptionsPage = () => {
                 className="btn btn-secondary"
                 onClick={() => setShowCreateModal(false)}
               >
-                Cancel
+                {t("superAdminSubscriptions:actions.cancel")}
               </button>
               <button
                 className="btn btn-primary"
@@ -1045,7 +1121,7 @@ const SuperAdminSubscriptionsPage = () => {
                 disabled={activePlans.length === 0}
               >
                 <HiOutlinePlus size={20} />
-                Create Subscription
+                {t("superAdminSubscriptions:actions.createSubscription")}
               </button>
             </div>
           </div>
@@ -1057,7 +1133,7 @@ const SuperAdminSubscriptionsPage = () => {
         <div className="modal-overlay plans-modal">
           <div className="modal plan-manager-modal">
             <div className="modal-header">
-              <h2>Manage Plans</h2>
+              <h2>{t("superAdminSubscriptions:modal.managePlans.title")}</h2>
               <button
                 className="modal-close"
                 onClick={() => setShowPlansModal(false)}
@@ -1069,13 +1145,13 @@ const SuperAdminSubscriptionsPage = () => {
               <div className="plan-manager-grid">
                 <div className="plan-manager-list">
                   <div className="plan-manager-list-header">
-                    <h3>Existing Plans</h3>
+                    <h3>{t("superAdminSubscriptions:modal.managePlans.existingPlans")}</h3>
                     <button
                       className="btn btn-secondary"
                       onClick={openCreatePlanForm}
                     >
                       <HiOutlinePlus size={16} />
-                      New Plan
+                      {t("superAdminSubscriptions:actions.newPlan")}
                     </button>
                   </div>
                   <div className="plan-manager-items">
@@ -1093,7 +1169,9 @@ const SuperAdminSubscriptionsPage = () => {
                           <span
                             className={`plan-status-chip ${plan.isActive ? "active" : "inactive"}`}
                           >
-                            {plan.isActive ? "Active" : "Inactive"}
+                            {plan.isActive
+                              ? t("superAdminSubscriptions:status.active")
+                              : t("superAdminSubscriptions:status.inactive")}
                           </span>
                           <span className="plan-manager-item-meta">
                             {plan.key} ·{" "}
@@ -1101,15 +1179,17 @@ const SuperAdminSubscriptionsPage = () => {
                               plan.billing?.amount || 0,
                               plan.billing?.currency || "USD",
                             )}
-                            /{plan.billing?.interval || "month"} ·{" "}
-                            {plan.subscriptionCount || 0} subscriptions
+                            /{getIntervalLabel(plan.billing?.interval || "month")} ·{" "}
+                            {t("superAdminSubscriptions:modal.managePlans.subscriptionsCount", {
+                              count: plan.subscriptionCount || 0
+                            })}
                           </span>
                         </div>
                         <div className="plan-manager-item-actions">
                           <button
                             className="action-btn edit"
                             onClick={() => openEditPlanForm(plan)}
-                            title="Edit plan"
+                            title={t("superAdminSubscriptions:actions.editPlan")}
                           >
                             <HiOutlinePencil size={14} />
                           </button>
@@ -1118,8 +1198,8 @@ const SuperAdminSubscriptionsPage = () => {
                             onClick={() => handleTogglePlanStatus(plan)}
                             title={
                               plan.isActive
-                                ? "Deactivate plan"
-                                : "Activate plan"
+                                ? t("superAdminSubscriptions:actions.deactivatePlan")
+                                : t("superAdminSubscriptions:actions.activatePlan")
                             }
                           >
                             {plan.isActive ? (
@@ -1134,38 +1214,41 @@ const SuperAdminSubscriptionsPage = () => {
                   </div>
                 </div>
                 <div className="plan-manager-editor">
-                  <h3>{editingPlanId ? "Edit Plan" : "Create Plan"}</h3>
+                  <h3>
+                    {editingPlanId
+                      ? t("superAdminSubscriptions:modal.managePlans.editPlan")
+                      : t("superAdminSubscriptions:modal.managePlans.createPlan")}
+                  </h3>
                   <div className="form-group">
-                    <label>Plan Key</label>
+                    <label>{t("superAdminSubscriptions:labels.planKey")}</label>
                     <input
                       type="text"
                       value={planForm.key}
                       onChange={(e) =>
                         handlePlanFormChange(null, "key", e.target.value)
                       }
-                      placeholder="e.g. growth_plus"
+                      placeholder={t("superAdminSubscriptions:modal.managePlans.planKeyPlaceholder")}
                       disabled={Boolean(editingPlanId)}
                     />
                     {editingPlanId && (
                       <span className="form-help-text">
-                        Plan key is locked after creation to keep existing
-                        subscriptions stable.
+                        {t("superAdminSubscriptions:modal.managePlans.planKeyLocked")}
                       </span>
                     )}
                   </div>
                   <div className="form-group">
-                    <label>Plan Name</label>
+                    <label>{t("superAdminSubscriptions:labels.planName")}</label>
                     <input
                       type="text"
                       value={planForm.name}
                       onChange={(e) =>
                         handlePlanFormChange(null, "name", e.target.value)
                       }
-                      placeholder="Plan display name"
+                      placeholder={t("superAdminSubscriptions:modal.managePlans.planNamePlaceholder")}
                     />
                   </div>
                   <div className="form-group">
-                    <label>Description</label>
+                    <label>{t("superAdminSubscriptions:labels.description")}</label>
                     <textarea
                       rows="2"
                       value={planForm.description}
@@ -1180,7 +1263,7 @@ const SuperAdminSubscriptionsPage = () => {
                   </div>
                   <div className="plan-settings-row">
                     <div className="form-group">
-                      <label>Sort Order</label>
+                      <label>{t("superAdminSubscriptions:labels.sortOrder")}</label>
                       <input
                         type="number"
                         value={planForm.sortOrder}
@@ -1205,12 +1288,12 @@ const SuperAdminSubscriptionsPage = () => {
                           )
                         }
                       />
-                      <span>Plan is active</span>
+                      <span>{t("superAdminSubscriptions:labels.planIsActive")}</span>
                     </label>
                   </div>
                   <div className="plan-form-row">
                     <div className="form-group">
-                      <label>Monthly Price</label>
+                      <label>{t("superAdminSubscriptions:labels.monthlyPrice")}</label>
                       <input
                         type="number"
                         min="0"
@@ -1226,7 +1309,7 @@ const SuperAdminSubscriptionsPage = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Currency</label>
+                      <label>{t("superAdminSubscriptions:labels.currency")}</label>
                       <input
                         type="text"
                         value={planForm.billing.currency}
@@ -1240,7 +1323,7 @@ const SuperAdminSubscriptionsPage = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Interval</label>
+                      <label>{t("superAdminSubscriptions:labels.interval")}</label>
                       <select
                         value={planForm.billing.interval}
                         onChange={(e) =>
@@ -1251,14 +1334,18 @@ const SuperAdminSubscriptionsPage = () => {
                           )
                         }
                       >
-                        <option value="month">month</option>
-                        <option value="year">year</option>
+                        <option value="month">
+                          {t("superAdminSubscriptions:interval.month")}
+                        </option>
+                        <option value="year">
+                          {t("superAdminSubscriptions:interval.year")}
+                        </option>
                       </select>
                     </div>
                   </div>
                   <div className="plan-form-row">
                     <div className="form-group">
-                      <label>Max Students</label>
+                      <label>{t("superAdminSubscriptions:labels.maxStudents")}</label>
                       <input
                         type="number"
                         value={planForm.limits.maxStudents}
@@ -1272,7 +1359,7 @@ const SuperAdminSubscriptionsPage = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Max Teachers</label>
+                      <label>{t("superAdminSubscriptions:labels.maxTeachers")}</label>
                       <input
                         type="number"
                         value={planForm.limits.maxTeachers}
@@ -1286,7 +1373,7 @@ const SuperAdminSubscriptionsPage = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Max Classes</label>
+                      <label>{t("superAdminSubscriptions:labels.maxClasses")}</label>
                       <input
                         type="number"
                         value={planForm.limits.maxClasses}
@@ -1300,7 +1387,7 @@ const SuperAdminSubscriptionsPage = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Max Storage (MB)</label>
+                      <label>{t("superAdminSubscriptions:labels.maxStorageMb")}</label>
                       <input
                         type="number"
                         value={planForm.limits.maxStorage}
@@ -1323,7 +1410,12 @@ const SuperAdminSubscriptionsPage = () => {
                             checked={Boolean(planForm.features?.[featureKey])}
                             onChange={() => togglePlanFeature(featureKey)}
                           />
-                          <span>{definition.label}</span>
+                          <span>
+                            {getFeatureDefinitionLabel(
+                              featureKey,
+                              definition.label,
+                            )}
+                          </span>
                         </label>
                       ),
                     )}
@@ -1334,7 +1426,7 @@ const SuperAdminSubscriptionsPage = () => {
                       onClick={openCreatePlanForm}
                       disabled={savingPlan}
                     >
-                      Clear
+                      {t("superAdminSubscriptions:actions.clear")}
                     </button>
                     <button
                       className="btn btn-primary"
@@ -1342,10 +1434,10 @@ const SuperAdminSubscriptionsPage = () => {
                       disabled={savingPlan}
                     >
                       {savingPlan
-                        ? "Saving..."
+                        ? t("superAdminSubscriptions:actions.saving")
                         : editingPlanId
-                          ? "Update Plan"
-                          : "Create Plan"}
+                          ? t("superAdminSubscriptions:actions.updatePlan")
+                          : t("superAdminSubscriptions:actions.createPlan")}
                     </button>
                   </div>
                 </div>
@@ -1360,7 +1452,7 @@ const SuperAdminSubscriptionsPage = () => {
         <div className="modal-overlay analytics-modal">
           <div className="modal">
             <div className="modal-header">
-              <h2>Subscription Analytics</h2>
+              <h2>{t("superAdminSubscriptions:modal.analytics.title")}</h2>
               <button
                 className="modal-close"
                 onClick={() => setShowAnalyticsModal(false)}
@@ -1374,9 +1466,15 @@ const SuperAdminSubscriptionsPage = () => {
                   value={analyticsPeriod}
                   onChange={(e) => setAnalyticsPeriod(e.target.value)}
                 >
-                  <option value="week">Last Week</option>
-                  <option value="month">Last Month</option>
-                  <option value="year">Last Year</option>
+                  <option value="week">
+                    {t("superAdminSubscriptions:modal.analytics.period.lastWeek")}
+                  </option>
+                  <option value="month">
+                    {t("superAdminSubscriptions:modal.analytics.period.lastMonth")}
+                  </option>
+                  <option value="year">
+                    {t("superAdminSubscriptions:modal.analytics.period.lastYear")}
+                  </option>
                 </select>
               </div>
 
@@ -1385,7 +1483,7 @@ const SuperAdminSubscriptionsPage = () => {
                   {/* Key Metrics */}
                   <div className="analytics-summary">
                     <div className="summary-card">
-                      <h4>New Subscriptions</h4>
+                      <h4>{t("superAdminSubscriptions:modal.analytics.newSubscriptions")}</h4>
                       <p>
                         {analytics.analytics.reduce(
                           (sum, item) => sum + item.newSubscriptions,
@@ -1395,7 +1493,7 @@ const SuperAdminSubscriptionsPage = () => {
                       <span className="summary-period">{analytics.period}</span>
                     </div>
                     <div className="summary-card">
-                      <h4>Revenue</h4>
+                      <h4>{t("superAdminSubscriptions:modal.analytics.revenue")}</h4>
                       <p>
                         {formatCurrency(
                           analytics.analytics.reduce(
@@ -1407,20 +1505,24 @@ const SuperAdminSubscriptionsPage = () => {
                       <span className="summary-period">{analytics.period}</span>
                     </div>
                     <div className="summary-card">
-                      <h4>MRR</h4>
+                      <h4>{t("superAdminSubscriptions:modal.analytics.mrr")}</h4>
                       <p>{formatCurrency(analytics.mrr)}</p>
-                      <span className="summary-period">Monthly</span>
+                      <span className="summary-period">
+                        {t("superAdminSubscriptions:modal.analytics.monthly")}
+                      </span>
                     </div>
                     <div className="summary-card">
-                      <h4>Total Collected</h4>
+                      <h4>{t("superAdminSubscriptions:modal.analytics.totalCollected")}</h4>
                       <p>{formatCurrency(analytics.totalCollected)}</p>
-                      <span className="summary-period">All time</span>
+                      <span className="summary-period">
+                        {t("superAdminSubscriptions:modal.analytics.allTime")}
+                      </span>
                     </div>
                   </div>
 
                   {/* Subscription Trends Chart */}
                   <div className="analytics-chart">
-                    <h4>Subscription Trends</h4>
+                    <h4>{t("superAdminSubscriptions:modal.analytics.subscriptionTrends")}</h4>
                     <div className="trends-chart">
                       {analytics.analytics.length > 0 ? (
                         <div className="chart-bars">
@@ -1446,7 +1548,7 @@ const SuperAdminSubscriptionsPage = () => {
                                   {new Date(
                                     item._id.year,
                                     item._id.month - 1,
-                                  ).toLocaleDateString("en-US", {
+                                  ).toLocaleDateString(locale, {
                                     month: "short",
                                   })}
                                 </span>
@@ -1457,7 +1559,11 @@ const SuperAdminSubscriptionsPage = () => {
                       ) : (
                         <div className="chart-placeholder">
                           <HiOutlineChartBar size={48} />
-                          <p>No data available for selected period</p>
+                          <p>
+                            {t(
+                              "superAdminSubscriptions:modal.analytics.noDataForPeriod",
+                            )}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -1465,7 +1571,7 @@ const SuperAdminSubscriptionsPage = () => {
 
                   {/* Status Breakdown */}
                   <div className="analytics-breakdown">
-                    <h4>Status Breakdown</h4>
+                    <h4>{t("superAdminSubscriptions:modal.analytics.statusBreakdown")}</h4>
                     <div className="breakdown-grid">
                       {analytics.statusBreakdown.map((status) => {
                         const total = analytics.statusBreakdown.reduce(
@@ -1480,7 +1586,7 @@ const SuperAdminSubscriptionsPage = () => {
                           <div key={status._id} className="breakdown-item">
                             <div className="breakdown-header">
                               <span className="breakdown-label">
-                                {status._id}
+                                {getStatusLabel(status._id)}
                               </span>
                               <span className="breakdown-count">
                                 {status.count}
@@ -1503,7 +1609,7 @@ const SuperAdminSubscriptionsPage = () => {
 
                   {/* Plan Distribution */}
                   <div className="analytics-breakdown">
-                    <h4>Plan Distribution</h4>
+                    <h4>{t("superAdminSubscriptions:planDistribution.title")}</h4>
                     <div className="plan-grid">
                       {analytics.planDistribution.map((plan) => {
                         const total = analytics.planDistribution.reduce(
@@ -1542,7 +1648,7 @@ const SuperAdminSubscriptionsPage = () => {
               ) : (
                 <div className="loading-analytics">
                   <div className="spinner"></div>
-                  <p>Loading analytics...</p>
+                  <p>{t("superAdminSubscriptions:loading.analytics")}</p>
                 </div>
               )}
             </div>

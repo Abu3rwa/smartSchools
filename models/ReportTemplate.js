@@ -19,7 +19,8 @@ const reportTemplateSchema = new Schema({
     },
     language: {
         type: String,
-        enum: ['english', 'arabic', 'bilingual'],
+        trim: true,
+        lowercase: true,
         required: true
     },
     customPrompt: {

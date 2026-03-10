@@ -1,8 +1,12 @@
+import { useTranslation } from 'react-i18next';
+
 const LoadingState = () => {
+    const { t } = useTranslation(['behaviorAnalytics']);
+
     return (
         <div className="behavior-analytics-loading">
             <div className="spinner"></div>
-            <p>Loading analytics...</p>
+            <p>{t('behaviorAnalytics:loading.analytics')}</p>
         </div>
     );
 };

@@ -9,10 +9,13 @@ import SchoolYearTab from './components/SchoolYearTab';
 import BrandingTab from './components/BrandingTab';
 import GradingScalesTab from './components/GradingScalesTab';
 import CommunicationTab from './components/CommunicationTab';
+import { useTranslation } from 'react-i18next';
 import useSchoolSettings from './hooks/useSchoolSettings';
 import './SchoolSettingsPage.css';
 
 const SchoolSettingsPage = () => {
+  useTranslation(['schoolSettings']);
+
   const {
     canManageUsers,
     canManageSchoolSettings,

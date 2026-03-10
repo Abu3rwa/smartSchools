@@ -1,4 +1,5 @@
 import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import {
     ResponsiveContainer,
     LineChart,
@@ -14,6 +15,7 @@ import { CARD_SX, CARD_HEADER_SX, CARD_TITLE_SX, CHART_STYLES } from '../constan
  * Performance trend line chart card.
  */
 export default function PerformanceTrendCard({ data }) {
+    const { t } = useTranslation(['adminDashboard']);
     const theme = useTheme();
     const isSm = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -27,12 +29,12 @@ export default function PerformanceTrendCard({ data }) {
                 }}
             >
                 <Typography component="h3" sx={CARD_TITLE_SX}>
-                    Performance Trend
+                    {t('adminDashboard:performanceTrend.title')}
                 </Typography>
                 <Typography
                     sx={{ fontSize: '0.875rem', color: 'var(--text-secondary, #64748b)' }}
                 >
-                    Average grades over time
+                    {t('adminDashboard:performanceTrend.subtitle')}
                 </Typography>
             </Box>
             <Box
@@ -96,6 +98,7 @@ export default function PerformanceTrendCard({ data }) {
                             stroke="var(--primary, #5aaeee)"
                             strokeWidth={2}
                             dot={{ r: isSm ? 3 : 4 }}
+                            name={t('adminDashboard:performanceTrend.average')}
                         />
                     </LineChart>
                 </ResponsiveContainer>

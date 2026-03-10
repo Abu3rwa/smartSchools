@@ -1,7 +1,7 @@
 export const SUBJECT_TYPES = [
-    { value: 'core', label: 'Core' },
-    { value: 'elective', label: 'Elective' },
-    { value: 'extra', label: 'Extra-curricular' }
+    { value: 'core', labelKey: 'types.core' },
+    { value: 'elective', labelKey: 'types.elective' },
+    { value: 'extra', labelKey: 'types.extra' }
 ];
 
 export const DEFAULT_SUBJECT_FORM = {

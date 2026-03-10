@@ -7,6 +7,7 @@ import {
   selectReadingError,
 } from "../../../../../store/slices/readingSlice.js";
 import { fetchClasses, selectClasses } from "../../../../../store/slices/classSlice.js";
+import { buildRequestedLanguages } from "../../../../../constants/aiLanguages.js";
 import toast from "react-hot-toast";
 
 export function useReadingUploadData() {
@@ -23,6 +24,8 @@ export function useReadingUploadData() {
   const [topicTagsStr, setTopicTagsStr] = useState("");
   const [classId, setClassId] = useState("");
   const [generateVersions, setGenerateVersions] = useState(true);
+  const [aiPrimaryLanguage, setAiPrimaryLanguage] = useState("en");
+  const [aiSecondaryLanguage, setAiSecondaryLanguage] = useState("");
 
   useEffect(() => {
     dispatch(fetchClasses());
@@ -46,6 +49,12 @@ export function useReadingUploadData() {
       .split(/[,;]/)
       .map((t) => t.trim())
       .filter(Boolean);
+    const requestedLanguages = buildRequestedLanguages(
+      aiPrimaryLanguage,
+      aiSecondaryLanguage
+    );
+    const normalizedRequestedLanguages =
+      requestedLanguages.length > 0 ? requestedLanguages : ["en"];
     dispatch(
       uploadText({
         title: title.trim(),
@@ -55,6 +64,9 @@ export function useReadingUploadData() {
         topicTags: topicTags.length ? topicTags : undefined,
         classId: classId || undefined,
         generateVersions,
+        requestedLanguages: normalizedRequestedLanguages,
+        primaryLanguage: aiPrimaryLanguage || "en",
+        secondaryLanguage: aiSecondaryLanguage || "",
       }),
     ).then((result) => {
       if (result.type === "reading/uploadText/fulfilled") {
@@ -81,6 +93,10 @@ export function useReadingUploadData() {
     setClassId,
     generateVersions,
     setGenerateVersions,
+    aiPrimaryLanguage,
+    setAiPrimaryLanguage,
+    aiSecondaryLanguage,
+    setAiSecondaryLanguage,
     uploading,
     classes,
     handleSubmit,

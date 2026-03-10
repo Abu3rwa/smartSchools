@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     HiOutlineBookOpen,
     HiOutlineCheck,
@@ -44,38 +45,34 @@ import toast from 'react-hot-toast';
 import './AdminTimetablePage.css';
 import '../../../subjects/SubjectsPage/SubjectsPage.css';
 
-const DAY_LABEL_BY_VALUE = DAY_LABELS.reduce((lookup, day) => {
-    lookup[day.value] = day.label;
-    return lookup;
-}, {});
-
-const formatShortDate = (value) => {
-    if (!value) return 'Open-ended';
+const formatShortDate = (value, locale = undefined) => {
+    if (!value) return '';
 
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Unknown date';
+    if (Number.isNaN(date.getTime())) return '';
 
-    return date.toLocaleDateString(undefined, {
+    return date.toLocaleDateString(locale, {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
     });
 };
 
-const formatAssignmentWindow = (startDate, endDate) => {
-    if (!startDate && !endDate) return 'Always active';
-    if (!endDate) return `Starts ${formatShortDate(startDate)}`;
-    if (!startDate) return `Until ${formatShortDate(endDate)}`;
-    return `${formatShortDate(startDate)} - ${formatShortDate(endDate)}`;
+const formatAssignmentWindow = (startDate, endDate, t, locale) => {
+    if (!startDate && !endDate) return t('adminTimetable:assignment.alwaysActive');
+    if (!endDate) return t('adminTimetable:assignment.startsOn', { date: formatShortDate(startDate, locale) });
+    if (!startDate) return t('adminTimetable:assignment.untilDate', { date: formatShortDate(endDate, locale) });
+    return `${formatShortDate(startDate, locale)} - ${formatShortDate(endDate, locale)}`;
 };
 
 const formatAssignmentDays = (daysOfWeek = []) => {
     return [...daysOfWeek]
-        .sort((left, right) => left - right)
-        .map((day) => DAY_LABEL_BY_VALUE[day] || String(day));
+        .sort((left, right) => left - right);
 };
 
 const AdminTimetablePage = () => {
+    const { t, i18n } = useTranslation(['adminTimetable', 'subjects', 'common']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : 'en';
     const dispatch = useDispatch();
     const location = useLocation();
 
@@ -148,27 +145,36 @@ const AdminTimetablePage = () => {
 
         return [
             {
-                label: 'Subjects',
+                labelKey: 'summary.subjects.label',
                 value: subjects.length,
-                help: 'Curriculum options used in the schedule'
+                helpKey: 'summary.subjects.help'
             },
             {
-                label: 'Periods',
+                labelKey: 'summary.periods.label',
                 value: periods.length,
-                help: 'Time slots available each day'
+                helpKey: 'summary.periods.help'
             },
             {
-                label: 'Assignments',
+                labelKey: 'summary.assignments.label',
                 value: activeAssignments,
-                help: 'Teacher blocks currently active'
+                helpKey: 'summary.assignments.help'
             },
             {
-                label: 'Available rooms',
+                labelKey: 'summary.availableRooms.label',
                 value: availableRooms,
-                help: 'Rooms ready for scheduling'
+                helpKey: 'summary.availableRooms.help'
             }
         ];
     }, [assignments, periods, rooms, subjects.length]);
+
+    const dayLabelByValue = useMemo(
+        () =>
+            DAY_LABELS.reduce((accumulator, day) => {
+                accumulator[day.value] = day.labelKey;
+                return accumulator;
+            }, {}),
+        []
+    );
 
     const fetchTimetableData = async () => {
         try {
@@ -235,7 +241,7 @@ const AdminTimetablePage = () => {
     };
 
     const deletePeriod = async (id) => {
-        if (!window.confirm('Delete this period?')) return;
+        if (!window.confirm(t('adminTimetable:confirm.deletePeriod'))) return;
 
         try {
             setSaving(true);
@@ -319,7 +325,7 @@ const AdminTimetablePage = () => {
     };
 
     const deleteAssignment = async (id) => {
-        if (!window.confirm('Delete this assignment?')) return;
+        if (!window.confirm(t('adminTimetable:confirm.deleteAssignment'))) return;
 
         try {
             setSaving(true);
@@ -394,7 +400,7 @@ const AdminTimetablePage = () => {
         if (!file) return;
 
         if (!file.name.toLowerCase().endsWith('.csv')) {
-            toast.error('Please select a CSV file');
+            toast.error(t('adminTimetable:toast.selectCsv'));
             return;
         }
 
@@ -406,7 +412,7 @@ const AdminTimetablePage = () => {
             return;
         }
         if (rows.length === 0) {
-            toast.error('No valid period rows found in CSV');
+            toast.error(t('adminTimetable:toast.noValidPeriodRows'));
             return;
         }
 
@@ -414,11 +420,11 @@ const AdminTimetablePage = () => {
             const response = await timetableService.importPeriods(rows);
             const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
             const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
-            toast.success(response?.message || `Imported ${imported} periods`);
-            if (failed > 0) toast.error(`${failed} period rows failed`);
+            toast.success(response?.message || t('adminTimetable:toast.importedPeriods', { count: imported }));
+            if (failed > 0) toast.error(t('adminTimetable:toast.failedPeriodRows', { count: failed }));
             await fetchTimetableData();
         } catch (importError) {
-            toast.error(importError?.response?.data?.message || 'Failed to import periods');
+            toast.error(importError?.response?.data?.message || t('adminTimetable:toast.importPeriodsFailed'));
         }
     };
 
@@ -428,7 +434,7 @@ const AdminTimetablePage = () => {
         if (!file) return;
 
         if (!file.name.toLowerCase().endsWith('.csv')) {
-            toast.error('Please select a CSV file');
+            toast.error(t('adminTimetable:toast.selectCsv'));
             return;
         }
 
@@ -440,7 +446,7 @@ const AdminTimetablePage = () => {
             return;
         }
         if (rows.length === 0) {
-            toast.error('No valid room rows found in CSV');
+            toast.error(t('adminTimetable:toast.noValidRoomRows'));
             return;
         }
 
@@ -448,12 +454,12 @@ const AdminTimetablePage = () => {
             const response = await roomService.importRooms(rows);
             const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
             const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
-            toast.success(response?.message || `Imported ${imported} rooms`);
-            if (failed > 0) toast.error(`${failed} room rows failed`);
+            toast.success(response?.message || t('adminTimetable:toast.importedRooms', { count: imported }));
+            if (failed > 0) toast.error(t('adminTimetable:toast.failedRoomRows', { count: failed }));
             const roomResponse = await roomService.getRooms();
             setRooms(roomResponse?.data?.rooms || []);
         } catch (importError) {
-            toast.error(importError?.response?.data?.message || 'Failed to import rooms');
+            toast.error(importError?.response?.data?.message || t('adminTimetable:toast.importRoomsFailed'));
         }
     };
 
@@ -483,10 +489,10 @@ const AdminTimetablePage = () => {
             }
 
             if (createSubject.fulfilled.match(result) || updateSubject.fulfilled.match(result)) {
-                toast.success(`Subject ${editingId ? 'updated' : 'created'} successfully`);
+                toast.success(editingId ? t('subjects:toast.updated') : t('subjects:toast.created'));
                 handleCloseSubjectModal();
             } else {
-                toast.error(result.payload || `Failed to ${editingId ? 'update' : 'create'} subject`);
+                toast.error(result.payload || (editingId ? t('subjects:toast.updateFailed') : t('subjects:toast.createFailed')));
             }
         } finally {
             setSubmitting(false);
@@ -500,13 +506,13 @@ const AdminTimetablePage = () => {
     };
 
     const handleDeleteSubject = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this subject?')) return;
+        if (!window.confirm(t('subjects:confirm.delete'))) return;
 
         const result = await dispatch(deleteSubject(id));
         if (deleteSubject.fulfilled.match(result)) {
-            toast.success('Subject deleted successfully');
+            toast.success(t('subjects:toast.deleted'));
         } else {
-            toast.error(result.payload || 'Failed to delete subject');
+            toast.error(result.payload || t('subjects:toast.deleteFailed'));
         }
     };
 
@@ -516,7 +522,7 @@ const AdminTimetablePage = () => {
         if (!file) return;
 
         if (!file.name.toLowerCase().endsWith('.csv')) {
-            toast.error('Please select a CSV file');
+            toast.error(t('subjects:toast.selectCsv'));
             return;
         }
 
@@ -526,7 +532,7 @@ const AdminTimetablePage = () => {
             return;
         }
         if (rows.length === 0) {
-            toast.error('No valid subject rows found in CSV');
+            toast.error(t('adminTimetable:toast.noValidSubjectRows'));
             return;
         }
 
@@ -536,16 +542,16 @@ const AdminTimetablePage = () => {
             const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
             const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
 
-            toast.success(response?.message || `Imported ${imported} subjects`);
+            toast.success(response?.message || t('subjects:toast.imported', { count: imported }));
             if (failed > 0) {
-                toast.error(`${failed} subject rows failed`);
+                toast.error(t('subjects:toast.importFailedRows', { count: failed }));
             } else if (skipped > 0) {
-                toast(`${skipped} subject rows skipped`);
+                toast(t('subjects:toast.importSkippedRows', { count: skipped }));
             }
 
             dispatch(fetchSubjects({ limit: TIMETABLE_DROPDOWN_LIMIT }));
         } catch (importError) {
-            toast.error(importError?.response?.data?.message || 'Failed to import subjects');
+            toast.error(importError?.response?.data?.message || t('subjects:toast.importFailed'));
         }
     };
 
@@ -586,41 +592,41 @@ const AdminTimetablePage = () => {
             <section className="timetable-hero">
                 <div className="page-header">
                     <div className="header-content">
-                        <span className="hero-eyebrow">Scheduling workspace</span>
-                        <h3>Timetable Builder</h3>
-                        <p>Set up subjects, periods, rooms, and teacher assignments from one responsive workspace.</p>
+                        <span className="hero-eyebrow">{t('adminTimetable:page.eyebrow')}</span>
+                        <h3>{t('adminTimetable:page.title')}</h3>
+                        <p>{t('adminTimetable:page.subtitle')}</p>
                     </div>
                     <div className="header-actions"  >
                         {isAdmin && (
                             <button className="btn btn-secondary" onClick={triggerSubjectImport} disabled={saving}>
                                 <HiOutlineUpload size={18} />
-                                Import Subjects CSV
+                                {t('adminTimetable:actions.importSubjectsCsv')}
                             </button>
                         )}
                         <button className="btn btn-secondary" onClick={triggerPeriodImport} disabled={saving}>
                             <HiOutlinePlus size={18} />
-                            Import Periods CSV
+                            {t('adminTimetable:actions.importPeriodsCsv')}
                         </button>
                         <button className="btn btn-secondary" onClick={triggerRoomImport} disabled={saving}>
                             <HiOutlineOfficeBuilding size={18} />
-                            Import Rooms CSV
+                            {t('adminTimetable:actions.importRoomsCsv')}
                         </button>
                         <button className="btn btn-primary" onClick={fetchTimetableData} disabled={saving}>
                             <HiOutlineRefresh size={18} />
-                            Refresh
+                            {t('adminTimetable:actions.refresh')}
                         </button>
                     </div>
                 </div>
 
-                <div className="summary-grid">
-                    {summaryCards.map((card) => (
-                        <article key={card.label} className="summary-card">
-                            <span className="summary-label">{card.label}</span>
-                            <strong className="summary-value">{card.value}</strong>
-                            <span className="summary-help">{card.help}</span>
-                        </article>
-                    ))}
-                </div>
+                    <div className="summary-grid">
+                        {summaryCards.map((card) => (
+                            <article key={card.labelKey} className="summary-card">
+                                <span className="summary-label">{t(`adminTimetable:${card.labelKey}`)}</span>
+                                <strong className="summary-value">{card.value}</strong>
+                                <span className="summary-help">{t(`adminTimetable:${card.helpKey}`)}</span>
+                            </article>
+                        ))}
+                    </div>
             </section>
 
             <TimetableErrorBanner error={error} />
@@ -632,20 +638,22 @@ const AdminTimetablePage = () => {
                             <div>
                                 <div className="card-title">
                                     <HiOutlineClock size={20} />
-                                    {editingAssignmentId ? 'Edit Assignment' : 'Build Assignment'}
+                                    {editingAssignmentId
+                                        ? t('adminTimetable:assignmentForm.editTitle')
+                                        : t('adminTimetable:assignmentForm.buildTitle')}
                                 </div>
-                                <p className="section-copy">Match a teacher, class, subject, room, and period in one flow.</p>
+                                <p className="section-copy">{t('adminTimetable:assignmentForm.subtitle')}</p>
                             </div>
                             {editingAssignmentId && (
                                 <button className="btn btn-secondary btn-sm" onClick={cancelAssignmentEdit} disabled={saving}>
-                                    Cancel edit
+                                    {t('adminTimetable:assignmentForm.cancelEdit')}
                                 </button>
                             )}
                         </div>
 
                         <div className="assignment-form">
                             <div className="field">
-                                <label>Teacher</label>
+                                <label>{t('adminTimetable:assignmentForm.teacher')}</label>
                                 <select
                                     value={newAssignment.teacher}
                                     onChange={(event) => {
@@ -658,7 +666,7 @@ const AdminTimetablePage = () => {
                                         }));
                                     }}
                                 >
-                                    <option value="">Select teacher</option>
+                                    <option value="">{t('adminTimetable:assignmentForm.teacherPlaceholder')}</option>
                                     {teachers.map((teacher) => (
                                         <option key={teacher._id} value={teacher.user?._id || ''}>
                                             {teacher.user?.firstName} {teacher.user?.lastName}
@@ -668,7 +676,7 @@ const AdminTimetablePage = () => {
                             </div>
 
                             <div className="field">
-                                <label>Class</label>
+                                <label>{t('adminTimetable:assignmentForm.class')}</label>
                                 <select
                                     value={newAssignment.class}
                                     onChange={(event) => {
@@ -683,8 +691,10 @@ const AdminTimetablePage = () => {
                                 >
                                     <option value="">
                                         {!newAssignment.teacher
-                                            ? 'Select teacher first'
-                                            : (availableClasses.length > 0 ? 'Select class' : 'No classes assigned to this teacher')}
+                                            ? t('adminTimetable:assignmentForm.classPlaceholderSelectTeacherFirst')
+                                            : (availableClasses.length > 0
+                                                ? t('adminTimetable:assignmentForm.classPlaceholderSelectClass')
+                                                : t('adminTimetable:assignmentForm.classPlaceholderNoClasses'))}
                                     </option>
                                     {availableClasses.map((classItem) => (
                                         <option key={classItem._id} value={classItem._id}>{classItem.name}</option>
@@ -693,7 +703,7 @@ const AdminTimetablePage = () => {
                             </div>
 
                             <div className="field">
-                                <label>Subject</label>
+                                <label>{t('adminTimetable:assignmentForm.subject')}</label>
                                 <select
                                     value={newAssignment.subject}
                                     onChange={(event) => setNewAssignment((previousAssignment) => ({ ...previousAssignment, subject: event.target.value }))}
@@ -701,8 +711,10 @@ const AdminTimetablePage = () => {
                                 >
                                     <option value="">
                                         {!newAssignment.teacher
-                                            ? 'Select teacher first'
-                                            : (availableSubjects.length > 0 ? '(Optional)' : 'No subjects assigned to this teacher')}
+                                            ? t('adminTimetable:assignmentForm.subjectPlaceholderSelectTeacherFirst')
+                                            : (availableSubjects.length > 0
+                                                ? t('adminTimetable:assignmentForm.subjectPlaceholderOptional')
+                                                : t('adminTimetable:assignmentForm.subjectPlaceholderNoSubjects'))}
                                     </option>
                                     {availableSubjects.map((subject) => (
                                         <option key={subject._id} value={subject._id}>{subject.name}</option>
@@ -711,24 +723,28 @@ const AdminTimetablePage = () => {
                             </div>
 
                             <div className="field field-room">
-                                <label>Room</label>
+                                <label>{t('adminTimetable:assignmentForm.room')}</label>
                                 <div className="field-with-action">
                                     <select value={newAssignment.room} onChange={(event) => setNewAssignment((previousAssignment) => ({ ...previousAssignment, room: event.target.value }))}>
-                                        <option value="">(Optional)</option>
+                                        <option value="">{t('adminTimetable:assignmentForm.roomOptional')}</option>
                                         {rooms.map((room) => {
                                             const isOccupied = occupiedRoomIds.has(room._id);
                                             const blockedByStatus = room.status && room.status !== 'active';
                                             const blockedByAvailability = room.isAvailable === false;
                                             const disabled = isOccupied || blockedByStatus || blockedByAvailability;
-                                            const roomLocation = [room.building, room.floor ? `Floor ${room.floor}` : null, room.number]
+                                            const roomLocation = [
+                                                room.building,
+                                                room.floor ? t('adminTimetable:room.floor', { value: room.floor }) : null,
+                                                room.number
+                                            ]
                                                 .filter(Boolean)
                                                 .join(' • ');
                                             const unavailableReason = isOccupied
-                                                ? 'occupied'
+                                                ? t('adminTimetable:room.unavailable.occupied')
                                                 : blockedByStatus
-                                                    ? room.status
+                                                    ? t(`adminTimetable:room.status.${room.status}`, { defaultValue: room.status })
                                                     : blockedByAvailability
-                                                        ? 'unavailable'
+                                                        ? t('adminTimetable:room.unavailable.unavailable')
                                                         : '';
 
                                             return (
@@ -740,17 +756,22 @@ const AdminTimetablePage = () => {
                                             );
                                         })}
                                     </select>
-                                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowRoomModal(true)} title="Add room">
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => setShowRoomModal(true)}
+                                        title={t('adminTimetable:actions.addRoom')}
+                                    >
                                         <HiOutlineOfficeBuilding size={18} />
-                                        Add room
+                                        {t('adminTimetable:actions.addRoom')}
                                     </button>
                                 </div>
                             </div>
 
                             <div className="field">
-                                <label>Period</label>
+                                <label>{t('adminTimetable:assignmentForm.period')}</label>
                                 <select value={newAssignment.period} onChange={(event) => setNewAssignment((previousAssignment) => ({ ...previousAssignment, period: event.target.value }))}>
-                                    <option value="">Select period</option>
+                                    <option value="">{t('adminTimetable:assignmentForm.periodPlaceholder')}</option>
                                     {periods.map((period) => (
                                         <option key={period._id} value={period._id}>{period.name} ({period.startTime}-{period.endTime})</option>
                                     ))}
@@ -758,7 +779,7 @@ const AdminTimetablePage = () => {
                             </div>
 
                             <div className="field">
-                                <label>Start date</label>
+                                <label>{t('adminTimetable:assignmentForm.startDate')}</label>
                                 <input
                                     type="date"
                                     value={newAssignment.startDate}
@@ -767,7 +788,7 @@ const AdminTimetablePage = () => {
                             </div>
 
                             <div className="field">
-                                <label>End date</label>
+                                <label>{t('adminTimetable:assignmentForm.endDate')}</label>
                                 <input
                                     type="date"
                                     value={newAssignment.endDate}
@@ -776,7 +797,7 @@ const AdminTimetablePage = () => {
                             </div>
 
                             <div className="field full">
-                                <label>Days</label>
+                                <label>{t('adminTimetable:assignmentForm.days')}</label>
                                 <div className="weekday-selector">
                                     {DAY_LABELS.map((day) => (
                                         <button
@@ -785,7 +806,7 @@ const AdminTimetablePage = () => {
                                             className={`weekday-pill ${newAssignment.daysOfWeek.includes(day.value) ? 'active' : ''}`}
                                             onClick={() => toggleAssignmentDay(day.value)}
                                         >
-                                            {day.label}
+                                            {t(`adminTimetable:${day.labelKey}`)}
                                         </button>
                                     ))}
                                 </div>
@@ -797,9 +818,13 @@ const AdminTimetablePage = () => {
                                     onClick={submitAssignmentForm}
                                     disabled={saving || !newAssignment.teacher || !newAssignment.class || !newAssignment.period}
                                 >
-                                    {saving ? 'Saving...' : (editingAssignmentId ? 'Update assignment' : 'Create assignment')}
+                                    {saving
+                                        ? t('adminTimetable:actions.saving')
+                                        : (editingAssignmentId
+                                            ? t('adminTimetable:assignmentForm.submitUpdate')
+                                            : t('adminTimetable:assignmentForm.submitCreate'))}
                                 </button>
-                                <p className="action-note">Teachers only see subjects connected to the classes they already teach.</p>
+                                <p className="action-note">{t('adminTimetable:assignmentForm.actionNote')}</p>
                             </div>
                         </div>
                     </section>
@@ -807,10 +832,12 @@ const AdminTimetablePage = () => {
                     <section className="card assignments-card">
                         <div className="section-heading">
                             <div>
-                                <div className="card-title">Assignments</div>
-                                <p className="section-copy">Review the current timetable blocks and narrow them by teacher or class.</p>
+                                <div className="card-title">{t('adminTimetable:assignments.title')}</div>
+                                <p className="section-copy">{t('adminTimetable:assignments.subtitle')}</p>
                             </div>
-                            <span className="results-badge">{filteredAssignments.length} shown</span>
+                            <span className="results-badge">
+                                {t('adminTimetable:assignments.resultsShown', { count: filteredAssignments.length })}
+                            </span>
                         </div>
 
                         <div className="table assignments-table">
@@ -824,15 +851,15 @@ const AdminTimetablePage = () => {
                             />
 
                             {filteredAssignments.length === 0 ? (
-                                <div className="empty">No assignments found.</div>
+                                <div className="empty">{t('adminTimetable:assignments.empty')}</div>
                             ) : (
                                 <>
                                     <div className="row ">
-                                        <div className="cell name">Teacher</div>
-                                        <div className="cell">Class</div>
-                                        <div className="cell">Subject</div>
-                                        <div className="cell">Slot</div>
-                                        <div className="cell">Schedule</div>
+                                        <div className="cell name">{t('adminTimetable:table.teacher')}</div>
+                                        <div className="cell">{t('adminTimetable:table.class')}</div>
+                                        <div className="cell">{t('adminTimetable:table.subject')}</div>
+                                        <div className="cell">{t('adminTimetable:table.slot')}</div>
+                                        <div className="cell">{t('adminTimetable:table.schedule')}</div>
                                         <div className="cell actions" />
                                     </div>
 
@@ -846,21 +873,37 @@ const AdminTimetablePage = () => {
                                                 <div className="cell">{assignment.subject?.name ?? '—'}</div>
                                                 <div className="cell cell-stack">
                                                     <span>{assignment.period?.name ?? '—'}</span>
-                                                    <span className="cell-subtext">{assignment.room?.name ?? 'No room'}</span>
+                                                    <span className="cell-subtext">
+                                                        {assignment.room?.name ?? t('adminTimetable:table.noRoom')}
+                                                    </span>
                                                 </div>
                                                 <div className="cell cell-stack">
                                                     <div className="day-chip-list">
-                                                        {assignmentDays.length > 0 ? assignmentDays.map((dayLabel) => (
-                                                            <span key={`${assignment._id}-${dayLabel}`} className="day-chip">{dayLabel}</span>
-                                                        )) : <span className="cell-subtext">No days</span>}
+                                                        {assignmentDays.length > 0 ? assignmentDays.map((dayNumber) => (
+                                                            <span key={`${assignment._id}-${dayNumber}`} className="day-chip">
+                                                                {t(`adminTimetable:${dayLabelByValue[dayNumber]}`, { defaultValue: String(dayNumber) })}
+                                                            </span>
+                                                        )) : <span className="cell-subtext">{t('adminTimetable:table.noDays')}</span>}
                                                     </div>
-                                                    <span className="cell-subtext">{formatAssignmentWindow(assignment.startDate, assignment.endDate)}</span>
+                                                    <span className="cell-subtext">
+                                                        {formatAssignmentWindow(assignment.startDate, assignment.endDate, t, locale)}
+                                                    </span>
                                                 </div>
                                                 <div className="cell flex-row-end">
-                                                    <button className="icon-btn" onClick={() => fillAssignmentFormForEdit(assignment)} disabled={saving} title="Edit">
+                                                    <button
+                                                        className="icon-btn"
+                                                        onClick={() => fillAssignmentFormForEdit(assignment)}
+                                                        disabled={saving}
+                                                        title={t('common:actions.edit')}
+                                                    >
                                                         <HiOutlinePencil size={18} />
                                                     </button>
-                                                    <button className="icon-btn danger" onClick={() => deleteAssignment(assignment._id)} disabled={saving} title="Delete">
+                                                    <button
+                                                        className="icon-btn danger"
+                                                        onClick={() => deleteAssignment(assignment._id)}
+                                                        disabled={saving}
+                                                        title={t('common:actions.delete')}
+                                                    >
                                                         <HiOutlineTrash size={18} />
                                                     </button>
                                                 </div>
@@ -880,18 +923,18 @@ const AdminTimetablePage = () => {
                                 <div>
                                     <div className="card-title">
                                         <HiOutlineBookOpen size={20} />
-                                        Subjects
+                                        {t('adminTimetable:subjectsPanel.title')}
                                     </div>
-                                    <p className="section-copy">Keep the subject list beside the timetable so assignment setup stays in one place.</p>
+                                    <p className="section-copy">{t('adminTimetable:subjectsPanel.subtitle')}</p>
                                 </div>
                                 <div className="section-actions">
                                     <button className="btn btn-secondary btn-sm" onClick={triggerSubjectImport}>
                                         <HiOutlineUpload size={18} />
-                                        Import
+                                        {t('common:actions.import')}
                                     </button>
                                     <button className="btn btn-primary btn-sm" onClick={handleOpenCreateSubject}>
                                         <HiOutlinePlus size={18} />
-                                        Add subject
+                                        {t('adminTimetable:subjectsPanel.addSubject')}
                                     </button>
                                 </div>
                             </div>
@@ -914,18 +957,22 @@ const AdminTimetablePage = () => {
                             <div>
                                 <div className="card-title">
                                     <HiOutlineClock size={20} />
-                                    Period setup
+                                    {t('adminTimetable:periods.title')}
                                 </div>
-                                <p className="section-copy">Create and adjust your teaching blocks without leaving the page.</p>
+                                <p className="section-copy">{t('adminTimetable:periods.subtitle')}</p>
                             </div>
                         </div>
 
                         <div className="form-row period-form-row">
-                            <input value={`Period ${newPeriod.periodNumber}`} readOnly aria-label="Period name" />
+                            <input
+                                value={t('adminTimetable:periods.periodName', { number: newPeriod.periodNumber })}
+                                readOnly
+                                aria-label={t('adminTimetable:periods.periodNameAria')}
+                            />
                             <select
                                 value={newPeriod.periodNumber}
                                 onChange={(event) => setNewPeriod((previousPeriod) => ({ ...previousPeriod, periodNumber: parseInt(event.target.value, 10) }))}
-                                aria-label="Period number"
+                                aria-label={t('adminTimetable:periods.periodNumberAria')}
                             >
                                 {Array.from({ length: 8 }, (_, index) => index + 1).map((periodNumber) => (
                                     <option key={periodNumber} value={periodNumber}>{periodNumber}</option>
@@ -943,13 +990,13 @@ const AdminTimetablePage = () => {
                             />
                             <button className="btn btn-primary" onClick={addPeriod} disabled={saving}>
                                 <HiOutlinePlus size={18} />
-                                Add
+                                {t('common:actions.add')}
                             </button>
                         </div>
 
                         <div className="table periods-table">
                             {periods.length === 0 ? (
-                                <div className="empty">No periods yet.</div>
+                                <div className="empty">{t('adminTimetable:periods.empty')}</div>
                             ) : (
                                 periods.map((period) => (
                                     <div key={period._id} className="row row-has-actions">
@@ -992,10 +1039,20 @@ const AdminTimetablePage = () => {
                                                     />
                                                 </div>
                                                 <div className="cell flex-row-end">
-                                                    <button className="icon-btn success" onClick={saveEditedPeriod} disabled={saving} title="Save">
+                                                    <button
+                                                        className="icon-btn success"
+                                                        onClick={saveEditedPeriod}
+                                                        disabled={saving}
+                                                        title={t('common:actions.save')}
+                                                    >
                                                         <HiOutlineCheck size={18} />
                                                     </button>
-                                                    <button className="icon-btn muted" onClick={() => setEditingPeriod(null)} disabled={saving} title="Cancel">
+                                                    <button
+                                                        className="icon-btn muted"
+                                                        onClick={() => setEditingPeriod(null)}
+                                                        disabled={saving}
+                                                        title={t('common:actions.cancel')}
+                                                    >
                                                         <HiOutlineX size={18} />
                                                     </button>
                                                 </div>
@@ -1006,10 +1063,20 @@ const AdminTimetablePage = () => {
                                                 <div className="cell">{period.startTime} - {period.endTime}</div>
                                                 <div className="cell">#{period.order}</div>
                                                 <div className="cell flex-row-end">
-                                                    <button className="icon-btn" onClick={() => setEditingPeriod({ ...period })} disabled={saving} title="Edit">
+                                                    <button
+                                                        className="icon-btn"
+                                                        onClick={() => setEditingPeriod({ ...period })}
+                                                        disabled={saving}
+                                                        title={t('common:actions.edit')}
+                                                    >
                                                         <HiOutlinePencil size={18} />
                                                     </button>
-                                                    <button className="icon-btn danger" onClick={() => deletePeriod(period._id)} disabled={saving} title="Delete">
+                                                    <button
+                                                        className="icon-btn danger"
+                                                        onClick={() => deletePeriod(period._id)}
+                                                        disabled={saving}
+                                                        title={t('common:actions.delete')}
+                                                    >
                                                         <HiOutlineTrash size={18} />
                                                     </button>
                                                 </div>
@@ -1037,31 +1104,40 @@ const AdminTimetablePage = () => {
                 <div className="modal-overlay" onClick={() => !savingRoom && setShowRoomModal(false)}>
                     <div className="modal" onClick={(event) => event.stopPropagation()}>
                         <div className="modal-header">
-                            <h3>Add room</h3>
-                            <button type="button" className="modal-close" onClick={() => !savingRoom && setShowRoomModal(false)} aria-label="Close">&times;</button>
+                            <h3>{t('adminTimetable:roomModal.title')}</h3>
+                            <button
+                                type="button"
+                                className="modal-close"
+                                onClick={() => !savingRoom && setShowRoomModal(false)}
+                                aria-label={t('adminTimetable:roomModal.closeAria')}
+                            >
+                                &times;
+                            </button>
                         </div>
                         <form onSubmit={handleCreateRoom}>
                             <div className="modal-body">
                                 <div className="field">
-                                    <label>Name *</label>
+                                    <label>{t('adminTimetable:roomModal.name')}</label>
                                     <input
                                         type="text"
                                         value={newRoom.name}
                                         onChange={(event) => setNewRoom((previousRoom) => ({ ...previousRoom, name: event.target.value }))}
-                                        placeholder="e.g. Room 101"
+                                        placeholder={t('adminTimetable:roomModal.namePlaceholder')}
                                         required
                                     />
                                 </div>
                                 <div className="field">
-                                    <label>Type</label>
+                                    <label>{t('adminTimetable:roomModal.type')}</label>
                                     <select value={newRoom.type} onChange={(event) => setNewRoom((previousRoom) => ({ ...previousRoom, type: event.target.value }))}>
                                         {ROOM_TYPES.map((option) => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                            <option key={option.value} value={option.value}>
+                                                {t(`adminTimetable:${option.labelKey}`)}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
                                 <div className="field">
-                                    <label>Capacity</label>
+                                    <label>{t('adminTimetable:roomModal.capacity')}</label>
                                     <input
                                         type="number"
                                         min={1}
@@ -1071,37 +1147,39 @@ const AdminTimetablePage = () => {
                                     />
                                 </div>
                                 <div className="field">
-                                    <label>Building</label>
+                                    <label>{t('adminTimetable:roomModal.building')}</label>
                                     <input
                                         type="text"
                                         value={newRoom.building}
                                         onChange={(event) => setNewRoom((previousRoom) => ({ ...previousRoom, building: event.target.value }))}
-                                        placeholder="Optional"
+                                        placeholder={t('adminTimetable:roomModal.optionalPlaceholder')}
                                     />
                                 </div>
                                 <div className="field">
-                                    <label>Floor</label>
+                                    <label>{t('adminTimetable:roomModal.floor')}</label>
                                     <input
                                         type="text"
                                         value={newRoom.floor}
                                         onChange={(event) => setNewRoom((previousRoom) => ({ ...previousRoom, floor: event.target.value }))}
-                                        placeholder="Optional"
+                                        placeholder={t('adminTimetable:roomModal.optionalPlaceholder')}
                                     />
                                 </div>
                                 <div className="field">
-                                    <label>Room number</label>
+                                    <label>{t('adminTimetable:roomModal.roomNumber')}</label>
                                     <input
                                         type="text"
                                         value={newRoom.number}
                                         onChange={(event) => setNewRoom((previousRoom) => ({ ...previousRoom, number: event.target.value }))}
-                                        placeholder="Optional"
+                                        placeholder={t('adminTimetable:roomModal.optionalPlaceholder')}
                                     />
                                 </div>
                                 <div className="field">
-                                    <label>Status</label>
+                                    <label>{t('adminTimetable:roomModal.status')}</label>
                                     <select value={newRoom.status} onChange={(event) => setNewRoom((previousRoom) => ({ ...previousRoom, status: event.target.value }))}>
                                         {ROOM_STATUSES.map((option) => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                            <option key={option.value} value={option.value}>
+                                                {t(`adminTimetable:${option.labelKey}`)}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
@@ -1112,16 +1190,16 @@ const AdminTimetablePage = () => {
                                             checked={!!newRoom.isAvailable}
                                             onChange={(event) => setNewRoom((previousRoom) => ({ ...previousRoom, isAvailable: event.target.checked }))}
                                         />
-                                        {' '}Available for scheduling
+                                        {' '}{t('adminTimetable:roomModal.availableForScheduling')}
                                     </label>
                                 </div>
                             </div>
                             <div className="modal-footer">
                                 <button type="button" className="btn btn-secondary" onClick={() => !savingRoom && setShowRoomModal(false)}>
-                                    Cancel
+                                    {t('common:actions.cancel')}
                                 </button>
                                 <button type="submit" className="btn btn-primary" disabled={savingRoom || !newRoom.name?.trim()}>
-                                    {savingRoom ? 'Creating...' : 'Create room'}
+                                    {savingRoom ? t('adminTimetable:roomModal.creating') : t('adminTimetable:roomModal.create')}
                                 </button>
                             </div>
                         </form>

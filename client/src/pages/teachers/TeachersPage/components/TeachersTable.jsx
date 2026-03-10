@@ -5,6 +5,7 @@ import {
     HiOutlineTrash,
     HiOutlineUserGroup
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import { getTeacherFullName, getTeacherInitials } from '../utils/teacherPresentation';
 
 const TeachersTable = ({
@@ -16,6 +17,8 @@ const TeachersTable = ({
     onAssign,
     onDelete
 }) => {
+    const { t } = useTranslation(['teachers']);
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -28,13 +31,13 @@ const TeachersTable = ({
         <div className="table-container">
             <table className="data-table">
                 <thead>
-                    <tr>
-                        <th>Name</th>
+                        <tr>
+                            <th>{t('teachers:table.columns.name')}</th>
                          
                         
-                        <th>Email</th>
-                        <th>Subjects</th>
-                        <th>Actions</th>
+                        <th>{t('teachers:table.columns.email')}</th>
+                        <th>{t('teachers:table.columns.subjects')}</th>
+                        <th>{t('teachers:table.columns.actions')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -68,36 +71,36 @@ const TeachersTable = ({
                                     <button
                                         className="btn btn-sm btn-primary"
                                         onClick={() => onView(teacher)}
-                                        title="View Details"
+                                        title={t('teachers:actions.viewDetails')}
                                     >
                                         <HiOutlineEye size={16} />
-                                        View
+                                        {t('common:actions.view')}
                                     </button>
                                     {canManageTeachers && (
                                         <>
                                             <button
                                                 className="btn btn-sm btn-ghost"
                                                 onClick={() => onEdit(teacher)}
-                                                title="Edit Teacher"
+                                                title={t('teachers:actions.editTeacher')}
                                             >
                                                 <HiOutlinePencil size={16} />
-                                                Edit
+                                                {t('common:actions.edit')}
                                             </button>
                                             <button
                                                 className="btn btn-sm btn-ghost"
                                                 onClick={() => onAssign(teacher)}
-                                                title="Assign Classes"
+                                                title={t('teachers:actions.assignClasses')}
                                             >
                                                 <HiOutlineUserGroup size={16} />
-                                                Assign
+                                                {t('teachers:actions.assign')}
                                             </button>
                                             <button
                                                 className="btn btn-sm btn-danger"
                                                 onClick={() => onDelete(teacher)}
-                                                title="Delete Teacher"
+                                                title={t('teachers:actions.deleteTeacher')}
                                             >
                                                 <HiOutlineTrash size={16} />
-                                                Delete
+                                                {t('common:actions.delete')}
                                             </button>
                                         </>
                                     )}
@@ -109,7 +112,7 @@ const TeachersTable = ({
             </table>
             {teachers.length === 0 && (
                 <div className="empty-state">
-                    <p>No teachers found</p>
+                    <p>{t('teachers:empty.noTeachers')}</p>
                 </div>
             )}
         </div>

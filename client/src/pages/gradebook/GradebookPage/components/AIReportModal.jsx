@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import { useTranslation } from 'react-i18next';
 import {
     HiOutlineMail,
     HiOutlinePencil,
@@ -14,12 +15,14 @@ const AIReportModal = ({
     editedReportContent,
     isEditingReport,
     generatingAI,
-    aiLanguage,
+    aiPrimaryLanguage,
+    aiSecondaryLanguage,
     aiSendEmail,
     aiRecipients,
     onClose,
     onGenerate,
-    onLanguageChange,
+    onPrimaryLanguageChange,
+    onSecondaryLanguageChange,
     onAiSendEmailChange,
     onAiRecipientChange,
     onEditToggle,
@@ -27,6 +30,8 @@ const AIReportModal = ({
     onEditedContentBlur,
     onSendToParents
 }) => {
+    const { t } = useTranslation(['gradebook']);
+
     if (!open || !student) {
         return null;
     }
@@ -40,9 +45,9 @@ const AIReportModal = ({
                             <HiOutlineSparkles size={24} />
                         </div>
                         <div>
-                            <h3 style={{ margin: 0 }}>AI Progress Report</h3>
+                            <h3 style={{ margin: 0 }}>{t('gradebook:ai.title')}</h3>
                             <p className="text-muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-                                for {student.firstName} {student.lastName}
+                                {t('gradebook:ai.forStudent', { firstName: student.firstName, lastName: student.lastName })}
                             </p>
                         </div>
                     </div>
@@ -55,38 +60,56 @@ const AIReportModal = ({
                     {!aiReportContent ? (
                         <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                             <p className="mb-md text-muted">
-                                Generate a personalized progress report based on recent grades, behavior notes, and improvement trends.
+                                {t('gradebook:ai.generateDescription')}
                             </p>
 
                             <button className="btn btn-primary" onClick={onGenerate} disabled={generatingAI}>
                                 {generatingAI ? (
                                     <>
-                                        <div className="spinner-sm"></div> Generating...
+                                        <div className="spinner-sm"></div> {t('gradebook:ai.generating')}
                                     </>
                                 ) : (
                                     <>
-                                        <HiOutlineSparkles /> Generate
+                                        <HiOutlineSparkles /> {t('gradebook:ai.generate')}
                                     </>
                                 )}
                             </button>
 
                             <div style={{ marginTop: '20px' }}>
                                 <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px' }}>
-                                    Report Language
+                                    {t('gradebook:ai.primaryLanguage')}
                                 </label>
-                                <div style={{ display: 'flex', gap: '10px' }}>
+                                <select
+                                    value={aiPrimaryLanguage}
+                                    onChange={(event) => {
+                                        const nextPrimary = event.target.value;
+                                        onPrimaryLanguageChange(nextPrimary);
+                                        if (nextPrimary === aiSecondaryLanguage) {
+                                            onSecondaryLanguageChange('');
+                                        }
+                                    }}
+                                >
                                     {AI_LANGUAGE_OPTIONS.map((language) => (
-                                        <button
-                                            key={language}
-                                            type="button"
-                                            className={`btn btn-sm ${aiLanguage === language ? 'btn-primary' : 'btn-outline'}`}
-                                            onClick={() => onLanguageChange(language)}
-                                            style={{ textTransform: 'capitalize' }}
-                                        >
-                                            {language}
-                                        </button>
+                                        <option key={language.value} value={language.value}>{language.label}</option>
                                     ))}
-                                </div>
+                                </select>
+                            </div>
+
+                            <div style={{ marginTop: '12px' }}>
+                                <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px' }}>
+                                    {t('gradebook:ai.secondaryLanguage')}
+                                </label>
+                                <select
+                                    value={aiSecondaryLanguage}
+                                    onChange={(event) => onSecondaryLanguageChange(event.target.value)}
+                                >
+                                    <option value="">{t('gradebook:ai.none')}</option>
+                                    {AI_LANGUAGE_OPTIONS
+                                        .filter((language) => language.value !== aiPrimaryLanguage)
+                                        .map((language) => (
+                                            <option key={language.value} value={language.value}>{language.label}</option>
+                                        ))}
+                                </select>
                             </div>
 
                             <div style={{ marginTop: '16px' }}>
@@ -96,14 +119,14 @@ const AIReportModal = ({
                                         checked={aiSendEmail}
                                         onChange={(event) => onAiSendEmailChange(event.target.checked)}
                                     />
-                                    Send report via email after generation
+                                    {t('gradebook:ai.sendViaEmail')}
                                 </label>
                             </div>
 
                             {aiSendEmail && (
                                 <div style={{ marginTop: '12px', padding: '12px', background: '#f9fafb', borderRadius: '8px' }}>
                                     <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '13px' }}>
-                                        Email Recipients
+                                        {t('gradebook:ai.emailRecipients')}
                                     </label>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
                                         {AI_RECIPIENT_OPTIONS.map((recipient) => (
@@ -116,7 +139,9 @@ const AIReportModal = ({
                                                     checked={aiRecipients[recipient]}
                                                     onChange={(event) => onAiRecipientChange(recipient, event.target.checked)}
                                                 />
-                                                <span style={{ textTransform: 'capitalize' }}>{recipient}</span>
+                                                <span style={{ textTransform: 'capitalize' }}>
+                                                    {t(`gradebook:ai.recipients.${recipient}`, { defaultValue: recipient })}
+                                                </span>
                                             </label>
                                         ))}
                                     </div>
@@ -143,7 +168,7 @@ const AIReportModal = ({
                                         textAlign: 'center'
                                     }}
                                 >
-                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Student Progress Report</h3>
+                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{t('gradebook:ai.previewTitle')}</h3>
                                 </div>
 
                                 <div
@@ -184,9 +209,7 @@ const AIReportModal = ({
                                         color: '#1e40af'
                                     }}
                                 >
-                                    <strong>Edit Mode Active:</strong> Click directly in the text above to edit.
-                                    You can modify text, add paragraphs, or change formatting.
-                                    Click "Save Edits" when done to preview your changes.
+                                    <strong>{t('gradebook:ai.editModeActive')}</strong> {t('gradebook:ai.editModeDescription')}
                                 </div>
                             )}
 
@@ -201,16 +224,16 @@ const AIReportModal = ({
                             >
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                     <button className="btn btn-secondary" onClick={onRegenerate}>
-                                        Regenerate
+                                        {t('gradebook:ai.regenerate')}
                                     </button>
                                     <button className="btn btn-outline" onClick={onEditToggle}>
-                                        <HiOutlinePencil /> {isEditingReport ? 'Save Edits' : 'Edit Report'}
+                                        <HiOutlinePencil /> {isEditingReport ? t('gradebook:ai.saveEdits') : t('gradebook:ai.editReport')}
                                     </button>
                                 </div>
 
                                 {!aiSendEmail && (
                                     <button className="btn btn-success" disabled={isEditingReport} onClick={onSendToParents}>
-                                        <HiOutlineMail /> Send to Parents
+                                        <HiOutlineMail /> {t('gradebook:ai.sendToParents')}
                                     </button>
                                 )}
                             </div>

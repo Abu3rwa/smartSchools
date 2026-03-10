@@ -1,5 +1,11 @@
 import { connectAi } from "../utils/connectAi.js";
 import { AITokenUsage } from "../models/AITokenUsage.js";
+import {
+    getLanguageLabel,
+    isRtlLanguageCode,
+    normalizeRequestedLanguages,
+    toLegacyLanguageValue
+} from "../utils/aiLanguageUtils.js";
 
 class AIService {
     constructor() {
@@ -93,7 +99,8 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
      * @param {Array} options.grades - List of grades
      * @param {String} options.period - Time period description
      * @param {Object} options.teacher - Teacher details
-     * @param {String} options.language - 'english', 'arabic', or 'bilingual'
+     * @param {String} options.language - Legacy language value for backward compatibility
+     * @param {String[]} options.requestedLanguages - Up to 2 language codes
      * @param {String} options.reportType - 'weekly', 'monthly', 'quarterly', 'yearly', 'custom'
      * @param {Object} options.dateRange - { startDate, endDate }
      * @param {String} options.customPrompt - Optional custom prompt
@@ -108,6 +115,7 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             period,
             teacher,
             language = 'english',
+            requestedLanguages,
             reportType = 'monthly',
             dateRange,
             customPrompt,
@@ -115,15 +123,26 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             schoolId = teacher?.school || studentData?.school
         } = options;
 
-        const prompt = customPrompt || this.constructAdvancedPrompt({
-            studentData,
-            grades,
-            period,
-            teacher,
-            language,
-            reportType,
-            dateRange
-        });
+        const normalizedRequestedLanguages = normalizeRequestedLanguages(
+            requestedLanguages || language,
+            { max: 2, fallback: ['en'] }
+        );
+        const normalizedLanguage = toLegacyLanguageValue(normalizedRequestedLanguages);
+        const primaryLanguage = normalizedRequestedLanguages[0] || 'en';
+        const languageSuffix = this.buildCustomPromptLanguageSuffix(normalizedRequestedLanguages);
+
+        const prompt = customPrompt
+            ? `${String(customPrompt || '').trim()}\n\n${languageSuffix}`
+            : this.constructAdvancedPrompt({
+                studentData,
+                grades,
+                period,
+                teacher,
+                language: normalizedLanguage,
+                requestedLanguages: normalizedRequestedLanguages,
+                reportType,
+                dateRange
+            });
 
         try {
             let response = await connectAi(prompt);
@@ -131,7 +150,7 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             let outputTokens = response.outputtokenCount || 0;
             let totalTokens = response.totalTokenCount || 0;
 
-            if (language === 'arabic' && this.containsEnglishText(response.text)) {
+            if (primaryLanguage === 'ar' && normalizedRequestedLanguages.length === 1 && this.containsEnglishText(response.text)) {
                 const correctivePrompt = `${prompt}
 
 تعليمات تصحيحية ملزمة:
@@ -151,7 +170,8 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
                 schoolId,
                 studentId: studentData._id,
                 reportType,
-                language,
+                language: normalizedLanguage,
+                requestedLanguages: normalizedRequestedLanguages,
                 dateRange,
                 inputTokens,
                 outputTokens,
@@ -161,7 +181,8 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             return {
                 text: response.text,
                 tokenUsage,
-                language,
+                language: normalizedLanguage,
+                requestedLanguages: normalizedRequestedLanguages,
                 reportType
             };
         } catch (error) {
@@ -190,6 +211,7 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             period,
             teacher,
             language,
+            requestedLanguages = ['en'],
             reportType,
             dateRange
         } = options;
@@ -215,97 +237,48 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
             return `- ${dateStr} | ${g.subject?.name || 'Subject'}: ${g.marks}/${g.maxMarks} (${g.gradeType}) ${noteContent}`;
         }).join('\n');
 
-        // Language-specific prompts
-        if (language === 'arabic') {
-            return `
-أنت معلم محترف وودود. اكتب رسالة تقرير تقدم للوالدين باللغة العربية.
+        const normalizedRequestedLanguages = normalizeRequestedLanguages(
+            requestedLanguages || language,
+            { max: 2, fallback: ['en'] }
+        );
+        const primaryLanguage = normalizedRequestedLanguages[0] || 'en';
+        const secondaryLanguage = normalizedRequestedLanguages[1] || null;
+        const primaryDirection = isRtlLanguageCode(primaryLanguage) ? 'rtl' : 'ltr';
+        const secondaryDirection = secondaryLanguage && isRtlLanguageCode(secondaryLanguage) ? 'rtl' : 'ltr';
+        const primaryLabel = getLanguageLabel(primaryLanguage);
+        const secondaryLabel = secondaryLanguage ? getLanguageLabel(secondaryLanguage) : null;
 
-مهم جداً (قواعد الإخراج):
-- اكتب HTML فقط.
-- ممنوع Markdown نهائياً (ممنوع ** أو code fences).
-- ممنوع رموز مزخرفة أو غريبة مثل @#$%^&*.
-- ممنوع أي جمل أو كلمات إنجليزية داخل محتوى التقرير.
-- لا تكتب أي شرح أو مقدمة خارج HTML.
-- لا تكتب <html> أو <head> أو <body>.
-- لا تستخدم جداول نهائياً.
-- لا تستخدم ألوان inline أو style attributes.
-- استخدم فقط: <div>, <p>, <ul>, <li>, <strong>, <span>.
-
-- ضع dir="rtl" على <div> الخارجي.
-
-بيانات الطالب:
-- الاسم: ${studentData.firstName} ${studentData.lastName}
-- الفترة: ${period}
-- المعدل العام: ${average}%
-- المواد: ${subjects}
-- اسم المعلم: ${teacherName}
-
-الدرجات (ترتيب زمني):
-${gradeList}
-
-الهيكل المطلوب داخل HTML:
-1) <p>افتتاحية قصيرة</p>
-2) <p><strong>نقاط القوة:</strong> ...</p>
-3) <p><strong>مجالات للتحسين:</strong> ...</p>
-4) <p><strong>ملخص الأداء:</strong> اعرض الدرجات كسرد نصي واضح داخل فقرات.</p>
-5) <ul>كيف يمكنكم المساعدة في المنزل</ul>
-6) <p>خاتمة وتوقيع باسم المعلم</p>
-
-اكتب الناتج النهائي ككتلة HTML واحدة فقط.
-            `.trim();
-        }
-
-        if (language === 'bilingual') {
-            return `
-Write a parent progress report in TWO SECTIONS: English then Arabic.
-
-Very important output rules:
-- Output ONLY HTML.
-- No Markdown (no **, no code fences).
-- No weird symbols like @#$%^&*.
-- Do not include <html>, <head>, or <body>.
-- No tables at all.
-- No inline color styles or style attributes.
-- Use only: <div>, <p>, <ul>, <li>, <strong>, <span>.
-
-Student:
-- Name: ${studentData.firstName} ${studentData.lastName}
-- Period: ${period}
-- Overall average: ${average}%
-- Subjects: ${subjects}
-- Teacher: ${teacherName}
-
-Grades (chronological) - refer to these lines narratively:
-${gradeList}
+        const languageSectionInstruction = secondaryLanguage
+            ? `Write TWO language sections in this exact order:
+1) ${primaryLabel} section only in ${primaryLabel}
+2) ${secondaryLabel} section only in ${secondaryLabel}
+Do not mix languages between sections.
 
 Output HTML structure:
 - One outer <div>.
-- Inside it:
-  - <div dir="ltr">English section</div>
-  - <div dir="rtl">Arabic section</div>
+- <div dir="${primaryDirection}" data-language="${primaryLanguage}"> ... ${primaryLabel} section ... </div>
+- <div dir="${secondaryDirection}" data-language="${secondaryLanguage}"> ... ${secondaryLabel} section ... </div>`
+            : `Write the full report in ${primaryLabel} only.
+Do not mix in any other language.
+Wrap everything in a single outer <div dir="${primaryDirection}" data-language="${primaryLanguage}">.`;
 
-Each section must contain:
-1) Greeting paragraph
-2) Strengths paragraph
-3) Areas for growth paragraph
-4) Grades summary in narrative paragraph(s) (Date/Subject/Grade/Notes)
-5) Bullet list: how to help at home
-6) Closing + signature
-            `.trim();
-        }
+        const strictArabicRule =
+            primaryLanguage === 'ar' && !secondaryLanguage
+                ? '\nADDITIONAL RULE: Use Arabic only. Do not include English words.'
+                : '';
 
         return `
-You are an experienced, empathetic teacher. Write a detailed narrative progress report for parents in English.
+You are an experienced, empathetic teacher. Write a detailed narrative progress report for parents.
 
 CRITICAL OUTPUT RULES:
 - Output ONLY HTML.
-- NO Markdown (no **, no code fences).
-- NO tables whatsoever - use narrative paragraphs only.
-- NO inline color styles or style attributes.
-- NO weird symbols like @#$%^&*.
+- No markdown (no **, no code fences).
+- No tables whatsoever; use narrative paragraphs only.
+- No inline color styles or style attributes.
+- No weird symbols like @#$%^&*.
 - Do not include <html>, <head>, or <body>.
 - Use only: <div>, <p>, <span>, <ul>, <li>, <strong>.
-- Wrap everything in a single outer <div dir="ltr">.
+${languageSectionInstruction}${strictArabicRule}
 
 Student Information:
 - Name: ${studentData.firstName} ${studentData.lastName}
@@ -317,41 +290,33 @@ Student Information:
 Grades (chronological):
 ${gradeList}
 
-REQUIRED STRUCTURE (Positive-Negative-Positive):
-
-1) **Opening Greeting** (1 paragraph)
-   - Warm, personalized greeting to parents
-
-2) **POSITIVE SECTION - Strengths & Achievements** (2-3 detailed paragraphs)
-   - Highlight specific accomplishments and strong performances
-   - Be specific with examples from the grades
-   - Mention subjects where student excels
-
-3) **NEGATIVE SECTION - Areas for Growth** (2 paragraphs)
-   - Discuss challenges and areas needing improvement
-   - Be constructive and supportive, not harsh
-   - Provide specific examples
-
-4) **POSITIVE SECTION - Progress & Encouragement** (2 paragraphs)
-   - Highlight recent improvements or positive trends
-   - Express confidence in student's ability to grow
-
-5) **Recommendations** (1 paragraph with bullet list)
-   - Practical suggestions for parents to support at home
-   - Use <ul> and <li> tags
-
-6) **Closing** (1 paragraph)
-   - Encouraging final message
-   - End with: "Teacher ${teacherName}"
+Required structure for each language section:
+1) Opening greeting (1 paragraph)
+2) Strengths and achievements (2-3 paragraphs)
+3) Areas for growth (2 paragraphs)
+4) Progress and encouragement (2 paragraphs)
+5) Recommendations (1 paragraph + bullet list)
+6) Closing (1 paragraph, signed as teacher)
 
 IMPORTANT:
-- Write in a warm, professional, narrative style
-- NO tables - integrate grade information naturally into the narrative
-- Be detailed and specific - aim for 400-500 words total
-- Follow the positive-negative-positive sandwich structure strictly
+- Write in a warm, professional, narrative style.
+- Integrate grade information naturally in the narrative.
+- Aim for 350-500 words per section.
 
-Output the final report as ONE HTML block only.
+Output the final result as one HTML block only.
         `.trim();
+    }
+
+    buildCustomPromptLanguageSuffix(requestedLanguages = ['en']) {
+        const normalized = normalizeRequestedLanguages(requestedLanguages, { max: 2, fallback: ['en'] });
+        const primary = normalized[0] || 'en';
+        const secondary = normalized[1] || null;
+        const primaryLabel = getLanguageLabel(primary);
+        if (!secondary) {
+            return `LANGUAGE REQUIREMENT: Output only in ${primaryLabel} (${primary}). Return only HTML.`;
+        }
+        const secondaryLabel = getLanguageLabel(secondary);
+        return `LANGUAGE REQUIREMENT: Output bilingual HTML sections in this order: ${primaryLabel} (${primary}), then ${secondaryLabel} (${secondary}). Do not mix languages between sections.`;
     }
 
     /**
@@ -364,6 +329,7 @@ Output the final report as ONE HTML block only.
             studentId,
             reportType,
             language,
+            requestedLanguages = [],
             dateRange,
             inputTokens,
             outputTokens,
@@ -390,6 +356,7 @@ Output the final report as ONE HTML block only.
             student: studentId,
             reportType,
             language,
+            requestedLanguages,
             dateRange,
             inputTokens: inputTokens || 0,
             outputTokens: outputTokens || 0,
@@ -403,13 +370,17 @@ Output the final report as ONE HTML block only.
     /**
      * Legacy method for backward compatibility
      */
-    async generateStudentReport(studentData, grades, period, teacher) {
+    async generateStudentReport(studentData, grades, period, teacher, options = {}) {
+        const requestedLanguages = Array.isArray(options.requestedLanguages) && options.requestedLanguages.length > 0
+            ? options.requestedLanguages
+            : [options.primaryLanguage, options.secondaryLanguage].filter(Boolean);
         const result = await this.generateAdvancedReport({
             studentData,
             grades,
             period,
             teacher,
-            language: 'english',
+            language: options.language,
+            requestedLanguages: requestedLanguages.length > 0 ? requestedLanguages : ['en'],
             reportType: 'monthly'
         });
 
@@ -435,13 +406,17 @@ Output the final report as ONE HTML block only.
     /**
      * Generate AI report for a custom date range
      */
-    async generateDateRangeReport(studentData, grades, startDate, endDate, teacher) {
+    async generateDateRangeReport(studentData, grades, startDate, endDate, teacher, options = {}) {
+        const requestedLanguages = Array.isArray(options.requestedLanguages) && options.requestedLanguages.length > 0
+            ? options.requestedLanguages
+            : [options.primaryLanguage, options.secondaryLanguage].filter(Boolean);
         const result = await this.generateAdvancedReport({
             studentData,
             grades,
             period: this.formatDateRange(startDate, endDate),
             teacher,
-            language: 'english',
+            language: options.language,
+            requestedLanguages: requestedLanguages.length > 0 ? requestedLanguages : ['en'],
             reportType: 'custom',
             dateRange: {
                 startDate,

@@ -1,0 +1,23 @@
+{
+  "search": {
+    "placeholder": "Search students...",
+    "ariaLabel": "Search students"
+  },
+  "actions": {
+    "openMenu": "Open menu",
+    "toggleTheme": "Toggle theme",
+    "toggleLanguage": "Switch language",
+    "notifications": "Notifications",
+    "notificationsAria_zero": "Notifications",
+    "notificationsAria_one": "Notifications ({{count}} pending)",
+    "notificationsAria_two": "Notifications ({{count}} pending)",
+    "notificationsAria_few": "Notifications ({{count}} pending)",
+    "notificationsAria_many": "Notifications ({{count}} pending)",
+    "notificationsAria_other": "Notifications ({{count}} pending)",
+    "userMenu": "User menu"
+  },
+  "menu": {
+    "settings": "Settings",
+    "logout": "Logout"
+  }
+}

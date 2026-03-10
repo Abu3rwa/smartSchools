@@ -1,4 +1,5 @@
 import { HiOutlineSparkles } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import {
     getClassCategoryAverage,
     getClassOverallAverage,
@@ -16,6 +17,8 @@ const GradebookTable = ({
     processedData,
     onOpenAIModal
 }) => {
+    const { t } = useTranslation(['gradebook']);
+
     const renderAverageCell = (averageValue) => {
         if (averageValue === '-' || averageValue === null || averageValue === undefined) {
             return '-';
@@ -59,11 +62,15 @@ const GradebookTable = ({
                 <table className="gradebook-table">
                     <thead>
                         <tr>
-                            <th>Student</th>
+                            <th>{t('gradebook:table.columns.student')}</th>
                             {dynamicCategories.map((category) => (
-                                <th key={category} className="text-center">{category} (Avg %)</th>
+                                <th key={category} className="text-center">
+                                    {t('gradebook:table.columns.categoryAvg', {
+                                        category: t(`gradebook:categories.${category}`, { defaultValue: category })
+                                    })}
+                                </th>
                             ))}
-                            <th className="text-center">Overall (Avg %)</th>
+                            <th className="text-center">{t('gradebook:table.columns.overallAvg')}</th>
                         </tr>
                     </thead>
 
@@ -86,7 +93,7 @@ const GradebookTable = ({
 
                                             <button
                                                 className="btn-icon"
-                                                title="Generate Progress Report"
+                                                title={t('gradebook:table.generateProgressReport')}
                                                 onClick={() => onOpenAIModal(student)}
                                                 style={{ color: '#8b5cf6' }}
                                             >
@@ -112,7 +119,7 @@ const GradebookTable = ({
                         {students.length === 0 && (
                             <tr>
                                 <td colSpan={dynamicCategories.length + 2} className="empty-row">
-                                    No students in this class
+                                    {t('gradebook:table.noStudents')}
                                 </td>
                             </tr>
                         )}
@@ -120,7 +127,7 @@ const GradebookTable = ({
 
                     <tfoot>
                         <tr className="class-average-row" style={{ fontWeight: 'bold' }}>
-                            <td style={{ padding: '12px' }}>Class Average</td>
+                            <td style={{ padding: '12px' }}>{t('gradebook:table.classAverage')}</td>
                             {dynamicCategories.map((category) => {
                                 const average = getClassCategoryAverage({ students, processedData, category });
                                 return (
@@ -137,7 +144,7 @@ const GradebookTable = ({
 
             {grades.length === 0 && (
                 <div className="empty-state">
-                    <p>No grades found for this month.</p>
+                    <p>{t('gradebook:table.noGradesForMonth')}</p>
                 </div>
             )}
         </div>

@@ -1,8 +1,11 @@
 import { Box, Typography } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { HiOutlineClipboardList } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const DashboardHeader = ({ firstName, isSm }) => {
+    const { t } = useTranslation(['dashboard']);
+
     return (
         <Box
             sx={{
@@ -26,10 +29,10 @@ const DashboardHeader = ({ firstName, isSm }) => {
                         textOverflow: 'ellipsis'
                     }}
                 >
-                    Welcome back, {firstName}! 👋
+                    {t('dashboard:header.welcome', { firstName: firstName || '' })}
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    Here&apos;s what&apos;s happening with your classes today.
+                    {t('dashboard:header.subtitle')}
                 </Typography>
             </Box>
             <Box sx={{ flexShrink: 0 }}>
@@ -39,7 +42,7 @@ const DashboardHeader = ({ firstName, isSm }) => {
                     style={{ width: isSm ? '100%' : 'auto' }}
                 >
                     <HiOutlineClipboardList size={18} />
-                    Enter Grades
+                    {t('dashboard:header.enterGrades')}
                 </Link>
             </Box>
         </Box>

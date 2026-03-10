@@ -29,18 +29,9 @@ export const fetchIssue = createAsyncThunk(
 // Teacher
 export const generateSection = createAsyncThunk(
   'newsletters/generateSection',
-  async ({ classId, subjectId, academicYear, weekStart, language, selectedLessonPlanIds, customPrompt, regenerateWithFeedback }, { rejectWithValue }) => {
+  async (payload = {}, { rejectWithValue }) => {
     try {
-      const res = await api.post('/newsletters/sections/generate', {
-        classId,
-        subjectId,
-        academicYear,
-        weekStart,
-        language,
-        selectedLessonPlanIds,
-        customPrompt,
-        regenerateWithFeedback
-      });
+      const res = await api.post('/newsletters/sections/generate', payload);
       return res.data.data;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to generate section');

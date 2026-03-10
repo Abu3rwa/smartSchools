@@ -24,7 +24,7 @@ export default function PracticeAssessmentResultsTable({ items }) {
               <tr key={item.assignmentId}>
                 <td>{item.title}</td>
                 <td>{formatStandardLabel(item.standard) || "N/A"}</td>
-                <td>{(item.status || "not_started").replace("_", " ")}</td>
+                <td>{(item.status || "not_started").replace(/_/g, " ")}</td>
                 <td>
                   {item.score !== null && item.score !== undefined
                     ? `${item.score}/${item.maxScore}`

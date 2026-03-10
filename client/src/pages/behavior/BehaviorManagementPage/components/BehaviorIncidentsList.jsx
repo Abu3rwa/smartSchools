@@ -1,6 +1,12 @@
 import React from 'react';
 import { HiOutlineEye, HiOutlinePencil, HiOutlineCheck, HiOutlineTrash } from 'react-icons/hi';
-import { getSeverityBadge, getStatusBadge, getIncidentTypeIcon } from '../utils/behaviorPresentation';
+import { useTranslation } from 'react-i18next';
+import {
+    getSeverityBadge,
+    getStatusBadge,
+    getIncidentTypeIcon,
+    getTranslatedValue
+} from '../utils/behaviorPresentation';
 
 const BehaviorIncidentsList = ({ 
     incidents, 
@@ -10,6 +16,9 @@ const BehaviorIncidentsList = ({
     onResolveIncident, 
     onDeleteIncident 
 }) => {
+    const { t, i18n } = useTranslation(['behaviorManagement']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
+
     return (
         <div className="incidents-grid">
             {incidents.map((incident) => (
@@ -26,10 +35,18 @@ const BehaviorIncidentsList = ({
                         </div>
                         <div className="incident-badges">
                             <span className={`badge ${getSeverityBadge(incident.severity)}`}>
-                                {incident.severity}
+                                {getTranslatedValue(
+                                    t,
+                                    'behaviorManagement:severityLevels',
+                                    incident.severity
+                                )}
                             </span>
                             <span className={`badge ${getStatusBadge(incident.status)}`}>
-                                {incident.status}
+                                {getTranslatedValue(
+                                    t,
+                                    'behaviorManagement:statusOptions',
+                                    incident.status
+                                )}
                             </span>
                         </div>
                     </div>
@@ -37,13 +54,31 @@ const BehaviorIncidentsList = ({
                     <div className="incident-body">
                         <p className="incident-description">{incident.description}</p>
                         <div className="incident-details">
-                            <span><strong>Date:</strong> {new Date(incident.incidentDate).toLocaleDateString()}</span>
-                            <span><strong>Location:</strong> {incident.location}</span>
-                            <span><strong>Category:</strong> {incident.category}</span>
+                            <span>
+                                <strong>{t('behaviorManagement:list.labels.date')}</strong>{' '}
+                                {new Date(incident.incidentDate).toLocaleDateString(locale)}
+                            </span>
+                            <span>
+                                <strong>{t('behaviorManagement:list.labels.location')}</strong>{' '}
+                                {getTranslatedValue(
+                                    t,
+                                    'behaviorManagement:locations',
+                                    incident.location
+                                )}
+                            </span>
+                            <span>
+                                <strong>{t('behaviorManagement:list.labels.category')}</strong>{' '}
+                                {getTranslatedValue(
+                                    t,
+                                    'behaviorManagement:categories',
+                                    incident.category
+                                )}
+                            </span>
                         </div>
                         {incident.reportedBy && (
                             <p className="reported-by">
-                                Reported by: {incident.reportedBy.firstName} {incident.reportedBy.lastName}
+                                {t('behaviorManagement:list.labels.reportedBy')}{' '}
+                                {incident.reportedBy.firstName} {incident.reportedBy.lastName}
                                 {incident.reportedBy.title && ` (${incident.reportedBy.title})`}
                             </p>
                         )}
@@ -54,20 +89,20 @@ const BehaviorIncidentsList = ({
                             className="btn btn-sm btn-secondary"
                             onClick={() => onViewIncident(incident)}
                         >
-                            <HiOutlineEye /> View
+                            <HiOutlineEye /> {t('behaviorManagement:actions.view')}
                         </button>
                         <button
                             className="btn btn-sm btn-primary"
                             onClick={() => onEditIncident(incident)}
                         >
-                            <HiOutlinePencil /> Edit
+                            <HiOutlinePencil /> {t('behaviorManagement:actions.edit')}
                         </button>
                         {incident.status !== 'resolved' && incident.status !== 'closed' && (
                             <button
                                 className="btn btn-sm btn-success"
                                 onClick={() => onResolveIncident(incident._id)}
                             >
-                                <HiOutlineCheck /> Resolve
+                                <HiOutlineCheck /> {t('behaviorManagement:actions.resolve')}
                             </button>
                         )}
                         {userRole === 'admin' && (
@@ -75,7 +110,7 @@ const BehaviorIncidentsList = ({
                                 className="btn btn-sm btn-danger"
                                 onClick={() => onDeleteIncident(incident._id)}
                             >
-                                <HiOutlineTrash /> Delete
+                                <HiOutlineTrash /> {t('behaviorManagement:actions.delete')}
                             </button>
                         )}
                     </div>

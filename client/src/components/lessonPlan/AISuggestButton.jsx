@@ -2,6 +2,7 @@ import { useDispatch } from 'react-redux';
 import { HiOutlineSparkles } from 'react-icons/hi';
 import { suggestField } from '../../store/slices/lessonSlice';
 import toast from 'react-hot-toast';
+import { buildRequestedLanguages } from '../../constants/aiLanguages';
 
 /**
  * Button that triggers AI suggestion for a lesson plan field.
@@ -16,6 +17,8 @@ const AISuggestButton = ({
     summary,
     stageIndex,
     stageProcedure,
+    aiPrimaryLanguage = 'en',
+    aiSecondaryLanguage = '',
     onSuggestion,
     disabled = false,
     size = 'sm',
@@ -38,6 +41,10 @@ const AISuggestButton = ({
             title: title ?? '',
             summary: summary ?? '',
         };
+        const requestedLanguages = buildRequestedLanguages(aiPrimaryLanguage, aiSecondaryLanguage);
+        payload.requestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];
+        payload.primaryLanguage = aiPrimaryLanguage || 'en';
+        payload.secondaryLanguage = aiSecondaryLanguage || '';
         if (field === 'stageProcedure' && stageIndex !== undefined) {
             payload.stageIndex = stageIndex;
         }

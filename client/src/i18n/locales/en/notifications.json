@@ -1,0 +1,68 @@
+{
+  "page": {
+    "title": "Notifications",
+    "subtitle": "Send grade updates and reports to parents"
+  },
+  "stats": {
+    "totalSent": "Total Sent",
+    "delivered": "Delivered",
+    "pending": "Pending",
+    "failed": "Failed"
+  },
+  "tabs": {
+    "history": "Notification History",
+    "statistics": "Statistics",
+    "attendanceReminders": "Attendance Reminders"
+  },
+  "filters": {
+    "searchPlaceholder": "Search by recipient, subject, or type...",
+    "status": "Status",
+    "type": "Type"
+  },
+  "common": {
+    "all": "All"
+  },
+  "status": {
+    "sent": "Sent",
+    "pending": "Pending",
+    "failed": "Failed"
+  },
+  "labels": {
+    "noSubject": "No subject",
+    "noMatch": "No notifications match your filters"
+  },
+  "table": {
+    "status": "Status",
+    "subject": "Subject",
+    "date": "Date",
+    "type": "Type"
+  },
+  "attendance": {
+    "quickTitle": "Quick Send Reminders",
+    "quickSubtitle": "Notify teachers who missed recording attendance",
+    "hoursAgo": "{{hours}} ago",
+    "sending": "Sending reminders...",
+    "sent": "sent",
+    "skipped": "skipped",
+    "failed": "failed",
+    "viewHistory": "View full reminder history & advanced options"
+  },
+  "toasts": {
+    "remindersSent": "Sent {{count}} reminder(s)",
+    "remindersFailed": "Failed to send reminders"
+  },
+  "modal": {
+    "title": "Notification Details",
+    "closeAria": "Close notification details",
+    "status": "Status",
+    "type": "Type",
+    "date": "Date",
+    "recipient": "Recipient",
+    "student": "Student",
+    "noContent": "No content available.",
+    "errorProcessing": "Error processing message"
+  },
+  "types": {
+    "notification": "notification"
+  }
+}

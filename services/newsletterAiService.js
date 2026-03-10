@@ -1,5 +1,10 @@
 import { connectAi } from "../utils/connectAi.js";
 import { AITokenUsage } from "../models/AITokenUsage.js";
+import {
+  getLanguageLabel,
+  resolveRequestedLanguages,
+  toLegacyLanguageValue
+} from "../utils/aiLanguageUtils.js";
 
 const MODEL_NAME = "gemini-2.5-flash-lite";
 const PROMPT_VERSION = "v1";
@@ -69,7 +74,7 @@ export function buildNewsletterSectionPrompt({
   weekStart,
   weekEnd,
   lessonPlans = [],
-  language = "english",
+  requestedLanguages = ["en"],
   customPrompt = "",
   adminFeedback = "",
   minWords = 100,
@@ -87,12 +92,18 @@ export function buildNewsletterSectionPrompt({
   const teacherInstruction = (customPrompt || "").toString().trim();
   const reviewFeedback = (adminFeedback || "").toString().trim();
 
-  const languageRule =
-    language === "arabic"
-      ? "Write the content in Arabic."
-      : language === "bilingual"
-        ? "Write two short paragraphs: first English, then Arabic."
-        : "Write the content in English.";
+  const normalizedLanguages = Array.isArray(requestedLanguages) && requestedLanguages.length > 0
+    ? requestedLanguages.slice(0, 2)
+    : ["en"];
+  const primaryLanguage = normalizedLanguages[0] || "en";
+  const primaryLabel = getLanguageLabel(primaryLanguage);
+  const languageRule = normalizedLanguages.length > 1
+    ? (() => {
+      const secondaryLanguage = normalizedLanguages[1];
+      const secondaryLabel = getLanguageLabel(secondaryLanguage);
+      return `Write bilingual content in two clear blocks: first ${primaryLabel} (${primaryLanguage}), then ${secondaryLabel} (${secondaryLanguage}). Keep each block complete and avoid mixing languages in the same paragraph.`;
+    })()
+    : `Write the content in ${primaryLabel} (${primaryLanguage}) only.`;
 
   return `
 You are an experienced K-12 teacher writing a weekly class newsletter for parents.
@@ -128,17 +139,30 @@ Return JSON only.
 
 async function rewriteToFitWordCount({
   previousContent,
-  language,
+  requestedLanguages = ["en"],
   minWords,
   maxWords,
 }) {
+  const normalizedLanguages = Array.isArray(requestedLanguages) && requestedLanguages.length > 0
+    ? requestedLanguages.slice(0, 2)
+    : ["en"];
+  const primaryLanguage = normalizedLanguages[0] || "en";
+  const primaryLabel = getLanguageLabel(primaryLanguage);
+  const rewriteLanguageRule = normalizedLanguages.length > 1
+    ? (() => {
+      const secondaryLanguage = normalizedLanguages[1];
+      const secondaryLabel = getLanguageLabel(secondaryLanguage);
+      return `Bilingual output required: ${primaryLabel} (${primaryLanguage}) first, then ${secondaryLabel} (${secondaryLanguage}), with clear separation.`;
+    })()
+    : `${primaryLabel} (${primaryLanguage}) only.`;
+
   const prompt = `
 Rewrite the following newsletter text to be between ${minWords} and ${maxWords} words (inclusive).
 
 Rules:
 - Keep the same meaning and key topics.
 - Keep warm, professional tone for parents.
-- ${language === "arabic" ? "Arabic only." : language === "bilingual" ? "English then Arabic." : "English only."}
+- ${rewriteLanguageRule}
 - Output ONLY JSON with keys: content (string), wordCount (number), keyTopics (array of strings), homeworkMentioned (boolean)
 
 TEXT:
@@ -160,7 +184,10 @@ export async function generateNewsletterSection({
   weekStart,
   weekEnd,
   lessonPlans = [],
-  language = "english",
+  requestedLanguages = [],
+  primaryLanguage,
+  secondaryLanguage,
+  language,
   customPrompt = "",
   adminFeedback = "",
   schoolId,
@@ -168,13 +195,22 @@ export async function generateNewsletterSection({
   minWords = 100,
   maxWords = 120,
 }) {
+  const normalizedRequestedLanguages = resolveRequestedLanguages({
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language,
+    subjectName: subjectDoc?.name || "",
+    max: 2
+  });
+
   const prompt = buildNewsletterSectionPrompt({
     classDoc,
     subjectDoc,
     weekStart,
     weekEnd,
     lessonPlans,
-    language,
+    requestedLanguages: normalizedRequestedLanguages,
     customPrompt,
     adminFeedback,
     minWords,
@@ -199,7 +235,7 @@ export async function generateNewsletterSection({
     try {
       const retry = await rewriteToFitWordCount({
         previousContent: parsed.content,
-        language,
+        requestedLanguages: normalizedRequestedLanguages,
         minWords,
         maxWords,
       });
@@ -230,7 +266,8 @@ export async function generateNewsletterSection({
         school: schoolId,
         user: userId,
         reportType: "custom",
-        language,
+        language: toLegacyLanguageValue(normalizedRequestedLanguages),
+        requestedLanguages: normalizedRequestedLanguages,
         dateRange: { startDate: weekStart, endDate: weekEnd },
         inputTokens: aiRes.inputtokenCount || 0,
         outputTokens: aiRes.outputtokenCount || 0,
@@ -240,6 +277,7 @@ export async function generateNewsletterSection({
         metadata: {
           classId: classDoc?._id,
           subjectId: subjectDoc?._id,
+          requestedLanguages: normalizedRequestedLanguages,
           lessonPlanCount: Array.isArray(lessonPlans) ? lessonPlans.length : 0,
         },
       });
@@ -255,6 +293,7 @@ export async function generateNewsletterSection({
     wordCount: parsed.wordCount,
     keyTopics: parsed.keyTopics,
     homeworkMentioned: parsed.homeworkMentioned,
+    requestedLanguages: normalizedRequestedLanguages,
     aiTokenUsageId,
   };
 }

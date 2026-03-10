@@ -1,0 +1,49 @@
+{
+  "header": {
+    "welcome": "مرحباً بعودتك، {{firstName}}! 👋",
+    "subtitle": "إليك ما يحدث في فصولك اليوم.",
+    "enterGrades": "إدخال الدرجات"
+  },
+  "loadingState": {
+    "message": "جارٍ تحميل لوحة التحكم..."
+  },
+  "errorState": {
+    "message": "خطأ أثناء تحميل لوحة التحكم: {{error}}",
+    "retry": "إعادة المحاولة"
+  },
+  "stats": {
+    "totalStudents": "إجمالي الطلاب",
+    "totalClasses": "إجمالي الفصول",
+    "totalGrades": "الدرجات المدخلة",
+    "avgPerformance": "متوسط الأداء"
+  },
+  "quickActions": {
+    "title": "إجراءات سريعة",
+    "enterGrades": "إدخال الدرجات",
+    "viewClasses": "عرض الفصول",
+    "sendReports": "إرسال التقارير",
+    "viewAnalytics": "عرض التحليلات"
+  },
+  "recentStudents": {
+    "title": "أحدث الطلاب",
+    "empty": "لا يوجد طلاب حالياً. أضف طلاباً للبدء."
+  },
+  "classesOverview": {
+    "title": "نظرة عامة على الفصول",
+    "studentCount_zero": "{{count}} طالب",
+    "studentCount_one": "{{count}} طالب",
+    "studentCount_two": "{{count}} طالبان",
+    "studentCount_few": "{{count}} طلاب",
+    "studentCount_many": "{{count}} طالباً",
+    "studentCount_other": "{{count}} طالب",
+    "empty": "لا توجد فصول حالياً. أنشئ فصلاً للبدء."
+  },
+  "performance": {
+    "title": "اتجاهات الأداء",
+    "comingSoon": "تحليلات الأداء قريباً"
+  },
+  "common": {
+    "viewAll": "عرض الكل",
+    "unassigned": "غير مخصص"
+  }
+}

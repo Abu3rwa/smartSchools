@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     fetchLessons,
     selectLessons,
@@ -24,6 +25,7 @@ const Section = ({ title, content }) => {
 };
 
 const LessonPlanDetailPage = () => {
+    const { t } = useTranslation(['lessonPlan']);
     const { id } = useParams();
     const navigate = useNavigate();
     const dispatch = useDispatch();
@@ -42,7 +44,7 @@ const LessonPlanDetailPage = () => {
     const lesson = lessons.find(l => l._id === id);
 
     const school = user?.school || {};
-    const schoolName = school.name || 'School';
+    const schoolName = school.name || t('lessonPlan:detail.schoolFallback');
     const schoolLogo = school.logo || school.logoUrl || null;
 
     const handlePrint = () => {
@@ -62,11 +64,11 @@ const LessonPlanDetailPage = () => {
             <div className="lp-detail-page">
                 <div className="page-header">
                     <button className="btn btn-ghost btn-sm" onClick={() => navigate('/portal/lessons')}>
-                        <HiOutlineArrowLeft size={18} />Back
+                        <HiOutlineArrowLeft size={18} />{t('lessonPlan:detail.back')}
                     </button>
                 </div>
                 <div className="error-container">
-                    <p className="error-message">Lesson plan not found.</p>
+                    <p className="error-message">{t('lessonPlan:detail.notFound')}</p>
                 </div>
             </div>
         );
@@ -74,7 +76,7 @@ const LessonPlanDetailPage = () => {
 
     const dateStr = lesson.date
         ? format(new Date(lesson.date), 'EEEE, MMMM d, yyyy')
-        : '—';
+        : t('lessonPlan:common.emptySymbol');
     const teacherName = lesson.teacher
         ? `${lesson.teacher.firstName || ''} ${lesson.teacher.lastName || ''}`.trim()
         : null;
@@ -84,10 +86,10 @@ const LessonPlanDetailPage = () => {
             {/* Screen-only toolbar */}
             <div className="lp-toolbar no-print">
                 <button className="btn btn-ghost btn-sm" onClick={() => navigate('/portal/lessons')}>
-                    <HiOutlineArrowLeft size={18} /> Back to Lessons
+                    <HiOutlineArrowLeft size={18} /> {t('lessonPlan:detail.backToLessons')}
                 </button>
                 <button className="btn btn-primary" onClick={handlePrint}>
-                    <HiOutlinePrinter size={18} /> Print / Save as PDF
+                    <HiOutlinePrinter size={18} /> {t('lessonPlan:detail.print')}
                 </button>
             </div>
 
@@ -106,7 +108,7 @@ const LessonPlanDetailPage = () => {
                         )}
                         <div>
                             <div className="lp-school-name">{schoolName}</div>
-                            <div className="lp-doc-type">Lesson Plan</div>
+                            <div className="lp-doc-type">{t('lessonPlan:detail.documentType')}</div>
                         </div>
                     </div>
                     <div className="lp-header-right">
@@ -125,20 +127,22 @@ const LessonPlanDetailPage = () => {
                     </div>
                     <div className="lp-meta-item">
                         <HiOutlineBookOpen size={15} />
-                        <span>Subject: <strong>{lesson.subject?.name || '—'}</strong></span>
+                        <span>{t('lessonPlan:table.subject')}: <strong>{lesson.subject?.name || t('lessonPlan:common.emptySymbol')}</strong></span>
                     </div>
                     <div className="lp-meta-item">
                         <HiOutlineAcademicCap size={15} />
-                        <span>Class: <strong>{lesson.class?.name || '—'}</strong></span>
+                        <span>{t('lessonPlan:table.class')}: <strong>{lesson.class?.name || t('lessonPlan:common.emptySymbol')}</strong></span>
                     </div>
                     {teacherName && (
                         <div className="lp-meta-item">
                             <HiOutlineUser size={15} />
-                            <span>Teacher: <strong>{teacherName}</strong></span>
+                            <span>{t('lessonPlan:table.teacher')}: <strong>{teacherName}</strong></span>
                         </div>
                     )}
                     <div className={`lp-status-chip status-${lesson.status || 'draft'}`}>
-                        {(lesson.status || 'draft').replace('_', ' ')}
+                        {t(`lessonPlan:status.${lesson.status || 'draft'}`, {
+                            defaultValue: (lesson.status || 'draft').replace('_', ' ')
+                        })}
                     </div>
                 </div>
 
@@ -147,18 +151,18 @@ const LessonPlanDetailPage = () => {
 
                 {/* ── INFO GRID ───────────────────────────────── */}
                 <div className="lp-info-grid">
-                    <Section title="Summary" content={lesson.summary} />
-                    <Section title="Previous Knowledge / Skills" content={lesson.previousKnowledge} />
-                    <Section title="Teaching Objectives" content={lesson.teachingObjectives} />
-                    <Section title="Vocabulary" content={lesson.vocabulary} />
-                    <Section title="Links with Character Trait / Cognitive Skills" content={lesson.characterTraitLinks} />
-                    <Section title="Tech Integration" content={lesson.techIntegration} />
+                    <Section title={t('lessonPlan:detail.sections.summary')} content={lesson.summary} />
+                    <Section title={t('lessonPlan:detail.sections.previousKnowledge')} content={lesson.previousKnowledge} />
+                    <Section title={t('lessonPlan:detail.sections.teachingObjectives')} content={lesson.teachingObjectives} />
+                    <Section title={t('lessonPlan:detail.sections.vocabulary')} content={lesson.vocabulary} />
+                    <Section title={t('lessonPlan:detail.sections.characterTraitLinks')} content={lesson.characterTraitLinks} />
+                    <Section title={t('lessonPlan:detail.sections.techIntegration')} content={lesson.techIntegration} />
                 </div>
 
                 {/* ── DESCRIPTION ─────────────────────────────── */}
                 {lesson.description && (
                     <div className="lp-full-section">
-                        <div className="lp-section-title">Description</div>
+                        <div className="lp-section-title">{t('lessonPlan:detail.sections.description')}</div>
                         <div className="lp-section-body">{lesson.description}</div>
                     </div>
                 )}
@@ -166,7 +170,7 @@ const LessonPlanDetailPage = () => {
                 {/* ── STANDARDS ───────────────────────────────── */}
                 {Array.isArray(lesson.standardIds) && lesson.standardIds.length > 0 && (
                     <div className="lp-full-section">
-                        <div className="lp-section-title">Standards</div>
+                        <div className="lp-section-title">{t('lessonPlan:detail.sections.standards')}</div>
                         <div className="lp-standards-list">
                             {lesson.standardIds.map((s, i) => {
                                 const obj = typeof s === 'object' ? s : null;
@@ -184,24 +188,24 @@ const LessonPlanDetailPage = () => {
                 {Array.isArray(lesson.stages) && lesson.stages.length > 0 && (
                     <div className="lp-full-section">
                         <div className="lp-section-title lp-section-title--large">
-                            Stages – Procedure, Materials / Resources & Timing
+                            {t('lessonPlan:detail.sections.stagesTitle')}
                         </div>
                         <table className="lp-stages-table">
                             <thead>
                                 <tr>
-                                    <th>Stage</th>
-                                    <th>Procedure</th>
-                                    <th>Materials / Resources</th>
-                                    <th>Timing</th>
+                                    <th>{t('lessonPlan:detail.stages.stage')}</th>
+                                    <th>{t('lessonPlan:detail.stages.procedure')}</th>
+                                    <th>{t('lessonPlan:detail.stages.materials')}</th>
+                                    <th>{t('lessonPlan:detail.stages.timing')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {lesson.stages.map((stage, i) => (
                                     <tr key={i}>
-                                        <td className="lp-stage-name">{stage.name || `Stage ${i + 1}`}</td>
-                                        <td>{stage.procedure || '—'}</td>
-                                        <td>{stage.materials || '—'}</td>
-                                        <td className="lp-stage-timing">{stage.timing || '—'}</td>
+                                        <td className="lp-stage-name">{stage.name || t('lessonPlan:detail.stages.stageNumber', { number: i + 1 })}</td>
+                                        <td>{stage.procedure || t('lessonPlan:common.emptySymbol')}</td>
+                                        <td>{stage.materials || t('lessonPlan:common.emptySymbol')}</td>
+                                        <td className="lp-stage-timing">{stage.timing || t('lessonPlan:common.emptySymbol')}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -212,7 +216,7 @@ const LessonPlanDetailPage = () => {
                 {/* ── HOMEWORK ────────────────────────────────── */}
                 {lesson.homework && (
                     <div className="lp-full-section">
-                        <div className="lp-section-title">Homework / Take-Home Material</div>
+                        <div className="lp-section-title">{t('lessonPlan:detail.sections.homework')}</div>
                         <div className="lp-section-body lp-homework-box">{lesson.homework}</div>
                     </div>
                 )}
@@ -220,7 +224,7 @@ const LessonPlanDetailPage = () => {
                 {/* ── ADMIN NOTE TO TEACHER ──────────────────── */}
                 {lesson.adminNoteToTeacher && (
                     <div className="lp-full-section lp-admin-note-section">
-                        <div className="lp-section-title">Note from administration</div>
+                        <div className="lp-section-title">{t('lessonPlan:detail.sections.adminNote')}</div>
                         <div className="lp-section-body lp-admin-note-box">{lesson.adminNoteToTeacher}</div>
                     </div>
                 )}

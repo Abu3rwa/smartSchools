@@ -5,8 +5,11 @@ import {
     HiOutlineExclamation,
     HiOutlineUserGroup
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const AttendanceStatsGrid = ({ stats }) => {
+    const { t } = useTranslation(['adminAttendance']);
+
     return (
         <div className="stats-grid">
             <div className="stat-card">
@@ -15,7 +18,7 @@ const AttendanceStatsGrid = ({ stats }) => {
                 </div>
                 <div className="stat-content">
                     <h3>{stats.totalClasses}</h3>
-                    <p>Total Classes</p>
+                    <p>{t('adminAttendance:stats.totalClasses')}</p>
                 </div>
             </div>
 
@@ -25,7 +28,7 @@ const AttendanceStatsGrid = ({ stats }) => {
                 </div>
                 <div className="stat-content">
                     <h3>{stats.recordedClasses}</h3>
-                    <p>Attendance Recorded</p>
+                    <p>{t('adminAttendance:stats.attendanceRecorded')}</p>
                 </div>
             </div>
 
@@ -35,7 +38,7 @@ const AttendanceStatsGrid = ({ stats }) => {
                 </div>
                 <div className="stat-content">
                     <h3>{stats.pendingToday}</h3>
-                    <p>Pending Today</p>
+                    <p>{t('adminAttendance:stats.pendingToday')}</p>
                 </div>
             </div>
 
@@ -45,7 +48,7 @@ const AttendanceStatsGrid = ({ stats }) => {
                 </div>
                 <div className="stat-content">
                     <h3>{stats.pendingOverall}</h3>
-                    <p>Overall Not Taken</p>
+                    <p>{t('adminAttendance:stats.overallNotTaken')}</p>
                 </div>
             </div>
 
@@ -55,7 +58,7 @@ const AttendanceStatsGrid = ({ stats }) => {
                 </div>
                 <div className="stat-content">
                     <h3>{stats.overallRate}%</h3>
-                    <p>Overall Attendance Rate</p>
+                    <p>{t('adminAttendance:stats.overallAttendanceRate')}</p>
                 </div>
             </div>
         </div>

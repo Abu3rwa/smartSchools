@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 const LessonPlanToolbar = ({
   canFilterAsAdmin,
   canFilterBySubject,
@@ -16,6 +18,7 @@ const LessonPlanToolbar = ({
   endDateFilter,
   setEndDateFilter,
 }) => {
+  const { t } = useTranslation(['lessonPlan']);
   const subjectOptions = canFilterAsAdmin ? filterSubjects : subjects;
   if (!canFilterBySubject && !canFilterAsAdmin) return null;
 
@@ -29,14 +32,14 @@ const LessonPlanToolbar = ({
               value={selectedTeacherFilter}
               onChange={(e) => setSelectedTeacherFilter(e.target.value)}
             >
-              <option value="">All teachers</option>
-              {teachers.map((t) => {
-                const uid = t.user?._id || t.user;
-                const name = t.user
-                  ? `${t.user.firstName || ''} ${t.user.lastName || ''}`.trim() || 'Unknown'
-                  : 'Unknown';
+              <option value="">{t('lessonPlan:toolbar.allTeachers')}</option>
+              {teachers.map((teacher) => {
+                const uid = teacher.user?._id || teacher.user;
+                const name = teacher.user
+                  ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() || t('lessonPlan:common.unknown')
+                  : t('lessonPlan:common.unknown');
                 return (
-                  <option key={uid || t._id} value={uid || ''}>
+                  <option key={uid || teacher._id} value={uid || ''}>
                     {name}
                   </option>
                 );
@@ -49,7 +52,7 @@ const LessonPlanToolbar = ({
               value={selectedClassFilter}
               onChange={(e) => setSelectedClassFilter(e.target.value)}
             >
-              <option value="">All classes</option>
+              <option value="">{t('lessonPlan:toolbar.allClasses')}</option>
               {filterClasses.map((cls) => (
                 <option key={cls._id} value={cls._id}>{cls.name}</option>
               ))}
@@ -63,7 +66,7 @@ const LessonPlanToolbar = ({
           value={selectedSubjectFilter}
           onChange={(e) => setSelectedSubjectFilter(e.target.value)}
         >
-          <option value="">All subjects</option>
+          <option value="">{t('lessonPlan:toolbar.allSubjects')}</option>
           {subjectOptions.map((sub) => (
             <option key={sub._id} value={sub._id}>{sub.name}</option>
           ))}
@@ -72,7 +75,7 @@ const LessonPlanToolbar = ({
       {canFilterAsAdmin && (
         <>
           <div className="lesson-filter-group">
-            <label htmlFor="lesson-start-date">From date</label>
+            <label htmlFor="lesson-start-date">{t('lessonPlan:toolbar.fromDate')}</label>
             <input
               id="lesson-start-date"
               type="date"
@@ -81,7 +84,7 @@ const LessonPlanToolbar = ({
             />
           </div>
           <div className="lesson-filter-group">
-            <label htmlFor="lesson-end-date">To date</label>
+            <label htmlFor="lesson-end-date">{t('lessonPlan:toolbar.toDate')}</label>
             <input
               id="lesson-end-date"
               type="date"

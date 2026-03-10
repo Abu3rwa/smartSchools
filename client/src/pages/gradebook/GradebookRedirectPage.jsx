@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { fetchClasses, selectClasses } from '../../store/slices/classSlice';
 import { fetchMyClasses, selectMyClasses } from '../../store/slices/teacherSlice';
 import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import { selectUser } from '../../store/slices/authSlice';
 
 const GradebookRedirectPage = () => {
+    const { t } = useTranslation(['gradebook']);
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const user = useSelector(selectUser);
@@ -51,15 +53,15 @@ const GradebookRedirectPage = () => {
         <div style={{ padding: 24 }}>
             <div className="card" style={{ maxWidth: 560 }}>
                 <div className="card-header">
-                    <h3 className="card-title">Gradebook</h3>
+                    <h3 className="card-title">{t('gradebook:redirect.title')}</h3>
                 </div>
 
                 {availableClasses.length === 0 ? (
-                    <div className="empty-state">No classes available for gradebook.</div>
+                    <div className="empty-state">{t('gradebook:redirect.noClasses')}</div>
                 ) : (
                     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
                         <div className="form-group">
-                            <label>Select Class</label>
+                            <label>{t('gradebook:redirect.selectClass')}</label>
                             <select
                                 value={selectedClassId}
                                 onChange={(event) => setSelectedClassId(event.target.value)}
@@ -73,7 +75,7 @@ const GradebookRedirectPage = () => {
                         </div>
                         <div>
                             <button type="button" className="btn btn-primary" onClick={handleOpenGradebook}>
-                                Open Gradebook
+                                {t('gradebook:redirect.open')}
                             </button>
                         </div>
                     </div>

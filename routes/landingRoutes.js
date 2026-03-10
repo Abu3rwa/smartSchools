@@ -10,8 +10,67 @@ import {
     mergeLandingContent,
     normalizeLandingContent,
 } from '../utils/landingContent.js';
+import {
+    normalizeLandingLanguage,
+    resolveLandingDynamicBlocks
+} from '../utils/landingLocalization.js';
 
 const router = express.Router();
+
+const LANDING_SECTION_KEYS = new Set([
+    'seo',
+    'brand',
+    'header',
+    'navigation',
+    'hero',
+    'trustStrip',
+    'howItWorks',
+    'features',
+    'pricing',
+    'testimonials',
+    'faq',
+    'finalCta',
+    'findSchool',
+    'dynamicFallback',
+    'footer'
+]);
+
+const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+
+const resolveLocalizedLandingContent = (rawContent, requestedLanguage = 'en') => {
+    const normalizedLanguage = normalizeLandingLanguage(requestedLanguage);
+    if (!isObject(rawContent)) {
+        return { resolvedLanguage: normalizedLanguage, content: rawContent };
+    }
+
+    if (isObject(rawContent.locales)) {
+        const defaultContent = isObject(rawContent.default) ? rawContent.default : {};
+        const englishContent = isObject(rawContent.locales.en) ? rawContent.locales.en : {};
+        const languageContent = isObject(rawContent.locales[normalizedLanguage])
+            ? rawContent.locales[normalizedLanguage]
+            : {};
+        const resolved = mergeLandingContent(
+            mergeLandingContent(defaultContent, englishContent),
+            languageContent
+        );
+        return { resolvedLanguage: normalizedLanguage, content: resolved };
+    }
+
+    const hasSectionKeys = Array.from(LANDING_SECTION_KEYS).some((key) =>
+        Object.prototype.hasOwnProperty.call(rawContent, key)
+    );
+    const hasLanguageRoots = ['en', 'ar'].some((key) => isObject(rawContent[key]));
+    if (!hasSectionKeys && hasLanguageRoots) {
+        const englishContent = isObject(rawContent.en) ? rawContent.en : {};
+        const languageContent = isObject(rawContent[normalizedLanguage])
+            ? rawContent[normalizedLanguage]
+            : {};
+        const resolved = mergeLandingContent(englishContent, languageContent);
+        return { resolvedLanguage: normalizedLanguage, content: resolved };
+    }
+
+    return { resolvedLanguage: normalizedLanguage, content: rawContent };
+};
 
 /**
  * @desc    Get dynamic landing page content
@@ -19,17 +78,45 @@ const router = express.Router();
  * @access  Public
  */
 router.get('/content', asyncHandler(async (req, res) => {
+    const requestedLanguage = req.query?.lang || req.headers['accept-language'] || 'en';
     const existingContent = await LandingPageContent.findOne({ key: LANDING_CONTENT_KEY })
         .select('content updatedAt')
         .setOptions({ skipTenantFilter: true });
 
-    const content = normalizeLandingContent(existingContent?.content || getLandingContentDefaults());
+    const localizedContent = resolveLocalizedLandingContent(
+        existingContent?.content || getLandingContentDefaults(),
+        requestedLanguage
+    );
+    const content = normalizeLandingContent(localizedContent.content || getLandingContentDefaults());
 
     res.json({
         success: true,
         data: {
+            resolvedLanguage: localizedContent.resolvedLanguage,
             content,
             updatedAt: existingContent?.updatedAt || null,
+        },
+    });
+}));
+
+/**
+ * @desc    Get locale-resolved dynamic landing blocks
+ * @route   GET /api/landing/dynamic-blocks
+ * @access  Public
+ */
+router.get('/dynamic-blocks', asyncHandler(async (req, res) => {
+    const requestedLanguage = req.query?.lang || req.headers['accept-language'] || 'en';
+    const dynamicBlocks = resolveLandingDynamicBlocks(requestedLanguage);
+
+    res.set('Cache-Control', 'public, max-age=0, s-maxage=180, stale-while-revalidate=60');
+    res.set('Vary', 'Accept-Encoding, Accept-Language');
+
+    res.json({
+        success: true,
+        data: {
+            resolvedLanguage: dynamicBlocks.resolvedLanguage,
+            fallbackUsed: dynamicBlocks.fallbackUsed,
+            blocks: dynamicBlocks.blocks,
         },
     });
 }));

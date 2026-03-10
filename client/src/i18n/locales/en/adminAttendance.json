@@ -1,0 +1,84 @@
+{
+  "header": {
+    "title": "School Calendar",
+    "subtitle": "Monitor and manage attendance across all classes"
+  },
+  "actions": {
+    "refresh": "Refresh",
+    "exportReport": "Export Report",
+    "clearFilters": "Clear Filters",
+    "viewDetails": "View Details"
+  },
+  "stats": {
+    "totalClasses": "Total Classes",
+    "attendanceRecorded": "Attendance Recorded",
+    "pendingToday": "Pending Today",
+    "overallNotTaken": "Overall Not Taken",
+    "overallAttendanceRate": "Overall Attendance Rate"
+  },
+  "chart": {
+    "title": "Attendance Status Chart",
+    "subtitle": "Present, Absent, Tardy and Excused counts for the selected range",
+    "status": {
+      "present": "Present",
+      "absent": "Absent",
+      "tardy": "Tardy",
+      "excused": "Excused"
+    }
+  },
+  "view": {
+    "today": "Today",
+    "week": "Week",
+    "month": "Month"
+  },
+  "filters": {
+    "allTeachers": "All Teachers",
+    "allClasses": "All Classes",
+    "allSubjects": "All Subjects",
+    "allStatus": "All Status"
+  },
+  "status": {
+    "recorded": "Recorded",
+    "pending": "Pending"
+  },
+  "common": {
+    "unknown": "Unknown",
+    "dash": "—"
+  },
+  "list": {
+    "emptyTitle": "No attendance records found",
+    "emptyFiltered": "No records match the selected filters.",
+    "emptyUnfiltered": "No attendance records are available yet.",
+    "total": "Total",
+    "present": "Present",
+    "absent": "Absent",
+    "late": "Late",
+    "rate": "Rate",
+    "recordedBy": "Recorded by {{firstName}} {{lastName}}"
+  },
+  "details": {
+    "title": "Attendance Details",
+    "teacher": "Teacher:",
+    "class": "Class:",
+    "subject": "Subject:",
+    "room": "Room:",
+    "time": "Time:",
+    "summaryTitle": "Attendance Summary",
+    "totalStudents": "Total Students",
+    "present": "Present",
+    "absent": "Absent",
+    "late": "Late",
+    "attendanceRate": "Attendance Rate",
+    "recordingDetails": "Recording Details",
+    "recordedBy": "Recorded by:",
+    "recordedAt": "Recorded at:"
+  },
+  "loading": {
+    "message": "Loading attendance..."
+  },
+  "error": {
+    "title": "Unable to load attendance",
+    "loadFailed": "Failed to load attendance data",
+    "exportFailed": "Failed to export attendance report"
+  }
+}

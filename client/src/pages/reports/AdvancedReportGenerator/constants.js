@@ -1,3 +1,5 @@
+import { AI_LANGUAGE_OPTIONS } from '../../../constants/aiLanguages';
+
 export const REPORT_TYPE_OPTIONS = [
   { value: 'weekly', label: 'Weekly Report' },
   { value: 'monthly', label: 'Monthly Report' },
@@ -6,16 +8,13 @@ export const REPORT_TYPE_OPTIONS = [
   { value: 'custom', label: 'Custom Date Range' }
 ];
 
-export const LANGUAGE_OPTIONS = [
-  { value: 'english', label: 'English Only' },
-  { value: 'arabic', label: 'Arabic Only' },
-  { value: 'bilingual', label: 'Bilingual (English & Arabic)' }
-];
+export const LANGUAGE_OPTIONS = AI_LANGUAGE_OPTIONS;
 
 export const createDefaultFormData = () => ({
   studentId: '',
   reportType: 'monthly',
-  language: 'english',
+  primaryLanguage: 'en',
+  secondaryLanguage: '',
   dateRange: {
     startDate: '',
     endDate: ''

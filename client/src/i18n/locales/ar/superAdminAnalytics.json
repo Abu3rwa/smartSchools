@@ -1,0 +1,24 @@
+{
+  "page": {
+    "title": "تحليلات المسؤول"
+  },
+  "sections": {
+    "engagementMetrics": "مؤشرات التفاعل",
+    "performanceMetrics": "مؤشرات الأداء"
+  },
+  "engagement": {
+    "week": "الأسبوع {{week}}"
+  },
+  "charts": {
+    "studentPerformance": "أداء الطلاب"
+  },
+  "months": {
+    "january": "يناير",
+    "february": "فبراير",
+    "march": "مارس",
+    "april": "أبريل",
+    "may": "مايو",
+    "june": "يونيو",
+    "july": "يوليو"
+  }
+}

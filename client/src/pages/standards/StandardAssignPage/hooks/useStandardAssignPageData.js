@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import api from '../../../../config/api';
 import {
     clearAssignmentProgress,
@@ -28,15 +29,16 @@ import {
     buildAssignmentEditForm,
     getEntityId,
     getMasteryColor,
-    getProgressStatusDisplay,
+    getProgressStatusDisplay as getProgressStatusDisplayBase,
     getScopedClassSubjects,
-    getStandardDescription,
-    getStandardOptionLabel,
+    getStandardDescription as getStandardDescriptionBase,
+    getStandardOptionLabel as getStandardOptionLabelBase,
     parseNullablePositiveInt
 } from '../utils/standardAssignPagePresentation';
 
 const useStandardAssignPageData = () => {
     const dispatch = useDispatch();
+    const { t } = useTranslation(['standardAssign']);
     const standards = useSelector(selectStandards);
     const assignments = useSelector(selectAssignments);
     const assignmentProgress = useSelector(selectAssignmentProgress);
@@ -56,7 +58,16 @@ const useStandardAssignPageData = () => {
     const [assessmentGradebookLoading, setAssessmentGradebookLoading] = useState(false);
     const [assessmentGradebookError, setAssessmentGradebookError] = useState('');
     const [assessmentGradebookData, setAssessmentGradebookData] = useState(null);
+    const [assessmentStandardAverageLoading, setAssessmentStandardAverageLoading] = useState(false);
+    const [assessmentStandardAverageError, setAssessmentStandardAverageError] = useState('');
+    const [assessmentStandardAverageData, setAssessmentStandardAverageData] = useState(null);
     const [releasingAssessmentResults, setReleasingAssessmentResults] = useState(false);
+    const [showQuestionPoolModal, setShowQuestionPoolModal] = useState(false);
+    const [questionPoolAssignmentId, setQuestionPoolAssignmentId] = useState(null);
+    const [questionPoolLoading, setQuestionPoolLoading] = useState(false);
+    const [questionPoolError, setQuestionPoolError] = useState('');
+    const [questionPoolData, setQuestionPoolData] = useState(null);
+    const [savingQuestionPool, setSavingQuestionPool] = useState(false);
     const [classes, setClasses] = useState([]);
     const [students, setStudents] = useState([]);
     const [submitting, setSubmitting] = useState(false);
@@ -97,6 +108,9 @@ const useStandardAssignPageData = () => {
     const selectedStandard = standards.find(
         (standard) => getEntityId(standard._id) === getEntityId(formData.standardId)
     );
+    const getStandardDescription = (standard) => getStandardDescriptionBase(standard, t);
+    const getStandardOptionLabel = (standard) => getStandardOptionLabelBase(standard, t);
+    const getProgressStatusDisplay = (status) => getProgressStatusDisplayBase(status, t);
 
     const loadClasses = async () => {
         try {
@@ -184,21 +198,19 @@ const useStandardAssignPageData = () => {
         const title = (formData.title || '').trim();
 
         if (!formData.subjectId) {
-            toast.error('Select a subject before assigning.');
+            toast.error(t('standardAssign:toasts.selectSubjectBeforeAssigning'));
             setSubmitting(false);
             return;
         }
 
         if (!title) {
-            toast.error('Assignment name is required.');
+            toast.error(t('standardAssign:toasts.assignmentNameRequired'));
             setSubmitting(false);
             return;
         }
 
         if (isTeacher && formData.classId && subjectOptions.length === 0) {
-            toast.error(
-                'No subject mapping found for this class. Contact admin to update class subjects.'
-            );
+            toast.error(t('standardAssign:toasts.noSubjectMappingForClass'));
             setSubmitting(false);
             return;
         }
@@ -207,7 +219,7 @@ const useStandardAssignPageData = () => {
             (subject) => getEntityId(subject) === getEntityId(formData.subjectId)
         );
         if (!isSubjectAllowed) {
-            toast.error('Selected subject is not available for this class.');
+            toast.error(t('standardAssign:toasts.subjectNotAvailableForClass'));
             setSubmitting(false);
             return;
         }
@@ -218,7 +230,7 @@ const useStandardAssignPageData = () => {
         const endAt = endAtRaw ? new Date(endAtRaw) : null;
 
         if (startAt && endAt && endAt.getTime() < startAt.getTime()) {
-            toast.error('End time must be after start time.');
+            toast.error(t('standardAssign:toasts.endAfterStart'));
             setSubmitting(false);
             return;
         }
@@ -226,13 +238,23 @@ const useStandardAssignPageData = () => {
         const maxMarks = parseNullablePositiveInt(formData.assessmentConfig.maxMarks) || 100;
         const passMarks = parseNullablePositiveInt(formData.assessmentConfig.passMarks) || 40;
         if (passMarks > maxMarks) {
-            toast.error('Pass marks cannot be greater than max marks.');
+            toast.error(t('standardAssign:toasts.passMarksGreaterThanMax'));
             setSubmitting(false);
             return;
         }
 
         const payload = {
             ...formData,
+            aiLanguages: (() => {
+                const normalized = Array.from(
+                    new Set(
+                        (Array.isArray(formData.aiLanguages) ? formData.aiLanguages : ['en'])
+                            .map((item) => String(item || '').trim().toLowerCase())
+                            .filter(Boolean)
+                    )
+                ).slice(0, 2);
+                return normalized.length > 0 ? normalized : ['en'];
+            })(),
             title,
             preGeneratedQuestionCount:
                 parseNullablePositiveInt(formData.preGeneratedQuestionCount) || 10,
@@ -270,8 +292,8 @@ const useStandardAssignPageData = () => {
             if (success) {
                 toast.success(
                     editingAssignmentId
-                        ? 'Assignment updated successfully!'
-                        : 'Standard assigned successfully!'
+                        ? t('standardAssign:toasts.assignmentUpdated')
+                        : t('standardAssign:toasts.standardAssigned')
                 );
                 setShowAssignModal(false);
                 resetAssignModalState();
@@ -279,7 +301,9 @@ const useStandardAssignPageData = () => {
             } else {
                 toast.error(
                     result.payload ||
-                        (editingAssignmentId ? 'Failed to update assignment' : 'Failed to assign')
+                        (editingAssignmentId
+                            ? t('standardAssign:toasts.failedToUpdateAssignment')
+                            : t('standardAssign:toasts.failedToAssign'))
                 );
             }
         } finally {
@@ -288,12 +312,12 @@ const useStandardAssignPageData = () => {
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm('Remove this assignment?')) {
+        if (window.confirm(t('standardAssign:confirm.removeAssignment'))) {
             const result = await dispatch(deleteAssignment(id));
             if (deleteAssignment.fulfilled.match(result)) {
-                toast.success('Assignment removed');
+                toast.success(t('standardAssign:toasts.assignmentRemoved'));
             } else {
-                toast.error(result.payload || 'Failed to remove');
+                toast.error(result.payload || t('standardAssign:toasts.failedToRemove'));
             }
         }
     };
@@ -315,17 +339,54 @@ const useStandardAssignPageData = () => {
         dispatch(fetchAssignmentProgress(progressAssignmentId));
     };
 
+    const loadAssessmentStandardAverage = async ({ classId, subjectId, standardId }) => {
+        if (!classId || !subjectId || !standardId) {
+            setAssessmentStandardAverageData(null);
+            setAssessmentStandardAverageError('');
+            return;
+        }
+        setAssessmentStandardAverageLoading(true);
+        setAssessmentStandardAverageError('');
+        try {
+            const response = await api.get('/practice/assessment/standard-average', {
+                params: { classId, subjectId, standardId, academicYear, semester: selectedSemester }
+            });
+            setAssessmentStandardAverageData(response?.data?.data || null);
+        } catch (error) {
+            setAssessmentStandardAverageError(
+                error?.response?.data?.message || t('standardAssign:error.unableToLoadStandardAverage')
+            );
+            setAssessmentStandardAverageData(null);
+        } finally {
+            setAssessmentStandardAverageLoading(false);
+        }
+    };
+
     const loadAssessmentGradebook = async (assignmentId) => {
         setAssessmentGradebookLoading(true);
         setAssessmentGradebookError('');
         setAssessmentGradebookData(null);
+        setAssessmentStandardAverageData(null);
+        setAssessmentStandardAverageError('');
         try {
             const response = await api.get(`/practice/assessment/${assignmentId}/gradebook`);
-            setAssessmentGradebookData(response.data.data || null);
+            const payload = response.data.data || null;
+            setAssessmentGradebookData(payload);
+
+            const classId = getEntityId(payload?.assignment?.class?._id || payload?.assignment?.class);
+            const subjectId = getEntityId(
+                payload?.assignment?.subject?._id || payload?.assignment?.subject
+            );
+            const standardId = getEntityId(
+                payload?.assignment?.standard?._id || payload?.assignment?.standard
+            );
+            await loadAssessmentStandardAverage({ classId, subjectId, standardId });
         } catch (error) {
             setAssessmentGradebookError(
-                error?.response?.data?.message || 'Unable to load SB gradebook.'
+                error?.response?.data?.message || t('standardAssign:error.unableToLoadSbGradebook')
             );
+            setAssessmentStandardAverageData(null);
+            setAssessmentStandardAverageError('');
         } finally {
             setAssessmentGradebookLoading(false);
         }
@@ -342,6 +403,8 @@ const useStandardAssignPageData = () => {
         setAssessmentGradebookAssignmentId(null);
         setAssessmentGradebookData(null);
         setAssessmentGradebookError('');
+        setAssessmentStandardAverageData(null);
+        setAssessmentStandardAverageError('');
     };
 
     const retryAssessmentGradebookLoad = () => {
@@ -351,19 +414,89 @@ const useStandardAssignPageData = () => {
 
     const handleReleaseAssessmentResults = async () => {
         if (!assessmentGradebookAssignmentId) return;
+        const isManualRelease =
+            assessmentGradebookData?.assignment?.assessmentConfig?.resultsVisibility ===
+            'manual_release';
+        if (!isManualRelease) {
+            toast(t('standardAssign:toasts.resultsAlreadyVisibleImmediately'));
+            return;
+        }
+        const submittedCount = Number(assessmentGradebookData?.summary?.submitted || 0);
+        if (submittedCount <= 0) {
+            toast(t('standardAssign:toasts.noSubmittedPendingRelease'));
+            return;
+        }
+        if (
+            !window.confirm(t('standardAssign:confirm.releaseSubmittedResults', { count: submittedCount }))
+        ) {
+            return;
+        }
         setReleasingAssessmentResults(true);
         try {
             const response = await api.post(
                 `/practice/assessment/${assessmentGradebookAssignmentId}/release`
             );
-            toast.success(response?.data?.message || 'Assessment results released');
+            toast.success(response?.data?.message || t('standardAssign:toasts.assessmentResultsReleased'));
             await loadAssessmentGradebook(assessmentGradebookAssignmentId);
         } catch (error) {
             toast.error(
-                error?.response?.data?.message || 'Failed to release assessment results'
+                error?.response?.data?.message || t('standardAssign:toasts.failedToReleaseAssessmentResults')
             );
         } finally {
             setReleasingAssessmentResults(false);
+        }
+    };
+
+    const loadQuestionPool = async (assignmentId) => {
+        setQuestionPoolLoading(true);
+        setQuestionPoolError('');
+        setQuestionPoolData(null);
+        try {
+            const response = await api.get(`/standard-assignments/${assignmentId}/question-pool`);
+            setQuestionPoolData(response?.data?.data || null);
+        } catch (error) {
+            setQuestionPoolError(
+                error?.response?.data?.message || t('standardAssign:error.unableToLoadQuestionPool')
+            );
+        } finally {
+            setQuestionPoolLoading(false);
+        }
+    };
+
+    const handleManageQuestionPool = async (assignmentId) => {
+        setQuestionPoolAssignmentId(assignmentId);
+        setShowQuestionPoolModal(true);
+        await loadQuestionPool(assignmentId);
+    };
+
+    const closeQuestionPoolModal = () => {
+        setShowQuestionPoolModal(false);
+        setQuestionPoolAssignmentId(null);
+        setQuestionPoolData(null);
+        setQuestionPoolError('');
+        setSavingQuestionPool(false);
+    };
+
+    const retryQuestionPoolLoad = () => {
+        if (!questionPoolAssignmentId) return;
+        loadQuestionPool(questionPoolAssignmentId);
+    };
+
+    const handleSaveQuestionPool = async (questions, changeSummary = '') => {
+        if (!questionPoolAssignmentId) return;
+        setSavingQuestionPool(true);
+        try {
+            const response = await api.put(
+                `/standard-assignments/${questionPoolAssignmentId}/question-pool`,
+                { questions, changeSummary }
+            );
+            toast.success(response?.data?.message || t('standardAssign:toasts.questionPoolSaved'));
+            await loadQuestionPool(questionPoolAssignmentId);
+            dispatch(fetchAssignments({ academicYear, semester: selectedSemester }));
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('standardAssign:toasts.failedToSaveQuestionPool'));
+        } finally {
+            setSavingQuestionPool(false);
         }
     };
 
@@ -373,10 +506,15 @@ const useStandardAssignPageData = () => {
             const response = await api.post(
                 `/standard-assignments/${assignmentId}/question-pool/${action}`
             );
-            toast.success(response?.data?.message || 'Question pool updated');
+            toast.success(response?.data?.message || t('standardAssign:toasts.questionPoolUpdated'));
+            if (questionPoolAssignmentId === assignmentId) {
+                await loadQuestionPool(assignmentId);
+            }
             dispatch(fetchAssignments({ academicYear, semester: selectedSemester }));
         } catch (error) {
-            toast.error(error?.response?.data?.message || 'Failed to update question pool');
+            toast.error(
+                error?.response?.data?.message || t('standardAssign:toasts.failedToUpdateQuestionPool')
+            );
         } finally {
             setPoolActionLoadingId(null);
         }
@@ -408,7 +546,16 @@ const useStandardAssignPageData = () => {
         assessmentGradebookLoading,
         assessmentGradebookError,
         assessmentGradebookData,
+        assessmentStandardAverageLoading,
+        assessmentStandardAverageError,
+        assessmentStandardAverageData,
         releasingAssessmentResults,
+        showQuestionPoolModal,
+        questionPoolAssignmentId,
+        questionPoolLoading,
+        questionPoolError,
+        questionPoolData,
+        savingQuestionPool,
         classes,
         students,
         submitting,
@@ -439,6 +586,10 @@ const useStandardAssignPageData = () => {
         closeAssessmentGradebookModal,
         retryAssessmentGradebookLoad,
         handleReleaseAssessmentResults,
+        handleManageQuestionPool,
+        closeQuestionPoolModal,
+        retryQuestionPoolLoad,
+        handleSaveQuestionPool,
         handleReviewQuestionPool,
         handleApproveQuestionPool,
         handlePublishQuestionPool,

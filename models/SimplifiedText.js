@@ -8,6 +8,8 @@ const simplifiedTextSchema = new mongoose.Schema(
     originalText: { type: String, required: true },
     sourceDocument: { type: String, trim: true },
     originalComplexity: { type: Number },
+    language: { type: String, trim: true, lowercase: true },
+    requestedLanguages: [{ type: String, trim: true, lowercase: true }],
     subjectArea: { type: String, trim: true },
     topicTags: [{ type: String, trim: true }],
     // Critical thinking questions (important for deep comprehension)

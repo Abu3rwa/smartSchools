@@ -1,0 +1,21 @@
+{
+  "error": {
+    "schoolNotFoundTitle": "School Not Found",
+    "schoolNotFoundBody": "This school does not exist",
+    "backToSchools": "Back to Schools"
+  },
+  "header": {
+    "allSchools": "All Schools",
+    "poweredBy": "Powered by GradeBook"
+  },
+  "card": {
+    "subtitle": "Sign in to access your school's GradeBook"
+  },
+  "actions": {
+    "signingIn": "Signing in...",
+    "continueWithGoogle": "Continue with Google"
+  },
+  "contact": {
+    "needHelp": "Need help? Contact"
+  }
+}

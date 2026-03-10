@@ -1,15 +1,18 @@
 import React from 'react';
 import { HiOutlinePlus } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const BehaviorPageHeader = ({ onCreateIncident }) => {
+    const { t } = useTranslation(['behaviorManagement']);
+
     return (
         <div className="page-header">
             <div>
-                <h1>Behavior Management</h1>
-                <p>Track and manage student behavior incidents</p>
+                <h1>{t('behaviorManagement:header.title')}</h1>
+                <p>{t('behaviorManagement:header.subtitle')}</p>
             </div>
             <button className="btn btn-primary" onClick={onCreateIncident}>
-                <HiOutlinePlus /> Report Incident
+                <HiOutlinePlus /> {t('behaviorManagement:actions.reportIncident')}
             </button>
         </div>
     );

@@ -1,0 +1,72 @@
+{
+  "page": {
+    "title": "الفصول",
+    "subtitle": "إدارة فصول المدرسة وتسجيل الطلاب"
+  },
+  "actions": {
+    "importCsv": "استيراد CSV",
+    "addClass": "إضافة فصل",
+    "createClass": "إنشاء فصل",
+    "creating": "جارٍ الإنشاء...",
+    "activate": "تفعيل",
+    "deactivate": "تعطيل",
+    "activated": "تم تفعيله",
+    "deactivated": "تم تعطيله"
+  },
+  "filters": {
+    "searchPlaceholder": "ابحث عن الفصول..."
+  },
+  "table": {
+    "columns": {
+      "grade": "الصف",
+      "section": "الشعبة",
+      "className": "اسم الفصل",
+      "department": "القسم",
+      "academicYear": "العام الدراسي",
+      "students": "الطلاب",
+      "subjects": "المواد",
+      "actions": "الإجراءات"
+    },
+    "mainSection": "رئيسي"
+  },
+  "status": {
+    "inactive": "غير نشط"
+  },
+  "empty": {
+    "title": "لا توجد فصول",
+    "description": "أنشئ فصلاً جديداً للبدء"
+  },
+  "modal": {
+    "createTitle": "إنشاء فصل جديد"
+  },
+  "form": {
+    "gradeLevel": "مستوى الصف *",
+    "selectGrade": "اختر الصف",
+    "gradeOption": "الصف {{grade}}",
+    "section": "الشعبة",
+    "sectionPlaceholder": "مثال: A أو B أو C",
+    "department": "القسم",
+    "noDepartment": "— بدون قسم —",
+    "room": "الغرفة",
+    "roomPlaceholder": "مثال: غرفة 101",
+    "capacity": "السعة"
+  },
+  "confirm": {
+    "toggleActive": "هل أنت متأكد من رغبتك في {{action}} {{className}}؟",
+    "delete": "حذف {{className}}؟ سيؤدي هذا إلى تعطيل الفصل وإخفائه من سير العمل النشط."
+  },
+  "toast": {
+    "created": "تم إنشاء الفصل بنجاح!",
+    "createFailed": "فشل إنشاء الفصل",
+    "toggled": "تم {{state}} الفصل بنجاح",
+    "toggleFailed": "فشل تحديث حالة الفصل",
+    "deleted": "تم حذف الفصل بنجاح",
+    "deleteFailed": "فشل حذف الفصل",
+    "selectCsv": "يرجى اختيار ملف CSV",
+    "noValidRows": "لا توجد صفوف صالحة في ملف CSV",
+    "imported": "تم استيراد {{count}} فصول",
+    "importFailedRows": "فشل {{count}} من صفوف الفصول",
+    "importSkippedRows": "تم تخطي {{count}} من صفوف الفصول",
+    "importFailed": "فشل استيراد الفصول"
+  }
+}

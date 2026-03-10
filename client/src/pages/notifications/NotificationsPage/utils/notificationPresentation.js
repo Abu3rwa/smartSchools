@@ -4,4 +4,20 @@ export const getStatusCategory = (status) => {
   return 'pending';
 };
 
-export const getTypeLabel = (type) => (type || 'notification').replace('_', ' ');
+const humanize = (value) => (value || '')
+  .replace(/_/g, ' ')
+  .trim();
+
+export const getTypeLabel = (type, t) => {
+  const normalizedType = String(type || 'notification').toLowerCase();
+  return t(`notifications:types.${normalizedType}`, {
+    defaultValue: humanize(normalizedType)
+  });
+};
+
+export const getStatusLabel = (status, t) => {
+  const normalizedStatus = getStatusCategory(status);
+  return t(`notifications:status.${normalizedStatus}`, {
+    defaultValue: humanize(normalizedStatus)
+  });
+};

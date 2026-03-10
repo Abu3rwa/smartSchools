@@ -1,0 +1,160 @@
+{
+  "page": {
+    "eyebrow": "مساحة الجدولة",
+    "title": "منشئ الجدول",
+    "subtitle": "قم بإعداد المواد والحصص والقاعات وتعيينات المعلمين من مساحة عمل واحدة متجاوبة."
+  },
+  "actions": {
+    "importSubjectsCsv": "استيراد CSV المواد",
+    "importPeriodsCsv": "استيراد CSV الحصص",
+    "importRoomsCsv": "استيراد CSV القاعات",
+    "refresh": "تحديث",
+    "addRoom": "إضافة قاعة",
+    "saving": "جارٍ الحفظ..."
+  },
+  "summary": {
+    "subjects": {
+      "label": "المواد",
+      "help": "خيارات المنهج المستخدمة في الجدول"
+    },
+    "periods": {
+      "label": "الحصص",
+      "help": "الفترات الزمنية المتاحة يوميًا"
+    },
+    "assignments": {
+      "label": "التعيينات",
+      "help": "كتل المعلمين النشطة حاليًا"
+    },
+    "availableRooms": {
+      "label": "القاعات المتاحة",
+      "help": "قاعات جاهزة للجدولة"
+    }
+  },
+  "assignment": {
+    "alwaysActive": "نشط دائمًا",
+    "startsOn": "يبدأ في {{date}}",
+    "untilDate": "حتى {{date}}"
+  },
+  "assignmentForm": {
+    "buildTitle": "إنشاء تعيين",
+    "editTitle": "تعديل التعيين",
+    "subtitle": "طابق المعلم والفصل والمادة والقاعة والحصة في تدفق واحد.",
+    "cancelEdit": "إلغاء التعديل",
+    "teacher": "المعلم",
+    "teacherPlaceholder": "اختر معلمًا",
+    "class": "الفصل",
+    "classPlaceholderSelectTeacherFirst": "اختر المعلم أولًا",
+    "classPlaceholderSelectClass": "اختر فصلًا",
+    "classPlaceholderNoClasses": "لا توجد فصول مخصصة لهذا المعلم",
+    "subject": "المادة",
+    "subjectPlaceholderSelectTeacherFirst": "اختر المعلم أولًا",
+    "subjectPlaceholderOptional": "(اختياري)",
+    "subjectPlaceholderNoSubjects": "لا توجد مواد مخصصة لهذا المعلم",
+    "room": "القاعة",
+    "roomOptional": "(اختياري)",
+    "period": "الحصة",
+    "periodPlaceholder": "اختر حصة",
+    "startDate": "تاريخ البداية",
+    "endDate": "تاريخ النهاية",
+    "days": "الأيام",
+    "submitCreate": "إنشاء التعيين",
+    "submitUpdate": "تحديث التعيين",
+    "actionNote": "يرى المعلمون فقط المواد المرتبطة بالفصول التي يدرسونها بالفعل."
+  },
+  "assignments": {
+    "title": "التعيينات",
+    "subtitle": "راجع كتل الجدول الحالية وقلّصها حسب المعلم أو الفصل.",
+    "resultsShown": "{{count}} معروض",
+    "empty": "لا توجد تعيينات."
+  },
+  "table": {
+    "teacher": "المعلم",
+    "class": "الفصل",
+    "subject": "المادة",
+    "slot": "الفترة",
+    "schedule": "الجدول",
+    "noRoom": "بدون قاعة",
+    "noDays": "بدون أيام"
+  },
+  "assignmentFilters": {
+    "label": "تصفية حسب",
+    "allTeachers": "كل المعلمين",
+    "allClasses": "كل الفصول"
+  },
+  "subjectsPanel": {
+    "title": "المواد",
+    "subtitle": "احتفظ بقائمة المواد بجانب الجدول حتى تبقى إعدادات التعيين في مكان واحد.",
+    "addSubject": "إضافة مادة"
+  },
+  "periods": {
+    "title": "إعداد الحصص",
+    "subtitle": "أنشئ وعدّل كتل التدريس دون مغادرة الصفحة.",
+    "periodName": "الحصة {{number}}",
+    "periodNameAria": "اسم الحصة",
+    "periodNumberAria": "رقم الحصة",
+    "empty": "لا توجد حصص بعد."
+  },
+  "days": {
+    "sun": "الأحد",
+    "mon": "الاثنين",
+    "tue": "الثلاثاء",
+    "wed": "الأربعاء",
+    "thu": "الخميس",
+    "fri": "الجمعة",
+    "sat": "السبت"
+  },
+  "room": {
+    "floor": "الطابق {{value}}",
+    "types": {
+      "classroom": "فصل",
+      "lab": "مختبر",
+      "lecture_hall": "قاعة محاضرات",
+      "gym": "صالة رياضية",
+      "library": "مكتبة",
+      "office": "مكتب",
+      "other": "أخرى"
+    },
+    "status": {
+      "active": "نشط",
+      "maintenance": "صيانة",
+      "renovation": "تجديد",
+      "closed": "مغلق"
+    },
+    "unavailable": {
+      "occupied": "مشغول",
+      "unavailable": "غير متاح"
+    }
+  },
+  "roomModal": {
+    "title": "إضافة قاعة",
+    "closeAria": "إغلاق",
+    "name": "الاسم *",
+    "namePlaceholder": "مثال: قاعة 101",
+    "type": "النوع",
+    "capacity": "السعة",
+    "building": "المبنى",
+    "floor": "الطابق",
+    "roomNumber": "رقم القاعة",
+    "status": "الحالة",
+    "optionalPlaceholder": "اختياري",
+    "availableForScheduling": "متاحة للجدولة",
+    "creating": "جارٍ الإنشاء...",
+    "create": "إنشاء القاعة"
+  },
+  "confirm": {
+    "deletePeriod": "هل أنت متأكد من حذف هذه الحصة؟",
+    "deleteAssignment": "هل أنت متأكد من حذف هذا التعيين؟"
+  },
+  "toast": {
+    "selectCsv": "يرجى اختيار ملف CSV",
+    "noValidPeriodRows": "لا توجد صفوف حصص صالحة في CSV",
+    "importedPeriods": "تم استيراد {{count}} حصص",
+    "failedPeriodRows": "فشل {{count}} من صفوف الحصص",
+    "importPeriodsFailed": "فشل استيراد الحصص",
+    "noValidRoomRows": "لا توجد صفوف قاعات صالحة في CSV",
+    "importedRooms": "تم استيراد {{count}} قاعات",
+    "failedRoomRows": "فشل {{count}} من صفوف القاعات",
+    "importRoomsFailed": "فشل استيراد القاعات",
+    "noValidSubjectRows": "لا توجد صفوف مواد صالحة في CSV"
+  }
+}

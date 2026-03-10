@@ -1,0 +1,79 @@
+{
+  "page": {
+    "title": "Teachers",
+    "subtitle": "Manage teaching staff and class assignments"
+  },
+  "filters": {
+    "searchPlaceholder": "Search teachers..."
+  },
+  "table": {
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "subjects": "Subjects",
+      "actions": "Actions"
+    }
+  },
+  "empty": {
+    "noTeachers": "No teachers found"
+  },
+  "actions": {
+    "importCsv": "Import CSV",
+    "addTeacher": "Add Teacher",
+    "viewDetails": "View Details",
+    "editTeacher": "Edit Teacher",
+    "assignClasses": "Assign Classes",
+    "assign": "Assign",
+    "deleteTeacher": "Delete Teacher",
+    "creating": "Creating...",
+    "updating": "Updating...",
+    "updateTeacher": "Update Teacher",
+    "assigning": "Assigning..."
+  },
+  "modal": {
+    "editTitle": "Edit Teacher",
+    "createTitle": "Add New Teacher"
+  },
+  "form": {
+    "firstName": "First Name *",
+    "lastName": "Last Name *",
+    "email": "Email *",
+    "phone": "Phone",
+    "department": "Department",
+    "noDepartment": "— No department —",
+    "qualification": "Qualification",
+    "qualificationPlaceholder": "e.g., B.Ed, M.Sc",
+    "subjectsHint": "Subjects (hold Ctrl to select multiple)"
+  },
+  "assignments": {
+    "title": "Assign Classes to {{name}}",
+    "class": "Class *",
+    "selectClass": "Select a class",
+    "subject": "Subject *",
+    "selectSubject": "Select a subject",
+    "setAsClassTeacher": "Set as Class Teacher",
+    "addAnotherClass": "Add Another Class"
+  },
+  "confirm": {
+    "deleteTeacher": "Are you sure you want to delete {{name}}?"
+  },
+  "toast": {
+    "created": "Teacher created successfully!",
+    "createFailed": "Failed to create teacher",
+    "updated": "Teacher updated successfully!",
+    "updateFailed": "Failed to update teacher",
+    "deleted": "Teacher deleted successfully!",
+    "deleteFailed": "Failed to delete teacher",
+    "selectClassAndSubject": "Please select at least one class and subject",
+    "assigned": "Classes assigned successfully!",
+    "assignFailed": "Failed to assign classes",
+    "selectCsv": "Please select a CSV file",
+    "noValidRows": "No valid rows found in CSV",
+    "imported": "Imported {{count}} teachers",
+    "importFailedRows": "{{count}} teacher rows failed",
+    "importSkippedRows": "{{count}} teacher rows skipped",
+    "importFailed": "Failed to import teachers",
+    "importRowError": "Row {{row}} {{field}}{{message}}",
+    "importValidationFailed": "Import validation failed"
+  }
+}

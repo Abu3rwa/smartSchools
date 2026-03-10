@@ -126,6 +126,10 @@ export const previewCommunicationEmailRecipientsController = asyncHandler(async 
 export const generateCommunicationEmailDraftController = asyncHandler(async (req, res) => {
     const prompt = String(req.body?.prompt || '').trim();
     const tone = String(req.body?.tone || 'professional').trim();
+    const requestedLanguages = req.body?.requestedLanguages;
+    const primaryLanguage = req.body?.primaryLanguage;
+    const secondaryLanguage = req.body?.secondaryLanguage;
+    const language = req.body?.language;
     if (!prompt) {
         return res.status(400).json({
             success: false,
@@ -159,6 +163,10 @@ export const generateCommunicationEmailDraftController = asyncHandler(async (req
         userId: req.user._id,
         prompt,
         tone,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language,
         selection,
         senderDisplayName: senderIdentity.senderDisplayName
     });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import {
     ResponsiveContainer,
     BarChart,
@@ -83,11 +83,15 @@ const getGradingScaleColor = (value, scaleBands = DEFAULT_GRADING_SCALE) => {
     return band?.color || PERFORMANCE_COLORS.neutral;
 };
 
-const formatDateValue = (value) => {
+const formatDateValue = (value, locale = 'en') => {
     if (!value) return '—';
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return '—';
-    return format(parsed, 'MMM d, yyyy');
+    return new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    }).format(parsed);
 };
 
 const ScoreCell = ({ scoreLabel, percentage }) => {
@@ -103,6 +107,7 @@ const ScoreCell = ({ scoreLabel, percentage }) => {
 };
 
 const SubjectPerformanceTooltip = ({ active, payload, scaleBands }) => {
+    const { t } = useTranslation(['students']);
     if (!active || !payload?.length) return null;
     const row = payload[0]?.payload;
     const color = getGradingScaleColor(row?.average, scaleBands);
@@ -119,14 +124,14 @@ const SubjectPerformanceTooltip = ({ active, payload, scaleBands }) => {
             }}
         >
             <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                {row?.subject || 'Subject'}
+                {row?.subject || t('detail.insights.subject')}
             </div>
             <div style={{ color, fontWeight: 700, fontSize: 14 }}>
-                {Number.isFinite(row?.average) ? `${row.average.toFixed(1)}%` : 'N/A'}
+                {Number.isFinite(row?.average) ? `${row.average.toFixed(1)}%` : t('detail.common.na')}
             </div>
             {scaleBand?.grade && (
                 <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                    Grade: {scaleBand.grade}
+                    {t('detail.insights.grade')}: {scaleBand.grade}
                 </div>
             )}
         </div>
@@ -149,6 +154,7 @@ const StudentInsightsSection = ({
     onSchoolYearChange = () => {},
     onSemesterChange = () => {}
 }) => {
+    const { t, i18n } = useTranslation(['students']);
     const [trendSubjectFilter, setTrendSubjectFilter] = useState('all');
     const [trendCategoryFilter, setTrendCategoryFilter] = useState('all');
     const [subjectChartType, setSubjectChartType] = useState('column');
@@ -167,7 +173,7 @@ const StudentInsightsSection = ({
         grades.forEach((grade) => {
             const subjectId = toId(grade?.subject?._id || grade?.subject);
             if (!subjectId) return;
-            const subjectName = grade?.subject?.name || grade?.subject?.code || 'Unknown Subject';
+            const subjectName = grade?.subject?.name || grade?.subject?.code || t('detail.insights.unknownSubject');
             if (!subjectsMap.has(subjectId)) {
                 subjectsMap.set(subjectId, subjectName);
             }
@@ -175,7 +181,7 @@ const StudentInsightsSection = ({
 
         subjectPerformanceData.forEach((subject) => {
             const subjectId = toId(subject?.subjectId);
-            const subjectName = subject?.subject || 'Unknown Subject';
+            const subjectName = subject?.subject || t('detail.insights.unknownSubject');
             if (!subjectId) return;
             if (!subjectsMap.has(subjectId)) {
                 subjectsMap.set(subjectId, subjectName);
@@ -220,17 +226,54 @@ const StudentInsightsSection = ({
         [filteredMonthlyTrendData]
     );
 
+    const localizedMonthlyTrendData = useMemo(() => {
+        return filteredMonthlyTrendData.map((row) => {
+            if (!Number.isFinite(row.monthNumber)) return row;
+            return {
+                ...row,
+                month: new Intl.DateTimeFormat(i18n.language, { month: 'short' }).format(
+                    new Date(2026, row.monthNumber - 1, 1)
+                )
+            };
+        });
+    }, [filteredMonthlyTrendData, i18n.language]);
+
+    const getLocalizedTypeLabel = (rawLabel = '') => {
+        const normalized = String(rawLabel)
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+        return t(`detail.insights.types.${normalized}`, { defaultValue: rawLabel || t('detail.common.na') });
+    };
+
+    const getLocalizedStatus = (status = '') => {
+        const normalized = String(status)
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+        return t(`detail.insights.statuses.${normalized}`, { defaultValue: status || t('detail.common.na') });
+    };
+
+    const getLocalizedScoreLabel = (label = '') => {
+        if (String(label).trim().toLowerCase() === 'not graded') {
+            return t('detail.insights.notGraded');
+        }
+        return label;
+    };
+
     return (
         <section className="student-insights-section">
             <div className="card">
                 <div className="card-header">
-                    <h3 className="card-title">Student Performance Overview</h3>
+                    <h3 className="card-title">{t('detail.insights.studentPerformanceOverview')}</h3>
                 </div>
 
                 {loading ? (
                     <div className="insights-loading">
                         <div className="spinner" />
-                        <p className="mb-0">Loading performance data...</p>
+                        <p className="mb-0">{t('detail.insights.loadingPerformanceData')}</p>
                     </div>
                 ) : (
                     <>
@@ -238,46 +281,46 @@ const StudentInsightsSection = ({
 
                         <div className="student-overview-metrics">
                             <div className="overview-stat-card">
-                                <span className="overview-stat-label">Overall Average</span>
+                                <span className="overview-stat-label">{t('detail.insights.overallAverage')}</span>
                                 <strong className="overview-stat-value">{overview.overallAverageLabel}</strong>
                             </div>
                             <div className="overview-stat-card">
-                                <span className="overview-stat-label">Graded Entries</span>
+                                <span className="overview-stat-label">{t('detail.insights.gradedEntries')}</span>
                                 <strong className="overview-stat-value">{overview.gradedEntries}</strong>
                             </div>
                             <div className="overview-stat-card">
-                                <span className="overview-stat-label">Assignment Completion</span>
+                                <span className="overview-stat-label">{t('detail.insights.assignmentCompletion')}</span>
                                 <strong className="overview-stat-value">{overview.assignmentCompletionLabel}</strong>
                             </div>
                             <div className="overview-stat-card">
-                                <span className="overview-stat-label">Best Subject</span>
+                                <span className="overview-stat-label">{t('detail.insights.bestSubject')}</span>
                                 <strong className="overview-stat-value text-truncate">{overview.bestSubject}</strong>
                             </div>
                         </div>
 
                         <div className="trend-filter-row global-insights-filter-row">
                             <label className="trend-filter-item">
-                                <span>School Year</span>
+                                <span>{t('detail.insights.schoolYear')}</span>
                                 <select
                                     value={schoolYearFilter}
                                     onChange={(event) => onSchoolYearChange(event.target.value)}
                                 >
                                     {schoolYearOptions.map((year) => (
                                         <option key={year} value={year}>
-                                            {year === 'all' ? 'All School Years' : year}
+                                            {year === 'all' ? t('detail.insights.allSchoolYears') : year}
                                         </option>
                                     ))}
                                 </select>
                             </label>
                             <label className="trend-filter-item">
-                                <span>Semester</span>
+                                <span>{t('detail.insights.semester')}</span>
                                 <select
                                     value={semesterFilter}
                                     onChange={(event) => onSemesterChange(event.target.value)}
                                 >
-                                    <option value="">All Semesters</option>
-                                    <option value="1">Semester 1</option>
-                                    <option value="2">Semester 2</option>
+                                    <option value="">{t('detail.insights.allSemesters')}</option>
+                                    <option value="1">{t('detail.insights.semester1')}</option>
+                                    <option value="2">{t('detail.insights.semester2')}</option>
                                 </select>
                             </label>
                         </div>
@@ -285,21 +328,21 @@ const StudentInsightsSection = ({
                         <div className="charts-grid">
                             <div className="chart-card">
                                 <div className="chart-card-header">
-                                    <h4>Subject Performance</h4>
-                                    <div className="chart-view-toggle" role="group" aria-label="Subject performance chart type">
+                                    <h4>{t('detail.insights.subjectPerformance')}</h4>
+                                    <div className="chart-view-toggle" role="group" aria-label={t('detail.insights.subjectPerformanceChartType')}>
                                         <button
                                             type="button"
                                             className={subjectChartType === 'column' ? 'is-active' : ''}
                                             onClick={() => setSubjectChartType('column')}
                                         >
-                                            Column
+                                            {t('detail.insights.column')}
                                         </button>
                                         <button
                                             type="button"
                                             className={subjectChartType === 'line' ? 'is-active' : ''}
                                             onClick={() => setSubjectChartType('line')}
                                         >
-                                            Line
+                                            {t('detail.insights.line')}
                                         </button>
                                     </div>
                                 </div>
@@ -367,38 +410,38 @@ const StudentInsightsSection = ({
                                         )}
                                     </ResponsiveContainer>
                                 ) : (
-                                    <p className="text-muted mb-0">No subject performance data yet.</p>
+                                    <p className="text-muted mb-0">{t('detail.insights.noSubjectPerformanceData')}</p>
                                 )}
                             </div>
 
                             <div className="chart-card">
                                 <div className="chart-card-header">
-                                    <h4>Monthly Trend</h4>
-                                    <div className="chart-view-toggle" role="group" aria-label="Monthly trend chart type">
+                                    <h4>{t('detail.insights.monthlyTrend')}</h4>
+                                    <div className="chart-view-toggle" role="group" aria-label={t('detail.insights.monthlyTrendChartType')}>
                                         <button
                                             type="button"
                                             className={trendChartType === 'column' ? 'is-active' : ''}
                                             onClick={() => setTrendChartType('column')}
                                         >
-                                            Column
+                                            {t('detail.insights.column')}
                                         </button>
                                         <button
                                             type="button"
                                             className={trendChartType === 'line' ? 'is-active' : ''}
                                             onClick={() => setTrendChartType('line')}
                                         >
-                                            Line
+                                            {t('detail.insights.line')}
                                         </button>
                                     </div>
                                 </div>
                                 <div className="trend-filter-row">
                                     <label className="trend-filter-item">
-                                        <span>Subject</span>
+                                        <span>{t('detail.insights.subject')}</span>
                                         <select
                                             value={trendSubjectFilter}
                                             onChange={(event) => setTrendSubjectFilter(event.target.value)}
                                         >
-                                            <option value="all">All Subjects</option>
+                                            <option value="all">{t('detail.insights.allSubjects')}</option>
                                             {trendSubjectOptions.map((subject) => (
                                                 <option key={subject.value} value={subject.value}>
                                                     {subject.label}
@@ -407,25 +450,25 @@ const StudentInsightsSection = ({
                                         </select>
                                     </label>
                                     <label className="trend-filter-item">
-                                        <span>Category</span>
+                                        <span>{t('detail.insights.category')}</span>
                                         <select
                                             value={trendCategoryFilter}
                                             onChange={(event) => setTrendCategoryFilter(event.target.value)}
                                         >
-                                            <option value="all">All Categories</option>
+                                            <option value="all">{t('detail.insights.allCategories')}</option>
                                             {trendCategoryOptions.map((category) => (
                                                 <option key={category.value} value={category.value}>
-                                                    {category.label}
+                                                    {t(`detail.insights.categories.${category.value}`, { defaultValue: category.label })}
                                                 </option>
                                             ))}
                                         </select>
                                     </label>
                                 </div>
-                                {filteredMonthlyTrendData.length ? (
+                                {localizedMonthlyTrendData.length ? (
                                     <ResponsiveContainer width="100%" height={260}>
                                         {trendChartType === 'column' ? (
                                             <BarChart
-                                                data={filteredMonthlyTrendData}
+                                                data={localizedMonthlyTrendData}
                                                 margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
                                             >
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
@@ -444,7 +487,7 @@ const StudentInsightsSection = ({
                                                     dataKey="average"
                                                     radius={[6, 6, 0, 0]}
                                                 >
-                                                    {filteredMonthlyTrendData.map((entry, index) => (
+                                                    {localizedMonthlyTrendData.map((entry, index) => (
                                                         <Cell
                                                             key={`monthly-trend-cell-${entry.month}-${index}`}
                                                             fill={getGradingScaleColor(entry.average, scaleBands)}
@@ -454,7 +497,7 @@ const StudentInsightsSection = ({
                                             </BarChart>
                                         ) : (
                                             <LineChart
-                                                data={filteredMonthlyTrendData}
+                                                data={localizedMonthlyTrendData}
                                                 margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
                                             >
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
@@ -480,11 +523,11 @@ const StudentInsightsSection = ({
                                         )}
                                     </ResponsiveContainer>
                                 ) : (
-                                    <p className="text-muted mb-0">No monthly trend available yet.</p>
+                                    <p className="text-muted mb-0">{t('detail.insights.noMonthlyTrendAvailable')}</p>
                                 )}
                                 {!hasTrendData && (
                                     <p className="text-muted mb-0">
-                                        No grade data for the selected subject/category in this school year and semester.
+                                        {t('detail.insights.noGradeDataForSelection')}
                                     </p>
                                 )}
                             </div>
@@ -492,9 +535,9 @@ const StudentInsightsSection = ({
 
                         <div className="assignments-card">
                             <div className="assignments-card-header">
-                                <h4>Assignments and Grade Entries</h4>
+                                <h4>{t('detail.insights.assignmentsAndGradeEntries')}</h4>
                                 <span className="text-muted">
-                                    Showing latest {Math.min(assignmentRows.length, MAX_ASSIGNMENT_ROWS)}
+                                    {t('detail.insights.showingLatest', { count: Math.min(assignmentRows.length, MAX_ASSIGNMENT_ROWS) })}
                                 </span>
                             </div>
                             {assignmentRows.length ? (
@@ -502,12 +545,12 @@ const StudentInsightsSection = ({
                                     <table className="assignment-table">
                                         <thead>
                                             <tr>
-                                                <th>Title</th>
-                                                <th>Subject</th>
-                                                <th>Type</th>
-                                                <th>Date</th>
-                                                <th>Score</th>
-                                                <th>Status</th>
+                                                <th>{t('detail.insights.columns.title')}</th>
+                                                <th>{t('detail.insights.columns.subject')}</th>
+                                                <th>{t('detail.insights.columns.type')}</th>
+                                                <th>{t('detail.insights.columns.date')}</th>
+                                                <th>{t('detail.insights.columns.score')}</th>
+                                                <th>{t('detail.insights.columns.status')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -515,12 +558,12 @@ const StudentInsightsSection = ({
                                                 <tr key={row.id}>
                                                     <td>{row.title}</td>
                                                     <td>{row.subjectName}</td>
-                                                    <td>{row.typeLabel}</td>
-                                                    <td>{formatDateValue(row.gradedAt || row.dueDate)}</td>
-                                                    <td><ScoreCell scoreLabel={row.scoreLabel} percentage={row.percentage} /></td>
+                                                    <td>{getLocalizedTypeLabel(row.typeLabel)}</td>
+                                                    <td>{formatDateValue(row.gradedAt || row.dueDate, i18n.language)}</td>
+                                                    <td><ScoreCell scoreLabel={getLocalizedScoreLabel(row.scoreLabel)} percentage={row.percentage} /></td>
                                                     <td>
                                                         <span className={`status-pill status-pill-${row.statusTone}`}>
-                                                            {row.status}
+                                                            {getLocalizedStatus(row.status)}
                                                         </span>
                                                     </td>
                                                 </tr>
@@ -529,7 +572,7 @@ const StudentInsightsSection = ({
                                     </table>
                                 </div>
                             ) : (
-                                <p className="text-muted mb-0">No assignments or grade entries for this student yet.</p>
+                                <p className="text-muted mb-0">{t('detail.insights.noAssignmentsOrGrades')}</p>
                             )}
                         </div>
                     </>

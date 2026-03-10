@@ -1,0 +1,32 @@
+{
+  "page": {
+    "title": "Users Management"
+  },
+  "search": {
+    "placeholder": "Search users by name, email, or role..."
+  },
+  "empty": {
+    "noUsers": "No users found"
+  },
+  "table": {
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "school": "School",
+    "status": "Status"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "role": {
+    "super_admin": "Super Admin",
+    "admin": "Admin",
+    "teacher": "Teacher",
+    "student": "Student",
+    "parent": "Parent"
+  },
+  "common": {
+    "na": "N/A"
+  }
+}

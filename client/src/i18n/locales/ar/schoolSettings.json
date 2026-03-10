@@ -1,0 +1,254 @@
+{
+  "header": {
+    "title": "إعدادات المدرسة",
+    "subtitle": "إدارة الهوية البصرية، الأقسام، المستخدمين، وإعداد السنة الدراسية"
+  },
+  "tabs": {
+    "departments": "الأقسام",
+    "usersAndRoles": "المستخدمون والأدوار",
+    "lessonPlanCriteria": "معايير خطة الدرس",
+    "gradingScales": "سلالم التقدير",
+    "branding": "الهوية البصرية",
+    "communication": "التواصل",
+    "schoolYear": "السنة الدراسية"
+  },
+  "common": {
+    "cancel": "إلغاء",
+    "saving": "جارٍ الحفظ...",
+    "update": "تحديث",
+    "dash": "—",
+    "ellipsis": "..."
+  },
+  "departments": {
+    "helpText": "أنشئ وأدر الأقسام (مثل: المرحلة المتوسطة، تقنية المعلومات، الموارد البشرية).",
+    "noDescription": "لا يوجد وصف",
+    "empty": "لا توجد أقسام بعد. أضف قسمًا للبدء.",
+    "type": {
+      "academic": "أكاديمي",
+      "support": "دعم"
+    },
+    "actions": {
+      "addDepartment": "إضافة قسم",
+      "edit": "تعديل",
+      "delete": "حذف"
+    },
+    "modal": {
+      "addTitle": "إضافة قسم",
+      "editTitle": "تعديل القسم",
+      "nameLabel": "الاسم *",
+      "namePlaceholder": "مثال: المرحلة المتوسطة، قسم تقنية المعلومات",
+      "typeLabel": "النوع",
+      "descriptionLabel": "الوصف",
+      "descriptionPlaceholder": "وصف اختياري"
+    }
+  },
+  "users": {
+    "table": {
+      "name": "الاسم",
+      "email": "البريد الإلكتروني",
+      "role": "الدور",
+      "department": "القسم"
+    },
+    "actions": {
+      "editRole": "تعديل الدور"
+    },
+    "empty": "لا يوجد مستخدمون في هذه المدرسة.",
+    "modal": {
+      "editRoleTitle": "تعديل الدور — {{name}}",
+      "roleLabel": "الدور",
+      "departmentLabel": "القسم",
+      "optional": "(اختياري)",
+      "noneWholeSchoolPrincipal": "— بدون (مدير عام للمدرسة) —",
+      "departmentHint": "إذا تُرك فارغًا، سيتمكن المستخدم من رؤية بيانات المدرسة كاملة (مدير عام).",
+      "permissionsLabel": "الصلاحيات",
+      "permissionsHint": "اختر صلاحيات محددة لهذا المستخدم. يمتلك المسؤولون جميع الصلاحيات افتراضيًا.",
+      "permissionsSelected_one": "تم اختيار صلاحية واحدة",
+      "permissionsSelected_other": "تم اختيار {{count}} صلاحية"
+    }
+  },
+  "roles": {
+    "admin": "مسؤول",
+    "staff": "موظف",
+    "teacher": "معلم",
+    "department_principal": "رئيس قسم",
+    "parent": "ولي أمر",
+    "student": "طالب",
+    "attendance_manager": "مدير الحضور (قديم)",
+    "lesson_plan_reviewer": "مراجع خطط الدروس (قديم)",
+    "report_viewer": "مطلع التقارير (قديم)",
+    "event_coordinator": "منسق الفعاليات (قديم)",
+    "behavior_manager": "مدير السلوك (قديم)",
+    "transportation_coordinator": "منسق النقل (قديم)",
+    "cafeteria_manager": "مدير المقصف (قديم)",
+    "library_manager": "مدير المكتبة (قديم)",
+    "it_support": "دعم تقني (قديم)",
+    "counselor": "مرشد (قديم)",
+    "nurse": "ممرّض/ة (قديم)"
+  },
+  "permissionCategories": {
+    "attendance": "الحضور",
+    "academic": "أكاديمي",
+    "operations": "العمليات",
+    "reports": "التقارير",
+    "student_services": "خدمات الطلاب",
+    "admin": "الإدارة"
+  },
+  "branding": {
+    "title": "هوية المدرسة",
+    "uploadHelpPrefix": "ارفع شعارًا لـ",
+    "uploadHelpSuffix": "يمكن استخدام هذا الشعار عبر البوابة والتقارير.",
+    "yourSchool": "مدرستك",
+    "logoLabel": "شعار المدرسة (PNG/JPG، حتى 5MB)"
+  },
+  "communication": {
+    "title": "التواصل",
+    "helpText": "تحكم في صياغة نص البريد الإلكتروني بمساعدة الذكاء الاصطناعي داخل محرر البريد للمدرسة.",
+    "enableAiEmailDrafting": "تفعيل صياغة البريد بالذكاء الاصطناعي لهذه المدرسة"
+  },
+  "gradingScales": {
+    "helpText": "اضبط حدود الدرجات الحرفية والألوان لعرضها في الرسوم ودفتر الدرجات.",
+    "noDescription": "لا يوجد وصف",
+    "empty": "لا توجد سلالم تقدير مهيأة.",
+    "badges": {
+      "default": "افتراضي",
+      "system": "نظام"
+    },
+    "status": {
+      "active": "نشط",
+      "inactive": "غير نشط"
+    },
+    "actions": {
+      "newScale": "سلم تقدير جديد",
+      "edit": "تعديل",
+      "setDefault": "تعيين كافتراضي",
+      "delete": "حذف",
+      "addBand": "إضافة نطاق",
+      "remove": "إزالة",
+      "updateScale": "تحديث السلم",
+      "createScale": "إنشاء السلم"
+    },
+    "form": {
+      "createTitle": "إنشاء سلم تقدير",
+      "editTitle": "تعديل سلم التقدير",
+      "nameLabel": "الاسم *",
+      "namePlaceholder": "مثال: سلم المرحلة الابتدائية",
+      "descriptionLabel": "الوصف",
+      "descriptionPlaceholder": "وصف اختياري",
+      "sortOrderLabel": "ترتيب العرض",
+      "statusLabel": "الحالة",
+      "bandsTitle": "النطاقات"
+    },
+    "table": {
+      "grade": "التقدير",
+      "min": "الحد الأدنى",
+      "max": "الحد الأعلى",
+      "color": "اللون"
+    }
+  },
+  "schoolYear": {
+    "intro": "قم بإعداد سنة دراسية جديدة: أنشئ الفصول من السنة السابقة، عطّل الفصول القديمة، وقم بترفيع الطلاب. ثم عيّن المعلمين ورؤساء الأقسام للسنة الجديدة.",
+    "selectPlaceholder": "— اختر —",
+    "actions": {
+      "creating": "جارٍ الإنشاء...",
+      "updating": "جارٍ التحديث...",
+      "promoting": "جارٍ الترفيع...",
+      "switching": "جارٍ التحويل..."
+    },
+    "step0": {
+      "title": "0. تحديد تواريخ السنة الدراسية",
+      "subtitle": "تُستخدم هذه التواريخ في اتجاهات الأداء والتقارير.",
+      "startDate": "تاريخ البداية",
+      "endDate": "تاريخ النهاية",
+      "saveDates": "حفظ تواريخ السنة الدراسية"
+    },
+    "step1": {
+      "title": "1. اختيار السنوات",
+      "fromYear": "من (السنة السابقة)",
+      "toYear": "إلى (السنة الجديدة)",
+      "toYearPlaceholder": "مثال: 2026-2027"
+    },
+    "step2": {
+      "title": "2. إنشاء فصول السنة الجديدة",
+      "subtitle": "ينشئ فصولًا بنفس بنية الصف/الشعبة. لا يتم نسخ المعلمين ويجب تعيينهم لاحقًا.",
+      "action": "إنشاء الفصول من السنة السابقة",
+      "result": "تم إنشاء {{count}} فصل."
+    },
+    "step3": {
+      "title": "3. تعطيل فصول السنة السابقة (اختياري)",
+      "subtitle": "يتم وضع جميع فصول السنة المحددة كغير نشطة مع الاحتفاظ بالبيانات السابقة.",
+      "action": "تعطيل جميع فصول سنة {{year}}",
+      "result": "تم تعطيل {{count}} فصل."
+    },
+    "step4": {
+      "title": "4. ترفيع الطلاب",
+      "subtitle": "يرفع الطلاب النشطين إلى الصف التالي في السنة الجديدة. يتم اعتبار طلاب الصف 12 متخرجين مع حفظ سجل الالتحاق.",
+      "action": "ترفيع الطلاب إلى الصف التالي",
+      "result": "تم الترفيع: {{promoted}} · تخرج: {{graduated}} · تم التجاوز: {{skipped}}",
+      "errorsSummary": "الأخطاء"
+    },
+    "step5": {
+      "title": "5. التحويل إلى السنة الجديدة",
+      "currentYear": "السنة الدراسية الحالية للمدرسة:",
+      "action": "التحويل إلى {{year}}",
+      "newYearFallback": "السنة الجديدة"
+    },
+    "step6": {
+      "title": "6. تعيين المعلمين ورؤساء الأقسام",
+      "subtitle": "عدّل فصول السنة الجديدة وأدوار المستخدمين.",
+      "editClasses": "تعديل الفصول",
+      "editUsersRoles": "تعديل المستخدمين والأدوار"
+    }
+  },
+  "confirm": {
+    "deleteDepartment": "هل أنت متأكد من حذف هذا القسم؟",
+    "promoteStudents": "هل تريد ترفيع الطلاب من {{fromYear}} إلى {{toYear}}؟ سيؤدي ذلك إلى تحديث جميع الطلاب النشطين.",
+    "deleteGradingScale": "حذف سلم التقدير \"{{name}}\"؟"
+  },
+  "toast": {
+    "loadUsersFailed": "فشل تحميل المستخدمين",
+    "loadSchoolProfileFailed": "فشل تحميل ملف المدرسة",
+    "loadCommunicationSettingsFailed": "فشل تحميل إعدادات التواصل",
+    "loadGradingScalesFailed": "فشل تحميل سلالم التقدير",
+    "schoolLogoUpdated": "تم تحديث شعار المدرسة",
+    "schoolLogoUpdateFailed": "فشل تحديث شعار المدرسة",
+    "schoolLogoRemoved": "تمت إزالة شعار المدرسة",
+    "schoolLogoRemoveFailed": "فشل إزالة شعار المدرسة",
+    "communicationSettingsUpdated": "تم تحديث إعدادات التواصل",
+    "communicationSettingsUpdateFailed": "فشل تحديث إعدادات التواصل",
+    "loadAcademicYearsFailed": "فشل تحميل السنوات الدراسية",
+    "loadSchoolYearDatesFailed": "فشل تحميل تواريخ السنة الدراسية",
+    "selectFromAndToYears": "اختر سنة البداية وسنة النهاية",
+    "classesCreated": "تم إنشاء الفصول",
+    "createClassesFailed": "فشل إنشاء الفصول",
+    "selectYearToDeactivate": "اختر السنة المراد تعطيلها",
+    "deactivateYearSuccess": "تم تعطيل السنة",
+    "deactivateYearFailed": "فشل التعطيل",
+    "promoteSuccess": "تم ترفيع الطلاب",
+    "promoteFailed": "فشل الترفيع",
+    "invalidAcademicYear": "أدخل سنة دراسية صالحة مثل 2026-2027",
+    "academicYearSet": "تم ضبط السنة الدراسية إلى {{year}}",
+    "updateAcademicYearFailed": "فشل تحديث السنة الدراسية",
+    "schoolYearDatesRequired": "تاريخا البداية والنهاية مطلوبان",
+    "schoolYearEndDateInvalid": "يجب أن يكون تاريخ النهاية مساويًا أو بعد تاريخ البداية",
+    "schoolYearDatesUpdated": "تم تحديث تواريخ السنة الدراسية",
+    "schoolYearDatesUpdateFailed": "فشل تحديث تواريخ السنة الدراسية",
+    "departmentUpdated": "تم تحديث القسم",
+    "departmentCreated": "تم إنشاء القسم",
+    "saveDepartmentFailed": "فشل حفظ القسم",
+    "departmentDeleted": "تم حذف القسم",
+    "deleteDepartmentFailed": "فشل حذف القسم",
+    "noPermissionManageUsers": "لا تملك صلاحية إدارة المستخدمين",
+    "userUpdated": "تم تحديث المستخدم",
+    "updateUserFailed": "فشل تحديث المستخدم",
+    "noPermissionManageGradingScales": "لا تملك صلاحية إدارة سلالم التقدير",
+    "scaleNameRequired": "اسم السلم مطلوب",
+    "gradingBandRequired": "يجب إضافة نطاق تقدير واحد على الأقل",
+    "gradingScaleUpdated": "تم تحديث سلم التقدير",
+    "gradingScaleCreated": "تم إنشاء سلم التقدير",
+    "saveGradingScaleFailed": "فشل حفظ سلم التقدير",
+    "defaultGradingScaleUpdated": "تم تحديث سلم التقدير الافتراضي",
+    "setDefaultGradingScaleFailed": "فشل تعيين سلم التقدير الافتراضي",
+    "gradingScaleDeleted": "تم حذف سلم التقدير",
+    "deleteGradingScaleFailed": "فشل حذف سلم التقدير"
+  }
+}

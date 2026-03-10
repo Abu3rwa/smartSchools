@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { selectUser } from '../../../store/slices/authSlice';
 import api from '../../../config/api';
 import {
@@ -47,6 +48,8 @@ const SuperAdminDashboardPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const user = useSelector(selectUser);
+    const { t, i18n } = useTranslation(['superAdminDashboard']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : 'en-US';
     const subscriptionAnalytics = useSelector(selectSubscriptionAnalytics);
     const [schools, setSchools] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -75,16 +78,38 @@ const SuperAdminDashboardPage = () => {
         }
     };
 
-    const todayLabel = new Intl.DateTimeFormat(undefined, {
+    const todayLabel = new Intl.DateTimeFormat(locale, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
     }).format(new Date());
 
+    const formatCurrency = (amount = 0, currency = 'USD') =>
+        new Intl.NumberFormat(locale, {
+            style: 'currency',
+            currency
+        }).format(amount);
+
+    const formatPlanLabel = (plan = '') =>
+        String(plan || '')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\b\w/g, (char) => char.toUpperCase())
+            .trim();
+
+    const getPlanLabel = (plan = '') => {
+        const normalized = String(plan || '').toLowerCase();
+        return t(`superAdminDashboard:plan.${normalized}`, { defaultValue: formatPlanLabel(normalized) });
+    };
+
+    const getStatusLabel = (status = '') => {
+        const normalized = String(status || '').toLowerCase();
+        return t(`superAdminDashboard:status.${normalized}`, { defaultValue: normalized });
+    };
+
     const studentsBySchoolData = (schools || [])
         .filter((s) => typeof s.studentCount === 'number' && s.studentCount > 0)
         .map((s) => ({
-            name: s.name || 'School',
+            name: s.name || t('superAdminDashboard:common.school'),
             students: s.studentCount,
         }));
 
@@ -98,20 +123,20 @@ const SuperAdminDashboardPage = () => {
         const month = item._id?.month;
         const label =
             year && month
-                ? new Date(year, month - 1, 1).toLocaleDateString(undefined, {
+                ? new Date(year, month - 1, 1).toLocaleDateString(locale, {
                       month: 'short',
                       year: '2-digit',
                   })
                 : '';
         return {
-            label: label || 'Period',
+            label: label || t('superAdminDashboard:common.period'),
             revenue: item.revenue || 0,
             newSubscriptions: item.newSubscriptions || 0,
         };
     });
 
     const planDistributionData = planDistribution.map((p) => ({
-        name: p._id || 'plan',
+        name: getPlanLabel(p._id || 'starter'),
         count: p.count || 0,
     }));
 
@@ -121,8 +146,8 @@ const SuperAdminDashboardPage = () => {
         <div className="admin-dashboard">
             <header className="admin-dashboard-header">
                 <div>
-                    <h1>Platform Analytics</h1>
-                    <p className="admin-dashboard-subtitle">SaaS business metrics and engagement overview</p>
+                    <h1>{t('superAdminDashboard:header.title')}</h1>
+                    <p className="admin-dashboard-subtitle">{t('superAdminDashboard:header.subtitle')}</p>
                 </div>
                 <p className="admin-dashboard-date">{todayLabel}</p>
             </header>
@@ -133,32 +158,32 @@ const SuperAdminDashboardPage = () => {
                     icon={HiOutlineOfficeBuilding}
                     variant="schools"
                     value={stats.schools}
-                    label="Total Schools"
+                    label={t('superAdminDashboard:stats.totalSchools')}
                 />
                 <AdminStatCard
                     icon={HiOutlineUserGroup}
                     variant="users"
                     value={stats.users}
-                    label="Total Users"
+                    label={t('superAdminDashboard:stats.totalUsers')}
                 />
                 <AdminStatCard
                     icon={HiOutlineAcademicCap}
                     variant="students"
                     value={stats.students}
-                    label="Total Students"
+                    label={t('superAdminDashboard:stats.totalStudents')}
                 />
                 <AdminStatCard
                     icon={HiOutlineCurrencyDollar}
                     variant="revenue"
-                    value={`$${mrrValue.toLocaleString()}`}
-                    label="Monthly Recurring Revenue"
+                    value={formatCurrency(mrrValue)}
+                    label={t('superAdminDashboard:stats.monthlyRecurringRevenue')}
                 />
             </section>
 
             {/* Quick Actions */}
             <section className="admin-section admin-quick-actions">
                 <div className="admin-section-header">
-                    <h2>Quick Actions</h2>
+                    <h2>{t('superAdminDashboard:quickActions.title')}</h2>
                 </div>
                 <div className="admin-actions">
                     <button
@@ -166,13 +191,13 @@ const SuperAdminDashboardPage = () => {
                         onClick={() => navigate('/admin/schools/new')}
                     >
                         <HiOutlinePlus size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                        Add School
+                        {t('superAdminDashboard:quickActions.addSchool')}
                     </button>
                     <button
                         className="admin-action-btn"
                         onClick={() => navigate('/admin/schools')}
                     >
-                        View all schools
+                        {t('superAdminDashboard:quickActions.viewAllSchools')}
                     </button>
                 </div>
             </section>
@@ -181,14 +206,14 @@ const SuperAdminDashboardPage = () => {
             <section className="admin-analytics-grid">
                     <div className="admin-section">
                         <div className="admin-section-header">
-                            <h2>Revenue & Growth</h2>
+                            <h2>{t('superAdminDashboard:analytics.revenueGrowthTitle')}</h2>
                             <p className="admin-section-subtitle">
-                                New subscriptions and recurring revenue over the last year.
+                                {t('superAdminDashboard:analytics.revenueGrowthSubtitle')}
                             </p>
                         </div>
                         <div className="admin-chart-container">
                             {revenueTrendData.length === 0 ? (
-                                <p className="admin-empty-text">Not enough data yet.</p>
+                                <p className="admin-empty-text">{t('superAdminDashboard:analytics.notEnoughData')}</p>
                             ) : (
                                 <ResponsiveContainer width="100%" height={260}>
                                     <BarChart
@@ -201,7 +226,7 @@ const SuperAdminDashboardPage = () => {
                                         <Tooltip />
                                         <Bar
                                             dataKey="revenue"
-                                            name="Revenue"
+                                            name={t('superAdminDashboard:charts.revenue')}
                                             fill="var(--primary, #4f46e5)"
                                             radius={[4, 4, 0, 0]}
                                         />
@@ -210,15 +235,15 @@ const SuperAdminDashboardPage = () => {
                             )}
                             <div className="admin-metrics-row">
                                 <div className="admin-metric-pill">
-                                    <span className="admin-metric-label">Current MRR</span>
+                                    <span className="admin-metric-label">{t('superAdminDashboard:analytics.currentMrr')}</span>
                                     <span className="admin-metric-value">
-                                        ${mrrValue.toLocaleString()}
+                                        {formatCurrency(mrrValue)}
                                     </span>
                                 </div>
                                 <div className="admin-metric-pill">
-                                    <span className="admin-metric-label">Total collected</span>
+                                    <span className="admin-metric-label">{t('superAdminDashboard:analytics.totalCollected')}</span>
                                     <span className="admin-metric-value">
-                                        ${totalCollected.toLocaleString()}
+                                        {formatCurrency(totalCollected)}
                                     </span>
                                 </div>
                             </div>
@@ -227,14 +252,14 @@ const SuperAdminDashboardPage = () => {
 
                     <div className="admin-section">
                         <div className="admin-section-header">
-                            <h2>Plans</h2>
+                            <h2>{t('superAdminDashboard:analytics.plansTitle')}</h2>
                             <p className="admin-section-subtitle">
-                                Distribution of schools across subscription plans.
+                                {t('superAdminDashboard:analytics.plansSubtitle')}
                             </p>
                         </div>
                         <div className="admin-chart-container">
                             {planDistributionData.length === 0 ? (
-                                <p className="admin-empty-text">No subscriptions yet.</p>
+                                <p className="admin-empty-text">{t('superAdminDashboard:analytics.noSubscriptions')}</p>
                             ) : (
                                 <ResponsiveContainer width="100%" height={260}>
                                     <PieChart>
@@ -268,7 +293,7 @@ const SuperAdminDashboardPage = () => {
             {!!studentsBySchoolData.length && (
                 <section className="admin-section">
                     <div className="admin-section-header">
-                        <h2>Student Distribution</h2>
+                        <h2>{t('superAdminDashboard:analytics.studentDistribution')}</h2>
                     </div>
                     <div className="admin-chart-container">
                         <ResponsiveContainer width="100%" height={260}>
@@ -296,7 +321,7 @@ const SuperAdminDashboardPage = () => {
             {/* Schools Table */}
             <section className="admin-section">
                 <div className="admin-section-header">
-                    <h2>Schools</h2>
+                    <h2>{t('superAdminDashboard:schools.title')}</h2>
                 </div>
 
                 {loading ? (
@@ -305,19 +330,19 @@ const SuperAdminDashboardPage = () => {
                     </div>
                 ) : schools.length === 0 ? (
                     <div className="admin-empty">
-                        <p>No schools yet. Create your first school to get started.</p>
+                        <p>{t('superAdminDashboard:schools.empty')}</p>
                     </div>
                 ) : (
                     <div className="admin-table-wrap">
                         <table className="admin-table">
                             <thead>
                                 <tr>
-                                    <th>School</th>
-                                    <th>Admin</th>
-                                    <th>Users</th>
-                                    <th>Students</th>
-                                    <th>Plan</th>
-                                    <th>Status</th>
+                                    <th>{t('superAdminDashboard:schools.table.school')}</th>
+                                    <th>{t('superAdminDashboard:schools.table.admin')}</th>
+                                    <th>{t('superAdminDashboard:schools.table.users')}</th>
+                                    <th>{t('superAdminDashboard:schools.table.students')}</th>
+                                    <th>{t('superAdminDashboard:schools.table.plan')}</th>
+                                    <th>{t('superAdminDashboard:schools.table.status')}</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -329,7 +354,7 @@ const SuperAdminDashboardPage = () => {
                                         <td>{school.userCount || 0}</td>
                                         <td>{school.studentCount || 0}</td>
                                         <td style={{ textTransform: 'capitalize' }}>
-                                            {school.subscription?.plan || 'starter'}
+                                            {getPlanLabel(school.subscription?.plan || 'starter')}
                                         </td>
                                         <td>
                                             <span
@@ -337,7 +362,7 @@ const SuperAdminDashboardPage = () => {
                                                     school.subscription?.status || 'active'
                                                 }`}
                                             >
-                                                {school.subscription?.status || 'active'}
+                                                {getStatusLabel(school.subscription?.status || 'active')}
                                             </span>
                                         </td>
                                         <td>

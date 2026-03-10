@@ -12,6 +12,11 @@ import ReadingCompletion from "../models/ReadingCompletion.js";
 import Student from "../models/Student.js";
 import Class from "../models/Class.js";
 import { getAcademicYearDateRange } from "../utils/academicYear.js";
+import {
+  getLanguageLabel,
+  resolveRequestedLanguages,
+  toLegacyLanguageValue
+} from "../utils/aiLanguageUtils.js";
 
 /** Approximate syllables in a word (vowel groups). */
 function countSyllables(word) {
@@ -52,6 +57,22 @@ function parseJsonFromResponse(text) {
   return null;
 }
 
+function buildReadingLanguageRule(requestedLanguages = ["en"]) {
+  const normalized = Array.isArray(requestedLanguages) && requestedLanguages.length > 0
+    ? requestedLanguages.slice(0, 2)
+    : ["en"];
+  const primary = normalized[0] || "en";
+  const primaryLabel = getLanguageLabel(primary);
+
+  if (normalized.length > 1) {
+    const secondary = normalized[1];
+    const secondaryLabel = getLanguageLabel(secondary);
+    return `Use bilingual output with two clear blocks: first ${primaryLabel} (${primary}), then ${secondaryLabel} (${secondary}). Do not mix languages within the same sentence.`;
+  }
+
+  return `Use ${primaryLabel} (${primary}) only.`;
+}
+
 async function callAiWithOptionalUsage(prompt, tracking, feature, metadata) {
   if (!tracking?.schoolId || !tracking?.userId) {
     return connectAi(prompt);
@@ -86,7 +107,11 @@ async function callAiWithOptionalUsage(prompt, tracking, feature, metadata) {
 /**
  * Generate subject area and topic tags from the text using the LLM.
  */
-async function generateSubjectAndTopicTags(title, originalText, tracking) {
+async function generateSubjectAndTopicTags(title, originalText, tracking, requestedLanguages = ["en"]) {
+  const primaryLanguage = Array.isArray(requestedLanguages) && requestedLanguages.length > 0
+    ? requestedLanguages[0]
+    : "en";
+  const primaryLabel = getLanguageLabel(primaryLanguage);
   const prompt = `You are an expert educator. Analyze this reading and suggest:
 1. A single subject area (e.g. Science, History, English).
 2. 3-8 topic tags (short keywords) that describe the content for filtering and discovery.
@@ -95,6 +120,9 @@ TITLE: ${title || "Reading"}
 
 TEXT (excerpt):
 ${(originalText || "").slice(0, 4000)}
+
+LANGUAGE RULE:
+- Return "subjectArea" and "topicTags" in ${primaryLabel} (${primaryLanguage}) only.
 
 Respond with a JSON object only, no other text:
 {
@@ -108,6 +136,7 @@ Respond with a JSON object only, no other text:
     "reading_subject_tags",
     {
       title,
+      requestedLanguages,
     }
   );
   const parsed = parseJsonFromResponse(response?.text || "");
@@ -177,14 +206,19 @@ async function generateSimplifiedVersion(
   targetLevel,
   title,
   studentContext = "",
-  tracking
+  tracking,
+  requestedLanguages = ["en"]
 ) {
+  const languageRule = buildReadingLanguageRule(requestedLanguages);
   const contextBlock = studentContext
     ? `\nAUDIENCE (use to tailor vocabulary and examples):\n${studentContext}\n`
     : "";
 
   const prompt = `You are an expert educator. Simplify the following text to a grade ${targetLevel} reading level. Preserve all key concepts and learning objectives. Replace complex words with simpler synonyms; break long sentences into shorter ones.
 ${contextBlock}
+LANGUAGE RULE:
+- ${languageRule}
+
 TITLE: ${title || "Reading"}
 
 ORIGINAL TEXT:
@@ -204,7 +238,7 @@ Include 8-15 vocabulary entries for important terms (original, simple, definitio
     prompt,
     tracking,
     "reading_simplified_version",
-    { title, targetLevel }
+    { title, targetLevel, requestedLanguages }
   );
   const parsed = parseJsonFromResponse(response?.text || "");
   if (!parsed || !parsed.simplifiedText) {
@@ -233,14 +267,19 @@ async function generateCriticalThinkingQuestions(
   originalText,
   title,
   studentContext = "",
-  tracking
+  tracking,
+  requestedLanguages = ["en"]
 ) {
+  const languageRule = buildReadingLanguageRule(requestedLanguages);
   const contextBlock = studentContext
     ? `\nAUDIENCE (tailor question difficulty and relevance):\n${studentContext}\n`
     : "";
 
   const prompt = `You are an expert educator. Create 3-5 critical thinking questions for this reading. Questions should encourage analysis, inference, and reflection—not just recall.
 ${contextBlock}
+LANGUAGE RULE:
+- ${languageRule}
+
 TITLE: ${title || "Reading"}
 
 TEXT (excerpt):
@@ -256,7 +295,7 @@ Respond with a JSON array only, no other text:
     prompt,
     tracking,
     "reading_critical_questions",
-    { title }
+    { title, requestedLanguages }
   );
   const parsed = parseJsonFromResponse(response?.text || "");
   if (!Array.isArray(parsed)) return [];
@@ -277,14 +316,19 @@ async function generateComprehensionQuestions(
   originalText,
   title,
   studentContext = "",
-  tracking
+  tracking,
+  requestedLanguages = ["en"]
 ) {
+  const languageRule = buildReadingLanguageRule(requestedLanguages);
   const contextBlock = studentContext
     ? `\nAUDIENCE (tailor difficulty and distractors):\n${studentContext}\n`
     : "";
 
   const prompt = `You are an expert educator. Create 3-5 multiple-choice comprehension questions for this reading. Each question has 4 options; one is correct.
 ${contextBlock}
+LANGUAGE RULE:
+- ${languageRule}
+
 TITLE: ${title || "Reading"}
 
 TEXT (excerpt):
@@ -304,7 +348,7 @@ Respond with a JSON array only:
     prompt,
     tracking,
     "reading_comprehension_questions",
-    { title }
+    { title, requestedLanguages }
   );
   const parsed = parseJsonFromResponse(response?.text || "");
   if (!Array.isArray(parsed)) return [];
@@ -334,6 +378,10 @@ export async function uploadText(schoolId, payload, options = {}) {
     classId,
     generateVersions = true,
     targetLevels = [6, 8, 10],
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language,
     tracking,
   } = { ...payload, ...options };
 
@@ -344,6 +392,14 @@ export async function uploadText(schoolId, payload, options = {}) {
   const originalComplexity = computeReadability(originalText);
 
   const usageTracking = tracking ? { ...tracking, schoolId } : null;
+  const normalizedRequestedLanguages = resolveRequestedLanguages({
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language,
+    subjectName: subjectAreaInput || title || "",
+    max: 2
+  });
   let subjectArea = subjectAreaInput?.trim();
   let topicTags = Array.isArray(topicTagsInput)
     ? topicTagsInput.map((t) => String(t).trim()).filter(Boolean)
@@ -353,7 +409,8 @@ export async function uploadText(schoolId, payload, options = {}) {
       const generated = await generateSubjectAndTopicTags(
         title,
         originalText,
-        usageTracking
+        usageTracking,
+        normalizedRequestedLanguages
       );
       if (!subjectArea) subjectArea = generated.subjectArea;
       if (topicTags.length === 0) topicTags = generated.topicTags;
@@ -370,6 +427,8 @@ export async function uploadText(schoolId, payload, options = {}) {
     originalComplexity,
     subjectArea: subjectArea || "",
     topicTags,
+    language: toLegacyLanguageValue(normalizedRequestedLanguages),
+    requestedLanguages: normalizedRequestedLanguages,
     simplifiedVersions: [],
     criticalThinkingQuestions: [],
     comprehensionQuestions: [],
@@ -388,7 +447,8 @@ export async function uploadText(schoolId, payload, options = {}) {
           level,
           title,
           studentContext,
-          usageTracking
+          usageTracking,
+          normalizedRequestedLanguages
         );
         doc.simplifiedVersions.push(version);
       } catch (err) {
@@ -400,7 +460,8 @@ export async function uploadText(schoolId, payload, options = {}) {
         originalText,
         title,
         studentContext,
-        usageTracking
+        usageTracking,
+        normalizedRequestedLanguages
       );
     } catch (err) {
       console.error(
@@ -413,7 +474,8 @@ export async function uploadText(schoolId, payload, options = {}) {
         originalText,
         title,
         studentContext,
-        usageTracking
+        usageTracking,
+        normalizedRequestedLanguages
       );
     } catch (err) {
       console.error("Failed to generate comprehension questions:", err.message);
@@ -615,13 +677,31 @@ export async function updateProgress(
  * Evaluate a student's critical thinking answer and return AI feedback.
  */
 export async function evaluateCriticalThinkingAnswer(schoolId, payload) {
-  const { textId, question, studentAnswer, textExcerpt, tracking } = payload;
+  const {
+    textId,
+    question,
+    studentAnswer,
+    textExcerpt,
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language,
+    tracking
+  } = payload;
 
   if (!question || !studentAnswer || typeof studentAnswer !== "string") {
     throw new Error("question and studentAnswer are required");
   }
 
   const usageTracking = tracking ? { ...tracking, schoolId } : null;
+  const normalizedRequestedLanguages = resolveRequestedLanguages({
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language,
+    max: 2
+  });
+  const languageRule = buildReadingLanguageRule(normalizedRequestedLanguages);
   let excerpt = textExcerpt;
   if (!excerpt && textId) {
     const text = await SimplifiedText.findById(textId)
@@ -644,6 +724,9 @@ Focus on:
 
 If the answer is very short or off-topic, encourage them to re-read the text and try again with more detail.
 
+LANGUAGE RULE:
+- ${languageRule}
+
 CRITICAL THINKING QUESTION:
 ${question}
 
@@ -658,7 +741,7 @@ Respond with ONLY the feedback text. No labels, no "Feedback:" prefix. Write dir
     prompt,
     usageTracking,
     "reading_critical_feedback",
-    { textId }
+    { textId, requestedLanguages: normalizedRequestedLanguages }
   );
   const feedback = (response?.text || "").trim();
   return { feedback };

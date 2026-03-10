@@ -1,4 +1,5 @@
 import UpgradePrompt from '../../../../components/UpgradePrompt';
+import { useTranslation } from 'react-i18next';
 
 const CommunicationTab = ({
   loading,
@@ -7,6 +8,8 @@ const CommunicationTab = ({
   aiEmailDraftEnabled,
   onToggleAiEmailDraft
 }) => {
+  const { t } = useTranslation(['schoolSettings']);
+
   if (loading) {
     return (
       <div className="tab-content">
@@ -20,9 +23,9 @@ const CommunicationTab = ({
   return (
     <div className="tab-content">
       <div className="card communication-settings-card">
-        <h3>Communication</h3>
+        <h3>{t('schoolSettings:communication.title')}</h3>
         <p className="text-muted">
-          Control AI-assisted email body drafting in the Email Composer for your school.
+          {t('schoolSettings:communication.helpText')}
         </p>
 
         {!featureAvailable ? (
@@ -36,7 +39,7 @@ const CommunicationTab = ({
               disabled={saving}
             />
             <span>
-              Enable AI email drafting for this school
+              {t('schoolSettings:communication.enableAiEmailDrafting')}
             </span>
           </label>
         )}

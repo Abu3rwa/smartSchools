@@ -18,6 +18,10 @@ export const uploadText = asyncHandler(async (req, res) => {
     classId,
     generateVersions,
     targetLevels,
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language,
   } = req.body;
 
   if (!title || !originalText) {
@@ -33,6 +37,10 @@ export const uploadText = asyncHandler(async (req, res) => {
     {
       generateVersions: generateVersions !== false,
       targetLevels,
+      requestedLanguages,
+      primaryLanguage,
+      secondaryLanguage,
+      language,
       tracking: {
         schoolId: req.schoolId,
         userId: req.user._id,
@@ -252,7 +260,16 @@ export const updateProgress = asyncHandler(async (req, res) => {
  * @access  Private (Student)
  */
 export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
-  const { textId, question, studentAnswer, textExcerpt } = req.body;
+  const {
+    textId,
+    question,
+    studentAnswer,
+    textExcerpt,
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language
+  } = req.body;
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
 
   if (!question || studentAnswer === undefined) {
@@ -277,6 +294,10 @@ export const evaluateCriticalThinkingAnswer = asyncHandler(async (req, res) => {
       question,
       studentAnswer: String(studentAnswer || ""),
       textExcerpt,
+      requestedLanguages,
+      primaryLanguage,
+      secondaryLanguage,
+      language,
       tracking: {
         schoolId: req.schoolId,
         userId: req.user._id,

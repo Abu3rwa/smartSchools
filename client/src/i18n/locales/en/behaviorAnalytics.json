@@ -1,0 +1,96 @@
+{
+  "header": {
+    "title": "Behavior Analytics",
+    "subtitle": "Monitor user activity, security events, and system usage patterns"
+  },
+  "actions": {
+    "filters": "Filters",
+    "hideFilters": "Hide Filters",
+    "exportJson": "Export JSON",
+    "exportCsv": "Export CSV",
+    "retry": "Retry"
+  },
+  "filters": {
+    "timePeriod": "Time Period",
+    "school": "School",
+    "allSchools": "All Schools",
+    "eventType": "Event Type",
+    "allEvents": "All Events",
+    "periodOptions": {
+      "week": "Last Week",
+      "month": "Last Month",
+      "quarter": "Last Quarter",
+      "year": "Last Year"
+    },
+    "eventTypeOptions": {
+      "login": "Login",
+      "grade_created": "Grade Created",
+      "page_view": "Page View",
+      "feature_used": "Feature Used"
+    }
+  },
+  "tabs": {
+    "overview": "Overview",
+    "users": "Users",
+    "security": "Security",
+    "usage": "Usage"
+  },
+  "overview": {
+    "totalEvents": "Total Events",
+    "activeUsers": "Active Users",
+    "securityEvents": "Security Events",
+    "activeDays": "Active Days",
+    "eventTypeDistribution": "Event Type Distribution",
+    "dailyActivityTrends": "Daily Activity Trends",
+    "usersCount": "{{count}} users"
+  },
+  "users": {
+    "table": {
+      "user": "User",
+      "school": "School",
+      "events": "Events",
+      "uniqueActions": "Unique Actions",
+      "lastActivity": "Last Activity",
+      "actions": "Actions"
+    }
+  },
+  "security": {
+    "totalSecurityEvents": "Total Security Events",
+    "uniqueUsers": "Unique Users",
+    "uniqueIps": "Unique IPs",
+    "recentSecurityEvents": "Recent Security Events",
+    "details": {
+      "user": "User",
+      "school": "School",
+      "ip": "IP",
+      "action": "Action"
+    }
+  },
+  "usage": {
+    "featureUsage": "Feature Usage",
+    "usesCount": "{{count}} uses",
+    "deviceDistribution": "Device Distribution",
+    "features": {
+      "gradeManagement": "Grade Management",
+      "studentManagement": "Student Management",
+      "reportGeneration": "Report Generation"
+    },
+    "devices": {
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "tablet": "Tablet"
+    }
+  },
+  "loading": {
+    "analytics": "Loading analytics..."
+  },
+  "error": {
+    "title": "Error loading analytics",
+    "defaultMessage": "Unable to load analytics data",
+    "fetchFailed": "Failed to fetch analytics data",
+    "loadFailed": "Failed to load analytics data"
+  },
+  "common": {
+    "na": "N/A"
+  }
+}

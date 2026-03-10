@@ -9,6 +9,11 @@ import { ReportTemplate } from '../models/ReportTemplate.js';
 import { AITokenUsage } from '../models/AITokenUsage.js';
 import { EmailReport } from '../models/EmailReport.js';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
+import {
+    normalizeLanguageCode,
+    resolveRequestedLanguages,
+    toLegacyLanguageValue
+} from '../utils/aiLanguageUtils.js';
 
 /**
  * @desc    Generate advanced AI report with multi-language and email support
@@ -20,6 +25,9 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
         studentId,
         reportType = 'monthly',
         language = 'english',
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
         dateRange,
         customPrompt,
         sendEmail = false,
@@ -54,12 +62,22 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
     }
 
     // 4. Generate AI Report
+    const normalizedRequestedLanguages = resolveRequestedLanguages({
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language,
+        max: 2
+    });
+    const normalizedLegacyLanguage = toLegacyLanguageValue(normalizedRequestedLanguages);
+
     const reportResult = await aiService.generateAdvancedReport({
         studentData: student,
         grades,
         period,
         teacher: req.user,
-        language,
+        language: normalizedLegacyLanguage,
+        requestedLanguages: normalizedRequestedLanguages,
         reportType,
         dateRange: { startDate, endDate },
         customPrompt,
@@ -74,7 +92,8 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
             reportId: reportResult.tokenUsage._id,
             studentData: student,
             reportContent: reportResult.text,
-            language,
+            language: reportResult.language || normalizedLegacyLanguage,
+            requestedLanguages: reportResult.requestedLanguages || normalizedRequestedLanguages,
             recipients,
             teacher: req.user
         });
@@ -86,7 +105,8 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
             report: reportResult.text,
             studentId,
             reportType,
-            language,
+            language: reportResult.language || normalizedLegacyLanguage,
+            requestedLanguages: reportResult.requestedLanguages || normalizedRequestedLanguages,
             period,
             dateRange: { startDate, endDate },
             tokenUsage: reportResult.tokenUsage,
@@ -106,7 +126,13 @@ export const getReportTemplates = asyncHandler(async (req, res) => {
 
     const query = { schoolId, isActive: true };
     if (type) query.type = type;
-    if (language) query.language = language;
+    if (language) {
+        const normalized = normalizeLanguageCode(language);
+        if (normalized === 'en') query.language = { $in: ['en', 'english'] };
+        else if (normalized === 'ar') query.language = { $in: ['ar', 'arabic'] };
+        else if (normalized) query.language = normalized;
+        else query.language = String(language || '').trim().toLowerCase();
+    }
 
     const templates = await ReportTemplate.find(query)
         .populate('createdBy', 'firstName lastName')
@@ -136,7 +162,7 @@ export const createReportTemplate = asyncHandler(async (req, res) => {
         schoolId: req.user.school,
         name,
         type,
-        language,
+        language: normalizeLanguageCode(language) || String(language || 'en').trim().toLowerCase(),
         customPrompt,
         variables,
         createdBy: req.user._id
@@ -387,7 +413,13 @@ export const getReportHistory = asyncHandler(async (req, res) => {
     if (studentId) query.student = studentId;
     if (teacherId) query.user = teacherId;
     if (reportType) query.reportType = reportType;
-    if (language) query.language = language;
+    if (language) {
+        const normalized = normalizeLanguageCode(language);
+        if (normalized === 'en') query.language = { $in: ['en', 'english'] };
+        else if (normalized === 'ar') query.language = { $in: ['ar', 'arabic'] };
+        else if (normalized) query.language = normalized;
+        else query.language = String(language || '').trim().toLowerCase();
+    }
 
     // Add school filter for non-admin users
     if (req.user.role !== 'admin') {
@@ -542,7 +574,9 @@ export const updateReportTemplate = asyncHandler(async (req, res) => {
     // Update fields
     if (name) template.name = name;
     if (type) template.type = type;
-    if (language) template.language = language;
+    if (language) {
+        template.language = normalizeLanguageCode(language) || String(language || '').trim().toLowerCase();
+    }
     if (customPrompt !== undefined) template.customPrompt = customPrompt;
     if (variables) template.variables = variables;
     if (isActive !== undefined) template.isActive = isActive;

@@ -27,9 +27,15 @@ const emailReportSchema = new Schema({
     },
     language: {
         type: String,
-        enum: ['english', 'arabic', 'bilingual'],
+        trim: true,
+        lowercase: true,
         required: true
     },
+    requestedLanguages: [{
+        type: String,
+        trim: true,
+        lowercase: true
+    }],
     sentAt: {
         type: Date,
         default: Date.now

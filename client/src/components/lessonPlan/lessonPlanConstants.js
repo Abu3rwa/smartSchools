@@ -33,6 +33,8 @@ export function getInitialFormData() {
     vocabulary: '',
     characterTraitLinks: '',
     techIntegration: '',
+    aiPrimaryLanguage: 'en',
+    aiSecondaryLanguage: '',
     standardIds: [],
     stages: DEFAULT_STAGES.map((s) => ({ ...s })),
   };
@@ -56,6 +58,8 @@ export function lessonToFormData(lesson) {
     vocabulary: lesson.vocabulary || '',
     characterTraitLinks: lesson.characterTraitLinks || '',
     techIntegration: lesson.techIntegration || '',
+    aiPrimaryLanguage: 'en',
+    aiSecondaryLanguage: '',
     standardIds: stdIds,
     stages:
       Array.isArray(lesson.stages) && lesson.stages.length

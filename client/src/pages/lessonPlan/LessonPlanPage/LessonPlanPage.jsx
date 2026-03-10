@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { HiOutlinePlus } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import {
   createLesson,
   updateLesson,
@@ -27,9 +28,11 @@ import LessonPlanToolbar from './components/LessonPlanToolbar.jsx';
 import LessonPlanTable from './components/LessonPlanTable.jsx';
 import AdminNoteModal from './components/AdminNoteModal.jsx';
 import ReviewStatusModal from './components/ReviewStatusModal.jsx';
+import { buildRequestedLanguages } from '../../../constants/aiLanguages.js';
 import './LessonPlanPage.css';
 
 const LessonPlanPage = () => {
+  const { t } = useTranslation(['lessonPlan']);
   const dispatch = useDispatch();
   const evaluationLoadingByLessonId = useSelector(selectEvaluationLoadingByLessonId);
   const evaluationHistoryLoadingByLessonId = useSelector(selectEvaluationHistoryLoadingByLessonId);
@@ -110,15 +113,23 @@ const LessonPlanPage = () => {
 
   const handleGenerateFromTitle = async (formDataArg) => {
     if (!formDataArg.classId || !formDataArg.subjectId || !formDataArg.title?.trim()) {
-      toast.error('Select Class, Subject, and enter a Title first');
+      toast.error(t('lessonPlan:toasts.requireClassSubjectTitle'));
       return;
     }
     setGeneratingSection(true);
+    const requestedLanguages = buildRequestedLanguages(
+      formDataArg.aiPrimaryLanguage,
+      formDataArg.aiSecondaryLanguage
+    );
+    const normalizedRequestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];
     const result = await dispatch(
       generateSection({
         title: formDataArg.title.trim(),
         subjectId: formDataArg.subjectId,
         classId: formDataArg.classId,
+        requestedLanguages: normalizedRequestedLanguages,
+        primaryLanguage: formDataArg.aiPrimaryLanguage || 'en',
+        secondaryLanguage: formDataArg.aiSecondaryLanguage || '',
       })
     );
     setGeneratingSection(false);
@@ -149,9 +160,9 @@ const LessonPlanPage = () => {
         stages: generatedStages || prev.stages,
       }));
       setGeneratedStandards(standards);
-      toast.success('Sections generated');
+      toast.success(t('lessonPlan:toasts.sectionsGenerated'));
     } else {
-      toast.error(result.payload || 'Generation failed');
+      toast.error(result.payload || t('lessonPlan:toasts.generationFailed'));
     }
   };
 
@@ -159,29 +170,29 @@ const LessonPlanPage = () => {
     if (editingId) {
       const result = await dispatch(updateLesson({ id: editingId, lessonData: payload }));
       if (updateLesson.fulfilled.match(result)) {
-        toast.success('Lesson plan updated');
+        toast.success(t('lessonPlan:toasts.updated'));
         closeModal();
       } else {
-        toast.error(result.payload || 'Failed to update lesson plan');
+        toast.error(result.payload || t('lessonPlan:toasts.updateFailed'));
       }
     } else {
       const result = await dispatch(createLesson(payload));
       if (createLesson.fulfilled.match(result)) {
-        toast.success('Lesson plan saved successfully');
+        toast.success(t('lessonPlan:toasts.saved'));
         closeModal();
       } else {
-        toast.error(result.payload || 'Failed to save lesson plan');
+        toast.error(result.payload || t('lessonPlan:toasts.saveFailed'));
       }
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this lesson plan?')) return;
+    if (!window.confirm(t('lessonPlan:toasts.confirmDelete'))) return;
     const result = await dispatch(deleteLesson(id));
     if (deleteLesson.fulfilled.match(result)) {
-      toast.success('Lesson plan deleted');
+      toast.success(t('lessonPlan:toasts.deleted'));
     } else {
-      toast.error(result.payload || 'Failed to delete');
+      toast.error(result.payload || t('lessonPlan:toasts.deleteFailed'));
     }
   };
 
@@ -220,14 +231,14 @@ const LessonPlanPage = () => {
 
     if (triggerLessonEvaluation.fulfilled.match(result)) {
       const cached = Boolean(result.payload?.data?.cached);
-      toast.success(cached ? 'Using cached evaluation' : 'Lesson plan evaluated successfully');
+      toast.success(cached ? t('lessonPlan:toasts.usingCachedEvaluation') : t('lessonPlan:toasts.evaluated'));
       await dispatch(fetchLessonEvaluationHistory({ id: lessonId, page: 1, limit: 10 }));
       if (openModal) {
         setEvaluationLessonId(lessonId);
         setShowEvaluationModal(true);
       }
     } else {
-      const errorMessage = result.payload?.message || 'Failed to evaluate lesson plan';
+      const errorMessage = result.payload?.message || t('lessonPlan:toasts.evaluateFailed');
       toast.error(errorMessage);
     }
   };
@@ -243,10 +254,10 @@ const LessonPlanPage = () => {
     );
     setAdminNoteSaving(false);
     if (updateLessonPlanAdminNote.fulfilled.match(result)) {
-      toast.success('Note saved. The teacher can see it on the lesson plan.');
+      toast.success(t('lessonPlan:toasts.noteSaved'));
       closeAdminNoteModal();
     } else {
-      toast.error(result.payload || 'Failed to save note');
+      toast.error(result.payload || t('lessonPlan:toasts.noteSaveFailed'));
     }
   };
 
@@ -261,9 +272,9 @@ const LessonPlanPage = () => {
 
     if (reviewLessonPlan.fulfilled.match(result)) {
       const label = String(finalStatus || '').replace('_', ' ');
-      toast.success(`Lesson plan marked as ${label}`);
+      toast.success(t('lessonPlan:toasts.markedAs', { status: label }));
     } else {
-      toast.error(result.payload?.message || 'Failed to update lesson status');
+      toast.error(result.payload?.message || t('lessonPlan:toasts.statusUpdateFailed'));
     }
   };
 
@@ -296,12 +307,12 @@ const LessonPlanPage = () => {
     <div className="lesson-plan-page">
       <div className="page-header">
         <div>
-          <h1>Lesson Plans</h1>
-          <p className="text-muted">Plan and share lessons with parents</p>
+          <h1>{t('lessonPlan:page.title')}</h1>
+          <p className="text-muted">{t('lessonPlan:page.subtitle')}</p>
         </div>
         <button className="btn btn-primary" onClick={openCreate}>
           <HiOutlinePlus size={20} />
-          New Lesson
+          {t('lessonPlan:page.newLesson')}
         </button>
       </div>
 

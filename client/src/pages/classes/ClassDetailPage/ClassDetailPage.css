@@ -162,6 +162,22 @@
     gap: var(--spacing-sm);
 }
 
+.insights-action-group {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.insights-action-group select {
+    min-width: 140px;
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-primary);
+}
+
 .analytics-content {
     padding-top: var(--spacing-md);
 }
@@ -241,5 +257,13 @@
 
     .class-stats {
         flex-direction: column;
+    }
+
+    .insights-action-group {
+        width: 100%;
+    }
+
+    .insights-action-group select {
+        flex: 1 1 180px;
     }
 }

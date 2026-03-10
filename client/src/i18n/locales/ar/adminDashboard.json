@@ -1,0 +1,62 @@
+{
+  "header": {
+    "title": "لوحة المدرسة",
+    "subtitle": "مرحبًا بعودتك، {{firstName}}. إليك نظرة عامة على المدرسة ليوم {{todayLabel}}."
+  },
+  "stats": {
+    "totalStudents": "إجمالي الطلاب",
+    "totalClasses": "إجمالي الفصول",
+    "teachers": "المعلمون",
+    "activeTeachers": "{{count}} نشط",
+    "attendanceRate": "معدل الحضور",
+    "attendanceToday": "{{present}}/{{total}} اليوم",
+    "noData": "لا توجد بيانات حضور بعد"
+  },
+  "common": {
+    "viewAll": "عرض الكل",
+    "viewDetails": "عرض التفاصيل",
+    "unassigned": "غير مُعيَّن",
+    "classFallback": "فصل",
+    "noDataShort": "غير متاح"
+  },
+  "classDistribution": {
+    "title": "توزيع الفصول",
+    "students": "الطلاب"
+  },
+  "performanceTrend": {
+    "title": "اتجاه الأداء",
+    "subtitle": "متوسط الدرجات عبر الوقت",
+    "average": "المتوسط"
+  },
+  "quickActions": {
+    "title": "إجراءات سريعة",
+    "items": {
+      "viewClasses": "عرض الفصول",
+      "viewAttendance": "عرض الحضور",
+      "viewStudents": "عرض الطلاب",
+      "viewAnalytics": "عرض التحليلات"
+    }
+  },
+  "attendanceCard": {
+    "title": "ملخص الحضور",
+    "present": "حاضر",
+    "absent": "غائب",
+    "classes": "الفصول"
+  },
+  "recentStudents": {
+    "title": "أحدث الطلاب",
+    "empty": "لا يوجد طلاب حديثون"
+  },
+  "classesOverview": {
+    "title": "نظرة عامة على الفصول",
+    "studentCount": "{{count}} طالب",
+    "empty": "لا توجد فصول"
+  },
+  "loading": {
+    "message": "جارٍ تحميل اللوحة..."
+  },
+  "error": {
+    "message": "تعذر تحميل اللوحة. {{message}}",
+    "retry": "إعادة المحاولة"
+  }
+}

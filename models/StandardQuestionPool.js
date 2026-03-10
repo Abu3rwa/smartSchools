@@ -76,6 +76,11 @@ const standardQuestionPoolSchema = new mongoose.Schema(
       max: 100,
       required: true,
     },
+    generationLanguages: [{
+      type: String,
+      trim: true,
+      lowercase: true,
+    }],
     currentVersion: {
       type: Number,
       min: 1,

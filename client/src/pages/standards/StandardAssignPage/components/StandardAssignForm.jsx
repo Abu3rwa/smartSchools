@@ -1,25 +1,37 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
+    AI_STANDARD_LANGUAGE_OPTIONS,
     DIFFICULTY_OPTIONS,
     QUESTION_TYPE_OPTIONS,
     SEMESTER_OPTIONS
 } from '../constants';
 
-const formatQuestionType = (type) =>
-    type
-        .split('_')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ');
-
-const formatDateValue = (value) => {
-    if (!value) return 'Not set';
+const formatDateValue = (value, locale, notSetLabel) => {
+    if (!value) return notSetLabel;
     const parts = String(value).split('-').map((item) => Number(item));
     const date =
         parts.length === 3 && parts.every((part) => Number.isFinite(part))
             ? new Date(parts[0], parts[1] - 1, parts[2])
             : new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Not set';
-    return date.toLocaleDateString();
+    if (Number.isNaN(date.getTime())) return notSetLabel;
+    return date.toLocaleDateString(locale);
+};
+
+const isArabicOrIslamicSubjectName = (value = '') => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) return false;
+    return (
+        /\barabic\b/.test(normalized) ||
+        /\bislamic\b/.test(normalized) ||
+        /\bislamiyat\b/.test(normalized) ||
+        /\bquran\b/.test(normalized) ||
+        /لغة عربية/.test(normalized) ||
+        /عربي/.test(normalized) ||
+        /دراسات اسلامية/.test(normalized) ||
+        /تربية اسلامية/.test(normalized) ||
+        /قرآن/.test(normalized)
+    );
 };
 
 const StandardAssignForm = ({
@@ -41,6 +53,17 @@ const StandardAssignForm = ({
     setShowAdvanced,
     getEntityId
 }) => {
+    const { t, i18n } = useTranslation(['standardAssign']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
+
+    const formatQuestionType = (type) =>
+        t(`standardAssign:questionTypes.${type}`, {
+            defaultValue: type
+                .split('_')
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(' ')
+        });
+
     const [currentStep, setCurrentStep] = useState(1);
     const [studentScope, setStudentScope] = useState(
         Array.isArray(formData.students) && formData.students.length > 0 ? 'specific' : 'whole'
@@ -53,6 +76,21 @@ const StandardAssignForm = ({
     });
 
     const selectedStudents = Array.isArray(formData.students) ? formData.students : [];
+    const selectedAiLanguages = Array.isArray(formData.aiLanguages)
+        ? formData.aiLanguages.filter(Boolean).slice(0, 2)
+        : ['en'];
+    const primaryAiLanguage = selectedAiLanguages[0] || 'en';
+    const secondaryAiLanguage = selectedAiLanguages[1] || '';
+    const applyAiLanguages = (primary, secondary = '') => {
+        const next = [primary, secondary].filter(Boolean);
+        const deduped = Array.from(new Set(next)).slice(0, 2);
+        setFormData({
+            ...formData,
+            aiLanguages: deduped.length > 0 ? deduped : ['en']
+        });
+    };
+    const getAiLanguageLabel = (code) =>
+        AI_STANDARD_LANGUAGE_OPTIONS.find((item) => item.value === code)?.label || code;
 
     useEffect(() => {
         setStudentSearch('');
@@ -102,19 +140,19 @@ const StandardAssignForm = ({
         if (inSubjectOptions?.name) return inSubjectOptions.name;
 
         const inAllSubjects = subjects.find((subject) => getEntityId(subject) === formData.subjectId);
-        return inAllSubjects?.name || 'Not selected';
-    }, [subjectOptions, subjects, formData.subjectId, getEntityId]);
+        return inAllSubjects?.name || t('standardAssign:common.notSelected');
+    }, [subjectOptions, subjects, formData.subjectId, getEntityId, t]);
 
     const selectedStandardLabel = useMemo(() => {
         const standard = availableStandards.find((item) => item._id === formData.standardId);
-        if (!standard) return 'Not selected';
+        if (!standard) return t('standardAssign:common.notSelected');
         return getStandardOptionLabel(standard);
-    }, [availableStandards, formData.standardId, getStandardOptionLabel]);
+    }, [availableStandards, formData.standardId, getStandardOptionLabel, t]);
 
     const stepItems = [
-        { id: 1, title: 'Core Setup' },
-        { id: 2, title: 'Audience & Details' },
-        { id: 3, title: 'Rules & Release' }
+        { id: 1, title: t('standardAssign:form.steps.coreSetup') },
+        { id: 2, title: t('standardAssign:form.steps.audienceDetails') },
+        { id: 3, title: t('standardAssign:form.steps.rulesRelease') }
     ];
 
     const isStep1Valid =
@@ -167,7 +205,7 @@ const StandardAssignForm = ({
 
     const renderStudentScope = () => (
         <div className="form-group">
-            <label>Who gets this assignment?</label>
+            <label>{t('standardAssign:form.studentScope.title')}</label>
             <div className="assign-student-scope-row">
                 <label className="assign-radio-option">
                     <input
@@ -176,7 +214,7 @@ const StandardAssignForm = ({
                         checked={studentScope === 'whole'}
                         onChange={setWholeClassScope}
                     />
-                    Whole class ({students.length})
+                    {t('standardAssign:form.studentScope.wholeClass', { count: students.length })}
                 </label>
                 <label className="assign-radio-option">
                     <input
@@ -185,7 +223,7 @@ const StandardAssignForm = ({
                         checked={studentScope === 'specific'}
                         onChange={() => setStudentScope('specific')}
                     />
-                    Specific students only
+                    {t('standardAssign:form.studentScope.specificStudents')}
                 </label>
             </div>
 
@@ -194,7 +232,7 @@ const StandardAssignForm = ({
                     <div className="assign-student-picker-toolbar">
                         <input
                             type="text"
-                            placeholder="Search student name or ID"
+                            placeholder={t('standardAssign:form.studentScope.searchPlaceholder')}
                             value={studentSearch}
                             onChange={(event) => setStudentSearch(event.target.value)}
                         />
@@ -205,7 +243,7 @@ const StandardAssignForm = ({
                                 onClick={selectAllVisibleStudents}
                                 disabled={visibleStudents.length === 0}
                             >
-                                Select All Visible
+                                {t('standardAssign:actions.selectAllVisible')}
                             </button>
                             <button
                                 type="button"
@@ -213,7 +251,7 @@ const StandardAssignForm = ({
                                 onClick={clearSelectedStudents}
                                 disabled={selectedStudents.length === 0}
                             >
-                                Clear
+                                {t('standardAssign:actions.clear')}
                             </button>
                         </div>
                     </div>
@@ -226,7 +264,7 @@ const StandardAssignForm = ({
                                     key={student._id}
                                     className="assign-selected-chip"
                                     onClick={() => toggleStudent(student._id)}
-                                    title="Remove student"
+                                    title={t('standardAssign:actions.removeStudent')}
                                 >
                                     {student.firstName} {student.lastName}
                                     <span aria-hidden="true">x</span>
@@ -237,7 +275,7 @@ const StandardAssignForm = ({
 
                     <div className="assign-student-list">
                         {visibleStudents.length === 0 ? (
-                            <small className="text-muted">No students match your search.</small>
+                            <small className="text-muted">{t('standardAssign:form.studentScope.noStudentsMatch')}</small>
                         ) : (
                             visibleStudents.map((student) => (
                                 <label key={student._id} className="assign-student-row">
@@ -254,7 +292,7 @@ const StandardAssignForm = ({
                         )}
                     </div>
                     <small className="text-muted assign-selected-count">
-                        {selectedStudents.length} selected
+                        {t('standardAssign:form.studentScope.selectedCount', { count: selectedStudents.length })}
                     </small>
                 </div>
             )}
@@ -263,7 +301,7 @@ const StandardAssignForm = ({
 
     return (
         <div className="modal-body standard-assign-form-body">
-            <div className="assign-stepper" role="tablist" aria-label="Assignment setup steps">
+            <div className="assign-stepper" role="tablist" aria-label={t('standardAssign:form.aria.assignmentSetupSteps')}>
                 {stepItems.map((step) => {
                     const stateClass =
                         currentStep === step.id
@@ -286,63 +324,67 @@ const StandardAssignForm = ({
             </div>
 
             <div className="assign-summary-card">
-                <h4>Assignment Summary</h4>
+                <h4>{t('standardAssign:form.summary.title')}</h4>
                 <div className="assign-summary-grid">
-                    <span>Name</span>
-                    <strong>{String(formData.title || '').trim() || 'Untitled assignment'}</strong>
-                    <span>Class</span>
-                    <strong>{selectedClass?.name || 'Not selected'}</strong>
-                    <span>Subject</span>
+                    <span>{t('standardAssign:form.summary.name')}</span>
+                    <strong>{String(formData.title || '').trim() || t('standardAssign:form.summary.untitledAssignment')}</strong>
+                    <span>{t('standardAssign:form.summary.class')}</span>
+                    <strong>{selectedClass?.name || t('standardAssign:common.notSelected')}</strong>
+                    <span>{t('standardAssign:form.summary.subject')}</span>
                     <strong>{selectedSubjectName}</strong>
-                    <span>Standard</span>
+                    <span>{t('standardAssign:form.summary.standard')}</span>
                     <strong>{selectedStandardLabel}</strong>
-                    <span>Mode</span>
+                    <span>{t('standardAssign:form.summary.mode')}</span>
                     <strong>
                         {formData.practiceConfig.sessionType === 'assessment'
-                            ? 'Graded Assessment'
-                            : 'Practice'}
+                            ? t('standardAssign:modes.gradedAssessment')
+                            : t('standardAssign:modes.practice')}
                     </strong>
-                    <span>Learners</span>
+                    <span>{t('standardAssign:form.summary.learners')}</span>
                     <strong>
                         {studentScope === 'whole'
-                            ? `Whole class (${students.length})`
-                            : `${selectedStudents.length} selected`}
+                            ? t('standardAssign:form.studentScope.wholeClass', { count: students.length })
+                            : t('standardAssign:form.studentScope.selectedCount', { count: selectedStudents.length })}
                     </strong>
-                    <span>Due Date</span>
-                    <strong>{formatDateValue(formData.dueDate)}</strong>
-                    <span>Pre-generated</span>
-                    <strong>{formData.preGeneratedQuestionCount || 10} questions</strong>
+                    <span>{t('standardAssign:form.summary.dueDate')}</span>
+                    <strong>{formatDateValue(formData.dueDate, locale, t('standardAssign:common.notSet'))}</strong>
+                    <span>{t('standardAssign:form.summary.preGenerated')}</span>
+                    <strong>{t('standardAssign:form.summary.preGeneratedCount', { count: formData.preGeneratedQuestionCount || 10 })}</strong>
+                    <span>{t('standardAssign:form.summary.aiLanguages')}</span>
+                    <strong>
+                        {selectedAiLanguages.map((code) => getAiLanguageLabel(code)).join(' + ')}
+                    </strong>
                 </div>
             </div>
 
             {currentStep === 1 && (
                 <section className="assign-step-section">
-                    <h4>Core Setup</h4>
+                    <h4>{t('standardAssign:form.steps.coreSetup')}</h4>
                     <div className="form-group">
-                        <label>Assignment Name *</label>
+                        <label>{t('standardAssign:form.labels.assignmentNameRequired')}</label>
                         <input
                             type="text"
                             value={formData.title}
                             onChange={(event) =>
                                 setFormData({ ...formData, title: event.target.value })
                             }
-                            placeholder="e.g. Fractions Unit Test - Term 1"
+                            placeholder={t('standardAssign:form.placeholders.assignmentName')}
                             required
                         />
                         <small className="text-muted">
-                            This name appears in Standards-Based (SB) gradebook and reports.
+                            {t('standardAssign:form.assignmentNameHint')}
                         </small>
                     </div>
 
                     <div className="form-row">
                         <div className="form-group">
-                            <label>Class *</label>
+                            <label>{t('standardAssign:form.labels.classRequired')}</label>
                             <select
                                 value={formData.classId}
                                 onChange={(event) => handleClassChange(event.target.value)}
                                 required
                             >
-                                <option value="">Select Class</option>
+                                <option value="">{t('standardAssign:form.options.selectClass')}</option>
                                 {classes.map((schoolClass) => (
                                     <option key={schoolClass._id} value={schoolClass._id}>
                                         {schoolClass.name}
@@ -351,26 +393,48 @@ const StandardAssignForm = ({
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>Subject *</label>
+                            <label>{t('standardAssign:form.labels.subjectRequired')}</label>
                             <select
                                 value={formData.subjectId}
-                                onChange={(event) =>
+                                onChange={(event) => {
+                                    const nextSubjectId = event.target.value;
+                                    const subjectEntry = subjectOptions.find(
+                                        (item) => getEntityId(item) === nextSubjectId
+                                    );
+                                    const fallbackSubject = subjects.find(
+                                        (item) => getEntityId(item) === nextSubjectId
+                                    );
+                                    const selectedSubjectName =
+                                        subjectEntry?.name || fallbackSubject?.name || '';
+                                    const nextAiLanguages =
+                                        isArabicOrIslamicSubjectName(selectedSubjectName) &&
+                                        (
+                                            !Array.isArray(formData.aiLanguages) ||
+                                            formData.aiLanguages.length === 0 ||
+                                            (
+                                                formData.aiLanguages.length === 1 &&
+                                                String(formData.aiLanguages[0]).toLowerCase() === 'en'
+                                            )
+                                        )
+                                            ? ['ar']
+                                            : formData.aiLanguages;
                                     setFormData({
                                         ...formData,
-                                        subjectId: event.target.value,
-                                        standardId: ''
-                                    })
-                                }
+                                        subjectId: nextSubjectId,
+                                        standardId: '',
+                                        aiLanguages: nextAiLanguages
+                                    });
+                                }}
                                 disabled={!formData.classId || subjectOptions.length === 0}
                                 required
                             >
-                                <option value="">Select Subject</option>
+                                <option value="">{t('standardAssign:form.options.selectSubject')}</option>
                                 {subjectOptions.map((subject) => {
                                     const subjectId = getEntityId(subject);
                                     const subjectName =
                                         subject?.name ||
                                         subjects.find((item) => getEntityId(item) === subjectId)?.name ||
-                                        'Subject';
+                                        t('standardAssign:common.subject');
                                     return (
                                         <option key={subjectId} value={subjectId}>
                                             {subjectName}
@@ -380,26 +444,26 @@ const StandardAssignForm = ({
                             </select>
                             {!selectedClass && isTeacher && (
                                 <small className="text-muted">
-                                    Select a class to view your assigned subjects.
+                                    {t('standardAssign:form.hints.selectClassForSubjects')}
                                 </small>
                             )}
                             {selectedClass && classSubjects.length > 0 && (
                                 <small className="text-muted">
                                     {isTeacher
-                                        ? 'Showing only subjects you teach in this class.'
-                                        : 'Subjects limited to this class configuration.'}
+                                        ? t('standardAssign:form.hints.teacherSubjectsOnly')
+                                        : t('standardAssign:form.hints.classConfiguredSubjects')}
                                 </small>
                             )}
                             {selectedClass && isTeacher && classSubjects.length === 0 && (
                                 <small className="text-danger">
-                                    No subjects are mapped to you for this class yet.
+                                    {t('standardAssign:form.hints.noSubjectsMapped')}
                                 </small>
                             )}
                         </div>
                     </div>
 
                     <div className="form-group">
-                        <label>Standard *</label>
+                        <label>{t('standardAssign:form.labels.standardRequired')}</label>
                         <select
                             value={formData.standardId}
                             disabled={!formData.classId || !formData.subjectId}
@@ -408,7 +472,7 @@ const StandardAssignForm = ({
                             }
                             required
                         >
-                            <option value="">Select Standard</option>
+                            <option value="">{t('standardAssign:form.options.selectStandard')}</option>
                             {availableStandards.map((standard) => (
                                 <option key={standard._id} value={standard._id}>
                                     {getStandardOptionLabel(standard)}
@@ -417,13 +481,15 @@ const StandardAssignForm = ({
                         </select>
                         {selectedClass && (
                             <small className="text-muted">
-                                Showing standards for Grade {selectedClass.grade}
-                                {formData.subjectId ? ' and selected subject' : ''}.
+                                {t('standardAssign:form.hints.showingStandardsForGrade', {
+                                    grade: selectedClass.grade
+                                })}
+                                {formData.subjectId ? t('standardAssign:form.hints.andSelectedSubject') : ''}.
                             </small>
                         )}
                         {!formData.classId || !formData.subjectId ? (
                             <small className="text-muted assign-inline-hint">
-                                Select class, then subject, then standard.
+                                {t('standardAssign:form.hints.selectClassSubjectStandard')}
                             </small>
                         ) : null}
                         {formData.standardId && (
@@ -435,7 +501,7 @@ const StandardAssignForm = ({
 
                     <div className="form-row">
                         <div className="form-group">
-                            <label>Assignment Mode *</label>
+                            <label>{t('standardAssign:form.labels.assignmentModeRequired')}</label>
                             <select
                                 value={
                                     formData.practiceConfig.sessionType === 'assessment'
@@ -460,12 +526,12 @@ const StandardAssignForm = ({
                                 }}
                                 required
                             >
-                                <option value="practice">Practice (Not Graded)</option>
-                                <option value="assessment">Graded Assessment (SB)</option>
+                                <option value="practice">{t('standardAssign:form.options.practiceNotGraded')}</option>
+                                <option value="assessment">{t('standardAssign:form.options.gradedAssessmentSb')}</option>
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>Semester *</label>
+                            <label>{t('standardAssign:form.labels.semesterRequired')}</label>
                             <select
                                 value={formData.semester || 1}
                                 onChange={(event) =>
@@ -475,7 +541,9 @@ const StandardAssignForm = ({
                             >
                                 {SEMESTER_OPTIONS.map((semesterOption) => (
                                     <option key={semesterOption} value={semesterOption}>
-                                        Semester {semesterOption}
+                                        {t('standardAssign:form.options.semesterOption', {
+                                            semester: semesterOption
+                                        })}
                                     </option>
                                 ))}
                             </select>
@@ -486,17 +554,17 @@ const StandardAssignForm = ({
 
             {currentStep === 2 && (
                 <section className="assign-step-section">
-                    <h4>Audience And Assignment Details</h4>
+                    <h4>{t('standardAssign:form.steps.audienceDetails')}</h4>
                     {students.length > 0 ? (
                         renderStudentScope()
                     ) : (
                         <div className="form-group">
-                            <small className="text-muted">No active students found in this class.</small>
+                            <small className="text-muted">{t('standardAssign:form.hints.noActiveStudents')}</small>
                         </div>
                     )}
 
                     <div className="form-group">
-                        <label>Due Date (optional)</label>
+                        <label>{t('standardAssign:form.labels.dueDateOptional')}</label>
                         <input
                             type="date"
                             value={formData.dueDate}
@@ -507,14 +575,14 @@ const StandardAssignForm = ({
                     </div>
 
                     <div className="form-group">
-                        <label>Instructions (optional)</label>
+                        <label>{t('standardAssign:form.labels.instructionsOptional')}</label>
                         <textarea
                             value={formData.instructions}
                             onChange={(event) =>
                                 setFormData({ ...formData, instructions: event.target.value })
                             }
                             rows={3}
-                            placeholder="Additional instructions for students..."
+                            placeholder={t('standardAssign:form.placeholders.instructions')}
                         />
                     </div>
                 </section>
@@ -523,13 +591,15 @@ const StandardAssignForm = ({
             {currentStep === 3 && (
                 <section className="assign-step-section">
                     <div className="assign-advanced-header">
-                        <h4>Rules And Release</h4>
+                        <h4>{t('standardAssign:form.steps.rulesRelease')}</h4>
                         <button
                             type="button"
                             className="advanced-toggle"
                             onClick={() => setShowAdvanced(!showAdvanced)}
                         >
-                            {showAdvanced ? 'Hide advanced settings' : 'Show advanced settings'}
+                            {showAdvanced
+                                ? t('standardAssign:actions.hideAdvancedSettings')
+                                : t('standardAssign:actions.showAdvancedSettings')}
                         </button>
                     </div>
 
@@ -541,19 +611,55 @@ const StandardAssignForm = ({
                                     className="assign-accordion-trigger"
                                     onClick={() => togglePanel('question')}
                                 >
-                                    <span>Question Generation</span>
+                                    <span>{t('standardAssign:form.panels.questionGeneration')}</span>
                                     <span>{openPanels.question ? '−' : '+'}</span>
                                 </button>
                                 {openPanels.question && (
                                     <div className="assign-accordion-content">
                                         <div className="form-row">
                                             <div className="form-group">
-                                                <label>Pre-generated Questions Per Standard</label>
+                                                <label>{t('standardAssign:form.labels.primaryAiLanguage')}</label>
+                                                <select
+                                                    value={primaryAiLanguage}
+                                                    onChange={(event) =>
+                                                        applyAiLanguages(event.target.value, secondaryAiLanguage)
+                                                    }
+                                                >
+                                                    {AI_STANDARD_LANGUAGE_OPTIONS.map((language) => (
+                                                        <option key={language.value} value={language.value}>
+                                                            {language.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="form-group">
+                                                <label>{t('standardAssign:form.labels.secondaryAiLanguageOptional')}</label>
+                                                <select
+                                                    value={secondaryAiLanguage}
+                                                    onChange={(event) =>
+                                                        applyAiLanguages(primaryAiLanguage, event.target.value)
+                                                    }
+                                                >
+                                                    <option value="">{t('standardAssign:form.options.none')}</option>
+                                                    {AI_STANDARD_LANGUAGE_OPTIONS
+                                                        .filter((language) => language.value !== primaryAiLanguage)
+                                                        .map((language) => (
+                                                            <option key={language.value} value={language.value}>
+                                                                {language.label}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label>{t('standardAssign:form.labels.preGeneratedQuestionsPerStandard')}</label>
                                                 <input
                                                     type="number"
                                                     min="1"
                                                     max="50"
-                                                    placeholder="e.g. 10"
+                                                    placeholder={t('standardAssign:form.placeholders.preGeneratedQuestions')}
                                                     value={formData.preGeneratedQuestionCount}
                                                     onChange={(event) =>
                                                         setFormData({
@@ -564,16 +670,15 @@ const StandardAssignForm = ({
                                                     }
                                                 />
                                                 <small className="text-muted">
-                                                    Questions are generated at assignment creation and
-                                                    must be reviewed before publish.
+                                                    {t('standardAssign:form.hints.questionsGeneratedHint')}
                                                 </small>
                                             </div>
                                             <div className="form-group">
-                                                <label>Questions Limit (0 = Unlimited)</label>
+                                                <label>{t('standardAssign:form.labels.questionsLimit')}</label>
                                                 <input
                                                     type="number"
                                                     min="0"
-                                                    placeholder="e.g. 10"
+                                                    placeholder={t('standardAssign:form.placeholders.questionsLimit')}
                                                     value={formData.practiceConfig.questionLimit}
                                                     onChange={(event) =>
                                                         setFormData({
@@ -589,7 +694,7 @@ const StandardAssignForm = ({
                                         </div>
 
                                         <div className="form-group">
-                                            <label>Allowed Question Types</label>
+                                            <label>{t('standardAssign:form.labels.allowedQuestionTypes')}</label>
                                             <div className="checkbox-group assign-inline-checkboxes">
                                                 {QUESTION_TYPE_OPTIONS.map((type) => (
                                                     <label key={type} className="assign-checkbox-option">
@@ -623,7 +728,7 @@ const StandardAssignForm = ({
                                         </div>
 
                                         <div className="form-group">
-                                            <label>Allowed Difficulties</label>
+                                            <label>{t('standardAssign:form.labels.allowedDifficulties')}</label>
                                             <div className="checkbox-group assign-inline-checkboxes">
                                                 {DIFFICULTY_OPTIONS.map((difficulty) => (
                                                     <label
@@ -654,8 +759,11 @@ const StandardAssignForm = ({
                                                                 });
                                                             }}
                                                         />
-                                                        {difficulty.charAt(0).toUpperCase() +
-                                                            difficulty.slice(1)}
+                                                        {t(`standardAssign:difficulty.${difficulty}`, {
+                                                            defaultValue:
+                                                                difficulty.charAt(0).toUpperCase() +
+                                                                difficulty.slice(1)
+                                                        })}
                                                     </label>
                                                 ))}
                                             </div>
@@ -677,8 +785,7 @@ const StandardAssignForm = ({
                                                         })
                                                     }
                                                 />
-                                                Lock student options (students cannot override strict
-                                                difficulty/type)
+                                                {t('standardAssign:form.labels.lockStudentOptions')}
                                             </label>
                                         </div>
                                     </div>
@@ -691,17 +798,17 @@ const StandardAssignForm = ({
                                     className="assign-accordion-trigger"
                                     onClick={() => togglePanel('timing')}
                                 >
-                                    <span>Timing And Availability</span>
+                                    <span>{t('standardAssign:form.panels.timingAndAvailability')}</span>
                                     <span>{openPanels.timing ? '−' : '+'}</span>
                                 </button>
                                 {openPanels.timing && (
                                     <div className="assign-accordion-content">
                                         <div className="form-group">
-                                            <label>Time Limit (seconds, 0 = Unlimited)</label>
+                                            <label>{t('standardAssign:form.labels.timeLimit')}</label>
                                             <input
                                                 type="number"
                                                 min="0"
-                                                placeholder="e.g. 1800"
+                                                placeholder={t('standardAssign:form.placeholders.timeLimit')}
                                                 value={formData.practiceConfig.timeLimitSeconds}
                                                 onChange={(event) =>
                                                     setFormData({
@@ -717,7 +824,7 @@ const StandardAssignForm = ({
 
                                         <div className="form-row">
                                             <div className="form-group">
-                                                <label>Start Time (optional)</label>
+                                                <label>{t('standardAssign:form.labels.startTimeOptional')}</label>
                                                 <input
                                                     type="datetime-local"
                                                     value={formData.practiceConfig.availability.startAt}
@@ -737,7 +844,7 @@ const StandardAssignForm = ({
                                                 />
                                             </div>
                                             <div className="form-group">
-                                                <label>End Time (optional)</label>
+                                                <label>{t('standardAssign:form.labels.endTimeOptional')}</label>
                                                 <input
                                                     type="datetime-local"
                                                     value={formData.practiceConfig.availability.endAt}
@@ -768,20 +875,19 @@ const StandardAssignForm = ({
                                         className="assign-accordion-trigger"
                                         onClick={() => togglePanel('assessment')}
                                     >
-                                        <span>Assessment Gradebook Rules</span>
+                                        <span>{t('standardAssign:form.panels.assessmentGradebookRules')}</span>
                                         <span>{openPanels.assessment ? '−' : '+'}</span>
                                     </button>
                                     {openPanels.assessment && (
                                         <div className="assign-accordion-content">
                                             <div className="form-group">
                                                 <small className="text-muted">
-                                                    This writes to a separate Standards-Based gradebook,
-                                                    not the regular gradebook.
+                                                    {t('standardAssign:form.hints.separateGradebookHint')}
                                                 </small>
                                             </div>
                                             <div className="form-row">
                                                 <div className="form-group">
-                                                    <label>Max Marks</label>
+                                                    <label>{t('standardAssign:form.labels.maxMarks')}</label>
                                                     <input
                                                         type="number"
                                                         min="1"
@@ -798,7 +904,7 @@ const StandardAssignForm = ({
                                                     />
                                                 </div>
                                                 <div className="form-group">
-                                                    <label>Pass Marks</label>
+                                                    <label>{t('standardAssign:form.labels.passMarks')}</label>
                                                     <input
                                                         type="number"
                                                         min="0"
@@ -818,7 +924,7 @@ const StandardAssignForm = ({
 
                                             <div className="form-row">
                                                 <div className="form-group">
-                                                    <label>Results Visibility</label>
+                                                    <label>{t('standardAssign:form.labels.resultsVisibility')}</label>
                                                     <select
                                                         value={
                                                             formData.assessmentConfig
@@ -835,14 +941,14 @@ const StandardAssignForm = ({
                                                             })
                                                         }
                                                     >
-                                                        <option value="immediate">Immediate</option>
+                                                        <option value="immediate">{t('standardAssign:form.options.immediate')}</option>
                                                         <option value="manual_release">
-                                                            Manual release
+                                                            {t('standardAssign:form.options.manualRelease')}
                                                         </option>
                                                     </select>
                                                 </div>
                                                 <div className="form-group">
-                                                    <label>Results Release At (optional)</label>
+                                                    <label>{t('standardAssign:form.labels.resultsReleaseAtOptional')}</label>
                                                     <input
                                                         type="datetime-local"
                                                         value={
@@ -883,7 +989,7 @@ const StandardAssignForm = ({
                     onClick={() => goToStep(currentStep - 1)}
                     disabled={currentStep === 1}
                 >
-                    Back
+                    {t('standardAssign:actions.back')}
                 </button>
                 {currentStep < 3 ? (
                     <button
@@ -892,10 +998,12 @@ const StandardAssignForm = ({
                         onClick={() => goToStep(currentStep + 1)}
                         disabled={(currentStep === 1 && !isStep1Valid) || (currentStep === 2 && !isStep2Valid)}
                     >
-                        Next
+                        {t('standardAssign:actions.next')}
                     </button>
                 ) : (
-                    <small className="text-muted">Use the Assign button below to save this assignment.</small>
+                    <small className="text-muted">
+                        {t('standardAssign:form.hints.useAssignButtonBelow')}
+                    </small>
                 )}
             </div>
         </div>

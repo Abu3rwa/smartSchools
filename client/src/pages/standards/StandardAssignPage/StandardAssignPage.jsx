@@ -4,6 +4,7 @@ import StandardAssignList from './components/StandardAssignList';
 import StandardAssignModal from './components/StandardAssignModal';
 import StandardAssignProgressModal from './components/StandardAssignProgressModal';
 import AssessmentGradebookModal from './components/AssessmentGradebookModal';
+import QuestionPoolEditorModal from './components/QuestionPoolEditorModal';
 import useStandardAssignPageData from './hooks/useStandardAssignPageData';
 import './StandardAssignPage.css';
 
@@ -22,7 +23,16 @@ const StandardAssignPage = () => {
         assessmentGradebookLoading,
         assessmentGradebookError,
         assessmentGradebookData,
+        assessmentStandardAverageLoading,
+        assessmentStandardAverageError,
+        assessmentStandardAverageData,
         releasingAssessmentResults,
+        showQuestionPoolModal,
+        questionPoolAssignmentId,
+        questionPoolLoading,
+        questionPoolError,
+        questionPoolData,
+        savingQuestionPool,
         classes,
         students,
         submitting,
@@ -57,6 +67,10 @@ const StandardAssignPage = () => {
         closeAssessmentGradebookModal,
         retryAssessmentGradebookLoad,
         handleReleaseAssessmentResults,
+        handleManageQuestionPool,
+        closeQuestionPoolModal,
+        retryQuestionPoolLoad,
+        handleSaveQuestionPool,
         handleReviewQuestionPool,
         handleApproveQuestionPool,
         handlePublishQuestionPool,
@@ -81,6 +95,7 @@ const StandardAssignPage = () => {
                 user={user}
                 onViewProgress={handleViewProgress}
                 onEdit={handleEdit}
+                onManageQuestionPool={handleManageQuestionPool}
                 onViewAssessmentGradebook={handleViewAssessmentGradebook}
                 onDelete={handleDelete}
                 onReviewQuestionPool={handleReviewQuestionPool}
@@ -135,10 +150,25 @@ const StandardAssignPage = () => {
                 assessmentGradebookLoading={assessmentGradebookLoading}
                 assessmentGradebookError={assessmentGradebookError}
                 assessmentGradebookData={assessmentGradebookData}
+                assessmentStandardAverageLoading={assessmentStandardAverageLoading}
+                assessmentStandardAverageError={assessmentStandardAverageError}
+                assessmentStandardAverageData={assessmentStandardAverageData}
                 assessmentGradebookAssignmentId={assessmentGradebookAssignmentId}
                 releasingAssessmentResults={releasingAssessmentResults}
                 onRetry={retryAssessmentGradebookLoad}
                 onRelease={handleReleaseAssessmentResults}
+            />
+
+            <QuestionPoolEditorModal
+                show={showQuestionPoolModal}
+                onClose={closeQuestionPoolModal}
+                loading={questionPoolLoading}
+                error={questionPoolError}
+                data={questionPoolData}
+                assignmentId={questionPoolAssignmentId}
+                saving={savingQuestionPool}
+                onRetry={retryQuestionPoolLoad}
+                onSave={handleSaveQuestionPool}
             />
         </div>
     );

@@ -19,7 +19,7 @@ export default function LandingHero({ content, contentError, heroBadge, handleAc
                     </Paper>
                 ) : null}
                 <Grid container spacing={{ xs: 6, md: 4, lg: 6 }} alignItems="center">
-                    <Grid item xs={12} md={6} sx={{ textAlign: { xs: 'center', md: 'left' } }}>
+                    <Grid item xs={12} md={6} sx={{ textAlign: { xs: 'center', md: 'start' } }}>
                         <Paper variant="outlined" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 2, py: 1, mb: 3, borderRadius: 10, borderColor: 'primary.main', bgcolor: 'rgba(90,174,238,0.1)' }}>
                             <HiOutlineSparkles size={16} />
                             <Typography variant="caption" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, color: 'primary.main' }}>

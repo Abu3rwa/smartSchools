@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   HiOutlineCalendar,
   HiOutlinePencil,
@@ -27,6 +28,7 @@ const LessonPlanTable = ({
   evaluationLoadingByLessonId,
   reviewLoadingByLessonId,
 }) => {
+  const { t } = useTranslation(['lessonPlan']);
   const navigate = useNavigate();
   const [openActionMenuLessonId, setOpenActionMenuLessonId] = useState(null);
 
@@ -52,13 +54,13 @@ const LessonPlanTable = ({
       <table className="data-table lesson-table">
         <thead>
           <tr>
-            <th>Title</th>
-            {canFilterAsAdmin && <th className="lesson-col-teacher">Teacher</th>}
-            <th className="lesson-col-class">Class</th>
-            <th className="lesson-col-subject">Subject</th>
-            <th>Date</th>
-            <th className="lesson-col-status">Status</th>
-            {(canManageLessonPlans || canReviewLessonPlans) && <th className="lesson-col-actions">Actions</th>}
+            <th>{t('lessonPlan:table.title')}</th>
+            {canFilterAsAdmin && <th className="lesson-col-teacher">{t('lessonPlan:table.teacher')}</th>}
+            <th className="lesson-col-class">{t('lessonPlan:table.class')}</th>
+            <th className="lesson-col-subject">{t('lessonPlan:table.subject')}</th>
+            <th>{t('lessonPlan:table.date')}</th>
+            <th className="lesson-col-status">{t('lessonPlan:table.status')}</th>
+            {(canManageLessonPlans || canReviewLessonPlans) && <th className="lesson-col-actions">{t('lessonPlan:table.actions')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -76,12 +78,12 @@ const LessonPlanTable = ({
                 {canFilterAsAdmin && (
                   <td className="lesson-col-teacher">
                     {lesson.teacher
-                      ? `${lesson.teacher.firstName || ''} ${lesson.teacher.lastName || ''}`.trim() || '—'
-                      : '—'}
+                      ? `${lesson.teacher.firstName || ''} ${lesson.teacher.lastName || ''}`.trim() || t('lessonPlan:common.emptySymbol')
+                      : t('lessonPlan:common.emptySymbol')}
                   </td>
                 )}
-                <td className="lesson-col-class">{lesson.class?.name || '—'}</td>
-                <td className="lesson-col-subject">{lesson.subject?.name || '—'}</td>
+                <td className="lesson-col-class">{lesson.class?.name || t('lessonPlan:common.emptySymbol')}</td>
+                <td className="lesson-col-subject">{lesson.subject?.name || t('lessonPlan:common.emptySymbol')}</td>
                 <td>
                   <div className="lesson-date">
                     <HiOutlineCalendar />
@@ -92,7 +94,9 @@ const LessonPlanTable = ({
                   <span
                     className={`badge lesson-status-badge status-${lesson.status || 'draft'}`}
                   >
-                    {getStatusLabel(lesson.status)}
+                    {t(`lessonPlan:status.${lesson.status || 'draft'}`, {
+                      defaultValue: getStatusLabel(lesson.status)
+                    })}
                   </span>
                 </td>
                 {(canManageLessonPlans || canReviewLessonPlans) && (
@@ -107,8 +111,8 @@ const LessonPlanTable = ({
                               isMenuOpen ? null : lesson._id
                             )
                           }
-                          title="Actions"
-                          aria-label={`Actions for ${lesson.title}`}
+                          title={t('lessonPlan:table.actions')}
+                          aria-label={t('lessonPlan:table.actionsForLesson', { title: lesson.title })}
                         >
                           <HiOutlineDotsVertical />
                         </button>
@@ -123,7 +127,7 @@ const LessonPlanTable = ({
                               }}
                             >
                               <HiOutlineEye />
-                              View / Print
+                              {t('lessonPlan:actions.viewPrint')}
                             </button>
                             {canFilterAsAdmin && (
                               <>
@@ -139,7 +143,7 @@ const LessonPlanTable = ({
                                     });
                                   }}
                                 >
-                                  {reviewLoading ? 'Updating...' : 'Approve'}
+                                  {reviewLoading ? t('lessonPlan:actions.updating') : t('lessonPlan:actions.approve')}
                                 </button>
                                 <button
                                   type="button"
@@ -153,7 +157,7 @@ const LessonPlanTable = ({
                                     });
                                   }}
                                 >
-                                  {reviewLoading ? 'Updating...' : 'Needs revision'}
+                                  {reviewLoading ? t('lessonPlan:actions.updating') : t('lessonPlan:actions.needsRevision')}
                                 </button>
                                 <button
                                   type="button"
@@ -167,7 +171,7 @@ const LessonPlanTable = ({
                                     });
                                   }}
                                 >
-                                  {reviewLoading ? 'Updating...' : 'Reject'}
+                                  {reviewLoading ? t('lessonPlan:actions.updating') : t('lessonPlan:actions.reject')}
                                 </button>
                                 <AdminEvaluationButton
                                   loading={Boolean(evaluationLoadingByLessonId?.[lesson._id])}
@@ -185,12 +189,12 @@ const LessonPlanTable = ({
                                   <button
                                     type="button"
                                     className="lesson-menu-item"
-                                    onClick={() => {
-                                      setOpenActionMenuLessonId(null);
-                                      onTriggerEvaluation(lesson._id, { forceReevaluate: true, openModal: true });
-                                    }}
-                                  >
-                                    Re-evaluate with AI
+                                  onClick={() => {
+                                    setOpenActionMenuLessonId(null);
+                                    onTriggerEvaluation(lesson._id, { forceReevaluate: true, openModal: true });
+                                  }}
+                                >
+                                    {t('lessonPlan:actions.reEvaluateWithAi')}
                                   </button>
                                 )}
                                 <button
@@ -203,8 +207,8 @@ const LessonPlanTable = ({
                                 >
                                   <HiOutlineChat />
                                   {lesson.adminNoteToTeacher
-                                    ? 'View / Edit note to teacher'
-                                    : 'Note to teacher'}
+                                    ? t('lessonPlan:actions.viewEditNote')
+                                    : t('lessonPlan:actions.noteToTeacher')}
                                 </button>
                               </>
                             )}
@@ -219,7 +223,7 @@ const LessonPlanTable = ({
                                   }}
                                 >
                                   <HiOutlinePencil />
-                                  Edit
+                                  {t('lessonPlan:actions.edit')}
                                 </button>
                                 <button
                                   type="button"
@@ -230,7 +234,7 @@ const LessonPlanTable = ({
                                   }}
                                 >
                                   <HiOutlineTrash />
-                                  Delete
+                                  {t('lessonPlan:actions.delete')}
                                 </button>
                               </>
                             )}
@@ -238,7 +242,7 @@ const LessonPlanTable = ({
                         )}
                       </div>
                     ) : (
-                      <span className="text-muted">—</span>
+                      <span className="text-muted">{t('lessonPlan:common.emptySymbol')}</span>
                     )}
                   </td>
                 )}
@@ -255,7 +259,7 @@ const LessonPlanTable = ({
                 }
                 className="empty-row"
               >
-                No lesson plans created yet.
+                {t('lessonPlan:table.empty')}
               </td>
             </tr>
           )}

@@ -1,0 +1,301 @@
+{
+  "page": {
+    "title": "Students",
+    "subtitle": "Manage student records and view performance"
+  },
+  "filters": {
+    "searchPlaceholder": "Search students...",
+    "allClasses": "All Classes",
+    "unassignedStudents": "Unassigned Students"
+  },
+  "actions": {
+    "selectWithoutLoginFirst": "Select students without a login first",
+    "createLoginsForSelected": "Create logins for selected ({{count}})",
+    "importCsv": "Import CSV",
+    "addStudent": "Add Student",
+    "updateStudent": "Update Student",
+    "resetPassword": "Reset password",
+    "createLoginAccount": "Create login account",
+    "createLogin": "Create Login",
+    "sendingCredentials": "Sending credentials...",
+    "sendParentAppCredentials": "Send parent app credentials",
+    "noParentEmailOnFile": "No parent email on file",
+    "editStudent": "Edit student",
+    "deleteStudent": "Delete student",
+    "copyEmail": "Copy email",
+    "copyPassword": "Copy password",
+    "copyAll": "Copy All",
+    "downloadCsv": "Download CSV",
+    "importing": "Importing...",
+    "importStudents_zero": "Import {{count}} Students",
+    "importStudents_one": "Import {{count}} Student",
+    "importStudents_two": "Import {{count}} Students",
+    "importStudents_few": "Import {{count}} Students",
+    "importStudents_many": "Import {{count}} Students",
+    "importStudents_other": "Import {{count}} Students"
+  },
+  "table": {
+    "selectAllWithoutLogin": "Select all without login",
+    "selectForBulkLogin": "Select for bulk login",
+    "hasLogin": "Has Login",
+    "noEmail": "No email",
+    "unassigned": "Unassigned",
+    "columns": {
+      "student": "Student",
+      "id": "ID",
+      "class": "Class",
+      "department": "Department",
+      "gender": "Gender",
+      "status": "Status",
+      "login": "Login",
+      "actions": "Actions",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "dob": "DOB",
+      "email": "Email"
+    }
+  },
+  "genders": {
+    "male": "Male",
+    "female": "Female",
+    "other": "Other"
+  },
+  "status": {
+    "active": "active",
+    "inactive": "inactive"
+  },
+  "empty": {
+    "noStudents": "No students found"
+  },
+  "modal": {
+    "editTitle": "Edit Student",
+    "createTitle": "Add New Student"
+  },
+  "form": {
+    "studentInformation": "Student Information",
+    "firstName": "First Name *",
+    "lastName": "Last Name *",
+    "studentId": "Student ID *",
+    "email": "Email",
+    "dateOfBirth": "Date of Birth *",
+    "gender": "Gender *",
+    "selectGender": "Select Gender *",
+    "assignToClass": "Assign to Class",
+    "selectClass": "Select Class",
+    "department": "Department",
+    "noDepartment": "— No department —",
+    "parentGuardianInformation": "Parent/Guardian Information",
+    "motherName": "Mother's Name",
+    "motherPhone": "Mother's Phone",
+    "motherEmail": "Mother's Email",
+    "fatherName": "Father's Name",
+    "fatherPhone": "Phone",
+    "fatherEmail": "Email"
+  },
+  "import": {
+    "title": "Import Students from CSV",
+    "assignToClass": "Assign to Class *",
+    "csvFile": "CSV File *",
+    "selectCsvFile": "Click to select CSV file",
+    "downloadTemplate": "Download Template",
+    "parseErrors": "Parse Errors",
+    "readyToImport_zero": "{{count}} students ready to import",
+    "readyToImport_one": "{{count}} student ready to import",
+    "readyToImport_two": "{{count}} students ready to import",
+    "readyToImport_few": "{{count}} students ready to import",
+    "readyToImport_many": "{{count}} students ready to import",
+    "readyToImport_other": "{{count}} students ready to import",
+    "showingFirstRows": "Showing first {{shown}} of {{total}} rows",
+    "failedRows": "Failed Rows",
+    "rowError": "Row {{row}}: {{message}}",
+    "csvMustHaveHeader": "CSV must have a header row and at least one data row",
+    "missingRequiredColumns": "Missing required columns: {{columns}}",
+    "invalidColumnCount": "Row {{row}}: Expected {{expected}} columns, got {{actual}}"
+  },
+  "credentials": {
+    "studentLoginTitle": "Student Login Credentials",
+    "copyNow": "Copy these credentials now!",
+    "passwordCannotBeViewedAgain": "The password cannot be viewed again.",
+    "password": "Password",
+    "bulkLoginTitle": "Bulk Login Credentials",
+    "copyOrDownloadNow": "Copy or download these credentials now!",
+    "passwordsCannotBeViewedAgain": "Passwords cannot be viewed again.",
+    "issues": "Issues",
+    "parentAppTitle": "Parent App Credentials",
+    "emailed": "Credentials were emailed.",
+    "copyForManualShare": "Copy these now if you need to share manually.",
+    "contact": "Contact",
+    "emailedStatus": "Emailed",
+    "createdOnly": "Created only",
+    "enterEmailForLogin": "Enter Email for Login",
+    "studentHasNoEmail": "doesn't have an email on file. Enter one to create their login account.",
+    "emailAddress": "Email Address *",
+    "emailPlaceholder": "student@example.com"
+  },
+  "confirm": {
+    "resetPassword": "Reset password for {{name}}?",
+    "sendParentCredentials": "Send mobile app login credentials to {{count}} parent contact(s) for {{name}}?\n\nThis will create or reset their parent account password.",
+    "deleteStudent": "Delete {{name}}?"
+  },
+  "toast": {
+    "created": "Student created successfully!",
+    "createFailed": "Failed to create student",
+    "updated": "Student updated successfully!",
+    "updateFailed": "Failed to update student",
+    "deleted": "Student deleted",
+    "deleteFailed": "Failed to delete",
+    "loginCreated": "Login account created!",
+    "loginCreateFailed": "Failed to create login",
+    "passwordReset": "Password reset successfully!",
+    "passwordResetFailed": "Failed to reset password",
+    "noParentEmail": "No parent/guardian email found for this student",
+    "parentCredentialsSent": "Parent credentials sent",
+    "parentCredentialsFailed": "Failed to send parent credentials",
+    "copied": "Copied to clipboard!",
+    "copyFailed": "Failed to copy",
+    "loginsCreated": "Logins created",
+    "loginsCreateFailed": "Failed to create logins",
+    "csvDownloaded": "CSV downloaded",
+    "selectCsv": "Please select a .csv file",
+    "selectClass": "Please select a class",
+    "noValidData": "No valid data to import",
+    "rowsFailed": "{{count}} rows failed",
+    "importFailed": "Import failed"
+  },
+  "detail": {
+    "common": {
+      "na": "N/A",
+      "dash": "—"
+    },
+    "actions": {
+      "backToStudents": "Back to Students"
+    },
+    "errors": {
+      "studentNotFound": "Student not found"
+    },
+    "report": {
+      "customPeriod": "Custom Period"
+    },
+    "toast": {
+      "dailyReportSent": "Daily classwork report sent!",
+      "dailyReportFailed": "Failed to send daily report",
+      "reportGenerated": "Report generated. Review and edit before sending.",
+      "reportGenerateFailed": "Failed to generate AI report",
+      "reportSent": "AI report sent to parents successfully.",
+      "reportSendFailed": "Failed to send AI report",
+      "photoUpdated": "Student photo updated",
+      "photoUpdateFailed": "Failed to update student photo",
+      "photoRemoved": "Student photo removed",
+      "photoRemoveFailed": "Failed to remove student photo"
+    },
+    "overview": {
+      "studentPhoto": "Student Photo",
+      "noStudentId": "No student ID",
+      "unassignedClass": "Unassigned Class",
+      "noAcademicYear": "No Academic Year",
+      "statusUnknown": "unknown",
+      "actions": {
+        "sendDailyReportTitle": "Send only classwork grades for today",
+        "sendDailyClasswork": "Send Daily Classwork",
+        "sending": "Sending...",
+        "generateAiReportTitle": "Generate AI-powered progress report",
+        "generateAiReport": "Generate AI Report",
+        "generating": "Generating...",
+        "weeklyFullReport": "Weekly Full Report",
+        "viewGradeReport": "View Grade Report",
+        "viewGradebook": "View Gradebook"
+      }
+    },
+    "info": {
+      "personalInformation": "Personal Information",
+      "dateOfBirth": "Date of Birth",
+      "age": "Age",
+      "ageYears": "{{count}} years",
+      "gender": "Gender",
+      "class": "Class",
+      "unassigned": "Unassigned",
+      "academicYear": "Academic Year",
+      "enrollmentDate": "Enrollment Date",
+      "enrollmentHistory": "Enrollment History",
+      "left": "Left",
+      "parentGuardianInformation": "Parent/Guardian Information",
+      "father": "Father",
+      "mother": "Mother",
+      "noContactDetails": "No contact details.",
+      "noParentDetails": "No parent or guardian details have been added.",
+      "address": "Address"
+    },
+    "insights": {
+      "studentPerformanceOverview": "Student Performance Overview",
+      "loadingPerformanceData": "Loading performance data...",
+      "overallAverage": "Overall Average",
+      "gradedEntries": "Graded Entries",
+      "assignmentCompletion": "Assignment Completion",
+      "bestSubject": "Best Subject",
+      "schoolYear": "School Year",
+      "allSchoolYears": "All School Years",
+      "semester": "Semester",
+      "allSemesters": "All Semesters",
+      "semester1": "Semester 1",
+      "semester2": "Semester 2",
+      "subjectPerformance": "Subject Performance",
+      "subjectPerformanceChartType": "Subject performance chart type",
+      "monthlyTrend": "Monthly Trend",
+      "monthlyTrendChartType": "Monthly trend chart type",
+      "column": "Column",
+      "line": "Line",
+      "subject": "Subject",
+      "allSubjects": "All Subjects",
+      "unknownSubject": "Unknown Subject",
+      "category": "Category",
+      "allCategories": "All Categories",
+      "grade": "Grade",
+      "notGraded": "Not graded",
+      "noSubjectPerformanceData": "No subject performance data yet.",
+      "noMonthlyTrendAvailable": "No monthly trend available yet.",
+      "noGradeDataForSelection": "No grade data for the selected subject/category in this school year and semester.",
+      "assignmentsAndGradeEntries": "Assignments and Grade Entries",
+      "showingLatest": "Showing latest {{count}}",
+      "noAssignmentsOrGrades": "No assignments or grade entries for this student yet.",
+      "columns": {
+        "title": "Title",
+        "subject": "Subject",
+        "type": "Type",
+        "date": "Date",
+        "score": "Score",
+        "status": "Status"
+      },
+      "categories": {
+        "classwork": "Classwork",
+        "homework": "Homework",
+        "quiz": "Quiz",
+        "project": "Project",
+        "participation": "Participation",
+        "test": "Test",
+        "exam": "Exam",
+        "other": "Other"
+      },
+      "types": {
+        "assignment": "Assignment",
+        "classwork": "Classwork",
+        "homework": "Homework",
+        "quiz": "Quiz",
+        "project": "Project",
+        "participation": "Participation",
+        "test": "Test",
+        "exam": "Exam",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly_test": "Test",
+        "semester_exam": "Exam",
+        "other": "Other"
+      },
+      "statuses": {
+        "graded": "Graded",
+        "recorded": "Recorded",
+        "overdue": "Overdue",
+        "pending": "Pending"
+      }
+    }
+  }
+}

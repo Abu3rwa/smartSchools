@@ -5,6 +5,7 @@ import {
     HiOutlineExclamationCircle,
     HiOutlineCheckCircle
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const ImportStudentsModal = ({
     showImportModal,
@@ -20,25 +21,26 @@ const ImportStudentsModal = ({
     handleImport,
     importing
 }) => {
+    const { t } = useTranslation(['students']);
     if (!showImportModal) return null;
 
     return (
         <div className="modal-overlay" onClick={resetImportModal}>
             <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>Import Students from CSV</h3>
+                    <h3>{t('students:import.title')}</h3>
                     <button className="modal-close" onClick={resetImportModal}>&times;</button>
                 </div>
                 <div className="modal-body">
                     {/* Step 1: Select class */}
                     <div className="form-group">
-                        <label>Assign to Class *</label>
+                        <label>{t('students:import.assignToClass')}</label>
                         <select
                             value={importClassId}
                             onChange={(e) => setImportClassId(e.target.value)}
                             required
                         >
-                            <option value="">Select Class</option>
+                            <option value="">{t('students:form.selectClass')}</option>
                             {classes.map(cls => (
                                 <option key={cls._id} value={cls._id}>{cls.name}</option>
                             ))}
@@ -47,7 +49,7 @@ const ImportStudentsModal = ({
 
                     {/* Step 2: Upload CSV */}
                     <div className="form-group">
-                        <label>CSV File *</label>
+                        <label>{t('students:import.csvFile')}</label>
                         <div className="csv-upload-area">
                             <input
                                 type="file"
@@ -58,19 +60,19 @@ const ImportStudentsModal = ({
                             />
                             <label htmlFor="csv-file-input" className="csv-upload-label">
                                 <HiOutlineUpload size={24} />
-                                <span>Click to select CSV file</span>
+                                <span>{t('students:import.selectCsvFile')}</span>
                             </label>
                         </div>
                         <button type="button" className="btn btn-sm btn-ghost mt-sm" onClick={downloadTemplate}>
                             <HiOutlineDownload size={16} />
-                            Download Template
+                            {t('students:import.downloadTemplate')}
                         </button>
                     </div>
 
                     {/* Parse errors */}
                     {csvErrors.length > 0 && (
                         <div className="import-errors">
-                            <h4><HiOutlineExclamationCircle /> Parse Errors</h4>
+                            <h4><HiOutlineExclamationCircle /> {t('students:import.parseErrors')}</h4>
                             <ul>
                                 {csvErrors.map((err, i) => <li key={i}>{err}</li>)}
                             </ul>
@@ -80,17 +82,17 @@ const ImportStudentsModal = ({
                     {/* Preview */}
                     {csvData.length > 0 && !importResult && (
                         <div className="csv-preview">
-                            <h4>{csvData.length} student{csvData.length !== 1 ? 's' : ''} ready to import</h4>
+                            <h4>{t('students:import.readyToImport', { count: csvData.length })}</h4>
                             <div className="table-container" style={{ maxHeight: '250px', overflow: 'auto' }}>
                                 <table>
                                     <thead>
                                         <tr>
                                             <th>#</th>
-                                            <th>First Name</th>
-                                            <th>Last Name</th>
-                                            <th>DOB</th>
-                                            <th>Gender</th>
-                                            <th>Email</th>
+                                            <th>{t('students:table.columns.firstName')}</th>
+                                            <th>{t('students:table.columns.lastName')}</th>
+                                            <th>{t('students:table.columns.dob')}</th>
+                                            <th>{t('students:table.columns.gender')}</th>
+                                            <th>{t('students:table.columns.email')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -107,7 +109,7 @@ const ImportStudentsModal = ({
                                     </tbody>
                                 </table>
                                 {csvData.length > 50 && (
-                                    <p className="text-muted text-sm mt-sm">Showing first 50 of {csvData.length} rows</p>
+                                    <p className="text-muted text-sm mt-sm">{t('students:import.showingFirstRows', { shown: 50, total: csvData.length })}</p>
                                 )}
                             </div>
                         </div>
@@ -122,10 +124,10 @@ const ImportStudentsModal = ({
                             </div>
                             {importResult.data.errors && (
                                 <div className="import-errors mt-sm">
-                                    <h4>Failed Rows</h4>
+                                    <h4>{t('students:import.failedRows')}</h4>
                                     <ul>
                                         {importResult.data.errors.map((err, i) => (
-                                            <li key={i}>Row {err.row}: {err.message}</li>
+                                            <li key={i}>{t('students:import.rowError', { row: err.row, message: err.message })}</li>
                                         ))}
                                     </ul>
                                 </div>
@@ -135,7 +137,7 @@ const ImportStudentsModal = ({
                 </div>
                 <div className="modal-footer">
                     <button type="button" className="btn btn-secondary" onClick={resetImportModal}>
-                        {importResult ? 'Close' : 'Cancel'}
+                        {importResult ? t('common:actions.close') : t('common:actions.cancel')}
                     </button>
                     {!importResult && (
                         <button
@@ -144,7 +146,7 @@ const ImportStudentsModal = ({
                             onClick={handleImport}
                             disabled={importing || csvData.length === 0 || !importClassId}
                         >
-                            {importing ? 'Importing...' : `Import ${csvData.length} Student${csvData.length !== 1 ? 's' : ''}`}
+                            {importing ? t('students:actions.importing') : t('students:actions.importStudents', { count: csvData.length })}
                         </button>
                     )}
                 </div>

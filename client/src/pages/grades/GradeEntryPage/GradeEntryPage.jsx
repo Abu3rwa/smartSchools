@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
 import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices/studentSlice';
@@ -23,6 +24,7 @@ import {
 import './GradeEntryPage.css';
 
 const GradeEntryPage = () => {
+    const { t } = useTranslation(['grades']);
     const dispatch = useDispatch();
     const [searchParams] = useSearchParams();
 
@@ -91,7 +93,7 @@ const GradeEntryPage = () => {
 
         const gradesToSubmit = mapGradesForSubmission(grades);
         if (gradesToSubmit.length === 0) {
-            toast.error('Please enter at least one grade');
+            toast.error(t('grades:toasts.enterAtLeastOne'));
             return;
         }
 
@@ -107,10 +109,10 @@ const GradeEntryPage = () => {
         }));
 
         if (bulkAddGrades.fulfilled.match(result)) {
-            toast.success(`${gradesToSubmit.length} grades saved successfully!`);
+            toast.success(t('grades:toasts.savedSuccess', { count: gradesToSubmit.length }));
             resetGradesForStudents(classStudents);
         } else {
-            toast.error(result.payload || 'Failed to save grades');
+            toast.error(result.payload || t('grades:toasts.saveFailed'));
         }
     };
 
@@ -150,11 +152,11 @@ const GradeEntryPage = () => {
             )}
 
             {selectedClass && selectedSubject && classStudents.length === 0 && (
-                <GradeEntryEmptyState message="No students found in this class" />
+                <GradeEntryEmptyState message={t('grades:entry.empty.noStudents')} />
             )}
 
             {(!selectedClass || !selectedSubject) && (
-                <GradeEntryEmptyState message="Select a class and subject to start entering grades" />
+                <GradeEntryEmptyState message={t('grades:entry.empty.selectClassSubject')} />
             )}
         </div>
     );

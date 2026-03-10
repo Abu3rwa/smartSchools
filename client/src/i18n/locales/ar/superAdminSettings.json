@@ -1,0 +1,27 @@
+{
+  "page": {
+    "title": "إعدادات المنصة"
+  },
+  "sections": {
+    "appearance": "المظهر",
+    "account": "الحساب",
+    "platform": "المنصة"
+  },
+  "theme": {
+    "light": "فاتح",
+    "dark": "داكن"
+  },
+  "account": {
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "role": "الدور",
+    "superAdmin": "مسؤول عام"
+  },
+  "platform": {
+    "version": "منصة GradeBook الإصدار 1.0",
+    "comingSoon": "الفوترة وتكامل Stripe وإعدادات المنصة المتقدمة قريبًا."
+  },
+  "toast": {
+    "themeChanged": "تم تغيير المظهر إلى وضع {{theme}}"
+  }
+}

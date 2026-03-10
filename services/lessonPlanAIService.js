@@ -4,6 +4,7 @@
  */
 
 import { connectAi } from "../utils/connectAi.js";
+import { getLanguageLabel } from "../utils/aiLanguageUtils.js";
 
 const VALID_FIELDS = [
   "title",
@@ -17,6 +18,22 @@ const VALID_FIELDS = [
   "techIntegration",
   "stageProcedure",
 ];
+
+function buildLessonPromptLanguageRule(requestedLanguages = ["en"]) {
+  const normalized = Array.isArray(requestedLanguages) && requestedLanguages.length > 0
+    ? requestedLanguages.slice(0, 2)
+    : ["en"];
+  const primaryLanguage = normalized[0] || "en";
+  const primaryLabel = getLanguageLabel(primaryLanguage);
+
+  if (normalized.length > 1) {
+    const secondaryLanguage = normalized[1];
+    const secondaryLabel = getLanguageLabel(secondaryLanguage);
+    return `Write bilingual content in two clear blocks: first ${primaryLabel} (${primaryLanguage}), then ${secondaryLabel} (${secondaryLanguage}). Keep each block complete and avoid mixing languages within the same paragraph.`;
+  }
+
+  return `Write all natural-language output in ${primaryLabel} (${primaryLanguage}) only.`;
+}
 
 /**
  * Build field-specific instruction for suggest prompts
@@ -56,6 +73,7 @@ export async function suggestFieldContent({
   field,
   currentValue,
   context = {},
+  requestedLanguages = ["en"],
 }) {
   if (!VALID_FIELDS.includes(field)) {
     throw new Error(`Invalid field: ${field}`);
@@ -64,8 +82,12 @@ export async function suggestFieldContent({
   const { subjectName = "", gradeLevel = "", title = "", summary = "" } =
     context;
   const instruction = getFieldInstruction(field);
+  const languageRule = buildLessonPromptLanguageRule(requestedLanguages);
 
   const prompt = `You are an experienced teacher. Given the following lesson context, suggest an improved or expanded value for the field "${field}".
+
+LANGUAGE REQUIREMENT:
+${languageRule}
 
 CONTEXT:
 - Subject: ${subjectName}
@@ -136,6 +158,7 @@ export async function inferStandardsFromContent({
   subjectName,
   gradeLevel,
   lessonText,
+  requestedLanguages = ["en"],
 }) {
   if (!lessonText || !(lessonText.trim())) {
     return {
@@ -144,6 +167,7 @@ export async function inferStandardsFromContent({
     };
   }
 
+  const languageRule = buildLessonPromptLanguageRule(requestedLanguages);
   const prompt = `You are an expert curriculum analyst. There are NO pre-defined standards for this subject and grade. Your task is to INFER or EXTRACT the learning standards or skills that this lesson clearly addresses, based ONLY on the lesson content below.
 
 RULES:
@@ -151,6 +175,7 @@ RULES:
 - Every inferred standard/skill MUST align with the subject "${subjectName}" and grade level ${gradeLevel}.
 - Use clear, concise codes (e.g. "1.1", "2.A", "NS.3") and short names. Description should state what the student will know or be able to do.
 - Return between 2 and 8 inferred standards/skills. No duplicates.
+- Language rule for "name" and "description": ${languageRule}
 
 SUBJECT: ${subjectName}
 GRADE LEVEL: ${gradeLevel}
@@ -216,6 +241,7 @@ export async function detectStandardsFromContent({
   lessonText,
   standards,
   suggestedPool = false,
+  requestedLanguages = ["en"],
 }) {
   if (!Array.isArray(standards) || standards.length === 0) {
     return {
@@ -236,6 +262,7 @@ export async function detectStandardsFromContent({
     ? "These are suggested standards from other subjects for this grade. Select the most relevant for the lesson content."
     : "These are the actual standards for this subject and grade - use their exact _id, code, and description. Do NOT invent, modify, or create any standard.";
 
+  const languageRule = buildLessonPromptLanguageRule(requestedLanguages);
   const prompt = `You are an expert curriculum analyst. You must select standards ONLY from the AVAILABLE STANDARDS list below. ${poolNote}
 
 LESSON CONTENT:
@@ -247,7 +274,7 @@ ${JSON.stringify(standardsList, null, 0)}
 For each selected standard, provide:
 - standardId (exact _id from the list - must match one of the _id values above)
 - relevanceScore (0–1)
-- explanation (1 sentence why this standard's code/description matches the lesson)
+- explanation (1 sentence why this standard's code/description matches the lesson, following this language rule: ${languageRule})
 
 Output ONLY a valid JSON array. No markdown, no code fences, no extra text:
 [
@@ -317,6 +344,7 @@ const DEFAULT_STAGE_NAMES = [
 export async function generateSection({
   title,
   context = {},
+  requestedLanguages = ["en"],
   sourceFields = [
     "summary",
     "description",
@@ -329,6 +357,7 @@ export async function generateSection({
   ],
 }) {
   const { subjectName = "", gradeLevel = "" } = context;
+  const languageRule = buildLessonPromptLanguageRule(requestedLanguages);
 
   const prompt = `You are an experienced teacher. Generate a complete lesson plan from the minimal input below.
 
@@ -336,6 +365,9 @@ INPUT:
 - Subject: ${subjectName}
 - Grade: ${gradeLevel}
 - Title: ${title || "Untitled lesson"}
+
+LANGUAGE REQUIREMENT:
+${languageRule}
 
 Generate ALL of the following. Use age-appropriate language and pedagogical best practices.
 For stages, include realistic timing (e.g. "5 min", "10 min", "15 min") so the total fits a typical class period.

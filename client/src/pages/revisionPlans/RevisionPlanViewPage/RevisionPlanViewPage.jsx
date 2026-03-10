@@ -16,12 +16,14 @@ import {
   AccordionSummary,
   AccordionDetails,
 } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { HiOutlineArrowLeft, HiOutlineCalendar, HiOutlineCheck } from "react-icons/hi";
 import { format, isToday, isPast } from "date-fns";
 import { useRevisionPlanViewData } from "./hooks/useRevisionPlanViewData.js";
 import { formatStandardLabel } from "../../../utils/standardLabel";
 
 export default function RevisionPlanViewPage() {
+  const { t } = useTranslation(["revisionPlans"]);
   const theme = useTheme();
   const {
     plan,
@@ -52,9 +54,9 @@ export default function RevisionPlanViewPage() {
   if (!plan) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography color="text.secondary">Plan not found.</Typography>
+        <Typography color="text.secondary">{t("revisionPlans:view.notFound")}</Typography>
         <Button onClick={onBack} sx={{ mt: 2 }}>
-          Back to plans
+          {t("revisionPlans:view.backToPlans")}
         </Button>
       </Box>
     );
@@ -67,16 +69,16 @@ export default function RevisionPlanViewPage() {
         onClick={onBack}
         sx={{ mb: 2 }}
       >
-        Back
+        {t("revisionPlans:common.back")}
       </Button>
 
       <Box sx={{ mb: 3 }}>
         <Box display="flex" flexWrap="wrap" alignItems="center" gap={1} mb={1}>
           <Typography variant="h4" fontWeight={700}>
-            {plan.examLabel || plan.subject?.name || "Revision Plan"}
+            {plan.examLabel || plan.subject?.name || t("revisionPlans:list.planFallback")}
           </Typography>
           <Chip
-            label={plan.status}
+            label={t(`revisionPlans:status.${plan.status}`, { defaultValue: plan.status })}
             size="small"
             color={
               plan.status === "active"
@@ -89,7 +91,7 @@ export default function RevisionPlanViewPage() {
           />
         </Box>
         <Typography color="text.secondary">
-          {plan.subject?.name} • Exam:{" "}
+          {plan.subject?.name} • {t("revisionPlans:common.examLabel")}{" "}
           {plan.examDate &&
             format(new Date(plan.examDate), "EEEE, MMM d, yyyy")}
           {plan.student && (
@@ -99,7 +101,7 @@ export default function RevisionPlanViewPage() {
         </Typography>
         {plan.daysUntilExam != null && plan.status === "active" && (
           <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>
-            {plan.daysUntilExam} days until exam
+            {t("revisionPlans:list.daysUntilExam", { count: plan.daysUntilExam })}
           </Typography>
         )}
       </Box>
@@ -112,7 +114,7 @@ export default function RevisionPlanViewPage() {
         }}
       >
         <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-          Overall progress
+          {t("revisionPlans:view.overallProgress")}
         </Typography>
         <LinearProgress
           variant="determinate"
@@ -120,12 +122,12 @@ export default function RevisionPlanViewPage() {
           sx={{ height: 8, borderRadius: 1, mb: 1 }}
         />
         <Typography variant="body2">
-          {completedTopics} of {totalTopics} topics completed ({progressPct}%)
+          {t("revisionPlans:view.progressSummary", { completed: completedTopics, total: totalTopics, progress: progressPct })}
         </Typography>
       </Paper>
 
       <Typography variant="h6" sx={{ mb: 2 }}>
-        Topics
+        {t("revisionPlans:view.topics")}
       </Typography>
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {(plan.topics || []).map((topic, idx) => (
@@ -145,19 +147,19 @@ export default function RevisionPlanViewPage() {
                   }
                   label={
                     <Typography variant="body2">
-                      {formatStandardLabel(topic.standard) || `Topic ${idx + 1}`}
+                      {formatStandardLabel(topic.standard) || t("revisionPlans:view.topicNumber", { number: idx + 1 })}
                     </Typography>
                   }
                 />
                 <Box display="flex" gap={1} mt={0.5} flexWrap="wrap">
                   <Chip
                     size="small"
-                    label={`${topic.masteryLevel ?? 0}% mastery`}
+                    label={t("revisionPlans:view.mastery", { value: topic.masteryLevel ?? 0 })}
                     variant="outlined"
                   />
                   <Chip
                     size="small"
-                    label={`${topic.allocatedMinutes ?? 0} min`}
+                    label={t("revisionPlans:view.minutes", { value: topic.allocatedMinutes ?? 0 })}
                     variant="outlined"
                   />
                 </Box>
@@ -168,7 +170,7 @@ export default function RevisionPlanViewPage() {
       </Grid>
 
       <Typography variant="h6" sx={{ mb: 2 }}>
-        Daily schedule
+        {t("revisionPlans:view.dailySchedule")}
       </Typography>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
         {(plan.dailySchedule || []).slice(0, 14).map((day, dayIdx) => {
@@ -187,29 +189,29 @@ export default function RevisionPlanViewPage() {
                 <Box display="flex" alignItems="center" gap={1}>
                   <HiOutlineCalendar size={18} />
                   <Typography fontWeight={500}>
-                    {d ? format(d, "EEE, MMM d") : `Day ${dayIdx + 1}`}
+                    {d ? format(d, "EEE, MMM d") : t("revisionPlans:view.dayNumber", { number: dayIdx + 1 })}
                   </Typography>
                   {isPastDay && (
-                    <Chip label="Past" size="small" variant="outlined" />
+                    <Chip label={t("revisionPlans:view.past")} size="small" variant="outlined" />
                   )}
                 </Box>
               </AccordionSummary>
               <AccordionDetails>
                 {!day.slots || day.slots.length === 0 ? (
                   <Typography variant="body2" color="text.secondary">
-                    No slots
+                    {t("revisionPlans:view.noSlots")}
                   </Typography>
                 ) : (
                   <Box component="ul" sx={{ m: 0, pl: 2 }}>
                     {day.slots.map((slot, slotIdx) => (
                       <li key={slotIdx}>
                         <Typography variant="body2">
-                          {formatStandardLabel(slot.standard) || "Topic"} —{" "}
-                          {slot.minutes} min
+                          {formatStandardLabel(slot.standard) || t("revisionPlans:view.topic")} —{" "}
+                          {t("revisionPlans:view.minutes", { value: slot.minutes })}
                           {slot.completed && (
                             <Chip
                               icon={<HiOutlineCheck size={14} />}
-                              label="Done"
+                              label={t("revisionPlans:view.done")}
                               size="small"
                               color="success"
                               sx={{ ml: 1 }}
@@ -229,7 +231,7 @@ export default function RevisionPlanViewPage() {
       {plan.milestones?.length > 0 && (
         <>
           <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
-            Milestones
+            {t("revisionPlans:view.milestones")}
           </Typography>
           <Box display="flex" flexWrap="wrap" gap={1}>
             {plan.milestones.map((m, i) => (

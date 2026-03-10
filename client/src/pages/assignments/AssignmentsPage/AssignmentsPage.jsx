@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import assignmentService from '../../../services/assignmentService';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
@@ -18,6 +19,7 @@ import { normalizeGradeStudentsFromClassStudents } from './utils/assignmentPrese
 import './AssignmentsPage.css';
 
 const AssignmentsPage = () => {
+    const { t } = useTranslation(['assignments']);
     const dispatch = useDispatch();
     const classes = useSelector(selectClasses);
     const subjects = useSelector(selectSubjects);
@@ -67,7 +69,7 @@ const AssignmentsPage = () => {
                 assignmentTypeId: prev.assignmentTypeId || items[0]?.id || ''
             }));
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to load assignment types');
+            toast.error(error.response?.data?.message || t('assignments:toasts.loadTypesFailed'));
         }
     };
 
@@ -87,7 +89,7 @@ const AssignmentsPage = () => {
             });
             setAssignments(response?.data?.items || []);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to load assignments');
+            toast.error(error.response?.data?.message || t('assignments:toasts.loadAssignmentsFailed'));
             setAssignments([]);
         } finally {
             setLoading(false);
@@ -123,11 +125,11 @@ const AssignmentsPage = () => {
     const onCreateAssignment = async (event) => {
         event.preventDefault();
         if (!selectedClass || !selectedSubject) {
-            toast.error('Select class and subject first');
+            toast.error(t('assignments:toasts.selectClassSubject'));
             return;
         }
         if (!form.assignmentTypeId || !form.title.trim()) {
-            toast.error('Assignment type and title are required');
+            toast.error(t('assignments:toasts.typeTitleRequired'));
             return;
         }
 
@@ -149,17 +151,20 @@ const AssignmentsPage = () => {
 
             if (editingAssignment?.id) {
                 await assignmentService.updateAssignment(editingAssignment.id, payload);
-                toast.success('Assignment updated');
+                toast.success(t('assignments:toasts.updated'));
             } else {
                 await assignmentService.createAssignment(payload);
-                toast.success('Assignment created');
+                toast.success(t('assignments:toasts.created'));
             }
 
             setEditingAssignment(null);
             resetForm();
             await fetchAssignments();
         } catch (error) {
-            toast.error(error.response?.data?.message || (editingAssignment?.id ? 'Failed to update assignment' : 'Failed to create assignment'));
+            toast.error(
+                error.response?.data?.message
+                || (editingAssignment?.id ? t('assignments:toasts.updateFailed') : t('assignments:toasts.createFailed'))
+            );
         } finally {
             setSubmitting(false);
         }
@@ -187,7 +192,7 @@ const AssignmentsPage = () => {
 
     const onDeleteAssignment = async (assignment) => {
         const confirmed = window.confirm(
-            `Delete "${assignment.title}"?\n\nThis will permanently delete the assignment and all grades entered for it.`
+            t('assignments:toasts.confirmDelete', { title: assignment.title })
         );
         if (!confirmed) return;
 
@@ -196,25 +201,25 @@ const AssignmentsPage = () => {
             const deletedGrades = response?.data?.deletedGradesCount || 0;
             toast.success(
                 deletedGrades > 0
-                    ? `Assignment deleted. ${deletedGrades} linked grade(s) were also deleted.`
-                    : 'Assignment deleted'
+                    ? t('assignments:toasts.deletedWithGrades', { count: deletedGrades })
+                    : t('assignments:toasts.deleted')
             );
             if (editingAssignment?.id === assignment.id) {
                 onCancelEdit();
             }
             await fetchAssignments();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to delete assignment');
+            toast.error(error.response?.data?.message || t('assignments:toasts.deleteFailed'));
         }
     };
 
     const onPublishAssignment = async (assignmentId) => {
         try {
             await assignmentService.publishAssignment(assignmentId, { notifyOnAssign: true });
-            toast.success('Assignment published');
+            toast.success(t('assignments:toasts.published'));
             await fetchAssignments();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to publish assignment');
+            toast.error(error.response?.data?.message || t('assignments:toasts.publishFailed'));
         }
     };
 
@@ -243,7 +248,7 @@ const AssignmentsPage = () => {
             setGradeRows(nextRows);
             setGradeStudents(nextStudents);
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to load assignment grades');
+            toast.error(error.response?.data?.message || t('assignments:toasts.loadGradesFailed'));
         }
     };
 
@@ -270,7 +275,7 @@ const AssignmentsPage = () => {
             }));
 
         if (rows.length === 0) {
-            toast.error('Enter at least one grade');
+            toast.error(t('assignments:toasts.enterGrade'));
             return;
         }
 
@@ -279,11 +284,11 @@ const AssignmentsPage = () => {
                 rows,
                 sendNotifications: true
             });
-            toast.success('Grades saved');
+            toast.success(t('assignments:toasts.gradesSaved'));
             setGradingAssignment(null);
             await fetchAssignments();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to save grades');
+            toast.error(error.response?.data?.message || t('assignments:toasts.saveGradesFailed'));
         }
     };
 

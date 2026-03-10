@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { impersonateUser } from '../../../store/slices/authSlice';
 import api from '../../../config/api';
 import toast from 'react-hot-toast';
@@ -18,6 +19,7 @@ import '../../../components/superAdmin/SuperAdminBase.css';
 const SuperAdminSchoolsPage = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const { t } = useTranslation(['superAdminSchools']);
     const [schools, setSchools] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -41,7 +43,7 @@ const SuperAdminSchoolsPage = () => {
             const response = await api.get('/schools');
             setSchools(response.data.data.schools);
         } catch (error) {
-            console.error('Error fetching schools:', error);
+            toast.error(error.response?.data?.message || t('superAdminSchools:toast.loadFailed'));
         } finally {
             setLoading(false);
         }
@@ -52,24 +54,34 @@ const SuperAdminSchoolsPage = () => {
         setCreating(true);
         try {
             await api.post('/schools', formData);
-            toast.success('School created successfully');
+            toast.success(t('superAdminSchools:toast.schoolCreated'));
             setShowCreateModal(false);
             setFormData({ schoolName: '', adminName: '', adminEmail: '', adminPassword: '', plan: 'starter', maxStudents: 50 });
             fetchSchools();
         } catch (error) {
-            toast.error(error.response?.data?.message || 'Failed to create school');
+            toast.error(error.response?.data?.message || t('superAdminSchools:toast.createFailed'));
         } finally {
             setCreating(false);
         }
     };
 
-    const handleImpersonate = async (userId) => {
-        if (!window.confirm('Are you sure you want to log in as this school\'s admin?')) return;
+    const getStatusLabel = (status = 'active') => {
+        const normalized = String(status || 'active').toLowerCase();
+        return t(`superAdminSchools:status.${normalized}`, { defaultValue: normalized });
+    };
 
-        const toastId = toast.loading('Initiating impersonation...');
+    const getPlanLabel = (plan = 'starter') => {
+        const normalized = String(plan || 'starter').toLowerCase();
+        return t(`superAdminSchools:plan.${normalized}`, { defaultValue: normalized });
+    };
+
+    const handleImpersonate = async (userId) => {
+        if (!window.confirm(t('superAdminSchools:confirm.impersonateAdmin'))) return;
+
+        const toastId = toast.loading(t('superAdminSchools:toast.impersonationStarting'));
         try {
             await dispatch(impersonateUser(userId)).unwrap();
-            toast.success('Redirecting to school dashboard...', { id: toastId });
+            toast.success(t('superAdminSchools:toast.redirecting'), { id: toastId });
             navigate('/'); // Redirect to the main dashboard, which will now be the impersonated user's dashboard
         } catch (error) {
             toast.error(error, { id: toastId });
@@ -83,7 +95,7 @@ const SuperAdminSchoolsPage = () => {
 
     return (
         <div className="admin-dashboard">
-            <h1>Schools Management</h1>
+            <h1>{t('superAdminSchools:page.title')}</h1>
 
             {/* Actions Bar */}
             <div className="admin-toolbar">
@@ -92,14 +104,14 @@ const SuperAdminSchoolsPage = () => {
                     <input
                         className="admin-toolbar-input"
                         type="text"
-                        placeholder="Search schools..."
+                        placeholder={t('superAdminSchools:search.placeholder')}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
                 <button className="admin-action-btn primary" onClick={() => setShowCreateModal(true)}>
                     <HiOutlinePlus size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                    Create School
+                    {t('superAdminSchools:actions.createSchool')}
                 </button>
             </div>
 
@@ -110,20 +122,20 @@ const SuperAdminSchoolsPage = () => {
                 ) : filtered.length === 0 ? (
                     <div className="admin-empty">
                         <HiOutlineOfficeBuilding size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
-                        <p>No schools found</p>
+                        <p>{t('superAdminSchools:empty.noSchoolsFound')}</p>
                     </div>
                 ) : (
                     <div className="admin-table-wrap">
                         <table className="admin-table">
                             <thead>
                                 <tr>
-                                    <th>School</th>
-                                    <th>Admin Email</th>
-                                    <th>Users</th>
-                                    <th>Students</th>
-                                    <th>Plan</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
+                                    <th>{t('superAdminSchools:table.school')}</th>
+                                    <th>{t('superAdminSchools:table.adminEmail')}</th>
+                                    <th>{t('superAdminSchools:table.users')}</th>
+                                    <th>{t('superAdminSchools:table.students')}</th>
+                                    <th>{t('superAdminSchools:table.plan')}</th>
+                                    <th>{t('superAdminSchools:table.status')}</th>
+                                    <th>{t('superAdminSchools:table.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -133,21 +145,21 @@ const SuperAdminSchoolsPage = () => {
                                         <td>{school.contact?.adminEmail}</td>
                                         <td>{school.userCount || 0}</td>
                                         <td>{school.studentCount || 0}</td>
-                                        <td style={{ textTransform: 'capitalize' }}>{school.subscription?.plan || 'starter'}</td>
+                                        <td style={{ textTransform: 'capitalize' }}>{getPlanLabel(school.subscription?.plan || 'starter')}</td>
                                         <td>
                                             <span className={`status-badge ${school.subscription?.status || 'active'}`}>
-                                                {school.subscription?.status || 'active'}
+                                                {getStatusLabel(school.subscription?.status || 'active')}
                                             </span>
                                         </td>
                                         <td>
                                             <div className="admin-actions">
-                                                <button className="admin-action-btn" title="Login As Admin" onClick={() => handleImpersonate(school.adminId)}>
+                                                <button className="admin-action-btn" title={t('superAdminSchools:actions.loginAsAdmin')} onClick={() => handleImpersonate(school.adminId)}>
                                                     <HiOutlineLogin size={14} />
                                                 </button>
-                                                <button className="admin-action-btn" title="View Details" onClick={() => navigate(`/admin/schools/${school._id}`)}>
+                                                <button className="admin-action-btn" title={t('superAdminSchools:actions.viewDetails')} onClick={() => navigate(`/admin/schools/${school._id}`)}>
                                                     <HiOutlineEye size={14} />
                                                 </button>
-                                                <button className="admin-action-btn" title="Edit School">
+                                                <button className="admin-action-btn" title={t('superAdminSchools:actions.editSchool')}>
                                                     <HiOutlinePencil size={14} />
                                                 </button>
                                             </div>
@@ -174,7 +186,7 @@ const SuperAdminSchoolsPage = () => {
                         margin: 'var(--spacing-md) 0'
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
-                            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>Create School</h2>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t('superAdminSchools:modal.createSchoolTitle')}</h2>
                             <button onClick={() => setShowCreateModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                                 <HiOutlineX size={20} />
                             </button>
@@ -182,49 +194,49 @@ const SuperAdminSchoolsPage = () => {
 
                         <form onSubmit={handleCreate} className="register-form" style={{ gap: 'var(--spacing-md)' }}>
                             <div className="form-group">
-                                <label>School Name *</label>
+                                <label>{t('superAdminSchools:form.schoolNameLabel')}</label>
                                 <input type="text" required value={formData.schoolName}
                                     onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
-                                    placeholder="Springfield High" />
+                                    placeholder={t('superAdminSchools:form.schoolNamePlaceholder')} />
                             </div>
                             <div className="form-group">
-                                <label>Admin Name *</label>
+                                <label>{t('superAdminSchools:form.adminNameLabel')}</label>
                                 <input type="text" required value={formData.adminName}
                                     onChange={(e) => setFormData({ ...formData, adminName: e.target.value })}
-                                    placeholder="Jane Doe" />
+                                    placeholder={t('superAdminSchools:form.adminNamePlaceholder')} />
                             </div>
                             <div className="form-group">
-                                <label>Admin Email *</label>
+                                <label>{t('superAdminSchools:form.adminEmailLabel')}</label>
                                 <input type="email" required value={formData.adminEmail}
                                     onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
-                                    placeholder="admin@school.edu" />
+                                    placeholder={t('superAdminSchools:form.adminEmailPlaceholder')} />
                             </div>
                             <div className="form-group">
-                                <label>Admin Password *</label>
+                                <label>{t('superAdminSchools:form.adminPasswordLabel')}</label>
                                 <input type="password" required value={formData.adminPassword}
                                     onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
-                                    placeholder="Strong password" />
+                                    placeholder={t('superAdminSchools:form.adminPasswordPlaceholder')} />
                             </div>
                             <div className="admin-form-row">
                                 <div className="form-group">
-                                    <label>Plan</label>
+                                    <label>{t('superAdminSchools:form.planLabel')}</label>
                                     <select value={formData.plan} onChange={(e) => setFormData({ ...formData, plan: e.target.value })}>
-                                        <option value="starter">Starter</option>
-                                        <option value="professional">Professional</option>
-                                        <option value="enterprise">Enterprise</option>
+                                        <option value="starter">{t('superAdminSchools:plan.starter')}</option>
+                                        <option value="professional">{t('superAdminSchools:plan.professional')}</option>
+                                        <option value="enterprise">{t('superAdminSchools:plan.enterprise')}</option>
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label>Max Students</label>
+                                    <label>{t('superAdminSchools:form.maxStudentsLabel')}</label>
                                     <input type="number" value={formData.maxStudents}
                                         onChange={(e) => setFormData({ ...formData, maxStudents: parseInt(e.target.value) })} />
                                 </div>
                             </div>
 
                             <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end', marginTop: 'var(--spacing-md)', flexWrap: 'wrap' }}>
-                                <button type="button" className="admin-action-btn" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                                <button type="button" className="admin-action-btn" onClick={() => setShowCreateModal(false)}>{t('superAdminSchools:actions.cancel')}</button>
                                 <button type="submit" className="admin-action-btn primary" disabled={creating}>
-                                    {creating ? 'Creating...' : 'Create School'}
+                                    {creating ? t('superAdminSchools:actions.creating') : t('superAdminSchools:actions.createSchool')}
                                 </button>
                             </div>
                         </form>

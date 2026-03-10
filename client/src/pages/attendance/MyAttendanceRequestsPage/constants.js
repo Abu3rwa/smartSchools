@@ -2,17 +2,17 @@ import { HiOutlineClock, HiOutlineCheck, HiOutlineX } from "react-icons/hi";
 
 export const statusConfig = {
   pending: {
-    label: "Pending",
+    labelKey: "status.pending",
     Icon: HiOutlineClock,
     className: "status-pending",
   },
   approved: {
-    label: "Approved",
+    labelKey: "status.approved",
     Icon: HiOutlineCheck,
     className: "status-approved",
   },
   rejected: {
-    label: "Rejected",
+    labelKey: "status.rejected",
     Icon: HiOutlineX,
     className: "status-rejected",
   },

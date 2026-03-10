@@ -4,6 +4,7 @@ import { HiOutlineAcademicCap, HiOutlineSearch, HiOutlineX } from 'react-icons/h
 import { detectStandards } from '../../store/slices/lessonSlice';
 import toast from 'react-hot-toast';
 import { formatStandardLabel } from '../../utils/standardLabel';
+import { buildRequestedLanguages } from '../../constants/aiLanguages';
 
 /**
  * UI for detecting and selecting curriculum standards aligned with lesson content.
@@ -18,6 +19,8 @@ const StandardsSuggester = ({
     onSelectionChange,
     disabled = false,
     initialSuggestions = [],
+    aiPrimaryLanguage = 'en',
+    aiSecondaryLanguage = '',
 }) => {
     const dispatch = useDispatch();
     const [loading, setLoading] = useState(false);
@@ -40,7 +43,15 @@ const StandardsSuggester = ({
         }
         setLoading(true);
         setSuggestions([]);
-        const result = await dispatch(detectStandards({ subjectId, classId, lessonText }));
+        const requestedLanguages = buildRequestedLanguages(aiPrimaryLanguage, aiSecondaryLanguage);
+        const result = await dispatch(detectStandards({
+            subjectId,
+            classId,
+            lessonText,
+            requestedLanguages: requestedLanguages.length > 0 ? requestedLanguages : ['en'],
+            primaryLanguage: aiPrimaryLanguage || 'en',
+            secondaryLanguage: aiSecondaryLanguage || ''
+        }));
         setLoading(false);
         if (detectStandards.fulfilled.match(result)) {
             setSuggestions(result.payload.standards || []);

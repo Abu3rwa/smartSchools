@@ -15,14 +15,9 @@ import {
   submitSection,
   selectTeacherNewsletter
 } from '../../../../store/slices/newsletterSlice';
+import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../../../constants/aiLanguages';
 
 import './TeacherNewslettersPage.css';
-
-const LANG_OPTIONS = [
-  { value: 'english', label: 'English' },
-  { value: 'arabic', label: 'Arabic' },
-  { value: 'bilingual', label: 'Bilingual' }
-];
 
 const TeacherNewslettersPage = () => {
   const dispatch = useDispatch();
@@ -35,7 +30,8 @@ const TeacherNewslettersPage = () => {
 
   const [classId, setClassId] = useState('');
   const [subjectId, setSubjectId] = useState('');
-  const [language, setLanguage] = useState('english');
+  const [primaryLanguage, setPrimaryLanguage] = useState('en');
+  const [secondaryLanguage, setSecondaryLanguage] = useState('');
   const [weekDate, setWeekDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedLessonIds, setSelectedLessonIds] = useState([]);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -109,12 +105,17 @@ const TeacherNewslettersPage = () => {
       return;
     }
     try {
+      const requestedLanguages = buildRequestedLanguages(primaryLanguage, secondaryLanguage);
+      const normalizedRequestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];
       await dispatch(generateSection({
         classId,
         subjectId,
         academicYear,
         weekStart: weekStartStr,
-        language,
+        requestedLanguages: normalizedRequestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language: toLegacyLanguageValue(normalizedRequestedLanguages),
         selectedLessonPlanIds: selectedLessonIds,
         customPrompt,
         regenerateWithFeedback: useFeedback
@@ -214,11 +215,32 @@ const TeacherNewslettersPage = () => {
           </div>
 
           <div className="tn-field">
-            <label>Language</label>
-            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              {LANG_OPTIONS.map((o) => (
+            <label>Primary Language</label>
+            <select
+              value={primaryLanguage}
+              onChange={(e) => {
+                const nextPrimary = e.target.value;
+                setPrimaryLanguage(nextPrimary);
+                if (nextPrimary === secondaryLanguage) {
+                  setSecondaryLanguage('');
+                }
+              }}
+            >
+              {AI_LANGUAGE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
+            </select>
+          </div>
+
+          <div className="tn-field">
+            <label>Secondary Language (optional)</label>
+            <select value={secondaryLanguage} onChange={(e) => setSecondaryLanguage(e.target.value)}>
+              <option value="">None</option>
+              {AI_LANGUAGE_OPTIONS
+                .filter((o) => o.value !== primaryLanguage)
+                .map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
             </select>
           </div>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const AdminNoteModal = ({
   lessonId,
@@ -7,6 +8,7 @@ const AdminNoteModal = ({
   onSave,
   saving,
 }) => {
+  const { t } = useTranslation(['lessonPlan']);
   const [text, setText] = useState(initialText);
 
   useEffect(() => {
@@ -19,27 +21,27 @@ const AdminNoteModal = ({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>Note to teacher</h3>
+          <h3>{t('lessonPlan:adminNote.title')}</h3>
           <button type="button" className="modal-close" onClick={onClose}>
             &times;
           </button>
         </div>
         <div className="modal-body">
           <p className="text-muted" style={{ marginBottom: '0.75rem' }}>
-            This note will be visible to the teacher when they view this lesson plan.
+            {t('lessonPlan:adminNote.description')}
           </p>
           <textarea
             className="form-control"
             rows={4}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="e.g. Please add more detail to the objectives section..."
+            placeholder={t('lessonPlan:adminNote.placeholder')}
             style={{ width: '100%', resize: 'vertical' }}
           />
         </div>
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('lessonPlan:common.cancel')}
           </button>
           <button
             type="button"
@@ -50,10 +52,10 @@ const AdminNoteModal = ({
             {saving ? (
               <>
                 <span className="spinner-small" />
-                Saving…
+                {t('lessonPlan:common.saving')}
               </>
             ) : (
-              'Save note'
+              t('lessonPlan:adminNote.save')
             )}
           </button>
         </div>

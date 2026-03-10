@@ -89,16 +89,24 @@ const lightPaletteOverrides = {
 };
 
 /** Create MUI theme with optional mode ('light' | 'dark') for use with Redux theme. */
-export const getTheme = (mode = 'dark') => {
-  const isLight = mode === 'light';
-  return createTheme({
-    ...baseThemeOptions,
-    palette: {
-      ...baseThemeOptions.palette,
-      mode,
-      ...(isLight ? lightPaletteOverrides : {}),
-    },
-  });
+export const getTheme = (mode = 'dark', direction = 'ltr') => {
+    const isLight = mode === 'light';
+    const isRtl = direction === 'rtl';
+    return createTheme({
+        ...baseThemeOptions,
+        direction,
+        palette: {
+            ...baseThemeOptions.palette,
+            mode,
+            ...(isLight ? lightPaletteOverrides : {}),
+        },
+        typography: {
+            ...baseThemeOptions.typography,
+            fontFamily: isRtl
+                ? '"Noto Sans Arabic", "Cairo", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+                : baseThemeOptions.typography.fontFamily
+        }
+    });
 };
 
 export const theme = getTheme('dark');

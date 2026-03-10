@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const QUESTION_TYPES = ['multiple_choice', 'short_answer', 'true_false'];
 export const DIFFICULTIES = ['easy', 'medium', 'hard'];
 export const SESSION_TYPES = ['assessment', 'homework', 'classwork', 'practice'];
+export const AI_LANGUAGE_CODES = ['en', 'ar', 'fr', 'es', 'pt', 'tr', 'ur'];
 
 export const practiceConfigSchema = z.object({
     sessionType: z.enum(SESSION_TYPES).optional(),
@@ -10,6 +11,7 @@ export const practiceConfigSchema = z.object({
     timeLimitSeconds: z.number().int().min(60).max(6 * 60 * 60).nullable().optional(),
     allowedQuestionTypes: z.array(z.enum(QUESTION_TYPES)).min(1).optional(),
     allowedDifficulties: z.array(z.enum(DIFFICULTIES)).min(1).optional(),
+    aiLanguages: z.array(z.enum(AI_LANGUAGE_CODES)).min(1).max(2).optional(),
     availability: z.object({
         startAt: z.coerce.date().nullable().optional(),
         endAt: z.coerce.date().nullable().optional()

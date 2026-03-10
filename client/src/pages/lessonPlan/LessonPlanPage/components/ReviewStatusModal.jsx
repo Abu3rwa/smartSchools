@@ -1,16 +1,5 @@
 import { useEffect, useState } from 'react';
-
-const statusLabels = {
-  approved: 'Approve',
-  needs_revision: 'Needs Revision',
-  rejected: 'Reject',
-};
-
-const placeholders = {
-  approved: 'Optional approval comment (visible to teacher)...',
-  needs_revision: 'Add revision notes for the teacher...',
-  rejected: 'Rejection reason (optional)...',
-};
+import { useTranslation } from 'react-i18next';
 
 const ReviewStatusModal = ({
   open,
@@ -20,6 +9,7 @@ const ReviewStatusModal = ({
   onClose,
   onConfirm,
 }) => {
+  const { t } = useTranslation(['lessonPlan']);
   const [comments, setComments] = useState('');
 
   useEffect(() => {
@@ -30,34 +20,41 @@ const ReviewStatusModal = ({
 
   if (!open) return null;
 
-  const actionLabel = statusLabels[finalStatus] || 'Update Status';
+  const actionLabel = t(`lessonPlan:review.actions.${finalStatus}`, {
+    defaultValue: t('lessonPlan:review.actions.default')
+  });
+  const placeholder = t(`lessonPlan:review.placeholders.${finalStatus}`, {
+    defaultValue: t('lessonPlan:review.placeholders.default')
+  });
 
   return (
     <div className="modal-overlay" onClick={() => !saving && onClose()}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>{actionLabel} Lesson Plan</h3>
+          <h3>{t('lessonPlan:review.modalTitle', { action: actionLabel })}</h3>
           <button type="button" className="modal-close" onClick={onClose} disabled={saving}>
             &times;
           </button>
         </div>
         <div className="modal-body">
           <p className="text-muted" style={{ marginBottom: '0.75rem' }}>
-            {lessonTitle ? `Lesson: ${lessonTitle}` : 'Add an optional comment to share with the teacher.'}
+            {lessonTitle
+              ? t('lessonPlan:review.lessonLabel', { title: lessonTitle })
+              : t('lessonPlan:review.commentHint')}
           </p>
           <textarea
             className="form-control"
             rows={4}
             value={comments}
             onChange={(e) => setComments(e.target.value)}
-            placeholder={placeholders[finalStatus] || 'Optional comment...'}
+            placeholder={placeholder}
             style={{ width: '100%', resize: 'vertical' }}
             disabled={saving}
           />
         </div>
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('lessonPlan:common.cancel')}
           </button>
           <button
             type="button"
@@ -68,7 +65,7 @@ const ReviewStatusModal = ({
             {saving ? (
               <>
                 <span className="spinner-small" />
-                Saving...
+                {t('lessonPlan:common.saving')}
               </>
             ) : (
               actionLabel

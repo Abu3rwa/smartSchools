@@ -1,15 +1,27 @@
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { HiOutlineMail, HiOutlinePhone } from 'react-icons/hi';
 
-const formatDateValue = (value, dateFormat = 'MMMM d, yyyy') => {
-    if (!value) return 'N/A';
+const formatDateValue = (value, locale, dateFormat = 'MMMM d, yyyy', fallback = 'N/A') => {
+    if (!value) return fallback;
     const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return 'N/A';
+    if (Number.isNaN(parsed.getTime())) return fallback;
+    if (locale) {
+        try {
+            return new Intl.DateTimeFormat(locale, {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            }).format(parsed);
+        } catch (error) {
+            // Fallback to date-fns formatter if locale formatting fails.
+        }
+    }
     return format(parsed, dateFormat);
 };
 
-const buildAddressText = (address) => {
-    if (!address) return 'N/A';
+const buildAddressText = (address, fallback = 'N/A') => {
+    if (!address) return fallback;
     const parts = [
         address.street,
         address.city,
@@ -17,13 +29,13 @@ const buildAddressText = (address) => {
         address.zipCode,
         address.country
     ].filter(Boolean);
-    return parts.length ? parts.join(', ') : 'N/A';
+    return parts.length ? parts.join(', ') : fallback;
 };
 
-const ParentCard = ({ label, name, phone, email }) => (
+const ParentCard = ({ label, name, phone, email, emptyLabel, noContactLabel }) => (
     <div className="parent-card">
         <h4>{label}</h4>
-        <p className="parent-name">{name || 'N/A'}</p>
+        <p className="parent-name">{name || emptyLabel}</p>
         {phone && (
             <div className="contact-item">
                 <HiOutlinePhone />
@@ -36,12 +48,14 @@ const ParentCard = ({ label, name, phone, email }) => (
                 <span>{email}</span>
             </div>
         )}
-        {!phone && !email && <p className="text-muted mb-0">No contact details.</p>}
+        {!phone && !email && <p className="text-muted mb-0">{noContactLabel}</p>}
     </div>
 );
 
 const StudentInformationGrid = ({ student }) => {
+    const { t, i18n } = useTranslation(['students']);
     if (!student) return null;
+    const na = t('detail.common.na');
 
     const hasEnrollmentHistory = Array.isArray(student.classEnrollmentHistory)
         && student.classEnrollmentHistory.length > 0;
@@ -59,36 +73,36 @@ const StudentInformationGrid = ({ student }) => {
         <div className="detail-grid">
             <div className="card">
                 <div className="card-header">
-                    <h3 className="card-title">Personal Information</h3>
+                    <h3 className="card-title">{t('detail.info.personalInformation')}</h3>
                 </div>
                 <div className="info-list">
                     <div className="info-item">
-                        <span className="info-label">Date of Birth</span>
-                        <span className="info-value">{formatDateValue(student.dateOfBirth)}</span>
+                        <span className="info-label">{t('detail.info.dateOfBirth')}</span>
+                        <span className="info-value">{formatDateValue(student.dateOfBirth, i18n.language, 'MMMM d, yyyy', na)}</span>
                     </div>
                     <div className="info-item">
-                        <span className="info-label">Age</span>
+                        <span className="info-label">{t('detail.info.age')}</span>
                         <span className="info-value">
-                            {student.age ? `${student.age} years` : 'N/A'}
+                            {student.age ? t('detail.info.ageYears', { count: student.age }) : na}
                         </span>
                     </div>
                     <div className="info-item">
-                        <span className="info-label">Gender</span>
+                        <span className="info-label">{t('detail.info.gender')}</span>
                         <span className="info-value text-capitalize">
-                            {student.gender || 'N/A'}
+                            {student.gender ? t(`genders.${String(student.gender).toLowerCase()}`, { defaultValue: student.gender }) : na}
                         </span>
                     </div>
                     <div className="info-item">
-                        <span className="info-label">Class</span>
-                        <span className="info-value">{student.currentClass?.name || 'Unassigned'}</span>
+                        <span className="info-label">{t('detail.info.class')}</span>
+                        <span className="info-value">{student.currentClass?.name || t('detail.info.unassigned')}</span>
                     </div>
                     <div className="info-item">
-                        <span className="info-label">Academic Year</span>
-                        <span className="info-value">{student.academicYear || 'N/A'}</span>
+                        <span className="info-label">{t('detail.info.academicYear')}</span>
+                        <span className="info-value">{student.academicYear || na}</span>
                     </div>
                     <div className="info-item">
-                        <span className="info-label">Enrollment Date</span>
-                        <span className="info-value">{formatDateValue(student.enrollmentDate)}</span>
+                        <span className="info-label">{t('detail.info.enrollmentDate')}</span>
+                        <span className="info-value">{formatDateValue(student.enrollmentDate, i18n.language, 'MMMM d, yyyy', na)}</span>
                     </div>
                 </div>
             </div>
@@ -96,23 +110,23 @@ const StudentInformationGrid = ({ student }) => {
             {hasEnrollmentHistory && (
                 <div className="card">
                     <div className="card-header">
-                        <h3 className="card-title">Enrollment History</h3>
+                        <h3 className="card-title">{t('detail.info.enrollmentHistory')}</h3>
                     </div>
                     <div className="enrollment-history-table-wrap">
                         <table className="enrollment-history-table">
                             <thead>
                                 <tr>
-                                    <th>Academic Year</th>
-                                    <th>Class</th>
-                                    <th>Left</th>
+                                    <th>{t('detail.info.academicYear')}</th>
+                                    <th>{t('detail.info.class')}</th>
+                                    <th>{t('detail.info.left')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {student.classEnrollmentHistory.map((entry, index) => (
                                     <tr key={`${entry.academicYear || 'year'}-${index}`}>
-                                        <td>{entry.academicYear || '—'}</td>
-                                        <td>{entry.class?.name || '—'}</td>
-                                        <td>{formatDateValue(entry.leftAt, 'MMM d, yyyy')}</td>
+                                        <td>{entry.academicYear || t('detail.common.dash')}</td>
+                                        <td>{entry.class?.name || t('detail.common.dash')}</td>
+                                        <td>{formatDateValue(entry.leftAt, i18n.language, 'MMM d, yyyy', t('detail.common.dash'))}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -123,33 +137,37 @@ const StudentInformationGrid = ({ student }) => {
 
             <div className="card">
                 <div className="card-header">
-                    <h3 className="card-title">Parent/Guardian Information</h3>
+                    <h3 className="card-title">{t('detail.info.parentGuardianInformation')}</h3>
                 </div>
                 {hasParentInfo ? (
                     <div className="parent-cards">
                         <ParentCard
-                            label="Father"
+                            label={t('detail.info.father')}
                             name={student.parentInfo?.fatherName}
                             phone={student.parentInfo?.fatherPhone}
                             email={student.parentInfo?.fatherEmail}
+                            emptyLabel={na}
+                            noContactLabel={t('detail.info.noContactDetails')}
                         />
                         <ParentCard
-                            label="Mother"
+                            label={t('detail.info.mother')}
                             name={student.parentInfo?.motherName}
                             phone={student.parentInfo?.motherPhone}
                             email={student.parentInfo?.motherEmail}
+                            emptyLabel={na}
+                            noContactLabel={t('detail.info.noContactDetails')}
                         />
                     </div>
                 ) : (
-                    <p className="text-muted mb-0">No parent or guardian details have been added.</p>
+                    <p className="text-muted mb-0">{t('detail.info.noParentDetails')}</p>
                 )}
             </div>
 
             <div className="card">
                 <div className="card-header">
-                    <h3 className="card-title">Address</h3>
+                    <h3 className="card-title">{t('detail.info.address')}</h3>
                 </div>
-                <p className="address-text">{buildAddressText(student.address)}</p>
+                <p className="address-text">{buildAddressText(student.address, na)}</p>
             </div>
         </div>
     );

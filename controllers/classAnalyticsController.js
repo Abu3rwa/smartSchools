@@ -7,6 +7,7 @@ import { AITokenUsage } from '../models/AITokenUsage.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import * as classAnalyticsService from '../services/classAnalyticsService.js';
 import * as classAnalyticsAIService from '../services/classAnalyticsAIService.js';
+import { toLegacyLanguageValue } from '../utils/aiLanguageUtils.js';
 
 /**
  * Ensure the class exists and belongs to the school; for teachers, ensure they have access.
@@ -67,7 +68,16 @@ export const getClassInsights = asyncHandler(async (req, res) => {
         return res.status(access.status).json({ success: false, message: access.message });
     }
 
-    const { academicYear, startDate, endDate, includeAnalytics } = req.query;
+    const {
+        academicYear,
+        startDate,
+        endDate,
+        includeAnalytics,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language
+    } = req.query;
     const options = { academicYear: academicYear || req.academicYear, startDate, endDate };
     const analyticsPayload = await classAnalyticsService.getAnalytics(classId, req.schoolId, options);
 
@@ -75,8 +85,12 @@ export const getClassInsights = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'Class not found' });
     }
 
-    const { text, tokenUsage } = await classAnalyticsAIService.generateInsights(analyticsPayload, {
-        classId
+    const { text, tokenUsage, requestedLanguages: normalizedRequestedLanguages } = await classAnalyticsAIService.generateInsights(analyticsPayload, {
+        classId,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language
     });
 
     await AITokenUsage.create({
@@ -84,16 +98,22 @@ export const getClassInsights = asyncHandler(async (req, res) => {
         feature: 'class_analytics_insights',
         school: req.schoolId,
         user: req.user._id,
+        language: toLegacyLanguageValue(normalizedRequestedLanguages),
+        requestedLanguages: normalizedRequestedLanguages,
         entityType: 'Class',
         entityId: classId,
         inputTokens: tokenUsage.input,
         outputTokens: tokenUsage.output,
         totalTokens: tokenUsage.total,
         schoolId: req.schoolId.toString(),
-        metadata: { classId, academicYear: options.academicYear }
+        metadata: {
+            classId,
+            academicYear: options.academicYear,
+            requestedLanguages: normalizedRequestedLanguages
+        }
     });
 
-    const data = { insights: text };
+    const data = { insights: text, requestedLanguages: normalizedRequestedLanguages };
     if (includeAnalytics === 'true') data.analytics = analyticsPayload;
 
     res.status(200).json({ success: true, data });

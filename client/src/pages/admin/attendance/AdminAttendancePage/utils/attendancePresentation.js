@@ -12,7 +12,7 @@ export function mapRecordToUI(record) {
         }
         : {
             _id: record.period?._id || record._id,
-            title: record.period ? `Period: ${record.period.name || record.period._id}` : 'Period',
+            title: record.period?.name || record.period?._id || '—',
             class: record.class,
             subject: record.subject,
             teacher: record.teacher,
@@ -63,9 +63,9 @@ export function getAttendanceStats(attendanceData) {
 
 export function buildStatusChartData(stats, statusColors) {
     return [
-        { name: 'Present', value: stats.totalPresent, color: statusColors.Present },
-        { name: 'Absent', value: stats.totalAbsent, color: statusColors.Absent },
-        { name: 'Tardy', value: stats.totalLate, color: statusColors.Tardy },
-        { name: 'Excused', value: stats.totalExcused, color: statusColors.Excused }
+        { key: 'present', value: stats.totalPresent, color: statusColors.present },
+        { key: 'absent', value: stats.totalAbsent, color: statusColors.absent },
+        { key: 'tardy', value: stats.totalLate, color: statusColors.tardy },
+        { key: 'excused', value: stats.totalExcused, color: statusColors.excused }
     ];
 }

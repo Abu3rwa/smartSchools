@@ -164,6 +164,7 @@ export const landingPageDefaults = {
     overline: 'Pricing',
     title: 'Simple, transparent pricing',
     subtitle: 'Start free. Scale when you grow. No hidden fees.',
+    popularLabel: 'Most popular',
     plans: [
       {
         name: 'Starter',
@@ -290,6 +291,11 @@ export const landingPageDefaults = {
     title: 'Log in to your institution',
     subtitle: 'Search for your school to log in, or register a new one.',
     searchPlaceholder: 'Search by school name...',
+    searchHint: 'Type at least 2 letters to quickly find your school.',
+    clearSearchAriaLabel: 'Clear search',
+    maxStudentsTemplate: 'Up to {{maxStudents}} students',
+    totalSchoolsLabelTemplate: '{{count}} schools available',
+    filteredResultsLabelTemplate: '{{count}} results',
     noMatchTemplate:
       'No schools match "{{searchTerm}}". Try another search or register your school.',
     noSchoolsMessage: 'No schools yet. Be the first-register your school.',
@@ -299,6 +305,50 @@ export const landingPageDefaults = {
       'Showing {{shownCount}} of {{totalCount}} schools. Narrow your search to find your school.',
     registerPrompt: "Don't see your school?",
     registerCtaLabel: 'Register your school',
+  },
+  dynamicFallback: {
+    announcement: {
+      title: 'School operations update',
+      message:
+        'The latest product updates for attendance, gradebook, and communication are now available.',
+      ctaLabel: 'Learn more',
+      ctaAction: 'scroll:features',
+    },
+    promotions: [
+      {
+        id: 'starter-boost',
+        badge: 'Limited offer',
+        title: 'Launch faster with guided onboarding',
+        description: 'Activate your school workspace with setup assistance and import templates.',
+        ctaLabel: 'Start free',
+        ctaAction: 'register',
+      },
+      {
+        id: 'growth-plan',
+        badge: 'Growth plan',
+        title: 'Unlock intervention and analytics workflows',
+        description:
+          'Enable advanced behavior analytics, interventions, and reporting for school leaders.',
+        ctaLabel: 'See pricing',
+        ctaAction: 'scroll:pricing',
+      },
+    ],
+    testimonials: [
+      {
+        id: 'dyn-jd',
+        quote:
+          'We onboarded teachers and classes in under a week. The platform now runs our daily operations.',
+        name: 'Dr. Jane Davis',
+        role: 'Principal',
+      },
+      {
+        id: 'dyn-ms',
+        quote:
+          'Attendance and gradebook updates now stay in one workflow, which reduced manual work significantly.',
+        name: 'Mark Stevens',
+        role: 'IT Director',
+      },
+    ],
   },
   footer: {
     productTitle: 'Product',

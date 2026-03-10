@@ -1,0 +1,68 @@
+{
+  "header": {
+    "title": "إرسال تذكيرات الحضور",
+    "subtitle": "أبلغ المعلمين الذين لم يسجلوا الحضور بعد انتهاء حصتهم. يمكنك إرسال عدة تذكيرات لنفس الفصل."
+  },
+  "sendPanel": {
+    "title": "إرسال تذكيرات الحضور",
+    "subtitle": "أبلغ المعلمين الذين لم يسجلوا الحضور بعد انتهاء حصتهم.",
+    "timeAfterClassEnded": "المدة بعد انتهاء الحصة",
+    "hourOption": "{{value}} ساعة"
+  },
+  "actions": {
+    "sending": "جارٍ الإرسال...",
+    "sendReminders": "إرسال التذكيرات",
+    "refresh": "تحديث",
+    "clear": "مسح"
+  },
+  "result": {
+    "checked": "تم الفحص",
+    "sent": "تم الإرسال",
+    "skipped": "تم التخطي",
+    "failed": "فشل",
+    "checkedBetween": "تم الفحص بين"
+  },
+  "history": {
+    "title": "سجل التذكيرات"
+  },
+  "filters": {
+    "allStatuses": "كل الحالات",
+    "from": "من",
+    "to": "إلى"
+  },
+  "status": {
+    "sent": "تم الإرسال",
+    "failed": "فشل"
+  },
+  "attendance": {
+    "taken": "تم التسجيل",
+    "notTaken": "غير مُسجل"
+  },
+  "table": {
+    "reminderStatus": "حالة التذكير",
+    "attendanceStatus": "حالة الحضور",
+    "teacher": "المعلم",
+    "class": "الفصل",
+    "scheduledTime": "الوقت المجدول",
+    "attendanceDate": "تاريخ الحضور",
+    "sentAt": "أُرسل في",
+    "failureReason": "سبب الفشل"
+  },
+  "empty": {
+    "noReminders": "لا توجد تذكيرات للفلاتر المحددة"
+  },
+  "pagination": {
+    "previous": "السابق",
+    "next": "التالي",
+    "summary": "الصفحة {{page}} من {{pages}} (الإجمالي {{total}})"
+  },
+  "toast": {
+    "loadFailed": "فشل تحميل سجل التذكيرات",
+    "sendFailed": "فشل إرسال التذكيرات",
+    "sentSummary": "تم إرسال {{sent}} تذكيرًا للحصص التي انتهت منذ {{hours}} ساعة على الأقل"
+  },
+  "common": {
+    "dash": "—",
+    "and": "و"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "actions": {
+    "retry": "إعادة المحاولة",
+    "view": "عرض",
+    "delete": "حذف",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "add": "إضافة",
+    "import": "استيراد",
+    "remove": "إزالة",
+    "close": "إغلاق",
+    "done": "تم",
+    "edit": "تعديل"
+  },
+  "accessibility": {
+    "skipToMainContent": "الانتقال إلى المحتوى الرئيسي"
+  },
+  "impersonation": {
+    "returningToAdmin": "العودة إلى وضع المشرف...",
+    "returnedToSuperAdmin": "تمت العودة إلى حساب المشرف العام",
+    "currentlyImpersonating": "أنت تنتحل حالياً هوية",
+    "exitImpersonation": "إنهاء الانتحال"
+  }
+}

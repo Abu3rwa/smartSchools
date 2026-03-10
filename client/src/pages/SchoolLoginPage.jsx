@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSchoolBySlug, selectCurrentSchool, selectSchoolLoading, selectSchoolError } from '../store/slices/schoolSlice';
-import { login, googleLogin, selectAuth } from '../store/slices/authSlice';
-import { HiOutlineAcademicCap, HiOutlineArrowLeft, HiOutlineExclamationCircle, HiOutlineMail, HiOutlineLockClosed, HiOutlineEye, HiOutlineEyeOff } from 'react-icons/hi';
+import { googleLogin, selectAuth } from '../store/slices/authSlice';
+import { useTranslation } from 'react-i18next';
+import { HiOutlineAcademicCap, HiOutlineArrowLeft, HiOutlineExclamationCircle } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './SchoolLoginPage.css';
 
@@ -20,6 +21,7 @@ const SchoolLoginPage = () => {
     const { schoolSlug } = useParams();
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { t } = useTranslation(['schoolLogin']);
     const school = useSelector(selectCurrentSchool);
     const loading = useSelector(selectSchoolLoading);
     const error = useSelector(selectSchoolError);
@@ -52,10 +54,10 @@ const SchoolLoginPage = () => {
                         <div className="school-login-error-icon">
                             <HiOutlineExclamationCircle size={28} />
                         </div>
-                        <h2>School Not Found</h2>
-                        <p>{error || 'This school does not exist'}</p>
+                        <h2>{t('schoolLogin:error.schoolNotFoundTitle')}</h2>
+                        <p>{error || t('schoolLogin:error.schoolNotFoundBody')}</p>
                         <button className="btn btn-primary" onClick={() => navigate('/')}>
-                            Back to Schools
+                            {t('schoolLogin:error.backToSchools')}
                         </button>
                     </div>
                 </div>
@@ -72,10 +74,10 @@ const SchoolLoginPage = () => {
             <header className="school-login-header">
                 <button className="school-login-back" onClick={() => navigate('/')}>
                     <HiOutlineArrowLeft size={16} />
-                    All Schools
+                    {t('schoolLogin:header.allSchools')}
                 </button>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Powered by GradeBook
+                    {t('schoolLogin:header.poweredBy')}
                 </span>
             </header>
 
@@ -88,7 +90,7 @@ const SchoolLoginPage = () => {
                             <HiOutlineAcademicCap size={36} />
                         </div>
                         <h2>{school.name}</h2>
-                        <p>Sign in to access your school's GradeBook</p>
+                        <p>{t('schoolLogin:card.subtitle')}</p>
                     </div>
 
                     {/* Google Login */}
@@ -100,19 +102,19 @@ const SchoolLoginPage = () => {
                         {authLoading ? (
                             <span className="btn-loading">
                                 <span className="spinner" style={{ width: 20, height: 20 }}></span>
-                                Signing in...
+                                {t('schoolLogin:actions.signingIn')}
                             </span>
                         ) : (
                             <>
                                 <GoogleIcon />
-                                Continue with Google
+                                {t('schoolLogin:actions.continueWithGoogle')}
                             </>
                         )}
                     </button>
 
                     {/* Contact */}
                     <div className="school-login-contact">
-                        Need help? Contact{' '}
+                        {t('schoolLogin:contact.needHelp')}{' '}
                         <a href={`mailto:${school.contact?.adminEmail}`}>
                             {school.contact?.adminEmail}
                         </a>

@@ -2,7 +2,7 @@
 .skip-link {
     position: absolute;
     top: -100px;
-    left: var(--spacing-md);
+    inset-inline-start: var(--spacing-md);
     background: var(--primary);
     color: white;
     padding: var(--spacing-sm) var(--spacing-md);
@@ -54,14 +54,14 @@
 .main-content {
     position: relative;
     flex: 1;
-    margin-left: var(--sidebar-width);
+    margin-inline-start: var(--sidebar-width);
     display: flex;
     flex-direction: column;
     transition: margin-left var(--transition-normal);
 }
 
 .sidebar-collapsed .main-content {
-    margin-left: var(--sidebar-collapsed);
+    margin-inline-start: var(--sidebar-collapsed);
 }
 
 .page-content {

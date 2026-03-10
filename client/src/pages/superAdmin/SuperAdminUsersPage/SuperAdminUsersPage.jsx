@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../../../config/api';
 import {
     HiOutlineUserGroup,
@@ -9,6 +10,7 @@ import {
 import '../../../components/superAdmin/SuperAdminBase.css';
 
 const SuperAdminUsersPage = () => {
+    const { t } = useTranslation(['superAdminUsers']);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -43,9 +45,14 @@ const SuperAdminUsersPage = () => {
         }
     };
 
+    const getRoleLabel = (role = '') => {
+        const normalized = String(role || '').toLowerCase();
+        return t(`superAdminUsers:role.${normalized}`, { defaultValue: normalized });
+    };
+
     return (
         <div className="admin-dashboard">
-            <h1>Users Management</h1>
+            <h1>{t('superAdminUsers:page.title')}</h1>
 
             {/* Search */}
             <div className="admin-toolbar">
@@ -54,7 +61,7 @@ const SuperAdminUsersPage = () => {
                     <input
                         className="admin-toolbar-input"
                         type="text"
-                        placeholder="Search users by name, email, or role..."
+                        placeholder={t('superAdminUsers:search.placeholder')}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -68,18 +75,18 @@ const SuperAdminUsersPage = () => {
                 ) : filtered.length === 0 ? (
                     <div className="admin-empty">
                         <HiOutlineUserGroup size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
-                        <p>No users found</p>
+                        <p>{t('superAdminUsers:empty.noUsers')}</p>
                     </div>
                 ) : (
                     <div className="admin-table-wrap">
                         <table className="admin-table">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>School</th>
-                                    <th>Status</th>
+                                    <th>{t('superAdminUsers:table.name')}</th>
+                                    <th>{t('superAdminUsers:table.email')}</th>
+                                    <th>{t('superAdminUsers:table.role')}</th>
+                                    <th>{t('superAdminUsers:table.school')}</th>
+                                    <th>{t('superAdminUsers:table.status')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -97,13 +104,15 @@ const SuperAdminUsersPage = () => {
                                         <td>
                                             <span className={`status-badge ${getRoleBadgeClass(user.role)}`}>
                                                 {user.role === 'super_admin' && <HiOutlineShieldCheck size={12} style={{ marginRight: 4 }} />}
-                                                {user.role}
+                                                {getRoleLabel(user.role)}
                                             </span>
                                         </td>
-                                        <td>{user.school?.name || '—'}</td>
+                                        <td>{user.school?.name || t('superAdminUsers:common.na')}</td>
                                         <td>
                                             <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
-                                                {user.isActive ? 'Active' : 'Inactive'}
+                                                {user.isActive
+                                                    ? t('superAdminUsers:status.active')
+                                                    : t('superAdminUsers:status.inactive')}
                                             </span>
                                         </td>
                                     </tr>

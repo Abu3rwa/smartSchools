@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { HiOutlineArrowRight } from 'react-icons/hi';
 import { CARD_SX, CARD_HEADER_SX, CARD_TITLE_SX } from '../constants.js';
 
@@ -7,16 +8,18 @@ import { CARD_SX, CARD_HEADER_SX, CARD_TITLE_SX } from '../constants.js';
  * Recent students list. Uses existing CSS: admin-students-list, admin-student-item, admin-student-avatar, etc.
  */
 export default function RecentStudentsCard({ students }) {
+    const { t, i18n } = useTranslation(['adminDashboard']);
+    const isRtl = i18n.dir() === 'rtl';
     const list = Array.isArray(students) ? students.slice(0, 5) : [];
 
     return (
         <Box sx={CARD_SX}>
             <Box sx={CARD_HEADER_SX}>
                 <Typography component="h3" sx={CARD_TITLE_SX}>
-                    Recent Students
+                    {t('adminDashboard:recentStudents.title')}
                 </Typography>
                 <Link to="/portal/students" className="btn-link">
-                    View All <HiOutlineArrowRight size={16} />
+                    {t('adminDashboard:common.viewAll')} <HiOutlineArrowRight size={16} style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />
                 </Link>
             </Box>
             <div className="admin-students-list">
@@ -37,12 +40,12 @@ export default function RecentStudentsCard({ students }) {
                             <span className="admin-student-id">{student.studentId}</span>
                         </div>
                         <span className="admin-student-class">
-                            {student.currentClass?.name || 'Unassigned'}
+                            {student.currentClass?.name || t('adminDashboard:common.unassigned')}
                         </span>
                     </Link>
                 ))}
                 {list.length === 0 && (
-                    <p className="admin-empty-text">No students found.</p>
+                    <p className="admin-empty-text">{t('adminDashboard:recentStudents.empty')}</p>
                 )}
             </div>
         </Box>

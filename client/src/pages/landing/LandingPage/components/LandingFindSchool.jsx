@@ -9,6 +9,7 @@ import Paper from '@mui/material/Paper';
 import Grid from '@mui/material/Grid';
 import Chip from '@mui/material/Chip';
 import { HiOutlineSearch, HiOutlineX, HiOutlineOfficeBuilding, HiOutlineAcademicCap, HiOutlinePlus } from 'react-icons/hi';
+import { resolveLandingTemplate } from '../../../../config/landingPageDefaults.js';
 
 /**
  * Find school section with search and school list. Uses landing-school-item.
@@ -51,7 +52,7 @@ export default function LandingFindSchool({
                         ),
                         endAdornment: hasSearchFilter ? (
                             <InputAdornment position="end">
-                                <IconButton size="small" aria-label="Clear search" onClick={() => setSearchTerm('')}>
+                                <IconButton size="small" aria-label={content.findSchool.clearSearchAriaLabel || 'Clear search'} onClick={() => setSearchTerm('')}>
                                     <HiOutlineX size={16} />
                                 </IconButton>
                             </InputAdornment>
@@ -60,7 +61,7 @@ export default function LandingFindSchool({
                     sx={{ mb: 1.5 }}
                 />
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2.5 }}>
-                    Type at least 2 letters to quickly find your school.
+                    {content.findSchool.searchHint || 'Type at least 2 letters to quickly find your school.'}
                 </Typography>
                 <Box sx={{ mb: 3 }}>
                     {hasSearchFilter && filtered.length === 0 ? (
@@ -78,13 +79,17 @@ export default function LandingFindSchool({
                             <Grid container spacing={2}>
                                 {schoolsToShow.map((school) => (
                                     <Grid item xs={12} sm={6} key={school._id}>
-                                        <Button className="landing-school-item" fullWidth variant="outlined" sx={{ justifyContent: 'flex-start', textAlign: 'left', py: 2, px: 2 }} onClick={() => navigate(`/login/${school.slug}`)}>
+                                        <Button className="landing-school-item" fullWidth variant="outlined" sx={{ justifyContent: 'flex-start', textAlign: 'start', py: 2, px: 2 }} onClick={() => navigate(`/login/${school.slug}`)}>
                                             <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: 'primary.main', opacity: 0.2, display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 1.5 }}>
                                                 <HiOutlineOfficeBuilding size={22} style={{ color: 'var(--mui-palette-primary-main)' }} />
                                             </Box>
                                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                                 <Typography variant="body1" fontWeight={600} noWrap>{school.name}</Typography>
-                                                <Typography variant="caption" color="text.secondary">Up to {school.settings?.maxStudents || 50} students</Typography>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    {resolveLandingTemplate(content.findSchool.maxStudentsTemplate || 'Up to {{maxStudents}} students', {
+                                                        maxStudents: school.settings?.maxStudents || 50,
+                                                    })}
+                                                </Typography>
                                             </Box>
                                         </Button>
                                     </Grid>

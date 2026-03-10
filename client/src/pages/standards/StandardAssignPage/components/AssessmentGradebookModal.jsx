@@ -1,5 +1,6 @@
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
+import { useTranslation } from 'react-i18next';
 
 const AssessmentGradebookModal = ({
     show,
@@ -7,18 +8,39 @@ const AssessmentGradebookModal = ({
     assessmentGradebookLoading,
     assessmentGradebookError,
     assessmentGradebookData,
+    assessmentStandardAverageLoading,
+    assessmentStandardAverageError,
+    assessmentStandardAverageData,
     assessmentGradebookAssignmentId,
     releasingAssessmentResults,
     onRetry,
     onRelease
 }) => {
+    const { t, i18n } = useTranslation(['standardAssign']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
+
     if (!show) return null;
+
+    const releaseMode = assessmentGradebookData?.assignment?.assessmentConfig?.resultsVisibility;
+    const isManualRelease = releaseMode === 'manual_release';
+    const submittedCount = Number(assessmentGradebookData?.summary?.submitted || 0);
+    const canRelease = isManualRelease && submittedCount > 0;
+    const resultsReleaseAt = assessmentGradebookData?.assignment?.assessmentConfig?.resultsReleaseAt
+        ? new Date(assessmentGradebookData.assignment.assessmentConfig.resultsReleaseAt).toLocaleString(locale)
+        : null;
+
+    const getRowStatusLabel = (status = '') => {
+        const normalized = String(status || 'not_started').toLowerCase();
+        return t(`standardAssign:progressStatus.${normalized}`, {
+            defaultValue: normalized.replace(/_/g, ' ')
+        });
+    };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 820 }}>
                 <div className="modal-header">
-                    <h3>SB Gradebook (Standards-Based)</h3>
+                    <h3>{t('standardAssign:assessmentGradebook.title')}</h3>
                     <button className="modal-close" onClick={onClose}>
                         &times;
                     </button>
@@ -33,7 +55,7 @@ const AssessmentGradebookModal = ({
                             disableRetry={!assessmentGradebookAssignmentId}
                         />
                     ) : !assessmentGradebookData ? (
-                        <ErrorState emptyText="No SB gradebook data found." />
+                        <ErrorState emptyText={t('standardAssign:assessmentGradebook.noData')} />
                     ) : (
                         <>
                             <div style={{ marginBottom: 'var(--spacing-md)' }}>
@@ -50,13 +72,25 @@ const AssessmentGradebookModal = ({
                                 >
                                     (
                                     {assessmentGradebookData.assignment?.standard?.code ||
-                                        'Assessment'}
+                                        t('standardAssign:assessmentGradebook.assessmentFallback')}
                                     )
                                 </span>
                                 <p className="text-muted" style={{ marginTop: 6 }}>
-                                    Separate SB gradebook. This does not use the regular gradebook
-                                    module.
+                                    {t('standardAssign:assessmentGradebook.subtitle')}
                                 </p>
+                                <div className="text-muted" style={{ fontSize: '0.82rem' }}>
+                                    {t('standardAssign:assessmentGradebook.resultsMode')}{' '}
+                                    <strong>
+                                        {isManualRelease
+                                            ? t('standardAssign:assessmentGradebook.manualRelease')
+                                            : t('standardAssign:assessmentGradebook.immediateVisibility')}
+                                    </strong>
+                                    {resultsReleaseAt ? (
+                                        <span style={{ marginLeft: 8 }}>
+                                            {t('standardAssign:assessmentGradebook.releaseAt')} <strong>{resultsReleaseAt}</strong>
+                                        </span>
+                                    ) : null}
+                                </div>
                             </div>
                             <div
                                 style={{
@@ -68,35 +102,35 @@ const AssessmentGradebookModal = ({
                                 }}
                             >
                                 <span>
-                                    Total:{' '}
+                                    {t('standardAssign:assessmentGradebook.summary.total')}{' '}
                                     <strong>
                                         {assessmentGradebookData.summary?.totalStudents || 0}
                                     </strong>
                                 </span>
                                 <span>
-                                    Released:{' '}
+                                    {t('standardAssign:assessmentGradebook.summary.released')}{' '}
                                     <strong>{assessmentGradebookData.summary?.released || 0}</strong>
                                 </span>
                                 <span>
-                                    Submitted:{' '}
+                                    {t('standardAssign:assessmentGradebook.summary.submitted')}{' '}
                                     <strong>{assessmentGradebookData.summary?.submitted || 0}</strong>
                                 </span>
                                 <span>
-                                    In Progress:{' '}
+                                    {t('standardAssign:assessmentGradebook.summary.inProgress')}{' '}
                                     <strong>{assessmentGradebookData.summary?.inProgress || 0}</strong>
                                 </span>
                                 <span>
-                                    Not Started:{' '}
+                                    {t('standardAssign:assessmentGradebook.summary.notStarted')}{' '}
                                     <strong>{assessmentGradebookData.summary?.notStarted || 0}</strong>
                                 </span>
                                 <span>
-                                    Avg %:{' '}
+                                    {t('standardAssign:assessmentGradebook.summary.avgPercentage')}{' '}
                                     <strong>
                                         {assessmentGradebookData.summary?.averagePercentage || 0}
                                     </strong>
                                 </span>
                                 <span>
-                                    Avg 0-4:{' '}
+                                    {t('standardAssign:assessmentGradebook.summary.avgScale')}{' '}
                                     <strong>{assessmentGradebookData.summary?.averageScale4 || 0}</strong>
                                 </span>
                             </div>
@@ -105,11 +139,11 @@ const AssessmentGradebookModal = ({
                                 <table className="practice-table">
                                     <thead>
                                         <tr>
-                                            <th>Student</th>
-                                            <th>Status</th>
-                                            <th>Answered</th>
-                                            <th>Score</th>
-                                            <th>%</th>
+                                            <th>{t('standardAssign:assessmentGradebook.table.student')}</th>
+                                            <th>{t('standardAssign:assessmentGradebook.table.status')}</th>
+                                            <th>{t('standardAssign:assessmentGradebook.table.answered')}</th>
+                                            <th>{t('standardAssign:assessmentGradebook.table.score')}</th>
+                                            <th>{t('standardAssign:assessmentGradebook.table.percentage')}</th>
                                             <th>0-4</th>
                                         </tr>
                                     </thead>
@@ -120,29 +154,89 @@ const AssessmentGradebookModal = ({
                                                     {row.student?.firstName} {row.student?.lastName}
                                                 </td>
                                                 <td>
-                                                    {(row.status || 'not_started').replace('_', ' ')}
+                                                    {getRowStatusLabel(row.status)}
                                                 </td>
                                                 <td>{row.totalAnswered ?? 0}</td>
                                                 <td>
                                                     {row.score !== null && row.score !== undefined
                                                         ? `${row.score}/${row.maxScore || 100}`
-                                                        : '—'}
+                                                        : t('standardAssign:common.na')}
                                                 </td>
                                                 <td>
                                                     {row.percentage !== null &&
                                                     row.percentage !== undefined
                                                         ? `${row.percentage}%`
-                                                        : '—'}
+                                                        : t('standardAssign:common.na')}
                                                 </td>
                                                 <td>
                                                     {row.scale4 !== null && row.scale4 !== undefined
                                                         ? row.scale4
-                                                        : '—'}
+                                                        : t('standardAssign:common.na')}
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+
+                            <div style={{ marginTop: 'var(--spacing-lg)' }}>
+                                <h4 style={{ margin: '0 0 8px' }}>
+                                    {t('standardAssign:assessmentGradebook.standardAverageTitle')}
+                                </h4>
+                                {assessmentStandardAverageLoading ? (
+                                    <p className="text-muted">{t('standardAssign:assessmentGradebook.loadingStandardAverage')}</p>
+                                ) : assessmentStandardAverageError ? (
+                                    <p className="text-danger">{assessmentStandardAverageError}</p>
+                                ) : (
+                                    <div className="table-container" style={{ maxHeight: 260, overflow: 'auto' }}>
+                                        <table className="practice-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{t('standardAssign:assessmentGradebook.averageTable.student')}</th>
+                                                    <th>{t('standardAssign:assessmentGradebook.averageTable.attempts')}</th>
+                                                    <th>{t('standardAssign:assessmentGradebook.averageTable.graded')}</th>
+                                                    <th>{t('standardAssign:assessmentGradebook.averageTable.averagePercentage')}</th>
+                                                    <th>{t('standardAssign:assessmentGradebook.averageTable.averageScale')}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(assessmentStandardAverageData?.rows || []).length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5}>{t('standardAssign:assessmentGradebook.noRepeatedData')}</td>
+                                                    </tr>
+                                                ) : (
+                                                    (assessmentStandardAverageData?.rows || []).map((row) => (
+                                                        <tr
+                                                            key={
+                                                                row.student?._id ||
+                                                                row.student?.studentId ||
+                                                                JSON.stringify(row.student)
+                                                            }
+                                                        >
+                                                            <td>
+                                                                {row.student?.firstName} {row.student?.lastName}
+                                                            </td>
+                                                            <td>{row.attemptCount ?? 0}</td>
+                                                            <td>{row.gradedAttemptCount ?? 0}</td>
+                                                            <td>
+                                                                {row.averagePercentage !== null &&
+                                                                row.averagePercentage !== undefined
+                                                                    ? `${row.averagePercentage}%`
+                                                                    : t('standardAssign:common.na')}
+                                                            </td>
+                                                            <td>
+                                                                {row.averageScale4 !== null &&
+                                                                row.averageScale4 !== undefined
+                                                                    ? row.averageScale4
+                                                                    : t('standardAssign:common.na')}
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}
@@ -154,7 +248,7 @@ const AssessmentGradebookModal = ({
                         onClick={onRetry}
                         disabled={!assessmentGradebookAssignmentId || assessmentGradebookLoading}
                     >
-                        Refresh
+                        {t('standardAssign:actions.refresh')}
                     </button>
                     <button
                         type="button"
@@ -163,10 +257,20 @@ const AssessmentGradebookModal = ({
                         disabled={
                             !assessmentGradebookAssignmentId ||
                             releasingAssessmentResults ||
-                            assessmentGradebookLoading
+                            assessmentGradebookLoading ||
+                            !canRelease
+                        }
+                        title={
+                            !isManualRelease
+                                ? t('standardAssign:assessmentGradebook.releaseDisabledImmediate')
+                                : submittedCount <= 0
+                                  ? t('standardAssign:assessmentGradebook.releaseDisabledNoSubmitted')
+                                  : ''
                         }
                     >
-                        {releasingAssessmentResults ? 'Releasing...' : 'Release Results'}
+                        {releasingAssessmentResults
+                            ? t('standardAssign:actions.releasing')
+                            : t('standardAssign:actions.releaseResults')}
                     </button>
                 </div>
             </div>

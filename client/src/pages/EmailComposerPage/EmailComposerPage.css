@@ -466,6 +466,18 @@
     margin-bottom: 14px;
 }
 
+.ai-draft-modal .ai-language-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.ai-draft-modal .ai-language-grid > div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
 .ai-draft-modal textarea,
 .ai-draft-modal select {
     width: 100%;
@@ -570,5 +582,9 @@
 
     .timezone-pill {
         width: fit-content;
+    }
+
+    .ai-draft-modal .ai-language-grid {
+        grid-template-columns: 1fr;
     }
 }

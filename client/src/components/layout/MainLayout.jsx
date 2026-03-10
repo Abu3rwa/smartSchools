@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { useTheme, useMediaQuery, Box } from '@mui/material';
+import { useTheme, useMediaQuery } from '@mui/material';
 import { Drawer } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { selectSidebarOpen, setSidebarOpen } from '../../store/slices/uiSlice';
 import { selectIsImpersonating, stopImpersonation, selectUser } from '../../store/slices/authSlice';
 import Sidebar from './Sidebar';
@@ -14,13 +15,14 @@ import toast from 'react-hot-toast';
 const ImpersonationBanner = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { t } = useTranslation(['common']);
     const impersonatedUser = useSelector(selectUser); // This is the user being impersonated
 
     const handleStopImpersonating = async () => {
-        const toastId = toast.loading('Returning to admin view...');
+        const toastId = toast.loading(t('common:impersonation.returningToAdmin'));
         try {
             await dispatch(stopImpersonation()).unwrap();
-            toast.success('Returned to Super Admin account', { id: toastId });
+            toast.success(t('common:impersonation.returnedToSuperAdmin'), { id: toastId });
             navigate('/admin/schools');
         } catch (error) {
             toast.error(error, { id: toastId });
@@ -41,7 +43,10 @@ const ImpersonationBanner = () => {
             borderBottom: '1px solid var(--warning-border)',
         }}>
             <HiOutlineExclamation size={18} />
-            <span>You are currently impersonating <strong>{impersonatedUser?.fullName || impersonatedUser?.email}</strong>.</span>
+            <span>
+                {t('common:impersonation.currentlyImpersonating')}{' '}
+                <strong>{impersonatedUser?.fullName || impersonatedUser?.email}</strong>.
+            </span>
             <button
                 onClick={handleStopImpersonating}
                 style={{
@@ -58,7 +63,7 @@ const ImpersonationBanner = () => {
                 }}
             >
                 <HiOutlineLogout size={14} />
-                Exit Impersonation
+                {t('common:impersonation.exitImpersonation')}
             </button>
         </div>
     );
@@ -66,10 +71,12 @@ const ImpersonationBanner = () => {
 
 const MainLayout = () => {
     const dispatch = useDispatch();
+    const { i18n, t } = useTranslation(['common']);
     const sidebarOpen = useSelector(selectSidebarOpen);
     const isImpersonating = useSelector(selectIsImpersonating);
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+    const isRtl = i18n.dir() === 'rtl';
 
     // Keep sidebar/drawer closed by default on small screens
     useEffect(() => {
@@ -84,7 +91,7 @@ const MainLayout = () => {
 
     return (
         <div className={`main-layout ${sidebarOpen && isDesktop ? '' : 'sidebar-collapsed'}`}>
-            <a href="#main-content" className="skip-link">Skip to main content</a>
+            <a href="#main-content" className="skip-link">{t('common:accessibility.skipToMainContent')}</a>
             {/* Desktop: Persistent sidebar */}
             {isDesktop && <Sidebar />}
             
@@ -92,7 +99,7 @@ const MainLayout = () => {
             {!isDesktop && sidebarOpen && (
                 <Drawer
                     variant="temporary"
-                    anchor="left"
+                    anchor={isRtl ? 'right' : 'left'}
                     open
                     onClose={handleDrawerClose}
                     ModalProps={{
@@ -104,7 +111,7 @@ const MainLayout = () => {
                             width: 'min(320px, 85vw)',
                             boxSizing: 'border-box',
                             background: 'var(--bg-secondary)',
-                            borderRight: '1px solid var(--border-color)',
+                            borderInlineEnd: '1px solid var(--border-color)',
                         },
                     }}
                 >

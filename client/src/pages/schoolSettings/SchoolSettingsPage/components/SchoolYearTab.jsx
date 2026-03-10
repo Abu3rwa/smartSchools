@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const SchoolYearTab = ({
   academicYears,
@@ -25,26 +26,27 @@ const SchoolYearTab = ({
   onNavigateClasses,
   onEditUsersTab
 }) => {
+  const { t } = useTranslation(['schoolSettings']);
   const sortedYears = useMemo(() => [...academicYears].sort(), [academicYears]);
 
   return (
     <div className="tab-content">
       <div className="tab-header">
         <span>
-          Set up a new school year: create classes from the previous year, deactivate old classes, and promote students. Then assign teachers and principals for the new year.
+          {t('schoolSettings:schoolYear.intro')}
         </span>
       </div>
       <div className="rollover-wizard card">
         <div className="wizard-step">
-          <h4>0. Set school year dates</h4>
-          <p className="text-muted">These dates are used for performance trends and reports.</p>
+          <h4>{t('schoolSettings:schoolYear.step0.title')}</h4>
+          <p className="text-muted">{t('schoolSettings:schoolYear.step0.subtitle')}</p>
           <div className="form-row">
             <div className="form-group">
-              <label>Start date</label>
+              <label>{t('schoolSettings:schoolYear.step0.startDate')}</label>
               <input type="date" value={schoolYearStartDate} onChange={(event) => setSchoolYearStartDate(event.target.value)} />
             </div>
             <div className="form-group">
-              <label>End date</label>
+              <label>{t('schoolSettings:schoolYear.step0.endDate')}</label>
               <input type="date" value={schoolYearEndDate} onChange={(event) => setSchoolYearEndDate(event.target.value)} />
             </div>
           </div>
@@ -53,60 +55,60 @@ const SchoolYearTab = ({
             onClick={onSaveSchoolYearDates}
             disabled={schoolYearDatesSaving || !schoolYearStartDate || !schoolYearEndDate}
           >
-            {schoolYearDatesSaving ? 'Saving...' : 'Save school year dates'}
+            {schoolYearDatesSaving ? t('schoolSettings:common.saving') : t('schoolSettings:schoolYear.step0.saveDates')}
           </button>
         </div>
         <div className="wizard-step">
-          <h4>1. Choose years</h4>
+          <h4>{t('schoolSettings:schoolYear.step1.title')}</h4>
           <div className="form-row">
             <div className="form-group">
-              <label>From (previous year)</label>
+              <label>{t('schoolSettings:schoolYear.step1.fromYear')}</label>
               <select value={fromYear} onChange={(event) => setFromYear(event.target.value)}>
-                <option value="">— Select —</option>
+                <option value="">{t('schoolSettings:schoolYear.selectPlaceholder')}</option>
                 {sortedYears.map((year) => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
             </div>
             <div className="form-group">
-              <label>To (new year)</label>
+              <label>{t('schoolSettings:schoolYear.step1.toYear')}</label>
               <input
                 type="text"
                 value={toYear}
                 onChange={(event) => setToYear(event.target.value)}
-                placeholder="e.g. 2026-2027"
+                placeholder={t('schoolSettings:schoolYear.step1.toYearPlaceholder')}
               />
             </div>
           </div>
         </div>
         <div className="wizard-step">
-          <h4>2. Create classes for new year</h4>
-          <p className="text-muted">Creates classes with the same grade/section structure. Teachers are not copied — assign them after.</p>
+          <h4>{t('schoolSettings:schoolYear.step2.title')}</h4>
+          <p className="text-muted">{t('schoolSettings:schoolYear.step2.subtitle')}</p>
           <button className="btn btn-primary" onClick={onCopyClasses} disabled={rolloverLoading || !fromYear || !toYear}>
-            {rolloverLoading ? 'Creating...' : 'Create classes from previous year'}
+            {rolloverLoading ? t('schoolSettings:schoolYear.actions.creating') : t('schoolSettings:schoolYear.step2.action')}
           </button>
-          {classesCreated !== null && <p className="result-msg">Created {classesCreated} classes.</p>}
+          {classesCreated !== null && <p className="result-msg">{t('schoolSettings:schoolYear.step2.result', { count: classesCreated })}</p>}
         </div>
         <div className="wizard-step">
-          <h4>3. Deactivate previous year classes (optional)</h4>
-          <p className="text-muted">Marks all classes for the selected year as inactive. Past data is kept.</p>
+          <h4>{t('schoolSettings:schoolYear.step3.title')}</h4>
+          <p className="text-muted">{t('schoolSettings:schoolYear.step3.subtitle')}</p>
           <button className="btn btn-secondary" onClick={onDeactivateYear} disabled={rolloverLoading || !fromYear}>
-            {rolloverLoading ? 'Updating...' : `Deactivate all classes for ${fromYear || '…'}`}
+            {rolloverLoading ? t('schoolSettings:schoolYear.actions.updating') : t('schoolSettings:schoolYear.step3.action', { year: fromYear || t('schoolSettings:common.ellipsis') })}
           </button>
-          {deactivateCount !== null && <p className="result-msg">Deactivated {deactivateCount} classes.</p>}
+          {deactivateCount !== null && <p className="result-msg">{t('schoolSettings:schoolYear.step3.result', { count: deactivateCount })}</p>}
         </div>
         <div className="wizard-step">
-          <h4>4. Promote students</h4>
-          <p className="text-muted">Moves active students to the next grade in the new year. Grade 12 students are marked graduated. Enrollment history is preserved.</p>
+          <h4>{t('schoolSettings:schoolYear.step4.title')}</h4>
+          <p className="text-muted">{t('schoolSettings:schoolYear.step4.subtitle')}</p>
           <button className="btn btn-primary" onClick={onPromoteStudents} disabled={rolloverLoading || !fromYear || !toYear}>
-            {rolloverLoading ? 'Promoting...' : 'Promote students to next grade'}
+            {rolloverLoading ? t('schoolSettings:schoolYear.actions.promoting') : t('schoolSettings:schoolYear.step4.action')}
           </button>
           {promoteResult && (
             <div className="result-msg">
-              <p>Promoted: {promoteResult.promoted} · Graduated: {promoteResult.graduated} · Skipped: {promoteResult.skipped}</p>
+              <p>{t('schoolSettings:schoolYear.step4.result', { promoted: promoteResult.promoted, graduated: promoteResult.graduated, skipped: promoteResult.skipped })}</p>
               {promoteResult.errors?.length > 0 && (
                 <details>
-                  <summary>Errors</summary>
+                  <summary>{t('schoolSettings:schoolYear.step4.errorsSummary')}</summary>
                   <ul>{promoteResult.errors.map((errorItem, index) => <li key={index}>{errorItem}</li>)}</ul>
                 </details>
               )}
@@ -114,18 +116,18 @@ const SchoolYearTab = ({
           )}
         </div>
         <div className="wizard-step">
-          <h4>5. Switch to new year</h4>
-          <p className="text-muted">Current school academic year: <strong>{currentAcademicYear}</strong></p>
+          <h4>{t('schoolSettings:schoolYear.step5.title')}</h4>
+          <p className="text-muted">{t('schoolSettings:schoolYear.step5.currentYear')} <strong>{currentAcademicYear}</strong></p>
           <button className="btn btn-primary" onClick={onSwitchToNewYear} disabled={!toYear || academicYearSaving}>
-            {academicYearSaving ? 'Switching...' : `Switch to ${toYear || 'new year'}`}
+            {academicYearSaving ? t('schoolSettings:schoolYear.actions.switching') : t('schoolSettings:schoolYear.step5.action', { year: toYear || t('schoolSettings:schoolYear.step5.newYearFallback') })}
           </button>
         </div>
         <div className="wizard-step">
-          <h4>6. Assign teachers and principals</h4>
-          <p className="text-muted">Edit the new year&apos;s classes and user roles.</p>
-          <button className="btn btn-secondary" onClick={onNavigateClasses}>Edit classes</button>
+          <h4>{t('schoolSettings:schoolYear.step6.title')}</h4>
+          <p className="text-muted">{t('schoolSettings:schoolYear.step6.subtitle')}</p>
+          <button className="btn btn-secondary" onClick={onNavigateClasses}>{t('schoolSettings:schoolYear.step6.editClasses')}</button>
           <span style={{ marginLeft: 8 }} />
-          <button className="btn btn-secondary" onClick={onEditUsersTab}>Edit users & roles</button>
+          <button className="btn btn-secondary" onClick={onEditUsersTab}>{t('schoolSettings:schoolYear.step6.editUsersRoles')}</button>
         </div>
       </div>
     </div>

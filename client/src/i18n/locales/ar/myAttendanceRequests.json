@@ -1,0 +1,34 @@
+{
+  "header": {
+    "title": "طلبات حضوري",
+    "subtitle": "اعرض وقدّم طلبات الحضور أو الإجازة."
+  },
+  "actions": {
+    "newRequest": "طلب جديد",
+    "submitFirstRequest": "قدّم أول طلب"
+  },
+  "table": {
+    "date": "التاريخ",
+    "type": "النوع",
+    "time": "الوقت",
+    "status": "الحالة",
+    "reviewNote": "ملاحظة المراجعة"
+  },
+  "status": {
+    "pending": "معلّق",
+    "approved": "مقبول",
+    "rejected": "مرفوض"
+  },
+  "loading": {
+    "message": "جارٍ تحميل الطلبات..."
+  },
+  "empty": {
+    "message": "لا توجد طلبات حضور بعد."
+  },
+  "toast": {
+    "loadFailed": "فشل تحميل طلبات الحضور"
+  },
+  "common": {
+    "dash": "—"
+  }
+}

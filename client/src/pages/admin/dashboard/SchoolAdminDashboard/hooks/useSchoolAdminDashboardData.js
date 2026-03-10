@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useTranslation } from "react-i18next";
 import { selectUser } from "../../../../../store/slices/authSlice";
 import {
   fetchClasses,
@@ -16,6 +17,7 @@ import {
   selectDashboardLoading,
   selectDashboardError,
 } from "../../../../../store/slices/dashboardSlice";
+import { selectLanguage } from "../../../../../store/slices/uiSlice";
 import api from "../../../../../config/api";
 import {
   HiOutlineUserGroup,
@@ -29,6 +31,7 @@ import {
  * Preserves original API calls, Redux selectors/actions, and derived data.
  */
 export function useSchoolAdminDashboardData() {
+  const { t } = useTranslation(["adminDashboard"]);
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
   const classes = useSelector(selectClasses);
@@ -37,6 +40,7 @@ export function useSchoolAdminDashboardData() {
   const dashboardStats = useSelector(selectDashboardStats);
   const loading = useSelector(selectDashboardLoading);
   const error = useSelector(selectDashboardError);
+  const language = useSelector(selectLanguage);
 
   const [teachers, setTeachers] = useState([]);
   const [attendanceSummary, setAttendanceSummary] = useState(null);
@@ -120,12 +124,12 @@ export function useSchoolAdminDashboardData() {
 
   const todayLabel = useMemo(
     () =>
-      new Intl.DateTimeFormat(undefined, {
+      new Intl.DateTimeFormat(language === "ar" ? "ar" : "en", {
         weekday: "short",
         month: "short",
         day: "numeric",
       }).format(new Date()),
-    [],
+    [language],
   );
 
   const classDistributionData = useMemo(() => {
@@ -134,18 +138,18 @@ export function useSchoolAdminDashboardData() {
       : [];
     if (fromStats.length > 0) {
       return fromStats.map((item) => ({
-        name: item.name?.substring(0, 18) || "Class",
+        name: item.name?.substring(0, 18) || t("adminDashboard:common.classFallback"),
         students: Number(item.students) || 0,
       }));
     }
     return classes
       .slice(0, 12)
       .map((cls) => ({
-        name: cls.name?.substring(0, 18) || "Class",
+        name: cls.name?.substring(0, 18) || t("adminDashboard:common.classFallback"),
         students: cls.studentCount || 0,
       }))
       .filter((item) => item.students > 0);
-  }, [classes, dashboardStats]);
+  }, [classes, dashboardStats, t]);
 
   const performanceTrendData = useMemo(() => {
     const fromStats = Array.isArray(dashboardStats?.performanceTrend)
@@ -159,40 +163,44 @@ export function useSchoolAdminDashboardData() {
     }
     return [];
   }, [dashboardStats]);
-  console.log("teachers", teachers);
-  const stats = useMemo(
+   const stats = useMemo(
     () => [
       {
-        title: "Total Students",
+        titleKey: "stats.totalStudents",
         value: dashboardStats.totalStudents || students.length || 0,
         icon: HiOutlineUserGroup,
         color: "primary",
         change: dashboardStats.changes?.students || "+0%",
       },
       {
-        title: "Total Classes",
+        titleKey: "stats.totalClasses",
         value: dashboardStats.totalClasses || classes.length || 0,
         icon: HiOutlineAcademicCap,
         color: "purple",
         change: dashboardStats.changes?.classes || "+0%",
       },
       {
-        title: "Teachers",
+        titleKey: "stats.teachers",
         value: teachers.length || 0,
         icon: HiOutlineUsers,
         color: "blue",
-        subtitle: `${teachers.filter((t) => t.isActive === true).length} active`,
+        subtitleKey: "stats.activeTeachers",
+        subtitleParams: { count: teachers.filter((t) => t.isActive === true).length },
       },
       {
-        title: "Attendance Rate",
+        titleKey: "stats.attendanceRate",
         value: Number.isFinite(attendanceSummary?.attendanceRate)
           ? `${attendanceSummary.attendanceRate}%`
-          : "N/A",
+          : t("adminDashboard:common.noDataShort"),
         icon: HiOutlineCheckCircle,
         color: "green",
-        subtitle: attendanceSummary
-          ? `${attendanceSummary.totalPresent}/${attendanceSummary.totalStudents} today`
-          : "No data",
+        subtitleKey: attendanceSummary ? "stats.attendanceToday" : "stats.noData",
+        subtitleParams: attendanceSummary
+          ? {
+              present: attendanceSummary.totalPresent,
+              total: attendanceSummary.totalStudents,
+            }
+          : undefined,
       },
     ],
     [
@@ -201,6 +209,7 @@ export function useSchoolAdminDashboardData() {
       classes.length,
       teachers,
       attendanceSummary,
+      t,
     ],
   );
 

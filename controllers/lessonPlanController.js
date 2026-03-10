@@ -8,6 +8,10 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import * as lessonPlanAIService from '../services/lessonPlanAIService.js';
 import * as lessonPlanEvaluationService from '../services/lessonPlanEvaluationService.js';
 import { sendLessonPlanFeedback } from '../services/emailService.js';
+import {
+    resolveRequestedLanguages,
+    toLegacyLanguageValue
+} from '../utils/aiLanguageUtils.js';
 
 const MODEL_NAME = 'gemini-2.5-flash-lite';
 const VALID_SUGGEST_FIELDS = [
@@ -265,7 +269,11 @@ export const suggestField = asyncHandler(async (req, res) => {
         title,
         summary,
         stageIndex,
-        stageProcedure
+        stageProcedure,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language
     } = req.body;
     const schoolId = req.schoolId;
     const userId = req.user?._id;
@@ -282,12 +290,21 @@ export const suggestField = asyncHandler(async (req, res) => {
     if (!cls || !subj) {
         return res.status(404).json({ success: false, message: 'Class or Subject not found' });
     }
+    const normalizedRequestedLanguages = resolveRequestedLanguages({
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language,
+        subjectName: subj?.name || '',
+        max: 2
+    });
 
     const actualValue = field === 'stageProcedure' ? (stageProcedure || currentValue || '') : (currentValue || '');
 
     const result = await lessonPlanAIService.suggestFieldContent({
         field,
         currentValue: actualValue,
+        requestedLanguages: normalizedRequestedLanguages,
         context: {
             subjectName: subj.name || '',
             gradeLevel: cls.grade ?? '',
@@ -303,17 +320,23 @@ export const suggestField = asyncHandler(async (req, res) => {
             feature: 'lesson_plan_suggest',
             school: schoolId,
             user: userId,
+            language: toLegacyLanguageValue(normalizedRequestedLanguages),
+            requestedLanguages: normalizedRequestedLanguages,
             inputTokens: result.tokenUsage.input,
             outputTokens: result.tokenUsage.output,
             totalTokens: result.tokenUsage.total,
             schoolId: schoolId.toString(),
-            metadata: { field, subjectId, classId }
+            metadata: { field, subjectId, classId, requestedLanguages: normalizedRequestedLanguages }
         });
     }
 
     res.json({
         success: true,
-        data: { suggestion: result.text, tokenUsage: result.tokenUsage }
+        data: {
+            suggestion: result.text,
+            tokenUsage: result.tokenUsage,
+            requestedLanguages: normalizedRequestedLanguages
+        }
     });
 });
 
@@ -324,7 +347,15 @@ export const suggestField = asyncHandler(async (req, res) => {
  * @access  Private (Teacher, Admin)
  */
 export const detectStandards = asyncHandler(async (req, res) => {
-    const { subjectId, classId, lessonText } = req.body;
+    const {
+        subjectId,
+        classId,
+        lessonText,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language
+    } = req.body;
     const schoolId = req.schoolId;
     const userId = req.user?._id;
 
@@ -337,6 +368,14 @@ export const detectStandards = asyncHandler(async (req, res) => {
     if (!cls || !subj) {
         return res.status(404).json({ success: false, message: 'Class or Subject not found' });
     }
+    const normalizedRequestedLanguages = resolveRequestedLanguages({
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language,
+        subjectName: subj?.name || '',
+        max: 2
+    });
 
     const gradeLevel = cls.grade ?? 1;
 
@@ -357,7 +396,8 @@ export const detectStandards = asyncHandler(async (req, res) => {
         const inferResult = await lessonPlanAIService.inferStandardsFromContent({
             subjectName: subj.name || '',
             gradeLevel,
-            lessonText: lessonText || ''
+            lessonText: lessonText || '',
+            requestedLanguages: normalizedRequestedLanguages
         });
         if (schoolId && userId && (inferResult.tokenUsage?.total || 0) > 0) {
             await AITokenUsage.create({
@@ -365,11 +405,13 @@ export const detectStandards = asyncHandler(async (req, res) => {
                 feature: 'lesson_plan_detect_standards',
                 school: schoolId,
                 user: userId,
+                language: toLegacyLanguageValue(normalizedRequestedLanguages),
+                requestedLanguages: normalizedRequestedLanguages,
                 inputTokens: inferResult.tokenUsage.input,
                 outputTokens: inferResult.tokenUsage.output,
                 totalTokens: inferResult.tokenUsage.total,
                 schoolId: schoolId.toString(),
-                metadata: { subjectId, classId, inferred: true }
+                metadata: { subjectId, classId, inferred: true, requestedLanguages: normalizedRequestedLanguages }
             });
         }
         return res.json({
@@ -378,7 +420,8 @@ export const detectStandards = asyncHandler(async (req, res) => {
                 standards: inferResult.standards || [],
                 fromSubject: false,
                 inferred: true,
-                tokenUsage: inferResult.tokenUsage || { input: 0, output: 0, total: 0 }
+                tokenUsage: inferResult.tokenUsage || { input: 0, output: 0, total: 0 },
+                requestedLanguages: normalizedRequestedLanguages
             }
         });
     }
@@ -389,7 +432,8 @@ export const detectStandards = asyncHandler(async (req, res) => {
         gradeLevel,
         lessonText: lessonText || '',
         standards,
-        suggestedPool: false
+        suggestedPool: false,
+        requestedLanguages: normalizedRequestedLanguages
     });
 
     if (schoolId && userId && result.tokenUsage.total > 0) {
@@ -398,11 +442,13 @@ export const detectStandards = asyncHandler(async (req, res) => {
             feature: 'lesson_plan_detect_standards',
             school: schoolId,
             user: userId,
+            language: toLegacyLanguageValue(normalizedRequestedLanguages),
+            requestedLanguages: normalizedRequestedLanguages,
             inputTokens: result.tokenUsage.input,
             outputTokens: result.tokenUsage.output,
             totalTokens: result.tokenUsage.total,
             schoolId: schoolId.toString(),
-            metadata: { subjectId, classId }
+            metadata: { subjectId, classId, requestedLanguages: normalizedRequestedLanguages }
         });
     }
 
@@ -412,7 +458,8 @@ export const detectStandards = asyncHandler(async (req, res) => {
             standards: result.standards,
             fromSubject,
             inferred,
-            tokenUsage: result.tokenUsage
+            tokenUsage: result.tokenUsage,
+            requestedLanguages: normalizedRequestedLanguages
         }
     });
 });
@@ -423,7 +470,16 @@ export const detectStandards = asyncHandler(async (req, res) => {
  * @access  Private (Teacher, Admin)
  */
 export const generateSection = asyncHandler(async (req, res) => {
-    const { title, subjectId, classId, sourceFields } = req.body;
+    const {
+        title,
+        subjectId,
+        classId,
+        sourceFields,
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language
+    } = req.body;
     const schoolId = req.schoolId;
     const userId = req.user?._id;
 
@@ -436,10 +492,19 @@ export const generateSection = asyncHandler(async (req, res) => {
     if (!cls || !subj) {
         return res.status(404).json({ success: false, message: 'Class or Subject not found' });
     }
+    const normalizedRequestedLanguages = resolveRequestedLanguages({
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language,
+        subjectName: subj?.name || '',
+        max: 2
+    });
 
     const result = await lessonPlanAIService.generateSection({
         title: title || '',
         context: { subjectName: subj.name || '', gradeLevel: cls.grade ?? '' },
+        requestedLanguages: normalizedRequestedLanguages,
         sourceFields: Array.isArray(sourceFields) ? sourceFields : undefined
     });
 
@@ -469,7 +534,8 @@ export const generateSection = asyncHandler(async (req, res) => {
                 subjectId,
                 gradeLevel,
                 lessonText,
-                standards: standardsList
+                standards: standardsList,
+                requestedLanguages: normalizedRequestedLanguages
             });
             standards = detectResult.standards || [];
             if (detectResult.tokenUsage?.total > 0 && schoolId && userId) {
@@ -478,18 +544,21 @@ export const generateSection = asyncHandler(async (req, res) => {
                     feature: 'lesson_plan_detect_standards',
                     school: schoolId,
                     user: userId,
+                    language: toLegacyLanguageValue(normalizedRequestedLanguages),
+                    requestedLanguages: normalizedRequestedLanguages,
                     inputTokens: detectResult.tokenUsage.input,
                     outputTokens: detectResult.tokenUsage.output,
                     totalTokens: detectResult.tokenUsage.total,
                     schoolId: schoolId.toString(),
-                    metadata: { subjectId, classId, fromGenerate: true }
+                    metadata: { subjectId, classId, fromGenerate: true, requestedLanguages: normalizedRequestedLanguages }
                 });
             }
         } else {
             const inferResult = await lessonPlanAIService.inferStandardsFromContent({
                 subjectName: subj.name || '',
                 gradeLevel,
-                lessonText
+                lessonText,
+                requestedLanguages: normalizedRequestedLanguages
             });
             standards = inferResult.standards || [];
             if (inferResult.tokenUsage?.total > 0 && schoolId && userId) {
@@ -498,11 +567,19 @@ export const generateSection = asyncHandler(async (req, res) => {
                     feature: 'lesson_plan_detect_standards',
                     school: schoolId,
                     user: userId,
+                    language: toLegacyLanguageValue(normalizedRequestedLanguages),
+                    requestedLanguages: normalizedRequestedLanguages,
                     inputTokens: inferResult.tokenUsage.input,
                     outputTokens: inferResult.tokenUsage.output,
                     totalTokens: inferResult.tokenUsage.total,
                     schoolId: schoolId.toString(),
-                    metadata: { subjectId, classId, fromGenerate: true, inferred: true }
+                    metadata: {
+                        subjectId,
+                        classId,
+                        fromGenerate: true,
+                        inferred: true,
+                        requestedLanguages: normalizedRequestedLanguages
+                    }
                 });
             }
         }
@@ -514,11 +591,13 @@ export const generateSection = asyncHandler(async (req, res) => {
             feature: 'lesson_plan_generate_section',
             school: schoolId,
             user: userId,
+            language: toLegacyLanguageValue(normalizedRequestedLanguages),
+            requestedLanguages: normalizedRequestedLanguages,
             inputTokens: result.tokenUsage.input,
             outputTokens: result.tokenUsage.output,
             totalTokens: result.tokenUsage.total,
             schoolId: schoolId.toString(),
-            metadata: { subjectId, classId }
+            metadata: { subjectId, classId, requestedLanguages: normalizedRequestedLanguages }
         });
     }
 
@@ -527,7 +606,8 @@ export const generateSection = asyncHandler(async (req, res) => {
         data: {
             generated: result.generated,
             standards,
-            tokenUsage: result.tokenUsage
+            tokenUsage: result.tokenUsage,
+            requestedLanguages: normalizedRequestedLanguages
         }
     });
 });

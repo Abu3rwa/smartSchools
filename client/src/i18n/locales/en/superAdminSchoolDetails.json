@@ -1,0 +1,97 @@
+{
+  "toast": {
+    "loadFailed": "Failed to load school details",
+    "statusActivated": "School activated successfully",
+    "statusSuspended": "School suspended successfully",
+    "updateStatusFailed": "Failed to update school status"
+  },
+  "common": {
+    "na": "N/A",
+    "yes": "Yes",
+    "no": "No",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "empty": {
+    "schoolNotFound": "School not found"
+  },
+  "header": {
+    "backToSchools": "Back to Schools"
+  },
+  "actions": {
+    "suspend": "Suspend",
+    "activate": "Activate",
+    "settings": "Settings"
+  },
+  "tabs": {
+    "overview": "Overview",
+    "users": "Users",
+    "subscription": "Subscription",
+    "settings": "Settings"
+  },
+  "badge": {
+    "plan": "{{plan}} plan"
+  },
+  "status": {
+    "active": "Active",
+    "suspended": "Suspended",
+    "trial": "Trial",
+    "inactive": "Inactive",
+    "cancelled": "Cancelled"
+  },
+  "plan": {
+    "starter": "Starter",
+    "professional": "Professional",
+    "enterprise": "Enterprise"
+  },
+  "overview": {
+    "totalUsers": "Total Users",
+    "students": "Students",
+    "teachers": "Teachers",
+    "classes": "Classes"
+  },
+  "contact": {
+    "title": "Contact Information",
+    "adminEmail": "Admin Email",
+    "supportEmail": "Support Email",
+    "phone": "Phone",
+    "address": "Address"
+  },
+  "timeline": {
+    "title": "Timeline",
+    "created": "Created",
+    "lastUpdated": "Last Updated",
+    "subscriptionStart": "Subscription Start",
+    "subscriptionEnd": "Subscription End"
+  },
+  "users": {
+    "administrators": "Administrators",
+    "teachers": "Teachers",
+    "students": "Students",
+    "classes": "Classes",
+    "recentActivityTitle": "Recent Activity",
+    "recentActivityPlaceholder": "User activity and login history would be displayed here"
+  },
+  "subscription": {
+    "currentPlan": "Current Plan: {{plan}}",
+    "maxStudents": "Max Students: {{value}}",
+    "status": "Status: {{status}}",
+    "currentStudents": "Current Students: {{value}}",
+    "parentPortal": "Parent Portal: {{value}}",
+    "advancedAnalytics": "Advanced Analytics: {{value}}",
+    "customReports": "Custom Reports: {{value}}",
+    "emailNotifications": "Email Notifications: {{value}}",
+    "infoTitle": "Subscription Information",
+    "stripeCustomerId": "Stripe Customer ID",
+    "stripeSubscriptionId": "Stripe Subscription ID",
+    "trialEnds": "Trial Ends",
+    "currentPeriodEnd": "Current Period End",
+    "cancelAtPeriodEnd": "Cancel at Period End",
+    "lastBilledAmount": "Last Billed Amount",
+    "lastInvoiceDate": "Last Invoice Date"
+  },
+  "settings": {
+    "title": "School Settings",
+    "placeholder": "Configuration and advanced settings would be displayed here"
+  }
+}

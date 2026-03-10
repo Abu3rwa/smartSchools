@@ -1,0 +1,65 @@
+{
+  "page": {
+    "title": "Schools Management"
+  },
+  "search": {
+    "placeholder": "Search schools..."
+  },
+  "actions": {
+    "createSchool": "Create School",
+    "cancel": "Cancel",
+    "creating": "Creating...",
+    "loginAsAdmin": "Login As Admin",
+    "viewDetails": "View Details",
+    "editSchool": "Edit School"
+  },
+  "empty": {
+    "noSchoolsFound": "No schools found"
+  },
+  "table": {
+    "school": "School",
+    "adminEmail": "Admin Email",
+    "users": "Users",
+    "students": "Students",
+    "plan": "Plan",
+    "status": "Status",
+    "actions": "Actions"
+  },
+  "modal": {
+    "createSchoolTitle": "Create School"
+  },
+  "form": {
+    "schoolNameLabel": "School Name *",
+    "schoolNamePlaceholder": "Springfield High",
+    "adminNameLabel": "Admin Name *",
+    "adminNamePlaceholder": "Jane Doe",
+    "adminEmailLabel": "Admin Email *",
+    "adminEmailPlaceholder": "admin@school.edu",
+    "adminPasswordLabel": "Admin Password *",
+    "adminPasswordPlaceholder": "Strong password",
+    "planLabel": "Plan",
+    "maxStudentsLabel": "Max Students"
+  },
+  "plan": {
+    "starter": "Starter",
+    "professional": "Professional",
+    "enterprise": "Enterprise"
+  },
+  "status": {
+    "active": "Active",
+    "trial": "Trial",
+    "suspended": "Suspended",
+    "cancelled": "Cancelled",
+    "inactive": "Inactive"
+  },
+  "confirm": {
+    "impersonateAdmin": "Are you sure you want to log in as this school's admin?"
+  },
+  "toast": {
+    "loadFailed": "Failed to load schools",
+    "schoolCreated": "School created successfully",
+    "createFailed": "Failed to create school",
+    "impersonationStarting": "Initiating impersonation...",
+    "redirecting": "Redirecting to school dashboard..."
+  }
+}

@@ -423,7 +423,7 @@ export const getApiDocumentation = async (req, res) => {
                             path: '/api/reports/generate-advanced',
                             description: 'Generate AI-powered student report',
                             auth: 'Bearer Token (Teacher/Admin)',
-                            body: { studentId: 'string', reportType: 'weekly/monthly/custom', language: 'english/arabic', recipients: {} },
+                            body: { studentId: 'string', reportType: 'weekly/monthly/custom', requestedLanguages: ['en', 'ar'], language: 'legacy optional', recipients: {} },
                             response: { success: true, data: { report: 'Generated report', emailStatus: {} } }
                         },
                         {

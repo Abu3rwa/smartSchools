@@ -1,0 +1,23 @@
+{
+  "search": {
+    "placeholder": "ابحث عن الطلاب...",
+    "ariaLabel": "ابحث عن الطلاب"
+  },
+  "actions": {
+    "openMenu": "فتح القائمة",
+    "toggleTheme": "تبديل النمط",
+    "toggleLanguage": "تغيير اللغة",
+    "notifications": "الإشعارات",
+    "notificationsAria_zero": "الإشعارات",
+    "notificationsAria_one": "الإشعارات ({{count}} قيد الانتظار)",
+    "notificationsAria_two": "الإشعارات ({{count}} قيد الانتظار)",
+    "notificationsAria_few": "الإشعارات ({{count}} قيد الانتظار)",
+    "notificationsAria_many": "الإشعارات ({{count}} قيد الانتظار)",
+    "notificationsAria_other": "الإشعارات ({{count}} قيد الانتظار)",
+    "userMenu": "قائمة المستخدم"
+  },
+  "menu": {
+    "settings": "الإعدادات",
+    "logout": "تسجيل الخروج"
+  }
+}

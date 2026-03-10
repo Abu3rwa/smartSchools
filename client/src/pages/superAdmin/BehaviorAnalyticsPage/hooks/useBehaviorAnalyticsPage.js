@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DEFAULT_PERIOD, DEFAULT_TAB } from '../constants';
 
 const getAuthHeader = () => ({
@@ -6,6 +7,7 @@ const getAuthHeader = () => ({
 });
 
 const useBehaviorAnalyticsPage = () => {
+    const { t } = useTranslation(['behaviorAnalytics']);
     const [analyticsData, setAnalyticsData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -35,17 +37,17 @@ const useBehaviorAnalyticsPage = () => {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch analytics data');
+                throw new Error(t('behaviorAnalytics:error.fetchFailed'));
             }
 
             const data = await response.json();
             setAnalyticsData(data.data);
         } catch (err) {
-            setError(err.message || 'Failed to load analytics data');
+            setError(err.message || t('behaviorAnalytics:error.loadFailed'));
         } finally {
             setLoading(false);
         }
-    }, [buildParams]);
+    }, [buildParams, t]);
 
     useEffect(() => {
         fetchAnalytics();

@@ -1,0 +1,160 @@
+{
+  "page": {
+    "eyebrow": "Scheduling workspace",
+    "title": "Timetable Builder",
+    "subtitle": "Set up subjects, periods, rooms, and teacher assignments from one responsive workspace."
+  },
+  "actions": {
+    "importSubjectsCsv": "Import Subjects CSV",
+    "importPeriodsCsv": "Import Periods CSV",
+    "importRoomsCsv": "Import Rooms CSV",
+    "refresh": "Refresh",
+    "addRoom": "Add room",
+    "saving": "Saving..."
+  },
+  "summary": {
+    "subjects": {
+      "label": "Subjects",
+      "help": "Curriculum options used in the schedule"
+    },
+    "periods": {
+      "label": "Periods",
+      "help": "Time slots available each day"
+    },
+    "assignments": {
+      "label": "Assignments",
+      "help": "Teacher blocks currently active"
+    },
+    "availableRooms": {
+      "label": "Available rooms",
+      "help": "Rooms ready for scheduling"
+    }
+  },
+  "assignment": {
+    "alwaysActive": "Always active",
+    "startsOn": "Starts on {{date}}",
+    "untilDate": "Until {{date}}"
+  },
+  "assignmentForm": {
+    "buildTitle": "Build Assignment",
+    "editTitle": "Edit Assignment",
+    "subtitle": "Match a teacher, class, subject, room, and period in one flow.",
+    "cancelEdit": "Cancel edit",
+    "teacher": "Teacher",
+    "teacherPlaceholder": "Select teacher",
+    "class": "Class",
+    "classPlaceholderSelectTeacherFirst": "Select teacher first",
+    "classPlaceholderSelectClass": "Select class",
+    "classPlaceholderNoClasses": "No classes assigned to this teacher",
+    "subject": "Subject",
+    "subjectPlaceholderSelectTeacherFirst": "Select teacher first",
+    "subjectPlaceholderOptional": "(Optional)",
+    "subjectPlaceholderNoSubjects": "No subjects assigned to this teacher",
+    "room": "Room",
+    "roomOptional": "(Optional)",
+    "period": "Period",
+    "periodPlaceholder": "Select period",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "days": "Days",
+    "submitCreate": "Create assignment",
+    "submitUpdate": "Update assignment",
+    "actionNote": "Teachers only see subjects connected to the classes they already teach."
+  },
+  "assignments": {
+    "title": "Assignments",
+    "subtitle": "Review the current timetable blocks and narrow them by teacher or class.",
+    "resultsShown": "{{count}} shown",
+    "empty": "No assignments found."
+  },
+  "table": {
+    "teacher": "Teacher",
+    "class": "Class",
+    "subject": "Subject",
+    "slot": "Slot",
+    "schedule": "Schedule",
+    "noRoom": "No room",
+    "noDays": "No days"
+  },
+  "assignmentFilters": {
+    "label": "Filter by",
+    "allTeachers": "All Teachers",
+    "allClasses": "All Classes"
+  },
+  "subjectsPanel": {
+    "title": "Subjects",
+    "subtitle": "Keep the subject list beside the timetable so assignment setup stays in one place.",
+    "addSubject": "Add subject"
+  },
+  "periods": {
+    "title": "Period setup",
+    "subtitle": "Create and adjust your teaching blocks without leaving the page.",
+    "periodName": "Period {{number}}",
+    "periodNameAria": "Period name",
+    "periodNumberAria": "Period number",
+    "empty": "No periods yet."
+  },
+  "days": {
+    "sun": "Sun",
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat"
+  },
+  "room": {
+    "floor": "Floor {{value}}",
+    "types": {
+      "classroom": "Classroom",
+      "lab": "Lab",
+      "lecture_hall": "Lecture hall",
+      "gym": "Gym",
+      "library": "Library",
+      "office": "Office",
+      "other": "Other"
+    },
+    "status": {
+      "active": "active",
+      "maintenance": "maintenance",
+      "renovation": "renovation",
+      "closed": "closed"
+    },
+    "unavailable": {
+      "occupied": "occupied",
+      "unavailable": "unavailable"
+    }
+  },
+  "roomModal": {
+    "title": "Add room",
+    "closeAria": "Close",
+    "name": "Name *",
+    "namePlaceholder": "e.g. Room 101",
+    "type": "Type",
+    "capacity": "Capacity",
+    "building": "Building",
+    "floor": "Floor",
+    "roomNumber": "Room number",
+    "status": "Status",
+    "optionalPlaceholder": "Optional",
+    "availableForScheduling": "Available for scheduling",
+    "creating": "Creating...",
+    "create": "Create room"
+  },
+  "confirm": {
+    "deletePeriod": "Are you sure you want to delete this period?",
+    "deleteAssignment": "Are you sure you want to delete this assignment?"
+  },
+  "toast": {
+    "selectCsv": "Please select a CSV file",
+    "noValidPeriodRows": "No valid period rows found in CSV",
+    "importedPeriods": "Imported {{count}} periods",
+    "failedPeriodRows": "{{count}} period rows failed",
+    "importPeriodsFailed": "Failed to import periods",
+    "noValidRoomRows": "No valid room rows found in CSV",
+    "importedRooms": "Imported {{count}} rooms",
+    "failedRoomRows": "{{count}} room rows failed",
+    "importRoomsFailed": "Failed to import rooms",
+    "noValidSubjectRows": "No valid subject rows found in CSV"
+  }
+}

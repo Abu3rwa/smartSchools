@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchStudents, selectStudents } from '@/store/slices/studentSlice';
 import { createDefaultFormData } from '../constants';
+import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../../constants/aiLanguages';
 
 const useAdvancedReportGenerator = ({ token }) => {
   const dispatch = useDispatch();
@@ -66,6 +67,10 @@ const useAdvancedReportGenerator = ({ token }) => {
     setReport(null);
 
     try {
+      const requestedLanguages = buildRequestedLanguages(
+        formData.primaryLanguage,
+        formData.secondaryLanguage
+      );
       const response = await fetch('/api/reports/generate-advanced', {
         method: 'POST',
         headers: {
@@ -74,6 +79,8 @@ const useAdvancedReportGenerator = ({ token }) => {
         },
         body: JSON.stringify({
           ...formData,
+          language: toLegacyLanguageValue(requestedLanguages),
+          requestedLanguages,
           sendEmail: false
         })
       });
@@ -101,6 +108,10 @@ const useAdvancedReportGenerator = ({ token }) => {
     setSuccess(null);
 
     try {
+      const requestedLanguages = buildRequestedLanguages(
+        formData.primaryLanguage,
+        formData.secondaryLanguage
+      );
       const response = await fetch('/api/reports/generate-advanced', {
         method: 'POST',
         headers: {
@@ -109,6 +120,8 @@ const useAdvancedReportGenerator = ({ token }) => {
         },
         body: JSON.stringify({
           ...formData,
+          language: toLegacyLanguageValue(requestedLanguages),
+          requestedLanguages,
           sendEmail: true
         })
       });

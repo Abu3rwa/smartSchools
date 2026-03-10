@@ -13,13 +13,37 @@ const ReportConfigurationSection = ({ reportTypes, languages, formData, onChange
     </div>
 
     <div className="form-group">
-      <label htmlFor="language">Language</label>
-      <select id="language" name="language" value={formData.language} onChange={onChange}>
+      <label htmlFor="primaryLanguage">Primary Language</label>
+      <select
+        id="primaryLanguage"
+        name="primaryLanguage"
+        value={formData.primaryLanguage}
+        onChange={onChange}
+      >
         {languages.map((lang) => (
           <option key={lang.value} value={lang.value}>
             {lang.label}
           </option>
         ))}
+      </select>
+    </div>
+
+    <div className="form-group">
+      <label htmlFor="secondaryLanguage">Secondary Language (Optional)</label>
+      <select
+        id="secondaryLanguage"
+        name="secondaryLanguage"
+        value={formData.secondaryLanguage}
+        onChange={onChange}
+      >
+        <option value="">None</option>
+        {languages
+          .filter((lang) => lang.value !== formData.primaryLanguage)
+          .map((lang) => (
+            <option key={lang.value} value={lang.value}>
+              {lang.label}
+            </option>
+          ))}
       </select>
     </div>
 

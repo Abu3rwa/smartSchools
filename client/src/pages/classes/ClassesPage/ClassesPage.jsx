@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { fetchClasses, selectClasses, selectClassesLoading, selectClassesError, createClass, updateClass, deleteClass } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
@@ -13,6 +14,7 @@ import './ClassesPage.css';
 
 const ClassesPage = () => {
     const dispatch = useDispatch();
+    const { t } = useTranslation(['classes', 'common']);
     const classes = useSelector(selectClasses);
     const departments = useSelector(selectDepartments);
     const loading = useSelector(selectClassesLoading);
@@ -49,11 +51,11 @@ const ClassesPage = () => {
         try {
             const result = await dispatch(createClass(formData));
             if (createClass.fulfilled.match(result)) {
-                toast.success('Class created successfully!');
+                toast.success(t('classes:toast.created'));
                 setShowModal(false);
                 setFormData({ grade: '', section: '', academicYear, room: '', capacity: 40, department: '' });
             } else {
-                toast.error(result.payload || 'Failed to create class');
+                toast.error(result.payload || t('classes:toast.createFailed'));
             }
         } finally {
             setSubmitting(false);
@@ -62,8 +64,7 @@ const ClassesPage = () => {
 
     const handleToggleActive = async (cls) => {
         const willActivate = cls.isActive === false;
-        const actionLabel = willActivate ? 'activate' : 'deactivate';
-        if (!window.confirm(`Are you sure you want to ${actionLabel} ${cls.name}?`)) {
+        if (!window.confirm(t('classes:confirm.toggleActive', { className: cls.name, action: willActivate ? t('classes:actions.activate').toLowerCase() : t('classes:actions.deactivate').toLowerCase() }))) {
             return;
         }
 
@@ -73,22 +74,22 @@ const ClassesPage = () => {
         }));
 
         if (updateClass.fulfilled.match(result)) {
-            toast.success(`Class ${willActivate ? 'activated' : 'deactivated'} successfully`);
+            toast.success(t('classes:toast.toggled', { state: willActivate ? t('classes:actions.activated') : t('classes:actions.deactivated') }));
         } else {
-            toast.error(result.payload || `Failed to ${actionLabel} class`);
+            toast.error(result.payload || t('classes:toast.toggleFailed'));
         }
     };
 
     const handleDeleteClass = async (cls) => {
-        if (!window.confirm(`Delete ${cls.name}? This will deactivate the class and hide it from active workflows.`)) {
+        if (!window.confirm(t('classes:confirm.delete', { className: cls.name }))) {
             return;
         }
 
         const result = await dispatch(deleteClass(cls._id));
         if (deleteClass.fulfilled.match(result)) {
-            toast.success('Class deleted successfully');
+            toast.success(t('classes:toast.deleted'));
         } else {
-            toast.error(result.payload || 'Failed to delete class');
+            toast.error(result.payload || t('classes:toast.deleteFailed'));
         }
     };
 
@@ -102,7 +103,7 @@ const ClassesPage = () => {
         if (!file) return;
 
         if (!file.name.toLowerCase().endsWith('.csv')) {
-            toast.error('Please select a CSV file');
+            toast.error(t('classes:toast.selectCsv'));
             return;
         }
 
@@ -114,7 +115,7 @@ const ClassesPage = () => {
             return;
         }
         if (rows.length === 0) {
-            toast.error('No valid rows found in CSV');
+            toast.error(t('classes:toast.noValidRows'));
             return;
         }
 
@@ -123,15 +124,15 @@ const ClassesPage = () => {
             const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
             const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
             const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
-            toast.success(response?.message || `Imported ${imported} classes`);
+            toast.success(response?.message || t('classes:toast.imported', { count: imported }));
             if (failed > 0) {
-                toast.error(`${failed} class rows failed`);
+                toast.error(t('classes:toast.importFailedRows', { count: failed }));
             } else if (skipped > 0) {
-                toast(`${skipped} class rows skipped`);
+                toast(t('classes:toast.importSkippedRows', { count: skipped }));
             }
             dispatch(fetchClasses({ academicYear }));
         } catch (importError) {
-            toast.error(importError?.response?.data?.message || 'Failed to import classes');
+            toast.error(importError?.response?.data?.message || t('classes:toast.importFailed'));
         }
     };
 
@@ -147,18 +148,18 @@ const ClassesPage = () => {
             {/* Header */}
             <div className="page-header">
                 <div>
-                    <h1>Classes</h1>
-                    <p className="text-muted">Manage your school classes and student enrollment</p>
+                    <h1>{t('classes:page.title')}</h1>
+                    <p className="text-muted">{t('classes:page.subtitle')}</p>
                 </div>
                 {isAdmin && (
                     <div className="header-actions">
                         <button className="btn btn-outline" onClick={handleTriggerImport}>
                             <HiOutlineUpload size={20} />
-                            Import CSV
+                            {t('classes:actions.importCsv')}
                         </button>
                         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
                             <HiOutlinePlus size={20} />
-                            Add Class
+                            {t('classes:actions.addClass')}
                         </button>
                     </div>
                 )}
@@ -169,7 +170,7 @@ const ClassesPage = () => {
                 <HiOutlineSearch className="search-icon" />
                 <input
                     type="text"
-                    placeholder="Search classes..."
+                    placeholder={t('classes:filters.searchPlaceholder')}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -184,7 +185,7 @@ const ClassesPage = () => {
                 <div className="error-container">
                     <p className="error-message">{error}</p>
                     <button className="btn btn-primary" onClick={() => dispatch(fetchClasses({ academicYear }))}>
-                        Retry
+                        {t('common:actions.retry')}
                     </button>
                 </div>
             ) : (
@@ -192,14 +193,14 @@ const ClassesPage = () => {
                     <table className="data-table">
                         <thead>
                             <tr>
-                                <th>Grade</th>
-                                <th>Section</th>
-                                <th>Class Name</th>
-                                <th>Department</th>
-                                <th>Academic Year</th>
-                                <th>Students</th>
-                                <th>Subjects</th>
-                                <th>Actions</th>
+                                <th>{t('classes:table.columns.grade')}</th>
+                                <th>{t('classes:table.columns.section')}</th>
+                                <th>{t('classes:table.columns.className')}</th>
+                                <th>{t('classes:table.columns.department')}</th>
+                                <th>{t('classes:table.columns.academicYear')}</th>
+                                <th>{t('classes:table.columns.students')}</th>
+                                <th>{t('classes:table.columns.subjects')}</th>
+                                <th>{t('classes:table.columns.actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -208,7 +209,7 @@ const ClassesPage = () => {
                                     <td>
                                         <span className="grade-badge">{cls.grade}</span>
                                     </td>
-                                    <td>{cls.section || 'Main'}</td>
+                                    <td>{cls.section || t('classes:table.mainSection')}</td>
                                     <td>
                                         <Link to={`/portal/classes/${cls._id}`} className="class-link">
                                             {cls.name}
@@ -218,7 +219,9 @@ const ClassesPage = () => {
                                     <td>
                                         {cls.academicYear}
                                         {cls.isActive === false && (
-                                            <span className="badge badge-secondary" style={{ marginLeft: 6 }}>Inactive</span>
+                                            <span className="badge badge-secondary" style={{ marginInlineStart: 6 }}>
+                                                {t('classes:status.inactive')}
+                                            </span>
                                         )}
                                     </td>
                                     <td>
@@ -236,7 +239,7 @@ const ClassesPage = () => {
                                     <td>
                                         <div className="actions-cell">
                                             <Link to={`/portal/classes/${cls._id}`} className="btn btn-sm btn-ghost">
-                                                View
+                                                {t('common:actions.view')}
                                             </Link>
                                             {isAdmin && (
                                                 <>
@@ -245,7 +248,7 @@ const ClassesPage = () => {
                                                         className="btn btn-sm btn-secondary"
                                                         onClick={() => handleToggleActive(cls)}
                                                     >
-                                                        {cls.isActive === false ? 'Activate' : 'Deactivate'}
+                                                        {cls.isActive === false ? t('classes:actions.activate') : t('classes:actions.deactivate')}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -253,7 +256,7 @@ const ClassesPage = () => {
                                                         onClick={() => handleDeleteClass(cls)}
                                                     >
                                                         <HiOutlineTrash size={14} />
-                                                        Delete
+                                                        {t('common:actions.delete')}
                                                     </button>
                                                 </>
                                             )}
@@ -266,12 +269,12 @@ const ClassesPage = () => {
                     {filteredClasses.length === 0 && (
                         <div className="empty-state">
                             <HiOutlineAcademicCap size={48} />
-                            <h3>No classes found</h3>
-                            <p>Create a new class to get started</p>
+                            <h3>{t('classes:empty.title')}</h3>
+                            <p>{t('classes:empty.description')}</p>
                             {isAdmin && (
                                 <button className="btn btn-primary mt-4" onClick={() => setShowModal(true)}>
                                     <HiOutlinePlus size={20} />
-                                    <span>Create Class</span>
+                                    <span>{t('classes:actions.createClass')}</span>
                                 </button>
                             )}
                         </div>
@@ -284,30 +287,30 @@ const ClassesPage = () => {
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
                     <div className="modal" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h3>Create New Class</h3>
+                            <h3>{t('classes:modal.createTitle')}</h3>
                             <button className="modal-close" onClick={() => setShowModal(false)}>&times;</button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="modal-body">
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label>Grade Level *</label>
+                                        <label>{t('classes:form.gradeLevel')}</label>
                                         <select
                                             value={formData.grade}
                                             onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                                             required
                                         >
-                                            <option value="">Select Grade</option>
+                                            <option value="">{t('classes:form.selectGrade')}</option>
                                             {[...Array(12)].map((_, i) => (
-                                                <option key={i + 1} value={i + 1}>Grade {i + 1}</option>
+                                                <option key={i + 1} value={i + 1}>{t('classes:form.gradeOption', { grade: i + 1 })}</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label>Section</label>
+                                        <label>{t('classes:form.section')}</label>
                                         <input
                                             type="text"
-                                            placeholder="e.g., A, B, C"
+                                            placeholder={t('classes:form.sectionPlaceholder')}
                                             value={formData.section}
                                             onChange={(e) => setFormData({ ...formData, section: e.target.value.toUpperCase() })}
                                             maxLength={2}
@@ -316,22 +319,22 @@ const ClassesPage = () => {
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label>Department</label>
+                                        <label>{t('classes:form.department')}</label>
                                         <select
                                             value={formData.department}
                                             onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                                         >
-                                            <option value="">— No department —</option>
+                                            <option value="">{t('classes:form.noDepartment')}</option>
                                             {departments.map((d) => (
                                                 <option key={d._id} value={d._id}>{d.name}</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label>Room</label>
+                                        <label>{t('classes:form.room')}</label>
                                         <input
                                             type="text"
-                                            placeholder="e.g., Room 101"
+                                            placeholder={t('classes:form.roomPlaceholder')}
                                             value={formData.room}
                                             onChange={(e) => setFormData({ ...formData, room: e.target.value })}
                                         />
@@ -339,7 +342,7 @@ const ClassesPage = () => {
                                 </div>
                                 <div className="form-row">
                                     <div className="form-group">
-                                        <label>Capacity</label>
+                                        <label>{t('classes:form.capacity')}</label>
                                         <input
                                             type="number"
                                             value={formData.capacity}
@@ -352,10 +355,10 @@ const ClassesPage = () => {
                             </div>
                             <div className="modal-footer">
                                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                                    Cancel
+                                    {t('common:actions.cancel')}
                                 </button>
                                 <button type="submit" className="btn btn-primary" disabled={submitting}>
-                                    {submitting ? 'Creating...' : 'Create Class'}
+                                    {submitting ? t('classes:actions.creating') : t('classes:actions.createClass')}
                                 </button>
                             </div>
                         </form>

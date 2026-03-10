@@ -1,9 +1,13 @@
+import { useTranslation } from 'react-i18next';
+
 const DashboardLoadingState = () => {
+    const { t } = useTranslation(['dashboard']);
+
     return (
         <div className="dashboard-page">
             <div className="loading-container">
                 <div className="spinner"></div>
-                <p>Loading dashboard...</p>
+                <p>{t('dashboard:loadingState.message')}</p>
             </div>
         </div>
     );

@@ -1,0 +1,113 @@
+{
+  "redirect": {
+    "title": "دفتر الدرجات",
+    "noClasses": "لا توجد صفوف متاحة لدفتر الدرجات.",
+    "selectClass": "اختر الصف",
+    "open": "فتح دفتر الدرجات"
+  },
+  "header": {
+    "backToClass": "العودة إلى الصف",
+    "title": "دفتر الدرجات",
+    "advancedReports": "تقارير متقدمة",
+    "sendReports": "إرسال التقارير",
+    "addGrades": "إضافة درجات"
+  },
+  "common": {
+    "sending": "جارٍ الإرسال...",
+    "cancel": "إلغاء",
+    "emptySymbol": "-"
+  },
+  "categories": {
+    "all": "كل الفئات",
+    "Classwork": "أعمال الصف",
+    "Homework": "واجب",
+    "Test": "اختبار",
+    "Quiz": "اختبار قصير",
+    "Project": "مشروع",
+    "Custom": "مخصص"
+  },
+  "filters": {
+    "subject": "المادة",
+    "selectSubject": "اختر المادة",
+    "month": "الشهر"
+  },
+  "table": {
+    "columns": {
+      "student": "الطالب",
+      "categoryAvg": "{{category}} (متوسط %)",
+      "overallAvg": "الإجمالي (متوسط %)"
+    },
+    "generateProgressReport": "إنشاء تقرير التقدم",
+    "noStudents": "لا يوجد طلاب في هذا الصف",
+    "classAverage": "متوسط الصف",
+    "noGradesForMonth": "لا توجد درجات لهذا الشهر."
+  },
+  "addModal": {
+    "title": "إضافة درجات",
+    "date": "التاريخ *",
+    "category": "الفئة *",
+    "customCategory": "مخصص...",
+    "customCategoryPlaceholder": "أدخل اسم الفئة",
+    "maxMarks": "الدرجة القصوى",
+    "titleOptional": "العنوان (اختياري)",
+    "titlePlaceholder": "مثال: اختبار الفصل الخامس",
+    "columns": {
+      "student": "الطالب",
+      "marks": "الدرجات (/{{maxMarks}})",
+      "notes": "ملاحظات"
+    },
+    "notePlaceholder": "أضف ملاحظة...",
+    "save": "حفظ الدرجات"
+  },
+  "ai": {
+    "title": "تقرير التقدم بالذكاء الاصطناعي",
+    "forStudent": "للطالب {{firstName}} {{lastName}}",
+    "generateDescription": "أنشئ تقرير تقدم مخصصًا اعتمادًا على الدرجات الأخيرة وملاحظات السلوك واتجاهات التحسن.",
+    "generating": "جارٍ الإنشاء...",
+    "generate": "إنشاء",
+    "primaryLanguage": "اللغة الأساسية للتقرير",
+    "secondaryLanguage": "اللغة الثانوية للتقرير (اختياري)",
+    "none": "بدون",
+    "sendViaEmail": "إرسال التقرير عبر البريد الإلكتروني بعد الإنشاء",
+    "emailRecipients": "مستلمو البريد الإلكتروني",
+    "recipients": {
+      "mother": "الأم",
+      "father": "الأب",
+      "student": "الطالب",
+      "teacher": "المعلم"
+    },
+    "previewTitle": "تقرير تقدم الطالب",
+    "editModeActive": "وضع التعديل مفعل:",
+    "editModeDescription": "انقر مباشرة داخل النص أعلاه للتعديل. يمكنك تعديل النص أو إضافة فقرات أو تغيير التنسيق. انقر \"حفظ التعديلات\" عند الانتهاء لمعاينة التغييرات.",
+    "regenerate": "إعادة الإنشاء",
+    "saveEdits": "حفظ التعديلات",
+    "editReport": "تعديل التقرير",
+    "sendToParents": "إرسال إلى أولياء الأمور"
+  },
+  "months": {
+    "1": "يناير",
+    "2": "فبراير",
+    "3": "مارس",
+    "4": "أبريل",
+    "5": "مايو",
+    "6": "يونيو",
+    "7": "يوليو",
+    "8": "أغسطس",
+    "9": "سبتمبر",
+    "10": "أكتوبر",
+    "11": "نوفمبر",
+    "12": "ديسمبر"
+  },
+  "toasts": {
+    "enterAtLeastOne": "يرجى إدخال درجة واحدة على الأقل",
+    "addedSuccessfully": "تمت إضافة {{count}} درجة بنجاح",
+    "addFailed": "فشل إضافة الدرجات",
+    "noStudents": "لا يوجد طلاب في هذا الصف",
+    "confirmSendReports": "إرسال تحديث أعمال الصف اليومية إلى أولياء أمور {{count}} طالب؟\n\nسيتم إرسال ملخص درجات أعمال الصف لهذا الشهر عبر البريد الإلكتروني.",
+    "sentUpdates": "تم إرسال التحديثات إلى {{success}} من أولياء الأمور ({{failed}} فشل)",
+    "sendNotificationsFailed": "فشل إرسال الإشعارات",
+    "generateFailed": "فشل إنشاء التقرير",
+    "aiSent": "تم إرسال تقرير الذكاء الاصطناعي إلى ولي الأمر بنجاح",
+    "sendReportFailed": "فشل إرسال التقرير"
+  }
+}

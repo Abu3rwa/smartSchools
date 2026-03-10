@@ -41,9 +41,15 @@ const aiTokenUsageSchema = new Schema({
   },
   language: {
       type: String,
-      enum: ['english', 'arabic', 'bilingual'],
+      trim: true,
+      lowercase: true,
       required: false
   },
+  requestedLanguages: [{
+      type: String,
+      trim: true,
+      lowercase: true
+  }],
   emailRecipients: [{
       type: String,
       required: false

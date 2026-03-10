@@ -1,0 +1,96 @@
+{
+  "header": {
+    "title": "تحليلات السلوك",
+    "subtitle": "مراقبة نشاط المستخدمين وأحداث الأمان وأنماط استخدام النظام"
+  },
+  "actions": {
+    "filters": "عوامل التصفية",
+    "hideFilters": "إخفاء عوامل التصفية",
+    "exportJson": "تصدير JSON",
+    "exportCsv": "تصدير CSV",
+    "retry": "إعادة المحاولة"
+  },
+  "filters": {
+    "timePeriod": "الفترة الزمنية",
+    "school": "المدرسة",
+    "allSchools": "كل المدارس",
+    "eventType": "نوع الحدث",
+    "allEvents": "كل الأحداث",
+    "periodOptions": {
+      "week": "الأسبوع الماضي",
+      "month": "الشهر الماضي",
+      "quarter": "الربع الماضي",
+      "year": "السنة الماضية"
+    },
+    "eventTypeOptions": {
+      "login": "تسجيل الدخول",
+      "grade_created": "إنشاء درجة",
+      "page_view": "عرض صفحة",
+      "feature_used": "استخدام ميزة"
+    }
+  },
+  "tabs": {
+    "overview": "نظرة عامة",
+    "users": "المستخدمون",
+    "security": "الأمان",
+    "usage": "الاستخدام"
+  },
+  "overview": {
+    "totalEvents": "إجمالي الأحداث",
+    "activeUsers": "المستخدمون النشطون",
+    "securityEvents": "أحداث الأمان",
+    "activeDays": "الأيام النشطة",
+    "eventTypeDistribution": "توزيع أنواع الأحداث",
+    "dailyActivityTrends": "اتجاهات النشاط اليومي",
+    "usersCount": "{{count}} مستخدم"
+  },
+  "users": {
+    "table": {
+      "user": "المستخدم",
+      "school": "المدرسة",
+      "events": "الأحداث",
+      "uniqueActions": "الإجراءات الفريدة",
+      "lastActivity": "آخر نشاط",
+      "actions": "الإجراءات"
+    }
+  },
+  "security": {
+    "totalSecurityEvents": "إجمالي أحداث الأمان",
+    "uniqueUsers": "المستخدمون الفريدون",
+    "uniqueIps": "عناوين IP الفريدة",
+    "recentSecurityEvents": "أحدث أحداث الأمان",
+    "details": {
+      "user": "المستخدم",
+      "school": "المدرسة",
+      "ip": "IP",
+      "action": "الإجراء"
+    }
+  },
+  "usage": {
+    "featureUsage": "استخدام الميزات",
+    "usesCount": "{{count}} استخدام",
+    "deviceDistribution": "توزيع الأجهزة",
+    "features": {
+      "gradeManagement": "إدارة الدرجات",
+      "studentManagement": "إدارة الطلاب",
+      "reportGeneration": "إنشاء التقارير"
+    },
+    "devices": {
+      "desktop": "سطح المكتب",
+      "mobile": "الهاتف",
+      "tablet": "الجهاز اللوحي"
+    }
+  },
+  "loading": {
+    "analytics": "جاري تحميل التحليلات..."
+  },
+  "error": {
+    "title": "خطأ أثناء تحميل التحليلات",
+    "defaultMessage": "تعذّر تحميل بيانات التحليلات",
+    "fetchFailed": "فشل جلب بيانات التحليلات",
+    "loadFailed": "فشل تحميل بيانات التحليلات"
+  },
+  "common": {
+    "na": "غير متوفر"
+  }
+}

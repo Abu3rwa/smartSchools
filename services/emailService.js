@@ -4,6 +4,12 @@ import { AITokenUsage } from '../models/AITokenUsage.js';
 import Notification from '../models/Notification.js';
 import School from '../models/School.js';
 import xss from 'xss';
+import {
+    getLanguageLabel,
+    isRtlLanguageCode,
+    normalizeRequestedLanguages,
+    toLegacyLanguageValue
+} from '../utils/aiLanguageUtils.js';
 
 /**
  * Sanitize email subject to plain ASCII (remove emojis and special characters)
@@ -16,8 +22,12 @@ const sanitizeSubject = (subject) => {
         .trim();
 };
 
-const normalizeAiHtml = (content, language) => {
-    const isRTL = language === 'arabic';
+const normalizeAiHtml = (content, language, requestedLanguages = []) => {
+    const normalizedRequestedLanguages = normalizeRequestedLanguages(
+        requestedLanguages && requestedLanguages.length > 0 ? requestedLanguages : language,
+        { max: 2, fallback: ['en'] }
+    );
+    const isRTL = normalizedRequestedLanguages.length === 1 && isRtlLanguageCode(normalizedRequestedLanguages[0]);
     const direction = isRTL ? 'rtl' : 'ltr';
 
     let html = (content || '').toString().trim();
@@ -113,6 +123,7 @@ class EmailService {
      * @param {Object} options.studentData - Student information
      * @param {String} options.reportContent - Generated report content
      * @param {String} options.language - Report language
+     * @param {String[]} options.requestedLanguages - Requested report language codes
      * @param {Object} options.recipients - Recipient configuration
      * @param {Object} options.teacher - Teacher information
      * @returns {Promise<Object>} Email sending results
@@ -123,9 +134,16 @@ class EmailService {
             studentData,
             reportContent,
             language,
+            requestedLanguages = [],
             recipients,
             teacher
         } = options;
+
+        const normalizedRequestedLanguages = normalizeRequestedLanguages(
+            requestedLanguages && requestedLanguages.length > 0 ? requestedLanguages : language,
+            { max: 2, fallback: ['en'] }
+        );
+        const normalizedLanguage = toLegacyLanguageValue(normalizedRequestedLanguages);
 
         // Prepare recipient list (all in one email)
         const emailList = this.prepareRecipientList({
@@ -149,7 +167,8 @@ class EmailService {
                 reportId,
                 recipients: emailList,
                 reportContent,
-                language,
+                language: normalizedLanguage,
+                requestedLanguages: normalizedRequestedLanguages,
                 studentData,
                 teacherId: teacher._id,
                 schoolName
@@ -157,8 +176,14 @@ class EmailService {
 
             // Log to Notification history so teachers/admins can see sent AI reports in /portal/notifications
             try {
-                const subject = sanitizeSubject(this.getEmailSubject(studentData, language));
-                const htmlContent = this.formatEmailContent(reportContent, language, { schoolName });
+                const subject = sanitizeSubject(
+                    this.getEmailSubject(studentData, normalizedLanguage, normalizedRequestedLanguages)
+                );
+                const htmlContent = this.formatEmailContent(
+                    reportContent,
+                    normalizedLanguage,
+                    { schoolName, requestedLanguages: normalizedRequestedLanguages }
+                );
 
                 const notification = new Notification({
                     school: studentData.school,
@@ -172,7 +197,8 @@ class EmailService {
                     status: result.success ? 'sent' : 'failed',
                     metadata: {
                         reportId,
-                        language,
+                        language: normalizedLanguage,
+                        requestedLanguages: normalizedRequestedLanguages,
                         reportType: 'advanced_ai',
                         primaryRecipients: result.primaryRecipients,
                         ccRecipients: result.ccRecipients,
@@ -269,6 +295,7 @@ class EmailService {
             recipients,
             reportContent,
             language,
+            requestedLanguages = [],
             studentData,
             teacherId,
             schoolName
@@ -282,8 +309,13 @@ class EmailService {
             throw new Error('No primary recipients (parents/guardian) found');
         }
 
-        const subject = sanitizeSubject(this.getEmailSubject(studentData, language));
-        const htmlContent = this.formatEmailContent(reportContent, language, { schoolName });
+        const subject = sanitizeSubject(
+            this.getEmailSubject(studentData, language, requestedLanguages)
+        );
+        const htmlContent = this.formatEmailContent(reportContent, language, {
+            schoolName,
+            requestedLanguages
+        });
 
         // Prepare recipient list for Gmail API
         const toEmails = primaryRecipients.map(r => r.email).join(', ');
@@ -314,6 +346,7 @@ class EmailService {
                 subject,
                 content: htmlContent,
                 language,
+                requestedLanguages,
                 messageId: result.messageId,
                 status: 'sent',
                 sentAt: new Date()
@@ -338,6 +371,7 @@ class EmailService {
                 subject,
                 content: htmlContent,
                 language,
+                requestedLanguages,
                 status: 'failed',
                 error: error.message
             });
@@ -355,27 +389,40 @@ class EmailService {
     /**
      * Get email subject based on language (plain ASCII text)
      */
-    getEmailSubject(studentData, language) {
+    getEmailSubject(studentData, language, requestedLanguages = []) {
         const studentName = `${studentData.firstName} ${studentData.lastName}`;
-        
-        switch (language) {
-            case 'arabic':
-                return `تقرير التقدم للطالب ${studentName}`;
-            case 'bilingual':
-                return `Progress Report - ${studentName}`;
-            default:
-                return `Progress Report for ${studentName}`;
+        const normalizedRequestedLanguages = normalizeRequestedLanguages(
+            requestedLanguages && requestedLanguages.length > 0 ? requestedLanguages : language,
+            { max: 2, fallback: ['en'] }
+        );
+
+        if (normalizedRequestedLanguages.length === 1 && normalizedRequestedLanguages[0] === 'ar') {
+            return `تقرير التقدم للطالب ${studentName}`;
         }
+
+        if (normalizedRequestedLanguages.length === 2) {
+            const labels = normalizedRequestedLanguages.map((code) => getLanguageLabel(code)).join(' + ');
+            return `Progress Report (${labels}) - ${studentName}`;
+        }
+
+        const primaryLabel = getLanguageLabel(normalizedRequestedLanguages[0] || 'en');
+        return `Progress Report (${primaryLabel}) for ${studentName}`;
     }
 
     /**
      * Format email content with proper styling
      */
-    formatEmailContent(content, language, { schoolName = 'School' } = {}) {
-        const isRTL = language === 'arabic';
+    formatEmailContent(content, language, { schoolName = 'School', requestedLanguages = [] } = {}) {
+        const normalizedRequestedLanguages = normalizeRequestedLanguages(
+            requestedLanguages && requestedLanguages.length > 0 ? requestedLanguages : language,
+            { max: 2, fallback: ['en'] }
+        );
+        const isRTL =
+            normalizedRequestedLanguages.length === 1 &&
+            isRtlLanguageCode(normalizedRequestedLanguages[0]);
         const direction = isRTL ? 'rtl' : 'ltr';
 
-        const normalizedContent = normalizeAiHtml(content, language);
+        const normalizedContent = normalizeAiHtml(content, language, normalizedRequestedLanguages);
 
         return `
         <!DOCTYPE html>

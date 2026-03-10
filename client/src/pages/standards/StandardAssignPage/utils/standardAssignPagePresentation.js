@@ -1,6 +1,9 @@
 import { DIFFICULTY_OPTIONS, QUESTION_TYPE_OPTIONS } from '../constants';
 import { formatStandardLabel } from '../../../../utils/standardLabel';
 
+const translate = (t, key, defaultValue, options = {}) =>
+    typeof t === 'function' ? t(key, { defaultValue, ...options }) : defaultValue;
+
 export const getEntityId = (entity) => (entity?._id || entity || '').toString();
 
 export const getTeacherUserId = (subjectEntry) =>
@@ -30,20 +33,26 @@ export const getScopedClassSubjects = (schoolClass, isTeacher, userId) => {
         });
 };
 
-export const getStandardDescription = (standard) => {
+export const getStandardDescription = (standard, t) => {
     const description = (standard?.description || '').trim();
     if (description) return description;
     const fallbackName = (standard?.name || '').trim();
     if (fallbackName) return fallbackName;
-    return 'No description available for this standard yet.';
+    return translate(
+        t,
+        'standardAssign:standard.descriptionFallback',
+        'No description available for this standard yet.'
+    );
 };
 
-export const getStandardOptionLabel = (standard) => {
+export const getStandardOptionLabel = (standard, t) => {
     const baseLabel = formatStandardLabel(standard) || `${standard?.code || 'STD'}`;
-    const description = getStandardDescription(standard);
+    const description = getStandardDescription(standard, t);
     const shortDescription =
         description.length > 90 ? `${description.substring(0, 90)}...` : description;
-    const gradePart = `Grade ${standard?.gradeLevel || '-'}`;
+    const gradePart = `${translate(t, 'standardAssign:common.grade', 'Grade')} ${
+        standard?.gradeLevel || '-'
+    }`;
     return `${baseLabel} (${gradePart}) | ${shortDescription}`;
 };
 
@@ -68,6 +77,25 @@ export const toDateTimeLocalInput = (value) => {
     return local.toISOString().slice(0, 16);
 };
 
+const normalizeAiLanguages = (value) => {
+    const aliasMap = {
+        english: 'en',
+        arabic: 'ar',
+        french: 'fr',
+        spanish: 'es',
+        portuguese: 'pt',
+        turkish: 'tr',
+        urdu: 'ur'
+    };
+    const raw = Array.isArray(value) ? value : [value];
+    const normalized = raw
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter(Boolean)
+        .map((item) => aliasMap[item] || item);
+    const deduped = Array.from(new Set(normalized)).slice(0, 2);
+    return deduped.length > 0 ? deduped : ['en'];
+};
+
 export const buildAssignmentEditForm = (assignment, selectedSemester) => {
     return {
         title: assignment?.title || '',
@@ -83,6 +111,7 @@ export const buildAssignmentEditForm = (assignment, selectedSemester) => {
             : [],
         dueDate: toDateInput(assignment?.dueDate),
         instructions: assignment?.instructions || '',
+        aiLanguages: normalizeAiLanguages(assignment?.questionWorkflow?.aiLanguages),
         practiceConfig: {
             sessionType: assignment?.practiceConfig?.sessionType || 'practice',
             questionLimit: assignment?.practiceConfig?.questionLimit || '',
@@ -116,10 +145,28 @@ export const getMasteryColor = (pct) => {
     return 'red';
 };
 
-export const getProgressStatusDisplay = (status) => {
+export const getProgressStatusDisplay = (status, t) => {
     const normalized = (status || '').toLowerCase();
-    if (normalized === 'mastered') return { label: 'Mastered', className: 'mastered' };
-    if (normalized === 'needs_review') return { label: 'Needs Review', className: 'needs-review' };
-    if (normalized === 'in_progress') return { label: 'In Progress', className: 'in-progress' };
-    return { label: 'Not Started', className: 'not-started' };
+    if (normalized === 'mastered') {
+        return {
+            label: translate(t, 'standardAssign:progressStatus.mastered', 'Mastered'),
+            className: 'mastered'
+        };
+    }
+    if (normalized === 'needs_review') {
+        return {
+            label: translate(t, 'standardAssign:progressStatus.needsReview', 'Needs Review'),
+            className: 'needs-review'
+        };
+    }
+    if (normalized === 'in_progress') {
+        return {
+            label: translate(t, 'standardAssign:progressStatus.inProgress', 'In Progress'),
+            className: 'in-progress'
+        };
+    }
+    return {
+        label: translate(t, 'standardAssign:progressStatus.notStarted', 'Not Started'),
+        className: 'not-started'
+    };
 };

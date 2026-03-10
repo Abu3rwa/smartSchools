@@ -7,9 +7,9 @@ export const formatNumber = (num) => {
     return value.toString();
 };
 
-export const formatDate = (date) => {
-    if (!date) return '—';
-    return new Date(date).toLocaleDateString();
+export const formatDate = (date, locale = undefined, emptyLabel = '—') => {
+    if (!date) return emptyLabel;
+    return new Date(date).toLocaleDateString(locale);
 };
 
 export const getEventTypeColor = (eventType) => {

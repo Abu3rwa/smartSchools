@@ -54,8 +54,10 @@ const GradebookPage = () => {
         setIsEditingReport,
         editedReportContent,
         setEditedReportContent,
-        aiLanguage,
-        setAiLanguage,
+        aiPrimaryLanguage,
+        setAiPrimaryLanguage,
+        aiSecondaryLanguage,
+        setAiSecondaryLanguage,
         aiRecipients,
         setAiRecipients,
         aiSendEmail,
@@ -113,7 +115,8 @@ const GradebookPage = () => {
         setIsEditingReport,
         setShowAIModal,
         setGeneratingAI,
-        aiLanguage,
+        aiPrimaryLanguage,
+        aiSecondaryLanguage,
         aiSendEmail,
         aiRecipients,
         setAiRecipients,
@@ -175,12 +178,14 @@ const GradebookPage = () => {
                 editedReportContent={editedReportContent}
                 isEditingReport={isEditingReport}
                 generatingAI={generatingAI}
-                aiLanguage={aiLanguage}
+                aiPrimaryLanguage={aiPrimaryLanguage}
+                aiSecondaryLanguage={aiSecondaryLanguage}
                 aiSendEmail={aiSendEmail}
                 aiRecipients={aiRecipients}
                 onClose={handleCloseAIModal}
                 onGenerate={handleGenerateAIReport}
-                onLanguageChange={setAiLanguage}
+                onPrimaryLanguageChange={setAiPrimaryLanguage}
+                onSecondaryLanguageChange={setAiSecondaryLanguage}
                 onAiSendEmailChange={setAiSendEmail}
                 onAiRecipientChange={handleAiRecipientChange}
                 onEditToggle={handleToggleReportEdit}

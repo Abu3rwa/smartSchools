@@ -13,6 +13,7 @@ import {
   useMediaQuery,
   Grid,
 } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import { HiOutlineArrowLeft } from "react-icons/hi";
 import { useRevisionPlanCreateData } from "./hooks/useRevisionPlanCreateData.js";
 
@@ -21,6 +22,7 @@ import { useRevisionPlanCreateData } from "./hooks/useRevisionPlanCreateData.js"
  * Student + Teacher shared (teacher selects student).
  */
 export default function RevisionPlanCreatePage() {
+  const { t } = useTranslation(["revisionPlans"]);
   const theme = useTheme();
   const isSm = useMediaQuery(theme.breakpoints.down("sm"));
   const {
@@ -49,17 +51,17 @@ export default function RevisionPlanCreatePage() {
         onClick={onBack}
         sx={{ mb: 2 }}
       >
-        Back
+        {t("revisionPlans:common.back")}
       </Button>
 
       <Typography variant="h4" fontWeight={700} gutterBottom>
-        Create Revision Plan
+        {t("revisionPlans:create.title")}
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
         {isTeacher
-          ? "Generate a personalized revision plan for a student."
-          : "Get a study schedule based on your weak areas."}
-        {academicYear ? ` Academic Year: ${academicYear}.` : ""}
+          ? t("revisionPlans:create.teacherSubtitle")
+          : t("revisionPlans:create.studentSubtitle")}
+        {academicYear ? ` ${t("revisionPlans:create.academicYear", { year: academicYear })}` : ""}
       </Typography>
 
       <Paper
@@ -73,13 +75,13 @@ export default function RevisionPlanCreatePage() {
             {isTeacher && (
               <Grid item xs={12}>
                 <FormControl fullWidth required>
-                  <InputLabel>Student</InputLabel>
+                  <InputLabel>{t("revisionPlans:create.student")}</InputLabel>
                   <Select
                     value={studentId}
-                    label="Student"
+                    label={t("revisionPlans:create.student")}
                     onChange={(e) => setStudentId(e.target.value)}
                   >
-                    <MenuItem value="">Select student</MenuItem>
+                    <MenuItem value="">{t("revisionPlans:create.selectStudent")}</MenuItem>
                     {students.map((s) => (
                       <MenuItem key={s._id} value={s._id}>
                         {s.firstName} {s.lastName}
@@ -92,13 +94,13 @@ export default function RevisionPlanCreatePage() {
             )}
             <Grid item xs={12}>
               <FormControl fullWidth required>
-                <InputLabel>Subject</InputLabel>
+                <InputLabel>{t("revisionPlans:create.subject")}</InputLabel>
                 <Select
                   value={subjectId}
-                  label="Subject"
+                  label={t("revisionPlans:create.subject")}
                   onChange={(e) => setSubjectId(e.target.value)}
                 >
-                  <MenuItem value="">Select subject</MenuItem>
+                  <MenuItem value="">{t("revisionPlans:create.selectSubject")}</MenuItem>
                   {subjects.map((s) => (
                     <MenuItem key={s._id} value={s._id}>
                       {s.name}
@@ -110,7 +112,7 @@ export default function RevisionPlanCreatePage() {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Exam date"
+                label={t("revisionPlans:create.examDate")}
                 type="date"
                 value={examDate}
                 onChange={(e) => setExamDate(e.target.value)}
@@ -122,10 +124,10 @@ export default function RevisionPlanCreatePage() {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Exam name (optional)"
+                label={t("revisionPlans:create.examName")}
                 value={examLabel}
                 onChange={(e) => setExamLabel(e.target.value)}
-                placeholder="e.g. Midterm, Final"
+                placeholder={t("revisionPlans:create.examNamePlaceholder")}
               />
             </Grid>
             <Grid item xs={12}>
@@ -141,7 +143,7 @@ export default function RevisionPlanCreatePage() {
                   ) : null
                 }
               >
-                {generating ? "Generating plan…" : "Generate plan"}
+                {generating ? t("revisionPlans:create.generating") : t("revisionPlans:create.generate")}
               </Button>
             </Grid>
           </Grid>

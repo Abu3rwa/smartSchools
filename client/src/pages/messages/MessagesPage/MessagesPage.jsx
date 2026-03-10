@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { createMessageThread } from '../../../api/messagesApi';
 import { DEFAULT_THREAD_PAGE_LIMIT } from './constants';
 import { groupMessagesByAge } from './utils/messagePresentation';
@@ -14,6 +15,7 @@ import useMessagesData from './hooks/useMessagesData';
 import './MessagesPage.css';
 
 const MessagesPage = () => {
+    const { t } = useTranslation(['messages']);
     const listRef = useRef(null);
     const messageListRef = useRef(null);
     const messageListEndRef = useRef(null);
@@ -123,19 +125,19 @@ const MessagesPage = () => {
     const handleCreateThread = async (event) => {
         event.preventDefault();
         if (!composeSubject.trim()) {
-            toast.error('Subject is required');
+            toast.error(t('messages:toasts.subjectRequired'));
             return;
         }
         if (!composeBody.trim()) {
-            toast.error('Message body is required');
+            toast.error(t('messages:toasts.bodyRequired'));
             return;
         }
         if (selectedParents.length === 0 && selectedClassIds.length === 0) {
-            toast.error('Select at least one recipient or class');
+            toast.error(t('messages:toasts.recipientRequired'));
             return;
         }
         if (selectedClassIds.length > 0 && !includeClassParents && !includeClassStudents) {
-            toast.error('Enable at least one class audience: parents or students');
+            toast.error(t('messages:toasts.classAudienceRequired'));
             return;
         }
 
@@ -164,11 +166,11 @@ const MessagesPage = () => {
             const recipientCount = Number(result.recipientCount || 0);
             toast.success(
                 recipientCount > 0
-                    ? `Message sent to ${recipientCount} recipient${recipientCount === 1 ? '' : 's'}`
-                    : 'Message sent'
+                    ? t('messages:toasts.sentToRecipients', { count: recipientCount })
+                    : t('messages:toasts.sent')
             );
         } catch (error) {
-            toast.error(error.message || 'Failed to send message');
+            toast.error(error.message || t('messages:toasts.sendFailed'));
         } finally {
             setComposeLoading(false);
         }

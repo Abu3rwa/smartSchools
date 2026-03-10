@@ -12,6 +12,7 @@ import LandingPageHeader from './components/LandingPageHeader.jsx';
 import LandingMobileDrawer from './components/LandingMobileDrawer.jsx';
 import LandingLoadingState from './components/LandingLoadingState.jsx';
 import LandingHero from './components/LandingHero.jsx';
+import LandingDynamicBlocks from './components/LandingDynamicBlocks.jsx';
 import LandingTrustStrip from './components/LandingTrustStrip.jsx';
 import LandingHowItWorks from './components/LandingHowItWorks.jsx';
 import LandingFeatures from './components/LandingFeatures.jsx';
@@ -44,6 +45,12 @@ export default function LandingPage() {
         setMobileOpen,
         themeMode,
         toggleTheme,
+        switchLanguage,
+        language,
+        direction,
+        uiText,
+        dynamicBlocks,
+        dynamicLoading,
         scrollTo,
         handleAction,
         navigate,
@@ -63,7 +70,7 @@ export default function LandingPage() {
     const copyrightText = getCopyrightText(content);
 
     return (
-        <Box sx={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
+        <Box sx={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }} data-testid="landing-page" data-lang={language} data-dir={direction}>
             <div className="landing-bg-gradient" aria-hidden="true" />
             <div className="bg-grid" aria-hidden="true" />
 
@@ -71,6 +78,9 @@ export default function LandingPage() {
                 content={content}
                 themeMode={themeMode}
                 toggleTheme={toggleTheme}
+                language={language}
+                onLanguageChange={switchLanguage}
+                uiText={uiText}
                 scrollTo={scrollTo}
                 handleAction={handleAction}
                 onOpenMobileMenu={() => setMobileOpen(true)}
@@ -81,11 +91,23 @@ export default function LandingPage() {
                 content={content}
                 themeMode={themeMode}
                 toggleTheme={toggleTheme}
+                language={language}
+                isRtl={direction === 'rtl'}
+                onLanguageChange={switchLanguage}
+                uiText={uiText}
                 scrollTo={scrollTo}
                 handleAction={handleAction}
             />
 
             <LandingHero content={content} contentError={contentError} heroBadge={heroBadge} handleAction={handleAction} />
+
+            <LandingDynamicBlocks
+                blocks={dynamicBlocks}
+                loading={dynamicLoading}
+                fallbackUsed={Boolean(dynamicBlocks?.fallbackUsed)}
+                fallbackNotice={uiText.dynamicFallbackNotice}
+                onAction={handleAction}
+            />
             
             <RevealOnScroll delay={0.2} duration={0.8}>
                 <LandingTrustStrip trustItems={trustItems} />

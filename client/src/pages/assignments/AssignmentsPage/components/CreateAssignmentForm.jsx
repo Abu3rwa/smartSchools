@@ -1,4 +1,5 @@
 import { HiOutlinePlus, HiOutlineUpload } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const CreateAssignmentForm = ({
     open,
@@ -10,6 +11,7 @@ const CreateAssignmentForm = ({
     onCancelEdit,
     onSubmit
 }) => {
+    const { t } = useTranslation(['assignments']);
     if (!open) return null;
 
     return (
@@ -17,13 +19,13 @@ const CreateAssignmentForm = ({
             <div className="card-header">
                 <h3 className="card-title">
                     <HiOutlinePlus />
-                    {isEditing ? 'Edit Assignment' : 'Create Assignment'}
+                    {isEditing ? t('assignments:form.editTitle') : t('assignments:form.createTitle')}
                 </h3>
             </div>
 
             <div className="create-grid">
                 <div className="form-group">
-                    <label>Type</label>
+                    <label>{t('assignments:form.type')}</label>
                     <select
                         value={form.assignmentTypeId}
                         onChange={(event) => setForm((prev) => ({ ...prev, assignmentTypeId: event.target.value }))}
@@ -34,16 +36,16 @@ const CreateAssignmentForm = ({
                     </select>
                 </div>
                 <div className="form-group">
-                    <label>Title</label>
+                    <label>{t('assignments:form.title')}</label>
                     <input
                         type="text"
                         value={form.title}
                         onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                        placeholder="Assignment title"
+                        placeholder={t('assignments:form.titlePlaceholder')}
                     />
                 </div>
                 <div className="form-group">
-                    <label>Due Date</label>
+                    <label>{t('assignments:form.dueDate')}</label>
                     <input
                         type="date"
                         value={form.dueDate}
@@ -51,7 +53,7 @@ const CreateAssignmentForm = ({
                     />
                 </div>
                 <div className="form-group">
-                    <label>Max Marks</label>
+                    <label>{t('assignments:form.maxMarks')}</label>
                     <input
                         type="number"
                         min={1}
@@ -61,31 +63,33 @@ const CreateAssignmentForm = ({
                     />
                 </div>
                 <div className="form-group full">
-                    <label>Instructions</label>
+                    <label>{t('assignments:form.instructions')}</label>
                     <textarea
                         rows={3}
                         value={form.instructions}
                         onChange={(event) => setForm((prev) => ({ ...prev, instructions: event.target.value }))}
-                        placeholder="Assignment instructions"
+                        placeholder={t('assignments:form.instructionsPlaceholder')}
                     />
                 </div>
             </div>
 
             <div className="create-options">
-                <label><input type="checkbox" checked={form.publishNow} onChange={(event) => setForm((prev) => ({ ...prev, publishNow: event.target.checked }))} /> Publish now</label>
-                <label><input type="checkbox" checked={form.notifyOnAssign} onChange={(event) => setForm((prev) => ({ ...prev, notifyOnAssign: event.target.checked }))} /> Notify on assign</label>
-                <label><input type="checkbox" checked={form.notifyOnGrade} onChange={(event) => setForm((prev) => ({ ...prev, notifyOnGrade: event.target.checked }))} /> Notify on grade</label>
+                <label><input type="checkbox" checked={form.publishNow} onChange={(event) => setForm((prev) => ({ ...prev, publishNow: event.target.checked }))} /> {t('assignments:form.publishNow')}</label>
+                <label><input type="checkbox" checked={form.notifyOnAssign} onChange={(event) => setForm((prev) => ({ ...prev, notifyOnAssign: event.target.checked }))} /> {t('assignments:form.notifyOnAssign')}</label>
+                <label><input type="checkbox" checked={form.notifyOnGrade} onChange={(event) => setForm((prev) => ({ ...prev, notifyOnGrade: event.target.checked }))} /> {t('assignments:form.notifyOnGrade')}</label>
             </div>
 
             <div className="card-footer">
                 {isEditing && (
                     <button type="button" className="btn btn-outline" onClick={onCancelEdit} disabled={submitting}>
-                        Cancel Edit
+                        {t('assignments:actions.cancelEdit')}
                     </button>
                 )}
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                     <HiOutlineUpload />
-                    {submitting ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create Assignment')}
+                    {submitting
+                        ? t('assignments:common.saving')
+                        : (isEditing ? t('assignments:actions.saveChanges') : t('assignments:actions.createAssignment'))}
                 </button>
             </div>
         </form>

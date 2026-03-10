@@ -1,0 +1,24 @@
+{
+  "actions": {
+    "retry": "Retry",
+    "view": "View",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "save": "Save",
+    "add": "Add",
+    "import": "Import",
+    "remove": "Remove",
+    "close": "Close",
+    "done": "Done",
+    "edit": "Edit"
+  },
+  "accessibility": {
+    "skipToMainContent": "Skip to main content"
+  },
+  "impersonation": {
+    "returningToAdmin": "Returning to admin view...",
+    "returnedToSuperAdmin": "Returned to Super Admin account",
+    "currentlyImpersonating": "You are currently impersonating",
+    "exitImpersonation": "Exit Impersonation"
+  }
+}

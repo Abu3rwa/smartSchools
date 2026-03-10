@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { fetchTeachers } from '../../../../../store/slices/teacherSlice';
 import { fetchClasses } from '../../../../../store/slices/classSlice';
 import { fetchSubjects } from '../../../../../store/slices/subjectSlice';
 import attendanceService from '../../../../../services/attendanceService';
 import { ATTENDANCE_STATUS_COLORS, DEFAULT_FILTERS, VIEW_MODES } from '../constants';
 import {
-    formatDateTime,
-    formatTime,
+    formatDate as formatDateValue,
+    formatDateTime as formatDateTimeValue,
+    formatTime as formatTimeValue,
     getDateRangeForViewMode,
     getDateRangeText,
     navigateDateByViewMode
@@ -21,6 +23,8 @@ import {
 const INITIAL_VIEW_MODE = VIEW_MODES.TODAY;
 
 export default function useAdminAttendanceController() {
+    const { t, i18n } = useTranslation(['adminAttendance']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : 'en';
     const dispatch = useDispatch();
     const teachers = useSelector((state) => state.teachers.teachers) || [];
     const classes = useSelector((state) => state.classes.classes) || [];
@@ -69,11 +73,11 @@ export default function useAdminAttendanceController() {
                 pendingOverall: Number(res?.summary?.pendingOverall ?? 0)
             });
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Failed to load attendance');
+            setError(err.response?.data?.message || err.message || t('adminAttendance:error.loadFailed'));
         } finally {
             setLoading(false);
         }
-    }, [currentDate, filters, viewMode]);
+    }, [currentDate, filters, viewMode, t]);
 
     useEffect(() => {
         fetchAttendanceData();
@@ -104,9 +108,9 @@ export default function useAdminAttendanceController() {
             link.remove();
             window.URL.revokeObjectURL(url);
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Export failed');
+            setError(err.response?.data?.message || err.message || t('adminAttendance:error.exportFailed'));
         }
-    }, [currentDate, filters.class, filters.subject, filters.teacher, viewMode]);
+    }, [currentDate, filters.class, filters.subject, filters.teacher, viewMode, t]);
 
     const handleViewDetails = useCallback((attendanceRecord) => {
         setSelectedAttendance(attendanceRecord);
@@ -135,8 +139,11 @@ export default function useAdminAttendanceController() {
         () => buildStatusChartData(stats, ATTENDANCE_STATUS_COLORS),
         [stats]
     );
-    const dateRangeText = useMemo(() => getDateRangeText(currentDate, viewMode), [currentDate, viewMode]);
+    const dateRangeText = useMemo(() => getDateRangeText(currentDate, viewMode, locale), [currentDate, viewMode, locale]);
     const hasActiveFilters = Boolean(filters.teacher || filters.class || filters.subject || filters.status);
+    const formatDateTime = useCallback((date) => formatDateTimeValue(date, locale), [locale]);
+    const formatTime = useCallback((date) => formatTimeValue(date, locale), [locale]);
+    const formatDate = useCallback((date) => formatDateValue(date, locale), [locale]);
 
     return {
         attendanceData,
@@ -149,6 +156,7 @@ export default function useAdminAttendanceController() {
         fetchAttendanceData,
         filters,
         formatDateTime,
+        formatDate,
         formatTime,
         handleExport,
         handleViewDetails,

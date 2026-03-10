@@ -11,36 +11,36 @@ export const DASHBOARD_STAT_CONFIG = [
     {
         key: 'totalStudents',
         changeKey: 'students',
-        title: 'Total Students',
+        titleKey: 'stats.totalStudents',
         icon: HiOutlineUserGroup,
         color: 'primary'
     },
     {
         key: 'totalClasses',
         changeKey: 'classes',
-        title: 'Total Classes',
+        titleKey: 'stats.totalClasses',
         icon: HiOutlineAcademicCap,
         color: 'purple'
     },
     {
         key: 'totalGrades',
         changeKey: 'grades',
-        title: 'Grades Entered',
+        titleKey: 'stats.totalGrades',
         icon: HiOutlineClipboardList,
         color: 'emerald'
     },
     {
         key: 'avgPerformance',
         changeKey: 'performance',
-        title: 'Avg. Performance',
+        titleKey: 'stats.avgPerformance',
         icon: HiOutlineTrendingUp,
         color: 'amber'
     }
 ];
 
 export const DASHBOARD_QUICK_ACTIONS = [
-    { label: 'Enter Grades', path: '/portal/grades/entry', icon: HiOutlineClipboardList },
-    { label: 'View Classes', path: '/portal/classes', icon: HiOutlineAcademicCap },
-    { label: 'Send Reports', path: '/portal/notifications', icon: HiOutlineBell },
-    { label: 'View Analytics', path: '/portal/students', icon: HiOutlineChartBar }
+    { labelKey: 'quickActions.enterGrades', path: '/portal/grades/entry', icon: HiOutlineClipboardList },
+    { labelKey: 'quickActions.viewClasses', path: '/portal/classes', icon: HiOutlineAcademicCap },
+    { labelKey: 'quickActions.sendReports', path: '/portal/notifications', icon: HiOutlineBell },
+    { labelKey: 'quickActions.viewAnalytics', path: '/portal/students', icon: HiOutlineChartBar }
 ];

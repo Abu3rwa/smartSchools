@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { fetchMessageClasses, fetchMessageParents } from '../../../../api/messagesApi';
 
 const useMessageCompose = () => {
+    const { t } = useTranslation(['messages']);
     const [showCompose, setShowCompose] = useState(false);
     const [composeSubject, setComposeSubject] = useState('');
     const [composeBody, setComposeBody] = useState('');
@@ -42,7 +44,7 @@ const useMessageCompose = () => {
                 }
             } catch (error) {
                 if (!cancelled) {
-                    toast.error(error.message || 'Failed to load classes');
+                    toast.error(error.message || t('messages:toasts.loadClassesFailed'));
                 }
             } finally {
                 if (!cancelled) {
@@ -66,14 +68,14 @@ const useMessageCompose = () => {
                 const data = await fetchMessageParents({ search: composeSearch, limit: 10 });
                 setParentOptions(data.parents || []);
             } catch (error) {
-                toast.error(error.message || 'Failed to load parents');
+                toast.error(error.message || t('messages:toasts.loadParentsFailed'));
             } finally {
                 setLoadingParents(false);
             }
         }, 300);
 
         return () => window.clearTimeout(handle);
-    }, [composeSearch, showCompose]);
+    }, [composeSearch, showCompose, t]);
 
     const handleSelectParent = (parent) => {
         setSelectedParents((prev) => {

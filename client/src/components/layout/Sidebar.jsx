@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
+import { useTranslation } from "react-i18next";
 import { useTheme, useMediaQuery } from "@mui/material";
 import { selectUser } from "../../store/slices/authSlice";
 import { fetchMessageThreads } from "../../api/messagesApi";
@@ -40,6 +41,7 @@ import "./Sidebar.css";
 const Sidebar = () => {
   const dispatch = useDispatch();
   const location = useLocation();
+  const { t, i18n } = useTranslation(["layout.sidebar"]);
   const user = useSelector(selectUser);
   const sidebarOpen = useSelector(selectSidebarOpen);
   const theme = useTheme();
@@ -49,6 +51,7 @@ const Sidebar = () => {
   const isStudent = user?.role === "student";
   const schoolFeatures = useSelector(selectSchoolFeatures);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
+  const isRtl = i18n.dir() === "rtl";
 
   const canSeeMessages = useMemo(() => {
     return ["admin", "teacher", "department_principal", "staff"].includes(
@@ -115,33 +118,24 @@ const Sidebar = () => {
     "learning",
     "account",
   ];
-  const SECTION_LABELS = {
-    overview: "Overview",
-    teaching: "Teaching",
-    scheduling: "Scheduling",
-    attendance: "Attendance",
-    school: "School",
-    learning: "Learning",
-    account: "Account",
-  };
 
   const navItems = [
     {
       path: "/portal/dashboard",
       icon: HiOutlineHome,
-      label: "Dashboard",
+      labelKey: "dashboard",
       section: "overview",
     },
     {
       path: "/portal/notifications",
       icon: HiOutlineBell,
-      label: "Notifications",
+      labelKey: "notifications",
       section: "overview",
     },
     {
       path: "/portal/messages",
       icon: HiOutlineChatAlt2,
-      label: "Messages",
+      labelKey: "messages",
       roles: ["admin", "teacher", "department_principal", "staff"],
       section: "overview",
       badgeCount: messageUnreadCount,
@@ -149,7 +143,7 @@ const Sidebar = () => {
     {
       path: "/portal/email-composer",
       icon: HiOutlineMail,
-      label: "Email Composer",
+      labelKey: "emailComposer",
       roles: ["admin", "teacher", "department_principal", "staff"],
       permissions: [PERMISSIONS.SEND_COMMUNICATION_EMAILS, PERMISSIONS.SEND_NOTIFICATIONS],
       section: "overview",
@@ -157,42 +151,42 @@ const Sidebar = () => {
     {
       path: "/portal/my-schedule",
       icon: HiOutlineCalendar,
-      label: "My Schedule",
+      labelKey: "mySchedule",
       teacher: true,
       section: "teaching",
     },
     {
       path: "/portal/my-timetable",
       icon: HiOutlineClock,
-      label: "My Timetable",
+      labelKey: "myTimetable",
       teacher: true,
       section: "teaching",
     },
     {
       path: "/portal/my-attendance",
       icon: HiOutlineUsers,
-      label: "My Attendance",
+      labelKey: "myAttendance",
       teacher: true,
       section: "teaching",
     },
     {
       path: "/portal/classes",
       icon: HiOutlineAcademicCap,
-      label: "Classes",
+      labelKey: "classes",
       roles: ["admin", "department_principal", "teacher"],
       section: "teaching",
     },
     {
       path: "/portal/students",
       icon: HiOutlineUserGroup,
-      label: "Students",
+      labelKey: "students",
       roles: ["admin", "department_principal", "teacher"],
       section: "teaching",
     },
     {
       path: "/portal/lessons",
       icon: HiOutlineDocumentText,
-      label: "Lesson Plans",
+      labelKey: "lessonPlans",
       roles: ["admin", "department_principal", "teacher"],
       permissions: [
         PERMISSIONS.EDIT_LESSON_PLANS,
@@ -203,28 +197,28 @@ const Sidebar = () => {
     {
       path: "/portal/assignments",
       icon: HiOutlineClipboardList,
-      label: "Assignments",
+      labelKey: "assignments",
       roles: ["admin", "department_principal", "teacher"],
       section: "teaching",
     },
     {
       path: "/portal/grades/entry",
       icon: HiOutlineClipboardList,
-      label: "Grade Entry",
+      labelKey: "gradeEntry",
       roles: ["admin", "teacher"],
       section: "teaching",
     },
     {
       path: "/portal/gradebook",
       icon: HiOutlineChartBar,
-      label: "Gradebook",
+      labelKey: "gradebook",
       roles: ["admin", "teacher", "department_principal"],
       section: "teaching",
     },
     {
       path: "/portal/standards",
       icon: HiOutlineClipboardCheck,
-      label: "Standards",
+      labelKey: "standards",
       roles: ["admin", "teacher", "department_principal"],
       end: true,
       section: "teaching",
@@ -232,56 +226,56 @@ const Sidebar = () => {
     {
       path: "/portal/standards/assign",
       icon: HiOutlineClipboardCheck,
-      label: "Assign Standards",
+      labelKey: "assignStandards",
       roles: ["admin", "teacher", "department_principal"],
       section: "teaching",
     },
     {
       path: "/portal/interventions",
       icon: HiOutlineExclamationCircle,
-      label: "Interventions",
+      labelKey: "interventions",
       roles: ["admin", "teacher", "department_principal"],
       section: "teaching",
     },
     {
       path: "/portal/newsletters",
       icon: HiOutlineDocumentText,
-      label: "Newsletters",
+      labelKey: "newsletters",
       teacher: true,
       section: "teaching",
     },
     {
       path: "/portal/newsletters/admin",
       icon: HiOutlineDocumentText,
-      label: "Newsletters Review",
+      labelKey: "newslettersReview",
       admin: true,
       section: "teaching",
     },
     {
       path: "/portal/newsletters/history",
       icon: HiOutlineDocumentText,
-      label: "Newsletters",
+      labelKey: "newsletters",
       roles: ["parent"],
       section: "learning",
     },
     {
       path: "/portal/schedules",
       icon: HiOutlineCalendar,
-      label: "Schedule Management",
+      labelKey: "scheduleManagement",
       roles: ["admin"],
       section: "scheduling",
     },
     {
       path: "/portal/timetable",
       icon: HiOutlineClock,
-      label: "Timetable",
+      labelKey: "timetable",
       roles: ["admin", "teacher", "department_principal"],
       section: "scheduling",
     },
     {
       path: "/portal/school-calendar",
       icon: HiOutlineCalendar,
-      label: "School Calendar",
+      labelKey: "schoolCalendar",
       roles: ["admin", "department_principal", "teacher"],
       permissions: [PERMISSIONS.MANAGE_EVENTS],
       section: "scheduling",
@@ -289,28 +283,28 @@ const Sidebar = () => {
     {
       path: "/portal/attendance",
       icon: HiOutlineUsers,
-      label: "Attendance",
+      labelKey: "attendance",
       roles: ["admin", "department_principal"],
       section: "attendance",
     },
     {
       path: "/portal/attendance-requests",
       icon: HiOutlineClipboardList,
-      label: "Attendance Requests",
+      labelKey: "attendanceRequests",
       roles: ["admin", "department_principal", "teacher", "parent", "student"],
       section: "attendance",
     },
     {
       path: "/portal/review-attendance-requests",
       icon: HiOutlineClipboardCheck,
-      label: "Attendance Tickets",
+      labelKey: "attendanceTickets",
       roles: ["admin", "department_principal"],
       section: "attendance",
     },
     {
       path: "/portal/attendance-reminders",
       icon: HiOutlineBell,
-      label: "Attendance Reminders",
+      labelKey: "attendanceReminders",
       roles: ["admin", "department_principal"],
       permissions: [PERMISSIONS.MANAGE_ATTENDANCE_REMINDERS],
       section: "attendance",
@@ -318,14 +312,14 @@ const Sidebar = () => {
     {
       path: "/portal/substitutions",
       icon: HiOutlineClipboardList,
-      label: "Sub Requests",
+      labelKey: "subRequests",
       roles: ["admin", "department_principal", "teacher"],
       section: "attendance",
     },
     {
       path: "/portal/behavior",
       icon: HiOutlineClipboardCheck,
-      label: "Behavior Management",
+      labelKey: "behaviorManagement",
       roles: ["admin", "department_principal", "teacher"],
       permissions: [PERMISSIONS.MANAGE_BEHAVIOR, PERMISSIONS.VIEW_BEHAVIOR],
       section: "attendance",
@@ -333,42 +327,42 @@ const Sidebar = () => {
     {
       path: "/portal/behavior-analytics",
       icon: HiOutlineChartBar,
-      label: "Behavior Analytics",
+      labelKey: "behaviorAnalytics",
       roles: ["admin", "department_principal", "super_admin"],
       section: "attendance",
     },
     {
       path: "/portal/teachers",
       icon: HiOutlineChartBar,
-      label: "Teachers",
+      labelKey: "teachers",
       roles: ["admin", "department_principal"],
       section: "school",
     },
     {
       path: "/portal/subjects",
       icon: HiOutlineBookOpen,
-      label: "Subjects",
+      labelKey: "subjects",
       roles: ["teacher"],
       section: "school",
     },
     {
       path: "/portal/reading/texts",
       icon: HiOutlineBookOpen,
-      label: "Reading",
+      labelKey: "reading",
       roles: ["admin", "teacher"],
       section: "teaching",
     },
     {
       path: "/portal/school-settings",
       icon: HiOutlineOfficeBuilding,
-      label: "School Settings",
+      labelKey: "schoolSettings",
       admin: true,
       section: "school",
     },
     {
       path: "/portal/api-docs",
       icon: HiOutlineDocumentText,
-      label: "API Documentation",
+      labelKey: "apiDocumentation",
       admin: true,
       feature: "apiAccess",
       section: "school",
@@ -376,49 +370,49 @@ const Sidebar = () => {
     {
       path: "/portal/my-grades",
       icon: HiOutlineClipboardList,
-      label: "My Grades",
+      labelKey: "myGrades",
       roles: ["student"],
       section: "learning",
     },
     {
       path: "/portal/student-attendance",
       icon: HiOutlineClipboardCheck,
-      label: "My Attendance",
+      labelKey: "myAttendance",
       roles: ["student"],
       section: "learning",
     },
     {
       path: "/portal/practice",
       icon: HiOutlineLightningBolt,
-      label: "Practice",
+      labelKey: "practice",
       roles: ["student"],
       section: "learning",
     },
     {
       path: "/portal/practice/sb-results",
       icon: HiOutlineChartBar,
-      label: "SB Results",
+      labelKey: "sbResults",
       roles: ["student"],
       section: "learning",
     },
     {
       path: "/portal/reading",
       icon: HiOutlineBookOpen,
-      label: "Reading",
+      labelKey: "reading",
       roles: ["student"],
       section: "learning",
     },
     {
       path: "/portal/revision",
       icon: HiOutlineClipboardList,
-      label: "Revision Plans",
+      labelKey: "revisionPlans",
       roles: ["student", "teacher", "admin"],
       section: "learning",
     },
     {
       path: "/portal/settings",
       icon: HiOutlineCog,
-      label: "Settings",
+      labelKey: "settings",
       section: "account",
     },
   ];
@@ -470,10 +464,14 @@ const Sidebar = () => {
         <button
           className="toggle-btn"
           onClick={() => dispatch(toggleSidebar())}
-          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          aria-label={
+            sidebarOpen
+              ? t("layout.sidebar:actions.collapseSidebar")
+              : t("layout.sidebar:actions.expandSidebar")
+          }
         >
           {sidebarOpen ? (
-            <HiOutlineChevronLeft size={20} />
+            isRtl ? <HiOutlineChevronRight size={20} /> : <HiOutlineChevronLeft size={20} />
           ) : (
             <HiOutlineMenu size={24} />
           )}
@@ -486,7 +484,7 @@ const Sidebar = () => {
           <div key={sectionKey} className="sidebar-nav-section">
             {sidebarOpen && (
               <div className="sidebar-section-title">
-                {SECTION_LABELS[sectionKey] || sectionKey}
+                {t(`layout.sidebar:sections.${sectionKey}`)}
               </div>
             )}
             {!sidebarOpen && sectionIndex > 0 && (
@@ -504,15 +502,19 @@ const Sidebar = () => {
                   }
                 >
                   <item.icon className="nav-icon" size={20} />
-                  {sidebarOpen && <span className="nav-label">{item.label}</span>}
+                  {sidebarOpen && (
+                    <span className="nav-label">{t(`layout.sidebar:items.${item.labelKey}`)}</span>
+                  )}
                   {isLocked && sidebarOpen && (
                     <HiOutlineLockClosed className="nav-feature-lock" size={14} />
                   )}
                   {isLocked && sidebarOpen && (
-                    <span className="nav-badge nav-badge-upgrade">Upgrade</span>
+                    <span className="nav-badge nav-badge-upgrade">
+                      {t("layout.sidebar:actions.upgrade")}
+                    </span>
                   )}
                   {isLocked && !sidebarOpen && (
-                    <span className="nav-lock-dot" aria-label="Feature locked">
+                    <span className="nav-lock-dot" aria-label={t("layout.sidebar:actions.featureLocked")}>
                       <HiOutlineLockClosed size={10} />
                     </span>
                   )}

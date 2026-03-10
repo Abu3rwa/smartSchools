@@ -1,9 +1,13 @@
 import { useEffect, useMemo } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
+import { CacheProvider } from "@emotion/react";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { getTheme } from "./theme";
+import i18n from "./i18n";
+import { isRtlLanguage, normalizeLanguage } from "./i18n/config";
+import { ltrCache, rtlCache } from "./i18n/rtlCache";
 import {
   selectIsAuthenticated,
   selectAuth,
@@ -12,6 +16,7 @@ import {
 } from "./store/slices/authSlice";
 import {
   fetchSchoolAcademicYear,
+  selectLanguage,
   selectTheme,
   setCurrentAcademicYear,
 } from "./store/slices/uiSlice";
@@ -44,7 +49,7 @@ import TeacherDetailsPage from "./pages/teachers/TeacherDetailsPage";
 import SubjectsPage from "./pages/subjects/SubjectsPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import MessagesPage from "./pages/messages/MessagesPage";
-import EmailComposerPage from "./pages/communication/EmailComposerPage";
+import EmailComposerPage from "./pages/EmailComposerPage";
 import SettingsPage from "./pages/settings/SettingsPage";
 import SchoolSettingsPage from "./pages/schoolSettings/SchoolSettingsPage";
 import AdminSchedulePage from "./pages/admin/schedule/AdminSchedulePage";
@@ -187,13 +192,35 @@ const RoleRoute = ({ roles = [], permissions = [], children }) => {
 function App() {
   const dispatch = useDispatch();
   const themeMode = useSelector(selectTheme);
+  const selectedLanguage = useSelector(selectLanguage);
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const user = useSelector(selectUser);
-  const muiTheme = useMemo(() => getTheme(themeMode), [themeMode]);
+  const language = useMemo(
+    () => normalizeLanguage(selectedLanguage || i18n.resolvedLanguage),
+    [selectedLanguage],
+  );
+  const direction = useMemo(() => (isRtlLanguage(language) ? "rtl" : "ltr"), [language]);
+  const emotionCache = useMemo(
+    () => (direction === "rtl" ? rtlCache : ltrCache),
+    [direction],
+  );
+  const muiTheme = useMemo(() => getTheme(themeMode, direction), [themeMode, direction]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    if (i18n.resolvedLanguage !== language) {
+      i18n.changeLanguage(language);
+    }
+  }, [language]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("lang", language);
+    document.documentElement.setAttribute("dir", direction);
+    document.body.setAttribute("dir", direction);
+  }, [language, direction]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -215,10 +242,11 @@ function App() {
   }, [dispatch, isAuthenticated, user?.id, user?.role, user?.school?.settings?.currentAcademicYear]);
 
   return (
-    <ThemeProvider theme={muiTheme}>
-      <CssBaseline />
-      <BehaviorAutoTracker />
-      <Routes>
+    <CacheProvider value={emotionCache}>
+      <ThemeProvider theme={muiTheme}>
+        <CssBaseline />
+        <BehaviorAutoTracker />
+        <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/register-school" element={<RegisterSchoolPage />} />
@@ -794,8 +822,9 @@ function App() {
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </ThemeProvider>
+        </Routes>
+      </ThemeProvider>
+    </CacheProvider>
   );
 }
 

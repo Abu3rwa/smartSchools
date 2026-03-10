@@ -42,10 +42,18 @@ const newsletterSectionSchema = new mongoose.Schema(
 
     language: {
       type: String,
-      enum: ["english", "arabic", "bilingual"],
+      trim: true,
+      lowercase: true,
       default: "english",
       index: true,
     },
+    requestedLanguages: [
+      {
+        type: String,
+        trim: true,
+        lowercase: true,
+      },
+    ],
 
     selectedLessonPlanIds: [
       { type: mongoose.Schema.Types.ObjectId, ref: "LessonPlan" },

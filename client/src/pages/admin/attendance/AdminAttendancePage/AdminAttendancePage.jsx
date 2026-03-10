@@ -1,5 +1,6 @@
 import { HiOutlineExclamation } from 'react-icons/hi';
 import { Grid } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import AttendanceDetailsModal from './components/AttendanceDetailsModal';
 import AttendanceList from './components/AttendanceList';
 import AttendancePageHeader from './components/AttendancePageHeader';
@@ -10,6 +11,7 @@ import useAdminAttendanceController from './hooks/useAdminAttendanceController';
 import './AdminAttendancePage.css';
 
 const AdminAttendancePage = () => {
+    const { t } = useTranslation(['adminAttendance', 'common']);
     const {
         attendanceData,
         classes,
@@ -20,6 +22,7 @@ const AdminAttendancePage = () => {
         fetchAttendanceData,
         filters,
         formatDateTime,
+        formatDate,
         formatTime,
         handleExport,
         handleViewDetails,
@@ -39,21 +42,21 @@ const AdminAttendancePage = () => {
 
     if (loading) {
         return (
-            <div className="attendance-loading">
-                <div className="spinner"></div>
-                <p>Loading attendance data...</p>
-            </div>
-        );
-    }
+                <div className="attendance-loading">
+                    <div className="spinner"></div>
+                    <p>{t('adminAttendance:loading.message')}</p>
+                </div>
+            );
+        }
 
     if (error) {
         return (
             <div className="attendance-error">
                 <HiOutlineExclamation size={48} />
-                <h3>Error loading attendance</h3>
+                <h3>{t('adminAttendance:error.title')}</h3>
                 <p>{error}</p>
                 <button onClick={fetchAttendanceData} className="btn btn-primary">
-                    Retry
+                    {t('common:actions.retry')}
                 </button>
             </div>
         );
@@ -92,6 +95,7 @@ const AdminAttendancePage = () => {
             <AttendanceList
                 attendanceData={attendanceData}
                 clearFilters={clearFilters}
+                formatDate={formatDate}
                 formatDateTime={formatDateTime}
                 formatTime={formatTime}
                 hasActiveFilters={hasActiveFilters}

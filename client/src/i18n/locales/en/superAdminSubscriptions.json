@@ -1,0 +1,163 @@
+{
+  "header": {
+    "title": "Subscription Management",
+    "subtitle": "Manage all school subscriptions and billing"
+  },
+  "actions": {
+    "analytics": "Analytics",
+    "managePlans": "Manage Plans",
+    "createSubscription": "Create Subscription",
+    "viewDetails": "View Details",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "cancelSubscription": "Cancel Subscription",
+    "updateSubscription": "Update Subscription",
+    "keepSubscription": "Keep Subscription",
+    "newPlan": "New Plan",
+    "editPlan": "Edit plan",
+    "activatePlan": "Activate plan",
+    "deactivatePlan": "Deactivate plan",
+    "clear": "Clear",
+    "saving": "Saving...",
+    "createPlan": "Create Plan",
+    "updatePlan": "Update Plan"
+  },
+  "stats": {
+    "totalSubscriptions": "Total Subscriptions",
+    "activeSubscriptions": "Active Subscriptions",
+    "trialSubscriptions": "Trial Subscriptions",
+    "totalRevenue": "Total Revenue"
+  },
+  "planDistribution": {
+    "title": "Plan Distribution"
+  },
+  "search": {
+    "placeholder": "Search subscriptions..."
+  },
+  "filters": {
+    "button": "Filters",
+    "statusLabel": "Status",
+    "allStatuses": "All Statuses",
+    "planLabel": "Plan",
+    "allPlans": "All Plans"
+  },
+  "table": {
+    "school": "School",
+    "plan": "Plan",
+    "status": "Status",
+    "amount": "Amount",
+    "billingCycle": "Billing Cycle",
+    "nextBilling": "Next Billing",
+    "usage": "Usage",
+    "actions": "Actions"
+  },
+  "empty": {
+    "title": "No subscriptions found",
+    "description": "Try adjusting your search criteria or create a new subscription."
+  },
+  "labels": {
+    "plan": "Plan",
+    "status": "Status",
+    "notes": "Notes",
+    "schoolRequired": "School *",
+    "initialStatus": "Initial Status",
+    "trialDays": "Trial Days",
+    "planKey": "Plan Key",
+    "planName": "Plan Name",
+    "description": "Description",
+    "sortOrder": "Sort Order",
+    "planIsActive": "Plan is active",
+    "monthlyPrice": "Monthly Price",
+    "currency": "Currency",
+    "interval": "Interval",
+    "maxStudents": "Max Students",
+    "maxTeachers": "Max Teachers",
+    "maxClasses": "Max Classes",
+    "maxStorageMb": "Max Storage (MB)"
+  },
+  "common": {
+    "na": "N/A",
+    "unknownSchool": "Unknown School"
+  },
+  "status": {
+    "active": "Active",
+    "trial": "Trial",
+    "suspended": "Suspended",
+    "cancelled": "Cancelled",
+    "inactive": "Inactive"
+  },
+  "feature": {
+    "emailNotifications": "Email Notifications",
+    "dataExport": "Data Export",
+    "parentPortal": "Parent Portal",
+    "advancedAnalytics": "Advanced Analytics",
+    "customReports": "Custom Reports",
+    "apiAccess": "API Access",
+    "prioritySupport": "Priority Support",
+    "customBranding": "Custom Branding"
+  },
+  "interval": {
+    "month": "month",
+    "year": "year"
+  },
+  "loading": {
+    "subscriptions": "Loading subscriptions...",
+    "analytics": "Loading analytics..."
+  },
+  "modal": {
+    "editSubscription": {
+      "title": "Edit Subscription",
+      "notesPlaceholder": "Add notes about this subscription change..."
+    },
+    "cancelSubscription": {
+      "title": "Cancel Subscription",
+      "confirmTitle": "Are you sure you want to cancel this subscription?",
+      "confirmDescription": "This action will cancel the subscription for {{schoolName}}. The school will lose access to premium features at the end of the billing period."
+    },
+    "createSubscription": {
+      "title": "Create Subscription",
+      "selectSchoolPlaceholder": "Select a school...",
+      "noActivePlans": "No active plans available",
+      "notesPlaceholder": "Optional notes about this subscription..."
+    },
+    "managePlans": {
+      "title": "Manage Plans",
+      "existingPlans": "Existing Plans",
+      "createPlan": "Create Plan",
+      "editPlan": "Edit Plan",
+      "planKeyPlaceholder": "e.g. growth_plus",
+      "planKeyLocked": "Plan key is locked after creation to keep existing subscriptions stable.",
+      "planNamePlaceholder": "Plan display name",
+      "subscriptionsCount": "{{count}} subscriptions"
+    },
+    "analytics": {
+      "title": "Subscription Analytics",
+      "period": {
+        "lastWeek": "Last Week",
+        "lastMonth": "Last Month",
+        "lastYear": "Last Year"
+      },
+      "newSubscriptions": "New Subscriptions",
+      "revenue": "Revenue",
+      "mrr": "MRR",
+      "monthly": "Monthly",
+      "totalCollected": "Total Collected",
+      "allTime": "All time",
+      "subscriptionTrends": "Subscription Trends",
+      "noDataForPeriod": "No data available for selected period",
+      "statusBreakdown": "Status Breakdown"
+    }
+  },
+  "toast": {
+    "loadPlansFailed": "Failed to load subscription plans",
+    "selectSchoolRequired": "Please select a school",
+    "noActivePlans": "No active plans available. Activate a plan first.",
+    "planKeyAndNameRequired": "Plan key and name are required",
+    "planUpdated": "Plan updated",
+    "planCreated": "Plan created",
+    "savePlanFailed": "Failed to save plan",
+    "planDeactivated": "Plan deactivated",
+    "planActivated": "Plan activated",
+    "updatePlanStatusFailed": "Failed to update plan status"
+  }
+}

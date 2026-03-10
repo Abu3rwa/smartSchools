@@ -1,4 +1,5 @@
 import { HiOutlineX } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import { formatClassLabel, formatStudentNames } from '../utils/messagePresentation';
 
 const ComposeModal = ({
@@ -27,6 +28,7 @@ const ComposeModal = ({
     onBodyChange,
     composeLoading
 }) => {
+    const { t } = useTranslation(['messages']);
     if (!isOpen) return null;
 
     return (
@@ -39,18 +41,18 @@ const ComposeModal = ({
                 onClick={(event) => event.stopPropagation()}
             >
                 <div className="modal-header">
-                    <h2 id="messages-compose-title">New Message</h2>
-                    <button type="button" className="modal-close" onClick={onClose} aria-label="Close compose message modal">
+                    <h2 id="messages-compose-title">{t('messages:compose.newMessage')}</h2>
+                    <button type="button" className="modal-close" onClick={onClose} aria-label={t('messages:compose.closeAria')}>
                         <HiOutlineX size={18} />
                     </button>
                 </div>
                 <form className="modal-body" onSubmit={onSubmit}>
                     <div className="compose-field">
-                        <label>To classes</label>
+                        <label>{t('messages:compose.toClasses')}</label>
                         <div className="class-selection">
-                            {loadingClasses && <div className="loading-more">Loading classes...</div>}
+                            {loadingClasses && <div className="loading-more">{t('messages:compose.loadingClasses')}</div>}
                             {!loadingClasses && classOptions.length === 0 && (
-                                <div className="empty-row">No available classes</div>
+                                <div className="empty-row">{t('messages:compose.noClasses')}</div>
                             )}
                             {!loadingClasses && classOptions.length > 0 && (
                                 <div className="class-options">
@@ -67,10 +69,13 @@ const ComposeModal = ({
                                                     onChange={() => onToggleClass(classOption.id)}
                                                 />
                                                 <span className="class-option-main">
-                                                    {formatClassLabel(classOption)}
+                                                    {formatClassLabel(classOption, t)}
                                                 </span>
                                                 <span className="class-option-meta">
-                                                    {classOption.studentCount || 0} students · {classOption.parentCount || 0} parents
+                                                    {t('messages:compose.classMeta', {
+                                                        students: classOption.studentCount || 0,
+                                                        parents: classOption.parentCount || 0
+                                                    })}
                                                 </span>
                                             </label>
                                         );
@@ -85,7 +90,7 @@ const ComposeModal = ({
                                     checked={includeClassParents}
                                     onChange={onToggleClassParents}
                                 />
-                                <span>To parents</span>
+                                <span>{t('messages:compose.toParents')}</span>
                             </label>
                             <label className="audience-toggle">
                                 <input
@@ -93,22 +98,25 @@ const ComposeModal = ({
                                     checked={includeClassStudents}
                                     onChange={onToggleClassStudents}
                                 />
-                                <span>To students</span>
+                                <span>{t('messages:compose.toStudents')}</span>
                             </label>
                         </div>
                         {selectedClassIds.length > 0 && (
                             <div className="compose-class-preview text-muted">
-                                Selected {selectedClassIds.length} class{selectedClassIds.length === 1 ? '' : 'es'} ·
-                                approx. {classAudiencePreview.parents} parents · {classAudiencePreview.students} students
+                                {t('messages:compose.selectedClassesSummary', {
+                                    count: selectedClassIds.length,
+                                    parents: classAudiencePreview.parents,
+                                    students: classAudiencePreview.students
+                                })}
                             </div>
                         )}
                     </div>
 
                     <div className="compose-field">
-                        <label>Also send to specific parents (optional)</label>
+                        <label>{t('messages:compose.extraParentsLabel')}</label>
                         <input
                             type="text"
-                            placeholder="Search parents or child names"
+                            placeholder={t('messages:compose.searchParentsPlaceholder')}
                             value={composeSearch}
                             onChange={onSearchChange}
                         />
@@ -130,12 +138,12 @@ const ComposeModal = ({
                                     </button>
                                 </span>
                             ))}
-                            {selectedParents.length === 0 && <span className="text-muted">No extra parent selected</span>}
+                            {selectedParents.length === 0 && <span className="text-muted">{t('messages:compose.noExtraParent')}</span>}
                         </div>
                         <div className="compose-results">
-                            {loadingParents && <div className="loading-more">Loading parents...</div>}
+                            {loadingParents && <div className="loading-more">{t('messages:compose.loadingParents')}</div>}
                             {!loadingParents && parentOptions.length === 0 && (
-                                <div className="empty-row">No parents found</div>
+                                <div className="empty-row">{t('messages:compose.noParentsFound')}</div>
                             )}
                             {parentOptions.map((parent) => (
                                 <button
@@ -155,31 +163,31 @@ const ComposeModal = ({
                         </div>
                     </div>
                     <div className="compose-field">
-                        <label>Subject</label>
+                        <label>{t('messages:compose.subject')}</label>
                         <input
                             type="text"
                             value={composeSubject}
                             onChange={onSubjectChange}
                             maxLength={200}
-                            placeholder="Subject"
+                            placeholder={t('messages:compose.subject')}
                         />
                     </div>
                     <div className="compose-field">
-                        <label>Message</label>
+                        <label>{t('messages:compose.message')}</label>
                         <textarea
                             value={composeBody}
                             onChange={onBodyChange}
                             rows={5}
                             maxLength={5000}
-                            placeholder="Write your message..."
+                            placeholder={t('messages:compose.messagePlaceholder')}
                         />
                     </div>
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>
-                            Cancel
+                            {t('messages:compose.cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={composeLoading}>
-                            {composeLoading ? 'Sending...' : 'Send Message'}
+                            {composeLoading ? t('messages:compose.sending') : t('messages:compose.sendMessage')}
                         </button>
                     </div>
                 </form>

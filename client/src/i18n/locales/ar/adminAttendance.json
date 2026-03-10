@@ -1,0 +1,84 @@
+{
+  "header": {
+    "title": "تقويم المدرسة",
+    "subtitle": "راقب وأدر الحضور عبر جميع الفصول"
+  },
+  "actions": {
+    "refresh": "تحديث",
+    "exportReport": "تصدير التقرير",
+    "clearFilters": "مسح الفلاتر",
+    "viewDetails": "عرض التفاصيل"
+  },
+  "stats": {
+    "totalClasses": "إجمالي الفصول",
+    "attendanceRecorded": "تم تسجيل الحضور",
+    "pendingToday": "المعلّق اليوم",
+    "overallNotTaken": "غير المُسجّل إجمالًا",
+    "overallAttendanceRate": "معدل الحضور الإجمالي"
+  },
+  "chart": {
+    "title": "مخطط حالة الحضور",
+    "subtitle": "عدد الحاضر والغائب والمتأخر والمعذور ضمن النطاق المحدد",
+    "status": {
+      "present": "حاضر",
+      "absent": "غائب",
+      "tardy": "متأخر",
+      "excused": "معذور"
+    }
+  },
+  "view": {
+    "today": "اليوم",
+    "week": "الأسبوع",
+    "month": "الشهر"
+  },
+  "filters": {
+    "allTeachers": "كل المعلمين",
+    "allClasses": "كل الفصول",
+    "allSubjects": "كل المواد",
+    "allStatus": "كل الحالات"
+  },
+  "status": {
+    "recorded": "تم التسجيل",
+    "pending": "معلّق"
+  },
+  "common": {
+    "unknown": "غير معروف",
+    "dash": "—"
+  },
+  "list": {
+    "emptyTitle": "لا توجد سجلات حضور",
+    "emptyFiltered": "لا توجد نتائج مطابقة للفلاتر المحددة.",
+    "emptyUnfiltered": "لا توجد سجلات حضور متاحة بعد.",
+    "total": "الإجمالي",
+    "present": "حاضر",
+    "absent": "غائب",
+    "late": "متأخر",
+    "rate": "النسبة",
+    "recordedBy": "سجله {{firstName}} {{lastName}}"
+  },
+  "details": {
+    "title": "تفاصيل الحضور",
+    "teacher": "المعلم:",
+    "class": "الفصل:",
+    "subject": "المادة:",
+    "room": "القاعة:",
+    "time": "الوقت:",
+    "summaryTitle": "ملخص الحضور",
+    "totalStudents": "إجمالي الطلاب",
+    "present": "حاضر",
+    "absent": "غائب",
+    "late": "متأخر",
+    "attendanceRate": "معدل الحضور",
+    "recordingDetails": "تفاصيل التسجيل",
+    "recordedBy": "سجله:",
+    "recordedAt": "تاريخ التسجيل:"
+  },
+  "loading": {
+    "message": "جارٍ تحميل الحضور..."
+  },
+  "error": {
+    "title": "تعذر تحميل الحضور",
+    "loadFailed": "فشل تحميل بيانات الحضور",
+    "exportFailed": "فشل تصدير تقرير الحضور"
+  }
+}

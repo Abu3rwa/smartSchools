@@ -6,6 +6,7 @@ import {
     HiOutlineShieldCheck,
     HiOutlineUsers
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import AnalyticsHeader from './components/AnalyticsHeader';
 import AnalyticsFilters from './components/AnalyticsFilters';
 import AnalyticsTabs from './components/AnalyticsTabs';
@@ -25,6 +26,11 @@ import {
 import './BehaviorAnalyticsPage.css';
 
 const BehaviorAnalyticsPage = () => {
+    const { t, i18n } = useTranslation(['behaviorAnalytics']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
+    const getPeriodLabel = (period) =>
+        t(`behaviorAnalytics:filters.periodOptions.${period}`, { defaultValue: period });
+
     const {
         analyticsData,
         loading,
@@ -84,8 +90,8 @@ const BehaviorAnalyticsPage = () => {
                             </div>
                             <div className="metric-content">
                                 <h3>{formatNumber(getTotalEvents(analyticsData?.eventStats || []))}</h3>
-                                <p>Total Events</p>
-                                <span className="metric-period">{selectedPeriod}</span>
+                                <p>{t('behaviorAnalytics:overview.totalEvents')}</p>
+                                <span className="metric-period">{getPeriodLabel(selectedPeriod)}</span>
                             </div>
                         </div>
                         <div className="metric-card">
@@ -94,8 +100,8 @@ const BehaviorAnalyticsPage = () => {
                             </div>
                             <div className="metric-content">
                                 <h3>{formatNumber(analyticsData?.topUsers?.length || 0)}</h3>
-                                <p>Active Users</p>
-                                <span className="metric-period">{selectedPeriod}</span>
+                                <p>{t('behaviorAnalytics:overview.activeUsers')}</p>
+                                <span className="metric-period">{getPeriodLabel(selectedPeriod)}</span>
                             </div>
                         </div>
                         <div className="metric-card">
@@ -104,8 +110,8 @@ const BehaviorAnalyticsPage = () => {
                             </div>
                             <div className="metric-content">
                                 <h3>{formatNumber(analyticsData?.securityStats?.totalSecurityEvents || 0)}</h3>
-                                <p>Security Events</p>
-                                <span className="metric-period">{selectedPeriod}</span>
+                                <p>{t('behaviorAnalytics:overview.securityEvents')}</p>
+                                <span className="metric-period">{getPeriodLabel(selectedPeriod)}</span>
                             </div>
                         </div>
                         <div className="metric-card">
@@ -114,14 +120,14 @@ const BehaviorAnalyticsPage = () => {
                             </div>
                             <div className="metric-content">
                                 <h3>{analyticsData?.dailyTrends?.length || 0}</h3>
-                                <p>Active Days</p>
-                                <span className="metric-period">{selectedPeriod}</span>
+                                <p>{t('behaviorAnalytics:overview.activeDays')}</p>
+                                <span className="metric-period">{getPeriodLabel(selectedPeriod)}</span>
                             </div>
                         </div>
                     </div>
 
                     <div className="chart-section">
-                        <h3>Event Type Distribution</h3>
+                        <h3>{t('behaviorAnalytics:overview.eventTypeDistribution')}</h3>
                         <div className="event-distribution">
                             {analyticsData?.eventTypeDistribution?.map((event, index) => (
                                 <div key={index} className="event-item">
@@ -138,21 +144,21 @@ const BehaviorAnalyticsPage = () => {
                                             }}
                                         ></div>
                                     </div>
-                                    <span className="event-users">{event.uniqueUsers} users</span>
+                                    <span className="event-users">{t('behaviorAnalytics:overview.usersCount', { count: event.uniqueUsers })}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
                     <div className="chart-section">
-                        <h3>Daily Activity Trends</h3>
+                        <h3>{t('behaviorAnalytics:overview.dailyActivityTrends')}</h3>
                         <div className="trends-chart">
                             {analyticsData?.dailyTrends?.map((day, index) => (
                                 <div key={index} className="trend-bar-container">
                                     <div className="trend-bar" style={{ height: `${((day.totalEvents || 0) / maxDailyEvents) * 100}%` }}>
                                         <span className="trend-value">{day.totalEvents}</span>
                                     </div>
-                                    <span className="trend-label">{formatDate(day._id)}</span>
+                                    <span className="trend-label">{formatDate(day._id, locale, t('behaviorAnalytics:common.na'))}</span>
                                 </div>
                             ))}
                         </div>
@@ -166,12 +172,12 @@ const BehaviorAnalyticsPage = () => {
                         <table className="users-table">
                             <thead>
                                 <tr>
-                                    <th>User</th>
-                                    <th>School</th>
-                                    <th>Events</th>
-                                    <th>Unique Actions</th>
-                                    <th>Last Activity</th>
-                                    <th>Actions</th>
+                                    <th>{t('behaviorAnalytics:users.table.user')}</th>
+                                    <th>{t('behaviorAnalytics:users.table.school')}</th>
+                                    <th>{t('behaviorAnalytics:users.table.events')}</th>
+                                    <th>{t('behaviorAnalytics:users.table.uniqueActions')}</th>
+                                    <th>{t('behaviorAnalytics:users.table.lastActivity')}</th>
+                                    <th>{t('behaviorAnalytics:users.table.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -185,10 +191,10 @@ const BehaviorAnalyticsPage = () => {
                                                 <span className="user-email">{user.userInfo?.email}</span>
                                             </div>
                                         </td>
-                                        <td>{user.schoolInfo?.name || 'N/A'}</td>
+                                        <td>{user.schoolInfo?.name || t('behaviorAnalytics:common.na')}</td>
                                         <td>{formatNumber(user.eventCount)}</td>
                                         <td>{user.uniqueActions}</td>
-                                        <td>{formatDate(user.lastActivity)}</td>
+                                        <td>{formatDate(user.lastActivity, locale, t('behaviorAnalytics:common.na'))}</td>
                                         <td>
                                             <button className="action-btn">
                                                 <HiOutlineEye size={16} />
@@ -209,39 +215,39 @@ const BehaviorAnalyticsPage = () => {
                             <HiOutlineExclamation size={24} className="icon-high" />
                             <div>
                                 <h3>{formatNumber(analyticsData?.securityStats?.totalSecurityEvents || 0)}</h3>
-                                <p>Total Security Events</p>
+                                <p>{t('behaviorAnalytics:security.totalSecurityEvents')}</p>
                             </div>
                         </div>
                         <div className="security-stat">
                             <HiOutlineUsers size={24} className="icon-medium" />
                             <div>
                                 <h3>{formatNumber(analyticsData?.securityStats?.totalUniqueUsers || 0)}</h3>
-                                <p>Unique Users</p>
+                                <p>{t('behaviorAnalytics:security.uniqueUsers')}</p>
                             </div>
                         </div>
                         <div className="security-stat">
                             <HiOutlineGlobeAlt size={24} className="icon-low" />
                             <div>
                                 <h3>{formatNumber(analyticsData?.securityStats?.totalUniqueIPs || 0)}</h3>
-                                <p>Unique IPs</p>
+                                <p>{t('behaviorAnalytics:security.uniqueIps')}</p>
                             </div>
                         </div>
                     </div>
 
                     <div className="security-events">
-                        <h3>Recent Security Events</h3>
+                        <h3>{t('behaviorAnalytics:security.recentSecurityEvents')}</h3>
                         <div className="events-list">
                             {analyticsData?.securityEvents?.map((event, index) => (
                                 <div key={index} className={`security-event risk-${getRiskColor(event.riskScore)}`}>
                                     <div className="event-header">
                                         <span className="event-type">{event.eventType}</span>
-                                        <span className="event-time">{formatDate(event.timestamp)}</span>
+                                        <span className="event-time">{formatDate(event.timestamp, locale, t('behaviorAnalytics:common.na'))}</span>
                                     </div>
                                     <div className="event-details">
-                                        <p><strong>User:</strong> {event.user?.firstName} {event.user?.lastName}</p>
-                                        <p><strong>School:</strong> {event.school?.name}</p>
-                                        <p><strong>IP:</strong> {event.ipAddress}</p>
-                                        <p><strong>Action:</strong> {event.action}</p>
+                                        <p><strong>{t('behaviorAnalytics:security.details.user')}:</strong> {event.user?.firstName} {event.user?.lastName}</p>
+                                        <p><strong>{t('behaviorAnalytics:security.details.school')}:</strong> {event.school?.name}</p>
+                                        <p><strong>{t('behaviorAnalytics:security.details.ip')}:</strong> {event.ipAddress}</p>
+                                        <p><strong>{t('behaviorAnalytics:security.details.action')}:</strong> {event.action}</p>
                                     </div>
                                 </div>
                             ))}
@@ -254,23 +260,23 @@ const BehaviorAnalyticsPage = () => {
                 <div className="usage-content">
                     <div className="usage-grid">
                         <div className="usage-section">
-                            <h3>Feature Usage</h3>
+                            <h3>{t('behaviorAnalytics:usage.featureUsage')}</h3>
                             <div className="feature-list">
                                 {USAGE_FEATURE_ITEMS.map((item) => (
-                                    <div key={item.label} className="feature-item">
-                                        <span>{item.label}</span>
-                                        <span>{item.value}</span>
+                                    <div key={item.key} className="feature-item">
+                                        <span>{t(`behaviorAnalytics:usage.features.${item.key}`)}</span>
+                                        <span>{t('behaviorAnalytics:usage.usesCount', { count: item.value })}</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
                         <div className="usage-section">
-                            <h3>Device Distribution</h3>
+                            <h3>{t('behaviorAnalytics:usage.deviceDistribution')}</h3>
                             <div className="device-list">
                                 {DEVICE_DISTRIBUTION_ITEMS.map((item) => (
-                                    <div key={item.label} className="device-item">
-                                        <span>{item.label}</span>
+                                    <div key={item.key} className="device-item">
+                                        <span>{t(`behaviorAnalytics:usage.devices.${item.key}`)}</span>
                                         <span>{item.value}</span>
                                     </div>
                                 ))}

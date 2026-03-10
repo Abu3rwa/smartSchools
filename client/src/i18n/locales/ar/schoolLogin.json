@@ -1,0 +1,21 @@
+{
+  "error": {
+    "schoolNotFoundTitle": "المدرسة غير موجودة",
+    "schoolNotFoundBody": "هذه المدرسة غير موجودة",
+    "backToSchools": "العودة إلى المدارس"
+  },
+  "header": {
+    "allSchools": "كل المدارس",
+    "poweredBy": "مدعوم من GradeBook"
+  },
+  "card": {
+    "subtitle": "سجل الدخول للوصول إلى GradeBook الخاص بمدرستك"
+  },
+  "actions": {
+    "signingIn": "جارٍ تسجيل الدخول...",
+    "continueWithGoogle": "المتابعة باستخدام Google"
+  },
+  "contact": {
+    "needHelp": "تحتاج مساعدة؟ تواصل مع"
+  }
+}

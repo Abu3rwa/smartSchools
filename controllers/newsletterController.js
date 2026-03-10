@@ -9,6 +9,10 @@ import LessonPlan from "../models/LessonPlan.js";
 import Student from "../models/Student.js";
 import { getWeekRange } from "../utils/newsletterWeek.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
+import {
+  resolveRequestedLanguages,
+  toLegacyLanguageValue
+} from "../utils/aiLanguageUtils.js";
 import { countWords, generateNewsletterSection } from "../services/newsletterAiService.js";
 import {
   computeIssueReadiness,
@@ -156,7 +160,10 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
     subjectId,
     academicYear,
     weekStart: requestedWeekStart,
-    language = "english",
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language,
     selectedLessonPlanIds = [],
     customPrompt = "",
     regenerateWithFeedback = false,
@@ -190,6 +197,14 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
   ]);
   if (!classDoc) return res.status(404).json({ success: false, message: "Class not found" });
   if (!subjectDoc) return res.status(404).json({ success: false, message: "Subject not found" });
+  const normalizedRequestedLanguages = resolveRequestedLanguages({
+    requestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
+    language,
+    subjectName: subjectDoc?.name || "",
+    max: 2
+  });
 
   const issue = await ensureIssue({
     schoolId: req.schoolId,
@@ -241,6 +256,9 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
     weekStart,
     weekEnd,
     lessonPlans: weekLessonPlans,
+    requestedLanguages: normalizedRequestedLanguages,
+    primaryLanguage,
+    secondaryLanguage,
     language,
     customPrompt: normalizedCustomPrompt,
     adminFeedback,
@@ -254,7 +272,8 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
       $set: {
         teacherUser: req.user._id,
         teacherProfile: teacherProfile._id,
-        language,
+        language: toLegacyLanguageValue(normalizedRequestedLanguages),
+        requestedLanguages: normalizedRequestedLanguages,
         selectedLessonPlanIds: weekLessonPlans.map((lp) => lp._id),
         content: generated.content,
         wordCount: generated.wordCount,

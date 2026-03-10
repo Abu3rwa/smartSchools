@@ -1,0 +1,27 @@
+{
+  "page": {
+    "title": "Platform Settings"
+  },
+  "sections": {
+    "appearance": "Appearance",
+    "account": "Account",
+    "platform": "Platform"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "account": {
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "superAdmin": "Super Admin"
+  },
+  "platform": {
+    "version": "GradeBook Platform v1.0",
+    "comingSoon": "Billing, Stripe integration, and advanced platform settings coming soon."
+  },
+  "toast": {
+    "themeChanged": "Theme changed to {{theme}} mode"
+  }
+}

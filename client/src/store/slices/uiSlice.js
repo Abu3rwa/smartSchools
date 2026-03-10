@@ -2,6 +2,25 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../config/api';
 
 const DEFAULT_ACADEMIC_YEAR_START_MONTH = 8;
+const SUPPORTED_LANGUAGES = ['en', 'ar'];
+
+const getInitialLanguage = () => {
+    const hasWindow = typeof window !== 'undefined';
+    const storedLanguage = hasWindow ? localStorage.getItem('app.lang') : null;
+    if (storedLanguage && SUPPORTED_LANGUAGES.includes(storedLanguage)) {
+        return storedLanguage;
+    }
+
+    const browserLanguage = typeof navigator !== 'undefined'
+        ? navigator?.language?.split('-')?.[0]?.toLowerCase()
+        : null;
+    if (browserLanguage && SUPPORTED_LANGUAGES.includes(browserLanguage)) {
+        return browserLanguage;
+    }
+
+    return 'en';
+};
+
 const inferAcademicYear = () => {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
@@ -42,6 +61,7 @@ const uiSlice = createSlice({
     initialState: {
         sidebarOpen: true,
         theme: localStorage.getItem('theme') || 'dark',
+        language: getInitialLanguage(),
         currentAcademicYear: getInitialAcademicYear(),
         academicYearLoading: false,
         academicYearError: null,
@@ -62,6 +82,11 @@ const uiSlice = createSlice({
         setTheme: (state, action) => {
             state.theme = action.payload;
             localStorage.setItem('theme', action.payload);
+        },
+        setLanguage: (state, action) => {
+            if (!SUPPORTED_LANGUAGES.includes(action.payload)) return;
+            state.language = action.payload;
+            localStorage.setItem('app.lang', action.payload);
         },
         setCurrentAcademicYear: (state, action) => {
             state.currentAcademicYear = action.payload;
@@ -129,6 +154,7 @@ export const {
     toggleSidebar,
     setSidebarOpen,
     setTheme,
+    setLanguage,
     setCurrentAcademicYear,
     setSelectedClass,
     setSelectedSubject,
@@ -142,6 +168,7 @@ export const {
 // Selectors
 export const selectSidebarOpen = (state) => state.ui.sidebarOpen;
 export const selectTheme = (state) => state.ui.theme;
+export const selectLanguage = (state) => state.ui.language;
 export const selectCurrentAcademicYear = (state) => state.ui.currentAcademicYear;
 export const selectAcademicYearLoading = (state) => state.ui.academicYearLoading;
 export const selectAcademicYearError = (state) => state.ui.academicYearError;

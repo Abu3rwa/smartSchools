@@ -114,24 +114,28 @@ const ImageUploader = ({
                 >
                     <HiOutlinePencil size={16} />
                 </IconButton>
-            </Box>
-
-            {displayImage && onDelete && (
+                  {displayImage && onDelete && (
                 <Button
                     startIcon={<HiOutlineTrash size={16} />}
                     color="error"
                     size="small"
                     onClick={handleDelete}
                     disabled={isUploading}
-                    sx={{ mt: 1 }}
+                     
+                    sx={{
+                        position: 'absolute',
+                        top:0,
+                        right:0
+                             
+                    }}
                 >
-                    Remove
-                </Button>
+                 </Button>
             )}
+            </Box>
 
-            <Typography variant="caption" color="text.secondary" align="center">
-                {label}
-            </Typography>
+          
+
+           
 
             <input
                 type="file"

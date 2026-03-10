@@ -1,0 +1,150 @@
+{
+  "loading": {
+    "message": "Loading subscription details..."
+  },
+  "header": {
+    "backToSubscriptions": "Back to Subscriptions"
+  },
+  "actions": {
+    "edit": "Edit Subscription",
+    "cancel": "Cancel",
+    "cancelSubscription": "Cancel Subscription",
+    "keepSubscription": "Keep Subscription",
+    "recordCashPayment": "Record Cash Payment",
+    "recordPayment": "Record Payment",
+    "reset": "Reset",
+    "saveFeatureOverrides": "Save Feature Overrides",
+    "saving": "Saving...",
+    "updateSubscription": "Update Subscription",
+    "export": "Export"
+  },
+  "tabs": {
+    "overview": "Overview",
+    "usage": "Usage",
+    "billing": "Billing",
+    "features": "Features"
+  },
+  "overview": {
+    "subscriptionDetails": "Subscription Details",
+    "schoolInformation": "School Information",
+    "paymentInformation": "Payment Information"
+  },
+  "labels": {
+    "plan": "Plan",
+    "status": "Status",
+    "monthlyCost": "Monthly Cost",
+    "billingCycle": "Billing Cycle",
+    "created": "Created",
+    "trialEnds": "Trial Ends",
+    "schoolName": "School Name",
+    "adminName": "Admin Name",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "paymentMethod": "Payment Method",
+    "lastPayment": "Last Payment",
+    "nextBilling": "Next Billing",
+    "totalInvoices": "Total Invoices",
+    "notes": "Notes"
+  },
+  "common": {
+    "na": "N/A",
+    "noPaymentsYet": "No payments yet",
+    "cash": "Cash",
+    "infinity": "∞"
+  },
+  "status": {
+    "active": "Active",
+    "trial": "Trial",
+    "suspended": "Suspended",
+    "cancelled": "Cancelled",
+    "inactive": "Inactive"
+  },
+  "plan": {
+    "starter": "Starter",
+    "professional": "Professional",
+    "enterprise": "Enterprise"
+  },
+  "interval": {
+    "month": "Monthly",
+    "year": "Yearly"
+  },
+  "paymentMethod": {
+    "cash": "Cash",
+    "stripe": "Stripe",
+    "card": "Card",
+    "bank_transfer": "Bank Transfer",
+    "paypal": "PayPal"
+  },
+  "billing": {
+    "title": "Billing History",
+    "table": {
+      "invoiceNumber": "Invoice #",
+      "date": "Date",
+      "amount": "Amount",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "empty": {
+      "title": "No billing history",
+      "description": "This subscription does not have any invoices yet."
+    }
+  },
+  "invoiceStatus": {
+    "paid": "Paid",
+    "open": "Open",
+    "draft": "Draft",
+    "pending": "Pending",
+    "failed": "Failed",
+    "void": "Void",
+    "uncollectible": "Uncollectible",
+    "unpaid": "Unpaid"
+  },
+  "usage": {
+    "resourceUsage": "Resource Usage",
+    "students": "Students",
+    "teachers": "Teachers",
+    "classes": "Classes",
+    "storage": "Storage",
+    "usageTrends": "Usage Trends",
+    "usageTrendsPlaceholder": "Usage trend charts will be available soon."
+  },
+  "features": {
+    "description": "Super admins can override individual features for this subscription.",
+    "sections": {
+      "core": "Core Features",
+      "communication": "Communication",
+      "analyticsReporting": "Analytics & Reporting",
+      "advanced": "Advanced"
+    },
+    "items": {
+      "emailNotifications": "Email Notifications",
+      "dataExport": "Data Export",
+      "parentPortal": "Parent Portal",
+      "advancedAnalytics": "Advanced Analytics",
+      "customReports": "Custom Reports",
+      "apiAccess": "API Access",
+      "prioritySupport": "Priority Support",
+      "customBranding": "Custom Branding"
+    }
+  },
+  "modal": {
+    "edit": {
+      "title": "Edit Subscription",
+      "notesPlaceholder": "Add notes about this subscription change..."
+    },
+    "cancel": {
+      "title": "Cancel Subscription",
+      "confirmTitle": "Are you sure you want to cancel this subscription?",
+      "confirmDescription": "This action will cancel the subscription for {{schoolName}}. The school will lose access to premium features at the end of the billing period."
+    },
+    "payment": {
+      "title": "Record Cash Payment",
+      "amountLabel": "Amount ({{currency}})",
+      "amountPlaceholder": "Enter payment amount",
+      "receiptLabel": "Receipt Number (optional)",
+      "receiptPlaceholder": "e.g. REC-001",
+      "notesPlaceholder": "e.g. Cash payment received at office"
+    }
+  }
+}

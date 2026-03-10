@@ -1,0 +1,68 @@
+{
+  "header": {
+    "title": "Send Attendance Reminders",
+    "subtitle": "Notify teachers who missed recording attendance after their class ended. You can send multiple reminders for the same class."
+  },
+  "sendPanel": {
+    "title": "Send Attendance Reminders",
+    "subtitle": "Notify teachers who missed recording attendance after their class ended.",
+    "timeAfterClassEnded": "Time after class ended",
+    "hourOption": "{{value}} hour"
+  },
+  "actions": {
+    "sending": "Sending...",
+    "sendReminders": "Send Reminders",
+    "refresh": "Refresh",
+    "clear": "Clear"
+  },
+  "result": {
+    "checked": "Checked",
+    "sent": "Sent",
+    "skipped": "Skipped",
+    "failed": "Failed",
+    "checkedBetween": "Checked between"
+  },
+  "history": {
+    "title": "Reminder History"
+  },
+  "filters": {
+    "allStatuses": "All Statuses",
+    "from": "From",
+    "to": "To"
+  },
+  "status": {
+    "sent": "Sent",
+    "failed": "Failed"
+  },
+  "attendance": {
+    "taken": "Taken",
+    "notTaken": "Not Taken"
+  },
+  "table": {
+    "reminderStatus": "Reminder Status",
+    "attendanceStatus": "Attendance Status",
+    "teacher": "Teacher",
+    "class": "Class",
+    "scheduledTime": "Scheduled Time",
+    "attendanceDate": "Attendance Date",
+    "sentAt": "Sent At",
+    "failureReason": "Failure Reason"
+  },
+  "empty": {
+    "noReminders": "No reminders found for the selected filters"
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "summary": "Page {{page}} of {{pages}} ({{total}} total)"
+  },
+  "toast": {
+    "loadFailed": "Failed to load reminder history",
+    "sendFailed": "Failed to send reminders",
+    "sentSummary": "Sent {{sent}} reminders for classes ended at least {{hours}} hours ago"
+  },
+  "common": {
+    "dash": "—",
+    "and": "and"
+  }
+}

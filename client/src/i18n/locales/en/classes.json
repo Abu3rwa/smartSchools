@@ -1,0 +1,72 @@
+{
+  "page": {
+    "title": "Classes",
+    "subtitle": "Manage your school classes and student enrollment"
+  },
+  "actions": {
+    "importCsv": "Import CSV",
+    "addClass": "Add Class",
+    "createClass": "Create Class",
+    "creating": "Creating...",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "activated": "activated",
+    "deactivated": "deactivated"
+  },
+  "filters": {
+    "searchPlaceholder": "Search classes..."
+  },
+  "table": {
+    "columns": {
+      "grade": "Grade",
+      "section": "Section",
+      "className": "Class Name",
+      "department": "Department",
+      "academicYear": "Academic Year",
+      "students": "Students",
+      "subjects": "Subjects",
+      "actions": "Actions"
+    },
+    "mainSection": "Main"
+  },
+  "status": {
+    "inactive": "Inactive"
+  },
+  "empty": {
+    "title": "No classes found",
+    "description": "Create a new class to get started"
+  },
+  "modal": {
+    "createTitle": "Create New Class"
+  },
+  "form": {
+    "gradeLevel": "Grade Level *",
+    "selectGrade": "Select Grade",
+    "gradeOption": "Grade {{grade}}",
+    "section": "Section",
+    "sectionPlaceholder": "e.g., A, B, C",
+    "department": "Department",
+    "noDepartment": "— No department —",
+    "room": "Room",
+    "roomPlaceholder": "e.g., Room 101",
+    "capacity": "Capacity"
+  },
+  "confirm": {
+    "toggleActive": "Are you sure you want to {{action}} {{className}}?",
+    "delete": "Delete {{className}}? This will deactivate the class and hide it from active workflows."
+  },
+  "toast": {
+    "created": "Class created successfully!",
+    "createFailed": "Failed to create class",
+    "toggled": "Class {{state}} successfully",
+    "toggleFailed": "Failed to update class status",
+    "deleted": "Class deleted successfully",
+    "deleteFailed": "Failed to delete class",
+    "selectCsv": "Please select a CSV file",
+    "noValidRows": "No valid rows found in CSV",
+    "imported": "Imported {{count}} classes",
+    "importFailedRows": "{{count}} class rows failed",
+    "importSkippedRows": "{{count}} class rows skipped",
+    "importFailed": "Failed to import classes"
+  }
+}

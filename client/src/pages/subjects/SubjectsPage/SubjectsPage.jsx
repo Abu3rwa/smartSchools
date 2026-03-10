@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     fetchSubjects,
     selectSubjects,
@@ -25,6 +26,7 @@ import './SubjectsPage.css';
 
 const SubjectsPage = () => {
     const dispatch = useDispatch();
+    const { t } = useTranslation(['subjects']);
     const subjects = useSelector(selectSubjects);
     const loading = useSelector(selectSubjectsLoading);
     const error = useSelector(selectSubjectsError);
@@ -72,10 +74,10 @@ const SubjectsPage = () => {
             }
 
             if (createSubject.fulfilled.match(result) || updateSubject.fulfilled.match(result)) {
-                toast.success(`Subject ${editingId ? 'updated' : 'created'} successfully!`);
+                toast.success(editingId ? t('subjects:toast.updated') : t('subjects:toast.created'));
                 handleCloseModal();
             } else {
-                toast.error(result.payload || `Failed to ${editingId ? 'update' : 'create'} subject`);
+                toast.error(result.payload || (editingId ? t('subjects:toast.updateFailed') : t('subjects:toast.createFailed')));
             }
         } finally {
             setSubmitting(false);
@@ -89,13 +91,13 @@ const SubjectsPage = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this subject?')) return;
+        if (!window.confirm(t('subjects:confirm.delete'))) return;
 
         const result = await dispatch(deleteSubject(id));
         if (deleteSubject.fulfilled.match(result)) {
-            toast.success('Subject deleted successfully');
+            toast.success(t('subjects:toast.deleted'));
         } else {
-            toast.error(result.payload || 'Failed to delete subject');
+            toast.error(result.payload || t('subjects:toast.deleteFailed'));
         }
     };
 
@@ -115,7 +117,7 @@ const SubjectsPage = () => {
         if (!file) return;
 
         if (!file.name.toLowerCase().endsWith('.csv')) {
-            toast.error('Please select a CSV file');
+            toast.error(t('subjects:toast.selectCsv'));
             return;
         }
 
@@ -125,7 +127,7 @@ const SubjectsPage = () => {
             return;
         }
         if (rows.length === 0) {
-            toast.error('No valid rows found in CSV');
+            toast.error(t('subjects:toast.noValidRows'));
             return;
         }
 
@@ -134,15 +136,15 @@ const SubjectsPage = () => {
             const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
             const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
             const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
-            toast.success(response?.message || `Imported ${imported} subjects`);
+            toast.success(response?.message || t('subjects:toast.imported', { count: imported }));
             if (failed > 0) {
-                toast.error(`${failed} subject rows failed`);
+                toast.error(t('subjects:toast.importFailedRows', { count: failed }));
             } else if (skipped > 0) {
-                toast(`${skipped} subject rows skipped`);
+                toast(t('subjects:toast.importSkippedRows', { count: skipped }));
             }
             dispatch(fetchSubjects());
         } catch (importError) {
-            toast.error(importError?.response?.data?.message || 'Failed to import subjects');
+            toast.error(importError?.response?.data?.message || t('subjects:toast.importFailed'));
         }
     };
 

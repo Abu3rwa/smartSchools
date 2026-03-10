@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { AI_LANGUAGE_OPTIONS as SHARED_AI_LANGUAGE_OPTIONS } from '../../../constants/aiLanguages';
 
 export const MONTHS = [
     { value: 1, label: 'January' },
@@ -23,7 +24,7 @@ export const CATEGORY_FILTER_OPTIONS = [
     'Project'
 ];
 
-export const AI_LANGUAGE_OPTIONS = ['english', 'arabic', 'bilingual'];
+export const AI_LANGUAGE_OPTIONS = SHARED_AI_LANGUAGE_OPTIONS;
 
 export const AI_RECIPIENT_OPTIONS = ['mother', 'father', 'student', 'teacher'];
 

@@ -11,6 +11,11 @@ import gmailOAuthService from './gmailOAuthService.js';
 import { downloadFile } from './firebaseStorageService.js';
 import { connectAi } from '../utils/connectAi.js';
 import {
+    getLanguageLabel,
+    resolveRequestedLanguages,
+    toLegacyLanguageValue
+} from '../utils/aiLanguageUtils.js';
+import {
     buildCommunicationAccess,
     hasAnyCommunicationAudience,
     serializeCommunicationAccess
@@ -82,6 +87,22 @@ const toDraftTone = (value = '') => {
         return normalized;
     }
     return 'professional';
+};
+
+const buildAiDraftLanguageInstruction = (requestedLanguages = ['en']) => {
+    const normalized = Array.isArray(requestedLanguages)
+        ? requestedLanguages.filter(Boolean).slice(0, 2)
+        : ['en'];
+    const primary = normalized[0] || 'en';
+    const primaryLabel = getLanguageLabel(primary);
+
+    if (normalized.length > 1) {
+        const secondary = normalized[1];
+        const secondaryLabel = getLanguageLabel(secondary);
+        return `Write bilingual content in two clear blocks: first ${primaryLabel} (${primary}), then ${secondaryLabel} (${secondary}). Keep each block complete and avoid mixing languages within the same paragraph.`;
+    }
+
+    return `Write the entire content in ${primaryLabel} (${primary}) only.`;
 };
 
 export const parseScheduledDeliveryInput = ({
@@ -1095,6 +1116,10 @@ export const generateCommunicationEmailDraft = async ({
     userId,
     prompt,
     tone = 'professional',
+    requestedLanguages = [],
+    primaryLanguage,
+    secondaryLanguage,
+    language,
     selection = {},
     senderDisplayName = '',
     aiConnector = connectAi,
@@ -1109,6 +1134,13 @@ export const generateCommunicationEmailDraft = async ({
     }
 
     const resolvedTone = toDraftTone(tone);
+    const normalizedRequestedLanguages = resolveRequestedLanguages({
+        requestedLanguages,
+        primaryLanguage,
+        secondaryLanguage,
+        language,
+        max: 2
+    });
     const parentLabels = extractTokenLabels(selection?.toParents || [], 6);
     const teacherLabels = extractTokenLabels(selection?.toTeachers || [], 6);
     const studentLabels = extractTokenLabels(selection?.toStudents || [], 6);
@@ -1120,6 +1152,7 @@ export const generateCommunicationEmailDraft = async ({
         concise: 'concise and direct',
         friendly: 'friendly and approachable'
     }[resolvedTone] || 'professional, clear, and respectful';
+    const languageInstruction = buildAiDraftLanguageInstruction(normalizedRequestedLanguages);
 
     const aiPrompt = `
 You are assisting school staff to draft an internal school communication email body.
@@ -1128,6 +1161,7 @@ Write ONLY the email body in clean HTML. Do not include <html> or <body> tags.
 Allowed structure: paragraphs, bullet lists, numbered lists, links where appropriate.
 Keep content practical and parent/school appropriate.
 Tone: ${toneInstruction}.
+LANGUAGE REQUIREMENT: ${languageInstruction}
 
 Audience context:
 - Parents tokens: ${parentLabels.length ? parentLabels.join(' | ') : 'none'}
@@ -1164,12 +1198,15 @@ ${promptText}
             school: schoolId,
             user: userId,
             reportType: 'custom',
+            language: toLegacyLanguageValue(normalizedRequestedLanguages),
+            requestedLanguages: normalizedRequestedLanguages,
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
             totalTokens: usage.totalTokens,
             schoolId: String(schoolId),
             metadata: {
                 tone: resolvedTone,
+                requestedLanguages: normalizedRequestedLanguages,
                 promptLength: promptText.length,
                 selectionCounts: {
                     parents: parentLabels.length,
@@ -1193,6 +1230,7 @@ ${promptText}
     return {
         bodyHtml,
         bodyText,
+        requestedLanguages: normalizedRequestedLanguages,
         usage
     };
 };

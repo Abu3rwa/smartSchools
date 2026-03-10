@@ -1,8 +1,8 @@
 .header {
     position: fixed;
     top: 0;
-    right: 0;
-    left: var(--sidebar-width);
+    inset-inline-end: 0;
+    inset-inline-start: var(--sidebar-width);
     height: var(--header-height);
     display: flex;
     align-items: center;
@@ -13,11 +13,11 @@
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-color);
     z-index: 50;
-    transition: left var(--transition-normal);
+    transition: inset-inline-start var(--transition-normal);
 }
 
 .sidebar-collapsed .header {
-    left: var(--sidebar-collapsed);
+    inset-inline-start: var(--sidebar-collapsed);
 }
 
 .header-left {
@@ -40,14 +40,14 @@
 
 .search-icon {
     position: absolute;
-    left: var(--spacing-md);
+    inset-inline-start: var(--spacing-md);
     top: 50%;
     transform: translateY(-50%);
     color: var(--text-muted);
 }
 
 .search-input {
-    padding-left: 2.75rem;
+    padding-inline-start: 2.75rem;
     background: var(--bg-tertiary);
     border: 1px solid transparent;
 }
@@ -85,7 +85,7 @@
 .notification-badge {
     position: absolute;
     top: -4px;
-    right: -4px;
+    inset-inline-end: -4px;
     min-width: 18px;
     height: 18px;
     display: flex;
@@ -144,7 +144,7 @@
 }
 
 .academic-year {
-    margin-right: var(--spacing-sm);
+    margin-inline-end: var(--spacing-sm);
 }
 
 /* Mobile: Header adjustments */
@@ -160,5 +160,5 @@
 }
 
 .hamburger-btn {
-    margin-right: var(--spacing-sm);
+    margin-inline-end: var(--spacing-sm);
 }

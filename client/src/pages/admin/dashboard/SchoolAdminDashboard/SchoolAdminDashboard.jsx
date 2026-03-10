@@ -1,5 +1,6 @@
 import { Box, Grid, Typography } from '@mui/material';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     HiOutlineArrowRight,
     HiOutlineCheckCircle,
@@ -24,6 +25,9 @@ import './SchoolAdminDashboard.css';
  * and presentational components. Preserves routes, API calls, Redux, and UI behavior.
  */
 export default function SchoolAdminDashboard() {
+    const { t, i18n } = useTranslation(['adminDashboard', 'common']);
+    const isRtl = i18n.dir() === 'rtl';
+
     const {
         user,
         todayLabel,
@@ -56,8 +60,8 @@ export default function SchoolAdminDashboard() {
             }}
         >
             <AdminDashboardHeader
-                title="School Dashboard"
-                subtitle={`Welcome back, ${user?.firstName}. Here's your school overview for ${todayLabel}.`}
+                title={t('adminDashboard:header.title')}
+                subtitle={t('adminDashboard:header.subtitle', { firstName: user?.firstName || '', todayLabel })}
             />
 
             <AdminStatsGrid stats={stats} />
@@ -83,10 +87,10 @@ export default function SchoolAdminDashboard() {
                         <Box sx={CARD_SX}>
                             <Box sx={CARD_HEADER_SX}>
                                 <Typography component="h3" sx={CARD_TITLE_SX}>
-                                    Today's Attendance
+                                    {t('adminDashboard:attendanceCard.title')}
                                 </Typography>
                                 <Link to="/portal/attendance/admin" className="btn-link">
-                                    View Details <HiOutlineArrowRight size={16} />
+                                    {t('adminDashboard:common.viewDetails')} <HiOutlineArrowRight size={16} style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />
                                 </Link>
                             </Box>
                             <div className="admin-attendance-summary">
@@ -94,21 +98,21 @@ export default function SchoolAdminDashboard() {
                                     <HiOutlineCheckCircle className="summary-icon success" size={20} />
                                     <div>
                                         <div className="summary-value">{attendanceSummary.totalPresent}</div>
-                                        <div className="summary-label">Present</div>
+                                        <div className="summary-label">{t('adminDashboard:attendanceCard.present')}</div>
                                     </div>
                                 </div>
                                 <div className="admin-summary-item">
                                     <HiOutlineClock className="summary-icon warning" size={20} />
                                     <div>
                                         <div className="summary-value">{attendanceSummary.totalAbsent}</div>
-                                        <div className="summary-label">Absent</div>
+                                        <div className="summary-label">{t('adminDashboard:attendanceCard.absent')}</div>
                                     </div>
                                 </div>
                                 <div className="admin-summary-item">
                                     <HiOutlineAcademicCap className="summary-icon primary" size={20} />
                                     <div>
                                         <div className="summary-value">{attendanceSummary.totalClasses}</div>
-                                        <div className="summary-label">Classes</div>
+                                        <div className="summary-label">{t('adminDashboard:attendanceCard.classes')}</div>
                                     </div>
                                 </div>
                             </div>

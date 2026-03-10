@@ -1,0 +1,51 @@
+{
+  "header": {
+    "title": "Sub Requests List",
+    "subtitle": "View and manage substitution requests."
+  },
+  "actions": {
+    "createSubRequest": "Create Sub Request",
+    "applyFilters": "Apply Filters"
+  },
+  "filters": {
+    "status": {
+      "label": "Status",
+      "all": "All Statuses"
+    },
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "absentTeacher": "Absent Teacher",
+    "substituteTeacher": "Substitute Teacher",
+    "all": "All"
+  },
+  "status": {
+    "submitted": "Submitted",
+    "confirmed": "Confirmed",
+    "declined": "Declined",
+    "cancelled": "Cancelled",
+    "expired": "Expired"
+  },
+  "table": {
+    "date": "Date",
+    "absentTeacher": "Absent Teacher",
+    "coverageType": "Coverage Type",
+    "status": "Status",
+    "createdBy": "Created By",
+    "updated": "Updated",
+    "actions": "Actions"
+  },
+  "coverage": {
+    "single": "Single teacher",
+    "perPeriod": "Per period"
+  },
+  "empty": {
+    "filtered": "No substitution requests match your filters.",
+    "unfiltered": "No substitution requests found."
+  },
+  "error": {
+    "loadFailed": "Failed to load substitution requests"
+  },
+  "common": {
+    "unknown": "Unknown"
+  }
+}

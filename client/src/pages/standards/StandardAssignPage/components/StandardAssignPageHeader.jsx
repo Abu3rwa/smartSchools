@@ -1,17 +1,20 @@
 import { HiOutlinePlus } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const StandardAssignPageHeader = ({ onCreate }) => {
+    const { t } = useTranslation(['standardAssign']);
+
     return (
         <div className="page-header">
             <div>
-                <h1>Assign Standards</h1>
+                <h1>{t('standardAssign:header.title')}</h1>
                 <p className="text-muted">
-                    Assign standards to classes and track student mastery
+                    {t('standardAssign:header.subtitle')}
                 </p>
             </div>
             <button className="btn btn-primary" onClick={onCreate}>
                 <HiOutlinePlus size={20} />
-                New Assignment
+                {t('standardAssign:actions.newAssignment')}
             </button>
         </div>
     );

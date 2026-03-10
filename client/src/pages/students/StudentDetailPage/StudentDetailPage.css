@@ -8,7 +8,7 @@
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-sm);
     animation: fadeIn 0.35s ease;
 }
 
@@ -42,7 +42,11 @@
     gap: var(--spacing-lg);
     min-width: 0;
 }
-
+.student-profile-content{
+    /* display: flex;
+    gap: var(--spacing-xs);
+    justify-content: space-around; */
+}
 .student-profile-content h1 {
     font-size: clamp(1.45rem, 2.3vw, 2rem);
     margin-bottom: var(--spacing-xs);
@@ -92,16 +96,21 @@
 }
 
 .header-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(170px, 1fr));
-    gap: var(--spacing-sm);
-    width: min(520px, 100%);
+       display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    flex-direction: row;
+    width: 100%;
+      
 }
 
 .header-actions .btn {
-    width: 100%;
+    width: fit-content;
     justify-content: flex-start;
     min-height: 42px;
+    font-weight: bold
+    ;
+    
 }
 
 .student-insights-section {

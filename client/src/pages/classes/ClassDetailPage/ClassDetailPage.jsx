@@ -23,6 +23,7 @@ import { selectIsAdmin, selectCanEditClass } from '../../../store/slices/authSli
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardList, HiOutlinePlus, HiOutlineDocumentText, HiOutlineChartBar, HiOutlineLightBulb, HiOutlinePencil } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
 import './ClassDetailPage.css';
 
 const ClassDetailPage = () => {
@@ -45,6 +46,8 @@ const ClassDetailPage = () => {
     const [selectedTeacher, setSelectedTeacher] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [showAnalytics, setShowAnalytics] = useState(false);
+    const [insightsPrimaryLanguage, setInsightsPrimaryLanguage] = useState('en');
+    const [insightsSecondaryLanguage, setInsightsSecondaryLanguage] = useState('');
 
     const analytics = useSelector(selectClassAnalytics);
     const insightsData = useSelector(selectClassInsights);
@@ -101,7 +104,17 @@ const ClassDetailPage = () => {
     };
 
     const handleGenerateInsights = () => {
-        dispatch(fetchClassInsights({ classId: id, academicYear: currentClass?.academicYear, includeAnalytics: true })).then((result) => {
+        const requestedLanguages = buildRequestedLanguages(insightsPrimaryLanguage, insightsSecondaryLanguage);
+        const normalizedRequestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];
+        dispatch(fetchClassInsights({
+            classId: id,
+            academicYear: currentClass?.academicYear,
+            includeAnalytics: true,
+            requestedLanguages: normalizedRequestedLanguages,
+            primaryLanguage: insightsPrimaryLanguage,
+            secondaryLanguage: insightsSecondaryLanguage,
+            language: toLegacyLanguageValue(normalizedRequestedLanguages)
+        })).then((result) => {
             if (fetchClassInsights.rejected.match(result)) toast.error(result.payload || 'Failed to generate insights');
             else toast.success('Insights generated');
         });
@@ -303,9 +316,38 @@ const ClassDetailPage = () => {
                             {analyticsLoading ? 'Loading...' : 'Load analytics'}
                         </button>
                     ) : (
-                        <button type="button" className="btn btn-primary" onClick={handleGenerateInsights} disabled={insightsLoading}>
-                            <HiOutlineLightBulb /> {insightsLoading ? 'Generating...' : 'Generate AI insights'}
-                        </button>
+                        <div className="insights-action-group">
+                            <select
+                                value={insightsPrimaryLanguage}
+                                onChange={(event) => {
+                                    const nextPrimary = event.target.value;
+                                    setInsightsPrimaryLanguage(nextPrimary);
+                                    if (nextPrimary === insightsSecondaryLanguage) {
+                                        setInsightsSecondaryLanguage('');
+                                    }
+                                }}
+                                disabled={insightsLoading}
+                            >
+                                {AI_LANGUAGE_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={insightsSecondaryLanguage}
+                                onChange={(event) => setInsightsSecondaryLanguage(event.target.value)}
+                                disabled={insightsLoading}
+                            >
+                                <option value="">None</option>
+                                {AI_LANGUAGE_OPTIONS
+                                    .filter((option) => option.value !== insightsPrimaryLanguage)
+                                    .map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                            </select>
+                            <button type="button" className="btn btn-primary" onClick={handleGenerateInsights} disabled={insightsLoading}>
+                                <HiOutlineLightBulb /> {insightsLoading ? 'Generating...' : 'Generate AI insights'}
+                            </button>
+                        </div>
                     )}
                 </div>
                 {showAnalytics && (

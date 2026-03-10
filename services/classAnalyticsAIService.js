@@ -4,6 +4,7 @@
  */
 
 import { connectAi } from '../utils/connectAi.js';
+import { getLanguageLabel, resolveRequestedLanguages } from '../utils/aiLanguageUtils.js';
 
 /**
  * Build a plain-text summary of the analytics payload for the prompt.
@@ -45,6 +46,23 @@ function buildSummaryForPrompt(payload) {
  * @returns {Promise<{ text: string, tokenUsage: { input, output, total } }>}
  */
 export async function generateInsights(analyticsPayload, options = {}) {
+    const normalizedRequestedLanguages = resolveRequestedLanguages({
+        requestedLanguages: options?.requestedLanguages,
+        primaryLanguage: options?.primaryLanguage,
+        secondaryLanguage: options?.secondaryLanguage,
+        language: options?.language,
+        max: 2
+    });
+    const primaryLanguage = normalizedRequestedLanguages[0] || 'en';
+    const primaryLabel = getLanguageLabel(primaryLanguage);
+    const languageRule = normalizedRequestedLanguages.length > 1
+        ? (() => {
+            const secondaryLanguage = normalizedRequestedLanguages[1];
+            const secondaryLabel = getLanguageLabel(secondaryLanguage);
+            return `Provide bilingual bullet points in two clear blocks: first ${primaryLabel} (${primaryLanguage}), then ${secondaryLabel} (${secondaryLanguage}).`;
+        })()
+        : `Write all bullet points in ${primaryLabel} (${primaryLanguage}) only.`;
+
     const summary = buildSummaryForPrompt(analyticsPayload);
     const prompt = `You are an experienced K-12 teacher and instructional coach. Based on the following class analytics summary, write 3 to 5 short, actionable bullet-point insights for the class teacher. Focus on: strengths, areas to improve, and concrete suggestions (e.g. which students to support, which subjects need attention). Be concise and professional.
 
@@ -54,7 +72,8 @@ ${summary}
 RULES:
 - Output only plain text bullet points (one per line). No markdown, no asterisks, no numbering.
 - Each bullet should be one short sentence.
-- Do not mention "AI" or "artificial intelligence".`;
+- Do not mention "AI" or "artificial intelligence".
+- LANGUAGE REQUIREMENT: ${languageRule}`;
 
     const response = await connectAi(prompt);
     const text = (response.text || '').trim();
@@ -63,5 +82,5 @@ RULES:
         output: response.outputtokenCount || 0,
         total: response.totalTokenCount || 0
     };
-    return { text, tokenUsage };
+    return { text, tokenUsage, requestedLanguages: normalizedRequestedLanguages };
 }

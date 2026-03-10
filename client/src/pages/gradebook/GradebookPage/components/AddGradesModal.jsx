@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { HiOutlineX } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import { CATEGORY_FILTER_OPTIONS } from '../constants';
 
 const AddGradesModal = ({
@@ -11,6 +12,7 @@ const AddGradesModal = ({
     onClose,
     onSubmit
 }) => {
+    const { t } = useTranslation(['gradebook']);
     if (!open) {
         return null;
     }
@@ -19,7 +21,7 @@ const AddGradesModal = ({
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal modal-lg" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>Add Grades</h3>
+                    <h3>{t('gradebook:addModal.title')}</h3>
                     <button className="modal-close" onClick={onClose}>
                         <HiOutlineX />
                     </button>
@@ -29,7 +31,7 @@ const AddGradesModal = ({
                     <div className="modal-body">
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Date *</label>
+                                <label>{t('gradebook:addModal.date')}</label>
                                 <input
                                     type="date"
                                     value={formData.date}
@@ -40,22 +42,24 @@ const AddGradesModal = ({
                             </div>
 
                             <div className="form-group">
-                                <label>Category *</label>
+                                <label>{t('gradebook:addModal.category')}</label>
                                 <select
                                     value={formData.category}
                                     onChange={(event) => setFormData({ ...formData, category: event.target.value })}
                                     required
                                 >
                                     {CATEGORY_FILTER_OPTIONS.map((category) => (
-                                        <option key={category} value={category}>{category}</option>
+                                        <option key={category} value={category}>
+                                            {t(`gradebook:categories.${category}`, { defaultValue: category })}
+                                        </option>
                                     ))}
-                                    <option value="Custom">Custom...</option>
+                                    <option value="Custom">{t('gradebook:addModal.customCategory')}</option>
                                 </select>
 
                                 {formData.category === 'Custom' && (
                                     <input
                                         type="text"
-                                        placeholder="Enter category name"
+                                        placeholder={t('gradebook:addModal.customCategoryPlaceholder')}
                                         value={formData.customCategory}
                                         onChange={(event) => setFormData({ ...formData, customCategory: event.target.value })}
                                         className="mt-sm"
@@ -65,7 +69,7 @@ const AddGradesModal = ({
                             </div>
 
                             <div className="form-group">
-                                <label>Max Marks</label>
+                                <label>{t('gradebook:addModal.maxMarks')}</label>
                                 <input
                                     type="number"
                                     value={formData.maxMarks}
@@ -79,12 +83,12 @@ const AddGradesModal = ({
                         </div>
 
                         <div className="form-group">
-                            <label>Title (Optional)</label>
+                            <label>{t('gradebook:addModal.titleOptional')}</label>
                             <input
                                 type="text"
                                 value={formData.title}
                                 onChange={(event) => setFormData({ ...formData, title: event.target.value })}
-                                placeholder="e.g., Chapter 5 Quiz"
+                                placeholder={t('gradebook:addModal.titlePlaceholder')}
                             />
                         </div>
 
@@ -93,9 +97,9 @@ const AddGradesModal = ({
                                 <thead>
                                     <tr>
                                         <th>#</th>
-                                        <th>Student</th>
-                                        <th>Marks (/{formData.maxMarks})</th>
-                                        <th>Notes</th>
+                                        <th>{t('gradebook:addModal.columns.student')}</th>
+                                        <th>{t('gradebook:addModal.columns.marks', { maxMarks: formData.maxMarks })}</th>
+                                        <th>{t('gradebook:addModal.columns.notes')}</th>
                                     </tr>
                                 </thead>
 
@@ -122,7 +126,7 @@ const AddGradesModal = ({
                                                     min={0}
                                                     max={formData.maxMarks}
                                                     step={0.5}
-                                                    placeholder="-"
+                                                    placeholder={t('gradebook:common.emptySymbol')}
                                                 />
                                             </td>
 
@@ -132,7 +136,7 @@ const AddGradesModal = ({
                                                     className="notes-input"
                                                     value={formData.studentGrades[student._id]?.notes || ''}
                                                     onChange={(event) => onGradeChange(student._id, 'notes', event.target.value)}
-                                                    placeholder="Add note..."
+                                                    placeholder={t('gradebook:addModal.notePlaceholder')}
                                                 />
                                             </td>
                                         </tr>
@@ -144,10 +148,10 @@ const AddGradesModal = ({
 
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>
-                            Cancel
+                            {t('gradebook:common.cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary">
-                            Save Grades
+                            {t('gradebook:addModal.save')}
                         </button>
                     </div>
                 </form>

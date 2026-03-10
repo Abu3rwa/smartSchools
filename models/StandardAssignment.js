@@ -123,6 +123,11 @@ const standardAssignmentSchema = new mongoose.Schema({
             max: 100,
             default: 10
         },
+        aiLanguages: [{
+            type: String,
+            trim: true,
+            lowercase: true
+        }],
         status: {
             type: String,
             enum: ['draft', 'reviewed', 'approved', 'published'],
@@ -184,6 +189,17 @@ standardAssignmentSchema.index({ school: 1, class: 1, subject: 1, standard: 1, '
 
 // Apply tenant isolation plugin
 standardAssignmentSchema.plugin(tenantIsolationPlugin);
+
+standardAssignmentSchema.pre('save', function ensureQuestionWorkflowAiLanguages(next) {
+    if (!this.questionWorkflow) this.questionWorkflow = {};
+    const list = Array.isArray(this.questionWorkflow.aiLanguages)
+        ? this.questionWorkflow.aiLanguages
+            .map((item) => String(item || '').trim().toLowerCase())
+            .filter(Boolean)
+        : [];
+    this.questionWorkflow.aiLanguages = list.length > 0 ? Array.from(new Set(list)).slice(0, 2) : ['en'];
+    next();
+});
 
 const StandardAssignment = mongoose.model('StandardAssignment', standardAssignmentSchema);
 export default StandardAssignment;

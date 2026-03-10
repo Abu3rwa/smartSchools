@@ -3,6 +3,7 @@ import {
     HiOutlineCheckCircle,
     HiOutlineSave
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const GradeEntryTable = ({
     classStudents,
@@ -15,11 +16,15 @@ const GradeEntryTable = ({
     submitting,
     onSubmit
 }) => {
+    const { t } = useTranslation(['grades']);
+
     return (
         <form onSubmit={onSubmit}>
             <div className="card">
                 <div className="card-header">
-                    <h3 className="card-title">Enter Grades ({classStudents.length} students)</h3>
+                    <h3 className="card-title">
+                        {t('grades:entry.table.title', { count: classStudents.length })}
+                    </h3>
                     <div className="header-actions">
                         <label className="checkbox-label">
                             <input
@@ -28,7 +33,7 @@ const GradeEntryTable = ({
                                 onChange={(event) => onSendNotificationsChange(event.target.checked)}
                             />
                             <HiOutlineBell />
-                            Send parent notifications
+                            {t('grades:entry.table.sendParentNotifications')}
                         </label>
                     </div>
                 </div>
@@ -38,11 +43,11 @@ const GradeEntryTable = ({
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>Student</th>
+                                <th>{t('grades:entry.table.columns.student')}</th>
                                 <th>ID</th>
-                                <th>Marks (/{maxMarks})</th>
-                                <th>Remarks</th>
-                                <th>Status</th>
+                                <th>{t('grades:entry.table.columns.marks', { maxMarks })}</th>
+                                <th>{t('grades:entry.table.columns.remarks')}</th>
+                                <th>{t('grades:entry.table.columns.status')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -77,7 +82,7 @@ const GradeEntryTable = ({
                                             className="remarks-input"
                                             value={grades[student._id]?.remarks || ''}
                                             onChange={(event) => onGradeChange(student._id, 'remarks', event.target.value)}
-                                            placeholder="Optional"
+                                            placeholder={t('grades:entry.table.optional')}
                                         />
                                     </td>
                                     <td>
@@ -93,18 +98,18 @@ const GradeEntryTable = ({
 
                 <div className="card-footer">
                     <div className="entry-summary">
-                        <span>{enteredCount} of {classStudents.length} grades entered</span>
+                        <span>{t('grades:entry.table.summary', { entered: enteredCount, total: classStudents.length })}</span>
                     </div>
                     <button type="submit" className="btn btn-primary btn-lg" disabled={submitting}>
                         {submitting ? (
                             <>
                                 <span className="spinner" style={{ width: 20, height: 20 }}></span>
-                                Saving...
+                                {t('grades:common.saving')}
                             </>
                         ) : (
                             <>
                                 <HiOutlineSave size={20} />
-                                Save Grades
+                                {t('grades:entry.table.save')}
                             </>
                         )}
                     </button>

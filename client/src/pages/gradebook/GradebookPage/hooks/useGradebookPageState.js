@@ -19,7 +19,8 @@ const useGradebookPageState = (students = []) => {
     const [generatingAI, setGeneratingAI] = useState(false);
     const [isEditingReport, setIsEditingReport] = useState(false);
     const [editedReportContent, setEditedReportContent] = useState('');
-    const [aiLanguage, setAiLanguage] = useState('english');
+    const [aiPrimaryLanguage, setAiPrimaryLanguage] = useState('en');
+    const [aiSecondaryLanguage, setAiSecondaryLanguage] = useState('');
     const [aiRecipients, setAiRecipients] = useState(createDefaultAIRecipients);
     const [aiSendEmail, setAiSendEmail] = useState(false);
 
@@ -28,7 +29,8 @@ const useGradebookPageState = (students = []) => {
     const resetForm = () => {
         setFormData(createDefaultGradeForm(students));
         setAiReportContent('');
-        setAiLanguage('english');
+        setAiPrimaryLanguage('en');
+        setAiSecondaryLanguage('');
         setAiRecipients(createDefaultAIRecipients());
         setAiSendEmail(false);
     };
@@ -60,8 +62,10 @@ const useGradebookPageState = (students = []) => {
         setIsEditingReport,
         editedReportContent,
         setEditedReportContent,
-        aiLanguage,
-        setAiLanguage,
+        aiPrimaryLanguage,
+        setAiPrimaryLanguage,
+        aiSecondaryLanguage,
+        setAiSecondaryLanguage,
         aiRecipients,
         setAiRecipients,
         aiSendEmail,

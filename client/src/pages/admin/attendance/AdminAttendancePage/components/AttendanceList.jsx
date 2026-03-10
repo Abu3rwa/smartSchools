@@ -7,29 +7,32 @@ import {
     HiOutlineEye,
     HiOutlineUsers
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const AttendanceList = ({
     attendanceData,
     clearFilters,
+    formatDate,
     formatDateTime,
     formatTime,
     hasActiveFilters,
     onViewDetails
 }) => {
+    const { t } = useTranslation(['adminAttendance', 'common']);
     if (attendanceData.length === 0) {
         return (
             <div className="attendance-list">
                 <div className="empty-state">
                     <HiOutlineCalendar size={48} />
-                    <h3>No attendance records found</h3>
+                    <h3>{t('adminAttendance:list.emptyTitle')}</h3>
                     <p>
                         {hasActiveFilters
-                            ? 'No attendance data matches the current filters for this period.'
-                            : 'No attendance data is available for the selected period.'}
+                            ? t('adminAttendance:list.emptyFiltered')
+                            : t('adminAttendance:list.emptyUnfiltered')}
                     </p>
                     {hasActiveFilters && (
                         <button type="button" className="btn btn-secondary" onClick={clearFilters}>
-                            Clear Filters
+                            {t('adminAttendance:actions.clearFilters')}
                         </button>
                     )}
                 </div>
@@ -47,28 +50,28 @@ const AttendanceList = ({
                             <div className="class-details">
                                 <span className="teacher-name">
                                     <HiOutlineUsers size={14} />
-                                    {record.schedule.teacher
-                                        ? `${record.schedule.teacher.firstName || ''} ${record.schedule.teacher.lastName || ''}`.trim()
-                                        : '—'}
+                                        {record.schedule.teacher
+                                            ? `${record.schedule.teacher.firstName || ''} ${record.schedule.teacher.lastName || ''}`.trim()
+                                            : t('adminAttendance:common.dash')}
                                 </span>
                                 <span className="class-name">
                                     <HiOutlineAcademicCap size={14} />
-                                    {record.schedule.class?.name ?? '—'}
+                                    {record.schedule.class?.name ?? t('adminAttendance:common.dash')}
                                 </span>
-                                <span className="subject">{record.schedule.subject?.name ?? '—'}</span>
-                                <span className="room">{record.schedule.room ?? '—'}</span>
+                                <span className="subject">{record.schedule.subject?.name ?? t('adminAttendance:common.dash')}</span>
+                                <span className="room">{record.schedule.room ?? t('adminAttendance:common.dash')}</span>
                             </div>
                         </div>
                         <div className="attendance-status">
                             {record.attendanceRecorded ? (
                                 <div className="status-recorded">
                                     <HiOutlineCheckCircle size={20} color="green" />
-                                    <span>Recorded</span>
+                                    <span>{t('adminAttendance:status.recorded')}</span>
                                 </div>
                             ) : (
                                 <div className="status-pending">
                                     <HiOutlineExclamation size={20} color="orange" />
-                                    <span>Pending</span>
+                                    <span>{t('adminAttendance:status.pending')}</span>
                                 </div>
                             )}
                         </div>
@@ -84,29 +87,29 @@ const AttendanceList = ({
                             </div>
                             <div className="date-item">
                                 <HiOutlineCalendar size={16} />
-                                <span>{new Date(record.schedule.startTime).toLocaleDateString()}</span>
+                                <span>{formatDate(record.schedule.startTime)}</span>
                             </div>
                         </div>
 
                         <div className="attendance-stats">
                             <div className="stat-item">
-                                <span className="stat-label">Total:</span>
+                                <span className="stat-label">{t('adminAttendance:list.total')}</span>
                                 <span className="stat-value">{record.totalStudents}</span>
                             </div>
                             <div className="stat-item present">
-                                <span className="stat-label">Present:</span>
+                                <span className="stat-label">{t('adminAttendance:list.present')}</span>
                                 <span className="stat-value">{record.present}</span>
                             </div>
                             <div className="stat-item absent">
-                                <span className="stat-label">Absent:</span>
+                                <span className="stat-label">{t('adminAttendance:list.absent')}</span>
                                 <span className="stat-value">{record.absent}</span>
                             </div>
                             <div className="stat-item late">
-                                <span className="stat-label">Late:</span>
+                                <span className="stat-label">{t('adminAttendance:list.late')}</span>
                                 <span className="stat-value">{record.late}</span>
                             </div>
                             <div className="stat-item rate">
-                                <span className="stat-label">Rate:</span>
+                                <span className="stat-label">{t('adminAttendance:list.rate')}</span>
                                 <span className="stat-value">{record.attendanceRate}%</span>
                             </div>
                         </div>
@@ -116,7 +119,7 @@ const AttendanceList = ({
                         {record.attendanceRecorded && record.recordedBy && (
                             <div className="recorded-info">
                                 <span>
-                                    Recorded by {record.recordedBy.firstName} {record.recordedBy.lastName}
+                                    {t('adminAttendance:list.recordedBy', { firstName: record.recordedBy.firstName, lastName: record.recordedBy.lastName })}
                                 </span>
                                 <span>{formatDateTime(record.recordedAt)}</span>
                             </div>
@@ -126,7 +129,7 @@ const AttendanceList = ({
                     <div className="attendance-actions">
                         <button className="action-btn" onClick={() => onViewDetails(record)}>
                             <HiOutlineEye size={16} />
-                            View Details
+                            {t('adminAttendance:actions.viewDetails')}
                         </button>
                     </div>
                 </div>

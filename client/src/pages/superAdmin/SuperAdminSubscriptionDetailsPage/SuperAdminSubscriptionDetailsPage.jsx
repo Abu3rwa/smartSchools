@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     fetchSubscriptionById,
     fetchBillingHistory,
@@ -47,6 +48,8 @@ const SuperAdminSubscriptionDetailsPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const { t, i18n } = useTranslation(['superAdminSubscriptionDetails']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : 'en-US';
     
     // Redux state
     const subscription = useSelector(selectCurrentSubscription);
@@ -154,14 +157,14 @@ const SuperAdminSubscriptionDetailsPage = () => {
     };
 
     const formatCurrency = (amount, currency = 'USD') => {
-        return new Intl.NumberFormat('en-US', {
+        return new Intl.NumberFormat(locale, {
             style: 'currency',
             currency: currency
         }).format(amount);
     };
 
     const formatDate = (date) => {
-        return new Date(date).toLocaleDateString('en-US', {
+        return new Date(date).toLocaleDateString(locale, {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
@@ -186,34 +189,61 @@ const SuperAdminSubscriptionDetailsPage = () => {
 
     const featureSections = [
         {
-            title: 'Core Features',
+            title: t('superAdminSubscriptionDetails:features.sections.core'),
             items: [
-                { key: 'emailNotifications', label: 'Email Notifications', icon: HiOutlineMail },
-                { key: 'dataExport', label: 'Data Export', icon: HiOutlineDownload }
+                { key: 'emailNotifications', label: t('superAdminSubscriptionDetails:features.items.emailNotifications'), icon: HiOutlineMail },
+                { key: 'dataExport', label: t('superAdminSubscriptionDetails:features.items.dataExport'), icon: HiOutlineDownload }
             ]
         },
         {
-            title: 'Communication',
+            title: t('superAdminSubscriptionDetails:features.sections.communication'),
             items: [
-                { key: 'parentPortal', label: 'Parent Portal', icon: HiOutlineUsers }
+                { key: 'parentPortal', label: t('superAdminSubscriptionDetails:features.items.parentPortal'), icon: HiOutlineUsers }
             ]
         },
         {
-            title: 'Analytics & Reporting',
+            title: t('superAdminSubscriptionDetails:features.sections.analyticsReporting'),
             items: [
-                { key: 'advancedAnalytics', label: 'Advanced Analytics', icon: HiOutlineChartBar },
-                { key: 'customReports', label: 'Custom Reports', icon: HiOutlineDocumentText }
+                { key: 'advancedAnalytics', label: t('superAdminSubscriptionDetails:features.items.advancedAnalytics'), icon: HiOutlineChartBar },
+                { key: 'customReports', label: t('superAdminSubscriptionDetails:features.items.customReports'), icon: HiOutlineDocumentText }
             ]
         },
         {
-            title: 'Advanced Features',
+            title: t('superAdminSubscriptionDetails:features.sections.advanced'),
             items: [
-                { key: 'apiAccess', label: 'API Access', icon: HiOutlineCloud },
-                { key: 'prioritySupport', label: 'Priority Support', icon: HiOutlineShieldCheck },
-                { key: 'customBranding', label: 'Custom Branding', icon: HiOutlineSparkles }
+                { key: 'apiAccess', label: t('superAdminSubscriptionDetails:features.items.apiAccess'), icon: HiOutlineCloud },
+                { key: 'prioritySupport', label: t('superAdminSubscriptionDetails:features.items.prioritySupport'), icon: HiOutlineShieldCheck },
+                { key: 'customBranding', label: t('superAdminSubscriptionDetails:features.items.customBranding'), icon: HiOutlineSparkles }
             ]
         }
     ];
+
+    const getStatusLabel = (status = '') => {
+        const normalized = String(status || '').toLowerCase();
+        return t(`superAdminSubscriptionDetails:status.${normalized}`, { defaultValue: normalized });
+    };
+
+    const getPlanLabel = (plan = '') => {
+        const normalized = String(plan || '').toLowerCase();
+        return t(`superAdminSubscriptionDetails:plan.${normalized}`, { defaultValue: formatPlanLabel(normalized) });
+    };
+
+    const getIntervalLabel = (interval = '') => {
+        const normalized = String(interval || '').toLowerCase();
+        return t(`superAdminSubscriptionDetails:interval.${normalized}`, { defaultValue: normalized });
+    };
+
+    const getInvoiceStatusLabel = (invoiceStatus = '') => {
+        const normalized = String(invoiceStatus || '').toLowerCase();
+        return t(`superAdminSubscriptionDetails:invoiceStatus.${normalized}`, { defaultValue: normalized });
+    };
+
+    const getPaymentMethodLabel = (paymentMethod = '') => {
+        const normalized = String(paymentMethod || '').toLowerCase();
+        return t(`superAdminSubscriptionDetails:paymentMethod.${normalized}`, {
+            defaultValue: paymentMethod || t('superAdminSubscriptionDetails:common.cash')
+        });
+    };
 
     const trackedFeatureKeys = featureSections.flatMap((section) => section.items.map((item) => item.key));
     const hasFeatureChanges = trackedFeatureKeys.some(
@@ -248,7 +278,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
         return (
             <div className="subscription-details-loading">
                 <div className="spinner"></div>
-                <p>Loading subscription details...</p>
+                <p>{t('superAdminSubscriptionDetails:loading.message')}</p>
             </div>
         );
     }
@@ -263,17 +293,17 @@ const SuperAdminSubscriptionDetailsPage = () => {
                         onClick={() => navigate('/admin/subscriptions')}
                     >
                         <HiOutlineArrowLeft size={20} />
-                        Back to Subscriptions
+                        {t('superAdminSubscriptionDetails:header.backToSubscriptions')}
                     </button>
                     <div className="header-info">
                         <h1>{subscription.school?.name}</h1>
                         <div className="header-meta">
                             <span className={`status-badge ${getStatusColor(subscription.status)}`}>
                                 {getStatusIcon(subscription.status)}
-                                {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
+                                {getStatusLabel(subscription.status)}
                             </span>
                             <span className={`plan-badge ${getPlanBadgeColor(subscription.plan)}`}>
-                                {formatPlanLabel(subscription.plan)}
+                                {getPlanLabel(subscription.plan)}
                             </span>
                         </div>
                     </div>
@@ -284,7 +314,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                         onClick={() => setShowEditModal(true)}
                     >
                         <HiOutlinePencil size={20} />
-                        Edit
+                        {t('superAdminSubscriptionDetails:actions.edit')}
                     </button>
                     {subscription.status !== 'cancelled' && (
                         <button
@@ -292,7 +322,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                             onClick={() => setShowCancelModal(true)}
                         >
                             <HiOutlineX size={20} />
-                            Cancel
+                            {t('superAdminSubscriptionDetails:actions.cancel')}
                         </button>
                     )}
                 </div>
@@ -306,28 +336,28 @@ const SuperAdminSubscriptionDetailsPage = () => {
                         onClick={() => setActiveTab('overview')}
                     >
                         <HiOutlineChartBar size={20} />
-                        Overview
+                        {t('superAdminSubscriptionDetails:tabs.overview')}
                     </button>
                     <button
                         className={`tab ${activeTab === 'usage' ? 'active' : ''}`}
                         onClick={() => setActiveTab('usage')}
                     >
                         <HiOutlineUsers size={20} />
-                        Usage
+                        {t('superAdminSubscriptionDetails:tabs.usage')}
                     </button>
                     <button
                         className={`tab ${activeTab === 'billing' ? 'active' : ''}`}
                         onClick={() => setActiveTab('billing')}
                     >
                         <HiOutlineCreditCard size={20} />
-                        Billing
+                        {t('superAdminSubscriptionDetails:tabs.billing')}
                     </button>
                     <button
                         className={`tab ${activeTab === 'features' ? 'active' : ''}`}
                         onClick={() => setActiveTab('features')}
                     >
                         <HiOutlineSparkles size={20} />
-                        Features
+                        {t('superAdminSubscriptionDetails:tabs.features')}
                     </button>
                 </div>
             </div>
@@ -339,39 +369,39 @@ const SuperAdminSubscriptionDetailsPage = () => {
                     <div className="overview-content">
                         <div className="overview-grid">
                             <div className="overview-card">
-                                <h3>Subscription Details</h3>
+                                <h3>{t('superAdminSubscriptionDetails:overview.subscriptionDetails')}</h3>
                                 <div className="detail-grid">
                                     <div className="detail-item">
-                                        <label>Plan</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.plan')}</label>
                                         <span className={`plan-badge ${getPlanBadgeColor(subscription.plan)}`}>
-                                            {formatPlanLabel(subscription.plan)}
+                                            {getPlanLabel(subscription.plan)}
                                         </span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Status</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.status')}</label>
                                         <span className={`status-badge ${getStatusColor(subscription.status)}`}>
                                             {getStatusIcon(subscription.status)}
-                                            {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
+                                            {getStatusLabel(subscription.status)}
                                         </span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Monthly Cost</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.monthlyCost')}</label>
                                         <span className="cost">{formatCurrency(subscription.billing.amount)}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Billing Cycle</label>
-                                        <span>{subscription.billing.interval}</span>
+                                        <label>{t('superAdminSubscriptionDetails:labels.billingCycle')}</label>
+                                        <span>{getIntervalLabel(subscription.billing.interval)}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Created</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.created')}</label>
                                         <span>{formatDate(subscription.createdAt)}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Trial Ends</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.trialEnds')}</label>
                                         <span>
                                             {subscription.trialEndsAt 
                                                 ? formatDate(subscription.trialEndsAt)
-                                                : 'N/A'
+                                                : t('superAdminSubscriptionDetails:common.na')
                                             }
                                         </span>
                                     </div>
@@ -379,30 +409,30 @@ const SuperAdminSubscriptionDetailsPage = () => {
                             </div>
 
                             <div className="overview-card">
-                                <h3>School Information</h3>
+                                <h3>{t('superAdminSubscriptionDetails:overview.schoolInformation')}</h3>
                                 <div className="detail-grid">
                                     <div className="detail-item">
-                                        <label>School Name</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.schoolName')}</label>
                                         <span>{subscription.school?.name}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Admin Name</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.adminName')}</label>
                                         <span>{subscription.school?.contact?.adminName}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Email</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.email')}</label>
                                         <span>{subscription.school?.contact?.adminEmail}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Phone</label>
-                                        <span>{subscription.school?.contact?.phone || 'N/A'}</span>
+                                        <label>{t('superAdminSubscriptionDetails:labels.phone')}</label>
+                                        <span>{subscription.school?.contact?.phone || t('superAdminSubscriptionDetails:common.na')}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Address</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.address')}</label>
                                         <span>
                                             {subscription.school?.contact?.address 
                                                 ? `${subscription.school.contact.address.street}, ${subscription.school.contact.address.city}, ${subscription.school.contact.address.state}`
-                                                : 'N/A'
+                                                : t('superAdminSubscriptionDetails:common.na')
                                             }
                                         </span>
                                     </div>
@@ -410,22 +440,22 @@ const SuperAdminSubscriptionDetailsPage = () => {
                             </div>
 
                             <div className="overview-card">
-                                <h3>Payment Information</h3>
+                                <h3>{t('superAdminSubscriptionDetails:overview.paymentInformation')}</h3>
                                 <div className="detail-grid">
                                     <div className="detail-item">
-                                        <label>Payment Method</label>
-                                        <span>{subscription.paymentMethod === 'cash' ? 'Cash' : subscription.paymentMethod || 'Cash'}</span>
+                                        <label>{t('superAdminSubscriptionDetails:labels.paymentMethod')}</label>
+                                        <span>{getPaymentMethodLabel(subscription.paymentMethod)}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Last Payment</label>
-                                        <span>{subscription.billing?.lastBilledAt ? formatDate(subscription.billing.lastBilledAt) : 'No payments yet'}</span>
+                                        <label>{t('superAdminSubscriptionDetails:labels.lastPayment')}</label>
+                                        <span>{subscription.billing?.lastBilledAt ? formatDate(subscription.billing.lastBilledAt) : t('superAdminSubscriptionDetails:common.noPaymentsYet')}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Next Billing</label>
-                                        <span>{subscription.billing?.nextBillingAt ? formatDate(subscription.billing.nextBillingAt) : 'N/A'}</span>
+                                        <label>{t('superAdminSubscriptionDetails:labels.nextBilling')}</label>
+                                        <span>{subscription.billing?.nextBillingAt ? formatDate(subscription.billing.nextBillingAt) : t('superAdminSubscriptionDetails:common.na')}</span>
                                     </div>
                                     <div className="detail-item">
-                                        <label>Total Invoices</label>
+                                        <label>{t('superAdminSubscriptionDetails:labels.totalInvoices')}</label>
                                         <span>{subscription.invoices?.length || 0}</span>
                                     </div>
                                 </div>
@@ -435,7 +465,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                         onClick={() => setShowPaymentModal(true)}
                                     >
                                         <HiOutlineCurrencyDollar size={20} />
-                                        Record Cash Payment
+                                        {t('superAdminSubscriptionDetails:actions.recordCashPayment')}
                                     </button>
                                 </div>
                             </div>
@@ -448,14 +478,14 @@ const SuperAdminSubscriptionDetailsPage = () => {
                     <div className="usage-content">
                         <div className="usage-grid">
                             <div className="usage-card">
-                                <h3>Resource Usage</h3>
+                                <h3>{t('superAdminSubscriptionDetails:usage.resourceUsage')}</h3>
                                 <div className="usage-items">
                                     <div className="usage-item">
                                         <div className="usage-header">
                                             <div className="usage-info">
-                                                <span className="usage-label">Students</span>
+                                                <span className="usage-label">{t('superAdminSubscriptionDetails:usage.students')}</span>
                                                 <span className="usage-count">
-                                                    {subscription.usage.currentStudents} / {subscription.limits.maxStudents === -1 ? '∞' : subscription.limits.maxStudents}
+                                                    {subscription.usage.currentStudents} / {subscription.limits.maxStudents === -1 ? t('superAdminSubscriptionDetails:common.infinity') : subscription.limits.maxStudents}
                                                 </span>
                                             </div>
                                             <span className={`usage-percentage ${getUsageColor(getUsagePercentage(subscription.usage.currentStudents, subscription.limits.maxStudents))}`}>
@@ -475,9 +505,9 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                     <div className="usage-item">
                                         <div className="usage-header">
                                             <div className="usage-info">
-                                                <span className="usage-label">Teachers</span>
+                                                <span className="usage-label">{t('superAdminSubscriptionDetails:usage.teachers')}</span>
                                                 <span className="usage-count">
-                                                    {subscription.usage.currentTeachers} / {subscription.limits.maxTeachers === -1 ? '∞' : subscription.limits.maxTeachers}
+                                                    {subscription.usage.currentTeachers} / {subscription.limits.maxTeachers === -1 ? t('superAdminSubscriptionDetails:common.infinity') : subscription.limits.maxTeachers}
                                                 </span>
                                             </div>
                                             <span className={`usage-percentage ${getUsageColor(getUsagePercentage(subscription.usage.currentTeachers, subscription.limits.maxTeachers))}`}>
@@ -497,9 +527,9 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                     <div className="usage-item">
                                         <div className="usage-header">
                                             <div className="usage-info">
-                                                <span className="usage-label">Classes</span>
+                                                <span className="usage-label">{t('superAdminSubscriptionDetails:usage.classes')}</span>
                                                 <span className="usage-count">
-                                                    {subscription.usage.currentClasses} / {subscription.limits.maxClasses === -1 ? '∞' : subscription.limits.maxClasses}
+                                                    {subscription.usage.currentClasses} / {subscription.limits.maxClasses === -1 ? t('superAdminSubscriptionDetails:common.infinity') : subscription.limits.maxClasses}
                                                 </span>
                                             </div>
                                             <span className={`usage-percentage ${getUsageColor(getUsagePercentage(subscription.usage.currentClasses, subscription.limits.maxClasses))}`}>
@@ -519,9 +549,9 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                     <div className="usage-item">
                                         <div className="usage-header">
                                             <div className="usage-info">
-                                                <span className="usage-label">Storage</span>
+                                                <span className="usage-label">{t('superAdminSubscriptionDetails:usage.storage')}</span>
                                                 <span className="usage-count">
-                                                    {Math.round(subscription.usage.currentStorage / 1024)}MB / {subscription.limits.maxStorage === -1 ? '∞' : subscription.limits.maxStorage}MB
+                                                    {Math.round(subscription.usage.currentStorage / 1024)}MB / {subscription.limits.maxStorage === -1 ? t('superAdminSubscriptionDetails:common.infinity') : subscription.limits.maxStorage}MB
                                                 </span>
                                             </div>
                                             <span className={`usage-percentage ${getUsageColor(getUsagePercentage(subscription.usage.currentStorage, subscription.limits.maxStorage))}`}>
@@ -541,10 +571,10 @@ const SuperAdminSubscriptionDetailsPage = () => {
                             </div>
 
                             <div className="usage-card">
-                                <h3>Usage Trends</h3>
+                                <h3>{t('superAdminSubscriptionDetails:usage.usageTrends')}</h3>
                                 <div className="trends-placeholder">
                                     <HiOutlineChartBar size={48} />
-                                    <p>Usage trends chart would be displayed here</p>
+                                    <p>{t('superAdminSubscriptionDetails:usage.usageTrendsPlaceholder')}</p>
                                 </div>
                             </div>
                         </div>
@@ -555,10 +585,10 @@ const SuperAdminSubscriptionDetailsPage = () => {
                 {activeTab === 'billing' && (
                     <div className="billing-content">
                         <div className="billing-header">
-                            <h3>Billing History</h3>
+                            <h3>{t('superAdminSubscriptionDetails:billing.title')}</h3>
                             <button className="btn btn-secondary">
                                 <HiOutlineDownload size={20} />
-                                Export
+                                {t('superAdminSubscriptionDetails:actions.export')}
                             </button>
                         </div>
                         
@@ -566,11 +596,11 @@ const SuperAdminSubscriptionDetailsPage = () => {
                             <table className="billing-table">
                                 <thead>
                                     <tr>
-                                        <th>Invoice #</th>
-                                        <th>Date</th>
-                                        <th>Amount</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
+                                        <th>{t('superAdminSubscriptionDetails:billing.table.invoiceNumber')}</th>
+                                        <th>{t('superAdminSubscriptionDetails:billing.table.date')}</th>
+                                        <th>{t('superAdminSubscriptionDetails:billing.table.amount')}</th>
+                                        <th>{t('superAdminSubscriptionDetails:billing.table.status')}</th>
+                                        <th>{t('superAdminSubscriptionDetails:billing.table.actions')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -583,7 +613,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                             <td>{formatCurrency(invoice.amount, invoice.currency)}</td>
                                             <td>
                                                 <span className={`invoice-status status-${invoice.status}`}>
-                                                    {invoice.status}
+                                                    {getInvoiceStatusLabel(invoice.status)}
                                                 </span>
                                             </td>
                                             <td>
@@ -618,8 +648,8 @@ const SuperAdminSubscriptionDetailsPage = () => {
                             {billingHistory.length === 0 && (
                                 <div className="empty-billing">
                                     <HiOutlineDocumentText size={48} />
-                                    <h3>No billing history</h3>
-                                    <p>This subscription doesn't have any invoices yet.</p>
+                                    <h3>{t('superAdminSubscriptionDetails:billing.empty.title')}</h3>
+                                    <p>{t('superAdminSubscriptionDetails:billing.empty.description')}</p>
                                 </div>
                             )}
                         </div>
@@ -630,21 +660,23 @@ const SuperAdminSubscriptionDetailsPage = () => {
                 {activeTab === 'features' && (
                     <div className="features-content">
                         <div className="features-header">
-                            <p>Super admins can override individual features for this subscription.</p>
+                            <p>{t('superAdminSubscriptionDetails:features.description')}</p>
                             <div className="features-actions">
                                 <button
                                     className="btn btn-secondary"
                                     onClick={handleResetFeatureDraft}
                                     disabled={!hasFeatureChanges || savingFeatures}
                                 >
-                                    Reset
+                                    {t('superAdminSubscriptionDetails:actions.reset')}
                                 </button>
                                 <button
                                     className="btn btn-primary"
                                     onClick={handleSaveFeatures}
                                     disabled={!hasFeatureChanges || savingFeatures}
                                 >
-                                    {savingFeatures ? 'Saving...' : 'Save Feature Overrides'}
+                                    {savingFeatures
+                                        ? t('superAdminSubscriptionDetails:actions.saving')
+                                        : t('superAdminSubscriptionDetails:actions.saveFeatureOverrides')}
                                 </button>
                             </div>
                         </div>
@@ -691,7 +723,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
-                            <h2>Edit Subscription</h2>
+                            <h2>{t('superAdminSubscriptionDetails:modal.edit.title')}</h2>
                             <button
                                 className="modal-close"
                                 onClick={() => setShowEditModal(false)}
@@ -701,26 +733,26 @@ const SuperAdminSubscriptionDetailsPage = () => {
                         </div>
                         <div className="modal-body">
                             <div className="form-group">
-                                <label>Plan</label>
+                                <label>{t('superAdminSubscriptionDetails:labels.plan')}</label>
                                 <select defaultValue={subscription.plan}>
-                                    <option value="starter">Starter</option>
-                                    <option value="professional">Professional</option>
-                                    <option value="enterprise">Enterprise</option>
+                                    <option value="starter">{t('superAdminSubscriptionDetails:plan.starter')}</option>
+                                    <option value="professional">{t('superAdminSubscriptionDetails:plan.professional')}</option>
+                                    <option value="enterprise">{t('superAdminSubscriptionDetails:plan.enterprise')}</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Status</label>
+                                <label>{t('superAdminSubscriptionDetails:labels.status')}</label>
                                 <select defaultValue={subscription.status}>
-                                    <option value="trial">Trial</option>
-                                    <option value="active">Active</option>
-                                    <option value="suspended">Suspended</option>
-                                    <option value="inactive">Inactive</option>
+                                    <option value="trial">{t('superAdminSubscriptionDetails:status.trial')}</option>
+                                    <option value="active">{t('superAdminSubscriptionDetails:status.active')}</option>
+                                    <option value="suspended">{t('superAdminSubscriptionDetails:status.suspended')}</option>
+                                    <option value="inactive">{t('superAdminSubscriptionDetails:status.inactive')}</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Notes</label>
+                                <label>{t('superAdminSubscriptionDetails:labels.notes')}</label>
                                 <textarea
-                                    placeholder="Add notes about this subscription change..."
+                                    placeholder={t('superAdminSubscriptionDetails:modal.edit.notesPlaceholder')}
                                     defaultValue={subscription.metadata?.notes || ''}
                                     rows="3"
                                 ></textarea>
@@ -731,7 +763,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                 className="btn btn-secondary"
                                 onClick={() => setShowEditModal(false)}
                             >
-                                Cancel
+                                {t('superAdminSubscriptionDetails:actions.cancel')}
                             </button>
                             <button
                                 className="btn btn-primary"
@@ -747,7 +779,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                     });
                                 }}
                             >
-                                Update Subscription
+                                {t('superAdminSubscriptionDetails:actions.updateSubscription')}
                             </button>
                         </div>
                     </div>
@@ -759,7 +791,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
-                            <h2>Cancel Subscription</h2>
+                            <h2>{t('superAdminSubscriptionDetails:modal.cancel.title')}</h2>
                             <button
                                 className="modal-close"
                                 onClick={() => setShowCancelModal(false)}
@@ -770,12 +802,10 @@ const SuperAdminSubscriptionDetailsPage = () => {
                         <div className="modal-body">
                             <div className="warning-message">
                                 <HiOutlineXCircle size={48} />
-                                <h3>Are you sure you want to cancel this subscription?</h3>
-                                <p>
-                                    This action will cancel the subscription for{' '}
-                                    <strong>{subscription.school?.name}</strong>.
-                                    The school will lose access to premium features at the end of the billing period.
-                                </p>
+                                <h3>{t('superAdminSubscriptionDetails:modal.cancel.confirmTitle')}</h3>
+                                <p>{t('superAdminSubscriptionDetails:modal.cancel.confirmDescription', {
+                                    schoolName: subscription.school?.name
+                                })}</p>
                             </div>
                         </div>
                         <div className="modal-footer">
@@ -783,13 +813,13 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                 className="btn btn-secondary"
                                 onClick={() => setShowCancelModal(false)}
                             >
-                                Keep Subscription
+                                {t('superAdminSubscriptionDetails:actions.keepSubscription')}
                             </button>
                             <button
                                 className="btn btn-danger"
                                 onClick={handleCancelSubscription}
                             >
-                                Cancel Subscription
+                                {t('superAdminSubscriptionDetails:actions.cancelSubscription')}
                             </button>
                         </div>
                     </div>
@@ -801,7 +831,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
-                            <h2>Record Cash Payment</h2>
+                            <h2>{t('superAdminSubscriptionDetails:modal.payment.title')}</h2>
                             <button
                                 className="modal-close"
                                 onClick={() => setShowPaymentModal(false)}
@@ -811,29 +841,31 @@ const SuperAdminSubscriptionDetailsPage = () => {
                         </div>
                         <div className="modal-body">
                             <div className="form-group">
-                                <label>Amount ({subscription.billing?.currency || 'USD'})</label>
+                                <label>{t('superAdminSubscriptionDetails:modal.payment.amountLabel', {
+                                    currency: subscription.billing?.currency || 'USD'
+                                })}</label>
                                 <input
                                     type="number"
                                     id="paymentAmount"
                                     defaultValue={subscription.billing?.amount || 0}
                                     min="0"
                                     step="0.01"
-                                    placeholder="Enter payment amount"
+                                    placeholder={t('superAdminSubscriptionDetails:modal.payment.amountPlaceholder')}
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Receipt Number (optional)</label>
+                                <label>{t('superAdminSubscriptionDetails:modal.payment.receiptLabel')}</label>
                                 <input
                                     type="text"
                                     id="receiptNumber"
-                                    placeholder="e.g. REC-001"
+                                    placeholder={t('superAdminSubscriptionDetails:modal.payment.receiptPlaceholder')}
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Notes</label>
+                                <label>{t('superAdminSubscriptionDetails:labels.notes')}</label>
                                 <textarea
                                     id="paymentNotes"
-                                    placeholder="e.g. Cash payment received at office"
+                                    placeholder={t('superAdminSubscriptionDetails:modal.payment.notesPlaceholder')}
                                     rows="3"
                                 ></textarea>
                             </div>
@@ -843,7 +875,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                 className="btn btn-secondary"
                                 onClick={() => setShowPaymentModal(false)}
                             >
-                                Cancel
+                                {t('superAdminSubscriptionDetails:actions.cancel')}
                             </button>
                             <button
                                 className="btn btn-primary"
@@ -855,7 +887,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                 }}
                             >
                                 <HiOutlineCurrencyDollar size={20} />
-                                Record Payment
+                                {t('superAdminSubscriptionDetails:actions.recordPayment')}
                             </button>
                         </div>
                     </div>

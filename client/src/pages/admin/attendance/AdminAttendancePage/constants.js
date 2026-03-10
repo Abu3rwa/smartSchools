@@ -1,8 +1,8 @@
 export const ATTENDANCE_STATUS_COLORS = {
-    Present: '#10B981',
-    Absent: '#EF4444',
-    Tardy: '#F59E0B',
-    Excused: '#3B82F6'
+    present: '#10B981',
+    absent: '#EF4444',
+    tardy: '#F59E0B',
+    excused: '#3B82F6'
 };
 
 export const DEFAULT_FILTERS = {

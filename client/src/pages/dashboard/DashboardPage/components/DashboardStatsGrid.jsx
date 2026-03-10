@@ -1,7 +1,10 @@
 import { Box, Grid, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { isPositiveChange } from '../utils/dashboardPresentation';
 
 const DashboardStatsGrid = ({ stats }) => {
+    const { t } = useTranslation(['dashboard']);
+
     return (
         <Grid container spacing={2} sx={{ mb: { xs: 2, md: 3 } }}>
             {stats.map((stat, index) => (
@@ -12,7 +15,7 @@ const DashboardStatsGrid = ({ stats }) => {
                         </Box>
                         <Box className="stat-content">
                             <Typography variant="caption" className="stat-title">
-                                {stat.title}
+                                {t(`dashboard:${stat.titleKey}`)}
                             </Typography>
                             <Typography variant="h6" className="stat-value">
                                 {stat.value}

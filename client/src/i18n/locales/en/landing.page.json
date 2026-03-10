@@ -1,0 +1,14 @@
+{
+  "ui": {
+    "switchToLightMode": "Switch to light mode",
+    "switchToDarkMode": "Switch to dark mode",
+    "openNavigationMenu": "Open navigation menu",
+    "languageLabel": "Language",
+    "languageEnglish": "EN",
+    "languageArabic": "AR",
+    "themeLabel": "Theme",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode",
+    "dynamicFallbackNotice": "Showing default content because localized live updates are temporarily unavailable."
+  }
+}

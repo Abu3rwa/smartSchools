@@ -13,6 +13,9 @@ export default function LandingPageHeader({
     content,
     themeMode,
     toggleTheme,
+    language,
+    onLanguageChange,
+    uiText,
     scrollTo,
     handleAction,
     onOpenMobileMenu,
@@ -47,7 +50,27 @@ export default function LandingPageHeader({
                 </Button>
                 <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 1 }}>
                     {navContent}
-                    <IconButton onClick={toggleTheme} color="inherit" aria-label={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} sx={{ ml: 0.5 }}>
+                    <Box sx={{ display: 'inline-flex', border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+                        <Button
+                            size="small"
+                            variant={language === 'en' ? 'contained' : 'text'}
+                            onClick={() => onLanguageChange('en')}
+                            aria-pressed={language === 'en'}
+                            sx={{ minWidth: 44, borderRadius: 0 }}
+                        >
+                            {uiText.languageEnglish || 'EN'}
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={language === 'ar' ? 'contained' : 'text'}
+                            onClick={() => onLanguageChange('ar')}
+                            aria-pressed={language === 'ar'}
+                            sx={{ minWidth: 44, borderRadius: 0 }}
+                        >
+                            {uiText.languageArabic || 'AR'}
+                        </Button>
+                    </Box>
+                    <IconButton onClick={toggleTheme} color="inherit" aria-label={themeMode === 'dark' ? (uiText.switchToLightMode || 'Switch to light mode') : (uiText.switchToDarkMode || 'Switch to dark mode')} sx={{ ml: 0.5 }}>
                         {themeMode === 'dark' ? <HiOutlineSun size={22} /> : <HiOutlineMoon size={22} />}
                     </IconButton>
                 </Box>
@@ -55,10 +78,10 @@ export default function LandingPageHeader({
                     <Button onClick={() => handleAction('login')} sx={{ color: 'text.secondary', fontWeight: 600, px: 1, minWidth: 'auto' }}>
                         {content.header.loginLabel}
                     </Button>
-                    <IconButton onClick={toggleTheme} color="inherit" aria-label={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+                    <IconButton onClick={toggleTheme} color="inherit" aria-label={themeMode === 'dark' ? (uiText.switchToLightMode || 'Switch to light mode') : (uiText.switchToDarkMode || 'Switch to dark mode')}>
                         {themeMode === 'dark' ? <HiOutlineSun size={22} /> : <HiOutlineMoon size={22} />}
                     </IconButton>
-                    <IconButton sx={{ color: 'inherit' }} onClick={onOpenMobileMenu} aria-label="Open navigation menu">
+                    <IconButton sx={{ color: 'inherit' }} onClick={onOpenMobileMenu} aria-label={uiText.openNavigationMenu || 'Open navigation menu'}>
                         <HiOutlineMenu size={24} />
                     </IconButton>
                 </Box>

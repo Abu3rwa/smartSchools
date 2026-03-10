@@ -1,4 +1,5 @@
 import { HiOutlineCheckCircle } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const AssignmentGradePanel = ({
     gradingAssignment,
@@ -8,23 +9,24 @@ const AssignmentGradePanel = ({
     onClose,
     onSubmitGrades
 }) => {
+    const { t } = useTranslation(['assignments']);
     if (!gradingAssignment) return null;
 
     return (
         <div className="grade-panel card">
             <div className="card-header">
-                <h3 className="card-title">Grade: {gradingAssignment.title}</h3>
-                <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>Close</button>
+                <h3 className="card-title">{t('assignments:gradePanel.title', { title: gradingAssignment.title })}</h3>
+                <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>{t('assignments:common.close')}</button>
             </div>
 
             <div className="table-container">
                 <table className="assignment-table">
                     <thead>
                         <tr>
-                            <th>Student</th>
-                            <th>Marks</th>
-                            <th>Remarks</th>
-                            <th>Status</th>
+                            <th>{t('assignments:gradePanel.columns.student')}</th>
+                            <th>{t('assignments:gradePanel.columns.marks')}</th>
+                            <th>{t('assignments:gradePanel.columns.remarks')}</th>
+                            <th>{t('assignments:gradePanel.columns.status')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -45,7 +47,7 @@ const AssignmentGradePanel = ({
                                         type="text"
                                         value={gradeRows[student.id]?.remarks ?? ''}
                                         onChange={(event) => onGradeChange(student.id, 'remarks', event.target.value)}
-                                        placeholder="Optional"
+                                        placeholder={t('assignments:gradePanel.optional')}
                                     />
                                 </td>
                                 <td>
@@ -61,7 +63,7 @@ const AssignmentGradePanel = ({
 
             <div className="card-footer">
                 <button type="button" className="btn btn-primary" onClick={onSubmitGrades}>
-                    Save Assignment Grades
+                    {t('assignments:gradePanel.save')}
                 </button>
             </div>
         </div>

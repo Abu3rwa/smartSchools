@@ -1,0 +1,201 @@
+{
+  "header": {
+    "title": "إدارة السلوك",
+    "subtitle": "متابعة وإدارة حوادث سلوك الطلاب"
+  },
+  "actions": {
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "createIncident": "إنشاء حادثة",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "reportIncident": "تسجيل حادثة",
+    "resolve": "حل",
+    "updateIncident": "تحديث الحادثة",
+    "view": "عرض"
+  },
+  "empty": {
+    "title": "لا توجد حوادث",
+    "description": "ابدأ بتسجيل حادثة سلوكية"
+  },
+  "loading": {
+    "incidents": "جارٍ تحميل الحوادث..."
+  },
+  "error": {
+    "title": "خطأ",
+    "failedToLoadIncidents": "فشل تحميل حوادث السلوك",
+    "failedToLoadIncidentDetails": "فشل تحميل تفاصيل الحادثة",
+    "failedToSaveIncident": "فشل حفظ الحادثة",
+    "failedToResolveIncident": "فشل حل الحادثة",
+    "failedToDeleteIncident": "فشل حذف الحادثة"
+  },
+  "toasts": {
+    "incidentCreated": "تم إنشاء الحادثة بنجاح",
+    "incidentUpdated": "تم تحديث الحادثة بنجاح",
+    "incidentResolved": "تم وضع علامة الحل على الحادثة",
+    "incidentDeleted": "تم حذف الحادثة بنجاح"
+  },
+  "confirm": {
+    "resolveIncident": "هل تريد وضع علامة حل لهذه الحادثة؟",
+    "deleteIncident": "هل أنت متأكد من حذف هذه الحادثة؟"
+  },
+  "filters": {
+    "labels": {
+      "incidentType": "نوع الحادثة",
+      "severity": "الحدة",
+      "status": "الحالة",
+      "startDate": "تاريخ البدء",
+      "endDate": "تاريخ الانتهاء"
+    },
+    "options": {
+      "allTypes": "كل الأنواع",
+      "allSeverities": "كل مستويات الحدة",
+      "allStatuses": "كل الحالات"
+    }
+  },
+  "list": {
+    "labels": {
+      "date": "التاريخ:",
+      "location": "الموقع:",
+      "category": "الفئة:",
+      "reportedBy": "تم الإبلاغ بواسطة:"
+    }
+  },
+  "modal": {
+    "viewIncident": "عرض الحادثة",
+    "editIncident": "تعديل الحادثة",
+    "reportNewIncident": "تسجيل حادثة جديدة"
+  },
+  "details": {
+    "student": "الطالب:",
+    "studentId": "رقم الطالب:",
+    "currentClass": "الفصل الحالي:",
+    "academicYear": "السنة الدراسية:",
+    "date": "التاريخ:",
+    "type": "النوع:",
+    "category": "الفئة:",
+    "severity": "الحدة:",
+    "status": "الحالة:",
+    "location": "الموقع:",
+    "locationDetails": "تفاصيل الموقع:",
+    "description": "الوصف:",
+    "actionTaken": "الإجراء المتخذ:",
+    "reportedBy": "تم الإبلاغ بواسطة:"
+  },
+  "form": {
+    "labels": {
+      "studentRequired": "الطالب *",
+      "class": "الفصل",
+      "incidentTypeRequired": "نوع الحادثة *",
+      "categoryRequired": "الفئة *",
+      "severityRequired": "الحدة *",
+      "incidentDateRequired": "تاريخ الحادثة *",
+      "locationRequired": "الموقع *",
+      "actionTaken": "الإجراء المتخذ",
+      "titleRequired": "العنوان *",
+      "descriptionRequired": "الوصف *",
+      "locationDetails": "تفاصيل الموقع",
+      "actionDetails": "تفاصيل الإجراء",
+      "followUpRequired": "يتطلب متابعة",
+      "followUpDate": "تاريخ المتابعة",
+      "parentNotified": "تم إبلاغ ولي الأمر",
+      "notificationMethod": "وسيلة الإبلاغ"
+    },
+    "hints": {
+      "classAutofill": "تمت تعبئته تلقائيًا من ملف الطالب. يمكنك التعديل إذا لزم."
+    },
+    "placeholders": {
+      "title": "عنوان مختصر للحادثة",
+      "description": "وصف تفصيلي لما حدث",
+      "locationDetails": "تفاصيل إضافية عن الموقع",
+      "actionDetails": "تفاصيل حول الإجراء المتخذ"
+    },
+    "options": {
+      "selectStudent": "اختر الطالب",
+      "selectClass": "اختر الفصل"
+    },
+    "categoryGroups": {
+      "positive": "إيجابي",
+      "negative": "سلبي"
+    }
+  },
+  "common": {
+    "na": "غير متوفر",
+    "notAssigned": "غير مسند",
+    "gradeValue": "الصف {{grade}}",
+    "sectionValue": "الشعبة {{section}}"
+  },
+  "incidentTypes": {
+    "positive": "إيجابي",
+    "minor_infraction": "مخالفة بسيطة",
+    "major_infraction": "مخالفة جسيمة",
+    "academic_concern": "مشكلة أكاديمية",
+    "attendance_issue": "مشكلة حضور",
+    "social_concern": "مشكلة اجتماعية",
+    "safety_concern": "مشكلة سلامة"
+  },
+  "categories": {
+    "achievement": "إنجاز",
+    "leadership": "قيادة",
+    "kindness": "لطف",
+    "participation": "مشاركة",
+    "improvement": "تحسن",
+    "disruptive": "تشويش",
+    "disrespectful": "قلة احترام",
+    "academic_dishonesty": "عدم نزاهة أكاديمية",
+    "bullying": "تنمر",
+    "fighting": "شجار",
+    "vandalism": "تخريب",
+    "technology_misuse": "سوء استخدام التقنية",
+    "dress_code": "مخالفة الزي",
+    "tardiness": "تأخر",
+    "truancy": "تغيب",
+    "other": "أخرى"
+  },
+  "severityLevels": {
+    "low": "منخفض",
+    "medium": "متوسط",
+    "high": "مرتفع",
+    "critical": "حرج"
+  },
+  "statusOptions": {
+    "open": "مفتوح",
+    "in_progress": "قيد المتابعة",
+    "resolved": "تم الحل",
+    "closed": "مغلق"
+  },
+  "locations": {
+    "classroom": "الفصل",
+    "hallway": "الممر",
+    "cafeteria": "المقصف",
+    "playground": "ساحة اللعب",
+    "gym": "الصالة الرياضية",
+    "library": "المكتبة",
+    "bathroom": "دورة المياه",
+    "bus": "الحافلة",
+    "parking_lot": "موقف السيارات",
+    "office": "المكتب",
+    "auditorium": "القاعة",
+    "other": "أخرى"
+  },
+  "actionsTaken": {
+    "none": "لا يوجد",
+    "verbal_warning": "إنذار شفهي",
+    "written_warning": "إنذار كتابي",
+    "parent_contact": "التواصل مع ولي الأمر",
+    "detention": "احتجاز",
+    "suspension": "إيقاف",
+    "counseling_referral": "إحالة للإرشاد",
+    "behavior_contract": "عقد سلوكي",
+    "positive_reinforcement": "تعزيز إيجابي",
+    "reward": "مكافأة",
+    "other": "أخرى"
+  },
+  "notificationMethods": {
+    "phone": "هاتف",
+    "email": "بريد إلكتروني",
+    "in_person": "حضوري",
+    "letter": "خطاب",
+    "other": "أخرى"
+  }
+}

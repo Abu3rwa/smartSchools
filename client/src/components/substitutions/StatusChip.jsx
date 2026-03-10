@@ -8,9 +8,9 @@ const STATUS_COLORS = {
   EXPIRED: 'warning',
 };
 
-const StatusChip = ({ status }) => {
+const StatusChip = ({ status, label }) => {
   const color = STATUS_COLORS[status] || 'default';
-  return <Chip label={status} color={color} size="small" variant="outlined" />;
+  return <Chip label={label || status} color={color} size="small" variant="outlined" />;
 };
 
 export default StatusChip;

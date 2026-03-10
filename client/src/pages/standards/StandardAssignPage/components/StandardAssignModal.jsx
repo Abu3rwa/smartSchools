@@ -1,4 +1,5 @@
 import StandardAssignForm from './StandardAssignForm';
+import { useTranslation } from 'react-i18next';
 
 const StandardAssignModal = ({
     showAssignModal,
@@ -24,13 +25,19 @@ const StandardAssignModal = ({
     setShowAdvanced,
     getEntityId
 }) => {
+    const { t } = useTranslation(['standardAssign']);
+
     if (!showAssignModal) return null;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>{editingAssignmentId ? 'Edit Assignment' : 'Assign Standard'}</h3>
+                    <h3>
+                        {editingAssignmentId
+                            ? t('standardAssign:modal.editAssignmentTitle')
+                            : t('standardAssign:modal.assignStandardTitle')}
+                    </h3>
                     <button className="modal-close" onClick={onClose}>
                         &times;
                     </button>
@@ -57,16 +64,16 @@ const StandardAssignModal = ({
                     />
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>
-                            Cancel
+                            {t('standardAssign:actions.cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={submitting}>
                             {submitting
                                 ? editingAssignmentId
-                                    ? 'Saving...'
-                                    : 'Assigning...'
+                                    ? t('standardAssign:actions.saving')
+                                    : t('standardAssign:actions.assigning')
                                 : editingAssignmentId
-                                  ? 'Save Changes'
-                                  : 'Assign Standard'}
+                                  ? t('standardAssign:actions.saveChanges')
+                                  : t('standardAssign:actions.assignStandard')}
                         </button>
                     </div>
                 </form>

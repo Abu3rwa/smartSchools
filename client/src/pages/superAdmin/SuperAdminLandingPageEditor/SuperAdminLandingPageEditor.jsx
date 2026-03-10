@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  HiOutlineDocumentText,
   HiOutlinePlus,
   HiOutlineRefresh,
   HiOutlineSave,
-  HiOutlineSparkles,
   HiOutlineTrash,
-  HiOutlineViewGrid,
 } from 'react-icons/hi';
 import {
   getAdminLandingContent,
@@ -27,7 +24,6 @@ const FEATURE_ICON_OPTIONS = [
   'mobile',
 ];
 
-const toPrettyJson = (value) => JSON.stringify(value, null, 2);
 const cloneContent = (value) => JSON.parse(JSON.stringify(value));
 
 const getValueAtPath = (source, path) =>
@@ -74,9 +70,7 @@ const SuperAdminLandingPageEditor = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [mode, setMode] = useState('form');
   const [contentDraft, setContentDraft] = useState(cloneContent(landingPageDefaults));
-  const [editorText, setEditorText] = useState(toPrettyJson(landingPageDefaults));
   const [updatedAt, setUpdatedAt] = useState(null);
   const [updatedBy, setUpdatedBy] = useState(null);
 
@@ -89,14 +83,11 @@ const SuperAdminLandingPageEditor = () => {
 
   const syncDraft = (nextDraft) => {
     setContentDraft(nextDraft);
-    setEditorText(toPrettyJson(nextDraft));
   };
 
   const updatePath = (path, value) => {
     setContentDraft((previous) => {
-      const next = setValueAtPath(previous, path, value);
-      setEditorText(toPrettyJson(next));
-      return next;
+      return setValueAtPath(previous, path, value);
     });
   };
 
@@ -105,22 +96,8 @@ const SuperAdminLandingPageEditor = () => {
       const currentArray = getValueAtPath(previous, path);
       const safeArray = Array.isArray(currentArray) ? [...currentArray] : [];
       const nextArray = updater(safeArray);
-      const next = setValueAtPath(previous, path, nextArray);
-      setEditorText(toPrettyJson(next));
-      return next;
+      return setValueAtPath(previous, path, nextArray);
     });
-  };
-
-  const parseEditorText = () => {
-    try {
-      const parsed = JSON.parse(editorText);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('Landing content must be a JSON object');
-      }
-      return parsed;
-    } catch (error) {
-      throw new Error(error?.message || 'Invalid JSON payload');
-    }
   };
 
   const loadContent = async () => {
@@ -145,37 +122,10 @@ const SuperAdminLandingPageEditor = () => {
     loadContent();
   }, []);
 
-  const handleModeChange = (nextMode) => {
-    if (nextMode === mode) return;
-    if (nextMode === 'json') {
-      setEditorText(toPrettyJson(contentDraft));
-      setMode('json');
-      return;
-    }
-
-    try {
-      const parsed = parseEditorText();
-      syncDraft(parsed);
-      setMode('form');
-    } catch (error) {
-      toast.error(`Fix JSON before switching to form mode: ${error.message}`);
-    }
-  };
-
-  const handleFormatJson = () => {
-    try {
-      const parsed = parseEditorText();
-      syncDraft(parsed);
-      toast.success('JSON formatted');
-    } catch (error) {
-      toast.error(error.message);
-    }
-  };
-
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = mode === 'json' ? parseEditorText() : contentDraft;
+      const payload = contentDraft;
       const data = await updateLandingContent(payload);
       const savedContent = cloneContent(data?.content || payload);
       syncDraft(savedContent);
@@ -232,35 +182,10 @@ const SuperAdminLandingPageEditor = () => {
       <div className="admin-section">
         <div className="admin-section-header">
           <h2>
-            {mode === 'form' ? (
-              <HiOutlineViewGrid size={18} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />
-            ) : (
-              <HiOutlineDocumentText size={18} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />
-            )}
-            {mode === 'form' ? 'Form Editor' : 'JSON Editor'}
+            Form Editor
           </h2>
 
           <div className="admin-actions">
-            <button
-              className={`admin-action-btn ${mode === 'form' ? 'primary' : ''}`}
-              onClick={() => handleModeChange('form')}
-              disabled={loading || saving || resetting}
-            >
-              Form
-            </button>
-            <button
-              className={`admin-action-btn ${mode === 'json' ? 'primary' : ''}`}
-              onClick={() => handleModeChange('json')}
-              disabled={loading || saving || resetting}
-            >
-              JSON
-            </button>
-            {mode === 'json' ? (
-              <button className="admin-action-btn" onClick={handleFormatJson} disabled={loading || saving || resetting}>
-                <HiOutlineSparkles size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                Format
-              </button>
-            ) : null}
             <button className="admin-action-btn" onClick={loadContent} disabled={loading || saving || resetting}>
               <HiOutlineRefresh size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
               Reload
@@ -276,7 +201,6 @@ const SuperAdminLandingPageEditor = () => {
         </div>
 
         <div style={{ padding: 'var(--spacing-lg)' }}>
-          {mode === 'form' ? (
             <div className="landing-cms-grid">
               <section className="landing-cms-card">
                 <h3>Brand and Header</h3>
@@ -584,31 +508,6 @@ const SuperAdminLandingPageEditor = () => {
                 </div>
               </section>
             </div>
-          ) : (
-            <>
-              <p className="admin-section-subtitle" style={{ marginBottom: 'var(--spacing-md)' }}>
-                Keep the same top-level keys and section structure. Unknown keys are ignored on save.
-              </p>
-              <textarea
-                value={editorText}
-                onChange={(event) => setEditorText(event.target.value)}
-                spellCheck={false}
-                style={{
-                  width: '100%',
-                  minHeight: 'min(520px, 65vh)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-color)',
-                  padding: 'var(--spacing-md)',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  fontSize: '0.85rem',
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  resize: 'vertical',
-                }}
-                disabled={loading || resetting}
-              />
-            </>
-          )}
         </div>
       </div>
     </div>
