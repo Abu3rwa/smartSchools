@@ -6,8 +6,12 @@
   "sendPanel": {
     "title": "Send Attendance Reminders",
     "subtitle": "Notify teachers who missed recording attendance after their class ended.",
-    "timeAfterClassEnded": "Time after class ended",
-    "hourOption": "{{value}} hour"
+    "currentConfig": "Current configuration",
+    "loadingConfig": "Loading attendance reminder settings...",
+    "configEnabled": "Enabled. Reminders are eligible {{minutes}} minute(s) after a period ends.",
+    "configDisabled": "Disabled. Reminders cannot be sent until enabled by a school admin.",
+    "manageInSchoolSettings": "To change this, go to School Settings → Communication.",
+    "disabledHint": "Attendance reminders are currently disabled for this school."
   },
   "actions": {
     "sending": "Sending...",
@@ -58,8 +62,9 @@
   },
   "toast": {
     "loadFailed": "Failed to load reminder history",
+    "loadSettingsFailed": "Failed to load attendance reminder settings",
     "sendFailed": "Failed to send reminders",
-    "sentSummary": "Sent {{sent}} reminders for classes ended at least {{hours}} hours ago"
+    "sentSummary": "Sent {{sent}} reminders for classes ended at least {{minutes}} minute(s) ago"
   },
   "common": {
     "dash": "—",

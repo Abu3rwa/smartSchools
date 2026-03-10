@@ -10,6 +10,7 @@ import {
     getMyAssessmentResults,
     getAssessmentGradebook,
     getStandardAverageGradebook,
+    getSBGradebook,
     releaseAssessmentResults,
     logIntegrityEvent,
     getIntegrityByAssignment,
@@ -37,6 +38,7 @@ router.get('/student/:studentId/progress', authorize('admin', 'teacher'), getStu
 router.get('/assignment/:assignmentId/progress', authorize('admin', 'teacher'), getAssignmentProgress);
 router.get('/assessment/:assignmentId/gradebook', authorize('admin', 'teacher'), getAssessmentGradebook);
 router.get('/assessment/standard-average', authorize('admin', 'teacher'), getStandardAverageGradebook);
+router.get('/sb-gradebook', authorize('admin', 'teacher', 'department_principal'), getSBGradebook);
 router.post('/assessment/:assignmentId/release', authorize('admin', 'teacher'), releaseAssessmentResults);
 router.get('/integrity/assignment/:assignmentId', authorize('admin', 'teacher'), getIntegrityByAssignment);
 router.get('/integrity/student/:studentId', authorize('admin', 'teacher'), getIntegrityByStudent);

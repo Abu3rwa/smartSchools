@@ -103,7 +103,13 @@
   "communication": {
     "title": "التواصل",
     "helpText": "تحكم في صياغة نص البريد الإلكتروني بمساعدة الذكاء الاصطناعي داخل محرر البريد للمدرسة.",
-    "enableAiEmailDrafting": "تفعيل صياغة البريد بالذكاء الاصطناعي لهذه المدرسة"
+    "enableAiEmailDrafting": "تفعيل صياغة البريد بالذكاء الاصطناعي لهذه المدرسة",
+    "attendanceRemindersTitle": "تذكيرات الحضور",
+    "attendanceRemindersHelpText": "تحكم في تفعيل تذكيرات الحضور واضبط عدد الدقائق بعد نهاية الحصة قبل أن يصبح التذكير مؤهلاً للإرسال.",
+    "enableAttendanceReminders": "تفعيل تذكيرات الحضور لهذه المدرسة",
+    "delayMinutesLabel": "تأخير التذكير (بالدقائق)",
+    "delayMinutesHint": "استخدم رقمًا صحيحًا بين 1 و1440 دقيقة.",
+    "saveAttendanceReminderSettings": "حفظ إعدادات تذكير الحضور"
   },
   "gradingScales": {
     "helpText": "اضبط حدود الدرجات الحرفية والألوان لعرضها في الرسوم ودفتر الدرجات.",
@@ -215,6 +221,9 @@
     "schoolLogoRemoveFailed": "فشل إزالة شعار المدرسة",
     "communicationSettingsUpdated": "تم تحديث إعدادات التواصل",
     "communicationSettingsUpdateFailed": "فشل تحديث إعدادات التواصل",
+    "attendanceReminderDelayInvalid": "يجب أن يكون تأخير التذكير رقمًا صحيحًا بين 1 و1440 دقيقة",
+    "attendanceReminderSettingsUpdated": "تم تحديث إعدادات تذكير الحضور",
+    "attendanceReminderSettingsUpdateFailed": "فشل تحديث إعدادات تذكير الحضور",
     "loadAcademicYearsFailed": "فشل تحميل السنوات الدراسية",
     "loadSchoolYearDatesFailed": "فشل تحميل تواريخ السنة الدراسية",
     "selectFromAndToYears": "اختر سنة البداية وسنة النهاية",

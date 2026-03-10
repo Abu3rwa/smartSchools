@@ -1,12 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { HiOutlineArrowLeft, HiOutlineLightBulb, HiOutlineQuestionMarkCircle } from 'react-icons/hi';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
 import { useReadingViewData } from './hooks/useReadingViewData';
 import './ReadingViewPage.css';
 
 const ReadingViewPage = () => {
+  const { t } = useTranslation(['reading']);
   const navigate = useNavigate();
   const academicYear = useSelector(selectCurrentAcademicYear);
 
@@ -79,9 +81,9 @@ const ReadingViewPage = () => {
           onClick={() => navigate('/portal/reading')}
         >
           <HiOutlineArrowLeft size={18} />
-          Back
+          {t('reading:common.back')}
         </button>
-        <p className="reading-error">Could not load this reading.</p>
+        <p className="reading-error">{t('reading:view.loadFailed')}</p>
       </div>
     );
   }
@@ -97,23 +99,22 @@ const ReadingViewPage = () => {
         onClick={() => navigate('/portal/reading')}
       >
         <HiOutlineArrowLeft size={18} />
-        Back
+        {t('reading:common.back')}
       </button>
 
       <header className="reading-view-header">
         <h1>{content.text?.title}</h1>
         {content.targetLevel != null && (
-          <span className="level-badge">Grade level {content.targetLevel}</span>
+          <span className="level-badge">{t('reading:view.gradeLevel', { level: content.targetLevel })}</span>
         )}
         {academicYear && (
-          <span className="level-badge">AY {academicYear}</span>
+          <span className="level-badge">{t('reading:view.academicYearShort', { year: academicYear })}</span>
         )}
       </header>
 
       <section className="reading-body">
         <p className="reading-instruction">
-          Click any <span className="vocab-hint">highlighted word</span> to see its
-          definition (vocabulary building).
+          {t('reading:view.vocabInstructionPrefix')} <span className="vocab-hint">{t('reading:view.vocabInstructionHighlighted')}</span> {t('reading:view.vocabInstructionSuffix')}
         </p>
         <div className="reading-text">
           {wrapTextWithVocabulary(bodyText)}
@@ -128,7 +129,7 @@ const ReadingViewPage = () => {
             onClick={() => setShowCriticalThinking(!showCriticalThinking)}
           >
             <HiOutlineLightBulb size={20} />
-            Critical thinking ({criticalThinkingQuestions.length} questions)
+            {t('reading:view.criticalThinking', { count: criticalThinkingQuestions.length })}
           </button>
           {showCriticalThinking && (
             <ul className="critical-thinking-list">
@@ -142,7 +143,7 @@ const ReadingViewPage = () => {
                     )}
                     <div className="ct-answer-block">
                       <label htmlFor={`ct-answer-${i}`} className="ct-answer-label">
-                        Your answer
+                        {t('reading:view.yourAnswer')}
                       </label>
                       <textarea
                         id={`ct-answer-${i}`}
@@ -151,7 +152,7 @@ const ReadingViewPage = () => {
                         onChange={(e) =>
                           setCtAnswers((prev) => ({ ...prev, [i]: e.target.value }))
                         }
-                        placeholder="Type your response here..."
+                        placeholder={t('reading:view.answerPlaceholder')}
                         rows={4}
                         disabled={ctFeedback[i]?.loading}
                       />
@@ -161,12 +162,12 @@ const ReadingViewPage = () => {
                         onClick={() => handleGetFeedback(i, q.question)}
                         disabled={ctFeedback[i]?.loading || !(ctAnswers[i] || '').trim()}
                       >
-                        {ctFeedback[i]?.loading ? 'Evaluating…' : 'Get feedback'}
+                        {ctFeedback[i]?.loading ? t('reading:view.evaluating') : t('reading:view.getFeedback')}
                       </button>
                     </div>
                     {ctFeedback[i]?.feedback && !ctFeedback[i]?.loading && (
                       <div className="ct-feedback">
-                        <span className="ct-feedback-label">Feedback:</span>
+                        <span className="ct-feedback-label">{t('reading:view.feedback')}:</span>
                         <p className="ct-feedback-text">{ctFeedback[i].feedback}</p>
                       </div>
                     )}
@@ -185,7 +186,7 @@ const ReadingViewPage = () => {
             onClick={() => setShowQuiz(!showQuiz)}
           >
             <HiOutlineQuestionMarkCircle size={20} />
-            Comprehension check
+            {t('reading:view.comprehensionCheck')}
           </button>
           {showQuiz && (
             <div className="quiz-box">
@@ -229,11 +230,11 @@ const ReadingViewPage = () => {
                       Object.keys(quizAnswers).length < comprehensionQuestions.length
                     }
                   >
-                    {progressSubmitting ? 'Submitting…' : 'Submit answers'}
+                    {progressSubmitting ? t('reading:common.submitting') : t('reading:view.submitAnswers')}
                   </button>
                 </>
               ) : (
-                <p className="quiz-done">Your answers have been saved. Great work!</p>
+                <p className="quiz-done">{t('reading:view.answersSaved')}</p>
               )}
             </div>
           )}
@@ -266,7 +267,7 @@ const ReadingViewPage = () => {
               className="btn btn-ghost btn-sm"
               onClick={() => setVocabPopup(null)}
             >
-              Close
+              {t('reading:common.close')}
             </button>
           </div>
         </div>

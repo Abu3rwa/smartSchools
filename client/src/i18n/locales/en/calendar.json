@@ -1,0 +1,117 @@
+{
+  "header": {
+    "title": "School Calendar",
+    "subtitle": "Plan monthly activities and manage upcoming events",
+    "addEvent": "Add Event"
+  },
+  "common": {
+    "close": "Close",
+    "saving": "Saving..."
+  },
+  "filters": {
+    "all": "All",
+    "event": "Events",
+    "holiday": "Holidays",
+    "meeting": "Meetings",
+    "exam": "Exams"
+  },
+  "categories": {
+    "event": "Event",
+    "holiday": "Holiday",
+    "meeting": "Meeting",
+    "exam": "Exam"
+  },
+  "visibility": {
+    "schoolWide": "School Wide",
+    "teachersOnly": "Teachers Only",
+    "parentsOnly": "Parents Only",
+    "custom": "Custom (By Email)"
+  },
+  "weekdays": {
+    "short": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    }
+  },
+  "month": {
+    "previous": "Previous month",
+    "next": "Next month",
+    "eventsOnDate": "{{count}} event on {{date}}",
+    "eventsOnDate_plural": "{{count}} events on {{date}}",
+    "noEvents": "No events on this date."
+  },
+  "upcoming": {
+    "title": "Upcoming Events",
+    "subtitle": "Showing next events for the selected filter",
+    "empty": "No upcoming events found.",
+    "mute": "Mute notifications for this event",
+    "enableNotification": "Enable notifications for this event"
+  },
+  "status": {
+    "cancelled": "Cancelled"
+  },
+  "actions": {
+    "edit": "Edit",
+    "cancelEvent": "Cancel Event"
+  },
+  "dialog": {
+    "addTitle": "Add Event",
+    "editTitle": "Edit Event",
+    "fields": {
+      "title": "Title",
+      "description": "Description",
+      "category": "Category",
+      "start": "Start",
+      "end": "End",
+      "allDay": "All Day",
+      "recurring": "Recurring Event",
+      "repeat": "Repeat",
+      "interval": "Interval",
+      "repeatUntilOptional": "Repeat Until (optional)",
+      "locationOptional": "Location (optional)",
+      "audience": "Audience",
+      "recipientUsers": "Recipient Users",
+      "recipientPlaceholder": "Search by name or email",
+      "recipientHelper": "Select recipients. Only selected users will receive this custom audience notification."
+    },
+    "actions": {
+      "saveChanges": "Save Changes",
+      "createEvent": "Create Event"
+    }
+  },
+  "recurrence": {
+    "frequency": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "summary": {
+      "daily": "Repeats daily",
+      "everyDays": "Repeats every {{interval}} days",
+      "weekly": "Repeats weekly",
+      "everyWeeks": "Repeats every {{interval}} weeks",
+      "weeklyOn": "Repeats weekly on {{days}}",
+      "everyWeeksOn": "Repeats every {{interval}} weeks on {{days}}",
+      "monthly": "Repeats monthly",
+      "everyMonths": "Repeats every {{interval}} months"
+    }
+  },
+  "errors": {
+    "titleRequired": "Title is required.",
+    "startEndRequired": "Start and end date are required.",
+    "endAfterStart": "End date must be after start date.",
+    "selectWeekday": "Select at least one weekday for weekly recurrence.",
+    "repeatUntilValid": "Repeat until must be a valid date.",
+    "repeatUntilAfterStart": "Repeat until must be after the event start date.",
+    "selectRecipient": "Select at least one recipient user for custom audience.",
+    "saveFailed": "Could not save event."
+  },
+  "confirm": {
+    "cancelEvent": "Cancel this event?"
+  }
+}

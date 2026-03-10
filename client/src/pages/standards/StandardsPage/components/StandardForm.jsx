@@ -1,12 +1,15 @@
 import { GRADE_LEVEL_OPTIONS } from '../constants';
+import { useTranslation } from 'react-i18next';
 import { toUppercaseCode } from '../utils/standardsPagePresentation';
 
 const StandardForm = ({ formData, onFormDataChange, subjects }) => {
+    const { t } = useTranslation(['standards']);
+
     return (
         <div className="modal-body">
             <div className="form-row">
                 <div className="form-group">
-                    <label>Code *</label>
+                    <label>{t('standards:form.code')}</label>
                     <input
                         type="text"
                         value={formData.code}
@@ -17,11 +20,11 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                             })
                         }
                         required
-                        placeholder="e.g., CCSS.MATH.4.OA.1"
+                        placeholder={t('standards:form.codePlaceholder')}
                     />
                 </div>
                 <div className="form-group">
-                    <label>Name *</label>
+                    <label>{t('standards:form.name')}</label>
                     <input
                         type="text"
                         value={formData.name}
@@ -32,12 +35,12 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                             })
                         }
                         required
-                        placeholder="e.g., Multiplication Equations"
+                        placeholder={t('standards:form.namePlaceholder')}
                     />
                 </div>
             </div>
             <div className="form-group">
-                <label>Description *</label>
+                <label>{t('standards:form.description')}</label>
                 <textarea
                     value={formData.description}
                     onChange={(event) =>
@@ -48,12 +51,12 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                     }
                     required
                     rows={3}
-                    placeholder="Full description of the standard..."
+                    placeholder={t('standards:form.descriptionPlaceholder')}
                 />
             </div>
             <div className="form-row">
                 <div className="form-group">
-                    <label>Subject *</label>
+                    <label>{t('standards:form.subject')}</label>
                     <select
                         value={formData.subject}
                         onChange={(event) =>
@@ -64,7 +67,7 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                         }
                         required
                     >
-                        <option value="">Select Subject</option>
+                        <option value="">{t('standards:form.selectSubject')}</option>
                         {subjects.map((subject) => (
                             <option key={subject._id} value={subject._id}>
                                 {subject.name}
@@ -73,7 +76,7 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                     </select>
                 </div>
                 <div className="form-group">
-                    <label>Grade Level *</label>
+                    <label>{t('standards:form.gradeLevel')}</label>
                     <select
                         value={formData.gradeLevel}
                         onChange={(event) =>
@@ -84,32 +87,32 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                         }
                         required
                     >
-                        <option value="">Select Grade</option>
+                        <option value="">{t('standards:form.selectGrade')}</option>
                         {GRADE_LEVEL_OPTIONS.map((grade) => (
                             <option key={grade} value={grade}>
-                                Grade {grade}
+                                {t('standards:filters.grade', { grade })}
                             </option>
                         ))}
                     </select>
                 </div>
             </div>
             <div className="form-group">
-                <label>Category / Domain</label>
+                <label>{t('standards:form.category')}</label>
                 <input
                     type="text"
                     value={formData.category}
                     onChange={(event) =>
                         onFormDataChange({
-                            ...formData,
-                            category: event.target.value
-                        })
+                        ...formData,
+                        category: event.target.value
+                    })
                     }
-                    placeholder="e.g., Operations & Algebraic Thinking"
+                    placeholder={t('standards:form.categoryPlaceholder')}
                 />
             </div>
             <div className="form-row">
                 <div className="form-group">
-                    <label>Mastery Threshold (%)</label>
+                    <label>{t('standards:form.masteryThreshold')}</label>
                     <input
                         type="number"
                         value={formData.masteryThreshold}
@@ -124,7 +127,7 @@ const StandardForm = ({ formData, onFormDataChange, subjects }) => {
                     />
                 </div>
                 <div className="form-group">
-                    <label>Minimum Questions</label>
+                    <label>{t('standards:form.minimumQuestions')}</label>
                     <input
                         type="number"
                         value={formData.masteryMinQuestions}

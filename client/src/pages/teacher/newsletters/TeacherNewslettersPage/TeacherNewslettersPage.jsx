@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 import { fetchClasses, selectClasses } from '../../../../store/slices/classSlice';
 import { fetchSubjects, selectSubjects } from '../../../../store/slices/subjectSlice';
@@ -20,6 +21,7 @@ import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } f
 import './TeacherNewslettersPage.css';
 
 const TeacherNewslettersPage = () => {
+  const { t } = useTranslation(['newsletters']);
   const dispatch = useDispatch();
   const academicYear = useSelector(selectCurrentAcademicYear);
   const classes = useSelector(selectClasses);
@@ -101,7 +103,7 @@ const TeacherNewslettersPage = () => {
 
   const onGenerate = async ({ useFeedback = false } = {}) => {
     if (!classId || !subjectId) {
-      toast.error('Please select class and subject');
+      toast.error(t('newsletters:teacher.toasts.selectClassSubject'));
       return;
     }
     try {
@@ -120,22 +122,22 @@ const TeacherNewslettersPage = () => {
         customPrompt,
         regenerateWithFeedback: useFeedback
       })).unwrap();
-      toast.success('Section generated');
+      toast.success(t('newsletters:teacher.toasts.sectionGenerated'));
       dispatch(fetchIssue({ classId, academicYear, weekStart: weekStartStr }));
     } catch (e) {
-      toast.error(e || 'Generation failed');
+      toast.error(e || t('newsletters:teacher.toasts.generationFailed'));
     }
   };
 
   const onSaveContent = async () => {
     if (!mySection?._id) {
-      toast.error('Generate a section first');
+      toast.error(t('newsletters:teacher.toasts.generateFirst'));
       return;
     }
 
     const trimmed = (editableContent || '').trim();
     if (!trimmed) {
-      toast.error('Content cannot be empty');
+      toast.error(t('newsletters:teacher.toasts.contentRequired'));
       return;
     }
 
@@ -146,10 +148,10 @@ const TeacherNewslettersPage = () => {
         content: trimmed,
         customPrompt
       })).unwrap();
-      toast.success('Draft updated');
+      toast.success(t('newsletters:teacher.toasts.draftUpdated'));
       dispatch(fetchIssue({ classId, academicYear, weekStart: weekStartStr }));
     } catch (e) {
-      toast.error(e || 'Failed to save');
+      toast.error(e || t('newsletters:teacher.toasts.saveFailed'));
     } finally {
       setSavingContent(false);
     }
@@ -157,38 +159,38 @@ const TeacherNewslettersPage = () => {
 
   const onSubmit = async () => {
     if (!mySection?._id) {
-      toast.error('Generate a section first');
+      toast.error(t('newsletters:teacher.toasts.generateFirst'));
       return;
     }
     try {
       await dispatch(submitSection({ sectionId: mySection._id })).unwrap();
-      toast.success('Submitted to admin');
+      toast.success(t('newsletters:teacher.toasts.submitted'));
       dispatch(fetchIssue({ classId, academicYear, weekStart: weekStartStr }));
     } catch (e) {
-      toast.error(e || 'Submit failed');
+      toast.error(e || t('newsletters:teacher.toasts.submitFailed'));
     }
   };
 
   return (
     <div className="teacher-newsletters-page">
       <div className="tn-header">
-        <h2>Weekly Newsletters</h2>
-        <p>Generate a 100–120 word summary per subject and submit for admin review.</p>
+        <h2>{t('newsletters:teacher.header.title')}</h2>
+        <p>{t('newsletters:teacher.header.subtitle')}</p>
       </div>
 
       <div className="tn-grid">
         <div className="tn-card">
-          <h3>1) Select</h3>
+          <h3>{t('newsletters:teacher.sections.select')}</h3>
           <div className="tn-field">
-            <label>Week (pick any date in the week)</label>
+            <label>{t('newsletters:teacher.fields.week')}</label>
             <input type="date" value={weekDate} onChange={(e) => setWeekDate(e.target.value)} />
-            <div className="tn-subtext">Week range: {weekStartStr} → {weekEndStr}</div>
+            <div className="tn-subtext">{t('newsletters:teacher.fields.weekRange', { start: weekStartStr, end: weekEndStr })}</div>
           </div>
 
           <div className="tn-field">
-            <label>Class</label>
+            <label>{t('newsletters:teacher.fields.class')}</label>
             <select value={classId} onChange={(e) => setClassId(e.target.value)}>
-              <option value="">Select class</option>
+              <option value="">{t('newsletters:teacher.fields.selectClass')}</option>
               {classes.map((c) => (
                 <option key={c._id} value={c._id}>{c.name}</option>
               ))}
@@ -196,9 +198,9 @@ const TeacherNewslettersPage = () => {
           </div>
 
           <div className="tn-field">
-            <label>Subject</label>
+            <label>{t('newsletters:teacher.fields.subject')}</label>
             <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-              <option value="">Select subject</option>
+              <option value="">{t('newsletters:teacher.fields.selectSubject')}</option>
               {classSubjectOptions.map((s) => (
                 <option key={s._id} value={s._id}>{s.name}</option>
               ))}
@@ -206,16 +208,16 @@ const TeacherNewslettersPage = () => {
           </div>
 
           <div className="tn-field">
-            <label>Custom instructions (optional)</label>
+            <label>{t('newsletters:teacher.fields.customInstructions')}</label>
             <textarea
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder="Example: Mention our science experiment and keep language simple for parents."
+              placeholder={t('newsletters:teacher.fields.customInstructionsPlaceholder')}
             />
           </div>
 
           <div className="tn-field">
-            <label>Primary Language</label>
+            <label>{t('newsletters:teacher.fields.primaryLanguage')}</label>
             <select
               value={primaryLanguage}
               onChange={(e) => {
@@ -233,9 +235,9 @@ const TeacherNewslettersPage = () => {
           </div>
 
           <div className="tn-field">
-            <label>Secondary Language (optional)</label>
+            <label>{t('newsletters:teacher.fields.secondaryLanguage')}</label>
             <select value={secondaryLanguage} onChange={(e) => setSecondaryLanguage(e.target.value)}>
-              <option value="">None</option>
+              <option value="">{t('newsletters:teacher.common.none')}</option>
               {AI_LANGUAGE_OPTIONS
                 .filter((o) => o.value !== primaryLanguage)
                 .map((o) => (
@@ -246,7 +248,7 @@ const TeacherNewslettersPage = () => {
 
           <div className="tn-actions">
             <button className="tn-btn primary" onClick={() => onGenerate()} disabled={teacherNewsletter.generating}>
-              {teacherNewsletter.generating ? 'Generating...' : 'Generate '}
+              {teacherNewsletter.generating ? t('newsletters:teacher.common.generating') : t('newsletters:teacher.actions.generate')}
             </button>
             <button
               className="tn-btn"
@@ -257,38 +259,38 @@ const TeacherNewslettersPage = () => {
                 !mySection?.adminReview?.notes
               }
             >
-              Regenerate with Feedback
+              {t('newsletters:teacher.actions.regenerateWithFeedback')}
             </button>
             <button
               className="tn-btn"
               onClick={onSaveContent}
               disabled={savingContent || !mySection?._id || !editableContent.trim()}
             >
-              {savingContent ? 'Saving...' : 'Save Draft'}
+              {savingContent ? t('newsletters:teacher.common.saving') : t('newsletters:teacher.actions.saveDraft')}
             </button>
             <button className="tn-btn" onClick={onSubmit} disabled={teacherNewsletter.submitting || mySection?.status !== 'draft'}>
-              {teacherNewsletter.submitting ? 'Submitting...' : 'Submit to Admin'}
+              {teacherNewsletter.submitting ? t('newsletters:teacher.common.submitting') : t('newsletters:teacher.actions.submitToAdmin')}
             </button>
           </div>
 
           {mySection?.status && (
             <div className="tn-status">
-              Current status: <strong>{mySection.status}</strong>
-              {mySection.wordCount ? <span> • {mySection.wordCount} words</span> : null}
+              {t('newsletters:teacher.status.current')}: <strong>{mySection.status}</strong>
+              {mySection.wordCount ? <span> • {t('newsletters:teacher.status.words', { count: mySection.wordCount })}</span> : null}
             </div>
           )}
         </div>
 
         <div className="tn-card">
-          <h3>2) Pick lesson plans</h3>
+          <h3>{t('newsletters:teacher.sections.pickLessonPlans')}</h3>
           <div className="tn-subtext">
-            If you select none, the system will use all lesson plans in the week for the chosen class/subject.
+            {t('newsletters:teacher.sections.pickLessonPlansHint')}
           </div>
 
           {lessonsLoading ? (
-            <div className="tn-muted">Loading lesson plans...</div>
+            <div className="tn-muted">{t('newsletters:teacher.common.loadingLessonPlans')}</div>
           ) : (lessons.length === 0 ? (
-            <div className="tn-muted">No lesson plans found for this week.</div>
+            <div className="tn-muted">{t('newsletters:teacher.common.noLessonPlans')}</div>
           ) : (
             <div className="tn-list">
               {lessons.map((l) => (
@@ -307,7 +309,7 @@ const TeacherNewslettersPage = () => {
         </div>
 
         <div className="tn-card">
-          <h3>3) Preview</h3>
+          <h3>{t('newsletters:teacher.sections.preview')}</h3>
           {mySection?.content ? (
             <>
               <textarea
@@ -319,11 +321,11 @@ const TeacherNewslettersPage = () => {
               <div className="tn-preview">{editableContent}</div>
             </>
           ) : (
-            <div className="tn-muted">Generate a section to preview it here.</div>
+            <div className="tn-muted">{t('newsletters:teacher.common.generateToPreview')}</div>
           )}
           {mySection?.adminReview?.notes ? (
             <div className="tn-review-notes">
-              <strong>Admin notes:</strong> {mySection.adminReview.notes}
+              <strong>{t('newsletters:teacher.common.adminNotes')}:</strong> {mySection.adminReview.notes}
             </div>
           ) : null}
         </div>

@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 export default function AttendanceRequestRequesterSection({
   requesterName,
   requesterEmail,
@@ -6,12 +8,14 @@ export default function AttendanceRequestRequesterSection({
   setFormDataField,
   errors,
 }) {
+  const { t } = useTranslation(["attendanceRequests"]);
+
   return (
     <div className="form-section">
-      <h2 className="section-title">Requester details</h2>
+      <h2 className="section-title">{t("attendanceRequests:requester.sectionTitle")}</h2>
       <div className="form-row">
         <label className="field-label">
-          Name of Requester <span className="ar">اسم مقدم الطلب</span>{" "}
+          {t("attendanceRequests:requester.name")}{" "}
           <span className="required">*</span>
         </label>
         <input
@@ -24,8 +28,7 @@ export default function AttendanceRequestRequesterSection({
       </div>
       <div className="form-row">
         <label className="field-label">
-          Requester&apos;s Email{" "}
-          <span className="ar">البريد الإلكتروني لمقدم الطلب</span>{" "}
+          {t("attendanceRequests:requester.email")}{" "}
           <span className="required">*</span>
         </label>
         <input
@@ -39,8 +42,7 @@ export default function AttendanceRequestRequesterSection({
       {showDepartmentField && (
         <div className="form-row">
           <label className="field-label">
-            Department / Direct supervisor{" "}
-            <span className="ar">القسم والمدير المباشر</span>{" "}
+            {t("attendanceRequests:requester.departmentOrSupervisor")}{" "}
             <span className="required">*</span>
           </label>
           <input
@@ -50,7 +52,7 @@ export default function AttendanceRequestRequesterSection({
             onChange={(e) =>
               setFormDataField("departmentOrSupervisor", e.target.value)
             }
-            placeholder="e.g. Department name or supervisor"
+            placeholder={t("attendanceRequests:requester.departmentPlaceholder")}
           />
           {errors.departmentOrSupervisor && (
             <span className="field-error">{errors.departmentOrSupervisor}</span>

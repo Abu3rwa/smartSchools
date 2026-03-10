@@ -371,6 +371,50 @@ const dedupeStrings = (items = [], limit = 5) => {
   return result;
 };
 
+const parseCommaList = (value = "") =>
+  String(value || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+const normalizeSortOrder = (value = "desc") =>
+  String(value || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.trunc(parsed));
+};
+
+const toTimeOrNull = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+};
+
+const resolveSbRowStatus = ({
+  totalAttempts,
+  masteryPercentage,
+  threshold,
+  minQuestions,
+  submittedCount,
+  releasedCount,
+}) => {
+  if (releasedCount > 0) return "released";
+  if (submittedCount > 0) return "submitted";
+  if (!totalAttempts) return "not_started";
+
+  if (totalAttempts >= minQuestions && masteryPercentage >= threshold) {
+    return "mastered";
+  }
+
+  if (totalAttempts >= minQuestions && masteryPercentage < threshold) {
+    return "needs_review";
+  }
+
+  return "in_progress";
+};
+
 const buildSessionContextHints = (attempts = []) => {
   const previousQuestions = [];
   attempts.forEach((attempt) => {
@@ -2715,6 +2759,503 @@ export const getStandardAverageGradebook = asyncHandler(async (req, res) => {
         standardId,
         academicYear: effectiveAcademicYear,
         semester: effectiveSemester,
+      },
+    },
+  });
+});
+
+/**
+ * @desc    Dedicated Standards-Based gradebook view with filters and pagination
+ * @route   GET /api/practice/sb-gradebook
+ * @access  Private (Admin, Teacher, Department Principal)
+ */
+export const getSBGradebook = asyncHandler(async (req, res) => {
+  const {
+    classId,
+    studentId,
+    subjectId,
+    standardId,
+    sessionType,
+    fromDate,
+    toDate,
+    search,
+    sortBy = "lastActivityAt",
+    sortOrder = "desc",
+    status,
+  } = req.query || {};
+
+  const page = parsePositiveInt(req.query?.page, 1);
+  const limit = Math.min(parsePositiveInt(req.query?.limit, 25), 200);
+  const normalizedSortOrder = normalizeSortOrder(sortOrder);
+  const statusFilter = new Set(parseCommaList(status));
+  const searchTerm = String(search || "").trim().toLowerCase();
+  const fromTime = toTimeOrNull(fromDate);
+  const toTime = toTimeOrNull(toDate);
+
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const effectiveSemester = resolveSemesterForRequest(req);
+
+  const { classIds: yearClassIds } = await getYearScopedClassIds(
+    req,
+    classId ? [classId] : null
+  );
+
+  let allowedClassIds = yearClassIds;
+  if (req.user?.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+      return res.status(403).json({ success: false, message: "Not authorized" });
+    }
+    const teacherClassIds = await getTeacherClassIds(teacher._id);
+    const teacherClassSet = new Set(teacherClassIds.map((id) => id.toString()));
+    allowedClassIds = yearClassIds.filter((id) => teacherClassSet.has(String(id)));
+  }
+
+  if (!allowedClassIds.length) {
+    return res.json({
+      success: true,
+      data: {
+        rows: [],
+        summary: {
+          totalRows: 0,
+          totalStudents: 0,
+          mastered: 0,
+          inProgress: 0,
+          notStarted: 0,
+          needsReview: 0,
+          submitted: 0,
+          released: 0,
+          averageMastery: 0,
+          averagePercentage: 0,
+        },
+        pagination: { page, limit, total: 0, pages: 0 },
+        filterOptions: { classes: [], subjects: [], standards: [], students: [], statuses: [] },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
+      },
+    });
+  }
+
+  const assignmentQuery = {
+    school: req.schoolId,
+    isActive: true,
+    class: { $in: allowedClassIds },
+    $or: [
+      { semester: effectiveSemester },
+      { semester: null },
+      { semester: { $exists: false } },
+    ],
+  };
+
+  if (subjectId) assignmentQuery.subject = subjectId;
+  if (standardId) assignmentQuery.standard = standardId;
+  if (sessionType) assignmentQuery["practiceConfig.sessionType"] = sessionType;
+
+  const assignments = await StandardAssignment.find(assignmentQuery)
+    .select("_id title class subject standard assignedDate dueDate practiceConfig")
+    .populate("class", "name grade section")
+    .populate("subject", "name code")
+    .populate("standard", "code name masteryThreshold masteryMinQuestions")
+    .lean();
+
+  if (!assignments.length) {
+    return res.json({
+      success: true,
+      data: {
+        rows: [],
+        summary: {
+          totalRows: 0,
+          totalStudents: 0,
+          mastered: 0,
+          inProgress: 0,
+          notStarted: 0,
+          needsReview: 0,
+          submitted: 0,
+          released: 0,
+          averageMastery: 0,
+          averagePercentage: 0,
+        },
+        pagination: { page, limit, total: 0, pages: 0 },
+        filterOptions: { classes: [], subjects: [], standards: [], students: [], statuses: [] },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
+      },
+    });
+  }
+
+  const assignmentIds = assignments.map((assignment) => assignment._id);
+  const assignmentMap = new Map(assignments.map((assignment) => [String(assignment._id), assignment]));
+
+  const classIdSet = new Set(assignments.map((assignment) => String(assignment.class?._id || assignment.class)).filter(Boolean));
+  const studentQuery = {
+    school: req.schoolId,
+    currentClass: { $in: Array.from(classIdSet) },
+    status: "active",
+    academicYear: effectiveAcademicYear,
+  };
+  if (studentId) studentQuery._id = studentId;
+
+  const students = await Student.find(studentQuery)
+    .select("_id firstName lastName studentId currentClass")
+    .lean();
+  const studentMap = new Map(students.map((student) => [String(student._id), student]));
+
+  if (!students.length) {
+    return res.json({
+      success: true,
+      data: {
+        rows: [],
+        summary: {
+          totalRows: 0,
+          totalStudents: 0,
+          mastered: 0,
+          inProgress: 0,
+          notStarted: 0,
+          needsReview: 0,
+          submitted: 0,
+          released: 0,
+          averageMastery: 0,
+          averagePercentage: 0,
+        },
+        pagination: { page, limit, total: 0, pages: 0 },
+        filterOptions: { classes: [], subjects: [], standards: [], students: [], statuses: [] },
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester,
+      },
+    });
+  }
+
+  const studentIds = students.map((student) => student._id);
+  const attemptQuery = {
+    school: req.schoolId,
+    assignment: { $in: assignmentIds },
+    student: { $in: studentIds },
+    status: "answered",
+  };
+  if (fromTime || toTime) {
+    attemptQuery.answeredAt = {};
+    if (fromTime) attemptQuery.answeredAt.$gte = new Date(fromTime);
+    if (toTime) attemptQuery.answeredAt.$lte = new Date(toTime);
+  }
+
+  const attempts = await PracticeAttempt.find(attemptQuery)
+    .select("student assignment isCorrect answeredAt createdAt")
+    .lean();
+
+  const entryQuery = {
+    school: req.schoolId,
+    assignment: { $in: assignmentIds },
+    student: { $in: studentIds },
+  };
+  if (fromTime || toTime) {
+    entryQuery.updatedAt = {};
+    if (fromTime) entryQuery.updatedAt.$gte = new Date(fromTime);
+    if (toTime) entryQuery.updatedAt.$lte = new Date(toTime);
+  }
+
+  const gradebookEntries = await StandardsGradebookEntry.find(entryQuery)
+    .select("student assignment status percentage submittedAt releasedAt updatedAt")
+    .lean();
+
+  const bucketMap = new Map();
+  const assignmentBucketById = new Map();
+
+  assignments.forEach((assignment) => {
+    const classDoc = assignment.class || {};
+    const subjectDoc = assignment.subject || {};
+    const standardDoc = assignment.standard || {};
+    const key = [
+      String(classDoc._id || assignment.class || ""),
+      String(subjectDoc._id || assignment.subject || ""),
+      String(standardDoc._id || assignment.standard || ""),
+    ].join("|");
+
+    if (!bucketMap.has(key)) {
+      bucketMap.set(key, {
+        key,
+        class: {
+          _id: classDoc._id || assignment.class,
+          name: classDoc.name || "",
+          grade: classDoc.grade || null,
+          section: classDoc.section || null,
+        },
+        subject: {
+          _id: subjectDoc._id || assignment.subject,
+          name: subjectDoc.name || "",
+          code: subjectDoc.code || "",
+        },
+        standard: {
+          _id: standardDoc._id || assignment.standard,
+          code: standardDoc.code || "",
+          name: standardDoc.name || "",
+          masteryThreshold: Number(standardDoc.masteryThreshold || 80),
+          masteryMinQuestions: Number(standardDoc.masteryMinQuestions || 5),
+        },
+        sessionType: assignment.practiceConfig?.sessionType || "practice",
+        assignments: [],
+      });
+    }
+
+    bucketMap.get(key).assignments.push({
+      _id: assignment._id,
+      title: assignment.title || null,
+      assignedDate: assignment.assignedDate || null,
+      dueDate: assignment.dueDate || null,
+    });
+    assignmentBucketById.set(String(assignment._id), key);
+  });
+
+  const rowMap = new Map();
+
+  const ensureRow = (student, bucket) => {
+    const rowKey = `${student._id}|${bucket.key}`;
+    if (!rowMap.has(rowKey)) {
+      rowMap.set(rowKey, {
+        rowKey,
+        student: {
+          _id: student._id,
+          firstName: student.firstName || "",
+          lastName: student.lastName || "",
+          studentId: student.studentId || "",
+        },
+        class: bucket.class,
+        subject: bucket.subject,
+        standard: bucket.standard,
+        sessionType: bucket.sessionType,
+        assignments: bucket.assignments,
+        totalAssignments: bucket.assignments.length,
+        totalAttempts: 0,
+        correctCount: 0,
+        masteryPercentage: 0,
+        averagePercentage: null,
+        submittedCount: 0,
+        releasedCount: 0,
+        lastActivityAt: null,
+        status: "not_started",
+      });
+    }
+    return rowMap.get(rowKey);
+  };
+
+  students.forEach((student) => {
+    const classIdValue = String(student.currentClass || "");
+    bucketMap.forEach((bucket) => {
+      if (String(bucket.class._id || "") !== classIdValue) return;
+      ensureRow(student, bucket);
+    });
+  });
+
+  attempts.forEach((attempt) => {
+    const student = studentMap.get(String(attempt.student));
+    const bucketKey = assignmentBucketById.get(String(attempt.assignment));
+    if (!student || !bucketKey || !bucketMap.has(bucketKey)) return;
+    const row = ensureRow(student, bucketMap.get(bucketKey));
+    row.totalAttempts += 1;
+    if (attempt.isCorrect) row.correctCount += 1;
+    const activityTime = toTimeOrNull(attempt.answeredAt || attempt.createdAt);
+    if (activityTime && (!row.lastActivityAt || activityTime > row.lastActivityAt)) {
+      row.lastActivityAt = activityTime;
+    }
+  });
+
+  const percentageTotalsByRow = new Map();
+  gradebookEntries.forEach((entry) => {
+    const student = studentMap.get(String(entry.student));
+    const bucketKey = assignmentBucketById.get(String(entry.assignment));
+    if (!student || !bucketKey || !bucketMap.has(bucketKey)) return;
+    const row = ensureRow(student, bucketMap.get(bucketKey));
+
+    if (entry.status === "submitted") row.submittedCount += 1;
+    if (entry.status === "released") row.releasedCount += 1;
+
+    if (Number.isFinite(Number(entry.percentage))) {
+      const existing = percentageTotalsByRow.get(row.rowKey) || { total: 0, count: 0 };
+      existing.total += Number(entry.percentage);
+      existing.count += 1;
+      percentageTotalsByRow.set(row.rowKey, existing);
+    }
+
+    const activityTime = toTimeOrNull(entry.releasedAt || entry.submittedAt || entry.updatedAt);
+    if (activityTime && (!row.lastActivityAt || activityTime > row.lastActivityAt)) {
+      row.lastActivityAt = activityTime;
+    }
+  });
+
+  let rows = Array.from(rowMap.values()).map((row) => {
+    const masteryPercentage =
+      row.totalAttempts > 0
+        ? Number(((row.correctCount / row.totalAttempts) * 100).toFixed(2))
+        : 0;
+
+    const percentageStats = percentageTotalsByRow.get(row.rowKey);
+    const averagePercentage =
+      percentageStats && percentageStats.count > 0
+        ? Number((percentageStats.total / percentageStats.count).toFixed(2))
+        : null;
+
+    const statusValue = resolveSbRowStatus({
+      totalAttempts: row.totalAttempts,
+      masteryPercentage,
+      threshold: row.standard.masteryThreshold || 80,
+      minQuestions: row.standard.masteryMinQuestions || 5,
+      submittedCount: row.submittedCount,
+      releasedCount: row.releasedCount,
+    });
+
+    return {
+      ...row,
+      masteryPercentage,
+      averagePercentage,
+      lastActivityAt: row.lastActivityAt ? new Date(row.lastActivityAt).toISOString() : null,
+      status: statusValue,
+    };
+  });
+
+  if (statusFilter.size > 0) {
+    rows = rows.filter((row) => statusFilter.has(String(row.status || "").toLowerCase()));
+  }
+
+  if (searchTerm) {
+    rows = rows.filter((row) => {
+      const haystack = [
+        row.student.firstName,
+        row.student.lastName,
+        row.student.studentId,
+        row.standard.code,
+        row.standard.name,
+        row.subject.name,
+        row.class.name,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(searchTerm);
+    });
+  }
+
+  const summary = rows.reduce(
+    (acc, row) => {
+      acc.totalRows += 1;
+      acc.totalStudentsSet.add(String(row.student._id));
+      if (row.status === "mastered") acc.mastered += 1;
+      else if (row.status === "in_progress") acc.inProgress += 1;
+      else if (row.status === "needs_review") acc.needsReview += 1;
+      else if (row.status === "submitted") acc.submitted += 1;
+      else if (row.status === "released") acc.released += 1;
+      else acc.notStarted += 1;
+
+      acc.masterySum += Number(row.masteryPercentage || 0);
+      if (Number.isFinite(Number(row.averagePercentage))) {
+        acc.percentageSum += Number(row.averagePercentage);
+        acc.percentageCount += 1;
+      }
+      return acc;
+    },
+    {
+      totalRows: 0,
+      totalStudentsSet: new Set(),
+      mastered: 0,
+      inProgress: 0,
+      notStarted: 0,
+      needsReview: 0,
+      submitted: 0,
+      released: 0,
+      masterySum: 0,
+      percentageSum: 0,
+      percentageCount: 0,
+    }
+  );
+
+  const sortReaders = {
+    student: (row) => `${row.student.firstName} ${row.student.lastName}`.trim().toLowerCase(),
+    class: (row) => String(row.class.name || "").toLowerCase(),
+    subject: (row) => String(row.subject.name || "").toLowerCase(),
+    standard: (row) => String(row.standard.code || row.standard.name || "").toLowerCase(),
+    status: (row) => String(row.status || "").toLowerCase(),
+    masteryPercentage: (row) => Number(row.masteryPercentage || 0),
+    averagePercentage: (row) => Number(row.averagePercentage || -1),
+    lastActivityAt: (row) => toTimeOrNull(row.lastActivityAt) || 0,
+    totalAttempts: (row) => Number(row.totalAttempts || 0),
+  };
+  const sortReader = sortReaders[sortBy] || sortReaders.lastActivityAt;
+
+  rows.sort((left, right) => {
+    const a = sortReader(left);
+    const b = sortReader(right);
+    if (a < b) return normalizedSortOrder === "asc" ? -1 : 1;
+    if (a > b) return normalizedSortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const total = rows.length;
+  const pages = total > 0 ? Math.ceil(total / limit) : 0;
+  const pagedRows = rows.slice((page - 1) * limit, (page - 1) * limit + limit);
+
+  const classOptionsMap = new Map();
+  const subjectOptionsMap = new Map();
+  const standardOptionsMap = new Map();
+  const studentOptionsMap = new Map();
+
+  rows.forEach((row) => {
+    classOptionsMap.set(String(row.class._id), row.class);
+    subjectOptionsMap.set(String(row.subject._id), row.subject);
+    standardOptionsMap.set(String(row.standard._id), row.standard);
+    studentOptionsMap.set(String(row.student._id), row.student);
+  });
+
+  res.json({
+    success: true,
+    data: {
+      rows: pagedRows,
+      summary: {
+        totalRows: summary.totalRows,
+        totalStudents: summary.totalStudentsSet.size,
+        mastered: summary.mastered,
+        inProgress: summary.inProgress,
+        notStarted: summary.notStarted,
+        needsReview: summary.needsReview,
+        submitted: summary.submitted,
+        released: summary.released,
+        averageMastery:
+          summary.totalRows > 0
+            ? Number((summary.masterySum / summary.totalRows).toFixed(2))
+            : 0,
+        averagePercentage:
+          summary.percentageCount > 0
+            ? Number((summary.percentageSum / summary.percentageCount).toFixed(2))
+            : 0,
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+        pages,
+      },
+      filterOptions: {
+        classes: Array.from(classOptionsMap.values()),
+        subjects: Array.from(subjectOptionsMap.values()),
+        standards: Array.from(standardOptionsMap.values()),
+        students: Array.from(studentOptionsMap.values()),
+        statuses: [
+          "not_started",
+          "in_progress",
+          "needs_review",
+          "mastered",
+          "submitted",
+          "released",
+        ],
+      },
+      academicYear: effectiveAcademicYear,
+      semester: effectiveSemester,
+      filters: {
+        classId: classId || null,
+        studentId: studentId || null,
+        subjectId: subjectId || null,
+        standardId: standardId || null,
+        sessionType: sessionType || null,
+        fromDate: fromDate || null,
+        toDate: toDate || null,
+        search: search || "",
+        status: statusFilter.size > 0 ? Array.from(statusFilter) : [],
       },
     },
   });

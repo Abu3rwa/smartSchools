@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import useInterventionQueueData from './hooks/useInterventionQueueData';
 import InterventionQueueHeader from './components/InterventionQueueHeader';
 import InterventionQueueStats from './components/InterventionQueueStats';
@@ -10,6 +11,7 @@ import InterventionQueueErrorState from './components/InterventionQueueErrorStat
 import './InterventionQueuePage.css';
 
 const InterventionQueuePage = () => {
+    const { t } = useTranslation(['interventions']);
     const {
         loading,
         actionLoading,
@@ -32,7 +34,7 @@ const InterventionQueuePage = () => {
 
             {!featureEnabled ? (
                 <InterventionQueueEmptyState 
-                    message="Intervention queue is currently disabled by feature flag." 
+                    message={t('interventions:page.disabled')} 
                     icon={null} 
                 />
             ) : (

@@ -9,8 +9,10 @@ import {
 import { fetchClasses, selectClasses } from "../../../../../store/slices/classSlice.js";
 import { buildRequestedLanguages } from "../../../../../constants/aiLanguages.js";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 export function useReadingUploadData() {
+  const { t } = useTranslation(["reading"]);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const uploading = useSelector(selectReadingUploading);
@@ -38,11 +40,11 @@ export function useReadingUploadData() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) {
-      toast.error("Title is required");
+      toast.error(t("reading:upload.toasts.titleRequired"));
       return;
     }
     if (!originalText.trim()) {
-      toast.error("Please paste or enter the text to upload");
+      toast.error(t("reading:upload.toasts.textRequired"));
       return;
     }
     const topicTags = topicTagsStr
@@ -70,9 +72,7 @@ export function useReadingUploadData() {
       }),
     ).then((result) => {
       if (result.type === "reading/uploadText/fulfilled") {
-        toast.success(
-          "Text uploaded. Simplified versions and questions are being generated.",
-        );
+        toast.success(t("reading:upload.toasts.uploadSuccess"));
         navigate("/portal/reading/texts");
       }
     });

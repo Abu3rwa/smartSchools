@@ -1,9 +1,11 @@
 import { HiOutlineArrowLeft, HiOutlineDocumentAdd } from "react-icons/hi";
+import { useTranslation } from "react-i18next";
 import { useReadingUploadData } from "./hooks/useReadingUploadData.js";
 import { AI_LANGUAGE_OPTIONS } from "../../../../constants/aiLanguages.js";
 import "./ReadingUploadPage.css";
 
 export default function ReadingUploadPage() {
+  const { t } = useTranslation(["reading"]);
   const {
     title,
     setTitle,
@@ -33,90 +35,87 @@ export default function ReadingUploadPage() {
     <div className="reading-upload-page">
       <button type="button" className="btn btn-ghost back-btn" onClick={onCancel}>
         <HiOutlineArrowLeft size={18} />
-        Back
+        {t("reading:common.back")}
       </button>
 
       <header className="reading-upload-header">
-        <h1>Upload Reading Text</h1>
+        <h1>{t("reading:upload.title")}</h1>
         <p className="subtitle">
-          Add a text for your students. Subject and topic tags are generated from
-          the text if left blank. Optionally select a target class so content is
-          tailored to your students&apos; reading levels.
+          {t("reading:upload.subtitle")}
         </p>
       </header>
 
       <form className="reading-upload-form" onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="title">Title *</label>
+          <label htmlFor="title">{t("reading:upload.fields.title")}</label>
           <input
             id="title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. The Water Cycle"
+            placeholder={t("reading:upload.fields.titlePlaceholder")}
             required
           />
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="subjectArea">Subject area (optional)</label>
+            <label htmlFor="subjectArea">{t("reading:upload.fields.subjectArea")}</label>
             <input
               id="subjectArea"
               type="text"
               value={subjectArea}
               onChange={(e) => setSubjectArea(e.target.value)}
-              placeholder="Leave blank to generate from text"
+              placeholder={t("reading:upload.fields.subjectAreaPlaceholder")}
             />
-            <span className="field-hint">Generated from the text if left blank</span>
+            <span className="field-hint">{t("reading:upload.fields.generatedHint")}</span>
           </div>
           <div className="form-group">
-            <label htmlFor="sourceDocument">Source (optional)</label>
+            <label htmlFor="sourceDocument">{t("reading:upload.fields.sourceDocument")}</label>
             <input
               id="sourceDocument"
               type="text"
               value={sourceDocument}
               onChange={(e) => setSourceDocument(e.target.value)}
-              placeholder="e.g. Chapter 3"
+              placeholder={t("reading:upload.fields.sourceDocumentPlaceholder")}
             />
           </div>
         </div>
 
         <div className="form-group">
-          <label htmlFor="topicTags">Topic tags (optional)</label>
+          <label htmlFor="topicTags">{t("reading:upload.fields.topicTags")}</label>
           <input
             id="topicTags"
             type="text"
             value={topicTagsStr}
             onChange={(e) => setTopicTagsStr(e.target.value)}
-            placeholder="Leave blank to generate from text (comma-separated to override)"
+            placeholder={t("reading:upload.fields.topicTagsPlaceholder")}
           />
-          <span className="field-hint">Generated from the text if left blank</span>
+          <span className="field-hint">{t("reading:upload.fields.generatedHint")}</span>
         </div>
 
         <div className="form-group">
-          <label htmlFor="targetClass">Target class (optional)</label>
+          <label htmlFor="targetClass">{t("reading:upload.fields.targetClass")}</label>
           <select
             id="targetClass"
             value={classId}
             onChange={(e) => setClassId(e.target.value)}
           >
-            <option value="">No specific class</option>
+            <option value="">{t("reading:upload.fields.noSpecificClass")}</option>
             {classes.map((c) => (
               <option key={c._id} value={c._id}>
-                {c.name} (Grade {c.grade})
+                {c.name} ({t("reading:upload.fields.grade", { grade: c.grade })})
               </option>
             ))}
           </select>
           <span className="field-hint">
-            Improves simplification and questions using this class&apos;s reading
-            levels
+            {t("reading:upload.fields.classHint")}
           </span>
         </div>
 
         <div className="form-row">
           <div className="form-group">
-            <label htmlFor="aiPrimaryLanguage">Primary AI language</label>
+            <label htmlFor="aiPrimaryLanguage">{t("reading:upload.fields.primaryLanguage")}</label>
             <select
               id="aiPrimaryLanguage"
               value={aiPrimaryLanguage}
@@ -134,13 +133,13 @@ export default function ReadingUploadPage() {
             </select>
           </div>
           <div className="form-group">
-            <label htmlFor="aiSecondaryLanguage">Secondary AI language (optional)</label>
+            <label htmlFor="aiSecondaryLanguage">{t("reading:upload.fields.secondaryLanguage")}</label>
             <select
               id="aiSecondaryLanguage"
               value={aiSecondaryLanguage}
               onChange={(e) => setAiSecondaryLanguage(e.target.value)}
             >
-              <option value="">None</option>
+              <option value="">{t("reading:common.none")}</option>
               {AI_LANGUAGE_OPTIONS
                 .filter((option) => option.value !== aiPrimaryLanguage)
                 .map((option) => (
@@ -151,12 +150,12 @@ export default function ReadingUploadPage() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="originalText">Text content *</label>
+          <label htmlFor="originalText">{t("reading:upload.fields.textContent")}</label>
           <textarea
             id="originalText"
             value={originalText}
             onChange={(e) => setOriginalText(e.target.value)}
-            placeholder="Paste or type the full text here..."
+            placeholder={t("reading:upload.fields.textContentPlaceholder")}
             rows={14}
             required
           />
@@ -170,22 +169,21 @@ export default function ReadingUploadPage() {
             onChange={(e) => setGenerateVersions(e.target.checked)}
           />
           <label htmlFor="generateVersions">
-            Generate simplified versions (grades 6, 8, 10), vocabulary, critical
-            thinking, and comprehension questions
+            {t("reading:upload.fields.generateVersions")}
           </label>
         </div>
 
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onCancel}>
-            Cancel
+            {t("reading:common.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={uploading}>
             {uploading ? (
-              <span className="btn-loading">Uploading…</span>
+              <span className="btn-loading">{t("reading:common.uploading")}</span>
             ) : (
               <>
                 <HiOutlineDocumentAdd size={18} />
-                Upload text
+                {t("reading:upload.actions.uploadText")}
               </>
             )}
           </button>

@@ -13,14 +13,19 @@ import {
     HiOutlineXCircle,
     HiOutlineExclamation,
     HiOutlineEye,
-    HiOutlinePencil
+    HiOutlinePencil,
+    HiOutlineX
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import './TeacherSchedulePage.css';
 import scheduleService from '../../../../services/scheduleService';
 import studentService from '../../../../services/studentService';
 import attendanceService from '../../../../services/attendanceService';
 
 const TeacherSchedulePage = () => {
+    const { t, i18n } = useTranslation(['schedule']);
+    const locale = i18n.language?.toLowerCase().startsWith('ar') ? 'ar-EG' : 'en-US';
+
     // Local state
     const [schedules, setSchedules] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -143,11 +148,11 @@ const TeacherSchedulePage = () => {
     };
 
     const formatDateTime = (date) => {
-        return new Date(date).toLocaleString();
+        return new Date(date).toLocaleString(locale);
     };
 
     const formatTime = (date) => {
-        return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return new Date(date).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
     };
 
     const getRoomLabel = (room) => {
@@ -167,6 +172,9 @@ const TeacherSchedulePage = () => {
         return colors[status] || 'gray';
     };
 
+    const getStatusLabel = (status) =>
+        t(`schedule:status.${status}`, { defaultValue: status });
+
     const getTypeColor = (type) => {
         const colors = {
             'class': 'blue',
@@ -178,6 +186,12 @@ const TeacherSchedulePage = () => {
         };
         return colors[type] || 'gray';
     };
+
+    const getTypeLabel = (type) =>
+        t(`schedule:type.${type}`, { defaultValue: type });
+
+    const getAttendanceStatusLabel = (status) =>
+        t(`schedule:attendance.status.${status}`, { defaultValue: status });
 
     const getTodaySchedules = () => {
         const today = new Date();
@@ -206,12 +220,12 @@ const TeacherSchedulePage = () => {
         return (
             <div className="day-view">
                 <div className="view-header">
-                    <h3>{currentDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+                    <h3>{currentDate.toLocaleDateString(locale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
                     <div className="view-navigation">
                         <button onClick={() => navigateDate('prev')}>
                             <HiOutlineChevronLeft size={20} />
                         </button>
-                        <button onClick={() => setCurrentDate(new Date())}>Today</button>
+                        <button onClick={() => setCurrentDate(new Date())}>{t('schedule:teacher.navigation.today')}</button>
                         <button onClick={() => navigateDate('next')}>
                             <HiOutlineChevronRight size={20} />
                         </button>
@@ -271,7 +285,15 @@ const TeacherSchedulePage = () => {
     };
 
     const renderWeekView = () => {
-        const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const weekDays = [
+            t('schedule:weekdays.full.sunday'),
+            t('schedule:weekdays.full.monday'),
+            t('schedule:weekdays.full.tuesday'),
+            t('schedule:weekdays.full.wednesday'),
+            t('schedule:weekdays.full.thursday'),
+            t('schedule:weekdays.full.friday'),
+            t('schedule:weekdays.full.saturday')
+        ];
         const startOfWeek = new Date(currentDate);
         startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
         
@@ -279,13 +301,13 @@ const TeacherSchedulePage = () => {
             <div className="week-view">
                 <div className="view-header">
                     <h3>
-                        {startOfWeek.toLocaleDateString()} - {new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                        {startOfWeek.toLocaleDateString(locale)} - {new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString(locale)}
                     </h3>
                     <div className="view-navigation">
                         <button onClick={() => navigateDate('prev')}>
                             <HiOutlineChevronLeft size={20} />
                         </button>
-                        <button onClick={() => setCurrentDate(new Date())}>This Week</button>
+                        <button onClick={() => setCurrentDate(new Date())}>{t('schedule:teacher.navigation.thisWeek')}</button>
                         <button onClick={() => navigateDate('next')}>
                             <HiOutlineChevronRight size={20} />
                         </button>
@@ -309,7 +331,7 @@ const TeacherSchedulePage = () => {
                             <div key={day} className="day-column">
                                 <div className="day-header">
                                     <h4>{day}</h4>
-                                    <span>{dayDate.toLocaleDateString()}</span>
+                                    <span>{dayDate.toLocaleDateString(locale)}</span>
                                 </div>
                                 
                                 <div className="day-events">
@@ -389,12 +411,12 @@ const TeacherSchedulePage = () => {
         return (
             <div className="month-view">
                 <div className="view-header">
-                    <h3>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h3>
+                    <h3>{currentDate.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}</h3>
                     <div className="view-navigation">
                         <button onClick={() => navigateDate('prev')}>
                             <HiOutlineChevronLeft size={20} />
                         </button>
-                        <button onClick={() => setCurrentDate(new Date())}>This Month</button>
+                        <button onClick={() => setCurrentDate(new Date())}>{t('schedule:teacher.navigation.thisMonth')}</button>
                         <button onClick={() => navigateDate('next')}>
                             <HiOutlineChevronRight size={20} />
                         </button>
@@ -402,7 +424,15 @@ const TeacherSchedulePage = () => {
                 </div>
                 
                 <div className="month-grid">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    {[
+                        t('schedule:weekdays.short.sun'),
+                        t('schedule:weekdays.short.mon'),
+                        t('schedule:weekdays.short.tue'),
+                        t('schedule:weekdays.short.wed'),
+                        t('schedule:weekdays.short.thu'),
+                        t('schedule:weekdays.short.fri'),
+                        t('schedule:weekdays.short.sat')
+                    ].map(day => (
                         <div key={day} className="weekday-header">
                             {day}
                         </div>
@@ -447,7 +477,7 @@ const TeacherSchedulePage = () => {
                                     ))}
                                     {daySchedules.length > 3 && (
                                         <div className="more-events">
-                                            +{daySchedules.length - 3} more
+                                            +{daySchedules.length - 3} {t('schedule:teacher.common.more')}
                                         </div>
                                     )}
                                 </div>
@@ -463,7 +493,7 @@ const TeacherSchedulePage = () => {
         return (
             <div className="schedule-loading">
                 <div className="spinner"></div>
-                <p>Loading schedule...</p>
+                <p>{t('schedule:teacher.loading.schedule')}</p>
             </div>
         );
     }
@@ -472,10 +502,10 @@ const TeacherSchedulePage = () => {
         return (
             <div className="schedule-error">
                 <HiOutlineExclamation size={48} />
-                <h3>Error loading schedule</h3>
+                <h3>{t('schedule:teacher.error.title')}</h3>
                 <p>{error}</p>
                 <button onClick={fetchSchedules} className="btn btn-primary">
-                    Retry
+                    {t('schedule:teacher.actions.retry')}
                 </button>
             </div>
         );
@@ -486,8 +516,8 @@ const TeacherSchedulePage = () => {
             {/* Header */}
             <div className="page-header">
                 <div className="header-content">
-                    <h1>My Schedule</h1>
-                    <p>View and manage your teaching schedule</p>
+                    <h1>{t('schedule:teacher.header.title')}</h1>
+                    <p>{t('schedule:teacher.header.subtitle')}</p>
                 </div>
                 <div className="header-actions">
                     <button
@@ -495,7 +525,7 @@ const TeacherSchedulePage = () => {
                         onClick={fetchSchedules}
                     >
                         <HiOutlineRefresh size={20} />
-                        Refresh
+                        {t('schedule:teacher.actions.refresh')}
                     </button>
                 </div>
             </div>
@@ -508,7 +538,7 @@ const TeacherSchedulePage = () => {
                     </div>
                     <div className="stat-content">
                         <h3>{getTodaySchedules().length}</h3>
-                        <p>Today's Classes</p>
+                        <p>{t('schedule:teacher.stats.todayClasses')}</p>
                     </div>
                 </div>
                 
@@ -518,7 +548,7 @@ const TeacherSchedulePage = () => {
                     </div>
                     <div className="stat-content">
                         <h3>{schedules.filter(s => s.requiresAttendance && !s.attendanceRecorded).length}</h3>
-                        <p>Pending Attendance</p>
+                        <p>{t('schedule:teacher.stats.pendingAttendance')}</p>
                     </div>
                 </div>
                 
@@ -528,7 +558,7 @@ const TeacherSchedulePage = () => {
                     </div>
                     <div className="stat-content">
                         <h3>{getUpcomingSchedules().length}</h3>
-                        <p>Upcoming Classes</p>
+                        <p>{t('schedule:teacher.stats.upcomingClasses')}</p>
                     </div>
                 </div>
             </div>
@@ -540,19 +570,19 @@ const TeacherSchedulePage = () => {
                         className={`toggle-btn ${currentView === 'day' ? 'active' : ''}`}
                         onClick={() => setCurrentView('day')}
                     >
-                        Day
+                        {t('schedule:teacher.views.day')}
                     </button>
                     <button
                         className={`toggle-btn ${currentView === 'week' ? 'active' : ''}`}
                         onClick={() => setCurrentView('week')}
                     >
-                        Week
+                        {t('schedule:teacher.views.week')}
                     </button>
                     <button
                         className={`toggle-btn ${currentView === 'month' ? 'active' : ''}`}
                         onClick={() => setCurrentView('month')}
                     >
-                        Month
+                        {t('schedule:teacher.views.month')}
                     </button>
                 </div>
             </div>
@@ -569,7 +599,7 @@ const TeacherSchedulePage = () => {
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
-                            <h2>Class Details</h2>
+                            <h2>{t('schedule:teacher.details.title')}</h2>
                             <button
                                 className="modal-close"
                                 onClick={() => setShowDetailsModal(false)}
@@ -580,43 +610,43 @@ const TeacherSchedulePage = () => {
                         <div className="modal-body">
                             <div className="schedule-details">
                                 <div className="detail-section">
-                                    <h3>Class Information</h3>
+                                    <h3>{t('schedule:teacher.details.classInformation')}</h3>
                                     <div className="detail-grid">
                                         <div className="detail-item">
-                                            <label>Title:</label>
+                                            <label>{t('schedule:teacher.labels.title')}:</label>
                                             <span>{selectedSchedule.title}</span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>Type:</label>
+                                            <label>{t('schedule:teacher.labels.type')}:</label>
                                             <span className={`type-badge type-${getTypeColor(selectedSchedule.type)}`}>
-                                                {selectedSchedule.type}
+                                                {getTypeLabel(selectedSchedule.type)}
                                             </span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>Status:</label>
+                                            <label>{t('schedule:teacher.labels.status')}:</label>
                                             <span className={`status-badge status-${getStatusColor(selectedSchedule.status)}`}>
-                                                {selectedSchedule.status}
+                                                {getStatusLabel(selectedSchedule.status)}
                                             </span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>Time:</label>
+                                            <label>{t('schedule:teacher.labels.time')}:</label>
                                             <span>{formatDateTime(selectedSchedule.startTime)} - {formatDateTime(selectedSchedule.endTime)}</span>
                                         </div>
                                         {selectedSchedule.room && (
                                             <div className="detail-item">
-                                                <label>Room:</label>
+                                                <label>{t('schedule:teacher.labels.room')}:</label>
                                                 <span>{getRoomLabel(selectedSchedule.room)}</span>
                                             </div>
                                         )}
                                         {selectedSchedule.class && (
                                             <div className="detail-item">
-                                                <label>Class:</label>
+                                                <label>{t('schedule:teacher.labels.class')}:</label>
                                                 <span>{selectedSchedule.class.name}</span>
                                             </div>
                                         )}
                                         {selectedSchedule.subject && (
                                             <div className="detail-item">
-                                                <label>Subject:</label>
+                                                <label>{t('schedule:teacher.labels.subject')}:</label>
                                                 <span>{selectedSchedule.subject.name}</span>
                                             </div>
                                         )}
@@ -625,24 +655,24 @@ const TeacherSchedulePage = () => {
                                 
                                 {selectedSchedule.description && (
                                     <div className="detail-section">
-                                        <h3>Description</h3>
+                                        <h3>{t('schedule:teacher.labels.description')}</h3>
                                         <p>{selectedSchedule.description}</p>
                                     </div>
                                 )}
                                 
                                 {selectedSchedule.requiresAttendance && (
                                     <div className="detail-section">
-                                        <h3>Attendance</h3>
+                                        <h3>{t('schedule:teacher.attendance.title')}</h3>
                                         <div className="attendance-status">
                                             {selectedSchedule.attendanceRecorded ? (
                                                 <div className="attendance-recorded">
                                                     <HiOutlineCheckCircle size={20} color="green" />
-                                                    <span>Attendance has been recorded</span>
+                                                    <span>{t('schedule:teacher.attendance.recorded')}</span>
                                                 </div>
                                             ) : (
                                                 <div className="attendance-pending">
                                                     <HiOutlineExclamation size={20} color="orange" />
-                                                    <span>Attendance pending</span>
+                                                    <span>{t('schedule:teacher.attendance.pending')}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -654,7 +684,7 @@ const TeacherSchedulePage = () => {
                                                     handleAttendanceClick(selectedSchedule);
                                                 }}
                                             >
-                                                Record Attendance
+                                                {t('schedule:teacher.attendance.recordAttendance')}
                                             </button>
                                         )}
                                     </div>
@@ -666,7 +696,7 @@ const TeacherSchedulePage = () => {
                                 className="btn btn-secondary"
                                 onClick={() => setShowDetailsModal(false)}
                             >
-                                Close
+                                {t('schedule:teacher.actions.close')}
                             </button>
                         </div>
                     </div>
@@ -678,7 +708,7 @@ const TeacherSchedulePage = () => {
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
-                            <h2>Record Attendance</h2>
+                            <h2>{t('schedule:teacher.attendance.recordAttendance')}</h2>
                             <button
                                 className="modal-close"
                                 onClick={() => setShowAttendanceModal(false)}
@@ -699,7 +729,9 @@ const TeacherSchedulePage = () => {
                                                     {record.student.firstName} {record.student.lastName}
                                                 </span>
                                                 {record.checkInTime && (
-                                                    <span className="check-in-time">Checked in: {record.checkInTime}</span>
+                                                    <span className="check-in-time">
+                                                        {t('schedule:teacher.attendance.checkedIn')}: {record.checkInTime}
+                                                    </span>
                                                 )}
                                             </div>
                                             <div className="attendance-status">
@@ -711,10 +743,10 @@ const TeacherSchedulePage = () => {
                                                         setAttendanceData(newAttendance);
                                                     }}
                                                 >
-                                                    <option value="present">Present</option>
-                                                    <option value="absent">Absent</option>
-                                                    <option value="late">Late</option>
-                                                    <option value="excused">Excused</option>
+                                                    <option value="present">{getAttendanceStatusLabel('present')}</option>
+                                                    <option value="absent">{getAttendanceStatusLabel('absent')}</option>
+                                                    <option value="late">{getAttendanceStatusLabel('late')}</option>
+                                                    <option value="excused">{getAttendanceStatusLabel('excused')}</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -727,7 +759,7 @@ const TeacherSchedulePage = () => {
                                 className="btn btn-secondary"
                                 onClick={() => setShowAttendanceModal(false)}
                             >
-                                Cancel
+                                {t('schedule:teacher.actions.cancel')}
                             </button>
                             <button
                                 className="btn btn-primary"
@@ -737,7 +769,9 @@ const TeacherSchedulePage = () => {
                                 }}
                                 disabled={savingAttendance}
                             >
-                                {savingAttendance ? 'Saving...' : 'Save Attendance'}
+                                {savingAttendance
+                                    ? t('schedule:teacher.actions.saving')
+                                    : t('schedule:teacher.attendance.saveAttendance')}
                             </button>
                         </div>
                     </div>

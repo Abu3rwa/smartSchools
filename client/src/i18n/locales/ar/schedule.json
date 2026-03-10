@@ -1,0 +1,230 @@
+{
+  "weekdays": {
+    "full": {
+      "sunday": "الأحد",
+      "monday": "الإثنين",
+      "tuesday": "الثلاثاء",
+      "wednesday": "الأربعاء",
+      "thursday": "الخميس",
+      "friday": "الجمعة",
+      "saturday": "السبت"
+    },
+    "short": {
+      "sun": "أحد",
+      "mon": "إثن",
+      "tue": "ثلا",
+      "wed": "أرب",
+      "thu": "خم",
+      "fri": "جم",
+      "sat": "سبت"
+    }
+  },
+  "status": {
+    "scheduled": "مجدول",
+    "in_progress": "قيد التنفيذ",
+    "completed": "مكتمل",
+    "cancelled": "ملغى",
+    "postponed": "مؤجل",
+    "accepted": "مقبول",
+    "rejected": "مرفوض",
+    "pending": "معلق"
+  },
+  "type": {
+    "class": "حصة",
+    "exam": "اختبار",
+    "meeting": "اجتماع",
+    "event": "فعالية",
+    "holiday": "إجازة",
+    "maintenance": "صيانة",
+    "appointment": "موعد",
+    "extracurricular": "نشاط لا صفي"
+  },
+  "attendance": {
+    "status": {
+      "present": "حاضر",
+      "absent": "غائب",
+      "late": "متأخر",
+      "excused": "بعذر"
+    }
+  },
+  "teacher": {
+    "navigation": {
+      "today": "اليوم",
+      "thisWeek": "هذا الأسبوع",
+      "thisMonth": "هذا الشهر"
+    },
+    "loading": {
+      "schedule": "جارٍ تحميل الجدول..."
+    },
+    "error": {
+      "title": "خطأ في تحميل الجدول"
+    },
+    "header": {
+      "title": "جدولي",
+      "subtitle": "اعرض وأدر جدول التدريس الخاص بك"
+    },
+    "stats": {
+      "todayClasses": "حصص اليوم",
+      "pendingAttendance": "حضور قيد الانتظار",
+      "upcomingClasses": "الحصص القادمة"
+    },
+    "views": {
+      "day": "يومي",
+      "week": "أسبوعي",
+      "month": "شهري"
+    },
+    "details": {
+      "title": "تفاصيل الحصة",
+      "classInformation": "معلومات الحصة"
+    },
+    "labels": {
+      "title": "العنوان",
+      "type": "النوع",
+      "status": "الحالة",
+      "time": "الوقت",
+      "room": "القاعة",
+      "class": "الصف",
+      "subject": "المادة",
+      "description": "الوصف"
+    },
+    "attendance": {
+      "title": "الحضور",
+      "recorded": "تم تسجيل الحضور",
+      "pending": "الحضور قيد الانتظار",
+      "recordAttendance": "تسجيل الحضور",
+      "checkedIn": "تم تسجيل الدخول",
+      "saveAttendance": "حفظ الحضور"
+    },
+    "actions": {
+      "refresh": "تحديث",
+      "retry": "إعادة المحاولة",
+      "close": "إغلاق",
+      "cancel": "إلغاء",
+      "saving": "جارٍ الحفظ..."
+    },
+    "common": {
+      "more": "أكثر"
+    }
+  },
+  "admin": {
+    "header": {
+      "title": "إدارة الجداول",
+      "subtitle": "إدارة جداول الحصص والفعاليات والمواعيد"
+    },
+    "loading": {
+      "schedules": "جارٍ تحميل الجداول..."
+    },
+    "error": {
+      "title": "خطأ في تحميل الجداول"
+    },
+    "actions": {
+      "filters": "فلاتر",
+      "refresh": "تحديث",
+      "createSchedule": "إنشاء جدول",
+      "editSchedule": "تعديل الجدول",
+      "viewDetails": "عرض التفاصيل",
+      "edit": "تعديل",
+      "delete": "حذف",
+      "retry": "إعادة المحاولة",
+      "clearFilters": "مسح الفلاتر",
+      "cancel": "إلغاء",
+      "create": "إنشاء",
+      "update": "تحديث",
+      "close": "إغلاق"
+    },
+    "filters": {
+      "search": "بحث",
+      "searchPlaceholder": "ابحث في الجداول...",
+      "type": "النوع",
+      "allTypes": "كل الأنواع",
+      "teacher": "المعلم",
+      "allTeachers": "كل المعلمين",
+      "class": "الصف",
+      "allClasses": "كل الصفوف",
+      "status": "الحالة",
+      "allStatuses": "كل الحالات",
+      "dateRange": "نطاق التاريخ",
+      "to": "إلى"
+    },
+    "quick": {
+      "title": "إنشاء جدول سريع",
+      "subtitle": "أنشئ الجداول بسرعة عبر اختيار المعلم والصف والمادة",
+      "teacherAssignments": "إسنادات المعلمين",
+      "scheduleForClass": "جدولة {{subject}} للصف {{className}}",
+      "classScheduleMatrix": "مصفوفة جدول الصف",
+      "students": "{{count}} طالب",
+      "assignTeacher": "إسناد معلم"
+    },
+    "views": {
+      "list": "عرض قائمة",
+      "week": "عرض أسبوعي",
+      "calendar": "عرض تقويم",
+      "calendarComingSoon": "عرض التقويم قريبًا..."
+    },
+    "labels": {
+      "class": "الصف",
+      "subject": "المادة",
+      "teacher": "المعلم",
+      "room": "القاعة",
+      "event": "فعالية",
+      "location": "الموقع",
+      "startTime": "وقت البداية",
+      "endTime": "وقت النهاية",
+      "color": "اللون",
+      "requiresAttendance": "يتطلب حضور",
+      "schedule": "جدول",
+      "title": "العنوان",
+      "type": "النوع",
+      "description": "الوصف",
+      "status": "الحالة",
+      "duration": "المدة"
+    },
+    "select": {
+      "selectClass": "اختر الصف",
+      "selectSubject": "اختر المادة",
+      "selectTeacher": "اختر المعلم",
+      "selectRoom": "اختر القاعة"
+    },
+    "placeholders": {
+      "scheduleTitle": "أدخل عنوان الجدول",
+      "description": "أدخل الوصف",
+      "location": "أدخل الموقع"
+    },
+    "room": {
+      "floor": "الطابق {{floor}}",
+      "details": "{{type}}، السعة: {{capacity}}",
+      "unavailableLower": "غير متاحة",
+      "available": "متاحة",
+      "unavailable": "غير متاحة",
+      "checkingAvailability": "(جارٍ التحقق من التوفر...)",
+      "selectAvailable": "— اختر قاعة متاحة",
+      "availableRoom": "قاعة متاحة",
+      "unavailableRoom": "قاعة غير متاحة",
+      "availableForTime": "متاحة لهذا الوقت",
+      "unavailableForSelectedTime": "هذه القاعة غير متاحة للوقت المحدد."
+    },
+    "details": {
+      "title": "تفاصيل الجدول",
+      "basicInformation": "المعلومات الأساسية",
+      "timeAndLocation": "الوقت والموقع",
+      "durationMinutes": "{{minutes}} دقيقة",
+      "associatedInformation": "معلومات مرتبطة",
+      "participants": "المشاركون",
+      "noParticipants": "لا يوجد مشاركون"
+    },
+    "errors": {
+      "fetchRoomsConsole": "خطأ في تحميل القاعات:",
+      "loadSchedules": "فشل تحميل الجداول",
+      "deleteSchedule": "فشل حذف الجدول",
+      "requiredFields": "العنوان ووقت البداية ووقت النهاية والمعلم والقاعة حقول مطلوبة.",
+      "saveSchedule": "فشل حفظ الجدول"
+    },
+    "confirm": {
+      "deleteSchedule": "هل أنت متأكد من حذف هذا الجدول؟"
+    },
+    "common": {
+      "unknown": "غير معروف",
+      "dash": "—"
+    }
+  }
+}

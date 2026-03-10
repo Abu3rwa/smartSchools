@@ -15,8 +15,10 @@ import { selectSubjects } from "../../../../store/slices/subjectSlice.js";
 import { selectStudents } from "../../../../store/slices/studentSlice.js";
 import { selectCurrentAcademicYear } from "../../../../store/slices/uiSlice.js";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 export function useRevisionPlanCreateData() {
+  const { t } = useTranslation(["revisionPlans"]);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
@@ -40,8 +42,8 @@ export function useRevisionPlanCreateData() {
   }, [dispatch, isTeacher]);
 
   useEffect(() => {
-    if (error) toast.error(error);
-  }, [error]);
+    if (error) toast.error(error || t("revisionPlans:toasts.createFailed"));
+  }, [error, t]);
 
   useEffect(() => {
     if (currentPlan?._id) navigate(`/portal/revision/${currentPlan._id}`);
@@ -54,11 +56,11 @@ export function useRevisionPlanCreateData() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!subjectId || !examDate) {
-      toast.error("Subject and exam date are required");
+      toast.error(t("revisionPlans:toasts.subjectExamRequired"));
       return;
     }
     if (isTeacher && !studentId) {
-      toast.error("Please select a student");
+      toast.error(t("revisionPlans:toasts.selectStudent"));
       return;
     }
     dispatch(

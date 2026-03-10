@@ -14,22 +14,23 @@ const CalendarUpcomingEventsList = ({
     onOpenEventMenu,
     formatCalendarEventDateRange,
     formatCalendarRecurrenceSummary,
-    getCategoryIconComponent
+    getCategoryIconComponent,
+    t
 }) => {
     return (
         <Paper className="calendar-upcoming-panel" elevation={0}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6" fontWeight={700}>Upcoming Events</Typography>
+                <Typography variant="h6" fontWeight={700}>{t('calendar:upcoming.title')}</Typography>
                 {(upcomingLoading || monthLoading) && <CircularProgress size={18} />}
             </Stack>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Showing next events for the selected filter
+                {t('calendar:upcoming.subtitle')}
             </Typography>
 
             <Stack spacing={1.5}>
                 {!upcomingLoading && upcomingEvents.length === 0 && (
                     <Typography variant="body2" color="text.secondary">
-                        No upcoming events found.
+                        {t('calendar:upcoming.empty')}
                     </Typography>
                 )}
 
@@ -55,11 +56,11 @@ const CalendarUpcomingEventsList = ({
                                         }}
                                     />
                                     {event.status === 'CANCELLED' && (
-                                        <Chip size="small" color="warning" label="Cancelled" />
+                                        <Chip size="small" color="warning" label={t('calendar:status.cancelled')} />
                                     )}
                                 </Stack>
                                 <Stack direction="row" spacing={0.5}>
-                                    <Tooltip title={eventNotificationEnabled ? 'Mute notifications for this event' : 'Enable notifications for this event'}>
+                                    <Tooltip title={eventNotificationEnabled ? t('calendar:upcoming.mute') : t('calendar:upcoming.enableNotification')}>
                                         <span>
                                             <IconButton
                                                 size="small"

@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../../../../config/api';
 import { RISK_ORDER } from '../constants';
 
 const useInterventionQueueData = () => {
+    const { t } = useTranslation(['interventions']);
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
@@ -21,7 +23,7 @@ const useInterventionQueueData = () => {
             setFeatureEnabled(Boolean(response.data?.data?.featureEnabled));
         } catch (err) {
             setItems([]);
-            setError(err.response?.data?.message || 'Failed to load intervention queue');
+            setError(err.response?.data?.message || t('interventions:toasts.loadFailed'));
         } finally {
             setLoading(false);
         }
@@ -45,15 +47,15 @@ const useInterventionQueueData = () => {
             if (actionType === 'acknowledge') {
                 await api.post(`/interventions/${caseId}/acknowledge`);
             } else if (actionType === 'resolve') {
-                const note = window.prompt('Resolution note (optional):', '') || '';
+                const note = window.prompt(t('interventions:prompts.resolveNote'), '') || '';
                 await api.post(`/interventions/${caseId}/resolve`, { note });
             } else if (actionType === 'dismiss') {
-                const note = window.prompt('Dismiss note (optional):', '') || '';
+                const note = window.prompt(t('interventions:prompts.dismissNote'), '') || '';
                 await api.post(`/interventions/${caseId}/dismiss`, { note });
             }
             await loadQueue();
         } catch (err) {
-            setError(err.response?.data?.message || 'Action failed, please try again');
+            setError(err.response?.data?.message || t('interventions:toasts.actionFailed'));
         } finally {
             setActionLoading(false);
         }

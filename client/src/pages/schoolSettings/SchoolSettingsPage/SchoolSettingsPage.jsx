@@ -65,6 +65,8 @@ const SchoolSettingsPage = () => {
     handleUploadSchoolLogo,
     handleRemoveSchoolLogo,
     handleToggleAiEmailDraft,
+    handleAttendanceReminderSettingsChange,
+    handleSaveAttendanceReminderSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,
@@ -186,10 +188,14 @@ const SchoolSettingsPage = () => {
         <CommunicationTab
           loading={communicationSettings.loading}
           saving={communicationSettings.saving}
-          featureAvailable={communicationSettings.featureAvailable}
-          aiEmailDraftEnabled={communicationSettings.aiEmailDraftEnabled}
-          onToggleAiEmailDraft={handleToggleAiEmailDraft}
-        />
+        featureAvailable={communicationSettings.featureAvailable}
+        aiEmailDraftEnabled={communicationSettings.aiEmailDraftEnabled}
+        attendanceRemindersEnabled={communicationSettings.attendanceRemindersEnabled}
+        attendanceReminderDelayMinutes={communicationSettings.attendanceReminderDelayMinutes}
+        onToggleAiEmailDraft={handleToggleAiEmailDraft}
+        onAttendanceReminderSettingsChange={handleAttendanceReminderSettingsChange}
+        onSaveAttendanceReminderSettings={handleSaveAttendanceReminderSettings}
+      />
       )}
 
       {activeTab === 'schoolyear' && canManageSchoolSettings && (

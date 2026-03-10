@@ -1,12 +1,13 @@
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 
 const formatDateTime = (value) => {
-  if (!value) return '—';
+  if (!value) return '';
   try {
     return format(new Date(value), 'MMM d, yyyy h:mm a');
   } catch (_) {
-    return '—';
+    return '';
   }
 };
 
@@ -20,6 +21,7 @@ const EvaluationFeedbackModal = ({
   onReevaluate,
   errorMessage
 }) => {
+  const { t } = useTranslation(['lessonPlan']);
   if (!open) return null;
 
   const evaluation = historyData?.currentEvaluation || lesson?.aiEvaluation || null;
@@ -29,7 +31,7 @@ const EvaluationFeedbackModal = ({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-lg" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
-          <h3>AI Evaluation</h3>
+          <h3>{t('lessonPlan:evaluation.title')}</h3>
           <button type="button" className="modal-close" onClick={onClose}>
             &times;
           </button>
@@ -38,9 +40,11 @@ const EvaluationFeedbackModal = ({
         <div className="modal-body evaluation-modal-body">
           <div className="evaluation-modal-toolbar">
             <div>
-              <div className="evaluation-modal-title">{lesson?.title || 'Lesson plan'}</div>
+              <div className="evaluation-modal-title">{lesson?.title || t('lessonPlan:evaluation.lessonFallback')}</div>
               {evaluation?.evaluatedAt && (
-                <div className="text-muted">Last evaluated: {formatDateTime(evaluation.evaluatedAt)}</div>
+                <div className="text-muted">
+                  {t('lessonPlan:evaluation.lastEvaluated')}: {formatDateTime(evaluation.evaluatedAt)}
+                </div>
               )}
             </div>
             <button
@@ -52,17 +56,17 @@ const EvaluationFeedbackModal = ({
               {reevaluating ? (
                 <>
                   <span className="spinner-small" />
-                  Re-evaluating...
+                  {t('lessonPlan:evaluation.reEvaluating')}
                 </>
               ) : (
-                'Re-evaluate'
+                t('lessonPlan:evaluation.reEvaluate')
               )}
             </button>
           </div>
 
           {historyData?.isStaleComparedToCurrentCriteria && (
             <div className="evaluation-stale-banner">
-              Criteria changed since this evaluation. Re-evaluate to refresh feedback.
+              {t('lessonPlan:evaluation.staleNotice')}
             </div>
           )}
 
@@ -73,41 +77,43 @@ const EvaluationFeedbackModal = ({
               <div className="spinner" />
             </div>
           ) : !evaluation ? (
-            <div className="text-muted">No AI evaluation found for this lesson plan.</div>
+            <div className="text-muted">{t('lessonPlan:evaluation.empty')}</div>
           ) : (
             <>
               <div className="evaluation-summary-row">
                 <div className="evaluation-summary-card">
-                  <span className="text-muted">Overall score</span>
+                  <span className="text-muted">{t('lessonPlan:evaluation.overallScore')}</span>
                   <strong>{evaluation.overallScore ?? 0}/100</strong>
                 </div>
                 <div className="evaluation-summary-card">
-                  <span className="text-muted">Minimum requirements</span>
+                  <span className="text-muted">{t('lessonPlan:evaluation.minimumRequirements')}</span>
                   <strong>
-                    {evaluation.meetsMinimumRequirements ? 'Met' : 'Not met'}
+                    {evaluation.meetsMinimumRequirements
+                      ? t('lessonPlan:evaluation.met')
+                      : t('lessonPlan:evaluation.notMet')}
                   </strong>
                 </div>
               </div>
 
               <div className="evaluation-section">
-                <h4>Criteria Feedback</h4>
+                <h4>{t('lessonPlan:evaluation.criteriaFeedback')}</h4>
                 <div className="table-container">
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Criterion</th>
-                        <th>Score</th>
-                        <th>Met</th>
-                        <th>Feedback</th>
+                        <th>{t('lessonPlan:evaluation.table.criterion')}</th>
+                        <th>{t('lessonPlan:evaluation.table.score')}</th>
+                        <th>{t('lessonPlan:evaluation.table.met')}</th>
+                        <th>{t('lessonPlan:evaluation.table.feedback')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(evaluation.criteriaScores || []).map((row, index) => (
                         <tr key={`${row.criteriaName}-${index}`}>
-                          <td>{row.criteriaName || 'Criterion'}</td>
+                          <td>{row.criteriaName || t('lessonPlan:evaluation.table.criterionFallback')}</td>
                           <td>{row.score ?? 0}</td>
-                          <td>{row.metMinimum ? 'Yes' : 'No'}</td>
-                          <td>{row.feedback || '—'}</td>
+                          <td>{row.metMinimum ? t('lessonPlan:evaluation.table.yes') : t('lessonPlan:evaluation.table.no')}</td>
+                          <td>{row.feedback || t('lessonPlan:common.emptySymbol')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -117,7 +123,7 @@ const EvaluationFeedbackModal = ({
 
               <div className="evaluation-grid-two">
                 <div className="evaluation-section">
-                  <h4>Strengths</h4>
+                  <h4>{t('lessonPlan:evaluation.strengths')}</h4>
                   <ul>
                     {(evaluation.strengths || []).map((item, index) => (
                       <li key={`strength-${index}`}>{item}</li>
@@ -125,7 +131,7 @@ const EvaluationFeedbackModal = ({
                   </ul>
                 </div>
                 <div className="evaluation-section">
-                  <h4>Areas for Improvement</h4>
+                  <h4>{t('lessonPlan:evaluation.areasForImprovement')}</h4>
                   <ul>
                     {(evaluation.areasForImprovement || []).map((item, index) => (
                       <li key={`improve-${index}`}>{item}</li>
@@ -135,7 +141,7 @@ const EvaluationFeedbackModal = ({
               </div>
 
               <div className="evaluation-section">
-                <h4>Recommendations</h4>
+                <h4>{t('lessonPlan:evaluation.recommendations')}</h4>
                 <ul>
                   {(evaluation.recommendations || []).map((item, index) => (
                     <li key={`recommendation-${index}`}>{item}</li>
@@ -144,16 +150,19 @@ const EvaluationFeedbackModal = ({
               </div>
 
               <div className="evaluation-section">
-                <h4>History</h4>
+                <h4>{t('lessonPlan:evaluation.history')}</h4>
                 {history.length === 0 ? (
-                  <div className="text-muted">No evaluation history available yet.</div>
+                  <div className="text-muted">{t('lessonPlan:evaluation.historyEmpty')}</div>
                 ) : (
                   <div className="evaluation-history-list">
                     {history.map((entry) => (
                       <div key={entry.evaluationId || entry.evaluatedAt} className="evaluation-history-item">
                         <div>
                           <strong>{entry.overallScore ?? 0}/100</strong>
-                          <span className="text-muted"> · {entry.meetsMinimumRequirements ? 'Met' : 'Not met'}</span>
+                          <span className="text-muted">
+                            {' '}
+                            · {entry.meetsMinimumRequirements ? t('lessonPlan:evaluation.met') : t('lessonPlan:evaluation.notMet')}
+                          </span>
                         </div>
                         <div className="text-muted">{formatDateTime(entry.evaluatedAt)}</div>
                       </div>
@@ -167,7 +176,7 @@ const EvaluationFeedbackModal = ({
 
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
+            {t('lessonPlan:teacherForm.actions.close')}
           </button>
         </div>
       </div>

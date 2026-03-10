@@ -1,0 +1,117 @@
+{
+  "header": {
+    "title": "تقويم المدرسة",
+    "subtitle": "خطّط للأنشطة الشهرية وأدِر الفعاليات القادمة",
+    "addEvent": "إضافة فعالية"
+  },
+  "common": {
+    "close": "إغلاق",
+    "saving": "جارٍ الحفظ..."
+  },
+  "filters": {
+    "all": "الكل",
+    "event": "الفعاليات",
+    "holiday": "الإجازات",
+    "meeting": "الاجتماعات",
+    "exam": "الاختبارات"
+  },
+  "categories": {
+    "event": "فعالية",
+    "holiday": "إجازة",
+    "meeting": "اجتماع",
+    "exam": "اختبار"
+  },
+  "visibility": {
+    "schoolWide": "على مستوى المدرسة",
+    "teachersOnly": "للمعلمين فقط",
+    "parentsOnly": "لأولياء الأمور فقط",
+    "custom": "مخصص (بالبريد الإلكتروني)"
+  },
+  "weekdays": {
+    "short": {
+      "sun": "الأحد",
+      "mon": "الإثنين",
+      "tue": "الثلاثاء",
+      "wed": "الأربعاء",
+      "thu": "الخميس",
+      "fri": "الجمعة",
+      "sat": "السبت"
+    }
+  },
+  "month": {
+    "previous": "الشهر السابق",
+    "next": "الشهر التالي",
+    "eventsOnDate": "{{count}} فعالية في {{date}}",
+    "eventsOnDate_plural": "{{count}} فعاليات في {{date}}",
+    "noEvents": "لا توجد فعاليات في هذا التاريخ."
+  },
+  "upcoming": {
+    "title": "الفعاليات القادمة",
+    "subtitle": "عرض الفعاليات القادمة حسب الفلتر المحدد",
+    "empty": "لا توجد فعاليات قادمة.",
+    "mute": "إيقاف إشعارات هذه الفعالية",
+    "enableNotification": "تفعيل إشعارات هذه الفعالية"
+  },
+  "status": {
+    "cancelled": "ملغاة"
+  },
+  "actions": {
+    "edit": "تعديل",
+    "cancelEvent": "إلغاء الفعالية"
+  },
+  "dialog": {
+    "addTitle": "إضافة فعالية",
+    "editTitle": "تعديل فعالية",
+    "fields": {
+      "title": "العنوان",
+      "description": "الوصف",
+      "category": "الفئة",
+      "start": "البداية",
+      "end": "النهاية",
+      "allDay": "طوال اليوم",
+      "recurring": "فعالية متكررة",
+      "repeat": "التكرار",
+      "interval": "الفاصل",
+      "repeatUntilOptional": "التكرار حتى (اختياري)",
+      "locationOptional": "الموقع (اختياري)",
+      "audience": "الجمهور",
+      "recipientUsers": "المستلمون",
+      "recipientPlaceholder": "ابحث بالاسم أو البريد الإلكتروني",
+      "recipientHelper": "اختر المستلمين. فقط المستخدمون المحددون سيتلقون هذا الإشعار المخصص."
+    },
+    "actions": {
+      "saveChanges": "حفظ التغييرات",
+      "createEvent": "إنشاء فعالية"
+    }
+  },
+  "recurrence": {
+    "frequency": {
+      "daily": "يومي",
+      "weekly": "أسبوعي",
+      "monthly": "شهري"
+    },
+    "summary": {
+      "daily": "يتكرر يوميًا",
+      "everyDays": "يتكرر كل {{interval}} أيام",
+      "weekly": "يتكرر أسبوعيًا",
+      "everyWeeks": "يتكرر كل {{interval}} أسابيع",
+      "weeklyOn": "يتكرر أسبوعيًا في {{days}}",
+      "everyWeeksOn": "يتكرر كل {{interval}} أسابيع في {{days}}",
+      "monthly": "يتكرر شهريًا",
+      "everyMonths": "يتكرر كل {{interval}} أشهر"
+    }
+  },
+  "errors": {
+    "titleRequired": "العنوان مطلوب.",
+    "startEndRequired": "تاريخا البداية والنهاية مطلوبان.",
+    "endAfterStart": "يجب أن يكون تاريخ النهاية بعد تاريخ البداية.",
+    "selectWeekday": "اختر يومًا واحدًا على الأقل للتكرار الأسبوعي.",
+    "repeatUntilValid": "حقل \"التكرار حتى\" يجب أن يكون تاريخًا صالحًا.",
+    "repeatUntilAfterStart": "يجب أن يكون \"التكرار حتى\" بعد بداية الفعالية.",
+    "selectRecipient": "اختر مستلمًا واحدًا على الأقل للجمهور المخصص.",
+    "saveFailed": "تعذر حفظ الفعالية."
+  },
+  "confirm": {
+    "cancelEvent": "هل تريد إلغاء هذه الفعالية؟"
+  }
+}

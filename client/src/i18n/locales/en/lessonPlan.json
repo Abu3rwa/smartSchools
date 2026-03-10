@@ -1,0 +1,223 @@
+{
+  "page": {
+    "title": "Lesson Plans",
+    "subtitle": "Plan and share lessons with parents",
+    "newLesson": "New Lesson"
+  },
+  "toolbar": {
+    "allTeachers": "All teachers",
+    "allClasses": "All classes",
+    "allSubjects": "All subjects",
+    "fromDate": "From date",
+    "toDate": "To date"
+  },
+  "table": {
+    "title": "Title",
+    "teacher": "Teacher",
+    "class": "Class",
+    "subject": "Subject",
+    "date": "Date",
+    "status": "Status",
+    "actions": "Actions",
+    "actionsForLesson": "Actions for {{title}}",
+    "empty": "No lesson plans created yet."
+  },
+  "status": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "needs_revision": "Needs revision",
+    "rejected": "Rejected"
+  },
+  "actions": {
+    "viewPrint": "View / Print",
+    "approve": "Approve",
+    "needsRevision": "Needs revision",
+    "reject": "Reject",
+    "updating": "Updating...",
+    "reEvaluateWithAi": "Re-evaluate with AI",
+    "viewEditNote": "View / Edit note to teacher",
+    "noteToTeacher": "Note to teacher",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "adminNote": {
+    "title": "Note to teacher",
+    "description": "This note will be visible to the teacher when they view this lesson plan.",
+    "placeholder": "e.g. Please add more detail to the objectives section...",
+    "save": "Save note"
+  },
+  "review": {
+    "modalTitle": "{{action}} Lesson Plan",
+    "lessonLabel": "Lesson: {{title}}",
+    "commentHint": "Add an optional comment to share with the teacher.",
+    "actions": {
+      "approved": "Approve",
+      "needs_revision": "Needs Revision",
+      "rejected": "Reject",
+      "default": "Update Status"
+    },
+    "placeholders": {
+      "approved": "Optional approval comment (visible to teacher)...",
+      "needs_revision": "Add revision notes for the teacher...",
+      "rejected": "Rejection reason (optional)...",
+      "default": "Optional comment..."
+    }
+  },
+  "detail": {
+    "back": "Back",
+    "backToLessons": "Back to Lessons",
+    "print": "Print / Save as PDF",
+    "notFound": "Lesson plan not found.",
+    "schoolFallback": "School",
+    "documentType": "Lesson Plan",
+    "sections": {
+      "summary": "Summary",
+      "previousKnowledge": "Previous Knowledge / Skills",
+      "teachingObjectives": "Teaching Objectives",
+      "vocabulary": "Vocabulary",
+      "characterTraitLinks": "Links with Character Trait / Cognitive Skills",
+      "techIntegration": "Tech Integration",
+      "description": "Description",
+      "standards": "Standards",
+      "stagesTitle": "Stages - Procedure, Materials / Resources & Timing",
+      "homework": "Homework / Take-Home Material",
+      "adminNote": "Note from administration"
+    },
+    "stages": {
+      "stage": "Stage",
+      "procedure": "Procedure",
+      "materials": "Materials / Resources",
+      "timing": "Timing",
+      "stageNumber": "Stage {{number}}"
+    }
+  },
+  "teacherForm": {
+    "title": {
+      "create": "Create Lesson Plan",
+      "edit": "Edit Lesson Plan"
+    },
+    "fields": {
+      "date": "Date",
+      "class": "Class",
+      "subject": "Subject",
+      "primaryAiLanguage": "Primary AI Language",
+      "secondaryAiLanguageOptional": "Secondary AI Language (optional)",
+      "title": "Title",
+      "summary": "Summary",
+      "description": "Description",
+      "homework": "Homework",
+      "previousKnowledge": "Previous Knowledge / Skills",
+      "teachingObjectives": "Teaching Objectives (Standards)",
+      "vocabulary": "Vocabulary",
+      "characterTraitLinks": "Links with Character Trait / Cognitive Skills",
+      "techIntegration": "Tech Integration (if applicable)"
+    },
+    "select": {
+      "selectClass": "Select Class",
+      "selectSubject": "Select Subject",
+      "none": "None"
+    },
+    "placeholders": {
+      "title": "e.g. Introduction to Fractions",
+      "summary": "Brief summary",
+      "description": "What will be covered in this lesson?",
+      "homework": "Homework / take-home material",
+      "vocabulary": "Key vocabulary"
+    },
+    "actions": {
+      "generateFromTitle": "Generate from title",
+      "generating": "Generating...",
+      "cancel": "Cancel",
+      "save": "Save Lesson Plan",
+      "update": "Update Lesson Plan",
+      "close": "Close"
+    },
+    "stages": {
+      "title": "Stages - Procedure, Materials / Resources, Timing",
+      "stageNumber": "Stage {{number}}",
+      "procedure": "Procedure",
+      "materials": "Materials / Resources",
+      "timing": "Timing",
+      "timingPlaceholder": "e.g. 10 min"
+    }
+  },
+  "form": {
+    "aiSuggest": "Suggest",
+    "toasts": {
+      "selectClassSubjectFirst": "Select Class and Subject first",
+      "aiSuggestionFailed": "AI suggestion failed"
+    },
+    "standards": {
+      "detect": "Detect Standards",
+      "detecting": "Detecting...",
+      "detectFailed": "Standards detection failed",
+      "noMatching": "No matching standards found for this subject and grade.",
+      "inferredNotice": "No standards in this subject yet. Inferred from your lesson (aligned with this subject and grade). Add to your subject in Settings to save with the lesson.",
+      "inferredTitle": "Inferred from your lesson (aligned with this subject and grade)",
+      "suggestedFromSubject": "Suggested Standards (from your subject)",
+      "suggestedOtherSubjects": "Suggested Standards (other subjects - add to your subject in Settings to use here)",
+      "inferredHint": "Add these to your subject in Settings to save them with the lesson.",
+      "selectedTitle": "Selected standards (click x to remove)",
+      "remove": "Remove standard"
+    }
+  },
+  "evaluation": {
+    "button": {
+      "evaluating": "Evaluating...",
+      "view": "View AI evaluation",
+      "evaluate": "Evaluate with AI"
+    },
+    "title": "AI Evaluation",
+    "lessonFallback": "Lesson plan",
+    "lastEvaluated": "Last evaluated",
+    "reEvaluating": "Re-evaluating...",
+    "reEvaluate": "Re-evaluate",
+    "staleNotice": "Criteria changed since this evaluation. Re-evaluate to refresh feedback.",
+    "empty": "No AI evaluation found for this lesson plan.",
+    "overallScore": "Overall score",
+    "minimumRequirements": "Minimum requirements",
+    "met": "Met",
+    "notMet": "Not met",
+    "criteriaFeedback": "Criteria Feedback",
+    "table": {
+      "criterion": "Criterion",
+      "criterionFallback": "Criterion",
+      "score": "Score",
+      "met": "Met",
+      "feedback": "Feedback",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "strengths": "Strengths",
+    "areasForImprovement": "Areas for Improvement",
+    "recommendations": "Recommendations",
+    "history": "History",
+    "historyEmpty": "No evaluation history available yet."
+  },
+  "common": {
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "emptySymbol": "-",
+    "unknown": "Unknown"
+  },
+  "toasts": {
+    "requireClassSubjectTitle": "Select Class, Subject, and enter a Title first",
+    "sectionsGenerated": "Sections generated",
+    "generationFailed": "Generation failed",
+    "updated": "Lesson plan updated",
+    "updateFailed": "Failed to update lesson plan",
+    "saved": "Lesson plan saved successfully",
+    "saveFailed": "Failed to save lesson plan",
+    "confirmDelete": "Are you sure you want to delete this lesson plan?",
+    "deleted": "Lesson plan deleted",
+    "deleteFailed": "Failed to delete",
+    "usingCachedEvaluation": "Using cached evaluation",
+    "evaluated": "Lesson plan evaluated successfully",
+    "evaluateFailed": "Failed to evaluate lesson plan",
+    "noteSaved": "Note saved. The teacher can see it on the lesson plan.",
+    "noteSaveFailed": "Failed to save note",
+    "markedAs": "Lesson plan marked as {{status}}",
+    "statusUpdateFailed": "Failed to update lesson status"
+  }
+}

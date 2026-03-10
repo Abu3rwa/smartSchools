@@ -13,7 +13,6 @@ const ThreadList = ({
     onToggleUnread,
     onSelectThread,
     onScroll
-}) => (
 }) => {
     const { t } = useTranslation(['messages']);
 

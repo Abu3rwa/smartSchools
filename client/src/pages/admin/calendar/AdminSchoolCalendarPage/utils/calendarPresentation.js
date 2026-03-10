@@ -79,17 +79,21 @@ export const formatCalendarEventDateRange = (event) => {
     return `${format(startAt, 'MMM d, yyyy h:mm a')} - ${format(endAt, 'MMM d, yyyy h:mm a')}`;
 };
 
-export const formatCalendarRecurrenceSummary = (event) => {
+export const formatCalendarRecurrenceSummary = (event, t) => {
     const recurrence = event?.recurrence;
     if (!recurrence || recurrence.isRecurring !== true) return '';
     const interval = Math.max(1, Number.parseInt(recurrence.interval, 10) || 1);
     const frequency = String(recurrence.frequency || '').toUpperCase();
 
     if (frequency === 'DAILY') {
-        return interval === 1 ? 'Repeats daily' : `Repeats every ${interval} days`;
+        return interval === 1
+            ? t('calendar:recurrence.summary.daily')
+            : t('calendar:recurrence.summary.everyDays', { interval });
     }
     if (frequency === 'MONTHLY') {
-        return interval === 1 ? 'Repeats monthly' : `Repeats every ${interval} months`;
+        return interval === 1
+            ? t('calendar:recurrence.summary.monthly')
+            : t('calendar:recurrence.summary.everyMonths', { interval });
     }
 
     const days = Array.isArray(recurrence.weekDays)
@@ -97,16 +101,18 @@ export const formatCalendarRecurrenceSummary = (event) => {
             .map((value) => Number.parseInt(value, 10))
             .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
             .sort((left, right) => left - right)
-            .map((value) => CALENDAR_WEEKDAY_LABELS[value])
+            .map((value) => t(CALENDAR_WEEKDAY_LABELS[value]))
         : [];
 
     if (days.length === 0) {
-        return interval === 1 ? 'Repeats weekly' : `Repeats every ${interval} weeks`;
+        return interval === 1
+            ? t('calendar:recurrence.summary.weekly')
+            : t('calendar:recurrence.summary.everyWeeks', { interval });
     }
 
     return interval === 1
-        ? `Repeats weekly on ${days.join(', ')}`
-        : `Repeats every ${interval} weeks on ${days.join(', ')}`;
+        ? t('calendar:recurrence.summary.weeklyOn', { days: days.join(', ') })
+        : t('calendar:recurrence.summary.everyWeeksOn', { interval, days: days.join(', ') });
 };
 
 export const toAudienceOption = (user = {}) => {
@@ -172,12 +178,12 @@ export const canUserManageCalendar = (user) => {
     return Array.isArray(user.permissions) && user.permissions.includes('manage_events');
 };
 
-export const resolveCalendarCategoryStyles = (theme) => {
-    const buildStyle = ({ label, paletteKey }) => {
+export const resolveCalendarCategoryStyles = (theme, t) => {
+    const buildStyle = ({ labelKey, paletteKey }) => {
         const palette = theme.palette[paletteKey] || theme.palette.primary;
         const color = palette.main;
         return {
-            label,
+            label: t ? t(labelKey) : labelKey,
             color,
             bg: alpha(color, 0.14),
             dayBg: alpha(color, 0.16),

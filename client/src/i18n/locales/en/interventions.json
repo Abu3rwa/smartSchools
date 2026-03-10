@@ -1,0 +1,59 @@
+{
+  "page": {
+    "disabled": "Intervention queue is currently disabled by feature flag."
+  },
+  "header": {
+    "title": "Intervention Queue",
+    "subtitle": "Track students who need targeted reteach and follow-up support.",
+    "refresh": "Refresh"
+  },
+  "stats": {
+    "openCases": "Open Cases",
+    "highRisk": "High Risk"
+  },
+  "filters": {
+    "status": "Status",
+    "risk": "Risk"
+  },
+  "list": {
+    "empty": "No cases found for the selected filters."
+  },
+  "item": {
+    "standardFallback": "Standard",
+    "status": "Status",
+    "riskScore": "Risk Score",
+    "updated": "Updated",
+    "accuracy": "Accuracy",
+    "recommendedActions": "Recommended Actions"
+  },
+  "actions": {
+    "acknowledge": "Acknowledge",
+    "resolve": "Resolve",
+    "dismiss": "Dismiss"
+  },
+  "status": {
+    "open": "Open",
+    "acknowledged": "Acknowledged",
+    "in_progress": "In Progress",
+    "resolved": "Resolved",
+    "dismissed": "Dismissed"
+  },
+  "risk": {
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "unknown": "Unknown"
+  },
+  "common": {
+    "all": "All",
+    "empty": "-"
+  },
+  "prompts": {
+    "resolveNote": "Resolution note (optional):",
+    "dismissNote": "Dismiss note (optional):"
+  },
+  "toasts": {
+    "loadFailed": "Failed to load intervention queue",
+    "actionFailed": "Action failed, please try again"
+  }
+}

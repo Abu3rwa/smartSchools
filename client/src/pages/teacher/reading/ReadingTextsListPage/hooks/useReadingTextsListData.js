@@ -13,8 +13,10 @@ import {
 import { fetchClasses, selectClasses } from "../../../../../store/slices/classSlice.js";
 import { selectCurrentAcademicYear } from "../../../../../store/slices/uiSlice.js";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 export function useReadingTextsListData() {
+  const { t } = useTranslation(["reading"]);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const texts = useSelector(selectReadingTexts) || [];
@@ -50,7 +52,7 @@ export function useReadingTextsListData() {
   const handleAssignSubmit = (e) => {
     e.preventDefault();
     if (!assignModal || !assignClassId) {
-      toast.error("Please select a class");
+      toast.error(t("reading:texts.toasts.selectClass"));
       return;
     }
     setAssignSubmitting(true);
@@ -64,11 +66,11 @@ export function useReadingTextsListData() {
     )
       .then((result) => {
         if (result.type === "reading/createAssignment/fulfilled") {
-          toast.success("Assignment created");
+          toast.success(t("reading:texts.toasts.assignmentCreated"));
           setAssignModal(null);
           dispatch(fetchTeacherAssignments());
         } else if (result.type === "reading/createAssignment/rejected") {
-          toast.error(result.payload || "Failed to create assignment");
+          toast.error(result.payload || t("reading:texts.toasts.assignmentCreateFailed"));
         }
       })
       .finally(() => setAssignSubmitting(false));

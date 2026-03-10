@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 export default function AttendanceRequestDetailsSection({
   formData,
   setFormDataField,
@@ -9,12 +11,15 @@ export default function AttendanceRequestDetailsSection({
   handleFileChange,
   errors,
 }) {
+  const { t, i18n } = useTranslation(["attendanceRequests"]);
+  const isArabic = i18n.language?.toLowerCase().startsWith("ar");
+
   return (
     <div className="form-section">
-      <h2 className="section-title">Request details</h2>
+      <h2 className="section-title">{t("attendanceRequests:details.sectionTitle")}</h2>
       <div className="form-row">
         <label className="field-label">
-          Type of Request <span className="ar">نوع الطلب</span>{" "}
+          {t("attendanceRequests:details.requestType")}{" "}
           <span className="required">*</span>
         </label>
         <select
@@ -24,10 +29,10 @@ export default function AttendanceRequestDetailsSection({
           required
           aria-required="true"
         >
-          <option value="">— Select type —</option>
-          {requestTypes.map((t) => (
-            <option key={t._id} value={t._id}>
-              {t.labelEn || t.labelAr || t.code || t._id}
+          <option value="">{t("attendanceRequests:details.selectType")}</option>
+          {requestTypes.map((typeItem) => (
+            <option key={typeItem._id} value={typeItem._id}>
+              {(isArabic ? typeItem.labelAr : typeItem.labelEn) || typeItem.labelEn || typeItem.labelAr || typeItem.code || typeItem._id}
             </option>
           ))}
         </select>
@@ -41,7 +46,7 @@ export default function AttendanceRequestDetailsSection({
             <div className="form-row form-row-inline">
               <div className="form-field-half">
                 <label className="field-label">
-                  Start Date <span className="ar">التاريخ من</span>{" "}
+                  {t("attendanceRequests:details.startDate")}{" "}
                   <span className="required">*</span>
                 </label>
                 <input
@@ -58,7 +63,7 @@ export default function AttendanceRequestDetailsSection({
               </div>
               <div className="form-field-half">
                 <label className="field-label">
-                  End Date <span className="ar">التاريخ إلى</span>{" "}
+                  {t("attendanceRequests:details.endDate")}{" "}
                   <span className="required">*</span>
                 </label>
                 <input
@@ -77,7 +82,7 @@ export default function AttendanceRequestDetailsSection({
           <>
             <div className="form-row">
               <label className="field-label">
-                Date <span className="ar">التاريخ</span>{" "}
+                {t("attendanceRequests:details.date")}{" "}
                 <span className="required">*</span>
               </label>
               <input
@@ -95,7 +100,7 @@ export default function AttendanceRequestDetailsSection({
             <div className="form-row form-row-inline">
               <div className="form-field-half">
                 <label className="field-label">
-                  From Time <span className="ar">التوقيت من</span>{" "}
+                  {t("attendanceRequests:details.fromTime")}{" "}
                   <span className="required">*</span>
                 </label>
                 <input
@@ -109,7 +114,7 @@ export default function AttendanceRequestDetailsSection({
               </div>
               <div className="form-field-half">
                 <label className="field-label">
-                  To Time <span className="ar">التوقيت إلى</span>{" "}
+                  {t("attendanceRequests:details.toTime")}{" "}
                   <span className="required">*</span>
                 </label>
                 <input
@@ -129,24 +134,23 @@ export default function AttendanceRequestDetailsSection({
         ))}
       <div className="form-row">
         <label className="field-label">
-          Notes / Comments <span className="ar">الملاحظة أو تعليق</span>{" "}
-          (optional)
+          {t("attendanceRequests:details.notes")}{" "}
+          ({t("attendanceRequests:details.optional")})
         </label>
         <textarea
           className="form-textarea"
           value={formData.notes}
           onChange={(e) => setFormDataField("notes", e.target.value)}
           rows={4}
-          placeholder="Add any notes or comments..."
+          placeholder={t("attendanceRequests:details.notesPlaceholder")}
         />
       </div>
       <div className="form-row">
         <label className="field-label">
-          Supporting Proof Document{" "}
-          <span className="ar">وثيقة إثبات (إذا لزم الأمر)</span>
+          {t("attendanceRequests:details.supportingProof")}
           {requiresProof && <span className="required"> *</span>}
         </label>
-        <p className="field-hint">Accepted: jpg, png, pdf. Max 10 MB.</p>
+        <p className="field-hint">{t("attendanceRequests:details.fileHint")}</p>
         <div className="file-input-wrap">
           <input
             type="file"
@@ -154,7 +158,9 @@ export default function AttendanceRequestDetailsSection({
             className="file-input"
             onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
           />
-          <span className="file-name">{file ? file.name : "No file chosen"}</span>
+          <span className="file-name">
+            {file ? file.name : t("attendanceRequests:details.noFileChosen")}
+          </span>
         </div>
         {(fileError || errors.attachment) && (
           <span className="field-error">{fileError || errors.attachment}</span>

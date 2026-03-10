@@ -12,6 +12,10 @@ import { generateToken } from '../middleware/auth.js';
 import { normalizePlan, toSchoolPlan } from '../constants/features.js';
 import { buildFeatureMetadata, resolveSchoolFeatureContext } from '../middleware/featureGate.js';
 import {
+    getAttendanceReminderSettingsFromSchool,
+    validateAttendanceReminderSettingsPayload
+} from '../utils/attendanceReminderSettings.js';
+import {
     getAcademicYears,
     copyClassesFromYear,
     deactivateYear,
@@ -343,6 +347,53 @@ router.patch('/me/communication-settings', requireSchoolContext, authorize('admi
             aiEmailDraftEnabled: school.settings.communication.aiEmailDraftEnabled !== false,
             featureAvailable
         }
+    });
+}));
+
+/**
+ * @desc    Get school attendance reminder settings
+ * @route   GET /api/schools/me/attendance-reminder-settings
+ * @access  Private (Admin)
+ */
+router.get('/me/attendance-reminder-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.attendanceReminders');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        data: getAttendanceReminderSettingsFromSchool(school)
+    });
+}));
+
+/**
+ * @desc    Update school attendance reminder settings
+ * @route   PATCH /api/schools/me/attendance-reminder-settings
+ * @access  Private (Admin)
+ */
+router.patch('/me/attendance-reminder-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const validation = validateAttendanceReminderSettingsPayload(req.body);
+    if (!validation.valid) {
+        return res.status(400).json({
+            success: false,
+            message: validation.errors.join('. ')
+        });
+    }
+
+    const school = await School.findById(req.schoolId);
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    school.settings = school.settings || {};
+    school.settings.attendanceReminders = validation.data;
+    await school.save();
+
+    res.json({
+        success: true,
+        message: 'Attendance reminder settings updated',
+        data: getAttendanceReminderSettingsFromSchool(school)
     });
 }));
 

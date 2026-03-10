@@ -1,7 +1,10 @@
 import { HiOutlineClipboardList, HiOutlineUpload } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import { STANDARDS_PAGE_TABS } from '../constants';
 
 const StandardsTabs = ({ activeTab, onTabChange }) => {
+    const { t } = useTranslation(['standards']);
+
     return (
         <div className="tabs">
             <button
@@ -9,14 +12,14 @@ const StandardsTabs = ({ activeTab, onTabChange }) => {
                 onClick={() => onTabChange(STANDARDS_PAGE_TABS.list)}
             >
                 <HiOutlineClipboardList style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                Standards List
+                {t('standards:tabs.list')}
             </button>
             <button
                 className={`tab-btn ${activeTab === STANDARDS_PAGE_TABS.import ? 'active' : ''}`}
                 onClick={() => onTabChange(STANDARDS_PAGE_TABS.import)}
             >
                 <HiOutlineUpload style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                Import
+                {t('standards:tabs.import')}
             </button>
         </div>
     );

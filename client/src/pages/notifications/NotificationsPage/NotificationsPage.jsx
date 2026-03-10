@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -35,7 +35,6 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import notificationService from '../../../services/notificationService';
 import useNotificationsData from './hooks/useNotificationsData';
-import { QUICK_HOUR_OPTIONS } from './constants';
 import {
     getStatusCategory,
     getStatusLabel,
@@ -52,7 +51,7 @@ const NotificationsPage = () => {
     const user = useSelector(selectUser);
 
     const academicYear = useSelector(selectCurrentAcademicYear);
-    const isAdmin = user?.role === 'admin' || user?.role === 'department_principal';
+    const isAdmin = user?.role === 'admin';
 
     const [activeTab, setActiveTab] = useState('history');
     const [quickSending, setQuickSending] = useState(false);
@@ -61,6 +60,11 @@ const NotificationsPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
+    const [reminderSettingsLoading, setReminderSettingsLoading] = useState(false);
+    const [reminderSettings, setReminderSettings] = useState({
+        enabled: true,
+        delayMinutes: 60
+    });
 
     const {
         loading,
@@ -79,7 +83,35 @@ const NotificationsPage = () => {
     });
     const tableColumnCount = 3 + (isSmDown ? 0 : 1);
 
+    useEffect(() => {
+        if (!isAdmin || activeTab !== 'attendance') return;
+        let isMounted = true;
 
+        const loadReminderSettings = async () => {
+            setReminderSettingsLoading(true);
+            try {
+                const response = await notificationService.getAttendanceReminderSettings();
+                if (!isMounted) return;
+                setReminderSettings({
+                    enabled: response?.data?.enabled !== false,
+                    delayMinutes: Number(response?.data?.delayMinutes || 60)
+                });
+            } catch (error) {
+                if (isMounted) {
+                    toast.error(error.response?.data?.message || t('notifications:toasts.reminderSettingsLoadFailed'));
+                }
+            } finally {
+                if (isMounted) {
+                    setReminderSettingsLoading(false);
+                }
+            }
+        };
+
+        loadReminderSettings();
+        return () => {
+            isMounted = false;
+        };
+    }, [activeTab, isAdmin, t]);
 
     const getStatusIcon = (status) => {
         switch (status) {
@@ -117,13 +149,16 @@ const NotificationsPage = () => {
         />
     );
 
-    const handleQuickSend = async (hours) => {
+    const handleQuickSend = async () => {
         setQuickSending(true);
         setQuickResult(null);
         try {
-            const result = await notificationService.runAttendanceReminder(hours);
+            const result = await notificationService.runAttendanceReminder();
             setQuickResult(result);
-            toast.success(t('notifications:toasts.remindersSent', { count: result.results.sent }));
+            toast.success(t('notifications:toasts.remindersSent', {
+                count: result.results.sent,
+                minutes: result.delayMinutes || reminderSettings.delayMinutes
+            }));
             refetchHistory();
         } catch (error) {
             toast.error(error.response?.data?.message || t('notifications:toasts.remindersFailed'));
@@ -433,18 +468,25 @@ const NotificationsPage = () => {
                             </div>
                         </div>
 
+                        {reminderSettingsLoading ? (
+                            <p className="text-muted">{t('notifications:attendance.loadingSettings')}</p>
+                        ) : (
+                            <p className="text-muted" style={{ marginTop: '0.75rem' }}>
+                                {reminderSettings.enabled
+                                    ? t('notifications:attendance.configEnabled', { minutes: reminderSettings.delayMinutes })
+                                    : t('notifications:attendance.configDisabled')}
+                            </p>
+                        )}
+
                         <div className="quick-send-buttons">
-                            {QUICK_HOUR_OPTIONS.map((opt) => (
-                                <button
-                                    key={opt.value}
-                                    className="quick-send-btn"
-                                    onClick={() => handleQuickSend(opt.value)}
-                                    disabled={quickSending}
-                                >
-                                    <HiOutlinePaperAirplane size={16} />
-                                    <span>{t('notifications:attendance.hoursAgo', { hours: opt.label })}</span>
-                                </button>
-                            ))}
+                            <button
+                                className="quick-send-btn"
+                                onClick={handleQuickSend}
+                                disabled={quickSending || reminderSettingsLoading || !reminderSettings.enabled}
+                            >
+                                <HiOutlinePaperAirplane size={16} />
+                                <span>{t('notifications:attendance.sendNow')}</span>
+                            </button>
                         </div>
 
                         {quickSending && (
@@ -452,6 +494,10 @@ const NotificationsPage = () => {
                                 <div className="spinner" style={{ width: 20, height: 20 }}></div>
                                 <span>{t('notifications:attendance.sending')}</span>
                             </div>
+                        )}
+
+                        {!reminderSettingsLoading && !reminderSettings.enabled && (
+                            <p className="text-muted">{t('notifications:attendance.disabledHint')}</p>
                         )}
 
                         {quickResult && !quickSending && (

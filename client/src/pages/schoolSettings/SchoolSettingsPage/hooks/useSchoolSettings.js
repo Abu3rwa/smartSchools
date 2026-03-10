@@ -75,7 +75,9 @@ const useSchoolSettings = () => {
     loading: false,
     saving: false,
     featureAvailable: false,
-    aiEmailDraftEnabled: true
+    aiEmailDraftEnabled: true,
+    attendanceRemindersEnabled: true,
+    attendanceReminderDelayMinutes: 60
   });
   const [gradingScales, setGradingScales] = useState([]);
   const [gradingScalesLoading, setGradingScalesLoading] = useState(false);
@@ -172,17 +174,27 @@ const useSchoolSettings = () => {
     if (!canManageCommunicationSettings) return;
     setCommunicationSettings((prev) => ({ ...prev, loading: true }));
     try {
-      const response = await api.get('/schools/me/communication-settings');
-      if (response.data?.success) {
+      const [communicationResponse, attendanceReminderResponse] = await Promise.all([
+        api.get('/schools/me/communication-settings'),
+        api.get('/schools/me/attendance-reminder-settings')
+      ]);
+
+      if (communicationResponse.data?.success && attendanceReminderResponse.data?.success) {
         setCommunicationSettings((prev) => ({
           ...prev,
           loading: false,
-          featureAvailable: Boolean(response.data.data?.featureAvailable),
-          aiEmailDraftEnabled: response.data.data?.aiEmailDraftEnabled !== false
+          featureAvailable: Boolean(communicationResponse.data.data?.featureAvailable),
+          aiEmailDraftEnabled: communicationResponse.data.data?.aiEmailDraftEnabled !== false,
+          attendanceRemindersEnabled: attendanceReminderResponse.data.data?.enabled !== false,
+          attendanceReminderDelayMinutes: Number(attendanceReminderResponse.data.data?.delayMinutes || 60)
         }));
       } else {
         setCommunicationSettings((prev) => ({ ...prev, loading: false }));
-        toast.error(response.data?.message || t('schoolSettings:toast.loadCommunicationSettingsFailed'));
+        toast.error(
+          communicationResponse.data?.message ||
+          attendanceReminderResponse.data?.message ||
+          t('schoolSettings:toast.loadCommunicationSettingsFailed')
+        );
       }
     } catch (error) {
       setCommunicationSettings((prev) => ({ ...prev, loading: false }));
@@ -283,6 +295,47 @@ const useSchoolSettings = () => {
       toast.error(error.response?.data?.message || t('schoolSettings:toast.communicationSettingsUpdateFailed'));
     }
   }, [canManageCommunicationSettings, t]);
+
+  const handleAttendanceReminderSettingsChange = useCallback((patch) => {
+    setCommunicationSettings((prev) => ({
+      ...prev,
+      ...patch
+    }));
+  }, []);
+
+  const handleSaveAttendanceReminderSettings = useCallback(async () => {
+    if (!canManageCommunicationSettings) return;
+
+    const enabled = Boolean(communicationSettings.attendanceRemindersEnabled);
+    const delayMinutes = Number.parseInt(communicationSettings.attendanceReminderDelayMinutes, 10);
+    if (!Number.isInteger(delayMinutes) || delayMinutes < 1 || delayMinutes > 1440) {
+      toast.error(t('schoolSettings:toast.attendanceReminderDelayInvalid'));
+      return;
+    }
+
+    setCommunicationSettings((prev) => ({ ...prev, saving: true }));
+    try {
+      const response = await api.patch('/schools/me/attendance-reminder-settings', {
+        enabled,
+        delayMinutes
+      });
+      if (response.data?.success) {
+        setCommunicationSettings((prev) => ({
+          ...prev,
+          saving: false,
+          attendanceRemindersEnabled: response.data.data?.enabled !== false,
+          attendanceReminderDelayMinutes: Number(response.data.data?.delayMinutes || 60)
+        }));
+        toast.success(t('schoolSettings:toast.attendanceReminderSettingsUpdated'));
+      } else {
+        setCommunicationSettings((prev) => ({ ...prev, saving: false }));
+        toast.error(response.data?.message || t('schoolSettings:toast.attendanceReminderSettingsUpdateFailed'));
+      }
+    } catch (error) {
+      setCommunicationSettings((prev) => ({ ...prev, saving: false }));
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.attendanceReminderSettingsUpdateFailed'));
+    }
+  }, [canManageCommunicationSettings, communicationSettings.attendanceReminderDelayMinutes, communicationSettings.attendanceRemindersEnabled, t]);
 
   const loadAcademicYearData = useCallback(async () => {
     try {
@@ -794,6 +847,8 @@ const useSchoolSettings = () => {
     handleUploadSchoolLogo,
     handleRemoveSchoolLogo,
     handleToggleAiEmailDraft,
+    handleAttendanceReminderSettingsChange,
+    handleSaveAttendanceReminderSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,

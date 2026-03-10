@@ -33,9 +33,9 @@ import {
     toDateInputValue
 } from '../utils/calendarPresentation';
 
-const useSchoolCalendarData = (theme) => {
+const useSchoolCalendarData = (theme, t) => {
     const dispatch = useDispatch();
-    const categoryStyles = useMemo(() => resolveCalendarCategoryStyles(theme), [theme]);
+    const categoryStyles = useMemo(() => resolveCalendarCategoryStyles(theme, t), [theme, t]);
 
     const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -296,31 +296,31 @@ const useSchoolCalendarData = (theme) => {
         )];
 
         if (!title) {
-            setFormError('Title is required.');
+            setFormError(t('calendar:errors.titleRequired'));
             return;
         }
         if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
-            setFormError('Start and end date are required.');
+            setFormError(t('calendar:errors.startEndRequired'));
             return;
         }
         if (endAt < startAt) {
-            setFormError('End date must be after start date.');
+            setFormError(t('calendar:errors.endAfterStart'));
             return;
         }
         if (formState.isRecurring && formState.recurrenceFrequency === 'WEEKLY' && recurrenceWeekDays.length === 0) {
-            setFormError('Select at least one weekday for weekly recurrence.');
+            setFormError(t('calendar:errors.selectWeekday'));
             return;
         }
         if (formState.isRecurring && recurrenceUntil && Number.isNaN(recurrenceUntil.getTime())) {
-            setFormError('Repeat until must be a valid date.');
+            setFormError(t('calendar:errors.repeatUntilValid'));
             return;
         }
         if (formState.isRecurring && recurrenceUntil && recurrenceUntil < startAt) {
-            setFormError('Repeat until must be after the event start date.');
+            setFormError(t('calendar:errors.repeatUntilAfterStart'));
             return;
         }
         if (formState.visibility === 'CUSTOM' && audienceEmails.length === 0 && audienceUserIds.length === 0) {
-            setFormError('Select at least one recipient user for custom audience.');
+            setFormError(t('calendar:errors.selectRecipient'));
             return;
         }
 
@@ -370,12 +370,12 @@ const useSchoolCalendarData = (theme) => {
             closeDialog();
             refreshCalendarData();
         } else {
-            setFormError(result.payload || 'Could not save event.');
+            setFormError(result.payload || t('calendar:errors.saveFailed'));
         }
     };
 
     const handleCancelEvent = async (eventId) => {
-        const shouldCancel = window.confirm('Cancel this event?');
+        const shouldCancel = window.confirm(t('calendar:confirm.cancelEvent'));
         if (!shouldCancel) return;
         const result = await dispatch(cancelCalendarEvent(eventId));
         if (result.meta.requestStatus === 'fulfilled') {

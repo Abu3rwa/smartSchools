@@ -49,11 +49,21 @@ const notificationService = {
         return response.data;
     },
 
-    // Run attendance reminder job with custom hours
-    runAttendanceReminder: async (hours) => {
-        const response = await api.post('/attendance-taking-reminders/run', {}, {
-            params: { hours }
-        });
+    // Run attendance reminder job using school-configured delay
+    runAttendanceReminder: async () => {
+        const response = await api.post('/attendance-taking-reminders/run');
+        return response.data;
+    },
+
+    // Get school attendance reminder settings
+    getAttendanceReminderSettings: async () => {
+        const response = await api.get('/schools/me/attendance-reminder-settings');
+        return response.data;
+    },
+
+    // Update school attendance reminder settings
+    updateAttendanceReminderSettings: async (payload) => {
+        const response = await api.patch('/schools/me/attendance-reminder-settings', payload);
         return response.data;
     },
 

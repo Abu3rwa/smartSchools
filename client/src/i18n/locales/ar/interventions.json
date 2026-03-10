@@ -1,0 +1,59 @@
+{
+  "page": {
+    "disabled": "تم تعطيل قائمة التدخل حاليًا عبر إعداد الميزة."
+  },
+  "header": {
+    "title": "قائمة التدخل",
+    "subtitle": "تتبع الطلاب الذين يحتاجون إلى إعادة شرح موجهة ودعم متابعة.",
+    "refresh": "تحديث"
+  },
+  "stats": {
+    "openCases": "الحالات المفتوحة",
+    "highRisk": "خطورة عالية"
+  },
+  "filters": {
+    "status": "الحالة",
+    "risk": "الخطورة"
+  },
+  "list": {
+    "empty": "لا توجد حالات مطابقة للفلاتر المحددة."
+  },
+  "item": {
+    "standardFallback": "المعيار",
+    "status": "الحالة",
+    "riskScore": "درجة الخطورة",
+    "updated": "آخر تحديث",
+    "accuracy": "الدقة",
+    "recommendedActions": "الإجراءات الموصى بها"
+  },
+  "actions": {
+    "acknowledge": "إقرار",
+    "resolve": "حل",
+    "dismiss": "استبعاد"
+  },
+  "status": {
+    "open": "مفتوح",
+    "acknowledged": "تم الإقرار",
+    "in_progress": "قيد التنفيذ",
+    "resolved": "تم الحل",
+    "dismissed": "مستبعد"
+  },
+  "risk": {
+    "high": "عالٍ",
+    "medium": "متوسط",
+    "low": "منخفض",
+    "unknown": "غير معروف"
+  },
+  "common": {
+    "all": "الكل",
+    "empty": "-"
+  },
+  "prompts": {
+    "resolveNote": "ملاحظة الحل (اختياري):",
+    "dismissNote": "ملاحظة الاستبعاد (اختياري):"
+  },
+  "toasts": {
+    "loadFailed": "فشل تحميل قائمة التدخل",
+    "actionFailed": "فشل تنفيذ الإجراء، يرجى المحاولة مرة أخرى"
+  }
+}

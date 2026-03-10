@@ -231,6 +231,13 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
+      path: "/portal/standards/gradebook",
+      icon: HiOutlineChartBar,
+      labelKey: "standardsGradebook",
+      roles: ["admin", "teacher", "department_principal"],
+      section: "teaching",
+    },
+    {
       path: "/portal/interventions",
       icon: HiOutlineExclamationCircle,
       labelKey: "interventions",
@@ -305,8 +312,7 @@ const Sidebar = () => {
       path: "/portal/attendance-reminders",
       icon: HiOutlineBell,
       labelKey: "attendanceReminders",
-      roles: ["admin", "department_principal"],
-      permissions: [PERMISSIONS.MANAGE_ATTENDANCE_REMINDERS],
+      roles: ["admin"],
       section: "attendance",
     },
     {

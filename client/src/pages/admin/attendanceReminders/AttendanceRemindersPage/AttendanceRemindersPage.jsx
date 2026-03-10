@@ -1,11 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { selectUser } from '../../../../store/slices/authSlice';
 import {
     HiOutlineCheckCircle,
     HiOutlineXCircle,
-    HiOutlineClock,
     HiOutlineBell,
     HiOutlineRefresh,
     HiOutlinePaperAirplane,
@@ -16,24 +13,18 @@ import toast from 'react-hot-toast';
 import notificationService from '../../../../services/notificationService';
 import './AttendanceRemindersPage.css';
 
-const HOUR_OPTIONS = [
-    { value: 1 },
-    { value: 1.5 },
-    { value: 2 },
-    { value: 3 },
-    { value: 6 },
-    { value: 10 },
-];
-
 const AttendanceRemindersPage = () => {
     const { t, i18n } = useTranslation(['attendanceReminders', 'common']);
     const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : 'en';
-    const user = useSelector(selectUser);
 
     // Reminder sending state
-    const [selectedHours, setSelectedHours] = useState(1);
     const [sending, setSending] = useState(false);
     const [lastResult, setLastResult] = useState(null);
+    const [settingsLoading, setSettingsLoading] = useState(true);
+    const [reminderSettings, setReminderSettings] = useState({
+        enabled: true,
+        delayMinutes: 60
+    });
 
     // Reminder history state
     const [reminders, setReminders] = useState([]);
@@ -64,18 +55,37 @@ const AttendanceRemindersPage = () => {
         }
     }, [page, statusFilter, startDate, endDate, t]);
 
+    const fetchReminderSettings = useCallback(async () => {
+        setSettingsLoading(true);
+        try {
+            const response = await notificationService.getAttendanceReminderSettings();
+            setReminderSettings({
+                enabled: response?.data?.enabled !== false,
+                delayMinutes: Number(response?.data?.delayMinutes || 60)
+            });
+        } catch (error) {
+            toast.error(error.response?.data?.message || t('attendanceReminders:toast.loadSettingsFailed'));
+        } finally {
+            setSettingsLoading(false);
+        }
+    }, [t]);
+
     useEffect(() => {
         fetchReminders();
-    }, [fetchReminders]);
+        fetchReminderSettings();
+    }, [fetchReminders, fetchReminderSettings]);
 
     const handleSendReminders = async () => {
         setSending(true);
         setLastResult(null);
         try {
-            const result = await notificationService.runAttendanceReminder(selectedHours);
+            const result = await notificationService.runAttendanceReminder();
             setLastResult(result);
             toast.success(
-                t('attendanceReminders:toast.sentSummary', { sent: result.results.sent, hours: selectedHours })
+                t('attendanceReminders:toast.sentSummary', {
+                    sent: result.results.sent,
+                    minutes: result.delayMinutes || reminderSettings.delayMinutes
+                })
             );
             // Refresh the history
             fetchReminders();
@@ -140,25 +150,27 @@ const AttendanceRemindersPage = () => {
                 <div className="send-panel-body">
                     <div className="send-controls">
                         <div className="form-group">
-                            <label htmlFor="hours-select">{t('attendanceReminders:sendPanel.timeAfterClassEnded')}</label>
-                            <select
-                                id="hours-select"
-                                value={selectedHours}
-                                onChange={(e) => setSelectedHours(parseFloat(e.target.value))}
-                                disabled={sending}
-                            >
-                                {HOUR_OPTIONS.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>
-                                        {t('attendanceReminders:sendPanel.hourOption', { value: opt.value })}
-                                    </option>
-                                ))}
-                            </select>
+                            <label>{t('attendanceReminders:sendPanel.currentConfig')}</label>
+                            {settingsLoading ? (
+                                <p className="text-muted">{t('attendanceReminders:sendPanel.loadingConfig')}</p>
+                            ) : (
+                                <>
+                                    <p className="text-muted">
+                                        {reminderSettings.enabled
+                                            ? t('attendanceReminders:sendPanel.configEnabled', { minutes: reminderSettings.delayMinutes })
+                                            : t('attendanceReminders:sendPanel.configDisabled')}
+                                    </p>
+                                    <p className="text-muted">
+                                        {t('attendanceReminders:sendPanel.manageInSchoolSettings')}
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         <button
                             className="btn btn-primary send-btn"
                             onClick={handleSendReminders}
-                            disabled={sending}
+                            disabled={sending || settingsLoading || !reminderSettings.enabled}
                         >
                             {sending ? (
                                 <>
@@ -173,6 +185,12 @@ const AttendanceRemindersPage = () => {
                             )}
                         </button>
                     </div>
+
+                    {!settingsLoading && !reminderSettings.enabled && (
+                        <p className="text-muted" style={{ marginTop: '0.75rem' }}>
+                            {t('attendanceReminders:sendPanel.disabledHint')}
+                        </p>
+                    )}
 
                     {/* Last Result */}
                     {lastResult && (

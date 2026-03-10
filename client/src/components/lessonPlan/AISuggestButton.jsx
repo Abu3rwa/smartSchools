@@ -3,6 +3,7 @@ import { HiOutlineSparkles } from 'react-icons/hi';
 import { suggestField } from '../../store/slices/lessonSlice';
 import toast from 'react-hot-toast';
 import { buildRequestedLanguages } from '../../constants/aiLanguages';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Button that triggers AI suggestion for a lesson plan field.
@@ -23,12 +24,13 @@ const AISuggestButton = ({
     disabled = false,
     size = 'sm',
 }) => {
+    const { t } = useTranslation(['lessonPlan']);
     const dispatch = useDispatch();
 
     const handleClick = async () => {
         if (disabled || !subjectId || !classId) {
             if (!subjectId || !classId) {
-                toast.error('Select Class and Subject first');
+                toast.error(t('lessonPlan:form.toasts.selectClassSubjectFirst'));
             }
             return;
         }
@@ -53,7 +55,7 @@ const AISuggestButton = ({
         if (suggestField.fulfilled.match(result)) {
             onSuggestion(result.payload.suggestion);
         } else {
-            toast.error(result.payload || 'AI suggestion failed');
+            toast.error(result.payload || t('lessonPlan:form.toasts.aiSuggestionFailed'));
         }
     };
 
@@ -63,10 +65,10 @@ const AISuggestButton = ({
             className={`ai-suggest-btn ai-suggest-btn--${size}`}
             onClick={handleClick}
             disabled={disabled || !subjectId || !classId}
-            title="AI Suggest"
+            title={t('lessonPlan:form.aiSuggest')}
         >
             <HiOutlineSparkles size={size === 'sm' ? 16 : 18} />
-            <span>Suggest</span>
+            <span>{t('lessonPlan:form.aiSuggest')}</span>
         </button>
     );
 };

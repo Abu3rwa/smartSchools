@@ -81,6 +81,7 @@ import ReportHistory from "./pages/reports/ReportHistory";
 // Standards Practice Pages
 import StandardsPage from "./pages/standards/StandardsPage";
 import StandardAssignPage from "./pages/standards/StandardAssignPage";
+import StandardsGradebookPage from "./pages/standards/StandardsGradebookPage";
 import PracticeDashboardPage from "./pages/student/practice/PracticeDashboardPage";
 import PracticeSessionPage from "./pages/student/practice/PracticeSessionPage";
 import PracticeHistoryPage from "./pages/student/practice/PracticeHistoryPage";
@@ -481,7 +482,7 @@ function App() {
           <Route
             path="attendance-reminders"
             element={
-              <RoleRoute roles={["admin", "department_principal"]}>
+              <RoleRoute roles={["admin"]}>
                 <AttendanceRemindersPage />
               </RoleRoute>
             }
@@ -672,6 +673,14 @@ function App() {
             element={
               <RoleRoute roles={["admin", "teacher"]}>
                 <StandardAssignPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="standards/gradebook"
+            element={
+              <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                <StandardsGradebookPage />
               </RoleRoute>
             }
           />

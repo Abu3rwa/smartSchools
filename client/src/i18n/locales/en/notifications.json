@@ -39,8 +39,12 @@
   },
   "attendance": {
     "quickTitle": "Quick Send Reminders",
-    "quickSubtitle": "Notify teachers who missed recording attendance",
-    "hoursAgo": "{{hours}} ago",
+    "quickSubtitle": "Manually send attendance reminders using school settings",
+    "loadingSettings": "Loading attendance reminder settings...",
+    "configEnabled": "Enabled. Reminders are eligible {{minutes}} minute(s) after period end.",
+    "configDisabled": "Disabled. Attendance reminders cannot be sent.",
+    "sendNow": "Send reminders now",
+    "disabledHint": "Enable reminders in School Settings → Communication to send reminders.",
     "sending": "Sending reminders...",
     "sent": "sent",
     "skipped": "skipped",
@@ -48,8 +52,9 @@
     "viewHistory": "View full reminder history & advanced options"
   },
   "toasts": {
-    "remindersSent": "Sent {{count}} reminder(s)",
-    "remindersFailed": "Failed to send reminders"
+    "remindersSent": "Sent {{count}} reminder(s) for classes ended at least {{minutes}} minute(s) ago",
+    "remindersFailed": "Failed to send reminders",
+    "reminderSettingsLoadFailed": "Failed to load attendance reminder settings"
   },
   "modal": {
     "title": "Notification Details",

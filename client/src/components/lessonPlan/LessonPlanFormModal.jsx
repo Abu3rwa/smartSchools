@@ -6,6 +6,7 @@ import AISuggestButton from './AISuggestButton.jsx';
 import StandardsSuggester from './StandardsSuggester.jsx';
 import { buildLessonPayload } from './lessonPlanConstants.js';
 import { AI_LANGUAGE_OPTIONS } from '../../constants/aiLanguages';
+import { useTranslation } from 'react-i18next';
 
 const LessonPlanFormModal = ({
   open,
@@ -20,6 +21,7 @@ const LessonPlanFormModal = ({
   generatingSection,
   generatedStandards = [],
 }) => {
+  const { t } = useTranslation(['lessonPlan']);
   if (!open) return null;
 
   const handleStageChange = (index, field, value) => {
@@ -41,7 +43,11 @@ const LessonPlanFormModal = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h3>{editingId ? 'Edit Lesson Plan' : 'Create Lesson Plan'}</h3>
+          <h3>
+            {editingId
+              ? t('lessonPlan:teacherForm.title.edit')
+              : t('lessonPlan:teacherForm.title.create')}
+          </h3>
           <button type="button" className="modal-close" onClick={onClose}>
             &times;
           </button>
@@ -50,7 +56,7 @@ const LessonPlanFormModal = ({
           <div className="modal-body lesson-plan-form">
             <div className="form-row">
               <div className="form-group">
-                <label>Date *</label>
+                <label>{t('lessonPlan:teacherForm.fields.date')} *</label>
                 <input
                   type="date"
                   value={formData.date}
@@ -59,26 +65,26 @@ const LessonPlanFormModal = ({
                 />
               </div>
               <div className="form-group">
-                <label>Class *</label>
+                <label>{t('lessonPlan:teacherForm.fields.class')} *</label>
                 <select
                   value={formData.classId}
                   onChange={(e) => setFormData({ ...formData, classId: e.target.value })}
                   required
                 >
-                  <option value="">Select Class</option>
+                  <option value="">{t('lessonPlan:teacherForm.select.selectClass')}</option>
                   {classes.map((cls) => (
                     <option key={cls._id} value={cls._id}>{cls.name}</option>
                   ))}
                 </select>
               </div>
               <div className="form-group">
-                <label>Subject *</label>
+                <label>{t('lessonPlan:teacherForm.fields.subject')} *</label>
                 <select
                   value={formData.subjectId}
                   onChange={(e) => setFormData({ ...formData, subjectId: e.target.value })}
                   required
                 >
-                  <option value="">Select Subject</option>
+                  <option value="">{t('lessonPlan:teacherForm.select.selectSubject')}</option>
                   {subjects.map((sub) => (
                     <option key={sub._id} value={sub._id}>{sub.name}</option>
                   ))}
@@ -87,7 +93,7 @@ const LessonPlanFormModal = ({
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Primary AI Language</label>
+                <label>{t('lessonPlan:teacherForm.fields.primaryAiLanguage')}</label>
                 <select
                   value={formData.aiPrimaryLanguage || 'en'}
                   onChange={(e) => {
@@ -106,12 +112,12 @@ const LessonPlanFormModal = ({
                 </select>
               </div>
               <div className="form-group">
-                <label>Secondary AI Language (optional)</label>
+                <label>{t('lessonPlan:teacherForm.fields.secondaryAiLanguageOptional')}</label>
                 <select
                   value={formData.aiSecondaryLanguage || ''}
                   onChange={(e) => setFormData({ ...formData, aiSecondaryLanguage: e.target.value || '' })}
                 >
-                  <option value="">None</option>
+                  <option value="">{t('lessonPlan:teacherForm.select.none')}</option>
                   {AI_LANGUAGE_OPTIONS
                     .filter((option) => option.value !== (formData.aiPrimaryLanguage || 'en'))
                     .map((option) => (
@@ -123,12 +129,12 @@ const LessonPlanFormModal = ({
 
             <div className="form-group form-group-with-suggest">
               <div>
-                <label>Title *</label>
+                <label>{t('lessonPlan:teacherForm.fields.title')} *</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g. Introduction to Fractions"
+                  placeholder={t('lessonPlan:teacherForm.placeholders.title')}
                   required
                 />
               </div>
@@ -157,20 +163,20 @@ const LessonPlanFormModal = ({
               {generatingSection ? (
                 <>
                   <span className="spinner-small" />
-                  Generating…
+                  {t('lessonPlan:teacherForm.actions.generating')}
                 </>
               ) : (
-                <>✨ Generate from title</>
+                <>{t('lessonPlan:teacherForm.actions.generateFromTitle')}</>
               )}
             </button>
 
             <div className="form-group form-group-with-suggest">
-              <label>Summary</label>
+              <label>{t('lessonPlan:teacherForm.fields.summary')}</label>
               <textarea
                 rows={4}
                 value={formData.summary}
                 onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
-                placeholder="Brief summary"
+                placeholder={t('lessonPlan:teacherForm.placeholders.summary')}
               />
               <AISuggestButton
                 field="summary"
@@ -185,12 +191,12 @@ const LessonPlanFormModal = ({
             </div>
 
             <div className="form-group form-group-with-suggest">
-              <label>Description</label>
+              <label>{t('lessonPlan:teacherForm.fields.description')}</label>
               <textarea
                 rows={6}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="What will be covered in this lesson?"
+                placeholder={t('lessonPlan:teacherForm.placeholders.description')}
               />
               <AISuggestButton
                 field="description"
@@ -206,12 +212,12 @@ const LessonPlanFormModal = ({
             </div>
 
             <div className="form-group form-group-with-suggest">
-              <label>Homework</label>
+              <label>{t('lessonPlan:teacherForm.fields.homework')}</label>
               <textarea
                 rows={4}
                 value={formData.homework}
                 onChange={(e) => setFormData({ ...formData, homework: e.target.value })}
-                placeholder="Homework / take-home material"
+                placeholder={t('lessonPlan:teacherForm.placeholders.homework')}
               />
               <AISuggestButton
                 field="homework"
@@ -227,7 +233,7 @@ const LessonPlanFormModal = ({
             </div>
 
             <div className="form-group form-group-with-suggest">
-              <label>Previous Knowledge / Skills</label>
+              <label>{t('lessonPlan:teacherForm.fields.previousKnowledge')}</label>
               <textarea
                 rows={4}
                 value={formData.previousKnowledge}
@@ -250,7 +256,7 @@ const LessonPlanFormModal = ({
             </div>
 
             <div className="form-group form-group-with-suggest">
-              <label>Teaching Objectives (Standards)</label>
+              <label>{t('lessonPlan:teacherForm.fields.teachingObjectives')}</label>
               <textarea
                 rows={4}
                 value={formData.teachingObjectives}
@@ -285,12 +291,12 @@ const LessonPlanFormModal = ({
             />
 
             <div className="form-group form-group-with-suggest">
-              <label>Vocabulary</label>
+              <label>{t('lessonPlan:teacherForm.fields.vocabulary')}</label>
               <input
                 type="text"
                 value={formData.vocabulary}
                 onChange={(e) => setFormData({ ...formData, vocabulary: e.target.value })}
-                placeholder="Key vocabulary"
+                placeholder={t('lessonPlan:teacherForm.placeholders.vocabulary')}
               />
               <AISuggestButton
                 field="vocabulary"
@@ -305,7 +311,7 @@ const LessonPlanFormModal = ({
             </div>
 
             <div className="form-group form-group-with-suggest">
-              <label>Links with Character Trait / Cognitive Skills</label>
+              <label>{t('lessonPlan:teacherForm.fields.characterTraitLinks')}</label>
               <input
                 type="text"
                 value={formData.characterTraitLinks}
@@ -328,7 +334,7 @@ const LessonPlanFormModal = ({
             </div>
 
             <div className="form-group form-group-with-suggest">
-              <label>Tech Integration (if applicable)</label>
+              <label>{t('lessonPlan:teacherForm.fields.techIntegration')}</label>
               <input
                 type="text"
                 value={formData.techIntegration}
@@ -351,15 +357,15 @@ const LessonPlanFormModal = ({
             </div>
 
             <div className="stages-section">
-              <h4>Stages – Procedure, Materials/Resources, Timing</h4>
+              <h4>{t('lessonPlan:teacherForm.stages.title')}</h4>
               {formData.stages.map((stage, index) => (
                 <div key={index} className="stage-block">
                   <div className="stage-name">
-                    {stage.name || `Stage ${index + 1}`}
+                    {stage.name || t('lessonPlan:teacherForm.stages.stageNumber', { number: index + 1 })}
                   </div>
                   <div className="form-group form-group-with-suggest">
                     <div>
-                      <label>Procedure</label>
+                      <label>{t('lessonPlan:teacherForm.stages.procedure')}</label>
                       <textarea
                         rows={4}
                         value={stage.procedure}
@@ -382,7 +388,7 @@ const LessonPlanFormModal = ({
                     />
                   </div>
                   <div className="form-group">
-                    <label>Materials / Resources</label>
+                    <label>{t('lessonPlan:teacherForm.stages.materials')}</label>
                     <input
                       type="text"
                       value={stage.materials}
@@ -392,14 +398,14 @@ const LessonPlanFormModal = ({
                     />
                   </div>
                   <div className="form-group">
-                    <label>Timing</label>
+                    <label>{t('lessonPlan:teacherForm.stages.timing')}</label>
                     <input
                       type="text"
                       value={stage.timing}
                       onChange={(e) =>
                         handleStageChange(index, 'timing', e.target.value)
                       }
-                      placeholder="e.g. 10 min"
+                      placeholder={t('lessonPlan:teacherForm.stages.timingPlaceholder')}
                     />
                   </div>
                 </div>
@@ -408,10 +414,12 @@ const LessonPlanFormModal = ({
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
+              {t('lessonPlan:teacherForm.actions.cancel')}
             </button>
             <button type="submit" className="btn btn-primary">
-              {editingId ? 'Update Lesson Plan' : 'Save Lesson Plan'}
+              {editingId
+                ? t('lessonPlan:teacherForm.actions.update')
+                : t('lessonPlan:teacherForm.actions.save')}
             </button>
           </div>
         </form>

@@ -32,24 +32,25 @@ const CalendarEventFormDialog = ({
     recurrenceFrequencyOptions = [],
     recurrenceWeekdayOptions = [],
     visibilityOptions = [],
-    toAudienceOption
+    toAudienceOption,
+    t
 }) => {
     const normalizedAudienceOption = (option) => (toAudienceOption ? toAudienceOption(option) : option);
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-            <DialogTitle>{editingEvent ? 'Edit Event' : 'Add Event'}</DialogTitle>
+            <DialogTitle>{editingEvent ? t('calendar:dialog.editTitle') : t('calendar:dialog.addTitle')}</DialogTitle>
             <DialogContent>
                 <Stack spacing={1.5} sx={{ mt: 0.5 }}>
                     {formError && <Alert severity="error">{formError}</Alert>}
                     <TextField
-                        label="Title"
+                        label={t('calendar:dialog.fields.title')}
                         value={formState.title}
                         onChange={(event) => setFormState((previous) => ({ ...previous, title: event.target.value }))}
                         required
                     />
                     <TextField
-                        label="Description"
+                        label={t('calendar:dialog.fields.description')}
                         value={formState.description}
                         onChange={(event) => setFormState((previous) => ({ ...previous, description: event.target.value }))}
                         multiline
@@ -57,19 +58,19 @@ const CalendarEventFormDialog = ({
                     />
                     <TextField
                         select
-                        label="Category"
+                        label={t('calendar:dialog.fields.category')}
                         value={formState.category}
                         onChange={(event) => setFormState((previous) => ({ ...previous, category: event.target.value }))}
                     >
                         {categoryOptions.filter((item) => item.value !== 'ALL').map((item) => (
                             <MenuItem key={item.value} value={item.value}>
-                                {item.label}
+                                {item.labelKey ? t(item.labelKey) : item.label}
                             </MenuItem>
                         ))}
                     </TextField>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
                         <TextField
-                            label="Start"
+                            label={t('calendar:dialog.fields.start')}
                             type="datetime-local"
                             value={formState.startAt}
                             onChange={(event) => setFormState((previous) => ({ ...previous, startAt: event.target.value }))}
@@ -78,7 +79,7 @@ const CalendarEventFormDialog = ({
                             required
                         />
                         <TextField
-                            label="End"
+                            label={t('calendar:dialog.fields.end')}
                             type="datetime-local"
                             value={formState.endAt}
                             onChange={(event) => setFormState((previous) => ({ ...previous, endAt: event.target.value }))}
@@ -94,7 +95,7 @@ const CalendarEventFormDialog = ({
                                 onChange={(event) => setFormState((previous) => ({ ...previous, allDay: event.target.checked }))}
                             />
                         )}
-                        label="All Day"
+                        label={t('calendar:dialog.fields.allDay')}
                     />
                     <FormControlLabel
                         control={(
@@ -106,14 +107,14 @@ const CalendarEventFormDialog = ({
                                 }))}
                             />
                         )}
-                        label="Recurring Event"
+                        label={t('calendar:dialog.fields.recurring')}
                     />
                     {formState.isRecurring && (
                         <Stack spacing={1.25}>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
                                 <TextField
                                     select
-                                    label="Repeat"
+                                    label={t('calendar:dialog.fields.repeat')}
                                     value={formState.recurrenceFrequency}
                                     onChange={(event) => setFormState((previous) => ({
                                         ...previous,
@@ -123,12 +124,12 @@ const CalendarEventFormDialog = ({
                                 >
                                     {recurrenceFrequencyOptions.map((option) => (
                                         <MenuItem key={option.value} value={option.value}>
-                                            {option.label}
+                                            {option.labelKey ? t(option.labelKey) : option.label}
                                         </MenuItem>
                                     ))}
                                 </TextField>
                                 <TextField
-                                    label="Interval"
+                                    label={t('calendar:dialog.fields.interval')}
                                     type="number"
                                     value={formState.recurrenceInterval}
                                     onChange={(event) => setFormState((previous) => ({
@@ -147,7 +148,7 @@ const CalendarEventFormDialog = ({
                                         return (
                                             <Chip
                                                 key={item.value}
-                                                label={item.label}
+                                                label={item.labelKey ? t(item.labelKey) : item.label}
                                                 color={selected ? 'primary' : 'default'}
                                                 variant={selected ? 'filled' : 'outlined'}
                                                 onClick={() => {
@@ -171,7 +172,7 @@ const CalendarEventFormDialog = ({
                             )}
 
                             <TextField
-                                label="Repeat Until (optional)"
+                                label={t('calendar:dialog.fields.repeatUntilOptional')}
                                 type="datetime-local"
                                 value={formState.recurrenceUntil}
                                 onChange={(event) => setFormState((previous) => ({
@@ -184,19 +185,19 @@ const CalendarEventFormDialog = ({
                         </Stack>
                     )}
                     <TextField
-                        label="Location (optional)"
+                        label={t('calendar:dialog.fields.locationOptional')}
                         value={formState.location}
                         onChange={(event) => setFormState((previous) => ({ ...previous, location: event.target.value }))}
                     />
                     <TextField
                         select
-                        label="Audience"
+                        label={t('calendar:dialog.fields.audience')}
                         value={formState.visibility}
                         onChange={(event) => setFormState((previous) => ({ ...previous, visibility: event.target.value }))}
                     >
                         {visibilityOptions.map((option) => (
                             <MenuItem key={option.value} value={option.value}>
-                                {option.label}
+                                {option.labelKey ? t(option.labelKey) : option.label}
                             </MenuItem>
                         ))}
                     </TextField>
@@ -226,9 +227,9 @@ const CalendarEventFormDialog = ({
                             renderInput={(params) => (
                                 <TextField
                                     {...params}
-                                    label="Recipient Users"
-                                    placeholder="Search by name or email"
-                                    helperText="Select recipients. Result format: Name (email). Only selected users will receive this custom audience notification."
+                                    label={t('calendar:dialog.fields.recipientUsers')}
+                                    placeholder={t('calendar:dialog.fields.recipientPlaceholder')}
+                                    helperText={t('calendar:dialog.fields.recipientHelper')}
                                 />
                             )}
                         />
@@ -236,9 +237,11 @@ const CalendarEventFormDialog = ({
                 </Stack>
             </DialogContent>
             <DialogActions>
-                <Button onClick={onClose}>Close</Button>
+                <Button onClick={onClose}>{t('calendar:common.close')}</Button>
                 <Button variant="contained" onClick={onSubmit} disabled={mutationLoading}>
-                    {mutationLoading ? 'Saving...' : (editingEvent ? 'Save Changes' : 'Create Event')}
+                    {mutationLoading
+                        ? t('calendar:common.saving')
+                        : (editingEvent ? t('calendar:dialog.actions.saveChanges') : t('calendar:dialog.actions.createEvent'))}
                 </Button>
             </DialogActions>
         </Dialog>

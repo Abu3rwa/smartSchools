@@ -4,9 +4,11 @@ import AttendanceTakingReminder from "../models/AttendanceTakingReminder.js";
 import Attendance from "../models/Attendance.js";
 import TeacherPeriodAssignment from "../models/TeacherPeriodAssignment.js";
 import Class from "../models/Class.js";
+import School from "../models/School.js";
 import SchoolCalendarConfig from "../models/SchoolCalendarConfig.js";
 import Notification from "../models/Notification.js";
 import notificationService from "../services/notificationService.js";
+import { getAttendanceReminderSettingsFromSchool } from "../utils/attendanceReminderSettings.js";
 import {
   DEFAULT_SCHOOL_TIMEZONE,
   resolveTimeZone,
@@ -343,21 +345,26 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
 
 /**
  * HTTP handler: run the reminder job and return JSON.
- * Query params:
- *   - hours: Number of hours after class end to check (default: 1)
- *            Examples: 1, 1.5, 2, 10
  */
 export const runReminderJob = asyncHandler(async (req, res) => {
-  const hoursParam = req.query.hours || req.body.hours;
-  const hours = hoursParam ? parseFloat(hoursParam) : DEFAULT_REMINDER_HOURS;
-
-  if (isNaN(hours) || hours <= 0 || hours > 24) {
-    return res.status(400).json({
+  const school = await School.findById(req.schoolId).select("settings.attendanceReminders");
+  if (!school) {
+    return res.status(404).json({
       success: false,
-      message: "Invalid hours parameter. Must be between 0 and 24.",
+      message: "School not found",
     });
   }
 
+  const reminderSettings = getAttendanceReminderSettingsFromSchool(school);
+  if (reminderSettings.enabled !== true) {
+    return res.status(409).json({
+      success: false,
+      code: "ATTENDANCE_REMINDERS_DISABLED",
+      message: "Attendance reminders are disabled in school settings.",
+    });
+  }
+
+  const hours = reminderSettings.delayMinutes / 60;
   const scopeOptions = {};
   if (req.schoolId) scopeOptions.schoolId = req.schoolId;
   if (req.departmentId) scopeOptions.departmentId = req.departmentId;
@@ -365,7 +372,8 @@ export const runReminderJob = asyncHandler(async (req, res) => {
   const result = await processAttendanceReminders(hours, scopeOptions);
   res.json({
     success: true,
-    message: `Reminder job completed for classes ending ${hours} hour(s) ago`,
+    message: `Reminder job completed for classes ending at least ${reminderSettings.delayMinutes} minute(s) ago`,
+    delayMinutes: reminderSettings.delayMinutes,
     ...result,
   });
 });

@@ -1,4 +1,5 @@
 import { IMPORT_TEXT_PLACEHOLDER } from '../constants';
+import { useTranslation } from 'react-i18next';
 import ErrorState from './ErrorState';
 
 const StandardsImportTab = ({
@@ -13,16 +14,18 @@ const StandardsImportTab = ({
     onImportFile,
     importResult
 }) => {
+    const { t } = useTranslation(['standards']);
+
     return (
         <div className="import-section">
             <div className="form-group" style={{ marginBottom: 'var(--spacing-md)' }}>
-                <label>Subject for Import *</label>
+                <label>{t('standards:import.subjectForImport')}</label>
                 <select
                     value={importSubjectId}
                     onChange={(event) => onImportSubjectChange(event.target.value)}
                     style={{ maxWidth: 300 }}
                 >
-                    <option value="">Select Subject</option>
+                    <option value="">{t('standards:form.selectSubject')}</option>
                     {subjects.map((subject) => (
                         <option key={subject._id} value={subject._id}>
                             {subject.name} ({subject.code})
@@ -31,7 +34,7 @@ const StandardsImportTab = ({
                 </select>
             </div>
             <div className="form-group" style={{ marginBottom: 'var(--spacing-md)' }}>
-                <label>Upload CSV File (optional)</label>
+                <label>{t('standards:import.uploadFile')}</label>
                 <input
                     type="file"
                     accept=".csv,.tsv,text/csv,text/tab-separated-values"
@@ -39,12 +42,12 @@ const StandardsImportTab = ({
                 />
                 {importFileName && (
                     <p className="import-help" style={{ marginTop: 6 }}>
-                        Loaded: <strong>{importFileName}</strong> (you can still edit the text below)
+                        {t('standards:import.loadedFile', { fileName: importFileName })}
                     </p>
                 )}
             </div>
             <div className="form-group">
-                <label>Paste Standards Data (CSV or Tab-separated)</label>
+                <label>{t('standards:import.pasteData')}</label>
                 <textarea
                     className="import-textarea"
                     value={importText}
@@ -52,8 +55,7 @@ const StandardsImportTab = ({
                     placeholder={IMPORT_TEXT_PLACEHOLDER}
                 />
                 <p className="import-help">
-                    Supports CSV/TSV with or without a header row. Minimum columns: Code, Name,
-                    Description. Optional: Grade, Category, MasteryThreshold, MasteryMinQuestions.
+                    {t('standards:import.help')}
                 </p>
             </div>
             <button
@@ -61,7 +63,7 @@ const StandardsImportTab = ({
                 onClick={onImport}
                 disabled={loading || !importText.trim() || !importSubjectId}
             >
-                {loading ? 'Importing...' : 'Import Standards'}
+                {loading ? t('standards:import.importing') : t('standards:import.importButton')}
             </button>
 
             {importResult?.success ? (

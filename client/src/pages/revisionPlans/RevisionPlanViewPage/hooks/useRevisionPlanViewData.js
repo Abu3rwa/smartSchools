@@ -11,11 +11,13 @@ import {
 } from "../../../../store/slices/revisionSlice.js";
 import { selectUser } from "../../../../store/slices/authSlice.js";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 /**
  * Data for Revision Plan View page. Student + Teacher shared.
  */
 export function useRevisionPlanViewData() {
+  const { t } = useTranslation(["revisionPlans"]);
   const { planId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -33,8 +35,8 @@ export function useRevisionPlanViewData() {
   }, [dispatch, planId]);
 
   useEffect(() => {
-    if (error) toast.error(error);
-  }, [error]);
+    if (error) toast.error(error || t("revisionPlans:toasts.loadFailed"));
+  }, [error, t]);
 
   const handleTopicComplete = async (topicIndex, completed) => {
     if (!planId || !isStudent) return;
@@ -46,9 +48,9 @@ export function useRevisionPlanViewData() {
           body: { topicIndex, completed },
         }),
       ).unwrap();
-      toast.success(completed ? "Topic marked complete" : "Topic unchecked");
+      toast.success(completed ? t("revisionPlans:toasts.topicComplete") : t("revisionPlans:toasts.topicUnchecked"));
     } catch (e) {
-      toast.error(e || "Failed to update");
+      toast.error(e || t("revisionPlans:toasts.updateFailed"));
     }
     setUpdating(false);
   };

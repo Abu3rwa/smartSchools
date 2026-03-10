@@ -1,0 +1,67 @@
+{
+  "common": {
+    "back": "رجوع",
+    "backToPlans": "العودة إلى الخطط",
+    "status": "الحالة",
+    "all": "الكل",
+    "examLabel": "الاختبار:"
+  },
+  "status": {
+    "active": "نشط",
+    "completed": "مكتمل",
+    "abandoned": "متروك"
+  },
+  "list": {
+    "title": "خطط المراجعة",
+    "studentSubtitle": "خطط مراجعة مخصصة لاختباراتك",
+    "teacherSubtitle": "عرض وإدارة خطط المراجعة لطلابك",
+    "newPlan": "خطة جديدة",
+    "createPlan": "إنشاء خطة",
+    "emptyTitle": "لا توجد خطط مراجعة بعد",
+    "emptyStudent": "أنشئ خطة للحصول على جدول دراسة مخصص قبل الاختبار.",
+    "emptyTeacher": "أنشئ خطة مراجعة لطالب للبدء.",
+    "planFallback": "خطة مراجعة",
+    "daysUntilExam": "متبقي {{count}} يومًا للاختبار"
+  },
+  "create": {
+    "title": "إنشاء خطة مراجعة",
+    "teacherSubtitle": "أنشئ خطة مراجعة مخصصة لطالب.",
+    "studentSubtitle": "احصل على جدول دراسة بناءً على نقاط الضعف لديك.",
+    "academicYear": "العام الدراسي: {{year}}.",
+    "student": "الطالب",
+    "selectStudent": "اختر الطالب",
+    "subject": "المادة",
+    "selectSubject": "اختر المادة",
+    "examDate": "تاريخ الاختبار",
+    "examName": "اسم الاختبار (اختياري)",
+    "examNamePlaceholder": "مثال: منتصف الفصل، النهائي",
+    "generating": "جارٍ إنشاء الخطة…",
+    "generate": "إنشاء الخطة"
+  },
+  "view": {
+    "notFound": "الخطة غير موجودة.",
+    "backToPlans": "العودة إلى الخطط",
+    "overallProgress": "التقدم العام",
+    "progressSummary": "تم إكمال {{completed}} من {{total}} موضوع ({{progress}}%)",
+    "topics": "الموضوعات",
+    "topicNumber": "الموضوع {{number}}",
+    "mastery": "إتقان {{value}}%",
+    "minutes": "{{value}} دقيقة",
+    "dailySchedule": "الجدول اليومي",
+    "dayNumber": "اليوم {{number}}",
+    "past": "سابق",
+    "noSlots": "لا توجد فترات",
+    "topic": "موضوع",
+    "done": "تم",
+    "milestones": "المحطات"
+  },
+  "toasts": {
+    "loadFailed": "فشل تحميل خطط المراجعة",
+    "createFailed": "فشل إنشاء خطة المراجعة",
+    "subjectExamRequired": "المادة وتاريخ الاختبار مطلوبان",
+    "selectStudent": "يرجى اختيار طالب",
+    "topicComplete": "تم تعليم الموضوع كمكتمل",
+    "topicUnchecked": "تم إلغاء تحديد الموضوع",
+    "updateFailed": "فشل التحديث"
+  }
+}

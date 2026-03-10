@@ -21,9 +21,11 @@ import {
     getCategoryIconComponent,
     toAudienceOption
 } from './utils/calendarPresentation';
+import { useTranslation } from 'react-i18next';
 import './AdminSchoolCalendarPage.css';
 
 const AdminSchoolCalendarPage = () => {
+    const { t } = useTranslation(['calendar']);
     const theme = useTheme();
 
     const { canManage } = useSchoolCalendarPermissions();
@@ -65,7 +67,7 @@ const AdminSchoolCalendarPage = () => {
         goToNextMonth,
         getDayCellStyle,
         isEventNotificationEnabled
-    } = useSchoolCalendarData(theme);
+    } = useSchoolCalendarData(theme, t);
 
     return (
         <div className="admin-school-calendar-page">
@@ -84,6 +86,7 @@ const AdminSchoolCalendarPage = () => {
                     activeFilter={activeFilter}
                     onChangeFilter={setActiveFilter}
                     options={CALENDAR_FILTER_OPTIONS}
+                    t={t}
                 />
 
                 <div className="calendar-layout-grid">
@@ -99,6 +102,7 @@ const AdminSchoolCalendarPage = () => {
                         onNextMonth={goToNextMonth}
                         onSelectDate={setSelectedDate}
                         getDayCellStyle={getDayCellStyle}
+                        t={t}
                     />
 
                     <CalendarUpcomingEventsList
@@ -112,8 +116,9 @@ const AdminSchoolCalendarPage = () => {
                         onToggleNotification={handleNotificationToggle}
                         onOpenEventMenu={openEventActionsMenu}
                         formatCalendarEventDateRange={formatCalendarEventDateRange}
-                        formatCalendarRecurrenceSummary={formatCalendarRecurrenceSummary}
+                        formatCalendarRecurrenceSummary={(event) => formatCalendarRecurrenceSummary(event, t)}
                         getCategoryIconComponent={getCategoryIconComponent}
+                        t={t}
                     />
                 </div>
             </Stack>
@@ -136,6 +141,7 @@ const AdminSchoolCalendarPage = () => {
                 recurrenceWeekdayOptions={CALENDAR_RECURRENCE_WEEKDAY_OPTIONS}
                 visibilityOptions={CALENDAR_VISIBILITY_OPTIONS}
                 toAudienceOption={toAudienceOption}
+                t={t}
             />
 
             <CalendarEventActionsMenu
@@ -143,6 +149,7 @@ const AdminSchoolCalendarPage = () => {
                 onClose={closeEventActionsMenu}
                 onEdit={handleEditFromMenu}
                 onCancel={handleCancelFromMenu}
+                t={t}
             />
         </div>
     );

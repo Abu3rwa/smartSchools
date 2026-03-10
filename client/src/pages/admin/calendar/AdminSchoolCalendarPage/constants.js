@@ -1,41 +1,49 @@
 export const CALENDAR_FILTER_OPTIONS = [
-    { label: 'All', value: 'ALL' },
-    { label: 'Events', value: 'EVENT' },
-    { label: 'Holidays', value: 'HOLIDAY' },
-    { label: 'Meetings', value: 'MEETING' },
-    { label: 'Exams', value: 'EXAM' }
+    { labelKey: 'calendar:filters.all', value: 'ALL' },
+    { labelKey: 'calendar:filters.event', value: 'EVENT' },
+    { labelKey: 'calendar:filters.holiday', value: 'HOLIDAY' },
+    { labelKey: 'calendar:filters.meeting', value: 'MEETING' },
+    { labelKey: 'calendar:filters.exam', value: 'EXAM' }
 ];
 
 export const CALENDAR_CATEGORY_STYLES = {
-    EVENT: { label: 'Event', paletteKey: 'primary' },
-    HOLIDAY: { label: 'Holiday', paletteKey: 'warning' },
-    MEETING: { label: 'Meeting', paletteKey: 'success' },
-    EXAM: { label: 'Exam', paletteKey: 'secondary' }
+    EVENT: { labelKey: 'calendar:categories.event', paletteKey: 'primary' },
+    HOLIDAY: { labelKey: 'calendar:categories.holiday', paletteKey: 'warning' },
+    MEETING: { labelKey: 'calendar:categories.meeting', paletteKey: 'success' },
+    EXAM: { labelKey: 'calendar:categories.exam', paletteKey: 'secondary' }
 };
 
 export const CALENDAR_VISIBILITY_OPTIONS = [
-    { label: 'School Wide', value: 'SCHOOL_WIDE' },
-    { label: 'Teachers Only', value: 'TEACHERS_ONLY' },
-    { label: 'Parents Only', value: 'PARENTS_ONLY' },
-    { label: 'Custom (By Email)', value: 'CUSTOM' }
+    { labelKey: 'calendar:visibility.schoolWide', value: 'SCHOOL_WIDE' },
+    { labelKey: 'calendar:visibility.teachersOnly', value: 'TEACHERS_ONLY' },
+    { labelKey: 'calendar:visibility.parentsOnly', value: 'PARENTS_ONLY' },
+    { labelKey: 'calendar:visibility.custom', value: 'CUSTOM' }
 ];
 
-export const CALENDAR_WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export const CALENDAR_WEEKDAY_LABELS = [
+    'calendar:weekdays.short.sun',
+    'calendar:weekdays.short.mon',
+    'calendar:weekdays.short.tue',
+    'calendar:weekdays.short.wed',
+    'calendar:weekdays.short.thu',
+    'calendar:weekdays.short.fri',
+    'calendar:weekdays.short.sat'
+];
 
 export const CALENDAR_RECURRENCE_FREQUENCY_OPTIONS = [
-    { value: 'DAILY', label: 'Daily' },
-    { value: 'WEEKLY', label: 'Weekly' },
-    { value: 'MONTHLY', label: 'Monthly' }
+    { value: 'DAILY', labelKey: 'calendar:recurrence.frequency.daily' },
+    { value: 'WEEKLY', labelKey: 'calendar:recurrence.frequency.weekly' },
+    { value: 'MONTHLY', labelKey: 'calendar:recurrence.frequency.monthly' }
 ];
 
 export const CALENDAR_RECURRENCE_WEEKDAY_OPTIONS = [
-    { value: 0, label: 'Sun' },
-    { value: 1, label: 'Mon' },
-    { value: 2, label: 'Tue' },
-    { value: 3, label: 'Wed' },
-    { value: 4, label: 'Thu' },
-    { value: 5, label: 'Fri' },
-    { value: 6, label: 'Sat' }
+    { value: 0, labelKey: 'calendar:weekdays.short.sun' },
+    { value: 1, labelKey: 'calendar:weekdays.short.mon' },
+    { value: 2, labelKey: 'calendar:weekdays.short.tue' },
+    { value: 3, labelKey: 'calendar:weekdays.short.wed' },
+    { value: 4, labelKey: 'calendar:weekdays.short.thu' },
+    { value: 5, labelKey: 'calendar:weekdays.short.fri' },
+    { value: 6, labelKey: 'calendar:weekdays.short.sat' }
 ];
 
 export const CALENDAR_OBJECT_ID_PATTERN = /^[a-fA-F0-9]{24}$/;

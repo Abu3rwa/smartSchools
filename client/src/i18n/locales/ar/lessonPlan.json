@@ -1,0 +1,223 @@
+{
+  "page": {
+    "title": "خطط الدروس",
+    "subtitle": "خطط وشارك الدروس مع أولياء الأمور",
+    "newLesson": "درس جديد"
+  },
+  "toolbar": {
+    "allTeachers": "كل المعلمين",
+    "allClasses": "كل الصفوف",
+    "allSubjects": "كل المواد",
+    "fromDate": "من تاريخ",
+    "toDate": "إلى تاريخ"
+  },
+  "table": {
+    "title": "العنوان",
+    "teacher": "المعلم",
+    "class": "الصف",
+    "subject": "المادة",
+    "date": "التاريخ",
+    "status": "الحالة",
+    "actions": "الإجراءات",
+    "actionsForLesson": "إجراءات {{title}}",
+    "empty": "لا توجد خطط دروس بعد."
+  },
+  "status": {
+    "draft": "مسودة",
+    "submitted": "مرسل",
+    "approved": "معتمد",
+    "needs_revision": "بحاجة إلى مراجعة",
+    "rejected": "مرفوض"
+  },
+  "actions": {
+    "viewPrint": "عرض / طباعة",
+    "approve": "اعتماد",
+    "needsRevision": "بحاجة إلى مراجعة",
+    "reject": "رفض",
+    "updating": "جارٍ التحديث...",
+    "reEvaluateWithAi": "إعادة التقييم بالذكاء الاصطناعي",
+    "viewEditNote": "عرض / تعديل ملاحظة للمعلم",
+    "noteToTeacher": "ملاحظة للمعلم",
+    "edit": "تعديل",
+    "delete": "حذف"
+  },
+  "adminNote": {
+    "title": "ملاحظة للمعلم",
+    "description": "ستكون هذه الملاحظة مرئية للمعلم عند عرض خطة الدرس.",
+    "placeholder": "مثال: يرجى إضافة تفاصيل أكثر في قسم الأهداف...",
+    "save": "حفظ الملاحظة"
+  },
+  "review": {
+    "modalTitle": "{{action}} خطة الدرس",
+    "lessonLabel": "الدرس: {{title}}",
+    "commentHint": "أضف تعليقًا اختياريًا لمشاركته مع المعلم.",
+    "actions": {
+      "approved": "اعتماد",
+      "needs_revision": "طلب تعديل",
+      "rejected": "رفض",
+      "default": "تحديث الحالة"
+    },
+    "placeholders": {
+      "approved": "تعليق اعتماد اختياري (ظاهر للمعلم)...",
+      "needs_revision": "أضف ملاحظات التعديل للمعلم...",
+      "rejected": "سبب الرفض (اختياري)...",
+      "default": "تعليق اختياري..."
+    }
+  },
+  "detail": {
+    "back": "رجوع",
+    "backToLessons": "العودة إلى الدروس",
+    "print": "طباعة / حفظ كـ PDF",
+    "notFound": "خطة الدرس غير موجودة.",
+    "schoolFallback": "المدرسة",
+    "documentType": "خطة درس",
+    "sections": {
+      "summary": "ملخص",
+      "previousKnowledge": "المعارف / المهارات السابقة",
+      "teachingObjectives": "الأهداف التعليمية",
+      "vocabulary": "المفردات",
+      "characterTraitLinks": "روابط السمات الشخصية / المهارات المعرفية",
+      "techIntegration": "دمج التقنية",
+      "description": "الوصف",
+      "standards": "المعايير",
+      "stagesTitle": "المراحل - الإجراء والمواد / الموارد والتوقيت",
+      "homework": "الواجب / مادة المنزل",
+      "adminNote": "ملاحظة الإدارة"
+    },
+    "stages": {
+      "stage": "المرحلة",
+      "procedure": "الإجراء",
+      "materials": "المواد / الموارد",
+      "timing": "التوقيت",
+      "stageNumber": "المرحلة {{number}}"
+    }
+  },
+  "teacherForm": {
+    "title": {
+      "create": "إنشاء خطة درس",
+      "edit": "تعديل خطة درس"
+    },
+    "fields": {
+      "date": "التاريخ",
+      "class": "الصف",
+      "subject": "المادة",
+      "primaryAiLanguage": "لغة الذكاء الاصطناعي الأساسية",
+      "secondaryAiLanguageOptional": "لغة الذكاء الاصطناعي الثانوية (اختياري)",
+      "title": "العنوان",
+      "summary": "الملخص",
+      "description": "الوصف",
+      "homework": "الواجب",
+      "previousKnowledge": "المعارف / المهارات السابقة",
+      "teachingObjectives": "الأهداف التعليمية (المعايير)",
+      "vocabulary": "المفردات",
+      "characterTraitLinks": "روابط السمات الشخصية / المهارات المعرفية",
+      "techIntegration": "دمج التقنية (إن وُجد)"
+    },
+    "select": {
+      "selectClass": "اختر الصف",
+      "selectSubject": "اختر المادة",
+      "none": "بدون"
+    },
+    "placeholders": {
+      "title": "مثال: مقدمة في الكسور",
+      "summary": "ملخص مختصر",
+      "description": "ما الذي سيتم تغطيته في هذا الدرس؟",
+      "homework": "الواجب / مادة المنزل",
+      "vocabulary": "المفردات الأساسية"
+    },
+    "actions": {
+      "generateFromTitle": "إنشاء من العنوان",
+      "generating": "جارٍ الإنشاء...",
+      "cancel": "إلغاء",
+      "save": "حفظ خطة الدرس",
+      "update": "تحديث خطة الدرس",
+      "close": "إغلاق"
+    },
+    "stages": {
+      "title": "المراحل - الإجراء، المواد / الموارد، التوقيت",
+      "stageNumber": "المرحلة {{number}}",
+      "procedure": "الإجراء",
+      "materials": "المواد / الموارد",
+      "timing": "التوقيت",
+      "timingPlaceholder": "مثال: 10 دقائق"
+    }
+  },
+  "form": {
+    "aiSuggest": "اقتراح",
+    "toasts": {
+      "selectClassSubjectFirst": "اختر الصف والمادة أولًا",
+      "aiSuggestionFailed": "فشل اقتراح الذكاء الاصطناعي"
+    },
+    "standards": {
+      "detect": "اكتشاف المعايير",
+      "detecting": "جارٍ الاكتشاف...",
+      "detectFailed": "فشل اكتشاف المعايير",
+      "noMatching": "لم يتم العثور على معايير مطابقة لهذه المادة والصف.",
+      "inferredNotice": "لا توجد معايير لهذه المادة بعد. تم الاستدلال من الدرس (متوافق مع المادة والصف). أضفها إلى المادة في الإعدادات لحفظها مع خطة الدرس.",
+      "inferredTitle": "تم الاستدلال من الدرس (متوافق مع المادة والصف)",
+      "suggestedFromSubject": "معايير مقترحة (من مادتك)",
+      "suggestedOtherSubjects": "معايير مقترحة (مواد أخرى - أضفها إلى مادتك في الإعدادات لاستخدامها هنا)",
+      "inferredHint": "أضف هذه المعايير إلى المادة في الإعدادات لحفظها مع خطة الدرس.",
+      "selectedTitle": "المعايير المحددة (اضغط × للإزالة)",
+      "remove": "إزالة المعيار"
+    }
+  },
+  "evaluation": {
+    "button": {
+      "evaluating": "جارٍ التقييم...",
+      "view": "عرض تقييم الذكاء الاصطناعي",
+      "evaluate": "التقييم بالذكاء الاصطناعي"
+    },
+    "title": "تقييم الذكاء الاصطناعي",
+    "lessonFallback": "خطة درس",
+    "lastEvaluated": "آخر تقييم",
+    "reEvaluating": "جارٍ إعادة التقييم...",
+    "reEvaluate": "إعادة التقييم",
+    "staleNotice": "تم تغيير المعايير منذ هذا التقييم. أعد التقييم لتحديث الملاحظات.",
+    "empty": "لا يوجد تقييم ذكاء اصطناعي لهذه الخطة.",
+    "overallScore": "النتيجة الكلية",
+    "minimumRequirements": "الحد الأدنى من المتطلبات",
+    "met": "متحقق",
+    "notMet": "غير متحقق",
+    "criteriaFeedback": "ملاحظات المعايير",
+    "table": {
+      "criterion": "المعيار",
+      "criterionFallback": "المعيار",
+      "score": "الدرجة",
+      "met": "تحقق",
+      "feedback": "الملاحظات",
+      "yes": "نعم",
+      "no": "لا"
+    },
+    "strengths": "نقاط القوة",
+    "areasForImprovement": "مجالات التحسين",
+    "recommendations": "التوصيات",
+    "history": "السجل",
+    "historyEmpty": "لا يوجد سجل تقييم بعد."
+  },
+  "common": {
+    "cancel": "إلغاء",
+    "saving": "جارٍ الحفظ...",
+    "emptySymbol": "-",
+    "unknown": "غير معروف"
+  },
+  "toasts": {
+    "requireClassSubjectTitle": "اختر الصف والمادة وأدخل العنوان أولًا",
+    "sectionsGenerated": "تم إنشاء الأقسام",
+    "generationFailed": "فشل الإنشاء",
+    "updated": "تم تحديث خطة الدرس",
+    "updateFailed": "فشل تحديث خطة الدرس",
+    "saved": "تم حفظ خطة الدرس بنجاح",
+    "saveFailed": "فشل حفظ خطة الدرس",
+    "confirmDelete": "هل أنت متأكد من حذف خطة الدرس هذه؟",
+    "deleted": "تم حذف خطة الدرس",
+    "deleteFailed": "فشل الحذف",
+    "usingCachedEvaluation": "يتم استخدام تقييم محفوظ",
+    "evaluated": "تم تقييم خطة الدرس بنجاح",
+    "evaluateFailed": "فشل تقييم خطة الدرس",
+    "noteSaved": "تم حفظ الملاحظة. يمكن للمعلم رؤيتها في خطة الدرس.",
+    "noteSaveFailed": "فشل حفظ الملاحظة",
+    "markedAs": "تم وضع حالة خطة الدرس إلى {{status}}",
+    "statusUpdateFailed": "فشل تحديث حالة خطة الدرس"
+  }
+}

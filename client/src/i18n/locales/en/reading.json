@@ -1,0 +1,94 @@
+{
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "none": "None",
+    "uploading": "Uploading...",
+    "creating": "Creating...",
+    "submitting": "Submitting...",
+    "close": "Close"
+  },
+  "texts": {
+    "title": "Reading Texts",
+    "subtitle": "Manage reading texts and assign them to classes.",
+    "academicYear": "(Academic Year: {{year}})",
+    "uploadText": "Upload Text",
+    "emptyTitle": "No reading texts yet",
+    "emptySubtitle": "Upload your first reading text to get started.",
+    "gradeLevelApprox": "Approx. Grade Level: {{level}}",
+    "levelCount": "{{count}} simplified level",
+    "levelCount_plural": "{{count}} simplified levels",
+    "assign": "Assign",
+    "assignmentCount": "{{count}} assignment",
+    "assignmentCount_plural": "{{count}} assignments",
+    "assignTitle": "Assign: {{title}}",
+    "assignClass": "Class",
+    "selectClass": "Select Class",
+    "dueDateOptional": "Due Date (Optional)",
+    "instructionsOptional": "Instructions (Optional)",
+    "instructionsPlaceholder": "Add assignment instructions...",
+    "createAssignment": "Create Assignment",
+    "toasts": {
+      "selectClass": "Please select a class.",
+      "assignmentCreated": "Assignment created.",
+      "assignmentCreateFailed": "Failed to create assignment."
+    }
+  },
+  "upload": {
+    "title": "Upload Reading Text",
+    "subtitle": "Upload a text and generate simplified versions and comprehension questions.",
+    "fields": {
+      "title": "Title",
+      "titlePlaceholder": "Enter a clear text title",
+      "subjectArea": "Subject Area",
+      "subjectAreaPlaceholder": "e.g. Science, Arabic, Islamic Studies",
+      "generatedHint": "Used by AI generation.",
+      "sourceDocument": "Source Document",
+      "sourceDocumentPlaceholder": "Book, worksheet, or source reference",
+      "topicTags": "Topic Tags",
+      "topicTagsPlaceholder": "Comma-separated topics",
+      "targetClass": "Target Class (Optional)",
+      "noSpecificClass": "No specific class",
+      "grade": "Grade {{grade}}",
+      "classHint": "If selected, this text can be assigned faster to that class.",
+      "primaryLanguage": "Primary AI Language",
+      "secondaryLanguage": "Secondary AI Language",
+      "textContent": "Text Content",
+      "textContentPlaceholder": "Paste the full reading text here...",
+      "generateVersions": "Generate simplified versions and questions"
+    },
+    "actions": {
+      "uploadText": "Upload Text"
+    },
+    "toasts": {
+      "titleRequired": "Title is required.",
+      "textRequired": "Please paste or enter the text to upload.",
+      "uploadSuccess": "Text uploaded. Simplified versions and questions are being generated."
+    }
+  },
+  "view": {
+    "loadFailed": "Could not load reading content.",
+    "gradeLevel": "Grade Level {{level}}",
+    "academicYearShort": "AY {{year}}",
+    "vocabInstructionPrefix": "Click highlighted words to see",
+    "vocabInstructionHighlighted": "definitions",
+    "vocabInstructionSuffix": ".",
+    "criticalThinking": "Critical Thinking ({{count}})",
+    "yourAnswer": "Your answer",
+    "answerPlaceholder": "Write your answer...",
+    "evaluating": "Evaluating...",
+    "getFeedback": "Get Feedback",
+    "feedback": "Feedback",
+    "comprehensionCheck": "Comprehension Check",
+    "submitAnswers": "Submit Answers",
+    "answersSaved": "Answers saved.",
+    "toasts": {
+      "answerFirst": "Please write your answer first.",
+      "noFeedback": "No feedback returned.",
+      "feedbackReady": "Feedback ready.",
+      "feedbackFailed": "Failed to get feedback.",
+      "score": "Score: {{correct}}/{{total}}",
+      "saveFailed": "Failed to save progress."
+    }
+  }
+}

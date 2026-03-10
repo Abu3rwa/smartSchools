@@ -1,6 +1,5 @@
 import express from 'express';
-import { protect, authorize, authorizeWithPermission, resolveDepartmentScope } from '../middleware/auth.js';
-import { PERMISSIONS } from '../config/permissions.js';
+import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { runReminderJob, getReminders } from '../controllers/attendanceReminderController.js';
 
@@ -10,16 +9,10 @@ router.use(protect);
 router.use(requireSchoolContext);
 router.use(resolveDepartmentScope);
 
-/** Run the reminder job manually. Admin and department_principal (scoped to department when req.departmentId set). */
-router.post('/run', authorizeWithPermission(
-    ['admin', 'super_admin', 'department_principal', 'attendance_manager'],
-    [PERMISSIONS.MANAGE_ATTENDANCE_REMINDERS]
-), runReminderJob);
+/** Run the reminder job manually (admin only). */
+router.post('/run', authorize('admin'), runReminderJob);
 
-/** List reminders. Admin/super_admin see all; department_principal sees only their department. */
-router.get('/', authorizeWithPermission(
-    ['admin', 'super_admin', 'department_principal', 'attendance_manager'],
-    [PERMISSIONS.MANAGE_ATTENDANCE_REMINDERS, PERMISSIONS.VIEW_ATTENDANCE_REPORTS]
-), getReminders);
+/** List reminder history (admin only). */
+router.get('/', authorize('admin'), getReminders);
 
 export default router;

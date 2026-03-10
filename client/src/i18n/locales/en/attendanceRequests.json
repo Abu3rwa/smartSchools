@@ -1,0 +1,61 @@
+{
+  "header": {
+    "title": "Attendance Request",
+    "subtitle": "Submit an attendance or leave request. You will be notified when it is reviewed."
+  },
+  "loading": {
+    "message": "Loading form..."
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "submitting": "Submitting...",
+    "submit": "Submit request"
+  },
+  "requester": {
+    "sectionTitle": "Requester details",
+    "name": "Name of requester",
+    "email": "Requester email",
+    "departmentOrSupervisor": "Department / Direct supervisor",
+    "departmentPlaceholder": "e.g. Department name or supervisor"
+  },
+  "student": {
+    "sectionTitle": "Student",
+    "selectOptional": "Select student (optional)",
+    "selectPlaceholder": "— Select —"
+  },
+  "details": {
+    "sectionTitle": "Request details",
+    "requestType": "Type of request",
+    "selectType": "— Select type —",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "date": "Date",
+    "fromTime": "From time",
+    "toTime": "To time",
+    "notes": "Notes / Comments",
+    "optional": "optional",
+    "notesPlaceholder": "Add any notes or comments...",
+    "supportingProof": "Supporting proof document",
+    "fileHint": "Accepted: jpg, png, pdf. Max 10 MB.",
+    "noFileChosen": "No file chosen"
+  },
+  "validation": {
+    "requestTypeRequired": "Type of request is required.",
+    "departmentRequired": "Department / Direct supervisor is required.",
+    "startDateRequired": "Start date is required.",
+    "endDateRequired": "End date is required.",
+    "endDateAfterStart": "End date must be on or after start date.",
+    "dateRequired": "Date is required.",
+    "fromTimeRequired": "From time is required.",
+    "toTimeRequired": "To time is required.",
+    "attachmentRequired": "Supporting proof document is required for this request type.",
+    "attachmentTypes": "Allowed types: jpg, png, pdf.",
+    "attachmentMaxSize": "Max file size 10 MB."
+  },
+  "toast": {
+    "loadRequestTypesFailed": "Failed to load request types.",
+    "submitted": "Request submitted. You will be notified when it is reviewed.",
+    "submitFailed": "Failed to submit.",
+    "submitRequestFailed": "Failed to submit request."
+  }
+}

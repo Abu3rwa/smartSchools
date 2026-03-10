@@ -1,0 +1,67 @@
+{
+  "common": {
+    "back": "Back",
+    "backToPlans": "Back to plans",
+    "status": "Status",
+    "all": "All",
+    "examLabel": "Exam:"
+  },
+  "status": {
+    "active": "Active",
+    "completed": "Completed",
+    "abandoned": "Abandoned"
+  },
+  "list": {
+    "title": "Revision Plans",
+    "studentSubtitle": "Your personalized exam revision plans",
+    "teacherSubtitle": "View and manage revision plans for your students",
+    "newPlan": "New Plan",
+    "createPlan": "Create Plan",
+    "emptyTitle": "No revision plans yet",
+    "emptyStudent": "Create a plan to get a personalized study schedule before your exam.",
+    "emptyTeacher": "Create a revision plan for a student to get started.",
+    "planFallback": "Revision Plan",
+    "daysUntilExam": "{{count}} days until exam"
+  },
+  "create": {
+    "title": "Create Revision Plan",
+    "teacherSubtitle": "Generate a personalized revision plan for a student.",
+    "studentSubtitle": "Get a study schedule based on your weak areas.",
+    "academicYear": "Academic Year: {{year}}.",
+    "student": "Student",
+    "selectStudent": "Select student",
+    "subject": "Subject",
+    "selectSubject": "Select subject",
+    "examDate": "Exam date",
+    "examName": "Exam name (optional)",
+    "examNamePlaceholder": "e.g. Midterm, Final",
+    "generating": "Generating plan…",
+    "generate": "Generate plan"
+  },
+  "view": {
+    "notFound": "Plan not found.",
+    "backToPlans": "Back to plans",
+    "overallProgress": "Overall progress",
+    "progressSummary": "{{completed}} of {{total}} topics completed ({{progress}}%)",
+    "topics": "Topics",
+    "topicNumber": "Topic {{number}}",
+    "mastery": "{{value}}% mastery",
+    "minutes": "{{value}} min",
+    "dailySchedule": "Daily schedule",
+    "dayNumber": "Day {{number}}",
+    "past": "Past",
+    "noSlots": "No slots",
+    "topic": "Topic",
+    "done": "Done",
+    "milestones": "Milestones"
+  },
+  "toasts": {
+    "loadFailed": "Failed to load revision plans",
+    "createFailed": "Failed to create revision plan",
+    "subjectExamRequired": "Subject and exam date are required",
+    "selectStudent": "Please select a student",
+    "topicComplete": "Topic marked complete",
+    "topicUnchecked": "Topic unchecked",
+    "updateFailed": "Failed to update"
+  }
+}

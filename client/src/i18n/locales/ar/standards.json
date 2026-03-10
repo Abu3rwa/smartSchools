@@ -1,0 +1,86 @@
+{
+  "header": {
+    "title": "المعايير",
+    "subtitle": "إدارة المعايير التعليمية لممارسة الطلاب",
+    "add": "إضافة معيار"
+  },
+  "tabs": {
+    "list": "قائمة المعايير",
+    "import": "استيراد"
+  },
+  "filters": {
+    "searchPlaceholder": "ابحث في المعايير...",
+    "allSubjects": "كل المواد",
+    "allGrades": "كل الصفوف",
+    "grade": "الصف {{grade}}"
+  },
+  "list": {
+    "empty": "لم يتم العثور على معايير",
+    "emptyAdminHint": "اضغط \"إضافة معيار\" أو استخدم الاستيراد للبدء.",
+    "columns": {
+      "code": "الرمز",
+      "name": "الاسم",
+      "description": "الوصف",
+      "subject": "المادة",
+      "grade": "الصف",
+      "category": "الفئة",
+      "mastery": "الإتقان",
+      "actions": "الإجراءات"
+    },
+    "masteryValue": "{{threshold}}% / {{questions}} س"
+  },
+  "modal": {
+    "editTitle": "تعديل المعيار",
+    "addTitle": "إضافة معيار جديد"
+  },
+  "form": {
+    "code": "الرمز *",
+    "codePlaceholder": "مثال: CCSS.MATH.4.OA.1",
+    "name": "الاسم *",
+    "namePlaceholder": "مثال: معادلات الضرب",
+    "description": "الوصف *",
+    "descriptionPlaceholder": "الوصف الكامل للمعيار...",
+    "subject": "المادة *",
+    "selectSubject": "اختر المادة",
+    "gradeLevel": "الصف *",
+    "selectGrade": "اختر الصف",
+    "category": "الفئة / المجال",
+    "categoryPlaceholder": "مثال: العمليات والتفكير الجبري",
+    "masteryThreshold": "حد الإتقان (%)",
+    "minimumQuestions": "الحد الأدنى للأسئلة"
+  },
+  "import": {
+    "subjectForImport": "المادة للاستيراد *",
+    "uploadFile": "رفع ملف CSV (اختياري)",
+    "loadedFile": "تم تحميل: {{fileName}} (يمكنك تعديل النص أدناه)",
+    "pasteData": "الصق بيانات المعايير (CSV أو مفصول بعلامة تبويب)",
+    "help": "يدعم CSV/TSV مع أو بدون صف عناوين. الأعمدة الدنيا: الرمز، الاسم، الوصف. اختياري: الصف، الفئة، حد الإتقان، الحد الأدنى للأسئلة.",
+    "importing": "جارٍ الاستيراد...",
+    "importButton": "استيراد المعايير"
+  },
+  "actions": {
+    "edit": "تعديل",
+    "delete": "حذف",
+    "update": "تحديث المعيار",
+    "add": "إضافة معيار"
+  },
+  "common": {
+    "cancel": "إلغاء",
+    "saving": "جارٍ الحفظ...",
+    "empty": "-"
+  },
+  "toasts": {
+    "confirmDelete": "هل أنت متأكد من حذف هذا المعيار؟",
+    "deleted": "تم حذف المعيار بنجاح",
+    "deleteFailed": "فشل الحذف",
+    "updated": "تم تحديث المعيار بنجاح!",
+    "created": "تم إنشاء المعيار بنجاح!",
+    "saveFailed": "فشل حفظ المعيار",
+    "selectImportSubject": "يرجى اختيار مادة للاستيراد",
+    "pasteImportData": "يرجى لصق بيانات المعايير للاستيراد",
+    "noValidRows": "لم يتم العثور على صفوف صالحة. التنسيق: الرمز، الاسم، الوصف، الصف، الفئة",
+    "importFailed": "فشل الاستيراد",
+    "parseFailed": "فشل تحليل بيانات الاستيراد",
+    "fileReadFailed": "فشل قراءة الملف"
+  }
+}

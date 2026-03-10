@@ -3,6 +3,7 @@ import {
     HiOutlinePencil,
     HiOutlineTrash
 } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import LoadingState from './LoadingState';
 
 const StandardsList = ({
@@ -12,6 +13,8 @@ const StandardsList = ({
     onEdit,
     onDelete
 }) => {
+    const { t } = useTranslation(['standards']);
+
     if (loading) {
         return <LoadingState />;
     }
@@ -20,10 +23,10 @@ const StandardsList = ({
         return (
             <div className="standards-empty">
                 <HiOutlineClipboardList size={48} />
-                <p>No standards found</p>
+                <p>{t('standards:list.empty')}</p>
                 {isAdmin && (
                     <p style={{ fontSize: '0.85rem' }}>
-                        Click "Add Standard" or use Import to get started.
+                        {t('standards:list.emptyAdminHint')}
                     </p>
                 )}
             </div>
@@ -35,14 +38,14 @@ const StandardsList = ({
             <table>
                 <thead>
                     <tr>
-                        <th>Code</th>
-                        <th>Name</th>
-                        <th>Description</th>
-                        <th>Subject</th>
-                        <th>Grade</th>
-                        <th>Category</th>
-                        <th>Mastery</th>
-                        {isAdmin && <th>Actions</th>}
+                        <th>{t('standards:list.columns.code')}</th>
+                        <th>{t('standards:list.columns.name')}</th>
+                        <th>{t('standards:list.columns.description')}</th>
+                        <th>{t('standards:list.columns.subject')}</th>
+                        <th>{t('standards:list.columns.grade')}</th>
+                        <th>{t('standards:list.columns.category')}</th>
+                        <th>{t('standards:list.columns.mastery')}</th>
+                        {isAdmin && <th>{t('standards:list.columns.actions')}</th>}
                     </tr>
                 </thead>
                 <tbody>
@@ -53,11 +56,14 @@ const StandardsList = ({
                             <td className="standard-description" title={standard.description}>
                                 {standard.description}
                             </td>
-                            <td>{standard.subject?.name || '-'}</td>
+                            <td>{standard.subject?.name || t('standards:common.empty')}</td>
                             <td>{standard.gradeLevel}</td>
-                            <td>{standard.category || '-'}</td>
+                            <td>{standard.category || t('standards:common.empty')}</td>
                             <td>
-                                {standard.masteryThreshold}% / {standard.masteryMinQuestions}q
+                                {t('standards:list.masteryValue', {
+                                    threshold: standard.masteryThreshold,
+                                    questions: standard.masteryMinQuestions
+                                })}
                             </td>
                             {isAdmin && (
                                 <td>
@@ -65,14 +71,14 @@ const StandardsList = ({
                                         <button
                                             className="btn-icon"
                                             onClick={() => onEdit(standard)}
-                                            title="Edit"
+                                            title={t('standards:actions.edit')}
                                         >
                                             <HiOutlinePencil />
                                         </button>
                                         <button
                                             className="btn-icon text-danger"
                                             onClick={() => onDelete(standard._id)}
-                                            title="Delete"
+                                            title={t('standards:actions.delete')}
                                         >
                                             <HiOutlineTrash />
                                         </button>

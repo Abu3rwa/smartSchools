@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
 import { inferAcademicYear, isValidAcademicYear } from '../utils/academicYear.js';
 import { FEATURE_KEYS, getFeaturesForPlan } from '../constants/features.js';
+import {
+    DEFAULT_ATTENDANCE_REMINDER_DELAY_MINUTES,
+    DEFAULT_ATTENDANCE_REMINDER_ENABLED,
+    MAX_ATTENDANCE_REMINDER_DELAY_MINUTES,
+    MIN_ATTENDANCE_REMINDER_DELAY_MINUTES
+} from '../utils/attendanceReminderSettings.js';
 
 const starterFeatureDefaults = getFeaturesForPlan('starter');
 const schoolFeatureSchemaDefinition = FEATURE_KEYS.reduce((acc, featureKey) => {
@@ -85,6 +91,18 @@ const schoolSchema = new mongoose.Schema({
             aiEmailDraftEnabled: {
                 type: Boolean,
                 default: true
+            }
+        },
+        attendanceReminders: {
+            enabled: {
+                type: Boolean,
+                default: DEFAULT_ATTENDANCE_REMINDER_ENABLED
+            },
+            delayMinutes: {
+                type: Number,
+                default: DEFAULT_ATTENDANCE_REMINDER_DELAY_MINUTES,
+                min: MIN_ATTENDANCE_REMINDER_DELAY_MINUTES,
+                max: MAX_ATTENDANCE_REMINDER_DELAY_MINUTES
             }
         },
         features: {

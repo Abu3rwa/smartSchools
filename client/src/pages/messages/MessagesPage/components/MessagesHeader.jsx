@@ -8,7 +8,6 @@ const MessagesHeader = ({
     onRefresh,
     onCompose,
     showComposeButton
-}) => (
 }) => {
     const { t } = useTranslation(['messages']);
 

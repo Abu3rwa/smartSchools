@@ -11,11 +11,13 @@ import {
 import { selectUser } from "../../../../store/slices/authSlice.js";
 import { selectCurrentAcademicYear } from "../../../../store/slices/uiSlice.js";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 /**
  * Data for Revision Plans List page. Student + Teacher shared.
  */
 export function useRevisionPlansListData() {
+  const { t } = useTranslation(["revisionPlans"]);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
@@ -43,8 +45,8 @@ export function useRevisionPlansListData() {
   }, [dispatch, isStudent, isTeacher, statusFilter, academicYear]);
 
   useEffect(() => {
-    if (error) toast.error(error);
-  }, [error]);
+    if (error) toast.error(error || t("revisionPlans:toasts.loadFailed"));
+  }, [error, t]);
 
   const handleCreate = () => navigate("/portal/revision/create");
   const handlePlanClick = (planId) => navigate(`/portal/revision/${planId}`);

@@ -5,7 +5,8 @@ const CalendarEventActionsMenu = ({
     anchorEl,
     onClose,
     onEdit,
-    onCancel
+    onCancel,
+    t
 }) => {
     return (
         <Menu
@@ -15,11 +16,11 @@ const CalendarEventActionsMenu = ({
         >
             <MenuItem onClick={onEdit}>
                 <HiOutlinePencil size={15} style={{ marginRight: 8 }} />
-                Edit
+                {t('calendar:actions.edit')}
             </MenuItem>
             <MenuItem onClick={onCancel}>
                 <HiOutlineXCircle size={15} style={{ marginRight: 8 }} />
-                Cancel Event
+                {t('calendar:actions.cancelEvent')}
             </MenuItem>
         </Menu>
     );

@@ -151,6 +151,18 @@ export const fetchStudentProgress = createAsyncThunk(
     }
 );
 
+export const fetchSBGradebook = createAsyncThunk(
+    'standards/fetchSBGradebook',
+    async (params = {}, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/practice/sb-gradebook', { params });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to fetch standards gradebook');
+        }
+    }
+);
+
 // ─── Slice ───
 
 const standardSlice = createSlice({
@@ -164,6 +176,23 @@ const standardSlice = createSlice({
         assignmentProgress: null,
         assignmentProgressLoading: false,
         studentProgress: null,
+        sbGradebook: {
+            rows: [],
+            summary: null,
+            pagination: null,
+            filterOptions: {
+                classes: [],
+                subjects: [],
+                standards: [],
+                students: [],
+                statuses: []
+            },
+            academicYear: null,
+            semester: null,
+            filters: {}
+        },
+        sbGradebookLoading: false,
+        sbGradebookError: null,
         loading: false,
         error: null,
         importResult: null
@@ -176,7 +205,26 @@ const standardSlice = createSlice({
             state.assignmentProgress = null;
             state.assignmentProgressLoading = false;
         },
-        clearStudentProgress: (state) => { state.studentProgress = null; }
+        clearStudentProgress: (state) => { state.studentProgress = null; },
+        clearSBGradebook: (state) => {
+            state.sbGradebook = {
+                rows: [],
+                summary: null,
+                pagination: null,
+                filterOptions: {
+                    classes: [],
+                    subjects: [],
+                    standards: [],
+                    students: [],
+                    statuses: []
+                },
+                academicYear: null,
+                semester: null,
+                filters: {}
+            };
+            state.sbGradebookLoading = false;
+            state.sbGradebookError = null;
+        }
     },
     extraReducers: (builder) => {
         builder
@@ -276,11 +324,45 @@ const standardSlice = createSlice({
             .addCase(fetchStudentProgress.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
+            })
+            // SB Gradebook
+            .addCase(fetchSBGradebook.pending, (state) => {
+                state.sbGradebookLoading = true;
+                state.sbGradebookError = null;
+            })
+            .addCase(fetchSBGradebook.fulfilled, (state, action) => {
+                state.sbGradebookLoading = false;
+                state.sbGradebook = {
+                    rows: action.payload?.rows || [],
+                    summary: action.payload?.summary || null,
+                    pagination: action.payload?.pagination || null,
+                    filterOptions: action.payload?.filterOptions || {
+                        classes: [],
+                        subjects: [],
+                        standards: [],
+                        students: [],
+                        statuses: []
+                    },
+                    academicYear: action.payload?.academicYear ?? null,
+                    semester: action.payload?.semester ?? null,
+                    filters: action.payload?.filters || {}
+                };
+            })
+            .addCase(fetchSBGradebook.rejected, (state, action) => {
+                state.sbGradebookLoading = false;
+                state.sbGradebookError = action.payload;
             });
     }
 });
 
-export const { clearError, clearImportResult, clearCurrentAssignment, clearAssignmentProgress, clearStudentProgress } = standardSlice.actions;
+export const {
+    clearError,
+    clearImportResult,
+    clearCurrentAssignment,
+    clearAssignmentProgress,
+    clearStudentProgress,
+    clearSBGradebook
+} = standardSlice.actions;
 
 // Selectors
 export const selectStandards = (state) => state.standards?.standards || [];
@@ -293,5 +375,12 @@ export const selectStudentStandardsProgress = (state) => state.standards?.studen
 export const selectStandardsLoading = (state) => state.standards?.loading;
 export const selectStandardsError = (state) => state.standards?.error;
 export const selectImportResult = (state) => state.standards?.importResult;
+export const selectSBGradebookRows = (state) => state.standards?.sbGradebook?.rows || [];
+export const selectSBGradebookSummary = (state) => state.standards?.sbGradebook?.summary;
+export const selectSBGradebookPagination = (state) => state.standards?.sbGradebook?.pagination;
+export const selectSBGradebookFilterOptions = (state) => state.standards?.sbGradebook?.filterOptions;
+export const selectSBGradebookFilters = (state) => state.standards?.sbGradebook?.filters || {};
+export const selectSBGradebookLoading = (state) => state.standards?.sbGradebookLoading;
+export const selectSBGradebookError = (state) => state.standards?.sbGradebookError;
 
 export default standardSlice.reducer;

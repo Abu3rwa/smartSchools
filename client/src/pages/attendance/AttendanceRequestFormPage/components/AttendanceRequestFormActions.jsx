@@ -1,7 +1,11 @@
+import { useTranslation } from "react-i18next";
+
 export default function AttendanceRequestFormActions({
   submitting,
   onCancel,
 }) {
+  const { t } = useTranslation(["attendanceRequests"]);
+
   return (
     <div className="form-actions">
       <button
@@ -10,10 +14,12 @@ export default function AttendanceRequestFormActions({
         onClick={onCancel}
         disabled={submitting}
       >
-        Cancel
+        {t("attendanceRequests:actions.cancel")}
       </button>
       <button type="submit" className="btn btn-primary" disabled={submitting}>
-        {submitting ? "Submitting..." : "Submit request"}
+        {submitting
+          ? t("attendanceRequests:actions.submitting")
+          : t("attendanceRequests:actions.submit")}
       </button>
     </div>
   );

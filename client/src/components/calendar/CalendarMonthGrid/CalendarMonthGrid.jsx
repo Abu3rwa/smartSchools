@@ -14,7 +14,8 @@ const CalendarMonthGrid = ({
     onPreviousMonth,
     onNextMonth,
     onSelectDate,
-    getDayCellStyle
+    getDayCellStyle,
+    t
 }) => {
     return (
         <Paper className="calendar-month-panel" elevation={0}>
@@ -26,14 +27,14 @@ const CalendarMonthGrid = ({
                     <IconButton
                         size="small"
                         onClick={onPreviousMonth}
-                        aria-label="Previous month"
+                        aria-label={t('calendar:month.previous')}
                     >
                         <HiOutlineChevronLeft size={18} />
                     </IconButton>
                     <IconButton
                         size="small"
                         onClick={onNextMonth}
-                        aria-label="Next month"
+                        aria-label={t('calendar:month.next')}
                     >
                         <HiOutlineChevronRight size={18} />
                     </IconButton>
@@ -44,7 +45,7 @@ const CalendarMonthGrid = ({
 
             <div className="calendar-weekday-row">
                 {weekdayLabels.map((label) => (
-                    <div key={label} className="calendar-weekday-cell">{label}</div>
+                    <div key={label} className="calendar-weekday-cell">{t(label)}</div>
                 ))}
             </div>
 
@@ -80,12 +81,15 @@ const CalendarMonthGrid = ({
             <Divider sx={{ my: 1.5 }} />
 
             <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                {selectedDayEvents.length} event{selectedDayEvents.length === 1 ? '' : 's'} on {format(selectedDate, 'EEE, MMM d')}
+                {t('calendar:month.eventsOnDate', {
+                    count: selectedDayEvents.length,
+                    date: format(selectedDate, 'EEE, MMM d')
+                })}
             </Typography>
             <Stack spacing={1}>
                 {selectedDayEvents.length === 0 && (
                     <Typography variant="body2" color="text.secondary">
-                        No events on this date.
+                        {t('calendar:month.noEvents')}
                     </Typography>
                 )}
                 {selectedDayEvents.slice(0, 3).map((event) => {

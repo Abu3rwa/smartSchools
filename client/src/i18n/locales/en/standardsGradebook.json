@@ -1,0 +1,64 @@
+{
+  "header": {
+    "title": "Standards Gradebook",
+    "subtitle": "Track standards mastery and assessment progress in one place"
+  },
+  "actions": {
+    "refresh": "Refresh",
+    "loading": "Loading..."
+  },
+  "filters": {
+    "title": "Filters",
+    "searchPlaceholder": "Search by student, class, subject, or standard",
+    "allClasses": "All classes",
+    "allSubjects": "All subjects",
+    "allStandards": "All standards",
+    "allStudents": "All students",
+    "allStatuses": "All statuses",
+    "allSessionTypes": "All session types"
+  },
+  "sessionType": {
+    "practice": "Practice",
+    "assessment": "Assessment"
+  },
+  "summary": {
+    "title": "Summary",
+    "totalRows": "Rows",
+    "totalStudents": "Students",
+    "mastered": "Mastered",
+    "needsReview": "Needs review",
+    "inProgress": "In progress",
+    "notStarted": "Not started",
+    "submitted": "Submitted",
+    "released": "Released",
+    "averageMastery": "Avg mastery",
+    "averagePercentage": "Avg percentage"
+  },
+  "table": {
+    "loading": "Loading gradebook...",
+    "empty": "No standards gradebook rows found for the selected filters.",
+    "student": "Student",
+    "class": "Class",
+    "subject": "Subject",
+    "standard": "Standard",
+    "attempts": "Attempts",
+    "mastery": "Mastery",
+    "average": "Average %",
+    "status": "Status",
+    "lastActivity": "Last activity"
+  },
+  "status": {
+    "not_started": "Not started",
+    "in_progress": "In progress",
+    "needs_review": "Needs review",
+    "mastered": "Mastered",
+    "submitted": "Submitted",
+    "released": "Released"
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{pages}}",
+    "rowsPerPage": "Rows per page"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "header": {
+    "title": "طلب حضور",
+    "subtitle": "قدّم طلب حضور أو إجازة. سيتم إشعارك عند مراجعة الطلب."
+  },
+  "loading": {
+    "message": "جارٍ تحميل النموذج..."
+  },
+  "actions": {
+    "cancel": "إلغاء",
+    "submitting": "جارٍ الإرسال...",
+    "submit": "إرسال الطلب"
+  },
+  "requester": {
+    "sectionTitle": "بيانات مقدم الطلب",
+    "name": "اسم مقدم الطلب",
+    "email": "البريد الإلكتروني لمقدم الطلب",
+    "departmentOrSupervisor": "القسم / المدير المباشر",
+    "departmentPlaceholder": "مثال: اسم القسم أو المدير المباشر"
+  },
+  "student": {
+    "sectionTitle": "الطالب",
+    "selectOptional": "اختيار الطالب (اختياري)",
+    "selectPlaceholder": "— اختر —"
+  },
+  "details": {
+    "sectionTitle": "تفاصيل الطلب",
+    "requestType": "نوع الطلب",
+    "selectType": "— اختر النوع —",
+    "startDate": "تاريخ البداية",
+    "endDate": "تاريخ النهاية",
+    "date": "التاريخ",
+    "fromTime": "من الوقت",
+    "toTime": "إلى الوقت",
+    "notes": "ملاحظات / تعليق",
+    "optional": "اختياري",
+    "notesPlaceholder": "أضف أي ملاحظات أو تعليق...",
+    "supportingProof": "وثيقة إثبات",
+    "fileHint": "الصيغ المقبولة: jpg, png, pdf. الحد الأقصى 10 ميجابايت.",
+    "noFileChosen": "لم يتم اختيار ملف"
+  },
+  "validation": {
+    "requestTypeRequired": "نوع الطلب مطلوب.",
+    "departmentRequired": "القسم / المدير المباشر مطلوب.",
+    "startDateRequired": "تاريخ البداية مطلوب.",
+    "endDateRequired": "تاريخ النهاية مطلوب.",
+    "endDateAfterStart": "يجب أن يكون تاريخ النهاية في نفس تاريخ البداية أو بعده.",
+    "dateRequired": "التاريخ مطلوب.",
+    "fromTimeRequired": "وقت البداية مطلوب.",
+    "toTimeRequired": "وقت النهاية مطلوب.",
+    "attachmentRequired": "وثيقة الإثبات مطلوبة لهذا النوع من الطلبات.",
+    "attachmentTypes": "الأنواع المسموحة: jpg, png, pdf.",
+    "attachmentMaxSize": "الحد الأقصى لحجم الملف 10 ميجابايت."
+  },
+  "toast": {
+    "loadRequestTypesFailed": "فشل تحميل أنواع الطلبات.",
+    "submitted": "تم إرسال الطلب. سيتم إشعارك عند مراجعته.",
+    "submitFailed": "فشل الإرسال.",
+    "submitRequestFailed": "فشل إرسال الطلب."
+  }
+}

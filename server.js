@@ -51,7 +51,6 @@ import importRoutes from "./routes/importRoutes.js";
 import advancedReportRoutes from "./routes/advancedReportRoutes.js";
 import { registerApiDocsRoute } from "./routes/apiDocsRoute.js";
 import { behaviorTracker } from "./middleware/behaviorTracker.js";
-import { processAttendanceReminders } from "./controllers/attendanceReminderController.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
 import revisionRoutes from "./routes/revisionRoutes.js";
 import readingRoutes from "./routes/readingRoutes.js";
@@ -302,7 +301,6 @@ app.use(errorHandler);
 // Start server
 const PORT = process.env.PORT || 5000;
 
-const REMINDER_JOB_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const REVIEW_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
@@ -312,28 +310,6 @@ initRealtimeGateway(httpServer);
 
 const server = httpServer.listen(PORT, () => {
   logger.success(`Server is running on port ${PORT}`);
-  if (process.env.RUN_ATTENDANCE_REMINDER_JOB !== "false") {
-    // Run once on startup (after 1 min), then every 15 min
-    logger.info("Attendance reminder job scheduled (every 15 min). Run once on startup in 1 min.");
-    const runReminderJob = async () => {
-      try {
-        const result = await processAttendanceReminders();
-        const { processed, sent, skipped, failed } = result?.results ?? {};
-        if (processed > 0 || sent > 0 || failed > 0) {
-          logger.info("Attendance reminder job", {
-            processed: processed ?? 0,
-            sent: sent ?? 0,
-            skipped: skipped ?? 0,
-            failed: failed ?? 0,
-          });
-        }
-      } catch (err) {
-        logger.error("Attendance reminder job error:", err?.message || err);
-      }
-    };
-    setTimeout(runReminderJob, 60 * 1000);
-    setInterval(runReminderJob, REMINDER_JOB_INTERVAL_MS);
-  }
 
   // Substitution expiry: mark stale SUBMITTED requests as EXPIRED
   if (process.env.RUN_SUBSTITUTION_EXPIRY_JOB !== "false") {

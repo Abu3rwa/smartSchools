@@ -5,12 +5,14 @@ import { selectUser } from "../../../../store/slices/authSlice.js";
 import api from "../../../../config/api.js";
 import toast from "react-hot-toast";
 import { MAX_FILE_SIZE, ALLOWED_EXT } from "../constants.js";
+import { useTranslation } from "react-i18next";
 
 /**
  * Data and actions for Attendance Request form page.
  * Handles request types, eligible students, requester context, validation, and submit.
  */
 export function useAttendanceRequestForm() {
+  const { t } = useTranslation(["attendanceRequests"]);
   const navigate = useNavigate();
   const user = useSelector(selectUser);
   const [requestTypes, setRequestTypes] = useState([]);
@@ -46,9 +48,9 @@ export function useAttendanceRequestForm() {
         if (res.data.success) setRequestTypes(res.data.data || []);
       });
     fetchTypes()
-      .catch(() => toast.error("Failed to load request types"))
+      .catch(() => toast.error(t("attendanceRequests:toast.loadRequestTypesFailed")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!isParentOrStudent) return;
@@ -94,38 +96,38 @@ export function useAttendanceRequestForm() {
   const validate = () => {
     const next = {};
     if (!formData.requestType)
-      next.requestType = "Type of request is required";
+      next.requestType = t("attendanceRequests:validation.requestTypeRequired");
     if (
       showDepartmentField &&
       !formData.departmentOrSupervisor?.trim()
     )
       next.departmentOrSupervisor =
-        "Department / Direct supervisor is required";
+        t("attendanceRequests:validation.departmentRequired");
     if (useDateRange) {
-      if (!formData.startDate) next.startDate = "Start date is required";
-      if (!formData.endDate) next.endDate = "End date is required";
+      if (!formData.startDate) next.startDate = t("attendanceRequests:validation.startDateRequired");
+      if (!formData.endDate) next.endDate = t("attendanceRequests:validation.endDateRequired");
       if (
         formData.startDate &&
         formData.endDate &&
         formData.endDate < formData.startDate
       )
-        next.endDate = "End date must be on or after start date";
+        next.endDate = t("attendanceRequests:validation.endDateAfterStart");
     } else {
-      if (!formData.requestDate) next.requestDate = "Date is required";
-      if (!formData.fromTime) next.fromTime = "From time is required";
-      if (!formData.toTime) next.toTime = "To time is required";
+      if (!formData.requestDate) next.requestDate = t("attendanceRequests:validation.dateRequired");
+      if (!formData.fromTime) next.fromTime = t("attendanceRequests:validation.fromTimeRequired");
+      if (!formData.toTime) next.toTime = t("attendanceRequests:validation.toTimeRequired");
     }
     if (requiresProof && !file)
       next.attachment =
-        "Supporting proof document is required for this request type";
+        t("attendanceRequests:validation.attachmentRequired");
     if (file) {
       const ext = file.name
         .toLowerCase()
         .slice(file.name.lastIndexOf("."));
       if (!ALLOWED_EXT.includes(ext))
-        next.attachment = "Allowed types: jpg, png, pdf";
+        next.attachment = t("attendanceRequests:validation.attachmentTypes");
       else if (file.size > MAX_FILE_SIZE)
-        next.attachment = "Max file size 10 MB";
+        next.attachment = t("attendanceRequests:validation.attachmentMaxSize");
     }
     setFileError(next.attachment || "");
     setErrors(next);
@@ -157,15 +159,15 @@ export function useAttendanceRequestForm() {
       if (res.data.success) {
         toast.success(
           res.data.message ||
-            "Request submitted. You will be notified when it is reviewed.",
+            t("attendanceRequests:toast.submitted"),
         );
         navigate("/portal/attendance-requests");
       } else {
-        toast.error(res.data.message || "Failed to submit");
+        toast.error(res.data.message || t("attendanceRequests:toast.submitFailed"));
       }
     } catch (err) {
       toast.error(
-        err.response?.data?.message || "Failed to submit request",
+        err.response?.data?.message || t("attendanceRequests:toast.submitRequestFailed"),
       );
     } finally {
       setSubmitting(false);

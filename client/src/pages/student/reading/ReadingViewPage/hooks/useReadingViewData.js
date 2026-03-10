@@ -11,6 +11,7 @@ import {
 } from '../../../../../store/slices/readingSlice';
 import readingService from '../../../../../services/readingService';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Hook for ReadingViewPage data and handlers.
@@ -20,6 +21,7 @@ import toast from 'react-hot-toast';
  *   quizSubmitted, progressSubmitting
  */
 export function useReadingViewData() {
+  const { t } = useTranslation(['reading']);
   const { textId } = useParams();
   const location = useLocation();
   const assignmentId = location.state?.assignmentId;
@@ -52,7 +54,7 @@ export function useReadingViewData() {
     (index, question) => {
       const answer = (ctAnswers[index] || '').trim();
       if (!answer) {
-        toast.error('Please write your answer first');
+        toast.error(t('reading:view.toasts.answerFirst'));
         return;
       }
       setCtFeedback((prev) => ({ ...prev, [index]: { ...prev[index], loading: true } }));
@@ -66,12 +68,12 @@ export function useReadingViewData() {
           requestedLanguages: content?.text?.requestedLanguages,
         })
         .then((res) => {
-          const feedback = res.data?.data?.feedback || 'No feedback returned.';
+          const feedback = res.data?.data?.feedback || t('reading:view.toasts.noFeedback');
           setCtFeedback((prev) => ({ ...prev, [index]: { feedback, loading: false } }));
-          toast.success('Feedback ready');
+          toast.success(t('reading:view.toasts.feedbackReady'));
         })
         .catch((err) => {
-          const message = err.response?.data?.message || 'Failed to get feedback';
+          const message = err.response?.data?.message || t('reading:view.toasts.feedbackFailed');
           setCtFeedback((prev) => ({ ...prev, [index]: { feedback: message, loading: false } }));
           toast.error(message);
         });
@@ -99,13 +101,16 @@ export function useReadingViewData() {
       .then((result) => {
         if (result.type === 'reading/updateProgress/fulfilled') {
           setQuizSubmitted(true);
-          toast.success(`Score: ${correct}/${comprehensionQuestions.length}`);
+          toast.success(t('reading:view.toasts.score', {
+            correct,
+            total: comprehensionQuestions.length
+          }));
         } else if (result.type === 'reading/updateProgress/rejected') {
-          toast.error(result.payload || 'Failed to save progress');
+          toast.error(result.payload || t('reading:view.toasts.saveFailed'));
         }
       })
       .finally(() => setProgressSubmitting(false));
-  }, [content, comprehensionQuestions, quizAnswers, assignmentId, dispatch]);
+  }, [content, comprehensionQuestions, quizAnswers, assignmentId, dispatch, t]);
 
   return {
     fetchSimplified,

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import {
     HiOutlineCalendar,
     HiOutlineClock,
@@ -28,6 +29,8 @@ import roomService from '../../../../services/roomService';
 import './AdminSchedulePage.css';
 
 const AdminSchedulePage = () => {
+    const { t, i18n } = useTranslation(['schedule']);
+    const locale = i18n.language?.toLowerCase().startsWith('ar') ? 'ar-EG' : 'en-US';
     const dispatch = useDispatch();
     const teachers = useSelector((state) => state.teachers.teachers) || [];
     const classes = useSelector((state) => state.classes.classes) || [];
@@ -95,7 +98,7 @@ const AdminSchedulePage = () => {
                 const res = await roomService.getRooms();
                 setRooms(res?.data?.rooms ?? []);
             } catch (err) {
-                console.error('Error fetching rooms:', err);
+                console.error(t('schedule:admin.errors.fetchRoomsConsole'), err);
             } finally {
                 setRoomsLoading(false);
             }
@@ -126,11 +129,11 @@ const AdminSchedulePage = () => {
                 setSchedules(res?.data?.schedules ?? []);
             }
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Failed to load schedules');
+            setError(err.response?.data?.message || err.message || t('schedule:admin.errors.loadSchedules'));
         } finally {
             setLoading(false);
         }
-    }, [filters, currentView, currentDate]);
+    }, [filters, currentView, currentDate, t]);
 
     useEffect(() => {
         fetchSchedules();
@@ -196,7 +199,7 @@ const AdminSchedulePage = () => {
         const subject = subjects.find(s => s._id === subjectId);
         const teacherName = teacher?.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : '';
         setFormData({
-            title: `${subject?.name || 'Class'} - ${classData?.name || 'Class'} - ${teacherName}`,
+            title: `${subject?.name || t('schedule:admin.labels.class')} - ${classData?.name || t('schedule:admin.labels.class')} - ${teacherName}`,
             description: '',
             type: 'class',
             class: classId,
@@ -269,12 +272,12 @@ const AdminSchedulePage = () => {
     };
 
     const handleDeleteSchedule = async (scheduleId) => {
-        if (!window.confirm('Are you sure you want to delete this schedule?')) return;
+        if (!window.confirm(t('schedule:admin.confirm.deleteSchedule'))) return;
         try {
             await scheduleService.deleteSchedule(scheduleId);
             setSchedules(schedules.filter(s => s._id !== scheduleId));
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Failed to delete schedule');
+            setError(err.response?.data?.message || err.message || t('schedule:admin.errors.deleteSchedule'));
         }
     };
 
@@ -296,7 +299,7 @@ const AdminSchedulePage = () => {
 
     const handleSaveSchedule = async () => {
         if (!formData.title || !formData.startTime || !formData.endTime || !formData.teacher || !formData.room) {
-            setError('Title, start time, end time, teacher, and room are required.');
+            setError(t('schedule:admin.errors.requiredFields'));
             return;
         }
         try {
@@ -330,12 +333,12 @@ const AdminSchedulePage = () => {
             setShowCreateModal(false);
             setShowEditModal(false);
         } catch (err) {
-            setError(err.response?.data?.message || err.message || 'Failed to save schedule');
+            setError(err.response?.data?.message || err.message || t('schedule:admin.errors.saveSchedule'));
         }
     };
 
     const formatDateTime = (date) => {
-        return new Date(date).toLocaleString();
+        return new Date(date).toLocaleString(locale);
     };
 
     const toIdString = (value) => {
@@ -351,23 +354,23 @@ const AdminSchedulePage = () => {
     };
 
     const getRoomOptionLabel = (room, availabilityEntry) => {
-        const locationParts = [room.building, room.floor ? `Floor ${room.floor}` : null, room.number]
+        const locationParts = [room.building, room.floor ? t('schedule:admin.room.floor', { floor: room.floor }) : null, room.number]
             .filter(Boolean)
             .join(' • ');
         const base = `${room.name}${locationParts ? ` — ${locationParts}` : ''}`;
-        const details = `${room.type}, Capacity: ${room.capacity}`;
+        const details = t('schedule:admin.room.details', { type: room.type, capacity: room.capacity });
         if (!availabilityEntry) {
             if (room.status && room.status !== 'active') return `${base} (${details}) — ${room.status}`;
-            if (room.isAvailable === false) return `${base} (${details}) — unavailable`;
+            if (room.isAvailable === false) return `${base} (${details}) — ${t('schedule:admin.room.unavailableLower')}`;
             return `${base} (${details})`;
         }
-        if (availabilityEntry.available) return `${base} (${details}) ✓ Available`;
-        const reason = availabilityEntry.unavailabilityReason || 'Unavailable';
+        if (availabilityEntry.available) return `${base} (${details}) ✓ ${t('schedule:admin.room.available')}`;
+        const reason = availabilityEntry.unavailabilityReason || t('schedule:admin.room.unavailable');
         return `${base} (${details}) — ${reason}`;
     };
 
     const getRoomDisplay = (schedule) => {
-        if (!schedule?.room) return '—';
+        if (!schedule?.room) return t('schedule:admin.common.dash');
         if (typeof schedule.room === 'object' && schedule.room?.name) return schedule.room.name;
         const r = rooms.find(rr => rr._id === schedule.room || rr._id?.toString() === schedule.room?.toString());
         return r?.name || schedule.room;
@@ -384,6 +387,9 @@ const AdminSchedulePage = () => {
         return colors[status] || 'gray';
     };
 
+    const getStatusLabel = (status) =>
+        t(`schedule:status.${status}`, { defaultValue: status });
+
     const getTypeColor = (type) => {
         const colors = {
             'class': 'blue',
@@ -397,6 +403,9 @@ const AdminSchedulePage = () => {
         };
         return colors[type] || 'gray';
     };
+
+    const getTypeLabel = (type) =>
+        t(`schedule:type.${type}`, { defaultValue: type });
 
     const navigateWeek = (direction) => {
         const newDate = new Date(currentDate);
@@ -416,28 +425,28 @@ const AdminSchedulePage = () => {
                         <div className="schedule-title">
                             <h3>{schedule.title}</h3>
                             <span className={`schedule-type type-${getTypeColor(schedule.type)}`}>
-                                {schedule.type}
+                                {getTypeLabel(schedule.type)}
                             </span>
                         </div>
                         <div className="schedule-actions">
                             <button
                                 className="action-btn"
                                 onClick={() => handleViewSchedule(schedule)}
-                                title="View Details"
+                                title={t('schedule:admin.actions.viewDetails')}
                             >
                                 <HiOutlineEye size={16} />
                             </button>
                             <button
                                 className="action-btn"
                                 onClick={() => handleEditSchedule(schedule)}
-                                title="Edit"
+                                title={t('schedule:admin.actions.edit')}
                             >
                                 <HiOutlinePencil size={16} />
                             </button>
                             <button
                                 className="action-btn danger"
                                 onClick={() => handleDeleteSchedule(schedule._id)}
-                                title="Delete"
+                                title={t('schedule:admin.actions.delete')}
                             >
                                 <HiOutlineTrash size={16} />
                             </button>
@@ -478,7 +487,7 @@ const AdminSchedulePage = () => {
                         
                         <div className="schedule-status">
                             <span className={`status-badge status-${getStatusColor(schedule.status)}`}>
-                                {schedule.status}
+                                {getStatusLabel(schedule.status)}
                             </span>
                         </div>
                     </div>
@@ -494,7 +503,15 @@ const AdminSchedulePage = () => {
     );
 
     const renderWeekView = () => {
-        const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const weekDays = [
+            t('schedule:weekdays.full.sunday'),
+            t('schedule:weekdays.full.monday'),
+            t('schedule:weekdays.full.tuesday'),
+            t('schedule:weekdays.full.wednesday'),
+            t('schedule:weekdays.full.thursday'),
+            t('schedule:weekdays.full.friday'),
+            t('schedule:weekdays.full.saturday')
+        ];
         const startOfWeek = new Date(currentDate);
         startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
         
@@ -508,7 +525,7 @@ const AdminSchedulePage = () => {
                         <HiOutlineChevronLeft size={20} />
                     </button>
                     <h3>
-                        {startOfWeek.toLocaleDateString()} - {new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                        {startOfWeek.toLocaleDateString(locale)} - {new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString(locale)}
                     </h3>
                     <button
                         className="nav-btn"
@@ -535,7 +552,7 @@ const AdminSchedulePage = () => {
                             <div key={day} className="day-column">
                                 <div className="day-header">
                                     <h4>{day}</h4>
-                                    <span>{dayDate.toLocaleDateString()}</span>
+                                    <span>{dayDate.toLocaleDateString(locale)}</span>
                                 </div>
                                 
                                 <div className="day-events">
@@ -557,8 +574,8 @@ const AdminSchedulePage = () => {
                                             >
                                                 <div className="event-title">{schedule.title}</div>
                                                 <div className="event-time">
-                                                    {new Date(schedule.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
-                                                    {new Date(schedule.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {new Date(schedule.startTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} - 
+                                                    {new Date(schedule.endTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                                 {schedule.room && (
                                                     <div className="event-room">{getRoomDisplay(schedule)}</div>
@@ -578,7 +595,7 @@ const AdminSchedulePage = () => {
         return (
             <div className="schedule-loading">
                 <div className="spinner"></div>
-                <p>Loading schedules...</p>
+                <p>{t('schedule:admin.loading.schedules')}</p>
             </div>
         );
     }
@@ -587,10 +604,10 @@ const AdminSchedulePage = () => {
         return (
             <div className="schedule-error">
                 <HiOutlineExclamation size={48} />
-                <h3>Error loading schedules</h3>
+                <h3>{t('schedule:admin.error.title')}</h3>
                 <p>{error}</p>
                 <button onClick={fetchSchedules} className="btn btn-primary">
-                    Retry
+                    {t('schedule:admin.actions.retry')}
                 </button>
             </div>
         );
@@ -601,8 +618,8 @@ const AdminSchedulePage = () => {
             {/* Header */}
             <div className="page-header">
                 <div className="header-content">
-                    <h1>Schedule Management</h1>
-                    <p>Manage class schedules, events, and appointments</p>
+                    <h1>{t('schedule:admin.header.title')}</h1>
+                    <p>{t('schedule:admin.header.subtitle')}</p>
                 </div>
                 <div className="header-actions">
                     <button
@@ -610,21 +627,21 @@ const AdminSchedulePage = () => {
                         onClick={() => setShowFilters(!showFilters)}
                     >
                         <HiOutlineFilter size={20} />
-                        Filters
+                        {t('schedule:admin.actions.filters')}
                     </button>
                     <button
                         className="btn btn-secondary"
                         onClick={fetchSchedules}
                     >
                         <HiOutlineRefresh size={20} />
-                        Refresh
+                        {t('schedule:admin.actions.refresh')}
                     </button>
                     <button
                         className="btn btn-primary"
                         onClick={handleCreateSchedule}
                     >
                         <HiOutlinePlus size={20} />
-                        Create Schedule
+                        {t('schedule:admin.actions.createSchedule')}
                     </button>
                 </div>
             </div>
@@ -633,12 +650,12 @@ const AdminSchedulePage = () => {
             {showFilters && (
                 <div className="filters-panel">
                     <div className="filter-group">
-                        <label>Search</label>
+                        <label>{t('schedule:admin.filters.search')}</label>
                         <div className="search-input">
                             <HiOutlineSearch size={16} />
                             <input
                                 type="text"
-                                placeholder="Search schedules..."
+                                placeholder={t('schedule:admin.filters.searchPlaceholder')}
                                 value={filters.search}
                                 onChange={(e) => handleFilterChange('search', e.target.value)}
                             />
@@ -646,41 +663,41 @@ const AdminSchedulePage = () => {
                     </div>
                     
                     <div className="filter-group">
-                        <label>Type</label>
+                        <label>{t('schedule:admin.filters.type')}</label>
                         <select
                             value={filters.type}
                             onChange={(e) => handleFilterChange('type', e.target.value)}
                         >
-                            <option value="">All Types</option>
-                            <option value="class">Class</option>
-                            <option value="exam">Exam</option>
-                            <option value="meeting">Meeting</option>
-                            <option value="event">Event</option>
+                            <option value="">{t('schedule:admin.filters.allTypes')}</option>
+                            <option value="class">{getTypeLabel('class')}</option>
+                            <option value="exam">{getTypeLabel('exam')}</option>
+                            <option value="meeting">{getTypeLabel('meeting')}</option>
+                            <option value="event">{getTypeLabel('event')}</option>
                         </select>
                     </div>
                     
                     <div className="filter-group">
-                        <label>Teacher</label>
+                        <label>{t('schedule:admin.filters.teacher')}</label>
                         <select
                             value={filters.teacher}
                             onChange={(e) => handleFilterChange('teacher', e.target.value)}
                         >
-                            <option value="">All Teachers</option>
+                            <option value="">{t('schedule:admin.filters.allTeachers')}</option>
                             {teachers.map(teacher => (
                                 <option key={teacher._id} value={teacher.user?._id || teacher._id}>
-                                    {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}
+                                    {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : t('schedule:admin.common.unknown')}
                                 </option>
                             ))}
                         </select>
                     </div>
                     
                     <div className="filter-group">
-                        <label>Class</label>
+                        <label>{t('schedule:admin.filters.class')}</label>
                         <select
                             value={filters.class}
                             onChange={(e) => handleFilterChange('class', e.target.value)}
                         >
-                            <option value="">All Classes</option>
+                            <option value="">{t('schedule:admin.filters.allClasses')}</option>
                             {classes.map(cls => (
                                 <option key={cls._id} value={cls._id}>
                                     {cls.name}
@@ -690,28 +707,28 @@ const AdminSchedulePage = () => {
                     </div>
                     
                     <div className="filter-group">
-                        <label>Status</label>
+                        <label>{t('schedule:admin.filters.status')}</label>
                         <select
                             value={filters.status}
                             onChange={(e) => handleFilterChange('status', e.target.value)}
                         >
-                            <option value="">All Status</option>
-                            <option value="scheduled">Scheduled</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
+                            <option value="">{t('schedule:admin.filters.allStatuses')}</option>
+                            <option value="scheduled">{getStatusLabel('scheduled')}</option>
+                            <option value="in_progress">{getStatusLabel('in_progress')}</option>
+                            <option value="completed">{getStatusLabel('completed')}</option>
+                            <option value="cancelled">{getStatusLabel('cancelled')}</option>
                         </select>
                     </div>
                     
                     <div className="filter-group">
-                        <label>Date Range</label>
+                        <label>{t('schedule:admin.filters.dateRange')}</label>
                         <div className="date-range">
                             <input
                                 type="date"
                                 value={filters.startDate}
                                 onChange={(e) => handleFilterChange('startDate', e.target.value)}
                             />
-                            <span>to</span>
+                            <span>{t('schedule:admin.filters.to')}</span>
                             <input
                                 type="date"
                                 value={filters.endDate}
@@ -722,7 +739,7 @@ const AdminSchedulePage = () => {
                     
                     <div className="filter-actions">
                         <button className="btn btn-secondary" onClick={clearFilters}>
-                            Clear Filters
+                            {t('schedule:admin.actions.clearFilters')}
                         </button>
                     </div>
                 </div>
@@ -730,12 +747,12 @@ const AdminSchedulePage = () => {
 
             {/* Quick Schedule Creation */}
             <div className="quick-schedule-section">
-                <h2>Quick Schedule Creation</h2>
-                <p>Create schedules quickly by selecting teacher, class, and subject combinations</p>
+                <h2>{t('schedule:admin.quick.title')}</h2>
+                <p>{t('schedule:admin.quick.subtitle')}</p>
                 
                 <div className="quick-schedule-grid">
                     <div className="quick-schedule-card">
-                        <h3>Teacher Assignments</h3>
+                        <h3>{t('schedule:admin.quick.teacherAssignments')}</h3>
                         <div className="teacher-assignments">
                             {teachers.map(teacher => {
                                 const teacherUserId = teacher.user?._id || teacher._id;
@@ -743,7 +760,7 @@ const AdminSchedulePage = () => {
                                 return (
                                     <div key={teacher._id} className="teacher-card">
                                         <div className="teacher-info">
-                                            <strong>{teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}</strong>
+                                            <strong>{teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : t('schedule:admin.common.unknown')}</strong>
                                             <span>{teacher.user?.email || ''}</span>
                                         </div>
                                         <div className="teacher-subjects">
@@ -763,7 +780,10 @@ const AdminSchedulePage = () => {
                                                         key={`${cls._id}-${subjectId}`}
                                                         className="quick-schedule-btn"
                                                         onClick={() => handleQuickSchedule(teacherUserId, cls._id, subjectId)}
-                                                        title={`Schedule ${subjects.find(s => s._id === subjectId)?.name} for ${cls.name}`}
+                                                        title={t('schedule:admin.quick.scheduleForClass', {
+                                                            subject: subjects.find(s => s._id === subjectId)?.name,
+                                                            className: cls.name
+                                                        })}
                                                     >
                                                         {cls.name} - {subjects.find(s => s._id === subjectId)?.code}
                                                     </button>
@@ -777,13 +797,13 @@ const AdminSchedulePage = () => {
                     </div>
                     
                     <div className="quick-schedule-card">
-                        <h3>Class Schedule Matrix</h3>
+                        <h3>{t('schedule:admin.quick.classScheduleMatrix')}</h3>
                         <div className="schedule-matrix">
                             {classes.map(cls => (
                                 <div key={cls._id} className="class-row">
                                     <div className="class-info">
                                         <strong>{cls.name}</strong>
-                                        <span>{cls.students} students</span>
+                                        <span>{t('schedule:admin.quick.students', { count: cls.students })}</span>
                                     </div>
                                     <div className="subject-slots">
                                         {subjects.map(subject => (
@@ -800,12 +820,12 @@ const AdminSchedulePage = () => {
                                                         }
                                                     }}
                                                 >
-                                                    <option value="">Assign Teacher</option>
+                                                    <option value="">{t('schedule:admin.quick.assignTeacher')}</option>
                                                     {teachers
                                                         .filter(teacher => (teacher.subjects || []).some(s => (s?._id || s) === subject._id))
                                                         .map(teacher => (
                                                             <option key={teacher._id} value={teacher.user?._id || teacher._id}>
-                                                                {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}
+                                                                {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : t('schedule:admin.common.unknown')}
                                                             </option>
                                                         ))}
                                                 </select>
@@ -826,19 +846,19 @@ const AdminSchedulePage = () => {
                         className={`toggle-btn ${currentView === 'list' ? 'active' : ''}`}
                         onClick={() => setCurrentView('list')}
                     >
-                        List View
+                        {t('schedule:admin.views.list')}
                     </button>
                     <button
                         className={`toggle-btn ${currentView === 'week' ? 'active' : ''}`}
                         onClick={() => setCurrentView('week')}
                     >
-                        Week View
+                        {t('schedule:admin.views.week')}
                     </button>
                     <button
                         className={`toggle-btn ${currentView === 'calendar' ? 'active' : ''}`}
                         onClick={() => setCurrentView('calendar')}
                     >
-                        Calendar View
+                        {t('schedule:admin.views.calendar')}
                     </button>
                 </div>
             </div>
@@ -849,7 +869,7 @@ const AdminSchedulePage = () => {
                 {currentView === 'week' && renderWeekView()}
                 {currentView === 'calendar' && (
                     <div className="calendar-view">
-                        <p>Calendar view coming soon...</p>
+                        <p>{t('schedule:admin.views.calendarComingSoon')}</p>
                     </div>
                 )}
             </div>
@@ -859,7 +879,7 @@ const AdminSchedulePage = () => {
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
-                            <h2>{showCreateModal ? 'Create Schedule' : 'Edit Schedule'}</h2>
+                            <h2>{showCreateModal ? t('schedule:admin.actions.createSchedule') : t('schedule:admin.actions.editSchedule')}</h2>
                             <button
                                 className="modal-close"
                                 onClick={() => {
@@ -873,47 +893,47 @@ const AdminSchedulePage = () => {
                         <div className="modal-body">
                             <div className="form-grid">
                                 <div className="form-group">
-                                    <label>Title *</label>
+                                    <label>{t('schedule:admin.labels.title')} *</label>
                                     <input
                                         type="text"
                                         value={formData.title}
                                         onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                                        placeholder="Enter schedule title"
+                                        placeholder={t('schedule:admin.placeholders.scheduleTitle')}
                                     />
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>Type *</label>
+                                    <label>{t('schedule:admin.labels.type')} *</label>
                                     <select
                                         value={formData.type}
                                         onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
                                     >
-                                        <option value="class">Class</option>
-                                        <option value="exam">Exam</option>
-                                        <option value="meeting">Meeting</option>
-                                        <option value="event">Event</option>
-                                        <option value="holiday">Holiday</option>
-                                        <option value="appointment">Appointment</option>
+                                        <option value="class">{getTypeLabel('class')}</option>
+                                        <option value="exam">{getTypeLabel('exam')}</option>
+                                        <option value="meeting">{getTypeLabel('meeting')}</option>
+                                        <option value="event">{getTypeLabel('event')}</option>
+                                        <option value="holiday">{getTypeLabel('holiday')}</option>
+                                        <option value="appointment">{getTypeLabel('appointment')}</option>
                                     </select>
                                 </div>
                                 
                                 <div className="form-group full-width">
-                                    <label>Description</label>
+                                    <label>{t('schedule:admin.labels.description')}</label>
                                     <textarea
                                         value={formData.description}
                                         onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                                        placeholder="Enter description"
+                                        placeholder={t('schedule:admin.placeholders.description')}
                                         rows="3"
                                     />
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>Class</label>
+                                    <label>{t('schedule:admin.labels.class')}</label>
                                     <select
                                         value={formData.class}
                                         onChange={(e) => setFormData(prev => ({ ...prev, class: e.target.value }))}
                                     >
-                                        <option value="">Select Class</option>
+                                        <option value="">{t('schedule:admin.select.selectClass')}</option>
                                         {classes.map(cls => (
                                             <option key={cls._id} value={cls._id}>
                                                 {cls.name}
@@ -923,12 +943,12 @@ const AdminSchedulePage = () => {
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>Subject</label>
+                                    <label>{t('schedule:admin.labels.subject')}</label>
                                     <select
                                         value={formData.subject}
                                         onChange={(e) => handleSubjectChange(e.target.value)}
                                     >
-                                        <option value="">Select Subject</option>
+                                        <option value="">{t('schedule:admin.select.selectSubject')}</option>
                                         {subjects.map(subject => (
                                             <option key={subject._id} value={subject._id}>
                                                 {subject.name}
@@ -938,15 +958,15 @@ const AdminSchedulePage = () => {
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>Teacher</label>
+                                    <label>{t('schedule:admin.labels.teacher')}</label>
                                     <select
                                         value={formData.teacher}
                                         onChange={(e) => handleTeacherChange(e.target.value)}
                                     >
-                                        <option value="">Select Teacher</option>
+                                        <option value="">{t('schedule:admin.select.selectTeacher')}</option>
                                         {teachers.map(teacher => (
                                             <option key={teacher._id} value={teacher.user?._id || teacher._id}>
-                                                {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : 'Unknown'}
+                                                {teacher.user ? `${teacher.user.firstName || ''} ${teacher.user.lastName || ''}`.trim() : t('schedule:admin.common.unknown')}
                                             </option>
                                         ))}
                                     </select>
@@ -954,10 +974,12 @@ const AdminSchedulePage = () => {
                                 
                                 <div className="form-group">
                                     <label>
-                                        Room
+                                        {t('schedule:admin.labels.room')}
                                         {formData.startTime && formData.endTime && (
                                             <span className="room-availability-hint">
-                                                {roomAvailabilityLoading ? ' (checking availability…)' : roomAvailability ? ' — select an available room' : ''}
+                                                {roomAvailabilityLoading
+                                                    ? ` ${t('schedule:admin.room.checkingAvailability')}`
+                                                    : roomAvailability ? ` ${t('schedule:admin.room.selectAvailable')}` : ''}
                                             </span>
                                         )}
                                     </label>
@@ -970,21 +992,21 @@ const AdminSchedulePage = () => {
                                             return selectedAvailability.available ? 'room-available' : 'room-occupied';
                                         })()}
                                     >
-                                        <option value="">Select Room</option>
+                                        <option value="">{t('schedule:admin.select.selectRoom')}</option>
                                         {rooms.map(room => {
                                             const avail = getRoomAvailabilityEntry(room._id);
                                             const defaultAvailable = room.status === 'active' && room.isAvailable !== false;
                                             const available = avail ? avail.available : defaultAvailable;
                                             const conflictingWith = avail?.conflictingWith;
                                             const conflictTitle = conflictingWith
-                                                ? `${conflictingWith.title || 'Event'} (${new Date(conflictingWith.startTime).toLocaleString()} – ${new Date(conflictingWith.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
-                                                : (avail?.unavailabilityReason || (defaultAvailable ? 'Available room' : 'Unavailable room'));
+                                                ? `${conflictingWith.title || t('schedule:admin.labels.event')} (${new Date(conflictingWith.startTime).toLocaleString(locale)} – ${new Date(conflictingWith.endTime).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })})`
+                                                : (avail?.unavailabilityReason || (defaultAvailable ? t('schedule:admin.room.availableRoom') : t('schedule:admin.room.unavailableRoom')));
                                             return (
                                                 <option
                                                     key={room._id}
                                                     value={room._id}
                                                     disabled={!available}
-                                                    title={available ? 'Available for this time' : conflictTitle}
+                                                    title={available ? t('schedule:admin.room.availableForTime') : conflictTitle}
                                                 >
                                                     {getRoomOptionLabel(room, avail)}
                                                 </option>
@@ -996,23 +1018,23 @@ const AdminSchedulePage = () => {
                                         return selectedAvailability && !selectedAvailability.available;
                                     })() && (
                                         <span className="room-occupied-warning">
-                                            <HiOutlineExclamation size={14} /> {getRoomAvailabilityEntry(formData.room)?.unavailabilityReason || 'This room is unavailable for the selected time.'}
+                                            <HiOutlineExclamation size={14} /> {getRoomAvailabilityEntry(formData.room)?.unavailabilityReason || t('schedule:admin.room.unavailableForSelectedTime')}
                                         </span>
                                     )}
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>Location</label>
+                                    <label>{t('schedule:admin.labels.location')}</label>
                                     <input
                                         type="text"
                                         value={formData.location}
                                         onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                                        placeholder="Enter location"
+                                        placeholder={t('schedule:admin.placeholders.location')}
                                     />
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>Start Time *</label>
+                                    <label>{t('schedule:admin.labels.startTime')} *</label>
                                     <input
                                         type="datetime-local"
                                         value={formData.startTime}
@@ -1021,7 +1043,7 @@ const AdminSchedulePage = () => {
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>End Time *</label>
+                                    <label>{t('schedule:admin.labels.endTime')} *</label>
                                     <input
                                         type="datetime-local"
                                         value={formData.endTime}
@@ -1030,7 +1052,7 @@ const AdminSchedulePage = () => {
                                 </div>
                                 
                                 <div className="form-group">
-                                    <label>Color</label>
+                                    <label>{t('schedule:admin.labels.color')}</label>
                                     <input
                                         type="color"
                                         value={formData.color}
@@ -1045,7 +1067,7 @@ const AdminSchedulePage = () => {
                                             checked={formData.requiresAttendance}
                                             onChange={(e) => setFormData(prev => ({ ...prev, requiresAttendance: e.target.checked }))}
                                         />
-                                        Requires Attendance
+                                        {t('schedule:admin.labels.requiresAttendance')}
                                     </label>
                                 </div>
                             </div>
@@ -1058,13 +1080,13 @@ const AdminSchedulePage = () => {
                                     setShowEditModal(false);
                                 }}
                             >
-                                Cancel
+                                {t('schedule:admin.actions.cancel')}
                             </button>
                             <button
                                 className="btn btn-primary"
                                 onClick={handleSaveSchedule}
                             >
-                                {showCreateModal ? 'Create' : 'Update'} Schedule
+                                {showCreateModal ? t('schedule:admin.actions.create') : t('schedule:admin.actions.update')} {t('schedule:admin.labels.schedule')}
                             </button>
                         </div>
                     </div>
@@ -1076,7 +1098,7 @@ const AdminSchedulePage = () => {
                 <div className="modal-overlay">
                     <div className="modal">
                         <div className="modal-header">
-                            <h2>Schedule Details</h2>
+                            <h2>{t('schedule:admin.details.title')}</h2>
                             <button
                                 className="modal-close"
                                 onClick={() => setShowViewModal(false)}
@@ -1087,26 +1109,26 @@ const AdminSchedulePage = () => {
                         <div className="modal-body">
                             <div className="schedule-details">
                                 <div className="detail-section">
-                                    <h3>Basic Information</h3>
+                                    <h3>{t('schedule:admin.details.basicInformation')}</h3>
                                     <div className="detail-grid">
                                         <div className="detail-item">
-                                            <label>Title:</label>
+                                            <label>{t('schedule:admin.labels.title')}:</label>
                                             <span>{selectedSchedule.title}</span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>Type:</label>
+                                            <label>{t('schedule:admin.labels.type')}:</label>
                                             <span className={`type-badge type-${getTypeColor(selectedSchedule.type)}`}>
-                                                {selectedSchedule.type}
+                                                {getTypeLabel(selectedSchedule.type)}
                                             </span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>Status:</label>
+                                            <label>{t('schedule:admin.labels.status')}:</label>
                                             <span className={`status-badge status-${getStatusColor(selectedSchedule.status)}`}>
-                                                {selectedSchedule.status}
+                                                {getStatusLabel(selectedSchedule.status)}
                                             </span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>Color:</label>
+                                            <label>{t('schedule:admin.labels.color')}:</label>
                                             <div className="color-display">
                                                 <div
                                                     className="color-box"
@@ -1119,31 +1141,33 @@ const AdminSchedulePage = () => {
                                 </div>
                                 
                                 <div className="detail-section">
-                                    <h3>Time & Location</h3>
+                                    <h3>{t('schedule:admin.details.timeAndLocation')}</h3>
                                     <div className="detail-grid">
                                         <div className="detail-item">
-                                            <label>Start Time:</label>
+                                            <label>{t('schedule:admin.labels.startTime')}:</label>
                                             <span>{formatDateTime(selectedSchedule.startTime)}</span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>End Time:</label>
+                                            <label>{t('schedule:admin.labels.endTime')}:</label>
                                             <span>{formatDateTime(selectedSchedule.endTime)}</span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>Duration:</label>
+                                            <label>{t('schedule:admin.labels.duration')}:</label>
                                             <span>
-                                                {Math.round((new Date(selectedSchedule.endTime) - new Date(selectedSchedule.startTime)) / (1000 * 60))} minutes
+                                                {t('schedule:admin.details.durationMinutes', {
+                                                    minutes: Math.round((new Date(selectedSchedule.endTime) - new Date(selectedSchedule.startTime)) / (1000 * 60))
+                                                })}
                                             </span>
                                         </div>
                                         {selectedSchedule.room && (
                                             <div className="detail-item">
-                                                <label>Room:</label>
+                                                <label>{t('schedule:admin.labels.room')}:</label>
                                                 <span>{getRoomDisplay(selectedSchedule)}</span>
                                             </div>
                                         )}
                                         {selectedSchedule.location && (
                                             <div className="detail-item">
-                                                <label>Location:</label>
+                                                <label>{t('schedule:admin.labels.location')}:</label>
                                                 <span>{selectedSchedule.location}</span>
                                             </div>
                                         )}
@@ -1151,23 +1175,23 @@ const AdminSchedulePage = () => {
                                 </div>
                                 
                                 <div className="detail-section">
-                                    <h3>Associated Information</h3>
+                                    <h3>{t('schedule:admin.details.associatedInformation')}</h3>
                                     <div className="detail-grid">
                                         {selectedSchedule.class && (
                                             <div className="detail-item">
-                                                <label>Class:</label>
+                                                <label>{t('schedule:admin.labels.class')}:</label>
                                                 <span>{selectedSchedule.class.name}</span>
                                             </div>
                                         )}
                                         {selectedSchedule.subject && (
                                             <div className="detail-item">
-                                                <label>Subject:</label>
+                                                <label>{t('schedule:admin.labels.subject')}:</label>
                                                 <span>{selectedSchedule.subject.name}</span>
                                             </div>
                                         )}
                                         {selectedSchedule.teacher && (
                                             <div className="detail-item">
-                                                <label>Teacher:</label>
+                                                <label>{t('schedule:admin.labels.teacher')}:</label>
                                                 <span>{selectedSchedule.teacher.firstName} {selectedSchedule.teacher.lastName}</span>
                                             </div>
                                         )}
@@ -1176,25 +1200,25 @@ const AdminSchedulePage = () => {
                                 
                                 {selectedSchedule.description && (
                                     <div className="detail-section">
-                                        <h3>Description</h3>
+                                        <h3>{t('schedule:admin.labels.description')}</h3>
                                         <p>{selectedSchedule.description}</p>
                                     </div>
                                 )}
                                 
                                 <div className="detail-section">
-                                    <h3>Participants</h3>
+                                    <h3>{t('schedule:admin.details.participants')}</h3>
                                     <div className="participants-list">
                                         {selectedSchedule.participants.length > 0 ? (
                                             selectedSchedule.participants.map(participant => (
                                                 <div key={participant.user._id} className="participant-item">
                                                     <span>{participant.user.firstName} {participant.user.lastName}</span>
                                                     <span className={`participant-status ${participant.status}`}>
-                                                        {participant.status}
+                                                        {getStatusLabel(participant.status)}
                                                     </span>
                                                 </div>
                                             ))
                                         ) : (
-                                            <p>No participants added</p>
+                                            <p>{t('schedule:admin.details.noParticipants')}</p>
                                         )}
                                     </div>
                                 </div>
@@ -1205,7 +1229,7 @@ const AdminSchedulePage = () => {
                                 className="btn btn-secondary"
                                 onClick={() => setShowViewModal(false)}
                             >
-                                Close
+                                {t('schedule:admin.actions.close')}
                             </button>
                             <button
                                 className="btn btn-primary"
@@ -1214,7 +1238,7 @@ const AdminSchedulePage = () => {
                                     handleEditSchedule(selectedSchedule);
                                 }}
                             >
-                                Edit
+                                {t('schedule:admin.actions.edit')}
                             </button>
                         </div>
                     </div>

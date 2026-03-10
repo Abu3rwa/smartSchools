@@ -1,0 +1,149 @@
+{
+  "admin": {
+    "header": {
+      "title": "Newsletter Review & Send",
+      "subtitle": "Review teacher subject sections, exclude subjects if needed, and send one combined email to each student family."
+    },
+    "tabs": {
+      "review": "Review",
+      "sent": "Sent"
+    },
+    "filters": {
+      "week": "Week (pick any date in week)",
+      "class": "Class",
+      "allClasses": "All classes",
+      "quickActions": "Quick actions"
+    },
+    "actions": {
+      "approveAllWeek": "Approve All Submitted (Week)",
+      "approveAllIssue": "Approve All Submitted (Issue)",
+      "previewEmail": "Preview Email",
+      "approve": "Approve",
+      "reject": "Reject",
+      "saveEdit": "Save Edit",
+      "sendToParents": "Send to Parents"
+    },
+    "summary": "{{readyIssues}}/{{totalIssues}} classes complete • {{approvedSections}}/{{totalExpectedSections}} sections approved",
+    "list": {
+      "issues": "Issues",
+      "sentIssues": "Sent issues",
+      "sentAt": "Sent",
+      "noIssues": "No issues for this week.",
+      "noSent": "No sent newsletters found."
+    },
+    "details": {
+      "title": "Issue details",
+      "selectIssue": "Select an issue to review.",
+      "class": "Class",
+      "status": "Status",
+      "sendEnabled": "Send enabled",
+      "missing": "Missing: {{count}}",
+      "excludeSubjects": "Exclude subjects (optional)",
+      "noExpectedSubjects": "No expected subjects found for this class.",
+      "reviewNotes": "Review notes (optional)",
+      "reviewNotesPlaceholder": "Notes to teacher (optional)"
+    },
+    "preview": {
+      "sectionsCount": "{{count}} sections",
+      "title": "Newsletter preview",
+      "noPreview": "No preview available."
+    },
+    "sections": {
+      "title": "Sections",
+      "noneSubmitted": "No sections submitted yet.",
+      "noneForIssue": "No sections found for this newsletter.",
+      "subjectFallback": "Subject",
+      "words": "{{count}} words",
+      "noContent": "No content.",
+      "notes": "Notes"
+    },
+    "send": {
+      "lastSend": "Last send: {{success}} success / {{failed}} failed",
+      "sentAt": "Sent at",
+      "delivery": "Delivery",
+      "deliveryValue": "{{success}} success / {{failed}} failed"
+    },
+    "common": {
+      "loading": "Loading...",
+      "classFallback": "Class",
+      "saving": "Saving...",
+      "sending": "Sending...",
+      "yes": "Yes",
+      "no": "No",
+      "notAvailable": "N/A"
+    },
+    "toasts": {
+      "exclusionsUpdated": "Exclusions updated",
+      "exclusionsFailed": "Failed to update exclusions",
+      "approved": "Approved",
+      "approveFailed": "Approve failed",
+      "rejected": "Rejected",
+      "rejectFailed": "Reject failed",
+      "sendStarted": "Send started",
+      "sendFailed": "Send failed",
+      "previewFailed": "Preview failed",
+      "submittedApproved": "Submitted sections approved",
+      "bulkApproveFailed": "Bulk approve failed",
+      "weekApproved": "Submitted sections approved for selected week",
+      "weekApproveFailed": "Bulk approve week failed",
+      "sectionContentRequired": "Section content cannot be empty",
+      "sectionUpdated": "Section updated",
+      "saveFailed": "Save failed"
+    }
+  },
+  "teacher": {
+    "header": {
+      "title": "Weekly Newsletters",
+      "subtitle": "Generate a 100-120 word summary per subject and submit for admin review."
+    },
+    "sections": {
+      "select": "1) Select",
+      "pickLessonPlans": "2) Pick lesson plans",
+      "pickLessonPlansHint": "If you select none, the system will use all lesson plans in the week for the chosen class/subject.",
+      "preview": "3) Preview"
+    },
+    "fields": {
+      "week": "Week (pick any date in the week)",
+      "weekRange": "Week range: {{start}} → {{end}}",
+      "class": "Class",
+      "selectClass": "Select class",
+      "subject": "Subject",
+      "selectSubject": "Select subject",
+      "customInstructions": "Custom instructions (optional)",
+      "customInstructionsPlaceholder": "Example: Mention our science experiment and keep language simple for parents.",
+      "primaryLanguage": "Primary Language",
+      "secondaryLanguage": "Secondary Language (optional)"
+    },
+    "actions": {
+      "generate": "Generate",
+      "regenerateWithFeedback": "Regenerate with Feedback",
+      "saveDraft": "Save Draft",
+      "submitToAdmin": "Submit to Admin"
+    },
+    "status": {
+      "current": "Current status",
+      "words": "{{count}} words"
+    },
+    "common": {
+      "none": "None",
+      "generating": "Generating...",
+      "saving": "Saving...",
+      "submitting": "Submitting...",
+      "loadingLessonPlans": "Loading lesson plans...",
+      "noLessonPlans": "No lesson plans found for this week.",
+      "generateToPreview": "Generate a section to preview it here.",
+      "adminNotes": "Admin notes"
+    },
+    "toasts": {
+      "selectClassSubject": "Please select class and subject",
+      "sectionGenerated": "Section generated",
+      "generationFailed": "Generation failed",
+      "generateFirst": "Generate a section first",
+      "contentRequired": "Content cannot be empty",
+      "draftUpdated": "Draft updated",
+      "saveFailed": "Failed to save",
+      "submitted": "Submitted to admin",
+      "submitFailed": "Submit failed"
+    }
+  }
+}

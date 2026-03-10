@@ -103,7 +103,13 @@
   "communication": {
     "title": "Communication",
     "helpText": "Control AI-assisted email body drafting in the Email Composer for your school.",
-    "enableAiEmailDrafting": "Enable AI email drafting for this school"
+    "enableAiEmailDrafting": "Enable AI email drafting for this school",
+    "attendanceRemindersTitle": "Attendance reminders",
+    "attendanceRemindersHelpText": "Control whether attendance reminders can be sent, and configure how many minutes after period end reminders are eligible.",
+    "enableAttendanceReminders": "Enable attendance reminders for this school",
+    "delayMinutesLabel": "Reminder delay (minutes)",
+    "delayMinutesHint": "Use a whole number between 1 and 1440 minutes.",
+    "saveAttendanceReminderSettings": "Save attendance reminder settings"
   },
   "gradingScales": {
     "helpText": "Configure letter-grade thresholds and colors for charts and gradebook displays.",
@@ -215,6 +221,9 @@
     "schoolLogoRemoveFailed": "Failed to remove school logo",
     "communicationSettingsUpdated": "Communication settings updated",
     "communicationSettingsUpdateFailed": "Failed to update communication settings",
+    "attendanceReminderDelayInvalid": "Reminder delay must be an integer between 1 and 1440 minutes",
+    "attendanceReminderSettingsUpdated": "Attendance reminder settings updated",
+    "attendanceReminderSettingsUpdateFailed": "Failed to update attendance reminder settings",
     "loadAcademicYearsFailed": "Failed to load academic years",
     "loadSchoolYearDatesFailed": "Failed to load school year dates",
     "selectFromAndToYears": "Select from and to years",

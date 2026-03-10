@@ -1,4 +1,5 @@
 import StandardForm from './StandardForm';
+import { useTranslation } from 'react-i18next';
 
 const StandardModal = ({
     showModal,
@@ -10,13 +11,14 @@ const StandardModal = ({
     onSubmit,
     onClose
 }) => {
+    const { t } = useTranslation(['standards']);
     if (!showModal) return null;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-header">
-                    <h3>{editingId ? 'Edit Standard' : 'Add New Standard'}</h3>
+                    <h3>{editingId ? t('standards:modal.editTitle') : t('standards:modal.addTitle')}</h3>
                     <button className="modal-close" onClick={onClose}>
                         &times;
                     </button>
@@ -29,10 +31,12 @@ const StandardModal = ({
                     />
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>
-                            Cancel
+                            {t('standards:common.cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={submitting}>
-                            {submitting ? 'Saving...' : editingId ? 'Update Standard' : 'Add Standard'}
+                            {submitting
+                                ? t('standards:common.saving')
+                                : (editingId ? t('standards:actions.update') : t('standards:actions.add'))}
                         </button>
                     </div>
                 </form>

@@ -5,6 +5,7 @@ import { detectStandards } from '../../store/slices/lessonSlice';
 import toast from 'react-hot-toast';
 import { formatStandardLabel } from '../../utils/standardLabel';
 import { buildRequestedLanguages } from '../../constants/aiLanguages';
+import { useTranslation } from 'react-i18next';
 
 /**
  * UI for detecting and selecting curriculum standards aligned with lesson content.
@@ -22,6 +23,7 @@ const StandardsSuggester = ({
     aiPrimaryLanguage = 'en',
     aiSecondaryLanguage = '',
 }) => {
+    const { t } = useTranslation(['lessonPlan']);
     const dispatch = useDispatch();
     const [loading, setLoading] = useState(false);
     const [suggestions, setSuggestions] = useState([]);
@@ -38,7 +40,7 @@ const StandardsSuggester = ({
 
     const handleDetect = async () => {
         if (!subjectId || !classId) {
-            toast.error('Select Class and Subject first');
+            toast.error(t('lessonPlan:form.toasts.selectClassSubjectFirst'));
             return;
         }
         setLoading(true);
@@ -58,12 +60,12 @@ const StandardsSuggester = ({
             setFromSubject(result.payload.fromSubject !== false);
             setInferred(result.payload.inferred === true);
             if ((result.payload.standards || []).length === 0) {
-                toast('No matching standards found for this subject and grade.');
+                toast(t('lessonPlan:form.standards.noMatching'));
             } else if (result.payload.inferred === true) {
-                toast('No standards in this subject yet. Inferred from your lesson (aligned with this subject and grade). Add to your subject in Settings to save with the lesson.');
+                toast(t('lessonPlan:form.standards.inferredNotice'));
             }
         } else {
-            toast.error(result.payload || 'Standards detection failed');
+            toast.error(result.payload || t('lessonPlan:form.standards.detectFailed'));
         }
     };
 
@@ -115,12 +117,12 @@ const StandardsSuggester = ({
                 {loading ? (
                     <>
                         <span className="spinner-small" />
-                        Detecting…
+                        {t('lessonPlan:form.standards.detecting')}
                     </>
                 ) : (
                     <>
                         <HiOutlineSearch size={18} />
-                        Detect Standards
+                        {t('lessonPlan:form.standards.detect')}
                     </>
                 )}
             </button>
@@ -130,13 +132,13 @@ const StandardsSuggester = ({
                     <h5>
                         <HiOutlineAcademicCap size={18} />
                         {inferred
-                            ? 'Inferred from your lesson (aligned with this subject and grade)'
+                            ? t('lessonPlan:form.standards.inferredTitle')
                             : fromSubject
-                                ? 'Suggested Standards (from your subject)'
-                                : 'Suggested Standards (other subjects – add to your subject in Settings to use here)'}
+                                ? t('lessonPlan:form.standards.suggestedFromSubject')
+                                : t('lessonPlan:form.standards.suggestedOtherSubjects')}
                     </h5>
                     {inferred && (
-                        <p className="standards-inferred-note">Add these to your subject in Settings to save them with the lesson.</p>
+                        <p className="standards-inferred-note">{t('lessonPlan:form.standards.inferredHint')}</p>
                     )}
                     <div className="standards-checkboxes">
                         {suggestions.map((s) => (
@@ -162,7 +164,7 @@ const StandardsSuggester = ({
 
             {selectedList.length > 0 && (
                 <div className="standards-selected">
-                    <h5>Selected standards (click × to remove)</h5>
+                    <h5>{t('lessonPlan:form.standards.selectedTitle')}</h5>
                     <ul className="standards-selected-list">
                         {selectedList.map(({ id, code, name, description }) => (
                             <li key={id} className="standard-selected-chip">
@@ -171,7 +173,7 @@ const StandardsSuggester = ({
                                     type="button"
                                     className="standard-remove-btn"
                                     onClick={() => removeSelected(id)}
-                                    aria-label="Remove standard"
+                                    aria-label={t('lessonPlan:form.standards.remove')}
                                 >
                                     <HiOutlineX size={16} />
                                 </button>
