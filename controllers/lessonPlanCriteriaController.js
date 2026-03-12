@@ -28,7 +28,7 @@ export const createCriteria = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'A criterion with this name already exists for your school' });
     }
-    res.status(500).json({ message: 'Error creating criteria', error: error.message });
+    res.status(500).json({ message: 'Error creating criteria' });
   }
 };
 
@@ -47,8 +47,8 @@ export const getCriteria = async (req, res) => {
       .populate('createdBy', 'name email');
 
     res.json(criteria);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching criteria', error: error.message });
+  } catch {
+    res.status(500).json({ message: 'Error fetching criteria' });
   }
 };
 
@@ -67,8 +67,8 @@ export const getCriteriaById = async (req, res) => {
     }
 
     res.json(criteria);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching criteria', error: error.message });
+  } catch {
+    res.status(500).json({ message: 'Error fetching criteria' });
   }
 };
 
@@ -101,7 +101,7 @@ export const updateCriteria = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'A criterion with this name already exists for your school' });
     }
-    res.status(500).json({ message: 'Error updating criteria', error: error.message });
+    res.status(500).json({ message: 'Error updating criteria' });
   }
 };
 
@@ -123,8 +123,8 @@ export const deleteCriteria = async (req, res) => {
     await criteria.save();
 
     res.json({ message: 'Criteria deactivated successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error deleting criteria', error: error.message });
+  } catch {
+    res.status(500).json({ message: 'Error deleting criteria' });
   }
 };
 
@@ -147,8 +147,8 @@ export const reorderCriteria = async (req, res) => {
     await Promise.all(updatePromises);
 
     res.json({ message: 'Criteria reordered successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error reordering criteria', error: error.message });
+  } catch {
+    res.status(500).json({ message: 'Error reordering criteria' });
   }
 };
 
@@ -235,7 +235,7 @@ export const initializeDefaultCriteria = async (req, res) => {
       count: created.length,
       criteria: created
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Error initializing default criteria', error: error.message });
+  } catch {
+    res.status(500).json({ message: 'Error initializing default criteria' });
   }
 };

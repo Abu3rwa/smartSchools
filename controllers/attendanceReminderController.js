@@ -344,6 +344,50 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
 }
 
 /**
+ * Scheduler helper: process reminders for each active school using its own reminder settings.
+ */
+export async function processAttendanceRemindersForEnabledSchools() {
+  const schools = await School.find({ isActive: true })
+    .select("_id settings.attendanceReminders")
+    .setOptions({ skipTenantFilter: true })
+    .lean();
+
+  const summary = {
+    schoolsChecked: schools.length,
+    schoolsEnabled: 0,
+    schoolsFailed: 0,
+    totals: { processed: 0, sent: 0, skipped: 0, failed: 0 },
+  };
+
+  for (const school of schools) {
+    const settings = getAttendanceReminderSettingsFromSchool(school);
+    if (settings.enabled !== true) continue;
+
+    summary.schoolsEnabled += 1;
+
+    try {
+      const hours = settings.delayMinutes / 60;
+      const { results } = await processAttendanceReminders(hours, {
+        schoolId: school._id,
+      });
+
+      summary.totals.processed += results.processed || 0;
+      summary.totals.sent += results.sent || 0;
+      summary.totals.skipped += results.skipped || 0;
+      summary.totals.failed += results.failed || 0;
+    } catch (error) {
+      summary.schoolsFailed += 1;
+      logger.error("attendance_reminder_school_run_failed", {
+        schoolId: String(school?._id || ""),
+        error: error?.message || String(error),
+      });
+    }
+  }
+
+  return summary;
+}
+
+/**
  * HTTP handler: run the reminder job and return JSON.
  */
 export const runReminderJob = asyncHandler(async (req, res) => {

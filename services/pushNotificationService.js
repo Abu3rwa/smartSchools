@@ -2,34 +2,56 @@ import DeviceToken from '../models/DeviceToken.js';
 import ParentSetting from '../models/ParentSetting.js';
 import { google } from 'googleapis';
 import logger from '../utils/logger.js';
-import { createRequire } from 'module';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Lazily loaded service account — read once from disk as a fallback when
-// env vars (FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY)
-// are not set. This lets the app work out-of-the-box with the committed
-// smile3-service-account.json without any extra Heroku config vars.
+const resolveLocalServiceAccountPath = () => path.resolve(__dirname, '../smile3-service-account.json');
+
+export const shouldAllowLocalServiceAccount = (env = process.env) => {
+  const explicitValue = String(env.ALLOW_LOCAL_SERVICE_ACCOUNT || '').trim().toLowerCase();
+  if (explicitValue === 'true') return true;
+  if (explicitValue === 'false') return false;
+  const nodeEnv = String(env.NODE_ENV || '').trim().toLowerCase();
+  return nodeEnv !== 'production';
+};
+
+const readLocalServiceAccountFile = () => {
+  const filePath = resolveLocalServiceAccountPath();
+  if (!existsSync(filePath)) return {};
+  const raw = readFileSync(filePath, 'utf-8');
+  const parsed = JSON.parse(raw);
+  return parsed && typeof parsed === 'object' ? parsed : {};
+};
+
+// Lazily loaded service account fallback for local/dev scenarios only.
 let _serviceAccountCache = null;
 const loadServiceAccount = () => {
   if (_serviceAccountCache !== null) return _serviceAccountCache;
+  if (!shouldAllowLocalServiceAccount(process.env)) {
+    _serviceAccountCache = {};
+    return _serviceAccountCache;
+  }
   try {
-    const filePath = path.resolve(__dirname, '../smile3-service-account.json');
-    if (!existsSync(filePath)) {
-      _serviceAccountCache = {};
-      return _serviceAccountCache;
+    _serviceAccountCache = readLocalServiceAccountFile();
+    if (Object.keys(_serviceAccountCache).length > 0) {
+      logger.info('FCM service account loaded from local JSON file');
     }
-    const require = createRequire(import.meta.url);
-    _serviceAccountCache = require(filePath);
-    logger.info('FCM service account loaded from smile3-service-account.json');
   } catch (e) {
     logger.warn(`Could not load smile3-service-account.json: ${e.message}`);
     _serviceAccountCache = {};
   }
   return _serviceAccountCache;
+};
+
+export const __resetPushServiceCredentialCacheForTests = () => {
+  _serviceAccountCache = null;
+  cachedV1AccessToken = '';
+  cachedV1AccessTokenExpiry = 0;
+  cachedGoogleAuthFingerprint = '';
+  cachedGoogleAuth = null;
 };
 
 const FCM_LEGACY_ENDPOINT = 'https://fcm.googleapis.com/fcm/send';
@@ -75,10 +97,6 @@ const resolveFcmApiVersion = () => {
 };
 
 const resolveFirebaseProjectId = () => {
-  // Prefer the service account JSON (always complete) over env vars
-  const fromFile = String(loadServiceAccount().project_id || '').trim();
-  if (fromFile) return fromFile;
-
   const candidates = [
     process.env.FIREBASE_PROJECT_ID,
     process.env.GOOGLE_CLOUD_PROJECT,
@@ -88,25 +106,26 @@ const resolveFirebaseProjectId = () => {
     const normalized = String(value || '').trim();
     if (normalized) return normalized;
   }
+  // Local fallback for development only.
+  const fromFile = String(loadServiceAccount().project_id || '').trim();
+  if (fromFile) return fromFile;
   return '';
 };
 
 const resolveFirebaseServiceAccount = () => {
-  // Prefer the service account JSON — the env var FIREBASE_PRIVATE_KEY is
-  // known to be truncated on Heroku (missing header), so the JSON file is
-  // the authoritative source.
-  const sa = loadServiceAccount();
-  const fileEmail = String(sa.client_email || '').trim();
-  const fileKey = String(sa.private_key || '').trim();
-  if (fileEmail && fileKey) {
-    return { clientEmail: fileEmail, privateKey: fileKey };
-  }
-
-  // Fallback: env vars (with \n un-escaping for keys set via heroku config:set)
+  // Prefer env vars in all environments.
   const envEmail = String(process.env.FIREBASE_CLIENT_EMAIL || '').trim();
   const envKeyRaw = String(process.env.FIREBASE_PRIVATE_KEY || '').trim();
   const privateKey = envKeyRaw.replace(/\\n/g, '\n');
-  return { clientEmail: envEmail, privateKey };
+  if (envEmail && privateKey) {
+    return { clientEmail: envEmail, privateKey };
+  }
+
+  // Local JSON fallback is allowed only when shouldAllowLocalServiceAccount() is true.
+  const sa = loadServiceAccount();
+  const fileEmail = String(sa.client_email || '').trim();
+  const fileKey = String(sa.private_key || '').trim();
+  return { clientEmail: fileEmail, privateKey: fileKey };
 };
 
 const resolveFcmV1Config = () => {
@@ -119,6 +138,8 @@ const resolveFcmV1Config = () => {
     configured: Boolean(projectId && clientEmail && privateKey),
   };
 };
+
+export const resolveFcmV1ConfigForTests = () => resolveFcmV1Config();
 
 const getFcmV1GoogleAuth = ({ clientEmail, privateKey }) => {
   const fingerprint = `${clientEmail}|${privateKey.length}`;

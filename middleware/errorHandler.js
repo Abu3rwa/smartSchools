@@ -1,48 +1,69 @@
 import logger from '../utils/logger.js';
 
-// Global error handler middleware
-const errorHandler = (err, req, res, next) => {
-    logger.error(err.message, err);
-    let error = { ...err };
-    error.message = err.message;
-
-    // Log error for debugging
- 
-    // Mongoose bad ObjectId
+const mapKnownErrors = (err) => {
     if (err.name === 'CastError') {
-        const message = 'Resource not found';
-        error = { message, statusCode: 404 };
+        return { ...err, message: 'Resource not found', statusCode: 404 };
     }
 
-    // Mongoose duplicate key
     if (err.code === 11000) {
-        const field = Object.keys(err.keyValue)[0];
-        const message = `Duplicate field value: ${field}. Please use another value`;
-        error = { message, statusCode: 400 };
+        const field = Object.keys(err.keyValue || {})[0] || 'value';
+        return {
+            ...err,
+            message: `Duplicate field value: ${field}. Please use another value`,
+            statusCode: 400
+        };
     }
 
-    // Mongoose validation error
     if (err.name === 'ValidationError') {
-        const message = Object.values(err.errors).map(val => val.message).join(', ');
-        error = { message, statusCode: 400 };
+        return {
+            ...err,
+            message: Object.values(err.errors || {}).map((value) => value.message).join(', '),
+            statusCode: 400
+        };
     }
 
-    // JWT errors
     if (err.name === 'JsonWebTokenError') {
-        const message = 'Invalid token';
-        error = { message, statusCode: 401 };
+        return { ...err, message: 'Invalid token', statusCode: 401 };
     }
 
     if (err.name === 'TokenExpiredError') {
-        const message = 'Token expired';
-        error = { message, statusCode: 401 };
+        return { ...err, message: 'Token expired', statusCode: 401 };
     }
 
-    res.status(error.statusCode || 500).json({
+    return { ...err, message: err.message };
+};
+
+const buildErrorPayload = (error, originalError) => {
+    const payload = {
         success: false,
-        message: error.message || 'Server Error',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    });
+        message: error.message || 'Server Error'
+    };
+
+    if (error.code) {
+        payload.code = error.code;
+    }
+    if (Array.isArray(error.details) && error.details.length > 0) {
+        payload.errors = error.details;
+    }
+    if (error.data !== undefined) {
+        payload.data = error.data;
+    }
+    if (process.env.NODE_ENV === 'development') {
+        payload.stack = originalError.stack;
+    }
+
+    return payload;
+};
+
+// Global error handler middleware
+const errorHandler = (err, req, res, next) => {
+    void req;
+    void next;
+    logger.error(err.message, err);
+    const error = mapKnownErrors(err);
+    const statusCode = error.statusCode || 500;
+    const payload = buildErrorPayload(error, err);
+    return res.status(statusCode).json(payload);
 };
 
 // Async handler wrapper to avoid try-catch blocks

@@ -1,3 +1,4 @@
+/* eslint-disable complexity, max-lines-per-function */
 import { emitRealtimeEventToUsers } from '../realtime/realtimeGateway.js';
 import logger from '../utils/logger.js';
 import { sendPushToUsers } from './pushNotificationService.js';
@@ -128,6 +129,9 @@ export const emitMessageThreadEvent = async ({
   event,
   message = null,
   includePush = false,
+  emitRealtimeEvent = emitRealtimeEventToUsers,
+  sendPush = sendPushToUsers,
+  loggerRef = logger,
 }) => {
   if (!thread || !actorUser || !event) return;
 
@@ -152,7 +156,7 @@ export const emitMessageThreadEvent = async ({
     occurredAt: new Date().toISOString(),
   };
 
-  emitRealtimeEventToUsers({
+  emitRealtimeEvent({
     userIds: participantUserIds,
     event: `message.thread.${event}`,
     data: realtimePayload,
@@ -164,7 +168,7 @@ export const emitMessageThreadEvent = async ({
   if (pushRecipients.length === 0) return;
 
   try {
-    const pushResult = await sendPushToUsers({
+    const pushResult = await sendPush({
       schoolId: thread.school,
       userIds: pushRecipients,
       title: `New message: ${(thread.subject || 'Conversation').toString().trim() || 'Conversation'}`,
@@ -180,7 +184,7 @@ export const emitMessageThreadEvent = async ({
     });
 
     if (pushResult?.skipped || (pushResult?.failed || 0) > 0) {
-      logger.warn('message_push_delivery_result', {
+      loggerRef.warn('message_push_delivery_result', {
         threadId: toId(thread._id),
         skipped: Boolean(pushResult?.skipped),
         reason: pushResult?.reason || '',
@@ -191,7 +195,7 @@ export const emitMessageThreadEvent = async ({
       });
     }
   } catch (error) {
-    logger.error('message_push_dispatch_failed', {
+    loggerRef.error('message_push_dispatch_failed', {
       threadId: toId(thread._id),
       error: error?.message || String(error),
     });

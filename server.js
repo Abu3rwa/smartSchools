@@ -75,6 +75,7 @@ import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterSched
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
+import { processAttendanceRemindersForEnabledSchools } from "./controllers/attendanceReminderController.js";
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 // Validate environment variables
 validateEnvironment();
@@ -304,12 +305,36 @@ const PORT = process.env.PORT || 5000;
 const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const REVIEW_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
+const ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
 const httpServer = createServer(app);
 initRealtimeGateway(httpServer);
 
 const server = httpServer.listen(PORT, () => {
   logger.success(`Server is running on port ${PORT}`);
+
+  let attendanceReminderJobRunning = false;
+  const runAttendanceReminderScheduler = async () => {
+    if (attendanceReminderJobRunning) {
+      logger.warn("attendance_reminder_scheduler_skipped_overlap");
+      return;
+    }
+
+    attendanceReminderJobRunning = true;
+    try {
+      const summary = await processAttendanceRemindersForEnabledSchools();
+      if ((summary?.totals?.processed || 0) > 0 || (summary?.totals?.sent || 0) > 0 || (summary?.schoolsFailed || 0) > 0) {
+        logger.info("attendance_reminder_scheduler_run", summary);
+      }
+    } catch (err) {
+      logger.error("attendance_reminder_scheduler_error", err?.message || err);
+    } finally {
+      attendanceReminderJobRunning = false;
+    }
+  };
+
+  setTimeout(runAttendanceReminderScheduler, 30 * 1000);
+  setInterval(runAttendanceReminderScheduler, ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS);
 
   // Substitution expiry: mark stale SUBMITTED requests as EXPIRED
   if (process.env.RUN_SUBSTITUTION_EXPIRY_JOB !== "false") {

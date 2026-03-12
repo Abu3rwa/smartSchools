@@ -5,22 +5,14 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
 let geoip;
-let useragent;
 const userContextCache = new Map();
 
 // Optional dependencies - loaded lazily in ESM-safe way
 try {
     const geo = await import('geoip-lite');
     geoip = geo.default || geo;
-} catch (error) {
+} catch {
     logger.warn('geoip-lite not available, location tracking disabled');
-}
-
-try {
-    const uaLib = await import('useragent');
-    useragent = uaLib.default || uaLib;
-} catch (error) {
-    logger.warn('useragent not available, device tracking disabled');
 }
 
 const resolveAuthContext = async (req) => {
@@ -82,39 +74,62 @@ const sanitizeForTelemetry = (value, depth = 0) => {
     return '[UNSUPPORTED]';
 };
 
-// Helper function to extract device information
-const extractDeviceInfo = (userAgentString) => {
+const UNKNOWN_DEVICE_INFO = {
+    type: 'unknown',
+    browser: 'Unknown',
+    os: 'Unknown',
+    platform: 'Unknown',
+    isMobile: false,
+    isTablet: false
+};
+
+const resolveBrowserName = (ua) => {
+    if (!ua) return 'Unknown';
+    if (/\bEdg\//i.test(ua)) return 'Edge';
+    if (/\bOPR\//i.test(ua) || /\bOpera\//i.test(ua)) return 'Opera';
+    if (/\bChrome\//i.test(ua)) return 'Chrome';
+    if (/\bFirefox\//i.test(ua)) return 'Firefox';
+    if (/\bSafari\//i.test(ua) && !/\bChrome\//i.test(ua)) return 'Safari';
+    return 'Unknown';
+};
+
+const resolveOperatingSystem = (ua) => {
+    if (!ua) return 'Unknown';
+    if (/\bWindows NT\b/i.test(ua)) return 'Windows';
+    if (/\bAndroid\b/i.test(ua)) return 'Android';
+    if (/\biPhone|iPad|iPod\b/i.test(ua)) return 'iOS';
+    if (/\bMac OS X\b/i.test(ua)) return 'macOS';
+    if (/\bLinux\b/i.test(ua)) return 'Linux';
+    return 'Unknown';
+};
+
+export const parseDeviceInfoFromUserAgent = (userAgentString) => {
     try {
-        if (!useragent) {
-            return {
-                type: 'unknown',
-                browser: 'Unknown',
-                os: 'Unknown',
-                platform: 'Unknown',
-                isMobile: false,
-                isTablet: false
-            };
-        }
-        const ua = useragent.parse(userAgentString);
+        const ua = String(userAgentString || '').trim();
+        if (!ua) return { ...UNKNOWN_DEVICE_INFO };
+
+        const isTablet = /\biPad\b/i.test(ua) || /\bTablet\b/i.test(ua);
+        const isMobile = !isTablet && /\bMobile\b/i.test(ua);
+        const type = isTablet ? 'tablet' : (isMobile ? 'mobile' : 'desktop');
+        const browser = resolveBrowserName(ua);
+        const os = resolveOperatingSystem(ua);
+
         return {
-            type: ua.type,
-            browser: ua.browser || 'Unknown',
-            os: ua.os || 'Unknown',
-            platform: ua.platform || 'Unknown',
-            isMobile: ua.type === 'mobile',
-            isTablet: ua.type === 'tablet'
+            type,
+            browser,
+            os,
+            platform: os,
+            isMobile,
+            isTablet
         };
     } catch (error) {
-        return {
-            type: 'unknown',
-            browser: 'Unknown',
-            os: 'Unknown',
-            platform: 'Unknown',
-            isMobile: false,
-            isTablet: false
-        };
+        void error;
+        return { ...UNKNOWN_DEVICE_INFO };
     }
 };
+
+// Helper function to extract device information
+const extractDeviceInfo = (userAgentString) => parseDeviceInfoFromUserAgent(userAgentString);
 
 // Helper function to extract location information
 const extractLocationInfo = (ipAddress) => {
@@ -145,7 +160,7 @@ const extractLocationInfo = (ipAddress) => {
             timezone: 'Unknown',
             ll: null
         };
-    } catch (error) {
+    } catch {
         return {
             country: 'Unknown',
             region: 'Unknown',

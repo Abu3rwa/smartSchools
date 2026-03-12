@@ -15,7 +15,7 @@ const optionalEnvVars = [
   'JWT_EXPIRE',
   'GOOGLE_REDIRECT_URI',
   'GOOGLE_LOGIN_REDIRECT_URI',
-  'RUN_ATTENDANCE_REMINDER_JOB',
+  'ALLOW_LOCAL_SERVICE_ACCOUNT',
   'RUN_NEWSLETTER_ISSUE_SCHEDULER',
   'RUN_SUBSTITUTION_EXPIRY_JOB'
 ];
@@ -67,6 +67,13 @@ export function validateEnvironment() {
     );
     if (!hasLegacyPushKey) {
       warnings.push('FCM_SERVER_KEY (or FIREBASE_SERVER_KEY)');
+    }
+  }
+
+  if (String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production') {
+    const allowLocalServiceAccount = String(process.env.ALLOW_LOCAL_SERVICE_ACCOUNT || '').trim().toLowerCase();
+    if (allowLocalServiceAccount === 'true') {
+      warnings.push('ALLOW_LOCAL_SERVICE_ACCOUNT should be false/empty in production');
     }
   }
 

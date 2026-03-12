@@ -62,7 +62,7 @@ See [.env.example](.env.example) for the full list. Required variables:
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 
-Optional: `PORT`, `NODE_ENV`, `CLIENT_URL`, `JWT_EXPIRE`, `GOOGLE_REDIRECT_URI`, `GOOGLE_LOGIN_REDIRECT_URI`, and background job toggles (`RUN_ATTENDANCE_REMINDER_JOB`, etc.).
+Optional: `PORT`, `NODE_ENV`, `CLIENT_URL`, `JWT_EXPIRE`, `GOOGLE_REDIRECT_URI`, `GOOGLE_LOGIN_REDIRECT_URI`, `ALLOW_LOCAL_SERVICE_ACCOUNT` (local/dev only), and background job toggles (`RUN_NEWSLETTER_ISSUE_SCHEDULER`, `RUN_SUBSTITUTION_EXPIRY_JOB`, etc.).
 
 ## Scripts
 

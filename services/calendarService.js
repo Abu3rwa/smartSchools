@@ -789,6 +789,7 @@ export const buildCalendarVisibilityQuery = ({ user, context = {} }) => {
         const teacherClassIds = (context.teacherClassIds || []).filter(Boolean);
         const customConditions = [
             ...(currentUserId ? [{ 'audience.userIds': currentUserId }] : []),
+            ...(teacherAudienceIds.length > 0 ? teacherAudienceIds.map((teacherAudienceId) => ({ 'audience.userIds': teacherAudienceId })) : []),
             ...(teacherAudienceIds.length > 0 ? [{ 'audience.teacherIds': { $in: teacherAudienceIds } }] : []),
             ...(teacherClassIds.length > 0 ? [{ 'audience.classIds': { $in: teacherClassIds } }] : [])
         ];

@@ -5,6 +5,7 @@ import {
   appendMessageToThread,
   applyReadReceiptsForUser,
   buildMessageDeliveryReceipts,
+  emitMessageThreadEvent,
 } from '../services/messageRealtimeService.js';
 
 test('buildMessageDeliveryReceipts excludes sender and deduplicates participants', () => {
@@ -81,5 +82,83 @@ test('applyReadReceiptsForUser marks unread messages as read for participant', (
   const receipt = thread.messages[0].deliveryReceipts[0];
   assert.equal(String(receipt.user), 'parent-1');
   assert.equal(receipt.readAt.getTime(), readAt.getTime());
+});
+
+test('emitMessageThreadEvent emits realtime and push payloads for message events', async () => {
+  const realtimeCalls = [];
+  const pushCalls = [];
+  const loggerCalls = [];
+
+  await emitMessageThreadEvent({
+    thread: {
+      _id: 'thread-1',
+      school: 'school-1',
+      subject: 'Important',
+      participants: [{ user: 'teacher-1' }, { user: 'parent-1' }],
+    },
+    actorUser: {
+      _id: 'teacher-1',
+      firstName: 'Teacher',
+      lastName: 'One',
+    },
+    event: 'message',
+    message: {
+      _id: 'message-2',
+      body: 'Please review this update.',
+    },
+    includePush: true,
+    emitRealtimeEvent: (payload) => realtimeCalls.push(payload),
+    sendPush: async (payload) => {
+      pushCalls.push(payload);
+      return { sent: 1, failed: 0 };
+    },
+    loggerRef: {
+      warn: (name, payload) => loggerCalls.push({ level: 'warn', name, payload }),
+      error: (name, payload) => loggerCalls.push({ level: 'error', name, payload }),
+    },
+  });
+
+  assert.equal(realtimeCalls.length, 1);
+  assert.equal(realtimeCalls[0].event, 'message.thread.message');
+  assert.equal(realtimeCalls[0].data.threadId, 'thread-1');
+  assert.equal(pushCalls.length, 1);
+  assert.deepEqual(pushCalls[0].userIds, ['parent-1']);
+  assert.equal(loggerCalls.length, 0);
+});
+
+test('emitMessageThreadEvent logs push dispatch failures without throwing', async () => {
+  const loggerCalls = [];
+
+  await emitMessageThreadEvent({
+    thread: {
+      _id: 'thread-2',
+      school: 'school-2',
+      subject: 'Alert',
+      participants: [{ user: 'teacher-1' }, { user: 'parent-1' }],
+    },
+    actorUser: {
+      _id: 'teacher-1',
+      firstName: 'Teacher',
+      lastName: 'One',
+    },
+    event: 'message',
+    message: {
+      _id: 'message-3',
+      body: 'Push failure simulation',
+    },
+    includePush: true,
+    emitRealtimeEvent: () => {},
+    sendPush: async () => {
+      throw new Error('push failed');
+    },
+    loggerRef: {
+      warn: () => {},
+      error: (name, payload) => loggerCalls.push({ name, payload }),
+    },
+  });
+
+  assert.equal(loggerCalls.length, 1);
+  assert.equal(loggerCalls[0].name, 'message_push_dispatch_failed');
+  assert.match(String(loggerCalls[0].payload.error), /push failed/i);
 });
 
