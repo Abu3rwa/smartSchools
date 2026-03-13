@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../../../config/api.js";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 /**
  * Data and actions for Reset Password page.
  * Handles token validation, form state, and password reset submit.
  */
 export function useResetPasswordPageData() {
+  const { t } = useTranslation(["auth"]);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token");
@@ -20,26 +22,26 @@ export function useResetPasswordPageData() {
   useEffect(() => {
     if (!token) {
       setTokenValid(false);
-      toast.error("Invalid reset link");
+      toast.error(t("auth:resetPassword.messages.invalidLink"));
     }
-  }, [token]);
+  }, [token, t]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!token) {
-      toast.error("Invalid reset link");
+      toast.error(t("auth:resetPassword.messages.invalidLink"));
       return;
     }
     if (!password || !confirmPassword) {
-      toast.error("Please fill in all fields");
+      toast.error(t("auth:resetPassword.messages.fillAllFields"));
       return;
     }
     if (password.length < 6) {
-      toast.error("Password must be at least 6 characters long");
+      toast.error(t("auth:resetPassword.messages.passwordMin"));
       return;
     }
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error(t("auth:resetPassword.messages.passwordsDoNotMatch"));
       return;
     }
     setLoading(true);
@@ -49,12 +51,12 @@ export function useResetPasswordPageData() {
         password,
       });
       if (response.data.success) {
-        toast.success("Password reset successful!");
+        toast.success(t("auth:resetPassword.messages.success"));
         setTimeout(() => navigate("/login"), 2000);
       }
     } catch (error) {
       toast.error(
-        error.response?.data?.message || "Failed to reset password",
+        error.response?.data?.message || t("auth:resetPassword.messages.submitError"),
       );
     } finally {
       setLoading(false);

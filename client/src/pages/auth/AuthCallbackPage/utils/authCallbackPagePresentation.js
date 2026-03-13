@@ -20,8 +20,7 @@ export const getAuthCallbackParams = (searchParams) => {
     };
 };
 
-export const getLoginErrorRedirectPath = (error) => {
-    const fallbackError = 'Authentication failed';
+export const getLoginErrorRedirectPath = (error, fallbackError = 'Authentication failed') => {
     const errorMessage =
         typeof error === 'string'
             ? error

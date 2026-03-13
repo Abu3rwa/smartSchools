@@ -1,15 +1,17 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { HiOutlineAcademicCap } from 'react-icons/hi';
-import { DEFAULT_SCHOOL_NAME, DEFAULT_SUBTITLE } from '../constants';
 
 const LoginLogo = ({ isSchoolContext, schoolName }) => {
+    const { t } = useTranslation(['auth']);
+
     return (
         <div className="login-logo">
             <div className="logo-icon-lg">
                 <HiOutlineAcademicCap size={40} />
             </div>
-            <h1 className="logo-title">{isSchoolContext ? schoolName : DEFAULT_SCHOOL_NAME}</h1>
-            <p className="logo-subtitle">{DEFAULT_SUBTITLE}</p>
+            <h1 className="logo-title">{isSchoolContext ? schoolName : t('auth:login.logo.defaultSchoolName')}</h1>
+            <p className="logo-subtitle">{t('auth:login.logo.subtitle')}</p>
         </div>
     );
 };

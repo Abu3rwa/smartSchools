@@ -45,5 +45,51 @@
   "common": {
     "viewAll": "View All",
     "unassigned": "Unassigned"
+  },
+  "teacherDashboard": {
+    "fallbacks": {
+      "teacherName": "Teacher"
+    },
+    "greetings": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening"
+    },
+    "header": {
+      "subtitle": "Your teaching day at a glance."
+    },
+    "summary": {
+      "today": "Today",
+      "classesToday": "Classes today",
+      "pendingSubRequests": "Pending sub requests"
+    },
+    "loading": {
+      "message": "Loading your dashboard..."
+    },
+    "todaySchedule": {
+      "title": "Today's Schedule",
+      "fullTimetable": "Full timetable",
+      "loadError": "Could not load schedule.",
+      "empty": "No classes scheduled for today.",
+      "periodFallback": "Period {{index}}"
+    },
+    "subRequests": {
+      "title": "Sub Requests",
+      "viewAll": "View all",
+      "loading": "Loading...",
+      "pendingRequestsCount_one": "{{count}} pending request",
+      "pendingRequestsCount_other": "{{count}} pending requests",
+      "confirmOrDecline": "Please confirm or decline.",
+      "viewAndRespond": "View & respond",
+      "empty": "No pending sub requests."
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "enterGrades": "Enter Grades",
+      "lessonPlans": "Lesson Plans",
+      "myTimetable": "My Timetable",
+      "myAttendance": "My Attendance",
+      "newsletters": "Newsletters"
+    }
   }
 }

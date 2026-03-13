@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { googleLoginCallback } from '../../../../store/slices/authSlice';
 import { AUTH_CALLBACK_ROUTES } from '../constants';
 import {
@@ -9,6 +10,7 @@ import {
 } from '../utils/authCallbackPagePresentation';
 
 const useAuthCallbackPageData = () => {
+    const { t } = useTranslation(['auth']);
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const [searchParams] = useSearchParams();
@@ -16,9 +18,10 @@ const useAuthCallbackPageData = () => {
     useEffect(() => {
         const { token, isNew, error } = getAuthCallbackParams(searchParams);
         void isNew;
+        const authFailedMessage = t('auth:authCallback.messages.authenticationFailed');
 
         if (error) {
-            navigate(getLoginErrorRedirectPath(error));
+            navigate(getLoginErrorRedirectPath(error, authFailedMessage));
             return;
         }
 
@@ -38,9 +41,9 @@ const useAuthCallbackPageData = () => {
                 );
             })
             .catch((authError) => {
-                navigate(getLoginErrorRedirectPath(authError));
+                navigate(getLoginErrorRedirectPath(authError, authFailedMessage));
             });
-    }, [dispatch, navigate, searchParams]);
+    }, [dispatch, navigate, searchParams, t]);
 };
 
 export default useAuthCallbackPageData;

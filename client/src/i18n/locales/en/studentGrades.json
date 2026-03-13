@@ -1,0 +1,107 @@
+{
+  "title": {
+    "myGrades": "My Grades",
+    "studentGradebook": "Student Gradebook"
+  },
+  "subtitle": {
+    "student": "View your grades by subject and period.",
+    "staff": "View and edit a student gradebook by date range.",
+    "studentLabel": "Student:",
+    "academicYearLabel": "Academic Year:"
+  },
+  "switcher": {
+    "title": "Switch Student",
+    "description": "Choose a class, then open another student gradebook without leaving this page.",
+    "classLabel": "Class",
+    "studentLabel": "Student",
+    "selectClass": "Select a class",
+    "selectStudent": "Select a student",
+    "unnamedStudent": "Unnamed student"
+  },
+  "filters": {
+    "subject": "Subject",
+    "allSubjects": "All subjects",
+    "category": "Category",
+    "allCategories": "All categories",
+    "month": "Month",
+    "allMonths": "All months",
+    "semester": "Semester",
+    "all": "All",
+    "semester1": "Semester 1",
+    "semester2": "Semester 2",
+    "startDate": "Start date",
+    "endDate": "End date"
+  },
+  "months": {
+    "1": "January",
+    "2": "February",
+    "3": "March",
+    "4": "April",
+    "5": "May",
+    "6": "June",
+    "7": "July",
+    "8": "August",
+    "9": "September",
+    "10": "October",
+    "11": "November",
+    "12": "December"
+  },
+  "summary": {
+    "averageBySubject": "Average by subject"
+  },
+  "table": {
+    "title": "Grades",
+    "columns": {
+      "date": "Date",
+      "subject": "Subject",
+      "type": "Type",
+      "marks": "Marks",
+      "max": "Max",
+      "remarks": "Remarks",
+      "actions": "Actions"
+    },
+    "optionalRemarks": "Optional remarks",
+    "saving": "Saving...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit"
+  },
+  "states": {
+    "loading": "Loading grades...",
+    "empty": "No grades found for the selected filters."
+  },
+  "alerts": {
+    "invalidMarks": "Please enter valid marks. Marks must be between 0 and max marks.",
+    "updateFailed": "Failed to update grade"
+  },
+  "common": {
+    "dash": "—",
+    "notAvailable": "N/A"
+  },
+  "types": {
+    "classwork": "Classwork",
+    "daily": "Daily",
+    "homework": "Homework",
+    "quiz": "Quiz",
+    "project": "Project",
+    "participation": "Participation",
+    "monthly_test": "Monthly Test",
+    "semester_exam": "Semester Exam",
+    "midterm_exam": "Midterm Exam",
+    "final_exam": "Final Exam",
+    "exam": "Exam",
+    "test": "Test",
+    "other": "Other"
+  },
+  "categories": {
+    "classwork": "Classwork",
+    "daily": "Daily",
+    "homework": "Homework",
+    "quiz": "Quiz",
+    "project": "Project",
+    "participation": "Participation",
+    "test": "Test",
+    "exam": "Exam",
+    "other": "Other"
+  }
+}

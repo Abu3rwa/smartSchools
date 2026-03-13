@@ -21,6 +21,7 @@ const StudentOverviewHeader = ({
 }) => {
     const { t } = useTranslation(['students']);
     if (!student) return null;
+    const weeklyReportClassId = student.currentClass?._id || student.currentClass || '';
 
     return (
         <div className="student-header-card card">
@@ -83,10 +84,22 @@ const StudentOverviewHeader = ({
                         <HiOutlineDocumentText />
                         {generatingAIReport ? t('detail.overview.actions.generating') : t('detail.overview.actions.generateAiReport')}
                     </button>
-                    <Link to={`/portal/grades/weekly/${student._id}`} className="btn btn-secondary">
-                        <HiOutlineClock />
-                        {t('detail.overview.actions.weeklyFullReport')}
-                    </Link>
+                    {weeklyReportClassId ? (
+                        <Link to={`/portal/grades/weekly/class/${weeklyReportClassId}`} className="btn btn-secondary">
+                            <HiOutlineClock />
+                            {t('detail.overview.actions.weeklyFullReport')}
+                        </Link>
+                    ) : (
+                        <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled
+                            title={t('detail.overview.unassignedClass')}
+                        >
+                            <HiOutlineClock />
+                            {t('detail.overview.actions.weeklyFullReport')}
+                        </button>
+                    )}
                     <Link to={`/portal/grades/report/${student._id}`} className="btn btn-primary">
                         <HiOutlineChartBar />
                         {t('detail.overview.actions.viewGradeReport')}

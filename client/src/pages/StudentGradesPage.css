@@ -28,6 +28,33 @@
     color: var(--text-secondary, #555);
 }
 
+.gradebook-student-switcher {
+    margin-bottom: var(--spacing-lg, 1.5rem);
+    padding: var(--spacing-lg, 1.5rem);
+}
+
+.gradebook-student-switcher__header {
+    margin-bottom: var(--spacing-md, 1rem);
+}
+
+.gradebook-student-switcher__header h2 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.gradebook-student-switcher__header p {
+    margin: 0;
+    color: var(--text-secondary, #555);
+    font-size: 0.875rem;
+}
+
+.gradebook-student-switcher__controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md, 1rem);
+}
+
 .filters-bar {
     display: flex;
     flex-wrap: wrap;

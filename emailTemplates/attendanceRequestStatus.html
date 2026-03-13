@@ -1,4 +1,37 @@
-<p>Your attendance request has been <strong>{{statusLabel}}</strong>.</p>
-<p><strong>Type:</strong> {{typeLabel}}</p>
-{{reviewNoteSection}}
-<p>khalid,<br/>{{schoolName}}</p>
+<style>{{reportSharedStyles}}</style>
+
+<div class="report-scope">
+  <div class="report-card">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Attendance Request Update</h2>
+        <p class="card-meta">Request decision</p>
+      </div>
+      <span class="tag">Attendance</span>
+    </div>
+
+    <div class="section">
+      <p class="section-subtitle">Your attendance request has been reviewed.</p>
+      <div class="row-list">
+        <div class="row-item">
+          <div class="row-left">
+            <div>Status</div>
+            <div class="meta-line">{{statusLabel}}</div>
+          </div>
+        </div>
+        <div class="row-item">
+          <div class="row-left">
+            <div>Type</div>
+            <div class="meta-line">{{typeLabel}}</div>
+          </div>
+        </div>
+      </div>
+      {{reviewNoteSection}}
+    </div>
+
+    <div class="section">
+      <p class="meta-line">khalid,</p>
+      <p class="meta-line">{{schoolName}}</p>
+    </div>
+  </div>
+</div>

@@ -1,7 +1,10 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import GoogleIcon from './GoogleIcon';
 
 const LoginGoogleButton = ({ handleGoogleLogin, loading }) => {
+    const { t } = useTranslation(['auth']);
+
     return (
         <button
             type="button"
@@ -12,12 +15,12 @@ const LoginGoogleButton = ({ handleGoogleLogin, loading }) => {
             {loading ? (
                 <span className="btn-loading">
                     <span className="spinner" style={{ width: 20, height: 20 }} />
-                    Signing in...
+                    {t('auth:login.google.signingIn')}
                 </span>
             ) : (
                 <>
                     <GoogleIcon />
-                    Continue with Google
+                    {t('auth:login.google.continue')}
                 </>
             )}
         </button>

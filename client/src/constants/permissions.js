@@ -13,6 +13,24 @@ export const PERMISSIONS = {
     // Lesson Plans
     REVIEW_LESSON_PLANS: 'review_lesson_plans',
     EDIT_LESSON_PLANS: 'edit_lesson_plans',
+    VIEW_CURRICULUM_MAPS: 'view_curriculum_maps',
+    EDIT_CURRICULUM_MAPS: 'edit_curriculum_maps',
+    REVIEW_CURRICULUM_MAPS: 'review_curriculum_maps',
+    PUBLISH_CURRICULUM_MAPS: 'publish_curriculum_maps',
+    CREATE_CURRICULUM_MAP: 'create_curriculum_map',
+    EDIT_OWN_CURRICULUM_MAP: 'edit_own_curriculum_map',
+    EDIT_ANY_CURRICULUM_MAP: 'edit_any_curriculum_map',
+    REVIEW_CURRICULUM_MAP: 'review_curriculum_map',
+    APPROVE_CURRICULUM_MAP: 'approve_curriculum_map',
+    REJECT_CURRICULUM_MAP: 'reject_curriculum_map',
+    EXPORT_CURRICULUM_MAP: 'export_curriculum_map',
+    PRINT_CURRICULUM_MAP: 'print_curriculum_map',
+    CONFIGURE_CURRICULUM_MAP_TEMPLATES: 'configure_curriculum_map_templates',
+    VIEW_PACING_GUIDES: 'view_pacing_guides',
+    EDIT_PACING_GUIDES: 'edit_pacing_guides',
+    REVIEW_PACING_GUIDES: 'review_pacing_guides',
+    PUBLISH_PACING_GUIDES: 'publish_pacing_guides',
+    APPROVE_PACING_OVERRIDES: 'approve_pacing_overrides',
     
     // Substitutions
     MANAGE_SUBSTITUTIONS: 'manage_substitutions',
@@ -107,6 +125,96 @@ export const PERMISSION_DEFINITIONS = {
     [PERMISSIONS.EDIT_LESSON_PLANS]: {
         label: 'Edit Lesson Plans',
         description: 'Create and edit lesson plans',
+        category: 'academic'
+    },
+    [PERMISSIONS.VIEW_CURRICULUM_MAPS]: {
+        label: 'View Curriculum Maps',
+        description: 'View published curriculum maps and related coverage details',
+        category: 'academic'
+    },
+    [PERMISSIONS.EDIT_CURRICULUM_MAPS]: {
+        label: 'Edit Curriculum Maps',
+        description: 'Create and update curriculum maps',
+        category: 'academic'
+    },
+    [PERMISSIONS.REVIEW_CURRICULUM_MAPS]: {
+        label: 'Review Curriculum Maps',
+        description: 'Review submitted curriculum maps',
+        category: 'academic'
+    },
+    [PERMISSIONS.PUBLISH_CURRICULUM_MAPS]: {
+        label: 'Publish Curriculum Maps',
+        description: 'Publish approved curriculum map versions',
+        category: 'academic'
+    },
+    [PERMISSIONS.CREATE_CURRICULUM_MAP]: {
+        label: 'Create Curriculum Map',
+        description: 'Create curriculum maps',
+        category: 'academic'
+    },
+    [PERMISSIONS.EDIT_OWN_CURRICULUM_MAP]: {
+        label: 'Edit Own Curriculum Map',
+        description: 'Edit curriculum maps created by the user',
+        category: 'academic'
+    },
+    [PERMISSIONS.EDIT_ANY_CURRICULUM_MAP]: {
+        label: 'Edit Any Curriculum Map',
+        description: 'Edit curriculum maps created by any teacher',
+        category: 'academic'
+    },
+    [PERMISSIONS.REVIEW_CURRICULUM_MAP]: {
+        label: 'Review Curriculum Map',
+        description: 'Review submitted curriculum maps',
+        category: 'academic'
+    },
+    [PERMISSIONS.APPROVE_CURRICULUM_MAP]: {
+        label: 'Approve Curriculum Map',
+        description: 'Approve curriculum maps during review workflow',
+        category: 'academic'
+    },
+    [PERMISSIONS.REJECT_CURRICULUM_MAP]: {
+        label: 'Reject Curriculum Map',
+        description: 'Reject curriculum maps during review workflow',
+        category: 'academic'
+    },
+    [PERMISSIONS.EXPORT_CURRICULUM_MAP]: {
+        label: 'Export Curriculum Map',
+        description: 'Export curriculum maps to CSV or PDF',
+        category: 'academic'
+    },
+    [PERMISSIONS.PRINT_CURRICULUM_MAP]: {
+        label: 'Print Curriculum Map',
+        description: 'Print curriculum maps using document-friendly layout',
+        category: 'academic'
+    },
+    [PERMISSIONS.CONFIGURE_CURRICULUM_MAP_TEMPLATES]: {
+        label: 'Configure Curriculum Templates',
+        description: 'Configure school curriculum templates and workflow settings',
+        category: 'academic'
+    },
+    [PERMISSIONS.VIEW_PACING_GUIDES]: {
+        label: 'View Pacing Guides',
+        description: 'View class pacing guides and sync status',
+        category: 'academic'
+    },
+    [PERMISSIONS.EDIT_PACING_GUIDES]: {
+        label: 'Edit Pacing Guides',
+        description: 'Create and update pacing guides',
+        category: 'academic'
+    },
+    [PERMISSIONS.REVIEW_PACING_GUIDES]: {
+        label: 'Review Pacing Guides',
+        description: 'Review submitted pacing guides and override impact',
+        category: 'academic'
+    },
+    [PERMISSIONS.PUBLISH_PACING_GUIDES]: {
+        label: 'Publish Pacing Guides',
+        description: 'Publish class pacing guides',
+        category: 'academic'
+    },
+    [PERMISSIONS.APPROVE_PACING_OVERRIDES]: {
+        label: 'Approve Pacing Overrides',
+        description: 'Approve or reject teacher pacing override requests',
         category: 'academic'
     },
     [PERMISSIONS.MANAGE_SUBSTITUTIONS]: {

@@ -42,6 +42,7 @@ import StudentDetailPage from "./pages/students/StudentDetailPage";
 import GradeEntryPage from "./pages/grades/GradeEntryPage";
 import GradeReportPage from "./pages/grades/GradeReportPage";
 import WeeklyReportPage from "./pages/reports/WeeklyReportPage";
+import WeeklyReportRedirectPage from "./pages/reports/WeeklyReportPage/WeeklyReportRedirectPage";
 import GradebookPage from "./pages/gradebook/GradebookPage";
 import GradebookRedirectPage from "./pages/gradebook/GradebookRedirectPage";
 import TeachersPage from "./pages/teachers/TeachersPage";
@@ -82,6 +83,7 @@ import ReportHistory from "./pages/reports/ReportHistory";
 import StandardsPage from "./pages/standards/StandardsPage";
 import StandardAssignPage from "./pages/standards/StandardAssignPage";
 import StandardsGradebookPage from "./pages/standards/StandardsGradebookPage";
+import CurriculumPage from "./pages/curriculum/CurriculumPage";
 import PracticeDashboardPage from "./pages/student/practice/PracticeDashboardPage";
 import PracticeSessionPage from "./pages/student/practice/PracticeSessionPage";
 import PracticeHistoryPage from "./pages/student/practice/PracticeHistoryPage";
@@ -373,6 +375,14 @@ function App() {
             element={
               <RoleRoute roles={["admin", "teacher"]}>
                 <WeeklyReportPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="grades/weekly/:studentId"
+            element={
+              <RoleRoute roles={["admin", "teacher"]}>
+                <WeeklyReportRedirectPage />
               </RoleRoute>
             }
           />
@@ -681,6 +691,36 @@ function App() {
             element={
               <RoleRoute roles={["admin", "teacher", "department_principal"]}>
                 <StandardsGradebookPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="curriculum"
+            element={
+              <RoleRoute
+                roles={["admin", "department_principal", "teacher"]}
+                permissions={[
+                  "view_curriculum_maps",
+                  "edit_curriculum_maps",
+                  "review_curriculum_maps",
+                  "publish_curriculum_maps",
+                  "create_curriculum_map",
+                  "edit_own_curriculum_map",
+                  "edit_any_curriculum_map",
+                  "review_curriculum_map",
+                  "approve_curriculum_map",
+                  "reject_curriculum_map",
+                  "export_curriculum_map",
+                  "print_curriculum_map",
+                  "configure_curriculum_map_templates",
+                  "view_pacing_guides",
+                  "edit_pacing_guides",
+                  "review_pacing_guides",
+                  "publish_pacing_guides",
+                  "approve_pacing_overrides",
+                ]}
+              >
+                <CurriculumPage />
               </RoleRoute>
             }
           />

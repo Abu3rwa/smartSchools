@@ -1,5 +1,6 @@
 import { useSelector } from 'react-redux';
 import { Box, Grid, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { HiOutlineCalendar, HiOutlineClipboardList, HiOutlineClock } from 'react-icons/hi';
 import { selectUser } from '../../../../store/slices/authSlice';
 import { selectPendingCount } from '../../../../store/slices/substitutionsSlice';
@@ -16,6 +17,7 @@ import './TeacherDashboardPage.css';
 const TeacherDashboardPage = () => {
     const theme = useTheme();
     const isSm = useMediaQuery(theme.breakpoints.down('sm'));
+    const { t, i18n } = useTranslation(['dashboard']);
 
     const user = useSelector(selectUser);
     const pendingCount = useSelector(selectPendingCount);
@@ -26,8 +28,8 @@ const TeacherDashboardPage = () => {
         todaySchedule
     } = useTeacherDashboardData();
 
-    const firstName = user?.firstName ?? 'Teacher';
-    const todayLabel = getTodayLabel();
+    const firstName = user?.firstName ?? t('dashboard:teacherDashboard.fallbacks.teacherName');
+    const todayLabel = getTodayLabel(i18n.resolvedLanguage || i18n.language);
     const todayClassesCount = todaySchedule.length;
     const pendingSubsCount = pendingCount?.count ?? 0;
 
@@ -37,13 +39,13 @@ const TeacherDashboardPage = () => {
 
             <Grid container spacing={2} className="summary-row">
                 <Grid item xs={12} sm={4}>
-                    <SummaryStat icon={HiOutlineCalendar} label="Today" value={todayLabel} />
+                    <SummaryStat icon={HiOutlineCalendar} label={t('dashboard:teacherDashboard.summary.today')} value={todayLabel} />
                 </Grid>
                 <Grid item xs={12} sm={4}>
-                    <SummaryStat icon={HiOutlineClock} label="Classes today" value={todayClassesCount || '—'} />
+                    <SummaryStat icon={HiOutlineClock} label={t('dashboard:teacherDashboard.summary.classesToday')} value={todayClassesCount || '—'} />
                 </Grid>
                 <Grid item xs={12} sm={4}>
-                    <SummaryStat icon={HiOutlineClipboardList} label="Pending sub requests" value={pendingSubsCount || '0'} />
+                    <SummaryStat icon={HiOutlineClipboardList} label={t('dashboard:teacherDashboard.summary.pendingSubRequests')} value={pendingSubsCount || '0'} />
                 </Grid>
             </Grid>
 
@@ -60,7 +62,7 @@ const TeacherDashboardPage = () => {
                 >
                     <div className="spinner" />
                     <Typography variant="body2" color="text.secondary">
-                        Loading your dashboard...
+                        {t('dashboard:teacherDashboard.loading.message')}
                     </Typography>
                 </Box>
             ) : (

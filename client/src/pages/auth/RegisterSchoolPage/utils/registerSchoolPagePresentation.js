@@ -1,6 +1,6 @@
-export const validateRegisterForm = (formData) => {
+export const validateRegisterForm = (formData, messages = {}) => {
     if (formData.adminPassword !== formData.confirmPassword) {
-        return 'Passwords do not match';
+        return messages.passwordsDoNotMatch || 'Passwords do not match';
     }
 
     return '';

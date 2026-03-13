@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import {
     registerSchool,
@@ -16,6 +17,7 @@ import {
 } from '../utils/registerSchoolPagePresentation';
 
 const useRegisterSchoolPageData = () => {
+    const { t } = useTranslation(['auth']);
     const dispatch = useDispatch();
     const navigate = useNavigate();
 
@@ -45,7 +47,9 @@ const useRegisterSchoolPageData = () => {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        const validationError = validateRegisterForm(formData);
+        const validationError = validateRegisterForm(formData, {
+            passwordsDoNotMatch: t('auth:register.validation.passwordsDoNotMatch')
+        });
         if (validationError) {
             setLocalError(validationError);
             return;
@@ -55,7 +59,7 @@ const useRegisterSchoolPageData = () => {
 
         if (registerSchool.fulfilled.match(result)) {
             setSuccess(true);
-            toast.success('School registered!');
+            toast.success(t('auth:register.toast.schoolRegistered'));
             setTimeout(() => {
                 navigate(buildLoginRedirectPath(result.payload.slug));
             }, REDIRECT_DELAY_MS);

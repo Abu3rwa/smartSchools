@@ -1,15 +1,17 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { HiOutlineArrowLeft } from 'react-icons/hi';
-import { DEFAULT_SCHOOL_NAME } from '../constants';
 
 const LoginPageHeader = ({ onBack }) => {
+    const { t } = useTranslation(['auth']);
+
     return (
         <header className="login-header">
             <button type="button" className="login-back" onClick={onBack}>
                 <HiOutlineArrowLeft size={16} />
-                All schools
+                {t('auth:login.header.allSchools')}
             </button>
-            <span className="login-powered">{DEFAULT_SCHOOL_NAME}</span>
+            <span className="login-powered">{t('auth:login.header.poweredBy')}</span>
         </header>
     );
 };

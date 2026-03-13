@@ -1,12 +1,14 @@
-import { AUTH_CALLBACK_COPY } from '../constants';
+import { useTranslation } from 'react-i18next';
 
 const AuthCallbackLoadingState = () => {
+    const { t } = useTranslation(['auth']);
+
     return (
         <div className="auth-callback-page">
             <div className="auth-callback-container">
                 <div className="spinner-large"></div>
-                <h2>{AUTH_CALLBACK_COPY.title}</h2>
-                <p>{AUTH_CALLBACK_COPY.subtitle}</p>
+                <h2>{t('auth:authCallback.title')}</h2>
+                <p>{t('auth:authCallback.subtitle')}</p>
             </div>
         </div>
     );

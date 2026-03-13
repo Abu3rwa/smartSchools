@@ -1,11 +1,11 @@
-export const getGreeting = () => {
+export const getGreeting = (t) => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return t('dashboard:teacherDashboard.greetings.morning');
+    if (hour < 17) return t('dashboard:teacherDashboard.greetings.afternoon');
+    return t('dashboard:teacherDashboard.greetings.evening');
 };
 
-export const formatTime = (value) => {
+export const formatTime = (value, locale) => {
     if (value == null || value === '') return '—';
 
     const stringValue = typeof value === 'string' ? value : String(value);
@@ -15,15 +15,22 @@ export const formatTime = (value) => {
     if (hhmm) {
         const hour = Number(hhmm[1]);
         const minute = Number(hhmm[2]);
-        const period = hour >= 12 ? 'PM' : 'AM';
-        const hour12 = hour % 12 || 12;
-        return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
+        const dateValue = new Date();
+        dateValue.setHours(hour, minute, 0, 0);
+
+        return new Intl.DateTimeFormat(locale || undefined, {
+            hour: 'numeric',
+            minute: '2-digit'
+        }).format(dateValue);
     }
 
     try {
         const dateValue = new Date(value);
         if (Number.isNaN(dateValue.getTime())) return '—';
-        const formatted = dateValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const formatted = dateValue.toLocaleTimeString(locale || undefined, {
+            hour: 'numeric',
+            minute: '2-digit'
+        });
         return formatted.includes('Invalid') ? '—' : formatted;
     } catch {
         return '—';
@@ -58,8 +65,8 @@ export const buildTodaySchedule = (timetable = { periods: [], assignments: [] })
         .sort((a, b) => a.order - b.order);
 };
 
-export const getTodayLabel = () => {
-    return new Intl.DateTimeFormat(undefined, {
+export const getTodayLabel = (locale) => {
+    return new Intl.DateTimeFormat(locale || undefined, {
         weekday: 'short',
         month: 'short',
         day: 'numeric'

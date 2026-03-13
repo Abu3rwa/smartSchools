@@ -1,7 +1,44 @@
-<p>A new attendance request has been submitted.</p>
-<p><strong>Requester:</strong> {{requesterName}}<br/>
-<strong>Email:</strong> {{requesterEmail}}<br/>
-<strong>Type:</strong> {{typeLabel}}</p>
-{{notesSection}}
-<p>Please log in to review and approve or reject the request.</p>
-<p>khalid,<br/>{{schoolName}}</p>
+<style>{{reportSharedStyles}}</style>
+
+<div class="report-scope">
+  <div class="report-card">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Attendance Request</h2>
+        <p class="card-meta">New submission received</p>
+      </div>
+      <span class="tag">Attendance</span>
+    </div>
+
+    <div class="section">
+      <p class="section-subtitle">A new attendance request has been submitted and is ready for review.</p>
+      <div class="row-list">
+        <div class="row-item">
+          <div class="row-left">
+            <div>Requester</div>
+            <div class="meta-line">{{requesterName}}</div>
+          </div>
+        </div>
+        <div class="row-item">
+          <div class="row-left">
+            <div>Email</div>
+            <div class="meta-line">{{requesterEmail}}</div>
+          </div>
+        </div>
+        <div class="row-item">
+          <div class="row-left">
+            <div>Type</div>
+            <div class="meta-line">{{typeLabel}}</div>
+          </div>
+        </div>
+      </div>
+      {{notesSection}}
+    </div>
+
+    <div class="section">
+      <p class="meta-line">Please log in to review and approve or reject the request.</p>
+      <p class="meta-line">khalid,</p>
+      <p class="meta-line">{{schoolName}}</p>
+    </div>
+  </div>
+</div>

@@ -45,5 +45,55 @@
   "common": {
     "viewAll": "عرض الكل",
     "unassigned": "غير مخصص"
+  },
+  "teacherDashboard": {
+    "fallbacks": {
+      "teacherName": "المعلم"
+    },
+    "greetings": {
+      "morning": "صباح الخير",
+      "afternoon": "مساء الخير",
+      "evening": "مساء الخير"
+    },
+    "header": {
+      "subtitle": "لمحة سريعة عن يومك الدراسي."
+    },
+    "summary": {
+      "today": "اليوم",
+      "classesToday": "حصص اليوم",
+      "pendingSubRequests": "طلبات البديل المعلقة"
+    },
+    "loading": {
+      "message": "جارٍ تحميل لوحة المعلم..."
+    },
+    "todaySchedule": {
+      "title": "جدول اليوم",
+      "fullTimetable": "الجدول الكامل",
+      "loadError": "تعذر تحميل الجدول.",
+      "empty": "لا توجد حصص مجدولة اليوم.",
+      "periodFallback": "الحصة {{index}}"
+    },
+    "subRequests": {
+      "title": "طلبات البديل",
+      "viewAll": "عرض الكل",
+      "loading": "جارٍ التحميل...",
+      "pendingRequestsCount_zero": "لا توجد طلبات بديل معلقة",
+      "pendingRequestsCount_one": "طلب بديل معلق واحد",
+      "pendingRequestsCount_two": "طلبا بديل معلقان",
+      "pendingRequestsCount_few": "{{count}} طلبات بديل معلقة",
+      "pendingRequestsCount_many": "{{count}} طلب بديل معلق",
+      "pendingRequestsCount_other": "{{count}} طلب بديل معلق",
+      "confirmOrDecline": "يرجى التأكيد أو الرفض.",
+      "viewAndRespond": "عرض والرد",
+      "empty": "لا توجد طلبات بديل معلقة."
+    },
+    "quickActions": {
+      "title": "إجراءات سريعة",
+      "enterGrades": "إدخال الدرجات",
+      "lessonPlans": "خطط الدروس",
+      "myTimetable": "جدولي",
+      "myAttendance": "حضوري",
+      "newsletters": "النشرات"
+    }
   }
 }

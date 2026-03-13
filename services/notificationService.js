@@ -1705,13 +1705,15 @@ Best regards,
     const typeLabel = request.requestType?.labelEn || request.requestType?.labelAr || "Attendance Request";
     const subject = `New attendance request from ${request.requesterName} - ${typeLabel}`;
     const message = `A new attendance request has been submitted.\n\nRequester: ${request.requesterName}\nEmail: ${request.requesterEmail}\nType: ${typeLabel}\nNotes: ${request.notes || "(none)"}`;
-    const notesSection = request.notes ? `<p><strong>Notes:</strong> ${request.notes}</p>` : "";
+    const notesSection = request.notes
+      ? `<div class="section"><h3 class="section-title">Notes</h3><div class="row-list"><div class="row-item"><div class="row-left muted">${escapeHtml(request.notes)}</div></div></div></div>`
+      : "";
     const htmlContent = renderTemplate("attendanceRequestNew", {
-      requesterName: request.requesterName,
-      requesterEmail: request.requesterEmail,
-      typeLabel,
+      requesterName: escapeHtml(request.requesterName),
+      requesterEmail: escapeHtml(request.requesterEmail),
+      typeLabel: escapeHtml(typeLabel),
       notesSection,
-      schoolName: await this._resolveSchoolName(request?.school),
+      schoolName: escapeHtml(await this._resolveSchoolName(request?.school)),
     });
     for (const principal of principalUsers) {
       const notification = new Notification({
@@ -1742,12 +1744,14 @@ Best regards,
     const statusLabel = request.status === "approved" ? "Approved" : "Rejected";
     const subject = `Attendance request ${statusLabel} - ${typeLabel}`;
     const message = `Your attendance request (${typeLabel}) has been ${statusLabel.toLowerCase()}.\n\n${request.reviewNote ? `Review note: ${request.reviewNote}` : ""}`;
-    const reviewNoteSection = request.reviewNote ? `<p><strong>Review note:</strong> ${request.reviewNote}</p>` : "";
+    const reviewNoteSection = request.reviewNote
+      ? `<div class="section"><h3 class="section-title">Review Note</h3><div class="row-list"><div class="row-item"><div class="row-left muted">${escapeHtml(request.reviewNote)}</div></div></div></div>`
+      : "";
     const htmlContent = renderTemplate("attendanceRequestStatus", {
-      statusLabel,
-      typeLabel,
+      statusLabel: escapeHtml(statusLabel),
+      typeLabel: escapeHtml(typeLabel),
       reviewNoteSection,
-      schoolName: await this._resolveSchoolName(request?.school),
+      schoolName: escapeHtml(await this._resolveSchoolName(request?.school)),
     });
     const notification = new Notification({
       school: request.school,

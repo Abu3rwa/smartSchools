@@ -1,33 +1,96 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////import { useTranslation } from 'react-i18next';
 import api from '../config/api';
 import { HiOutlineClipboardList } from 'react-icons/hi';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectUser } from '../store/slices/authSlice';
+import { fetchClasses, selectClasses } from '../store/slices/classSlice';
+import { fetchStudentsByClass, selectClassStudents as selectStudentsBySelectedClass } from '../store/slices/studentSlice';
+import { fetchMyClasses, selectMyClasses } from '../store/slices/teacherSlice';
 import './StudentGradesPage.css';
 
 const MONTHS = [
-    { value: '', label: 'All months' },
+    { value: '' },
     ...Array.from({ length: 12 }, (_, i) => ({
-        value: String(i + 1),
-        label: new Date(2000, i, 1).toLocaleString('default', { month: 'long' }),
-    })),
+        value: String(i + 1)
+    }))
 ];
 
+const normalizeClassId = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return value._id || value.id || '';
+};
+
+const normalizeCategory = (grade = {}) => {
+    return String(grade.category || grade.gradeType || 'other').trim().toLowerCase();
+};
+
+const formatDisplayText = (value, fallback = 'Other') => {
+    const normalized = String(value || '').replace(/_/g, ' ').trim();
+    if (!normalized) return fallback;
+    return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+const formatStudentOptionLabel = (student, fallback = 'Unnamed student') => {
+    const fullName = [student?.firstName, student?.lastName].filter(Boolean).join(' ').trim();
+    if (student?.studentId) {
+        return fullName ? `${fullName} (${student.studentId})` : student.studentId;
+    }
+    return fullName || fallback;
+};
+
+const summarizeBySubject = (grades = []) => {
+    const subjectMap = new Map();
+
+    grades.forEach((grade) => {
+        const subject = grade.subject;
+        const subjectId = subject?._id;
+        if (!subjectId) return;
+
+        const current = subjectMap.get(subjectId) || {
+            subject,
+            total: 0,
+            count: 0
+        };
+
+        const maxMarks = Number(grade.maxMarks || 0);
+        const marks = Number(grade.marks || 0);
+        if (maxMarks > 0) {
+            current.total += (marks / maxMarks) * 100;
+            current.count += 1;
+        }
+
+        subjectMap.set(subjectId, current);
+    });
+
+    return Array.from(subjectMap.values()).map((item) => ({
+        subject: item.subject,
+        average: item.count > 0 ? Math.round(item.total / item.count) : 0
+    }));
+};
+
 const StudentGradesPage = () => {
+    const { t } = useTranslation(['studentGrades']);
+    const navigate = useNavigate();
+    const dispatch = useDispatch();
     const { studentId } = useParams();
     const academicYear = useSelector(selectCurrentAcademicYear);
     const user = useSelector(selectUser);
+    const classes = useSelector(selectClasses);
+    const myClasses = useSelector(selectMyClasses);
+    const classStudents = useSelector(selectStudentsBySelectedClass);
     const isStudentView = user?.role === 'student' && !studentId;
     const canEditGrades = ['teacher', 'admin'].includes(user?.role || '');
+    const canSwitchStudents = ['teacher', 'admin', 'department_principal'].includes(user?.role || '') && Boolean(studentId);
 
     const [studentName, setStudentName] = useState('');
     const [grades, setGrades] = useState([]);
-    const [bySubject, setBySubject] = useState([]);
-    const [subjects, setSubjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [subjectId, setSubjectId] = useState('');
+    const [category, setCategory] = useState('');
     const [month, setMonth] = useState('');
     const [semester, setSemester] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -35,17 +98,55 @@ const StudentGradesPage = () => {
     const [savingGradeId, setSavingGradeId] = useState('');
     const [editingGradeId, setEditingGradeId] = useState('');
     const [editForm, setEditForm] = useState({ marks: '', maxMarks: '', remarks: '' });
+    const [selectedClassId, setSelectedClassId] = useState('');
+    const [selectedStudentId, setSelectedStudentId] = useState(studentId || '');
 
     const pageTitle = useMemo(() => {
         if (isStudentView) {
-            return 'My Grades';
+            return t('studentGrades:title.myGrades');
         }
-        return 'Student Gradebook';
-    }, [isStudentView]);
+        return t('studentGrades:title.studentGradebook');
+    }, [isStudentView, t]);
+
+    useEffect(() => {
+        if (!canSwitchStudents) {
+            return;
+        }
+
+        dispatch(fetchClasses({ academicYear }));
+        if (user?.role === 'teacher') {
+            dispatch(fetchMyClasses());
+        }
+    }, [academicYear, canSwitchStudents, dispatch, user?.role]);
+
+    const availableClasses = useMemo(() => {
+        if (!canSwitchStudents) {
+            return [];
+        }
+
+        if (user?.role !== 'teacher') {
+            return classes || [];
+        }
+
+        const seen = new Set();
+        return (myClasses || [])
+            .map((item) => item.class)
+            .filter((classItem) => classItem && !seen.has(classItem._id) && (seen.add(classItem._id), true));
+    }, [canSwitchStudents, classes, myClasses, user?.role]);
+
+    const availableStudents = useMemo(() => {
+        return [...(classStudents || [])].sort((left, right) => {
+            const leftName = formatStudentOptionLabel(left, t('studentGrades:switcher.unnamedStudent')).toLowerCase();
+            const rightName = formatStudentOptionLabel(right, t('studentGrades:switcher.unnamedStudent')).toLowerCase();
+            return leftName.localeCompare(rightName);
+        });
+    }, [classStudents, t]);
 
     useEffect(() => {
         if (!studentId) {
             setStudentName('');
+            setSelectedStudentId('');
+            setSelectedClassId('');
             return;
         }
 
@@ -57,9 +158,46 @@ const StudentGradesPage = () => {
                 } else {
                     setStudentName('');
                 }
+
+                if (canSwitchStudents) {
+                    setSelectedStudentId(studentId);
+                    setSelectedClassId(normalizeClassId(student?.currentClass));
+                }
             })
             .catch(() => setStudentName(''));
-    }, [studentId]);
+    }, [canSwitchStudents, studentId]);
+
+    useEffect(() => {
+        if (!canSwitchStudents || !selectedClassId) {
+            return;
+        }
+
+        dispatch(fetchStudentsByClass(selectedClassId));
+    }, [canSwitchStudents, dispatch, selectedClassId]);
+
+    useEffect(() => {
+        if (!canSwitchStudents || selectedClassId || availableClasses.length === 0) {
+            return;
+        }
+
+        setSelectedClassId(availableClasses[0]._id);
+    }, [availableClasses, canSwitchStudents, selectedClassId]);
+
+    useEffect(() => {
+        if (!canSwitchStudents || !selectedClassId || selectedStudentId || availableStudents.length === 0) {
+            return;
+        }
+
+        const firstStudentId = availableStudents[0]._id;
+        if (!firstStudentId) {
+            return;
+        }
+
+        setSelectedStudentId(firstStudentId);
+        if (firstStudentId !== studentId) {
+            navigate(`/portal/grades/student/${firstStudentId}`);
+        }
+    }, [availableStudents, canSwitchStudents, navigate, selectedClassId, selectedStudentId, studentId]);
 
     const fetchGrades = () => {
         setLoading(true);
@@ -82,14 +220,9 @@ const StudentGradesPage = () => {
             .then((res) => {
                 const data = res.data?.data || {};
                 setGrades(data.grades || []);
-                setBySubject(data.bySubject || []);
-                const subjList = (data.bySubject || []).map((s) => s.subject).filter(Boolean);
-                setSubjects(subjList);
             })
             .catch(() => {
                 setGrades([]);
-                setBySubject([]);
-                setSubjects([]);
             })
             .finally(() => setLoading(false));
     };
@@ -98,10 +231,79 @@ const StudentGradesPage = () => {
         fetchGrades();
     }, [studentId, subjectId, month, semester, academicYear, startDate, endDate]);
 
-    const formatDate = (d) =>
-        d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+    const monthOptions = useMemo(() => {
+        return MONTHS.map((monthItem) => ({
+            value: monthItem.value,
+            label: monthItem.value
+                ? t(`studentGrades:months.${monthItem.value}`)
+                : t('studentGrades:filters.allMonths')
+        }));
+    }, [t]);
 
-    const formatGradeType = (t) => (t || '').replace(/_/g, ' ');
+    const subjects = useMemo(() => {
+        const subjectMap = new Map();
+
+        grades.forEach((grade) => {
+            if (grade.subject?._id && !subjectMap.has(grade.subject._id)) {
+                subjectMap.set(grade.subject._id, grade.subject);
+            }
+        });
+
+        return Array.from(subjectMap.values());
+    }, [grades]);
+
+    const categoryOptions = useMemo(() => {
+        const seen = new Set();
+
+        return grades
+            .map((grade) => normalizeCategory(grade))
+            .filter((value) => {
+                if (!value || seen.has(value)) {
+                    return false;
+                }
+
+                seen.add(value);
+                return true;
+            })
+            .sort((left, right) => left.localeCompare(right));
+    }, [grades]);
+
+    const filteredGrades = useMemo(() => {
+        if (!category) {
+            return grades;
+        }
+
+        return grades.filter((grade) => normalizeCategory(grade) === category);
+    }, [category, grades]);
+
+    const bySubject = useMemo(() => summarizeBySubject(filteredGrades), [filteredGrades]);
+
+    useEffect(() => {
+        if (category && !categoryOptions.includes(category)) {
+            setCategory('');
+        }
+    }, [category, categoryOptions]);
+
+    const formatDate = (d) =>
+        d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : t('studentGrades:common.dash');
+
+    const formatGradeType = (value) => {
+        const key = String(value || '').trim().toLowerCase();
+        if (!key) {
+            return t('studentGrades:common.notAvailable');
+        }
+
+        return t(`studentGrades:types.${key}`, {
+            defaultValue: formatDisplayText(key, t('studentGrades:common.notAvailable'))
+        });
+    };
+
+    const formatCategoryLabel = (value) => {
+        const key = String(value || '').trim().toLowerCase();
+        return t(`studentGrades:categories.${key}`, {
+            defaultValue: formatDisplayText(key, t('studentGrades:categories.other'))
+        });
+    };
 
     const handleEditStart = (grade) => {
         setEditingGradeId(grade._id);
@@ -122,7 +324,7 @@ const StudentGradesPage = () => {
         const maxMarks = Number(editForm.maxMarks);
 
         if (!Number.isFinite(marks) || !Number.isFinite(maxMarks) || maxMarks <= 0 || marks < 0 || marks > maxMarks) {
-            window.alert('Please enter valid marks. Marks must be between 0 and max marks.');
+            window.alert(t('studentGrades:alerts.invalidMarks'));
             return;
         }
 
@@ -136,10 +338,27 @@ const StudentGradesPage = () => {
             setEditingGradeId('');
             fetchGrades();
         } catch (error) {
-            window.alert(error.response?.data?.message || 'Failed to update grade');
+            window.alert(error.response?.data?.message || t('studentGrades:alerts.updateFailed'));
         } finally {
             setSavingGradeId('');
         }
+    };
+
+    const handleClassChange = (event) => {
+        const nextClassId = event.target.value;
+        setSelectedClassId(nextClassId);
+        setSelectedStudentId('');
+    };
+
+    const handleStudentChange = (event) => {
+        const nextStudentId = event.target.value;
+        setSelectedStudentId(nextStudentId);
+
+        if (!nextStudentId || nextStudentId === studentId) {
+            return;
+        }
+
+        navigate(`/portal/grades/student/${nextStudentId}`);
     };
 
     return (
@@ -147,52 +366,105 @@ const StudentGradesPage = () => {
             <header className="page-header">
                 <h1><HiOutlineClipboardList className="header-icon" /> {pageTitle}</h1>
                 <p className="page-subtitle">
-                    {isStudentView ? 'View your grades by subject and period.' : 'View and edit a student gradebook by date range.'}
-                    {!isStudentView && studentName ? ` Student: ${studentName}.` : ''}
-                    {academicYear ? ` Academic Year: ${academicYear}.` : ''}
+                    {isStudentView ? t('studentGrades:subtitle.student') : t('studentGrades:subtitle.staff')}
+                    {!isStudentView && studentName ? ` ${t('studentGrades:subtitle.studentLabel')} ${studentName}.` : ''}
+                    {academicYear ? ` ${t('studentGrades:subtitle.academicYearLabel')} ${academicYear}.` : ''}
                 </p>
             </header>
 
+            {canSwitchStudents && (
+                <div className="gradebook-student-switcher card">
+                    <div className="gradebook-student-switcher__header">
+                        <h2>{t('studentGrades:switcher.title')}</h2>
+                        <p>{t('studentGrades:switcher.description')}</p>
+                    </div>
+                    <div className="gradebook-student-switcher__controls">
+                        <label className="filter-group">
+                            <span className="filter-label">{t('studentGrades:switcher.classLabel')}</span>
+                            <select
+                                value={selectedClassId}
+                                onChange={handleClassChange}
+                                className="filter-select"
+                            >
+                                <option value="">{t('studentGrades:switcher.selectClass')}</option>
+                                {availableClasses.map((classItem) => (
+                                    <option key={classItem._id} value={classItem._id}>{classItem.name}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="filter-group">
+                            <span className="filter-label">{t('studentGrades:switcher.studentLabel')}</span>
+                            <select
+                                value={selectedStudentId}
+                                onChange={handleStudentChange}
+                                className="filter-select"
+                                disabled={!selectedClassId}
+                            >
+                                <option value="">{t('studentGrades:switcher.selectStudent')}</option>
+                                {availableStudents.map((student) => (
+                                    <option key={student._id} value={student._id}>
+                                        {formatStudentOptionLabel(student, t('studentGrades:switcher.unnamedStudent'))}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            )}
+
             <div className="filters-bar">
                 <label className="filter-group">
-                    <span className="filter-label">Subject</span>
+                    <span className="filter-label">{t('studentGrades:filters.subject')}</span>
                     <select
                         value={subjectId}
                         onChange={(e) => setSubjectId(e.target.value)}
                         className="filter-select"
                     >
-                        <option value="">All subjects</option>
+                        <option value="">{t('studentGrades:filters.allSubjects')}</option>
                         {subjects.map((s) => (
                             <option key={s._id} value={s._id}>{s.name}</option>
                         ))}
                     </select>
                 </label>
                 <label className="filter-group">
-                    <span className="filter-label">Month</span>
+                    <span className="filter-label">{t('studentGrades:filters.category')}</span>
+                    <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="filter-select"
+                    >
+                        <option value="">{t('studentGrades:filters.allCategories')}</option>
+                        {categoryOptions.map((option) => (
+                            <option key={option} value={option}>{formatCategoryLabel(option)}</option>
+                        ))}
+                    </select>
+                </label>
+                <label className="filter-group">
+                    <span className="filter-label">{t('studentGrades:filters.month')}</span>
                     <select
                         value={month}
                         onChange={(e) => setMonth(e.target.value)}
                         className="filter-select"
                     >
-                        {MONTHS.map((m) => (
+                        {monthOptions.map((m) => (
                             <option key={m.value} value={m.value}>{m.label}</option>
                         ))}
                     </select>
                 </label>
                 <label className="filter-group">
-                    <span className="filter-label">Semester</span>
+                    <span className="filter-label">{t('studentGrades:filters.semester')}</span>
                     <select
                         value={semester}
                         onChange={(e) => setSemester(e.target.value)}
                         className="filter-select"
                     >
-                        <option value="">All</option>
-                        <option value="1">Semester 1</option>
-                        <option value="2">Semester 2</option>
+                        <option value="">{t('studentGrades:filters.all')}</option>
+                        <option value="1">{t('studentGrades:filters.semester1')}</option>
+                        <option value="2">{t('studentGrades:filters.semester2')}</option>
                     </select>
                 </label>
                 <label className="filter-group">
-                    <span className="filter-label">Start date</span>
+                    <span className="filter-label">{t('studentGrades:filters.startDate')}</span>
                     <input
                         type="date"
                         value={startDate}
@@ -201,7 +473,7 @@ const StudentGradesPage = () => {
                     />
                 </label>
                 <label className="filter-group">
-                    <span className="filter-label">End date</span>
+                    <span className="filter-label">{t('studentGrades:filters.endDate')}</span>
                     <input
                         type="date"
                         value={endDate}
@@ -214,13 +486,13 @@ const StudentGradesPage = () => {
             {loading ? (
                 <div className="loading-state">
                     <div className="spinner" />
-                    <p>Loading grades...</p>
+                    <p>{t('studentGrades:states.loading')}</p>
                 </div>
             ) : (
                 <>
                     {bySubject.length > 0 && (
                         <section className="summary-cards">
-                            <h2 className="section-title">Average by subject</h2>
+                            <h2 className="section-title">{t('studentGrades:summary.averageBySubject')}</h2>
                             <div className="summary-grid">
                                 {bySubject.map((s) => (
                                     <div key={s.subject?._id} className="summary-card">
@@ -233,26 +505,26 @@ const StudentGradesPage = () => {
                     )}
 
                     <section className="grades-section">
-                        <h2 className="section-title">Grades</h2>
-                        {grades.length === 0 ? (
-                            <p className="empty-state">No grades found for the selected filters.</p>
+                        <h2 className="section-title">{t('studentGrades:table.title')}</h2>
+                        {filteredGrades.length === 0 ? (
+                            <p className="empty-state">{t('studentGrades:states.empty')}</p>
                         ) : (
                             <div className="table-wrap">
                                 <table className="grades-table">
                                     <thead>
                                         <tr>
-                                            <th>Date</th>
-                                            <th>Subject</th>
-                                            <th>Type</th>
-                                            <th>Marks</th>
-                                            <th>Max</th>
+                                            <th>{t('studentGrades:table.columns.date')}</th>
+                                            <th>{t('studentGrades:table.columns.subject')}</th>
+                                            <th>{t('studentGrades:table.columns.type')}</th>
+                                            <th>{t('studentGrades:table.columns.marks')}</th>
+                                            <th>{t('studentGrades:table.columns.max')}</th>
                                             <th>%</th>
-                                            <th>Remarks</th>
-                                            {canEditGrades && <th>Actions</th>}
+                                            <th>{t('studentGrades:table.columns.remarks')}</th>
+                                            {canEditGrades && <th>{t('studentGrades:table.columns.actions')}</th>}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {grades.map((g) => {
+                                        {filteredGrades.map((g) => {
                                             const pct = g.maxMarks > 0
                                                 ? Math.round((g.marks / g.maxMarks) * 100)
                                                 : 0;
@@ -261,7 +533,7 @@ const StudentGradesPage = () => {
                                             return (
                                                 <tr key={g._id}>
                                                     <td>{formatDate(g.date)}</td>
-                                                    <td>{g.subject?.name || '—'}</td>
+                                                    <td>{g.subject?.name || t('studentGrades:common.dash')}</td>
                                                     <td>{formatGradeType(g.gradeType)}</td>
                                                     <td>
                                                         {isEditing ? (
@@ -287,7 +559,7 @@ const StudentGradesPage = () => {
                                                             />
                                                         ) : g.maxMarks}
                                                     </td>
-                                                    <td>{isEditing ? '—' : `${pct}%`}</td>
+                                                    <td>{isEditing ? t('studentGrades:common.dash') : `${pct}%`}</td>
                                                     <td>
                                                         {isEditing ? (
                                                             <input
@@ -295,9 +567,9 @@ const StudentGradesPage = () => {
                                                                 className="table-input"
                                                                 value={editForm.remarks}
                                                                 onChange={(e) => setEditForm((prev) => ({ ...prev, remarks: e.target.value }))}
-                                                                placeholder="Optional remarks"
+                                                                placeholder={t('studentGrades:table.optionalRemarks')}
                                                             />
-                                                        ) : (g.remarks || '—')}
+                                                        ) : (g.remarks || t('studentGrades:common.dash'))}
                                                     </td>
                                                     {canEditGrades && (
                                                         <td>
@@ -309,7 +581,7 @@ const StudentGradesPage = () => {
                                                                         onClick={() => handleEditSave(g._id)}
                                                                         disabled={isSaving}
                                                                     >
-                                                                        {isSaving ? 'Saving...' : 'Save'}
+                                                                        {isSaving ? t('studentGrades:table.saving') : t('studentGrades:table.save')}
                                                                     </button>
                                                                     <button
                                                                         type="button"
@@ -317,7 +589,7 @@ const StudentGradesPage = () => {
                                                                         onClick={handleEditCancel}
                                                                         disabled={isSaving}
                                                                     >
-                                                                        Cancel
+                                                                        {t('studentGrades:table.cancel')}
                                                                     </button>
                                                                 </div>
                                                             ) : (
@@ -326,7 +598,7 @@ const StudentGradesPage = () => {
                                                                     className="btn btn-secondary btn-sm"
                                                                     onClick={() => handleEditStart(g)}
                                                                 >
-                                                                    Edit
+                                                                    {t('studentGrades:table.edit')}
                                                                 </button>
                                                             )}
                                                         </td>

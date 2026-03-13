@@ -71,11 +71,17 @@ import assignmentTypeRoutes from "./routes/assignmentTypeRoutes.js";
 import gradingScaleRoutes from "./routes/gradingScaleRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
 import communicationEmailRoutes from "./routes/communicationEmailRoutes.js";
+import curriculumMapRoutes from "./routes/curriculumMapRoutes.js";
+import pacingGuideRoutes from "./routes/pacingGuideRoutes.js";
+import pacingOverrideRoutes from "./routes/pacingOverrideRoutes.js";
+import curriculumSettingsRoutes from "./routes/curriculumSettingsRoutes.js";
+import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { processAttendanceRemindersForEnabledSchools } from "./controllers/attendanceReminderController.js";
+import { runCurriculumImportJobCycle } from "./jobs/curriculumAiImportJobRunner.js";
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 // Validate environment variables
 validateEnvironment();
@@ -236,6 +242,7 @@ app.use("/api/subjects", subjectRoutes);
 app.use("/api/grades", gradeRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/auth/gmail", gmailAuthRoutes);
+app.use("/api/auth/google-drive", googleDriveAuthRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/reports", advancedReportRoutes);
@@ -271,6 +278,10 @@ app.use("/api/assignment-types", assignmentTypeRoutes);
 app.use("/api/grading-scales", gradingScaleRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/communication-email", communicationEmailRoutes);
+app.use("/api/curriculum-maps", curriculumMapRoutes);
+app.use("/api/pacing-guides", pacingGuideRoutes);
+app.use("/api/pacing-overrides", pacingOverrideRoutes);
+app.use("/api/curriculum-settings", curriculumSettingsRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);
@@ -306,6 +317,7 @@ const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const REVIEW_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
 const ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS = 15 * 1000; // 15 seconds
 
 const httpServer = createServer(app);
 initRealtimeGateway(httpServer);
@@ -390,6 +402,18 @@ const server = httpServer.listen(PORT, () => {
     };
     setTimeout(runCommunicationEmailScheduler, 30 * 1000);
     setInterval(runCommunicationEmailScheduler, COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS);
+  }
+
+  if (process.env.RUN_CURRICULUM_AI_IMPORT_RUNNER !== "false") {
+    const runCurriculumImportScheduler = async () => {
+      try {
+        await runCurriculumImportJobCycle();
+      } catch (err) {
+        logger.error("Curriculum AI import scheduler error:", err?.message || err);
+      }
+    };
+    setTimeout(runCurriculumImportScheduler, 15 * 1000);
+    setInterval(runCurriculumImportScheduler, CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS);
   }
 });
 

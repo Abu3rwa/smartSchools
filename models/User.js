@@ -51,6 +51,24 @@ const userSchema = new mongoose.Schema({
             'view_attendance_reports',
             'review_lesson_plans',
             'edit_lesson_plans',
+            'view_curriculum_maps',
+            'edit_curriculum_maps',
+            'review_curriculum_maps',
+            'publish_curriculum_maps',
+            'create_curriculum_map',
+            'edit_own_curriculum_map',
+            'edit_any_curriculum_map',
+            'review_curriculum_map',
+            'approve_curriculum_map',
+            'reject_curriculum_map',
+            'export_curriculum_map',
+            'print_curriculum_map',
+            'configure_curriculum_map_templates',
+            'view_pacing_guides',
+            'edit_pacing_guides',
+            'review_pacing_guides',
+            'publish_pacing_guides',
+            'approve_pacing_overrides',
             'manage_substitutions',
             'manage_events',
             'view_all_reports',
@@ -175,6 +193,29 @@ const userSchema = new mongoose.Schema({
             type: Boolean,
             default: false
         }
+    },
+    // Separate OAuth credentials for Google Drive curriculum imports
+    googleDriveTokens: {
+        email: {
+            type: String,
+            lowercase: true,
+            trim: true
+        },
+        accessToken: {
+            type: String,
+            get: decryptSecret,
+            set: encryptSecret
+        },
+        refreshToken: {
+            type: String,
+            get: decryptSecret,
+            set: encryptSecret
+        },
+        expiryDate: Date,
+        isActive: {
+            type: Boolean,
+            default: false
+        }
     }
 }, {
     timestamps: true,
@@ -234,6 +275,42 @@ userSchema.methods.updateGmailTokens = async function (tokens, email) {
 // Clear Gmail tokens
 userSchema.methods.clearGmailTokens = async function () {
     this.gmailTokens = {
+        email: null,
+        accessToken: null,
+        refreshToken: null,
+        expiryDate: null,
+        isActive: false
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+// Check if Google Drive is connected
+userSchema.methods.hasGoogleDriveConnected = function () {
+    return this.googleDriveTokens?.isActive && this.googleDriveTokens?.refreshToken;
+};
+
+// Check if Google Drive token needs refresh (5 minutes before expiry)
+userSchema.methods.googleDriveTokenNeedsRefresh = function () {
+    if (!this.googleDriveTokens?.expiryDate) return true;
+    const fiveMinutes = 5 * 60 * 1000;
+    return new Date() >= new Date(this.googleDriveTokens.expiryDate.getTime() - fiveMinutes);
+};
+
+// Update Google Drive tokens
+userSchema.methods.updateGoogleDriveTokens = async function (tokens, email) {
+    this.googleDriveTokens = {
+        email: email || this.googleDriveTokens?.email,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || this.googleDriveTokens?.refreshToken,
+        expiryDate: new Date(tokens.expiry_date),
+        isActive: true
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+// Clear Google Drive tokens
+userSchema.methods.clearGoogleDriveTokens = async function () {
+    this.googleDriveTokens = {
         email: null,
         accessToken: null,
         refreshToken: null,

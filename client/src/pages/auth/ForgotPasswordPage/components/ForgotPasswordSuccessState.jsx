@@ -1,22 +1,24 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const ForgotPasswordSuccessState = ({ email, onSendAnotherLink }) => {
+    const { t } = useTranslation(['auth']);
+
     return (
         <div className="success-message">
-            <h2>Check Your Email</h2>
+            <h2>{t('auth:forgotPassword.success.title')}</h2>
             <p>
-                We've sent a password reset link to <strong>{email}</strong>
+                {t('auth:forgotPassword.success.message', { email })}
             </p>
             <p>
-                The link will expire in 10 minutes. If you don't see the email,
-                check your spam folder.
+                {t('auth:forgotPassword.success.expiryNote')}
             </p>
             <div className="success-actions">
                 <button className="btn btn-secondary" onClick={onSendAnotherLink}>
-                    Send Another Link
+                    {t('auth:forgotPassword.success.sendAnotherLink')}
                 </button>
                 <Link to="/login" className="btn btn-primary">
-                    Back to Login
+                    {t('auth:forgotPassword.success.backToLogin')}
                 </Link>
             </div>
         </div>

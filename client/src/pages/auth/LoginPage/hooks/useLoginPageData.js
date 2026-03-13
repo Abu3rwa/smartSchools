@@ -14,8 +14,10 @@ import {
   selectSchoolError,
 } from "../../../../store/slices/schoolSlice";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 export const useLoginPageData = () => {
+  const { t } = useTranslation(["auth"]);
   const { schoolSlug } = useParams();
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -46,10 +48,10 @@ export const useLoginPageData = () => {
     e.preventDefault();
     const result = await dispatch(login(formData));
     if (login.fulfilled.match(result)) {
-      toast.success("Welcome back!");
+      toast.success(t("auth:login.toast.welcomeBack"));
       navigate("/portal");
     } else {
-      toast.error(result.payload || "Login failed");
+      toast.error(result.payload || t("auth:login.toast.loginFailed"));
     }
   };
 

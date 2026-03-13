@@ -14,12 +14,16 @@ const REPORT_TEMPLATE_NAMES = new Set([
   "classworkGradeRow",
   "gradeUpdate",
   "gradeUpdateRemarks",
+  "attendanceRequestNew",
+  "attendanceRequestStatus",
 ]);
 const FINAL_REPORT_TEMPLATE_NAMES = new Set([
   "dailyReport",
   "monthlyReport",
   "dailyClassworkUpdate",
   "gradeUpdate",
+  "attendanceRequestNew",
+  "attendanceRequestStatus",
 ]);
 
 const INLINE_REPORT_STYLE_MAP = {

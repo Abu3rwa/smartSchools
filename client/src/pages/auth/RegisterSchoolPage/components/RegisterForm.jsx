@@ -1,7 +1,10 @@
 import { ESTIMATED_STUDENTS_OPTIONS } from '../constants';
+import { useTranslation } from 'react-i18next';
 import RegisterLoadingState from './RegisterLoadingState';
 
 const RegisterForm = ({ formData, error, loading, onChange, onSubmit }) => {
+    const { t } = useTranslation(['auth']);
+
     return (
         <>
             {error && (
@@ -11,10 +14,10 @@ const RegisterForm = ({ formData, error, loading, onChange, onSubmit }) => {
             )}
 
             <form className="register-form" onSubmit={onSubmit}>
-                <span className="register-section-title">School</span>
+                <span className="register-section-title">{t('auth:register.form.sections.school')}</span>
 
                 <div className="form-group">
-                    <label htmlFor="schoolName">School Name *</label>
+                    <label htmlFor="schoolName">{t('auth:register.form.fields.schoolName')}</label>
                     <input
                         id="schoolName"
                         name="schoolName"
@@ -22,12 +25,12 @@ const RegisterForm = ({ formData, error, loading, onChange, onSubmit }) => {
                         required
                         value={formData.schoolName}
                         onChange={onChange}
-                        placeholder="Springfield High School"
+                        placeholder={t('auth:register.form.fields.schoolNamePlaceholder')}
                     />
                 </div>
 
                 <div className="form-group">
-                    <label htmlFor="estimatedStudents">Estimated Students</label>
+                    <label htmlFor="estimatedStudents">{t('auth:register.form.fields.estimatedStudents')}</label>
                     <select
                         id="estimatedStudents"
                         name="estimatedStudents"
@@ -35,15 +38,15 @@ const RegisterForm = ({ formData, error, loading, onChange, onSubmit }) => {
                         onChange={onChange}
                     >
                         {ESTIMATED_STUDENTS_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
+                            <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
                         ))}
                     </select>
                 </div>
 
-                <span className="register-section-title">Administrator</span>
+                <span className="register-section-title">{t('auth:register.form.sections.administrator')}</span>
 
                 <div className="form-group">
-                    <label htmlFor="adminName">Full Name *</label>
+                    <label htmlFor="adminName">{t('auth:register.form.fields.adminName')}</label>
                     <input
                         id="adminName"
                         name="adminName"
@@ -51,12 +54,12 @@ const RegisterForm = ({ formData, error, loading, onChange, onSubmit }) => {
                         required
                         value={formData.adminName}
                         onChange={onChange}
-                        placeholder="Jane Doe"
+                        placeholder={t('auth:register.form.fields.adminNamePlaceholder')}
                     />
                 </div>
 
                 <div className="form-group">
-                    <label htmlFor="adminEmail">Email *</label>
+                    <label htmlFor="adminEmail">{t('auth:register.form.fields.adminEmail')}</label>
                     <input
                         id="adminEmail"
                         name="adminEmail"
@@ -64,12 +67,12 @@ const RegisterForm = ({ formData, error, loading, onChange, onSubmit }) => {
                         required
                         value={formData.adminEmail}
                         onChange={onChange}
-                        placeholder="admin@school.edu"
+                        placeholder={t('auth:register.form.fields.adminEmailPlaceholder')}
                     />
                 </div>
 
                 <div className="form-group">
-                    <label htmlFor="adminPassword">Password *</label>
+                    <label htmlFor="adminPassword">{t('auth:register.form.fields.adminPassword')}</label>
                     <input
                         id="adminPassword"
                         name="adminPassword"
@@ -77,12 +80,12 @@ const RegisterForm = ({ formData, error, loading, onChange, onSubmit }) => {
                         required
                         value={formData.adminPassword}
                         onChange={onChange}
-                        placeholder="Create a strong password"
+                        placeholder={t('auth:register.form.fields.adminPasswordPlaceholder')}
                     />
                 </div>
 
                 <div className="form-group">
-                    <label htmlFor="confirmPassword">Confirm Password *</label>
+                    <label htmlFor="confirmPassword">{t('auth:register.form.fields.confirmPassword')}</label>
                     <input
                         id="confirmPassword"
                         name="confirmPassword"
@@ -90,17 +93,17 @@ const RegisterForm = ({ formData, error, loading, onChange, onSubmit }) => {
                         required
                         value={formData.confirmPassword}
                         onChange={onChange}
-                        placeholder="Confirm password"
+                        placeholder={t('auth:register.form.fields.confirmPasswordPlaceholder')}
                     />
                 </div>
 
                 <button type="submit" className="register-submit" disabled={loading}>
-                    {loading ? <RegisterLoadingState /> : 'Create School Account'}
+                    {loading ? <RegisterLoadingState /> : t('auth:register.form.submit')}
                 </button>
             </form>
 
             <div className="register-terms">
-                By registering, you agree to our Terms of Service and Privacy Policy.
+                {t('auth:register.terms')}
             </div>
         </>
     );

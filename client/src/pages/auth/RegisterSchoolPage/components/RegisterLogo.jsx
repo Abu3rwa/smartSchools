@@ -1,13 +1,16 @@
 import { HiOutlineAcademicCap } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 
 const RegisterLogo = () => {
+    const { t } = useTranslation(['auth']);
+
     return (
         <div className="register-info">
             <div className="register-icon">
                 <HiOutlineAcademicCap size={36} />
             </div>
-            <h2>Register Your School</h2>
-            <p>14-day free trial. No credit card required.</p>
+            <h2>{t('auth:register.hero.title')}</h2>
+            <p>{t('auth:register.hero.subtitle')}</p>
         </div>
     );
 };

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useLoginPageData } from './hooks/useLoginPageData';
 import { getSchoolContextClasses } from './utils/loginPagePresentation';
 import LoginPageHeader from './components/LoginPageHeader';
@@ -13,6 +14,7 @@ import LoginErrorState from './components/LoginErrorState';
 import './LoginPage.css';
 
 const LoginPage = () => {
+    const { t } = useTranslation(['auth']);
     const {
         schoolSlug,
         navigate,
@@ -71,7 +73,7 @@ const LoginPage = () => {
                     />
 
                     <div className="login-divider">
-                        <span>or</span>
+                        <span>{t('auth:login.divider.or')}</span>
                     </div>
 
                     <LoginGoogleButton

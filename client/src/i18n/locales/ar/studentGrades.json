@@ -1,0 +1,107 @@
+{
+  "title": {
+    "myGrades": "درجاتي",
+    "studentGradebook": "سجل درجات الطالب"
+  },
+  "subtitle": {
+    "student": "اعرض درجاتك حسب المادة والفترة.",
+    "staff": "اعرض وعدّل سجل درجات الطالب حسب نطاق التاريخ.",
+    "studentLabel": "الطالب:",
+    "academicYearLabel": "السنة الأكاديمية:"
+  },
+  "switcher": {
+    "title": "تبديل الطالب",
+    "description": "اختر الفصل ثم افتح سجل درجات طالب آخر دون مغادرة الصفحة.",
+    "classLabel": "الفصل",
+    "studentLabel": "الطالب",
+    "selectClass": "اختر فصلًا",
+    "selectStudent": "اختر طالبًا",
+    "unnamedStudent": "طالب بدون اسم"
+  },
+  "filters": {
+    "subject": "المادة",
+    "allSubjects": "كل المواد",
+    "category": "الفئة",
+    "allCategories": "كل الفئات",
+    "month": "الشهر",
+    "allMonths": "كل الأشهر",
+    "semester": "الفصل الدراسي",
+    "all": "الكل",
+    "semester1": "الفصل الدراسي الأول",
+    "semester2": "الفصل الدراسي الثاني",
+    "startDate": "تاريخ البداية",
+    "endDate": "تاريخ النهاية"
+  },
+  "months": {
+    "1": "يناير",
+    "2": "فبراير",
+    "3": "مارس",
+    "4": "أبريل",
+    "5": "مايو",
+    "6": "يونيو",
+    "7": "يوليو",
+    "8": "أغسطس",
+    "9": "سبتمبر",
+    "10": "أكتوبر",
+    "11": "نوفمبر",
+    "12": "ديسمبر"
+  },
+  "summary": {
+    "averageBySubject": "المتوسط حسب المادة"
+  },
+  "table": {
+    "title": "الدرجات",
+    "columns": {
+      "date": "التاريخ",
+      "subject": "المادة",
+      "type": "النوع",
+      "marks": "الدرجة",
+      "max": "العظمى",
+      "remarks": "ملاحظات",
+      "actions": "الإجراءات"
+    },
+    "optionalRemarks": "ملاحظات اختيارية",
+    "saving": "جارٍ الحفظ...",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "edit": "تعديل"
+  },
+  "states": {
+    "loading": "جارٍ تحميل الدرجات...",
+    "empty": "لا توجد درجات للفلاتر المحددة."
+  },
+  "alerts": {
+    "invalidMarks": "يرجى إدخال درجات صحيحة. يجب أن تكون الدرجة بين 0 والدرجة العظمى.",
+    "updateFailed": "فشل تحديث الدرجة"
+  },
+  "common": {
+    "dash": "—",
+    "notAvailable": "غير متوفر"
+  },
+  "types": {
+    "classwork": "أعمال الصف",
+    "daily": "يومي",
+    "homework": "واجب منزلي",
+    "quiz": "اختبار قصير",
+    "project": "مشروع",
+    "participation": "مشاركة",
+    "monthly_test": "اختبار شهري",
+    "semester_exam": "امتحان فصلي",
+    "midterm_exam": "امتحان منتصف الفصل",
+    "final_exam": "امتحان نهائي",
+    "exam": "امتحان",
+    "test": "اختبار",
+    "other": "أخرى"
+  },
+  "categories": {
+    "classwork": "أعمال الصف",
+    "daily": "يومي",
+    "homework": "واجب منزلي",
+    "quiz": "اختبار قصير",
+    "project": "مشروع",
+    "participation": "مشاركة",
+    "test": "اختبار",
+    "exam": "امتحان",
+    "other": "أخرى"
+  }
+}
