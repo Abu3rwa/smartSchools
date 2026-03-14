@@ -447,14 +447,26 @@ export const removeSubjectFromClass = asyncHandler(async (req, res) => {
         });
     }
 
-    // Find the entry before removing (to get the teacher ID)
-    const removed = classData.subjects.find(
-        s => s.subject.toString() === req.params.subjectId
-    );
+    const removableId = req.params.subjectId;
 
-    classData.subjects = classData.subjects.filter(
-        s => s.subject.toString() !== req.params.subjectId
-    );
+    // Find the entry before removing (to get the teacher/subject IDs).
+    // Support both subjectId and subject-entry _id for stale/deleted linked records.
+    const matchesSubject = (entry) => {
+        if (!entry) return false;
+        const entryId = entry._id?.toString?.();
+        const entrySubjectId = entry.subject?._id?.toString?.() || entry.subject?.toString?.();
+        return entryId === removableId || entrySubjectId === removableId;
+    };
+
+    const removed = classData.subjects.find(matchesSubject);
+    if (!removed) {
+        return res.status(404).json({
+            success: false,
+            message: 'Subject assignment not found for this class'
+        });
+    }
+
+    classData.subjects = classData.subjects.filter((entry) => !matchesSubject(entry));
 
     await classData.save();
 
@@ -462,17 +474,29 @@ export const removeSubjectFromClass = asyncHandler(async (req, res) => {
     if (removed?.teacher) {
         const teacher = await Teacher.findById(removed.teacher);
         if (teacher) {
+            const removedSubjectId = removed.subject?._id?.toString?.() || removed.subject?.toString?.();
             teacher.assignedClasses = teacher.assignedClasses.filter(
-                a => !(a.class?.toString() === req.params.id &&
-                    a.subject?.toString() === req.params.subjectId)
+                (a) => {
+                    if (a.class?.toString() !== req.params.id) return true;
+                    if (!removedSubjectId) return true;
+                    return a.subject?.toString() !== removedSubjectId;
+                }
             );
             await teacher.save();
         }
     }
 
+    const updatedClass = await Class.findById(req.params.id)
+        .populate('subjects.subject', 'name code')
+        .populate({
+            path: 'subjects.teacher',
+            populate: { path: 'user', select: 'firstName lastName' }
+        });
+
     res.json({
         success: true,
-        message: 'Subject removed from class successfully'
+        message: 'Subject removed from class successfully',
+        data: { class: updatedClass }
     });
 });
 

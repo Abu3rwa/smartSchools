@@ -142,6 +142,13 @@
     color: var(--text-secondary);
 }
 
+.teacher-info {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
 .not-found {
     text-align: center;
     padding: var(--spacing-2xl);

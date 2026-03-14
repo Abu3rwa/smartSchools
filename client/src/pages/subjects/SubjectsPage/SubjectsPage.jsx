@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +23,10 @@ import { mapSubjectToFormData } from './utils/subjectPresentation';
 import subjectService from '../../../services/subjectService';
 import importTemplateService from '../../../services/importTemplateService';
 import { parseCsvFile } from '../../../utils/csvImport';
+import TablePagination from '../../../components/common/TablePagination';
 import './SubjectsPage.css';
+
+const DEFAULT_PAGE_SIZE = 12;
 
 const SubjectsPage = () => {
     const dispatch = useDispatch();
@@ -34,6 +37,8 @@ const SubjectsPage = () => {
     const isAdmin = useSelector(selectIsAdmin);
     const importInputRef = useRef(null);
     const [templateMeta, setTemplateMeta] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
     const {
         searchTerm,
@@ -51,7 +56,7 @@ const SubjectsPage = () => {
     } = useSubjectsPageState(subjects);
 
     useEffect(() => {
-        dispatch(fetchSubjects());
+        dispatch(fetchSubjects({ limit: 0 }));
     }, [dispatch]);
 
     useEffect(() => {
@@ -67,10 +72,6 @@ const SubjectsPage = () => {
             mounted = false;
         };
     }, []);
-
-    if (isAdmin) {
-        return <Navigate to="/portal/timetable#subjects" replace />;
-    }
 
     const handleCloseModal = () => {
         setShowModal(false);
@@ -166,11 +167,31 @@ const SubjectsPage = () => {
             } else if (skipped > 0) {
                 toast(t('subjects:toast.importSkippedRows', { count: skipped }));
             }
-            dispatch(fetchSubjects());
+            dispatch(fetchSubjects({ limit: 0 }));
         } catch (importError) {
             toast.error(importError?.response?.data?.message || t('subjects:toast.importFailed'));
         }
     };
+
+    const totalPages = Math.max(1, Math.ceil(filteredSubjects.length / pageSize));
+    const paginatedSubjects = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredSubjects.slice(startIndex, startIndex + pageSize);
+    }, [filteredSubjects, currentPage, pageSize]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
+
+    if (isAdmin) {
+        return <Navigate to="/portal/timetable#subjects" replace />;
+    }
 
     return (
         <div className="subjects-page">
@@ -194,11 +215,22 @@ const SubjectsPage = () => {
             <SubjectsTable
                 loading={loading}
                 error={error}
-                subjects={filteredSubjects}
+                subjects={paginatedSubjects}
                 isAdmin={isAdmin}
-                onRetry={() => dispatch(fetchSubjects())}
+                onRetry={() => dispatch(fetchSubjects({ limit: 0 }))}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+            />
+            <TablePagination
+                page={currentPage}
+                pageSize={pageSize}
+                totalItems={filteredSubjects.length}
+                totalPages={totalPages}
+                onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
+                onPageSizeChange={(nextSize) => {
+                    setPageSize(nextSize);
+                    setCurrentPage(1);
+                }}
             />
 
             <SubjectFormModal

@@ -3,8 +3,10 @@ import AttendanceRequest from '../models/AttendanceRequest.js';
 import Grade from '../models/Grade.js';
 import Notification from '../models/Notification.js';
 import ParentSetting from '../models/ParentSetting.js';
+import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import Student from '../models/Student.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
+import { DEFAULT_WEEK_WORKING_DAYS, normalizeWeekWorkingDays } from '../utils/schoolWeekWorkingDays.js';
 
 const PARENT_EMAIL_FIELDS = [
     'parentInfo.fatherEmail',
@@ -1045,6 +1047,18 @@ export const getParentChildTimetable = async ({
         };
     }
 
+    const schoolCalendarConfig = await SchoolCalendarConfig.findOne({
+        school: schoolId,
+        isActive: true
+    })
+        .select('weekWorkingDays')
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+    const schoolWeekWorkingDays = normalizeWeekWorkingDays(
+        schoolCalendarConfig?.weekWorkingDays,
+        DEFAULT_WEEK_WORKING_DAYS
+    );
+
     const assignments = await TeacherPeriodAssignment.find({
         school: schoolId,
         class: child.currentClass._id,
@@ -1062,7 +1076,7 @@ export const getParentChildTimetable = async ({
     const entries = assignments.flatMap((assignment) => {
         const days = Array.isArray(assignment.daysOfWeek) && assignment.daysOfWeek.length > 0
             ? assignment.daysOfWeek
-            : [1, 2, 3, 4, 5];
+            : schoolWeekWorkingDays;
         return days
             .filter((day) => day >= 0 && day <= 6)
             .map((day) => mapTimetableEntry(assignment, day));

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////import { useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import api from '../config/api';
 import { HiOutlineClipboardList } from 'react-icons/hi';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';

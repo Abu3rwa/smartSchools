@@ -12,6 +12,17 @@
     "communication": "التواصل",
     "schoolYear": "السنة الدراسية"
   },
+  "weekdays": {
+    "short": {
+      "sun": "الأحد",
+      "mon": "الإثنين",
+      "tue": "الثلاثاء",
+      "wed": "الأربعاء",
+      "thu": "الخميس",
+      "fri": "الجمعة",
+      "sat": "السبت"
+    }
+  },
   "common": {
     "cancel": "إلغاء",
     "saving": "جارٍ الحفظ...",
@@ -167,6 +178,13 @@
       "endDate": "تاريخ النهاية",
       "saveDates": "حفظ تواريخ السنة الدراسية"
     },
+    "teachingWeek": {
+      "title": "0.1 تحديد أيام التدريس وعطلة نهاية الأسبوع",
+      "subtitle": "اختر الأيام التي تُعقد فيها الحصص. الأيام غير المحددة تُعتبر عطلة/غير تعليمية.",
+      "saveAction": "حفظ أسبوع التدريس",
+      "weekendSummary": "أيام عطلة نهاية الأسبوع: {{days}}",
+      "none": "لا يوجد"
+    },
     "step1": {
       "title": "1. اختيار السنوات",
       "fromYear": "من (السنة السابقة)",
@@ -226,6 +244,7 @@
     "attendanceReminderSettingsUpdateFailed": "فشل تحديث إعدادات تذكير الحضور",
     "loadAcademicYearsFailed": "فشل تحميل السنوات الدراسية",
     "loadSchoolYearDatesFailed": "فشل تحميل تواريخ السنة الدراسية",
+    "loadSchoolWeekConfigFailed": "فشل تحميل إعدادات أسبوع التدريس",
     "selectFromAndToYears": "اختر سنة البداية وسنة النهاية",
     "classesCreated": "تم إنشاء الفصول",
     "createClassesFailed": "فشل إنشاء الفصول",
@@ -241,6 +260,9 @@
     "schoolYearEndDateInvalid": "يجب أن يكون تاريخ النهاية مساويًا أو بعد تاريخ البداية",
     "schoolYearDatesUpdated": "تم تحديث تواريخ السنة الدراسية",
     "schoolYearDatesUpdateFailed": "فشل تحديث تواريخ السنة الدراسية",
+    "weekWorkingDaysRequired": "اختر يوم تدريس واحدًا على الأقل",
+    "schoolWeekConfigUpdated": "تم تحديث إعدادات أسبوع التدريس",
+    "schoolWeekConfigUpdateFailed": "فشل تحديث إعدادات أسبوع التدريس",
     "departmentUpdated": "تم تحديث القسم",
     "departmentCreated": "تم إنشاء القسم",
     "saveDepartmentFailed": "فشل حفظ القسم",

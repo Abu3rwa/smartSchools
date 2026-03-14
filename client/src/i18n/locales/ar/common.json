@@ -20,5 +20,12 @@
     "returnedToSuperAdmin": "تمت العودة إلى حساب المشرف العام",
     "currentlyImpersonating": "أنت تنتحل حالياً هوية",
     "exitImpersonation": "إنهاء الانتحال"
+  },
+  "pagination": {
+    "summary": "عرض {{from}}-{{to}} من أصل {{total}}",
+    "rowsPerPage": "عدد الصفوف",
+    "previous": "السابق",
+    "next": "التالي",
+    "pageOf": "الصفحة {{page}} من {{pages}}"
   }
 }

@@ -1,6 +1,16 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+const WEEKDAY_OPTIONS = [
+  { value: 0, labelKey: 'schoolSettings:weekdays.short.sun' },
+  { value: 1, labelKey: 'schoolSettings:weekdays.short.mon' },
+  { value: 2, labelKey: 'schoolSettings:weekdays.short.tue' },
+  { value: 3, labelKey: 'schoolSettings:weekdays.short.wed' },
+  { value: 4, labelKey: 'schoolSettings:weekdays.short.thu' },
+  { value: 5, labelKey: 'schoolSettings:weekdays.short.fri' },
+  { value: 6, labelKey: 'schoolSettings:weekdays.short.sat' }
+];
+
 const SchoolYearTab = ({
   academicYears,
   fromYear,
@@ -21,13 +31,23 @@ const SchoolYearTab = ({
   setSchoolYearStartDate,
   setSchoolYearEndDate,
   schoolYearDatesSaving,
+  schoolWeekConfigLoading,
+  schoolWeekConfigSaving,
+  weekWorkingDays,
+  weekendDays,
   academicYearSaving,
   onSaveSchoolYearDates,
+  onToggleWeekWorkingDay,
+  onSaveWeekWorkingDays,
   onNavigateClasses,
   onEditUsersTab
 }) => {
   const { t } = useTranslation(['schoolSettings']);
   const sortedYears = useMemo(() => [...academicYears].sort(), [academicYears]);
+  const weekendLabels = weekendDays
+    .map((day) => WEEKDAY_OPTIONS.find((option) => option.value === day))
+    .filter(Boolean)
+    .map((option) => t(option.labelKey));
 
   return (
     <div className="tab-content">
@@ -56,6 +76,40 @@ const SchoolYearTab = ({
             disabled={schoolYearDatesSaving || !schoolYearStartDate || !schoolYearEndDate}
           >
             {schoolYearDatesSaving ? t('schoolSettings:common.saving') : t('schoolSettings:schoolYear.step0.saveDates')}
+          </button>
+        </div>
+        <div className="wizard-step">
+          <h4>{t('schoolSettings:schoolYear.teachingWeek.title')}</h4>
+          <p className="text-muted">{t('schoolSettings:schoolYear.teachingWeek.subtitle')}</p>
+          <div className="weekday-chip-group">
+            {WEEKDAY_OPTIONS.map((dayOption) => {
+              const active = weekWorkingDays.includes(dayOption.value);
+              return (
+                <button
+                  key={dayOption.value}
+                  type="button"
+                  className={`weekday-chip ${active ? 'active' : ''}`}
+                  onClick={() => onToggleWeekWorkingDay(dayOption.value)}
+                  disabled={schoolWeekConfigLoading || schoolWeekConfigSaving}
+                >
+                  {t(dayOption.labelKey)}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-muted weekday-summary">
+            {t('schoolSettings:schoolYear.teachingWeek.weekendSummary', {
+              days: weekendLabels.length > 0
+                ? weekendLabels.join(', ')
+                : t('schoolSettings:schoolYear.teachingWeek.none')
+            })}
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={onSaveWeekWorkingDays}
+            disabled={schoolWeekConfigLoading || schoolWeekConfigSaving}
+          >
+            {schoolWeekConfigSaving ? t('schoolSettings:common.saving') : t('schoolSettings:schoolYear.teachingWeek.saveAction')}
           </button>
         </div>
         <div className="wizard-step">

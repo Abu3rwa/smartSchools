@@ -12,6 +12,17 @@
     "communication": "Communication",
     "schoolYear": "School year"
   },
+  "weekdays": {
+    "short": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    }
+  },
   "common": {
     "cancel": "Cancel",
     "saving": "Saving...",
@@ -167,6 +178,13 @@
       "endDate": "End date",
       "saveDates": "Save school year dates"
     },
+    "teachingWeek": {
+      "title": "0.1 Set teaching days and weekends",
+      "subtitle": "Choose the days when classes run. Unselected days are treated as weekend/non-teaching days.",
+      "saveAction": "Save teaching week",
+      "weekendSummary": "Weekend days: {{days}}",
+      "none": "None"
+    },
     "step1": {
       "title": "1. Choose years",
       "fromYear": "From (previous year)",
@@ -226,6 +244,7 @@
     "attendanceReminderSettingsUpdateFailed": "Failed to update attendance reminder settings",
     "loadAcademicYearsFailed": "Failed to load academic years",
     "loadSchoolYearDatesFailed": "Failed to load school year dates",
+    "loadSchoolWeekConfigFailed": "Failed to load teaching week settings",
     "selectFromAndToYears": "Select from and to years",
     "classesCreated": "Classes created",
     "createClassesFailed": "Failed to create classes",
@@ -241,6 +260,9 @@
     "schoolYearEndDateInvalid": "End date must be on or after start date",
     "schoolYearDatesUpdated": "School year dates updated",
     "schoolYearDatesUpdateFailed": "Failed to update school year dates",
+    "weekWorkingDaysRequired": "Select at least one teaching day",
+    "schoolWeekConfigUpdated": "Teaching week settings updated",
+    "schoolWeekConfigUpdateFailed": "Failed to update teaching week settings",
     "departmentUpdated": "Department updated",
     "departmentCreated": "Department created",
     "saveDepartmentFailed": "Failed to save department",

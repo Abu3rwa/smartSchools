@@ -18,6 +18,10 @@ import {
   zonedDateTimeToUtc,
   localYmdToServerMidnightDate,
 } from "../utils/schoolTimezone.js";
+import {
+  DEFAULT_WEEK_WORKING_DAYS,
+  normalizeWeekWorkingDays,
+} from "../utils/schoolWeekWorkingDays.js";
 
 /** Default: send reminder for classes that ended at least this many hours ago */
 const DEFAULT_REMINDER_HOURS = 1;
@@ -99,7 +103,7 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
   const schoolIds = [...new Set(assignments.map((assignment) => String(assignment.school)).filter(Boolean))];
   const schoolConfigs = schoolIds.length
     ? await SchoolCalendarConfig.find({ school: { $in: schoolIds }, isActive: true })
-        .select("school timezone")
+        .select("school timezone weekWorkingDays")
         .setOptions({ skipTenantFilter: true })
         .lean()
     : [];
@@ -108,6 +112,12 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
       const resolved = resolveTimeZone(config.timezone) || DEFAULT_TIMEZONE;
       return [String(config.school), resolved];
     })
+  );
+  const weekWorkingDaysBySchool = new Map(
+    schoolConfigs.map((config) => [
+      String(config.school),
+      normalizeWeekWorkingDays(config.weekWorkingDays, DEFAULT_WEEK_WORKING_DAYS),
+    ])
   );
 
   for (const assignment of assignments) {
@@ -120,7 +130,10 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
     const schoolId = assignment.school;
     const schoolIdKey = String(schoolId);
     const schoolTimeZone = timeZoneBySchool.get(schoolIdKey) || DEFAULT_TIMEZONE;
-    const daysOfWeek = assignment.daysOfWeek && assignment.daysOfWeek.length > 0 ? assignment.daysOfWeek : [1, 2, 3, 4, 5];
+    const schoolWeekWorkingDays = weekWorkingDaysBySchool.get(schoolIdKey) || [...DEFAULT_WEEK_WORKING_DAYS];
+    const daysOfWeek = assignment.daysOfWeek && assignment.daysOfWeek.length > 0
+      ? assignment.daysOfWeek
+      : schoolWeekWorkingDays;
     const assignStartParts = getDatePartsInTimeZone(new Date(assignment.startDate), schoolTimeZone);
     const assignEndParts = getDatePartsInTimeZone(new Date(assignment.endDate), schoolTimeZone);
     const assignStartKey = ymdKey(assignStartParts);

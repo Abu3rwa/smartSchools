@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../../config/api';
 import {
@@ -7,13 +7,18 @@ import {
     HiOutlineShieldCheck,
     HiOutlineMail
 } from 'react-icons/hi';
+import TablePagination from '../../../components/common/TablePagination';
 import '../../../components/superAdmin/SuperAdminBase.css';
+
+const DEFAULT_PAGE_SIZE = 20;
 
 const SuperAdminUsersPage = () => {
     const { t } = useTranslation(['superAdminUsers']);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
     useEffect(() => {
         fetchUsers();
@@ -30,11 +35,29 @@ const SuperAdminUsersPage = () => {
         }
     };
 
-    const filtered = users.filter(u =>
-        `${u.firstName} ${u.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
-        u.email?.toLowerCase().includes(search.toLowerCase()) ||
-        u.role?.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = useMemo(() => (
+        users.filter((u) =>
+            `${u.firstName} ${u.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
+            u.email?.toLowerCase().includes(search.toLowerCase()) ||
+            u.role?.toLowerCase().includes(search.toLowerCase())
+        )
+    ), [users, search]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const paginatedUsers = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return filtered.slice(startIndex, startIndex + pageSize);
+    }, [filtered, currentPage, pageSize]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     const getRoleBadgeClass = (role) => {
         switch (role) {
@@ -90,7 +113,7 @@ const SuperAdminUsersPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map((user) => (
+                                {paginatedUsers.map((user) => (
                                     <tr key={user._id}>
                                         <td style={{ fontWeight: 500 }}>
                                             {user.firstName} {user.lastName}
@@ -121,6 +144,17 @@ const SuperAdminUsersPage = () => {
                         </table>
                     </div>
                 )}
+                <TablePagination
+                    page={currentPage}
+                    pageSize={pageSize}
+                    totalItems={filtered.length}
+                    totalPages={totalPages}
+                    onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
+                    onPageSizeChange={(nextSize) => {
+                        setPageSize(nextSize);
+                        setCurrentPage(1);
+                    }}
+                />
             </div>
         </div>
     );

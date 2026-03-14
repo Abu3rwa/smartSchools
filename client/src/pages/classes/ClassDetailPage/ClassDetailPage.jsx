@@ -8,6 +8,7 @@ import {
     selectClassStudents,
     selectClassesLoading,
     addSubjectToClass,
+    removeSubjectFromClass,
     fetchClassAnalytics,
     fetchClassInsights,
     selectClassAnalytics,
@@ -149,6 +150,18 @@ const ClassDetailPage = () => {
         }
     };
 
+    const handleRemoveSubject = async (subjectId) => {
+        if (!isAdmin) return;
+        if (!window.confirm('Remove this subject from the class?')) return;
+
+        const result = await dispatch(removeSubjectFromClass({ classId: id, subjectId }));
+        if (removeSubjectFromClass.fulfilled.match(result)) {
+            toast.success('Subject removed from class successfully');
+        } else {
+            toast.error(result.payload || 'Failed to remove subject');
+        }
+    };
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -285,19 +298,34 @@ const ClassDetailPage = () => {
                     </div>
                     <div className="subjects-list">
                         {currentClass.subjects?.length > 0 ? (
-                            currentClass.subjects.map((item, index) => (
-                                <div key={index} className="subject-item">
+                            currentClass.subjects.map((item, index) => {
+                                const removableSubjectId = item.subject?._id || item.subject || item._id;
+
+                                return (
+                                    <div key={item._id || item.subject?._id || index} className="subject-item">
                                     <div className="subject-info">
                                         <span className="subject-name">{item.subject?.name || 'Unknown'}</span>
                                         <span className="subject-code">{item.subject?.code}</span>
                                     </div>
                                     <div className="teacher-info">
                                         <span className="teacher-name">
-                                            {item.teacher?.user?.firstName} {item.teacher?.user?.lastName}
+                                            {item.teacher?.user?.firstName || item.teacher?.user?.lastName
+                                                ? `${item.teacher?.user?.firstName || ''} ${item.teacher?.user?.lastName || ''}`.trim()
+                                                : 'Unassigned'}
                                         </span>
+                                        {isAdmin && removableSubjectId && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-danger"
+                                                onClick={() => handleRemoveSubject(removableSubjectId)}
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                            ))
+                                );
+                            })
                         ) : (
                             <p className="empty-message">No subjects assigned to this class.</p>
                         )}

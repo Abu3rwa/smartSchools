@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,10 @@ import toast from 'react-hot-toast';
 import classService from '../../../services/classService';
 import importTemplateService from '../../../services/importTemplateService';
 import { parseCsvFile } from '../../../utils/csvImport';
+import TablePagination from '../../../components/common/TablePagination';
 import './ClassesPage.css';
+
+const DEFAULT_PAGE_SIZE = 10;
 
 const ClassesPage = () => {
     const dispatch = useDispatch();
@@ -24,6 +27,8 @@ const ClassesPage = () => {
     const isAdmin = useSelector(selectIsAdmin);
     const importInputRef = useRef(null);
     const [templateMeta, setTemplateMeta] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
@@ -38,7 +43,7 @@ const ClassesPage = () => {
     });
 
     useEffect(() => {
-        dispatch(fetchClasses({ academicYear }));
+        dispatch(fetchClasses({ academicYear, limit: 0 }));
         dispatch(fetchDepartments());
     }, [dispatch, academicYear]);
 
@@ -56,10 +61,28 @@ const ClassesPage = () => {
         };
     }, []);
 
-    const filteredClasses = classes.filter(cls =>
-        cls.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cls.grade?.toString().includes(searchTerm)
-    );
+    const filteredClasses = useMemo(() => (
+        classes.filter((cls) =>
+            cls.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            cls.grade?.toString().includes(searchTerm)
+        )
+    ), [classes, searchTerm]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredClasses.length / pageSize));
+    const paginatedClasses = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredClasses.slice(startIndex, startIndex + pageSize);
+    }, [filteredClasses, currentPage, pageSize]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, academicYear]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -154,7 +177,7 @@ const ClassesPage = () => {
             } else if (skipped > 0) {
                 toast(t('classes:toast.importSkippedRows', { count: skipped }));
             }
-            dispatch(fetchClasses({ academicYear }));
+            dispatch(fetchClasses({ academicYear, limit: 0 }));
         } catch (importError) {
             toast.error(importError?.response?.data?.message || t('classes:toast.importFailed'));
         }
@@ -219,7 +242,7 @@ const ClassesPage = () => {
             ) : error ? (
                 <div className="error-container">
                     <p className="error-message">{error}</p>
-                    <button className="btn btn-primary" onClick={() => dispatch(fetchClasses({ academicYear }))}>
+                    <button className="btn btn-primary" onClick={() => dispatch(fetchClasses({ academicYear, limit: 0 }))}>
                         {t('common:actions.retry')}
                     </button>
                 </div>
@@ -239,7 +262,7 @@ const ClassesPage = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredClasses.map((cls, index) => (
+                            {paginatedClasses.map((cls, index) => (
                                 <tr key={cls._id} className="animate-fadeIn" style={{ animationDelay: `${index * 0.05}s` }}>
                                     <td>
                                         <span className="grade-badge">{cls.grade}</span>
@@ -316,6 +339,17 @@ const ClassesPage = () => {
                     )}
                 </div>
             )}
+            <TablePagination
+                page={currentPage}
+                pageSize={pageSize}
+                totalItems={filteredClasses.length}
+                totalPages={totalPages}
+                onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
+                onPageSizeChange={(nextSize) => {
+                    setPageSize(nextSize);
+                    setCurrentPage(1);
+                }}
+            />
 
             {/* Create Modal */}
             {showModal && (

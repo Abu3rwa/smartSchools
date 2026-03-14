@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +37,9 @@ import {
     ParentCredentialsModal,
     EmailPromptModal
 } from './components/StudentLoginModals';
+import TablePagination from '../../../components/common/TablePagination';
+
+const DEFAULT_PAGE_SIZE = 10;
 
 const buildSelectedStudentsSummary = (studentNames, t) => {
     if (!Array.isArray(studentNames) || studentNames.length === 0) {
@@ -110,6 +113,8 @@ const StudentsPage = () => {
     const [bulkCredentials, setBulkCredentials] = useState(null);
     const [bulkStudentInviteLoading, setBulkStudentInviteLoading] = useState(false);
     const [bulkParentInviteLoading, setBulkParentInviteLoading] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
     const [showImportModal, setShowImportModal] = useState(false);
     const [importClassId, setImportClassId] = useState('');
@@ -324,17 +329,17 @@ const StudentsPage = () => {
 
     const toggleSelectAllStudents = () => {
         setSelectedStudentIds((previous) => {
-            const allSelected = filteredStudents.length > 0
-                && filteredStudents.every((student) => previous.has(student._id));
+            const allSelected = paginatedStudents.length > 0
+                && paginatedStudents.every((student) => previous.has(student._id));
 
             if (allSelected) {
                 const next = new Set(previous);
-                filteredStudents.forEach((student) => next.delete(student._id));
+                paginatedStudents.forEach((student) => next.delete(student._id));
                 return next;
             }
 
             const next = new Set(previous);
-            filteredStudents.forEach((student) => next.add(student._id));
+            paginatedStudents.forEach((student) => next.add(student._id));
             return next;
         });
     };
@@ -527,17 +532,35 @@ const StudentsPage = () => {
         setImportResult(null);
     };
 
-    const filteredStudents = students.filter((student) => {
-        const fullName = `${student.firstName} ${student.lastName}`.toLowerCase();
-        const matchesSearch = fullName.includes(searchTerm.toLowerCase())
-            || student.studentId?.toLowerCase().includes(searchTerm.toLowerCase());
+    const filteredStudents = useMemo(() => (
+        students.filter((student) => {
+            const fullName = `${student.firstName} ${student.lastName}`.toLowerCase();
+            const matchesSearch = fullName.includes(searchTerm.toLowerCase())
+                || student.studentId?.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesClass = filterClass === ''
-            || (filterClass === 'unassigned' && !student.currentClass)
-            || student.currentClass?._id === filterClass;
+            const matchesClass = filterClass === ''
+                || (filterClass === 'unassigned' && !student.currentClass)
+                || student.currentClass?._id === filterClass;
 
-        return matchesSearch && matchesClass;
-    });
+            return matchesSearch && matchesClass;
+        })
+    ), [students, searchTerm, filterClass]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
+    const paginatedStudents = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredStudents.slice(startIndex, startIndex + pageSize);
+    }, [filteredStudents, currentPage, pageSize]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filterClass, searchFromUrl]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     useEffect(() => {
         setSelectedStudentIds((previous) => {
@@ -552,8 +575,8 @@ const StudentsPage = () => {
         });
     }, [filteredStudents]);
 
-    const isAllSelected = filteredStudents.length > 0
-        && filteredStudents.every((student) => selectedStudentIds.has(student._id));
+    const isAllSelected = paginatedStudents.length > 0
+        && paginatedStudents.every((student) => selectedStudentIds.has(student._id));
 
     return (
         <div className="students-page">
@@ -618,7 +641,7 @@ const StudentsPage = () => {
             </div>
 
             <StudentsTable
-                students={filteredStudents}
+                students={paginatedStudents}
                 isAdmin={isAdmin}
                 loading={loading}
                 isAllSelected={isAllSelected}
@@ -630,6 +653,17 @@ const StudentsPage = () => {
                 handleSendParentInvite={handleSendParentInvite}
                 sendingParentInviteFor={sendingParentInviteFor}
                 handleEdit={handleEdit}
+            />
+            <TablePagination
+                page={currentPage}
+                pageSize={pageSize}
+                totalItems={filteredStudents.length}
+                totalPages={totalPages}
+                onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
+                onPageSizeChange={(nextSize) => {
+                    setPageSize(nextSize);
+                    setCurrentPage(1);
+                }}
             />
 
             <StudentFormModal

@@ -29,7 +29,7 @@ import { selectIsAdmin } from '../../../../store/slices/authSlice';
 import timetableService from '../../../../services/timetableService';
 import roomService from '../../../../services/roomService';
 import subjectService from '../../../../services/subjectService';
-import { TIMETABLE_DROPDOWN_LIMIT, DAY_LABELS, ROOM_TYPES, ROOM_STATUSES } from './constants';
+import { TIMETABLE_DROPDOWN_LIMIT, DAY_LABELS, ROOM_TYPES, ROOM_STATUSES, DEFAULT_WEEK_WORKING_DAYS } from './constants';
 import useTimetableAssignmentOptions from './hooks/useTimetableAssignmentOptions';
 import { createDefaultAssignment, createDefaultPeriod, createDefaultRoom, formatDateAsYmd } from './utils/timetableState';
 import TimetableErrorBanner from './components/TimetableErrorBanner';
@@ -42,8 +42,12 @@ import { createDefaultSubjectForm } from '../../../subjects/SubjectsPage/constan
 import { mapSubjectToFormData } from '../../../subjects/SubjectsPage/utils/subjectPresentation';
 import { parseCsvFile } from '../../../../utils/csvImport';
 import toast from 'react-hot-toast';
+import TablePagination from '../../../../components/common/TablePagination';
 import './AdminTimetablePage.css';
 import '../../../subjects/SubjectsPage/SubjectsPage.css';
+
+const DEFAULT_ASSIGNMENTS_PAGE_SIZE = 10;
+const DEFAULT_PERIODS_PAGE_SIZE = 8;
 
 const formatShortDate = (value, locale = undefined) => {
     if (!value) return '';
@@ -70,6 +74,20 @@ const formatAssignmentDays = (daysOfWeek = []) => {
         .sort((left, right) => left - right);
 };
 
+const normalizeDays = (candidate, fallback = DEFAULT_WEEK_WORKING_DAYS) => {
+    if (!Array.isArray(candidate)) return [...fallback];
+
+    const normalized = Array.from(
+        new Set(
+            candidate
+                .map((value) => Number.parseInt(value, 10))
+                .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+        )
+    ).sort((left, right) => left - right);
+
+    return normalized.length > 0 ? normalized : [...fallback];
+};
+
 const AdminTimetablePage = () => {
     const { t, i18n } = useTranslation(['adminTimetable', 'subjects', 'common']);
     const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : 'en';
@@ -90,6 +108,7 @@ const AdminTimetablePage = () => {
     const [periods, setPeriods] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [rooms, setRooms] = useState([]);
+    const [weekWorkingDays, setWeekWorkingDays] = useState(DEFAULT_WEEK_WORKING_DAYS);
 
     const [editingAssignmentId, setEditingAssignmentId] = useState(null);
     const [filterTeacher, setFilterTeacher] = useState('');
@@ -97,7 +116,11 @@ const AdminTimetablePage = () => {
 
     const [newPeriod, setNewPeriod] = useState(createDefaultPeriod);
     const [editingPeriod, setEditingPeriod] = useState(null);
-    const [newAssignment, setNewAssignment] = useState(createDefaultAssignment);
+    const [newAssignment, setNewAssignment] = useState(() => createDefaultAssignment(undefined, DEFAULT_WEEK_WORKING_DAYS));
+    const [assignmentsPage, setAssignmentsPage] = useState(1);
+    const [assignmentsPageSize, setAssignmentsPageSize] = useState(DEFAULT_ASSIGNMENTS_PAGE_SIZE);
+    const [periodsPage, setPeriodsPage] = useState(1);
+    const [periodsPageSize, setPeriodsPageSize] = useState(DEFAULT_PERIODS_PAGE_SIZE);
 
     const [showRoomModal, setShowRoomModal] = useState(false);
     const [newRoom, setNewRoom] = useState(createDefaultRoom);
@@ -139,6 +162,18 @@ const AdminTimetablePage = () => {
         editingAssignmentId
     });
 
+    const assignmentsTotalPages = Math.max(1, Math.ceil(filteredAssignments.length / assignmentsPageSize));
+    const paginatedAssignments = useMemo(() => {
+        const startIndex = (assignmentsPage - 1) * assignmentsPageSize;
+        return filteredAssignments.slice(startIndex, startIndex + assignmentsPageSize);
+    }, [filteredAssignments, assignmentsPage, assignmentsPageSize]);
+
+    const periodsTotalPages = Math.max(1, Math.ceil(periods.length / periodsPageSize));
+    const paginatedPeriods = useMemo(() => {
+        const startIndex = (periodsPage - 1) * periodsPageSize;
+        return periods.slice(startIndex, startIndex + periodsPageSize);
+    }, [periods, periodsPage, periodsPageSize]);
+
     const summaryCards = useMemo(() => {
         const activeAssignments = assignments.filter((assignment) => assignment.isActive !== false).length;
         const availableRooms = rooms.filter((room) => room.status === 'active' && room.isAvailable !== false).length;
@@ -176,6 +211,11 @@ const AdminTimetablePage = () => {
         []
     );
 
+    const selectableDayOptions = useMemo(
+        () => DAY_LABELS.filter((day) => weekWorkingDays.includes(day.value)),
+        [weekWorkingDays]
+    );
+
     const fetchTimetableData = async () => {
         try {
             setLoading(true);
@@ -188,8 +228,19 @@ const AdminTimetablePage = () => {
             ]);
 
             setPeriods(periodResponse?.data?.periods || []);
-            setAssignments(assignmentResponse?.data?.assignments || []);
+            const responseWorkingDays = normalizeDays(assignmentResponse?.data?.workingDays, DEFAULT_WEEK_WORKING_DAYS);
+            const responseAssignments = assignmentResponse?.data?.assignments || [];
+            setWeekWorkingDays(responseWorkingDays);
+            setAssignments(responseAssignments);
             setRooms(roomResponse?.data?.rooms || []);
+            setNewAssignment((previousAssignment) => {
+                const selectedDays = normalizeDays(previousAssignment.daysOfWeek, []);
+                const filteredDays = selectedDays.filter((day) => responseWorkingDays.includes(day));
+                return {
+                    ...previousAssignment,
+                    daysOfWeek: filteredDays.length > 0 ? filteredDays : [...responseWorkingDays]
+                };
+            });
         } catch (requestError) {
             setError(requestError?.response?.data?.message || requestError.message);
         } finally {
@@ -202,7 +253,6 @@ const AdminTimetablePage = () => {
         dispatch(fetchClasses({ limit: TIMETABLE_DROPDOWN_LIMIT }));
         dispatch(fetchSubjects({ limit: TIMETABLE_DROPDOWN_LIMIT }));
         fetchTimetableData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dispatch]);
 
     useEffect(() => {
@@ -214,6 +264,22 @@ const AdminTimetablePage = () => {
 
         return () => window.clearTimeout(timeoutId);
     }, [location.hash, loading]);
+
+    useEffect(() => {
+        setAssignmentsPage(1);
+    }, [filterTeacher, filterClass]);
+
+    useEffect(() => {
+        if (assignmentsPage > assignmentsTotalPages) {
+            setAssignmentsPage(assignmentsTotalPages);
+        }
+    }, [assignmentsPage, assignmentsTotalPages]);
+
+    useEffect(() => {
+        if (periodsPage > periodsTotalPages) {
+            setPeriodsPage(periodsTotalPages);
+        }
+    }, [periodsPage, periodsTotalPages]);
 
     const addPeriod = async () => {
         try {
@@ -290,7 +356,7 @@ const AdminTimetablePage = () => {
 
             const payload = {
                 ...newAssignment,
-                daysOfWeek: (newAssignment.daysOfWeek || []).map((dayNumber) => parseInt(dayNumber, 10))
+                daysOfWeek: normalizeDays(newAssignment.daysOfWeek, weekWorkingDays)
             };
 
             if (editingAssignmentId) {
@@ -302,7 +368,7 @@ const AdminTimetablePage = () => {
                 toast.success(t('adminTimetable:toast.assignmentCreated'));
             }
 
-            setNewAssignment(createDefaultAssignment());
+            setNewAssignment(createDefaultAssignment(undefined, weekWorkingDays));
             await fetchTimetableData();
         } catch (requestError) {
             setError(requestError?.response?.data?.message || requestError.message);
@@ -313,18 +379,20 @@ const AdminTimetablePage = () => {
 
     const cancelAssignmentEdit = () => {
         setEditingAssignmentId(null);
-        setNewAssignment(createDefaultAssignment());
+        setNewAssignment(createDefaultAssignment(undefined, weekWorkingDays));
     };
 
     const fillAssignmentFormForEdit = (assignment) => {
         setEditingAssignmentId(assignment._id);
+        const assignmentDays = normalizeDays(assignment.daysOfWeek, weekWorkingDays)
+            .filter((day) => weekWorkingDays.includes(day));
         setNewAssignment({
             teacher: assignment.teacher?._id || assignment.teacher || '',
             class: assignment.class?._id || assignment.class || '',
             subject: assignment.subject?._id || assignment.subject || '',
             room: assignment.room?._id || assignment.room || '',
             period: assignment.period?._id || assignment.period || '',
-            daysOfWeek: assignment.daysOfWeek || [],
+            daysOfWeek: assignmentDays.length > 0 ? assignmentDays : [...weekWorkingDays],
             startDate: formatDateAsYmd(assignment.startDate),
             endDate: formatDateAsYmd(assignment.endDate),
             isActive: assignment.isActive ?? true
@@ -352,6 +420,8 @@ const AdminTimetablePage = () => {
     };
 
     const toggleAssignmentDay = (dayValue) => {
+        if (!weekWorkingDays.includes(dayValue)) return;
+
         setNewAssignment((previousAssignment) => {
             const nextDays = previousAssignment.daysOfWeek.includes(dayValue)
                 ? previousAssignment.daysOfWeek.filter((existingDay) => existingDay !== dayValue)
@@ -811,7 +881,7 @@ const AdminTimetablePage = () => {
                             <div className="field full">
                                 <label>{t('adminTimetable:assignmentForm.days')}</label>
                                 <div className="weekday-selector">
-                                    {DAY_LABELS.map((day) => (
+                                    {selectableDayOptions.map((day) => (
                                         <button
                                             type="button"
                                             key={day.value}
@@ -875,8 +945,10 @@ const AdminTimetablePage = () => {
                                         <div className="cell actions" />
                                     </div>
 
-                                    {filteredAssignments.map((assignment) => {
-                                        const assignmentDays = formatAssignmentDays(assignment.daysOfWeek);
+                                    {paginatedAssignments.map((assignment) => {
+                                        const assignmentDays = formatAssignmentDays(
+                                            assignment.daysOfWeek?.length ? assignment.daysOfWeek : weekWorkingDays
+                                        );
 
                                         return (
                                             <div key={assignment._id} className="row">
@@ -925,6 +997,18 @@ const AdminTimetablePage = () => {
                                 </>
                             )}
                         </div>
+                        <TablePagination
+                            page={assignmentsPage}
+                            pageSize={assignmentsPageSize}
+                            totalItems={filteredAssignments.length}
+                            totalPages={assignmentsTotalPages}
+                            onPageChange={(nextPage) => setAssignmentsPage(Math.max(1, Math.min(nextPage, assignmentsTotalPages)))}
+                            onPageSizeChange={(nextSize) => {
+                                setAssignmentsPageSize(nextSize);
+                                setAssignmentsPage(1);
+                            }}
+                            pageSizeOptions={[10, 20, 50]}
+                        />
                     </section>
                 </div>
 
@@ -1010,7 +1094,7 @@ const AdminTimetablePage = () => {
                             {periods.length === 0 ? (
                                 <div className="empty">{t('adminTimetable:periods.empty')}</div>
                             ) : (
-                                periods.map((period) => (
+                                paginatedPeriods.map((period) => (
                                     <div key={period._id} className="row row-has-actions">
                                         {editingPeriod && editingPeriod._id === period._id ? (
                                             <>
@@ -1098,6 +1182,18 @@ const AdminTimetablePage = () => {
                                 ))
                             )}
                         </div>
+                        <TablePagination
+                            page={periodsPage}
+                            pageSize={periodsPageSize}
+                            totalItems={periods.length}
+                            totalPages={periodsTotalPages}
+                            onPageChange={(nextPage) => setPeriodsPage(Math.max(1, Math.min(nextPage, periodsTotalPages)))}
+                            onPageSizeChange={(nextSize) => {
+                                setPeriodsPageSize(nextSize);
+                                setPeriodsPage(1);
+                            }}
+                            pageSizeOptions={[8, 16, 32]}
+                        />
                     </section>
                 </aside>
             </div>

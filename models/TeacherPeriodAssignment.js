@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { normalizeWeekWorkingDays } from '../utils/schoolWeekWorkingDays.js';
 
 const teacherPeriodAssignmentSchema = new mongoose.Schema({
     school: {
@@ -90,11 +91,7 @@ teacherPeriodAssignmentSchema.pre('validate', function(next) {
         }
     }
 
-    if (!this.daysOfWeek || this.daysOfWeek.length === 0) {
-        this.daysOfWeek = [1, 2, 3, 4, 5];
-    }
-
-    this.daysOfWeek = Array.from(new Set(this.daysOfWeek)).sort((a, b) => a - b);
+    this.daysOfWeek = normalizeWeekWorkingDays(this.daysOfWeek, []);
 
     next();
 });

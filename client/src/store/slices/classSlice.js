@@ -82,6 +82,18 @@ export const addSubjectToClass = createAsyncThunk(
     }
 );
 
+export const removeSubjectFromClass = createAsyncThunk(
+    'classes/removeSubject',
+    async ({ classId, subjectId }, { rejectWithValue }) => {
+        try {
+            const response = await api.delete(`/classes/${classId}/subjects/${subjectId}`);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to remove subject');
+        }
+    }
+);
+
 export const fetchClassAnalytics = createAsyncThunk(
     'classes/fetchClassAnalytics',
     async ({ classId, academicYear, startDate, endDate } = {}, { rejectWithValue }) => {
@@ -208,6 +220,11 @@ const classSlice = createSlice({
             // Add subject
             .addCase(addSubjectToClass.fulfilled, (state, action) => {
                 state.currentClass = action.payload.class;
+            })
+            .addCase(removeSubjectFromClass.fulfilled, (state, action) => {
+                if (action.payload?.class) {
+                    state.currentClass = action.payload.class;
+                }
             })
             // Class analytics
             .addCase(fetchClassAnalytics.pending, (state) => {

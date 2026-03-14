@@ -7,9 +7,15 @@ import Subject from '../models/Subject.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Room from '../models/Room.js';
+import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import { getClassIdsForAcademicYear, resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
+import {
+    DEFAULT_WEEK_WORKING_DAYS,
+    getInvalidWeekWorkingDayValues,
+    normalizeWeekWorkingDays
+} from '../utils/schoolWeekWorkingDays.js';
 
 // @desc    List periods
 // @route   GET /api/timetable/periods
@@ -131,6 +137,26 @@ async function findActiveTeacherProfileForUser(userId) {
         .lean();
 }
 
+async function resolveSchoolWeekWorkingDays(schoolId) {
+    const config = await SchoolCalendarConfig.findOne({
+        school: schoolId,
+        isActive: true
+    })
+        .select('weekWorkingDays')
+        .lean();
+
+    return normalizeWeekWorkingDays(config?.weekWorkingDays, DEFAULT_WEEK_WORKING_DAYS);
+}
+
+const resolveAssignmentDays = (daysOfWeek, schoolWeekWorkingDays) =>
+    normalizeWeekWorkingDays(daysOfWeek, schoolWeekWorkingDays);
+
+const hasDayOutsideSchoolWorkingDays = (daysOfWeek, schoolWeekWorkingDays) => {
+    if (!Array.isArray(daysOfWeek)) return false;
+    const invalidDays = getInvalidWeekWorkingDayValues(daysOfWeek, schoolWeekWorkingDays);
+    return invalidDays.length > 0;
+};
+
 /**
  * Check for teacher/class/room conflicts in the same period with overlapping dates and days.
  * @param {string} schoolId
@@ -138,7 +164,7 @@ async function findActiveTeacherProfileForUser(userId) {
  * @param {string|null} excludeAssignmentId - assignment id to exclude (e.g. when updating)
  * @returns {Promise<{ hasConflict: boolean, conflicts: array }>}
  */
-async function checkAssignmentConflicts(schoolId, candidate, excludeAssignmentId = null) {
+async function checkAssignmentConflicts(schoolId, candidate, excludeAssignmentId = null, defaultWorkingDays = DEFAULT_WEEK_WORKING_DAYS) {
     const { teacher, class: classId, room, period, daysOfWeek, startDate, endDate } = candidate;
     const existingForPeriod = await TeacherPeriodAssignment.find({
         school: schoolId,
@@ -151,7 +177,7 @@ async function checkAssignmentConflicts(schoolId, candidate, excludeAssignmentId
     const normalizedStart = new Date(s.setHours(0, 0, 0, 0));
     const normalizedEnd = new Date(e.setHours(23, 59, 59, 999));
 
-    const candidateDays = Array.from(new Set((daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : [1, 2, 3, 4, 5])));
+    const candidateDays = resolveAssignmentDays(daysOfWeek, defaultWorkingDays);
     const conflicts = [];
 
     // Global room-to-class uniqueness rule:
@@ -193,7 +219,8 @@ async function checkAssignmentConflicts(schoolId, candidate, excludeAssignmentId
         const dateOverlap = datesOverlap(normalizedStart, normalizedEnd, new Date(existing.startDate), new Date(existing.endDate));
         if (!dateOverlap) continue;
 
-        const dayOverlap = (existing.daysOfWeek || []).some(d => candidateDays.includes(d));
+        const existingDays = resolveAssignmentDays(existing.daysOfWeek, defaultWorkingDays);
+        const dayOverlap = existingDays.some((day) => candidateDays.includes(day));
         if (!dayOverlap) continue;
 
         const isTeacherConflict = existing.teacher.toString() === teacher?.toString();
@@ -207,7 +234,7 @@ async function checkAssignmentConflicts(schoolId, candidate, excludeAssignmentId
                 class: existing.class,
                 room: existing.room,
                 period: existing.period,
-                daysOfWeek: existing.daysOfWeek,
+                daysOfWeek: existingDays,
                 startDate: existing.startDate,
                 endDate: existing.endDate,
                 reason: isTeacherConflict ? 'teacher' : isClassConflict ? 'class' : 'room'
@@ -236,6 +263,15 @@ export const createAssignment = asyncHandler(async (req, res) => {
 
     const subject = rawSubject || undefined;
     const room = rawRoom || undefined;
+    const schoolWeekWorkingDays = await resolveSchoolWeekWorkingDays(req.schoolId);
+    const assignmentDays = resolveAssignmentDays(daysOfWeek, schoolWeekWorkingDays);
+
+    if (hasDayOutsideSchoolWorkingDays(daysOfWeek, schoolWeekWorkingDays)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Selected days must be within school teaching days'
+        });
+    }
 
     const [teacherUser, teacherProfile] = await Promise.all([
         User.findById(teacher).setOptions({ skipTenantFilter: true }),
@@ -309,7 +345,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         subject,
         room,
         period,
-        daysOfWeek,
+        daysOfWeek: assignmentDays,
         startDate: s,
         endDate: e,
         isActive: isActive ?? true,
@@ -321,10 +357,10 @@ export const createAssignment = asyncHandler(async (req, res) => {
         class: classId,
         room,
         period,
-        daysOfWeek,
+        daysOfWeek: assignmentDays,
         startDate: s,
         endDate: e
-    });
+    }, null, schoolWeekWorkingDays);
 
     if (hasConflict) {
         const reasons = [...new Set(conflicts.map(c => c.reason))];
@@ -346,6 +382,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
 export const listAssignments = asyncHandler(async (req, res) => {
     const { teacher, class: classId, period, activeOnly = 'true' } = req.query;
     const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const schoolWeekWorkingDays = await resolveSchoolWeekWorkingDays(req.schoolId);
     const yearScopedClassIds = await getClassIdsForAcademicYear({
         schoolId: req.schoolId,
         academicYear: effectiveAcademicYear,
@@ -353,7 +390,14 @@ export const listAssignments = asyncHandler(async (req, res) => {
     });
 
     if (yearScopedClassIds.length === 0) {
-        return res.json({ success: true, data: { assignments: [], academicYear: effectiveAcademicYear } });
+        return res.json({
+            success: true,
+            data: {
+                assignments: [],
+                academicYear: effectiveAcademicYear,
+                workingDays: schoolWeekWorkingDays
+            }
+        });
     }
 
     const query = { school: req.schoolId };
@@ -370,7 +414,22 @@ export const listAssignments = asyncHandler(async (req, res) => {
         .populate('period', 'name startTime endTime order')
         .sort({ startDate: 1 });
 
-    res.json({ success: true, data: { assignments, academicYear: effectiveAcademicYear } });
+    const normalizedAssignments = assignments.map((assignment) => {
+        const serialized = assignment.toObject();
+        if (!Array.isArray(serialized.daysOfWeek) || serialized.daysOfWeek.length === 0) {
+            serialized.daysOfWeek = [...schoolWeekWorkingDays];
+        }
+        return serialized;
+    });
+
+    res.json({
+        success: true,
+        data: {
+            assignments: normalizedAssignments,
+            academicYear: effectiveAcademicYear,
+            workingDays: schoolWeekWorkingDays
+        }
+    });
 });
 
 // @desc    Get student's today schedule (by currentClass)
@@ -378,14 +437,25 @@ export const listAssignments = asyncHandler(async (req, res) => {
 // @access  Private (Student)
 export const getStudentTimetable = asyncHandler(async (req, res) => {
     const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const schoolWeekWorkingDays = await resolveSchoolWeekWorkingDays(req.schoolId);
     const student = await Student.findOne({ user: req.user._id, status: 'active' })
         .select('currentClass')
         .populate('currentClass', 'name grade section academicYear');
     if (!student || !student.currentClass) {
-        return res.json({ success: true, data: { schedule: [] } });
+        return res.json({
+            success: true,
+            data: { schedule: [], workingDays: schoolWeekWorkingDays }
+        });
     }
     if ((student.currentClass.academicYear || '').toString() !== effectiveAcademicYear) {
-        return res.json({ success: true, data: { schedule: [], academicYear: effectiveAcademicYear } });
+        return res.json({
+            success: true,
+            data: {
+                schedule: [],
+                academicYear: effectiveAcademicYear,
+                workingDays: schoolWeekWorkingDays
+            }
+        });
     }
 
     const today = new Date();
@@ -395,17 +465,21 @@ export const getStudentTimetable = asyncHandler(async (req, res) => {
     const endOfDay = new Date(today);
     endOfDay.setHours(23, 59, 59, 999);
 
+    const dayFilter = [{ daysOfWeek: dayOfWeek }];
+    if (schoolWeekWorkingDays.includes(dayOfWeek)) {
+        dayFilter.push(
+            { daysOfWeek: { $exists: false } },
+            { daysOfWeek: { $size: 0 } }
+        );
+    }
+
     const assignments = await TeacherPeriodAssignment.find({
         school: req.schoolId,
         class: student.currentClass._id,
         isActive: true,
         startDate: { $lte: endOfDay },
         endDate: { $gte: startOfDay },
-        $or: [
-            { daysOfWeek: { $exists: false } },
-            { daysOfWeek: { $size: 0 } },
-            { daysOfWeek: dayOfWeek }
-        ]
+        $or: dayFilter
     })
         .populate('period', 'name startTime endTime order')
         .populate('subject', 'name code')
@@ -420,7 +494,14 @@ export const getStudentTimetable = asyncHandler(async (req, res) => {
         teacher: a.teacher
     }));
 
-    res.json({ success: true, data: { schedule, academicYear: effectiveAcademicYear } });
+    res.json({
+        success: true,
+        data: {
+            schedule,
+            academicYear: effectiveAcademicYear,
+            workingDays: schoolWeekWorkingDays
+        }
+    });
 });
 
 // @desc    Get current teacher's timetable (periods + their assignments)
@@ -428,6 +509,7 @@ export const getStudentTimetable = asyncHandler(async (req, res) => {
 // @access  Private (Teacher)
 export const getMyTimetable = asyncHandler(async (req, res) => {
     const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const schoolWeekWorkingDays = await resolveSchoolWeekWorkingDays(req.schoolId);
     const yearScopedClassIds = await getClassIdsForAcademicYear({
         schoolId: req.schoolId,
         academicYear: effectiveAcademicYear
@@ -435,7 +517,15 @@ export const getMyTimetable = asyncHandler(async (req, res) => {
     const periods = await TimetablePeriod.find({ school: req.schoolId, isActive: true }).sort({ order: 1 });
 
     if (yearScopedClassIds.length === 0) {
-        return res.json({ success: true, data: { periods, assignments: [], academicYear: effectiveAcademicYear } });
+        return res.json({
+            success: true,
+            data: {
+                periods,
+                assignments: [],
+                academicYear: effectiveAcademicYear,
+                workingDays: schoolWeekWorkingDays
+            }
+        });
     }
 
     const assignments = await TeacherPeriodAssignment.find({
@@ -450,7 +540,23 @@ export const getMyTimetable = asyncHandler(async (req, res) => {
         .populate('period', 'name startTime endTime order')
         .sort({ 'period.order': 1 });
 
-    res.json({ success: true, data: { periods, assignments, academicYear: effectiveAcademicYear } });
+    const normalizedAssignments = assignments.map((assignment) => {
+        const serialized = assignment.toObject();
+        if (!Array.isArray(serialized.daysOfWeek) || serialized.daysOfWeek.length === 0) {
+            serialized.daysOfWeek = [...schoolWeekWorkingDays];
+        }
+        return serialized;
+    });
+
+    res.json({
+        success: true,
+        data: {
+            periods,
+            assignments: normalizedAssignments,
+            academicYear: effectiveAcademicYear,
+            workingDays: schoolWeekWorkingDays
+        }
+    });
 });
 
 // @desc    Update assignment
@@ -458,6 +564,7 @@ export const getMyTimetable = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const updateAssignment = asyncHandler(async (req, res) => {
     const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const schoolWeekWorkingDays = await resolveSchoolWeekWorkingDays(req.schoolId);
     const assignment = await TeacherPeriodAssignment.findById(req.params.id);
     if (!assignment) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
@@ -488,6 +595,13 @@ export const updateAssignment = asyncHandler(async (req, res) => {
 
     const subject = rawSubject !== undefined ? rawSubject || undefined : assignment.subject;
     const room = rawRoom !== undefined ? rawRoom || undefined : assignment.room;
+
+    if (hasDayOutsideSchoolWorkingDays(bodyDays, schoolWeekWorkingDays)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Selected days must be within school teaching days'
+        });
+    }
 
     if (bodyTeacher !== undefined) {
         const [teacherUser, teacherProfile] = await Promise.all([
@@ -524,7 +638,7 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     if (rawSubject !== undefined) assignment.subject = subject;
     if (rawRoom !== undefined) assignment.room = room;
     if (bodyPeriod !== undefined) assignment.period = bodyPeriod;
-    if (bodyDays !== undefined) assignment.daysOfWeek = bodyDays;
+    if (bodyDays !== undefined) assignment.daysOfWeek = resolveAssignmentDays(bodyDays, schoolWeekWorkingDays);
     if (bodyStart !== undefined) assignment.startDate = bodyStart;
     if (bodyEnd !== undefined) assignment.endDate = bodyEnd;
     if (isActive !== undefined) assignment.isActive = isActive;
@@ -533,7 +647,8 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     const teacherVal = assignment.teacher;
     const classVal = assignment.class;
     const periodVal = assignment.period;
-    const daysVal = assignment.daysOfWeek;
+    const daysVal = resolveAssignmentDays(assignment.daysOfWeek, schoolWeekWorkingDays);
+    assignment.daysOfWeek = daysVal;
     const startVal = assignment.startDate ? new Date(assignment.startDate) : null;
     const endVal = assignment.endDate ? new Date(assignment.endDate) : null;
 
@@ -565,7 +680,7 @@ export const updateAssignment = asyncHandler(async (req, res) => {
             daysOfWeek: daysVal,
             startDate: startVal,
             endDate: endVal
-        }, req.params.id);
+        }, req.params.id, schoolWeekWorkingDays);
 
         if (hasConflict) {
             const reasons = [...new Set(conflicts.map(c => c.reason))];

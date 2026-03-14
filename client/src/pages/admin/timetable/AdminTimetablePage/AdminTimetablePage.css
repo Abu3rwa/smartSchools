@@ -179,7 +179,7 @@
 
 .admin-timetable-page .workspace-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.95fr);
+    grid-template-columns: 1fr;
     gap: var(--spacing-xl);
     align-items: start;
 }

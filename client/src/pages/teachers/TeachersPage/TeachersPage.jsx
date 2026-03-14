@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +33,10 @@ import { mapTeacherToFormData } from './utils/teacherPresentation';
 import teacherService from '../../../services/teacherService';
 import { parseCsvFile } from '../../../utils/csvImport';
 import importTemplateService from '../../../services/importTemplateService';
+import TablePagination from '../../../components/common/TablePagination';
 import './TeachersPage.css';
+
+const DEFAULT_PAGE_SIZE = 10;
 
 const TeachersPage = () => {
     const dispatch = useDispatch();
@@ -54,6 +57,8 @@ const TeachersPage = () => {
     const [teacherInviteResult, setTeacherInviteResult] = useState(null);
     const [bulkTeacherInviteResults, setBulkTeacherInviteResults] = useState(null);
     const [templateMeta, setTemplateMeta] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
     const {
         searchTerm,
@@ -128,6 +133,22 @@ const TeachersPage = () => {
         });
     }, [filteredTeachers]);
 
+    const totalPages = Math.max(1, Math.ceil(filteredTeachers.length / pageSize));
+    const paginatedTeachers = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredTeachers.slice(startIndex, startIndex + pageSize);
+    }, [filteredTeachers, currentPage, pageSize]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
+
     const copyToClipboard = async (value) => {
         try {
             await navigator.clipboard.writeText(value);
@@ -184,17 +205,17 @@ const TeachersPage = () => {
 
     const toggleSelectAllTeachers = () => {
         setSelectedTeacherIds((previous) => {
-            const allVisibleSelected = filteredTeachers.length > 0
-                && filteredTeachers.every((teacher) => previous.has(teacher._id));
+            const allVisibleSelected = paginatedTeachers.length > 0
+                && paginatedTeachers.every((teacher) => previous.has(teacher._id));
 
             if (allVisibleSelected) {
                 const next = new Set(previous);
-                filteredTeachers.forEach((teacher) => next.delete(teacher._id));
+                paginatedTeachers.forEach((teacher) => next.delete(teacher._id));
                 return next;
             }
 
             const next = new Set(previous);
-            filteredTeachers.forEach((teacher) => next.add(teacher._id));
+            paginatedTeachers.forEach((teacher) => next.add(teacher._id));
             return next;
         });
     };
@@ -514,12 +535,12 @@ const TeachersPage = () => {
 
             <TeachersTable
                 loading={loading}
-                teachers={filteredTeachers}
+                teachers={paginatedTeachers}
                 canManageTeachers={canManageTeachers}
                 selectedTeacherIds={selectedTeacherIds}
                 isAllTeachersSelected={
-                    filteredTeachers.length > 0
-                    && filteredTeachers.every((teacher) => selectedTeacherIds.has(teacher._id))
+                    paginatedTeachers.length > 0
+                    && paginatedTeachers.every((teacher) => selectedTeacherIds.has(teacher._id))
                 }
                 toggleSelectAllTeachers={toggleSelectAllTeachers}
                 toggleSelectTeacher={toggleSelectTeacher}
@@ -529,6 +550,17 @@ const TeachersPage = () => {
                 onDelete={handleDeleteTeacher}
                 onSendInvite={handleSendTeacherInvite}
                 sendingInviteTeacherId={sendingInviteTeacherId}
+            />
+            <TablePagination
+                page={currentPage}
+                pageSize={pageSize}
+                totalItems={filteredTeachers.length}
+                totalPages={totalPages}
+                onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
+                onPageSizeChange={(nextSize) => {
+                    setPageSize(nextSize);
+                    setCurrentPage(1);
+                }}
             />
 
             <TeacherFormModal

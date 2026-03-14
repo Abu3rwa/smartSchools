@@ -1,4 +1,5 @@
 export const TIMETABLE_DROPDOWN_LIMIT = 200; // Max items for teachers/classes/subjects dropdowns; add pagination if needed.
+export const DEFAULT_WEEK_WORKING_DAYS = [1, 2, 3, 4, 5];
 
 export const DAY_LABELS = [
     { value: 0, labelKey: 'days.sun' },

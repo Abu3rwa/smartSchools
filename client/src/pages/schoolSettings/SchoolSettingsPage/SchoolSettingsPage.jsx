@@ -59,6 +59,10 @@ const SchoolSettingsPage = () => {
     schoolYearEndDate,
     setSchoolYearEndDate,
     schoolYearDatesSaving,
+    schoolWeekConfigLoading,
+    schoolWeekConfigSaving,
+    weekWorkingDays,
+    weekendDays,
     schoolInfo,
     brandingLoading,
     communicationSettings,
@@ -72,6 +76,8 @@ const SchoolSettingsPage = () => {
     handlePromoteStudents,
     handleSwitchToNewYear,
     handleSaveSchoolYearDates,
+    handleToggleWeekWorkingDay,
+    handleSaveWeekWorkingDays,
     gradingScales,
     gradingScalesLoading,
     gradingScaleSubmitting,
@@ -219,8 +225,14 @@ const SchoolSettingsPage = () => {
           setSchoolYearStartDate={setSchoolYearStartDate}
           setSchoolYearEndDate={setSchoolYearEndDate}
           schoolYearDatesSaving={schoolYearDatesSaving}
+          schoolWeekConfigLoading={schoolWeekConfigLoading}
+          schoolWeekConfigSaving={schoolWeekConfigSaving}
+          weekWorkingDays={weekWorkingDays}
+          weekendDays={weekendDays}
           academicYearSaving={academicYearSaving}
           onSaveSchoolYearDates={handleSaveSchoolYearDates}
+          onToggleWeekWorkingDay={handleToggleWeekWorkingDay}
+          onSaveWeekWorkingDays={handleSaveWeekWorkingDays}
           onNavigateClasses={() => navigate('/portal/classes')}
           onEditUsersTab={() => setActiveTab('users')}
         />

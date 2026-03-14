@@ -3,11 +3,34 @@ import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import SchoolDayException from '../models/SchoolDayException.js';
 import {
     DEFAULT_SCHOOL_TIMEZONE,
+    isValidTimeZone,
     resolveTimeZone,
     getSchoolDayRange,
     getViewRangeInTimeZone,
     localYmdToServerMidnightDate
 } from '../utils/schoolTimezone.js';
+import {
+    DEFAULT_WEEK_WORKING_DAYS,
+    getInvalidWeekWorkingDayValues,
+    getWeekendDays,
+    normalizeWeekWorkingDays
+} from '../utils/schoolWeekWorkingDays.js';
+
+const buildCalendarConfigResponse = (config) => {
+    const weekWorkingDays = normalizeWeekWorkingDays(config?.weekWorkingDays, DEFAULT_WEEK_WORKING_DAYS);
+    const timezone = resolveTimeZone(config?.timezone) || DEFAULT_SCHOOL_TIMEZONE;
+
+    return {
+        _id: config?._id || null,
+        school: config?.school || null,
+        timezone,
+        weekWorkingDays,
+        weekendDays: getWeekendDays(weekWorkingDays),
+        isActive: config?.isActive !== false,
+        createdAt: config?.createdAt || null,
+        updatedAt: config?.updatedAt || null
+    };
+};
 
 // @desc    Get school calendar config + exceptions for a date range
 // @route   GET /api/school-calendar
@@ -39,7 +62,7 @@ export const getSchoolCalendar = asyncHandler(async (req, res) => {
     res.status(200).json({
         success: true,
         data: {
-            config,
+            config: buildCalendarConfigResponse(config),
             exceptions
         }
     });
@@ -51,12 +74,45 @@ export const getSchoolCalendar = asyncHandler(async (req, res) => {
 export const upsertSchoolCalendarConfig = asyncHandler(async (req, res) => {
     const { timezone, weekWorkingDays, isActive } = req.body;
 
+    if (timezone !== undefined && !isValidTimeZone(timezone)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid timezone'
+        });
+    }
+
     const update = {
         ...(timezone !== undefined ? { timezone } : {}),
-        ...(weekWorkingDays !== undefined ? { weekWorkingDays } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
         lastModifiedBy: req.user._id
     };
+
+    if (weekWorkingDays !== undefined) {
+        if (!Array.isArray(weekWorkingDays)) {
+            return res.status(400).json({
+                success: false,
+                message: 'weekWorkingDays must be an array of weekday numbers (0-6)'
+            });
+        }
+
+        const invalidValues = getInvalidWeekWorkingDayValues(weekWorkingDays);
+        if (invalidValues.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'weekWorkingDays accepts only values from 0 (Sunday) to 6 (Saturday)'
+            });
+        }
+
+        const normalizedWeekWorkingDays = normalizeWeekWorkingDays(weekWorkingDays, []);
+        if (normalizedWeekWorkingDays.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'At least one working day is required'
+            });
+        }
+
+        update.weekWorkingDays = normalizedWeekWorkingDays;
+    }
 
     const config = await SchoolCalendarConfig.findOneAndUpdate(
         { school: req.schoolId },
@@ -66,7 +122,7 @@ export const upsertSchoolCalendarConfig = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        data: { config }
+        data: { config: buildCalendarConfigResponse(config) }
     });
 });
 

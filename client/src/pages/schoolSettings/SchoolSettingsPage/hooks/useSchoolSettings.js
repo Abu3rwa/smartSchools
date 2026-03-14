@@ -20,7 +20,24 @@ import {
   updateSchoolAcademicYear,
   selectAcademicYearLoading
 } from '../../../../store/slices/uiSlice';
-import { isConsecutiveAcademicYear, isValidAcademicYear, normalizePermissions } from '../utils/schoolSettingsUtils';
+import { isConsecutiveAcademicYear, normalizePermissions } from '../utils/schoolSettingsUtils';
+
+const DEFAULT_WEEK_WORKING_DAYS = [1, 2, 3, 4, 5];
+const ALL_WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
+
+const normalizeWeekWorkingDays = (candidate) => {
+  if (!Array.isArray(candidate)) return [...DEFAULT_WEEK_WORKING_DAYS];
+
+  const normalized = Array.from(
+    new Set(
+      candidate
+        .map((value) => Number.parseInt(value, 10))
+        .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    )
+  ).sort((left, right) => left - right);
+
+  return normalized.length > 0 ? normalized : [...DEFAULT_WEEK_WORKING_DAYS];
+};
 
 const useSchoolSettings = () => {
   const dispatch = useDispatch();
@@ -69,6 +86,9 @@ const useSchoolSettings = () => {
   const [schoolYearStartDate, setSchoolYearStartDate] = useState('');
   const [schoolYearEndDate, setSchoolYearEndDate] = useState('');
   const [schoolYearDatesSaving, setSchoolYearDatesSaving] = useState(false);
+  const [schoolWeekConfigLoading, setSchoolWeekConfigLoading] = useState(false);
+  const [schoolWeekConfigSaving, setSchoolWeekConfigSaving] = useState(false);
+  const [weekWorkingDays, setWeekWorkingDays] = useState(DEFAULT_WEEK_WORKING_DAYS);
   const [schoolInfo, setSchoolInfo] = useState(null);
   const [brandingLoading, setBrandingLoading] = useState(false);
   const [communicationSettings, setCommunicationSettings] = useState({
@@ -337,6 +357,23 @@ const useSchoolSettings = () => {
     }
   }, [canManageCommunicationSettings, communicationSettings.attendanceReminderDelayMinutes, communicationSettings.attendanceRemindersEnabled, t]);
 
+  const loadSchoolWeekConfig = useCallback(async () => {
+    setSchoolWeekConfigLoading(true);
+    try {
+      const res = await api.get('/school-calendar');
+      if (res.data?.success) {
+        const nextWorkingDays = normalizeWeekWorkingDays(res.data?.data?.config?.weekWorkingDays);
+        setWeekWorkingDays(nextWorkingDays);
+      } else {
+        toast.error(res.data?.message || t('schoolSettings:toast.loadSchoolWeekConfigFailed'));
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.loadSchoolWeekConfigFailed'));
+    } finally {
+      setSchoolWeekConfigLoading(false);
+    }
+  }, [t]);
+
   const loadAcademicYearData = useCallback(async () => {
     try {
       const res = await api.get('/schools/me/academic-years');
@@ -347,12 +384,12 @@ const useSchoolSettings = () => {
         if (!toYear) {
           const last = years[years.length - 1];
           if (last) {
-            const [s, e] = last.split('-').map(Number);
+            const [, e] = last.split('-').map(Number);
             setToYear(`${e}-${e + 1}`);
           }
         }
       }
-    } catch (error) {
+    } catch {
       toast.error(t('schoolSettings:toast.loadAcademicYearsFailed'));
     }
 
@@ -364,7 +401,7 @@ const useSchoolSettings = () => {
         setSchoolYearStartDate(start ? start.toISOString().slice(0, 10) : '');
         setSchoolYearEndDate(end ? end.toISOString().slice(0, 10) : '');
       }
-    } catch (error) {
+    } catch {
       toast.error(t('schoolSettings:toast.loadSchoolYearDatesFailed'));
     }
   }, [fromYear, t, toYear]);
@@ -372,8 +409,9 @@ const useSchoolSettings = () => {
   useEffect(() => {
     if (canManageSchoolSettings && activeTab === 'schoolyear') {
       loadAcademicYearData();
+      loadSchoolWeekConfig();
     }
-  }, [activeTab, canManageSchoolSettings, loadAcademicYearData]);
+  }, [activeTab, canManageSchoolSettings, loadAcademicYearData, loadSchoolWeekConfig]);
 
   const handleCopyClasses = useCallback(async () => {
     if (!fromYear || !toYear) {
@@ -495,6 +533,49 @@ const useSchoolSettings = () => {
     }
   }, [schoolYearEndDate, schoolYearStartDate, t]);
 
+  const handleToggleWeekWorkingDay = useCallback((dayValue) => {
+    const day = Number.parseInt(dayValue, 10);
+    if (!Number.isInteger(day) || day < 0 || day > 6) return;
+
+    setWeekWorkingDays((previous) => {
+      if (previous.includes(day)) {
+        if (previous.length === 1) return previous;
+        return previous.filter((value) => value !== day);
+      }
+
+      return [...previous, day].sort((left, right) => left - right);
+    });
+  }, []);
+
+  const handleSaveWeekWorkingDays = useCallback(async () => {
+    const normalized = normalizeWeekWorkingDays(weekWorkingDays);
+    if (normalized.length === 0) {
+      toast.error(t('schoolSettings:toast.weekWorkingDaysRequired'));
+      return;
+    }
+
+    setSchoolWeekConfigSaving(true);
+    try {
+      const response = await api.put('/school-calendar/config', { weekWorkingDays: normalized });
+      if (response.data?.success) {
+        setWeekWorkingDays(normalizeWeekWorkingDays(response.data?.data?.config?.weekWorkingDays));
+        toast.success(t('schoolSettings:toast.schoolWeekConfigUpdated'));
+      } else {
+        toast.error(response.data?.message || t('schoolSettings:toast.schoolWeekConfigUpdateFailed'));
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.schoolWeekConfigUpdateFailed'));
+    } finally {
+      setSchoolWeekConfigSaving(false);
+    }
+  }, [t, weekWorkingDays]);
+
+  const handleCloseDeptModal = useCallback(() => {
+    setShowDeptModal(false);
+    setEditingDeptId(null);
+    setDeptFormData({ name: '', type: 'academic', description: '' });
+  }, []);
+
   const handleDeptSubmit = useCallback(
     async (event) => {
       event.preventDefault();
@@ -513,7 +594,7 @@ const useSchoolSettings = () => {
         setSubmittingDept(false);
       }
     },
-    [deptFormData, dispatch, editingDeptId, t]
+    [deptFormData, dispatch, editingDeptId, handleCloseDeptModal, t]
   );
 
   const handleEditDept = useCallback((dept) => {
@@ -535,12 +616,6 @@ const useSchoolSettings = () => {
       toast.error(result.payload || t('schoolSettings:toast.deleteDepartmentFailed'));
     }
   }, [dispatch, t]);
-
-  const handleCloseDeptModal = useCallback(() => {
-    setShowDeptModal(false);
-    setEditingDeptId(null);
-    setDeptFormData({ name: '', type: 'academic', description: '' });
-  }, []);
 
   const openDeptModal = useCallback(() => {
     setEditingDeptId(null);
@@ -797,6 +872,11 @@ const useSchoolSettings = () => {
     submittingUser
   }), [showUserModal, editingUser, userFormData, submittingUser]);
 
+  const weekendDays = useMemo(
+    () => ALL_WEEK_DAYS.filter((day) => !weekWorkingDays.includes(day)),
+    [weekWorkingDays]
+  );
+
   return {
     user,
     canManageUsers,
@@ -841,6 +921,10 @@ const useSchoolSettings = () => {
     schoolYearEndDate,
     setSchoolYearEndDate,
     schoolYearDatesSaving,
+    schoolWeekConfigLoading,
+    schoolWeekConfigSaving,
+    weekWorkingDays,
+    weekendDays,
     schoolInfo,
     brandingLoading,
     communicationSettings,
@@ -854,6 +938,8 @@ const useSchoolSettings = () => {
     handlePromoteStudents,
     handleSwitchToNewYear,
     handleSaveSchoolYearDates,
+    handleToggleWeekWorkingDay,
+    handleSaveWeekWorkingDays,
     gradingScales,
     gradingScalesLoading,
     gradingScaleSubmitting,

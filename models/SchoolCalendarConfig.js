@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { DEFAULT_WEEK_WORKING_DAYS, normalizeWeekWorkingDays } from '../utils/schoolWeekWorkingDays.js';
 
 const schoolCalendarConfigSchema = new mongoose.Schema({
     school: {
@@ -32,10 +33,7 @@ const schoolCalendarConfigSchema = new mongoose.Schema({
 schoolCalendarConfigSchema.index({ school: 1 }, { unique: true });
 
 schoolCalendarConfigSchema.pre('save', function(next) {
-    if (!this.weekWorkingDays || this.weekWorkingDays.length === 0) {
-        this.weekWorkingDays = [1, 2, 3, 4, 5];
-    }
-    this.weekWorkingDays = Array.from(new Set(this.weekWorkingDays)).sort((a, b) => a - b);
+    this.weekWorkingDays = normalizeWeekWorkingDays(this.weekWorkingDays, DEFAULT_WEEK_WORKING_DAYS);
     next();
 });
 

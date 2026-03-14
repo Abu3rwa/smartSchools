@@ -16,7 +16,7 @@ export const createDefaultPeriod = () => ({
     isActive: true
 });
 
-export const createDefaultAssignment = (today = createTodayDate()) => {
+export const createDefaultAssignment = (today = createTodayDate(), workingDays = [1, 2, 3, 4, 5]) => {
     const start = new Date(today);
     const end = new Date(today);
     end.setMonth(end.getMonth() + 3);
@@ -27,7 +27,7 @@ export const createDefaultAssignment = (today = createTodayDate()) => {
         subject: '',
         room: '',
         period: '',
-        daysOfWeek: [1, 2, 3, 4, 5],
+        daysOfWeek: Array.isArray(workingDays) && workingDays.length > 0 ? [...workingDays] : [1, 2, 3, 4, 5],
         startDate: start.toISOString().slice(0, 10),
         endDate: end.toISOString().slice(0, 10),
         isActive: true

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,10 @@ import {
 } from 'react-icons/hi';
 import '../../../components/superAdmin/SuperAdminBase.css';
 import importTemplateService from '../../../services/importTemplateService';
+import TablePagination from '../../../components/common/TablePagination';
+
+const DEFAULT_SCHOOLS_PAGE_SIZE = 10;
+const DEFAULT_TEMPLATES_PAGE_SIZE = 10;
 
 const SuperAdminSchoolsPage = () => {
     const navigate = useNavigate();
@@ -29,6 +33,10 @@ const SuperAdminSchoolsPage = () => {
     const [search, setSearch] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [schoolsPage, setSchoolsPage] = useState(1);
+    const [schoolsPageSize, setSchoolsPageSize] = useState(DEFAULT_SCHOOLS_PAGE_SIZE);
+    const [templatesPage, setTemplatesPage] = useState(1);
+    const [templatesPageSize, setTemplatesPageSize] = useState(DEFAULT_TEMPLATES_PAGE_SIZE);
     const [templates, setTemplates] = useState([]);
     const [templatesLoading, setTemplatesLoading] = useState(true);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -221,10 +229,40 @@ const SuperAdminSchoolsPage = () => {
         }
     };
 
-    const filtered = schools.filter(s =>
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        s.contact?.adminEmail?.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = useMemo(() => (
+        schools.filter((s) =>
+            s.name.toLowerCase().includes(search.toLowerCase()) ||
+            s.contact?.adminEmail?.toLowerCase().includes(search.toLowerCase())
+        )
+    ), [schools, search]);
+
+    const schoolsTotalPages = Math.max(1, Math.ceil(filtered.length / schoolsPageSize));
+    const paginatedSchools = useMemo(() => {
+        const startIndex = (schoolsPage - 1) * schoolsPageSize;
+        return filtered.slice(startIndex, startIndex + schoolsPageSize);
+    }, [filtered, schoolsPage, schoolsPageSize]);
+
+    const templatesTotalPages = Math.max(1, Math.ceil(templates.length / templatesPageSize));
+    const paginatedTemplates = useMemo(() => {
+        const startIndex = (templatesPage - 1) * templatesPageSize;
+        return templates.slice(startIndex, startIndex + templatesPageSize);
+    }, [templates, templatesPage, templatesPageSize]);
+
+    useEffect(() => {
+        setSchoolsPage(1);
+    }, [search]);
+
+    useEffect(() => {
+        if (schoolsPage > schoolsTotalPages) {
+            setSchoolsPage(schoolsTotalPages);
+        }
+    }, [schoolsPage, schoolsTotalPages]);
+
+    useEffect(() => {
+        if (templatesPage > templatesTotalPages) {
+            setTemplatesPage(templatesTotalPages);
+        }
+    }, [templatesPage, templatesTotalPages]);
 
     return (
         <div className="admin-dashboard">
@@ -272,7 +310,7 @@ const SuperAdminSchoolsPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map((school) => (
+                                {paginatedSchools.map((school) => (
                                     <tr key={school._id}>
                                         <td style={{ fontWeight: 500 }}>{school.name}</td>
                                         <td>{school.contact?.adminEmail}</td>
@@ -303,6 +341,17 @@ const SuperAdminSchoolsPage = () => {
                         </table>
                     </div>
                 )}
+                <TablePagination
+                    page={schoolsPage}
+                    pageSize={schoolsPageSize}
+                    totalItems={filtered.length}
+                    totalPages={schoolsTotalPages}
+                    onPageChange={(nextPage) => setSchoolsPage(Math.max(1, Math.min(nextPage, schoolsTotalPages)))}
+                    onPageSizeChange={(nextSize) => {
+                        setSchoolsPageSize(nextSize);
+                        setSchoolsPage(1);
+                    }}
+                />
             </div>
 
             <div className="admin-section" style={{ marginTop: 'var(--spacing-xl)' }}>
@@ -337,7 +386,7 @@ const SuperAdminSchoolsPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {templates.map((template) => (
+                                {paginatedTemplates.map((template) => (
                                     <tr key={template.id}>
                                         <td>{template.entityType}</td>
                                         <td>{template.version || 'v1'}</td>
@@ -368,6 +417,17 @@ const SuperAdminSchoolsPage = () => {
                         </table>
                     </div>
                 )}
+                <TablePagination
+                    page={templatesPage}
+                    pageSize={templatesPageSize}
+                    totalItems={templates.length}
+                    totalPages={templatesTotalPages}
+                    onPageChange={(nextPage) => setTemplatesPage(Math.max(1, Math.min(nextPage, templatesTotalPages)))}
+                    onPageSizeChange={(nextSize) => {
+                        setTemplatesPageSize(nextSize);
+                        setTemplatesPage(1);
+                    }}
+                />
             </div>
 
             {/* Create Modal */}

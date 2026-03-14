@@ -180,6 +180,39 @@
     color: var(--text-primary);
 }
 
+.weekday-chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+}
+
+.weekday-chip {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    padding: 0.45rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.weekday-chip.active {
+    border-color: var(--primary-500);
+    color: var(--primary-600, var(--primary-500));
+    background: color-mix(in srgb, var(--primary-500) 12%, transparent);
+}
+
+.weekday-chip:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.weekday-summary {
+    margin-bottom: var(--spacing-sm);
+}
+
 .result-msg {
     margin-top: var(--spacing-md);
     font-size: 0.9rem;

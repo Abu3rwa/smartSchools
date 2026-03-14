@@ -16,7 +16,21 @@ import './TeacherTimetablePage.css';
 const COLORS = ['blue', 'green', 'purple', 'orange', 'pink', 'teal', 'red', 'yellow'];
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const WORKING_DAYS = [1, 2, 3, 4, 5]; // Mon-Fri default
+const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
+
+const normalizeWorkingDays = (candidate) => {
+    if (!Array.isArray(candidate)) return [...DEFAULT_WORKING_DAYS];
+
+    const normalized = Array.from(
+        new Set(
+            candidate
+                .map((value) => Number.parseInt(value, 10))
+                .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+        )
+    ).sort((left, right) => left - right);
+
+    return normalized.length > 0 ? normalized : [...DEFAULT_WORKING_DAYS];
+};
 
 const TeacherTimetablePage = () => {
     const user = useSelector(selectUser);
@@ -25,6 +39,7 @@ const TeacherTimetablePage = () => {
     const [error, setError] = useState(null);
     const [periods, setPeriods] = useState([]);
     const [assignments, setAssignments] = useState([]);
+    const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
 
     const fetchTimetable = async () => {
         try {
@@ -33,6 +48,7 @@ const TeacherTimetablePage = () => {
             const res = await timetableService.getMyTimetable();
             setPeriods(res?.data?.periods || []);
             setAssignments(res?.data?.assignments || []);
+            setWorkingDays(normalizeWorkingDays(res?.data?.workingDays));
         } catch (err) {
             setError(err?.response?.data?.message || err.message);
         } finally {
@@ -89,9 +105,9 @@ const TeacherTimetablePage = () => {
                 allDays.add(d);
             }
         }
-        const days = allDays.size > 0 ? Array.from(allDays).sort((a, b) => a - b) : WORKING_DAYS;
+        const days = allDays.size > 0 ? Array.from(allDays).sort((a, b) => a - b) : workingDays;
         return days;
-    }, [assignments]);
+    }, [assignments, workingDays]);
 
     // Current day and current period detection
     const today = new Date();
@@ -176,7 +192,7 @@ const TeacherTimetablePage = () => {
                     <p>{user?.firstName} {user?.lastName} — Weekly Schedule</p>
                 </div>
                 <div className="header-actions">
-                    {WORKING_DAYS.includes(currentDayOfWeek) && currentPeriodId && (
+                    {workingDays.includes(currentDayOfWeek) && currentPeriodId && (
                         <span className="today-badge">
                             <HiOutlineClock size={14} />
                             {periods.find(p => p._id === currentPeriodId)?.name || 'In session'}

@@ -20,5 +20,12 @@
     "returnedToSuperAdmin": "Returned to Super Admin account",
     "currentlyImpersonating": "You are currently impersonating",
     "exitImpersonation": "Exit Impersonation"
+  },
+  "pagination": {
+    "summary": "Showing {{from}}-{{to}} of {{total}}",
+    "rowsPerPage": "Rows per page",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{pages}}"
   }
 }
