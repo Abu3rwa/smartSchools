@@ -136,7 +136,8 @@ const prepareStudentLoginCredentials = async ({
         firstName: student.firstName,
         lastName: student.lastName,
         role: 'student',
-        tempPassword
+        tempPassword,
+        allowRoleCorrection: true
     });
 
     await ensureStudentUserLink(student, inviteProvision.user._id);

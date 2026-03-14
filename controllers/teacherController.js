@@ -83,7 +83,8 @@ const prepareTeacherLoginInvite = async ({
         firstName: teacherUser.firstName,
         lastName: teacherUser.lastName,
         role: 'teacher',
-        tempPassword
+        tempPassword,
+        allowRoleCorrection: true
     });
 
     const inviteDelivery = sendEmail

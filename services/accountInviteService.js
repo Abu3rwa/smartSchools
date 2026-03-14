@@ -19,25 +19,15 @@ const escapeHtml = (value) =>
 
 export const generateInvitePassword = () => {
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const lower = 'abcdefghijkmnopqrstuvwxyz';
+    const consonants = 'bcdfghjkmnpqrstvwxyz';
+    const vowels = 'aeiou';
     const digits = '23456789';
-    const symbols = '!@#$%^&*';
     const pick = (chars) => chars[crypto.randomInt(chars.length)];
+    const chunk = () => `${pick(consonants)}${pick(vowels)}${pick(consonants)}${pick(vowels)}`;
 
-    return [
-        pick(upper),
-        pick(lower),
-        pick(lower),
-        pick(digits),
-        pick(digits),
-        pick(symbols),
-        pick(upper),
-        pick(lower),
-        pick(digits),
-        pick(symbols),
-        pick(lower),
-        pick(upper)
-    ].join('');
+    // Readable 12-char temporary password with no special symbols.
+    // Keeps randomness while reducing typing friction for families/staff.
+    return `${pick(upper)}${chunk()}${pick(digits)}${pick(digits)}${chunk()}${pick(digits)}`;
 };
 
 const resolveSchoolName = async (schoolId) => {
@@ -159,7 +149,8 @@ export const upsertInvitedUser = async ({
     firstName,
     lastName,
     role,
-    tempPassword
+    tempPassword,
+    allowRoleCorrection = false
 }) => {
     const normalizedEmail = normalizeEmail(email);
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
@@ -182,7 +173,10 @@ export const upsertInvitedUser = async ({
         }
 
         if (user.role !== role) {
-            throw new Error(`Linked user role must be "${role}"`);
+            if (!allowRoleCorrection) {
+                throw new Error(`Linked user role must be "${role}"`);
+            }
+            user.role = role;
         }
 
         if (user.email !== normalizedEmail) {

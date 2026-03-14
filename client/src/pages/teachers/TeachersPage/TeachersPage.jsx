@@ -243,8 +243,13 @@ const TeachersPage = () => {
             setSelectedTeacherIds(new Set());
             dispatch(fetchTeachers({ limit: 0 }));
 
-            if (result.payload.data.errors?.length) {
-                toast.error(result.payload.message || t('teachers:toast.bulkInvitesCompletedWithIssues'));
+            const createdCount = result.payload.data.created?.length || 0;
+            const errorCount = result.payload.data.errors?.length || 0;
+
+            if (errorCount > 0 && createdCount > 0) {
+                toast(result.payload.message || t('teachers:toast.bulkInvitesCompletedWithIssues'));
+            } else if (errorCount > 0) {
+                toast.error(result.payload.message || t('teachers:toast.bulkInvitesFailed'));
             } else {
                 toast.success(t('teachers:toast.bulkInvitesSent'));
             }
