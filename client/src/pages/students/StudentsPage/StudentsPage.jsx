@@ -2,17 +2,35 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { fetchStudents, selectStudents, selectStudentsLoading, createStudent, updateStudent, deleteStudent, importStudents, createStudentLogin, bulkCreateStudentLogin, resetStudentPassword, sendParentCredentials } from '../../../store/slices/studentSlice';
+import {
+    bulkSendParentLoginInvites,
+    bulkSendStudentLoginInvites,
+    createStudent,
+    fetchStudents,
+    importStudents,
+    selectStudents,
+    selectStudentsLoading,
+    sendParentLoginInvite,
+    sendStudentLoginInvite,
+    updateStudent
+} from '../../../store/slices/studentSlice';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
-import { HiOutlinePlus, HiOutlineSearch, HiOutlinePencil, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload, HiOutlineExclamationCircle, HiOutlineCheckCircle, HiOutlineKey, HiOutlineUserAdd, HiOutlineClipboardCopy, HiOutlineMail } from 'react-icons/hi';
+import {
+    HiOutlineMail,
+    HiOutlinePlus,
+    HiOutlineSearch,
+    HiOutlineUpload,
+    HiOutlineUserAdd
+} from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import './StudentsPage.css';
 import StudentsTable from './components/StudentsTable';
 import StudentFormModal from './components/StudentFormModal';
 import ImportStudentsModal from './components/ImportStudentsModal';
+import importTemplateService from '../../../services/importTemplateService';
 import {
     CredentialsModal,
     BulkCredentialsModal,
@@ -20,10 +38,22 @@ import {
     EmailPromptModal
 } from './components/StudentLoginModals';
 
+const buildSelectedStudentsSummary = (studentNames, t) => {
+    if (!Array.isArray(studentNames) || studentNames.length === 0) {
+        return t('students:credentials.selectedStudentsFallback');
+    }
+
+    if (studentNames.length <= 3) {
+        return studentNames.join(', ');
+    }
+
+    return t('students:credentials.selectedStudentsSummary', { count: studentNames.length });
+};
+
 const StudentsPage = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation(['students']);
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const searchFromUrl = searchParams.get('search') || '';
     const students = useSelector(selectStudents);
     const classes = useSelector(selectClasses);
@@ -65,42 +95,61 @@ const StudentsPage = () => {
         }
     });
 
-    // Credentials modal state
     const [showCredentials, setShowCredentials] = useState(false);
-    const [credentials, setCredentials] = useState(null); // { email, tempPassword, studentName }
+    const [credentials, setCredentials] = useState(null);
     const [loginEmail, setLoginEmail] = useState('');
     const [showLoginEmailPrompt, setShowLoginEmailPrompt] = useState(false);
     const [loginTargetStudent, setLoginTargetStudent] = useState(null);
-    const [sendingParentCredentialsFor, setSendingParentCredentialsFor] = useState(null);
+    const [sendingStudentInviteFor, setSendingStudentInviteFor] = useState(null);
+    const [sendingParentInviteFor, setSendingParentInviteFor] = useState(null);
     const [showParentCredentialsResult, setShowParentCredentialsResult] = useState(false);
-    const [parentCredentialsResult, setParentCredentialsResult] = useState(null); // { studentName, sent: [], errors: [] }
+    const [parentCredentialsResult, setParentCredentialsResult] = useState(null);
 
-    // Bulk login state
     const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
     const [showBulkCredentials, setShowBulkCredentials] = useState(false);
-    const [bulkCredentials, setBulkCredentials] = useState(null); // { created: [], errors: [] }
-    const [bulkLoginLoading, setBulkLoginLoading] = useState(false);
+    const [bulkCredentials, setBulkCredentials] = useState(null);
+    const [bulkStudentInviteLoading, setBulkStudentInviteLoading] = useState(false);
+    const [bulkParentInviteLoading, setBulkParentInviteLoading] = useState(false);
 
-    // CSV Import state
     const [showImportModal, setShowImportModal] = useState(false);
     const [importClassId, setImportClassId] = useState('');
     const [csvData, setCsvData] = useState([]);
     const [csvErrors, setCsvErrors] = useState([]);
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState(null);
+    const [importTemplateMeta, setImportTemplateMeta] = useState(null);
 
     useEffect(() => {
         setSearchTerm(searchFromUrl);
     }, [searchFromUrl]);
 
     useEffect(() => {
-        dispatch(fetchStudents({ search: searchFromUrl || undefined }));
+        dispatch(fetchStudents({ search: searchFromUrl || undefined, limit: 'all' }));
         dispatch(fetchClasses());
         dispatch(fetchDepartments());
     }, [dispatch, searchFromUrl]);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    useEffect(() => {
+        if (!showImportModal) return;
+        let mounted = true;
+        importTemplateService.getEntityTemplate('students')
+            .then((template) => {
+                if (mounted) setImportTemplateMeta(template);
+            })
+            .catch(() => {
+                if (mounted) setImportTemplateMeta(null);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, [showImportModal]);
+
+    const refreshStudents = () => {
+        dispatch(fetchStudents({ search: searchFromUrl || undefined, limit: 'all' }));
+    };
+
+    const handleSubmit = async (event) => {
+        event.preventDefault();
         let result;
 
         const payload = { ...formData, department: formData.department || null };
@@ -114,6 +163,7 @@ const StudentsPage = () => {
             toast.success(isEditing ? t('students:toast.updated') : t('students:toast.created'));
             setShowModal(false);
             resetForm();
+            refreshStudents();
         } else {
             toast.error(result.payload || (isEditing ? t('students:toast.updateFailed') : t('students:toast.createFailed')));
         }
@@ -184,53 +234,45 @@ const StudentsPage = () => {
         });
     };
 
-    // ── Student Login Management ──────────────────────────────
-    const handleCreateLogin = (student) => {
-        const email = student.email || student.studentEmail || '';
+    const doSendStudentInvite = async (student, email) => {
+        setShowLoginEmailPrompt(false);
+        setSendingStudentInviteFor(student._id);
+        const result = await dispatch(sendStudentLoginInvite({ studentId: student._id, email }));
+        setSendingStudentInviteFor(null);
+
+        if (sendStudentLoginInvite.fulfilled.match(result)) {
+            setCredentials({
+                email: result.payload.data.email,
+                tempPassword: result.payload.data.tempPassword,
+                studentName: `${student.firstName} ${student.lastName}`,
+                emailSent: result.payload.data.emailSent,
+                error: result.payload.data.error || null
+            });
+            setShowCredentials(true);
+            refreshStudents();
+
+            if (result.payload.data.emailSent) {
+                toast.success(t('students:toast.inviteSent'));
+            } else {
+                toast.error(result.payload.message || t('students:toast.invitePreparedWithIssues'));
+            }
+        } else {
+            toast.error(result.payload || t('students:toast.inviteFailed'));
+        }
+    };
+
+    const handleSendStudentInvite = (student) => {
+        const email = student.user?.email || student.email || student.studentEmail || '';
         if (!email) {
-            // Need to ask admin for an email
             setLoginTargetStudent(student);
             setLoginEmail('');
             setShowLoginEmailPrompt(true);
             return;
         }
-        doCreateLogin(student, email);
+        doSendStudentInvite(student, email);
     };
 
-    const doCreateLogin = async (student, email) => {
-        setShowLoginEmailPrompt(false);
-        const result = await dispatch(createStudentLogin({ studentId: student._id, email }));
-        if (createStudentLogin.fulfilled.match(result)) {
-            setCredentials({
-                email: result.payload.data.email,
-                tempPassword: result.payload.data.tempPassword,
-                studentName: `${student.firstName} ${student.lastName}`
-            });
-            setShowCredentials(true);
-            dispatch(fetchStudents()); // refresh list to show linked user
-            toast.success(t('students:toast.loginCreated'));
-        } else {
-            toast.error(result.payload || t('students:toast.loginCreateFailed'));
-        }
-    };
-
-    const handleResetPassword = async (student) => {
-        if (!window.confirm(t('students:confirm.resetPassword', { name: `${student.firstName} ${student.lastName}` }))) return;
-        const result = await dispatch(resetStudentPassword(student._id));
-        if (resetStudentPassword.fulfilled.match(result)) {
-            setCredentials({
-                email: result.payload.data.email,
-                tempPassword: result.payload.data.tempPassword,
-                studentName: `${student.firstName} ${student.lastName}`
-            });
-            setShowCredentials(true);
-            toast.success(t('students:toast.passwordReset'));
-        } else {
-            toast.error(result.payload || t('students:toast.passwordResetFailed'));
-        }
-    };
-
-    const handleSendParentCredentials = async (student) => {
+    const handleSendParentInvite = async (student) => {
         const parentEmailCount = [
             student.parentInfo?.fatherEmail,
             student.parentInfo?.motherEmail,
@@ -243,23 +285,23 @@ const StudentsPage = () => {
         }
 
         const confirmed = window.confirm(
-            t('students:confirm.sendParentCredentials', {
+            t('students:confirm.sendParentInvite', {
                 count: parentEmailCount,
                 name: `${student.firstName} ${student.lastName}`
             })
         );
         if (!confirmed) return;
 
-        setSendingParentCredentialsFor(student._id);
-        const result = await dispatch(sendParentCredentials(student._id));
-        setSendingParentCredentialsFor(null);
+        setSendingParentInviteFor(student._id);
+        const result = await dispatch(sendParentLoginInvite(student._id));
+        setSendingParentInviteFor(null);
 
-        if (sendParentCredentials.fulfilled.match(result)) {
+        if (sendParentLoginInvite.fulfilled.match(result)) {
             setParentCredentialsResult(result.payload.data);
             setShowParentCredentialsResult(true);
-            toast.success(result.payload.message || t('students:toast.parentCredentialsSent'));
+            toast.success(result.payload.message || t('students:toast.parentInvitesSent'));
         } else {
-            toast.error(result.payload || t('students:toast.parentCredentialsFailed'));
+            toast.error(result.payload || t('students:toast.parentInvitesFailed'));
         }
     };
 
@@ -271,63 +313,101 @@ const StudentsPage = () => {
         });
     };
 
-    // ── Bulk login (admin only) ───────────────────────────────
-    const toggleSelectStudent = (id, hasLogin) => {
-        if (hasLogin) return;
-        setSelectedStudentIds(prev => {
-            const next = new Set(prev);
+    const toggleSelectStudent = (id) => {
+        setSelectedStudentIds((previous) => {
+            const next = new Set(previous);
             if (next.has(id)) next.delete(id);
             else next.add(id);
             return next;
         });
     };
 
-    const toggleSelectAllWithoutLogin = (studentsWithoutLogin, isAllSelected) => {
-        if (isAllSelected) {
-            setSelectedStudentIds(prev => {
-                const next = new Set(prev);
-                studentsWithoutLogin.forEach(s => next.delete(s._id));
+    const toggleSelectAllStudents = () => {
+        setSelectedStudentIds((previous) => {
+            const allSelected = filteredStudents.length > 0
+                && filteredStudents.every((student) => previous.has(student._id));
+
+            if (allSelected) {
+                const next = new Set(previous);
+                filteredStudents.forEach((student) => next.delete(student._id));
                 return next;
-            });
-        } else {
-            setSelectedStudentIds(prev => {
-                const next = new Set(prev);
-                studentsWithoutLogin.forEach(s => next.add(s._id));
-                return next;
-            });
-        }
+            }
+
+            const next = new Set(previous);
+            filteredStudents.forEach((student) => next.add(student._id));
+            return next;
+        });
     };
 
-    const handleBulkCreateLogin = async () => {
+    const handleBulkSendStudentInvites = async () => {
         const ids = Array.from(selectedStudentIds);
-        if (ids.length === 0) return;
-        setBulkLoginLoading(true);
-        const result = await dispatch(bulkCreateStudentLogin(ids));
-        setBulkLoginLoading(false);
-        if (bulkCreateStudentLogin.fulfilled.match(result)) {
+        if (ids.length === 0) {
+            toast.error(t('students:actions.selectStudentsFirst'));
+            return;
+        }
+
+        setBulkStudentInviteLoading(true);
+        const result = await dispatch(bulkSendStudentLoginInvites(ids));
+        setBulkStudentInviteLoading(false);
+
+        if (bulkSendStudentLoginInvites.fulfilled.match(result)) {
             setBulkCredentials(result.payload.data);
             setShowBulkCredentials(true);
             setSelectedStudentIds(new Set());
-            dispatch(fetchStudents());
-            toast.success(result.payload.message || t('students:toast.loginsCreated'));
+            refreshStudents();
+
+            if (result.payload.data.errors?.length) {
+                toast.error(result.payload.message || t('students:toast.invitesCompletedWithIssues'));
+            } else {
+                toast.success(t('students:toast.invitesSent'));
+            }
         } else {
-            toast.error(result.payload || t('students:toast.loginsCreateFailed'));
+            toast.error(result.payload || t('students:toast.invitesFailed'));
+        }
+    };
+
+    const handleBulkSendParentInvites = async () => {
+        const ids = Array.from(selectedStudentIds);
+        if (ids.length === 0) {
+            toast.error(t('students:actions.selectStudentsFirst'));
+            return;
+        }
+
+        setBulkParentInviteLoading(true);
+        const result = await dispatch(bulkSendParentLoginInvites(ids));
+        setBulkParentInviteLoading(false);
+
+        if (bulkSendParentLoginInvites.fulfilled.match(result)) {
+            setParentCredentialsResult({
+                ...result.payload.data,
+                studentName: buildSelectedStudentsSummary(result.payload.data.studentNames, t)
+            });
+            setShowParentCredentialsResult(true);
+            setSelectedStudentIds(new Set());
+            toast.success(result.payload.message || t('students:toast.parentInvitesSent'));
+        } else {
+            toast.error(result.payload || t('students:toast.parentInvitesFailed'));
         }
     };
 
     const downloadBulkCredentialsCSV = () => {
         if (!bulkCredentials?.created?.length) return;
-        const header = 'Student Name,Email,Password';
-        const rows = bulkCredentials.created.map(c =>
-            [c.name, c.email, c.tempPassword].map(f => `"${String(f).replace(/"/g, '""')}"`).join(',')
+        const header = 'Student Name,Email,Password,Email Sent';
+        const rows = bulkCredentials.created.map((credential) =>
+            [
+                credential.name,
+                credential.email,
+                credential.tempPassword,
+                credential.emailSent ? 'Yes' : 'No'
+            ].map((field) => `"${String(field).replace(/"/g, '""')}"`).join(',')
         );
         const csv = [header, ...rows].join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'student_login_credentials.csv';
-        a.click();
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'student_login_invites.csv';
+        anchor.click();
         URL.revokeObjectURL(url);
         toast.success(t('students:toast.csvDownloaded'));
     };
@@ -335,7 +415,7 @@ const StudentsPage = () => {
     const copyAllBulkCredentials = () => {
         if (!bulkCredentials?.created?.length) return;
         const block = bulkCredentials.created
-            .map(c => `${c.name}\t${c.email}\t${c.tempPassword}`)
+            .map((credential) => `${credential.name}\t${credential.email}\t${credential.tempPassword}\t${credential.emailSent ? 'sent' : 'failed'}`)
             .join('\n');
         copyToClipboard(block);
     };
@@ -343,22 +423,21 @@ const StudentsPage = () => {
     const copyAllParentCredentials = () => {
         if (!parentCredentialsResult?.sent?.length) return;
         const block = parentCredentialsResult.sent
-            .map((item) => `${item.relation}\t${item.name}\t${item.email}\t${item.tempPassword}`)
+            .map((item) => `${item.relation}\t${item.name}\t${item.email}\t${item.tempPassword}\t${item.linkedStudents?.join(', ') || ''}`)
             .join('\n');
         copyToClipboard(block);
     };
 
-    // CSV Import functions
     const parseCSV = (text) => {
-        const lines = text.split(/\r?\n/).filter(line => line.trim());
+        const lines = text.split(/\r?\n/).filter((line) => line.trim());
         if (lines.length < 2) {
             setCsvErrors([t('students:import.csvMustHaveHeader')]);
             return;
         }
 
-        const headers = lines[0].split(',').map(h => h.trim());
+        const headers = lines[0].split(',').map((header) => header.trim());
         const requiredHeaders = ['firstName', 'lastName', 'dateOfBirth', 'gender'];
-        const missing = requiredHeaders.filter(h => !headers.includes(h));
+        const missing = requiredHeaders.filter((header) => !headers.includes(header));
         if (missing.length > 0) {
             setCsvErrors([t('students:import.missingRequiredColumns', { columns: missing.join(', ') })]);
             return;
@@ -367,14 +446,21 @@ const StudentsPage = () => {
         const rows = [];
         const parseErrors = [];
 
-        for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',').map(v => v.trim());
+        for (let index = 1; index < lines.length; index += 1) {
+            const values = lines[index].split(',').map((value) => value.trim());
             if (values.length !== headers.length) {
-                parseErrors.push(t('students:import.invalidColumnCount', { row: i, expected: headers.length, actual: values.length }));
+                parseErrors.push(t('students:import.invalidColumnCount', {
+                    row: index,
+                    expected: headers.length,
+                    actual: values.length
+                }));
                 continue;
             }
+
             const row = {};
-            headers.forEach((h, idx) => { row[h] = values[idx]; });
+            headers.forEach((header, headerIndex) => {
+                row[header] = values[headerIndex];
+            });
             rows.push(row);
         }
 
@@ -382,8 +468,8 @@ const StudentsPage = () => {
         setCsvErrors(parseErrors);
     };
 
-    const handleFileSelect = (e) => {
-        const file = e.target.files[0];
+    const handleFileSelect = (event) => {
+        const file = event.target.files[0];
         if (!file) return;
 
         if (!file.name.endsWith('.csv')) {
@@ -393,7 +479,7 @@ const StudentsPage = () => {
 
         setImportResult(null);
         const reader = new FileReader();
-        reader.onload = (evt) => parseCSV(evt.target.result);
+        reader.onload = (loadEvent) => parseCSV(loadEvent.target.result);
         reader.readAsText(file);
     };
 
@@ -414,7 +500,7 @@ const StudentsPage = () => {
             setImportResult(result.payload);
             if (result.payload.data.imported > 0) {
                 toast.success(result.payload.message);
-                dispatch(fetchStudents());
+                refreshStudents();
             }
             if (result.payload.data.failed > 0) {
                 toast.error(t('students:toast.rowsFailed', { count: result.payload.data.failed }));
@@ -425,16 +511,12 @@ const StudentsPage = () => {
         setImporting(false);
     };
 
-    const downloadTemplate = () => {
-        const headers = 'firstName,lastName,dateOfBirth,gender,email,studentId,fatherName,fatherPhone,fatherEmail,motherName,motherPhone,motherEmail';
-        const example = 'John,Doe,2010-03-15,male,,,Ahmed Doe,0812345678,,Fatima Doe,0823456789,';
-        const blob = new Blob([headers + '\n' + example], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'students_import_template.csv';
-        a.click();
-        URL.revokeObjectURL(url);
+    const downloadTemplate = async () => {
+        try {
+            await importTemplateService.downloadEntityTemplate('students');
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('students:toast.importFailed'));
+        }
     };
 
     const resetImportModal = () => {
@@ -445,25 +527,36 @@ const StudentsPage = () => {
         setImportResult(null);
     };
 
-    const filteredStudents = students.filter(student => {
+    const filteredStudents = students.filter((student) => {
         const fullName = `${student.firstName} ${student.lastName}`.toLowerCase();
-        const matchesSearch = fullName.includes(searchTerm.toLowerCase()) ||
-            student.studentId?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = fullName.includes(searchTerm.toLowerCase())
+            || student.studentId?.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesClass = filterClass === '' ||
-            (filterClass === 'unassigned' && !student.currentClass) ||
-            student.currentClass?._id === filterClass;
+        const matchesClass = filterClass === ''
+            || (filterClass === 'unassigned' && !student.currentClass)
+            || student.currentClass?._id === filterClass;
 
         return matchesSearch && matchesClass;
     });
 
-    const studentsWithoutLogin = filteredStudents.filter(s => !s.user);
-    const isAllWithoutLoginSelected = studentsWithoutLogin.length > 0 &&
-        studentsWithoutLogin.every(s => selectedStudentIds.has(s._id));
+    useEffect(() => {
+        setSelectedStudentIds((previous) => {
+            const visibleStudentIds = new Set(filteredStudents.map((student) => student._id));
+            const next = new Set();
+            previous.forEach((studentId) => {
+                if (visibleStudentIds.has(studentId)) {
+                    next.add(studentId);
+                }
+            });
+            return next;
+        });
+    }, [filteredStudents]);
+
+    const isAllSelected = filteredStudents.length > 0
+        && filteredStudents.every((student) => selectedStudentIds.has(student._id));
 
     return (
         <div className="students-page">
-            {/* Header */}
             <div className="page-header">
                 <div>
                     <h1>{t('students:page.title')}</h1>
@@ -473,12 +566,25 @@ const StudentsPage = () => {
                     <div className="header-actions">
                         <button
                             className="btn btn-outline"
-                            onClick={handleBulkCreateLogin}
-                            disabled={selectedStudentIds.size === 0 || bulkLoginLoading}
-                            title={selectedStudentIds.size === 0 ? t('students:actions.selectWithoutLoginFirst') : ''}
+                            onClick={handleBulkSendStudentInvites}
+                            disabled={selectedStudentIds.size === 0 || bulkStudentInviteLoading}
+                            title={selectedStudentIds.size === 0 ? t('students:actions.selectStudentsFirst') : ''}
                         >
                             <HiOutlineUserAdd size={20} />
-                            {t('students:actions.createLoginsForSelected', { count: selectedStudentIds.size })}
+                            {bulkStudentInviteLoading
+                                ? t('students:actions.sendingInvites')
+                                : t('students:actions.sendInvitesForSelected', { count: selectedStudentIds.size })}
+                        </button>
+                        <button
+                            className="btn btn-outline"
+                            onClick={handleBulkSendParentInvites}
+                            disabled={selectedStudentIds.size === 0 || bulkParentInviteLoading}
+                            title={selectedStudentIds.size === 0 ? t('students:actions.selectStudentsFirst') : ''}
+                        >
+                            <HiOutlineMail size={20} />
+                            {bulkParentInviteLoading
+                                ? t('students:actions.sendingParentInvites')
+                                : t('students:actions.sendParentInvitesForSelected', { count: selectedStudentIds.size })}
                         </button>
                         <button className="btn btn-outline" onClick={() => setShowImportModal(true)}>
                             <HiOutlineUpload size={20} />
@@ -492,7 +598,6 @@ const StudentsPage = () => {
                 )}
             </div>
 
-            {/* Filters */}
             <div className="filters-bar">
                 <div className="search-bar">
                     <HiOutlineSearch className="search-icon" />
@@ -500,36 +605,33 @@ const StudentsPage = () => {
                         type="text"
                         placeholder={t('students:filters.searchPlaceholder')}
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(event) => setSearchTerm(event.target.value)}
                     />
                 </div>
-                <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)}>
+                <select value={filterClass} onChange={(event) => setFilterClass(event.target.value)}>
                     <option value="">{t('students:filters.allClasses')}</option>
                     <option value="unassigned">{t('students:filters.unassignedStudents')}</option>
-                    {classes.map(cls => (
-                        <option key={cls._id} value={cls._id}>{cls.name}</option>
+                    {classes.map((currentClass) => (
+                        <option key={currentClass._id} value={currentClass._id}>{currentClass.name}</option>
                     ))}
                 </select>
             </div>
 
-            {/* Students Table */}
             <StudentsTable
                 students={filteredStudents}
                 isAdmin={isAdmin}
                 loading={loading}
-                studentsWithoutLogin={studentsWithoutLogin}
-                isAllWithoutLoginSelected={isAllWithoutLoginSelected}
+                isAllSelected={isAllSelected}
                 selectedStudentIds={selectedStudentIds}
-                toggleSelectAllWithoutLogin={toggleSelectAllWithoutLogin}
+                toggleSelectAllStudents={toggleSelectAllStudents}
                 toggleSelectStudent={toggleSelectStudent}
-                handleResetPassword={handleResetPassword}
-                handleCreateLogin={handleCreateLogin}
-                handleSendParentCredentials={handleSendParentCredentials}
-                sendingParentCredentialsFor={sendingParentCredentialsFor}
+                handleSendStudentInvite={handleSendStudentInvite}
+                sendingStudentInviteFor={sendingStudentInviteFor}
+                handleSendParentInvite={handleSendParentInvite}
+                sendingParentInviteFor={sendingParentInviteFor}
                 handleEdit={handleEdit}
             />
 
-            {/* Create Modal */}
             <StudentFormModal
                 showModal={showModal}
                 setShowModal={setShowModal}
@@ -542,7 +644,6 @@ const StudentsPage = () => {
                 handleSubmit={handleSubmit}
             />
 
-            {/* CSV Import Modal */}
             <ImportStudentsModal
                 showImportModal={showImportModal}
                 resetImportModal={resetImportModal}
@@ -551,13 +652,14 @@ const StudentsPage = () => {
                 classes={classes}
                 handleFileSelect={handleFileSelect}
                 downloadTemplate={downloadTemplate}
+                importTemplateMeta={importTemplateMeta}
                 csvErrors={csvErrors}
                 csvData={csvData}
                 importResult={importResult}
                 handleImport={handleImport}
                 importing={importing}
             />
-            {/* ── Credentials Modal (shown once after create-login / reset-password) ── */}
+
             <CredentialsModal
                 showCredentials={showCredentials}
                 setShowCredentials={setShowCredentials}
@@ -565,7 +667,6 @@ const StudentsPage = () => {
                 copyToClipboard={copyToClipboard}
             />
 
-            {/* ── Bulk credentials modal ── */}
             <BulkCredentialsModal
                 showBulkCredentials={showBulkCredentials}
                 setShowBulkCredentials={setShowBulkCredentials}
@@ -575,7 +676,6 @@ const StudentsPage = () => {
                 copyAllBulkCredentials={copyAllBulkCredentials}
             />
 
-            {/* ── Parent credentials result modal ── */}
             <ParentCredentialsModal
                 showParentCredentialsResult={showParentCredentialsResult}
                 setShowParentCredentialsResult={setShowParentCredentialsResult}
@@ -584,16 +684,15 @@ const StudentsPage = () => {
                 copyAllParentCredentials={copyAllParentCredentials}
             />
 
-            {/* ── Email Prompt Modal (when student has no email) ── */}
             <EmailPromptModal
                 showLoginEmailPrompt={showLoginEmailPrompt}
                 setShowLoginEmailPrompt={setShowLoginEmailPrompt}
                 loginTargetStudent={loginTargetStudent}
                 loginEmail={loginEmail}
                 setLoginEmail={setLoginEmail}
-                doCreateLogin={doCreateLogin}
+                doCreateLogin={doSendStudentInvite}
             />
-        </div >
+        </div>
     );
 };
 

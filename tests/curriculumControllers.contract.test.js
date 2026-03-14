@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createCurriculumMapController } from '../controllers/curriculumMapController.js';
-import { createPacingGuideController } from '../controllers/pacingGuideController.js';
-import { createPacingOverrideController } from '../controllers/pacingOverrideController.js';
 
 const runController = (handler, req) => new Promise((resolve) => {
     const res = {
@@ -53,36 +51,6 @@ test('POST /curriculum-maps controller returns success contract', async () => {
     assert.equal(result.statusCode, 201);
     assert.equal(result.payload.success, true);
     assert.equal(result.payload.data._id, 'map-1');
-});
-
-test('GET /pacing-guides controller returns list contract', async () => {
-    const controller = createPacingGuideController({
-        guideService: {
-            listPacingGuides: async () => ({
-                items: [{ _id: 'guide-1' }],
-                pagination: { page: 1, limit: 20, total: 1, totalPages: 1 }
-            })
-        }
-    });
-
-    const result = await runController(controller.listPacingGuidesController, buildReq());
-    assert.equal(result.error, null);
-    assert.equal(result.statusCode, 200);
-    assert.equal(result.payload.data.pagination.total, 1);
-});
-
-test('POST /pacing-overrides controller returns creation contract', async () => {
-    const controller = createPacingOverrideController({
-        overrideService: {
-            createOverrideRequest: async () => ({ _id: 'override-1', status: 'pending' })
-        }
-    });
-
-    const result = await runController(controller.createPacingOverrideController, buildReq());
-    assert.equal(result.error, null);
-    assert.equal(result.statusCode, 201);
-    assert.equal(result.payload.success, true);
-    assert.equal(result.payload.data.status, 'pending');
 });
 
 test('curriculum export controller sets attachment headers and sends payload', async () => {

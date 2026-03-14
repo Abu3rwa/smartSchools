@@ -8,7 +8,7 @@ const LoginLogo = ({ isSchoolContext, schoolName }) => {
     return (
         <div className="login-logo">
             <div className="logo-icon-lg">
-                <HiOutlineAcademicCap size={40} />
+                <img src="/logo.svg" alt="Logo" width={64} height={64} style={{ display: 'block', margin: '0 auto' }} />
             </div>
             <h1 className="logo-title">{isSchoolContext ? schoolName : t('auth:login.logo.defaultSchoolName')}</h1>
             <p className="logo-subtitle">{t('auth:login.logo.subtitle')}</p>

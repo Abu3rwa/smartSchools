@@ -6,9 +6,10 @@ import { fetchClasses, selectClasses, selectClassesLoading, selectClassesError, 
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
-import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap, HiOutlineTrash, HiOutlineUpload } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineSearch, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineAcademicCap, HiOutlineTrash, HiOutlineUpload, HiOutlineDownload } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import classService from '../../../services/classService';
+import importTemplateService from '../../../services/importTemplateService';
 import { parseCsvFile } from '../../../utils/csvImport';
 import './ClassesPage.css';
 
@@ -22,6 +23,7 @@ const ClassesPage = () => {
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
     const importInputRef = useRef(null);
+    const [templateMeta, setTemplateMeta] = useState(null);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
@@ -39,6 +41,20 @@ const ClassesPage = () => {
         dispatch(fetchClasses({ academicYear }));
         dispatch(fetchDepartments());
     }, [dispatch, academicYear]);
+
+    useEffect(() => {
+        let mounted = true;
+        importTemplateService.getEntityTemplate('classes')
+            .then((meta) => {
+                if (mounted) setTemplateMeta(meta);
+            })
+            .catch(() => {
+                if (mounted) setTemplateMeta(null);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const filteredClasses = classes.filter(cls =>
         cls.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -97,6 +113,14 @@ const ClassesPage = () => {
         importInputRef.current?.click();
     };
 
+    const handleDownloadSample = async () => {
+        try {
+            await importTemplateService.downloadEntityTemplate('classes');
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('classes:toast.importFailed'));
+        }
+    };
+
     const handleClassImportFileChange = async (event) => {
         const file = event.target.files?.[0];
         event.target.value = '';
@@ -150,12 +174,23 @@ const ClassesPage = () => {
                 <div>
                     <h1>{t('classes:page.title')}</h1>
                     <p className="text-muted">{t('classes:page.subtitle')}</p>
+                    {templateMeta && (
+                        <p className="text-muted" style={{ marginTop: 6, fontSize: '0.82rem' }}>
+                            {templateMeta.hasActiveTemplate
+                                ? `Sample template ${templateMeta.activeTemplate?.version || 'v1'} updated ${templateMeta.activeTemplate?.updatedAt ? new Date(templateMeta.activeTemplate.updatedAt).toLocaleDateString() : 'N/A'}`
+                                : 'Sample template uses fallback from import schema'}
+                        </p>
+                    )}
                 </div>
                 {isAdmin && (
                     <div className="header-actions">
                         <button className="btn btn-outline" onClick={handleTriggerImport}>
                             <HiOutlineUpload size={20} />
                             {t('classes:actions.importCsv')}
+                        </button>
+                        <button className="btn btn-outline" onClick={handleDownloadSample}>
+                            <HiOutlineDownload size={20} />
+                            Download Sample CSV
                         </button>
                         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
                             <HiOutlinePlus size={20} />

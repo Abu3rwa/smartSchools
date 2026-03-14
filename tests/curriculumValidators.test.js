@@ -7,9 +7,7 @@ import {
     curriculumImportGoogleDocBodySchema,
     curriculumImportJobParamsSchema,
     curriculumMapCreateBodySchema,
-    curriculumMapReviewBodySchema,
-    pacingGuideCreateBodySchema,
-    pacingOverrideCreateBodySchema
+    curriculumMapReviewBodySchema
 } from '../validators/curriculumValidators.js';
 
 test('curriculumMapCreateBodySchema accepts valid payload', () => {
@@ -30,35 +28,6 @@ test('curriculumMapReviewBodySchema rejects unknown decision', () => {
         () => curriculumMapReviewBodySchema.parse({ decision: 'publish' }),
         /Invalid option/i
     );
-});
-
-test('pacingGuideCreateBodySchema validates required ids', () => {
-    const parsed = pacingGuideCreateBodySchema.parse({
-        mapId: '507f1f77bcf86cd799439011',
-        classId: '507f1f77bcf86cd799439012',
-        term: 'Term 1'
-    });
-    assert.equal(parsed.term, 'Term 1');
-
-    assert.throws(
-        () => pacingGuideCreateBodySchema.parse({ mapId: 'invalid', classId: '507f1f77bcf86cd799439012', term: 'Term 1' }),
-        /Invalid id/i
-    );
-});
-
-test('pacingOverrideCreateBodySchema enforces reason and request payload', () => {
-    const parsed = pacingOverrideCreateBodySchema.parse({
-        pacingGuideId: '507f1f77bcf86cd799439011',
-        pacingEntryId: 'entry-1',
-        reason: 'Need more review before assessment',
-        requestPayload: {
-            weekNumber: 4,
-            focus: 'Review and consolidation'
-        }
-    });
-
-    assert.equal(parsed.requestPayload.weekNumber, 4);
-    assert.equal(parsed.reason.length > 0, true);
 });
 
 test('validateRequestSchema returns validation details for curriculum payload', async () => {

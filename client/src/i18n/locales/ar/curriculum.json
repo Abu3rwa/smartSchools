@@ -1,12 +1,10 @@
 {
   "page": {
     "title": "مواءمة المنهج",
-    "description": "خرائط منهج مرنة متوافقة مع المدرسة مع سير مراجعة وتصدير وأدلة وتيرة وطلبات تجاوز."
+    "description": "خرائط منهج مرنة متوافقة مع المدرسة مع سير مراجعة وتصدير وإعدادات القالب."
   },
   "tabs": {
     "maps": "الخرائط",
-    "guides": "أدلة الوتيرة",
-    "overrides": "طلبات التجاوز",
     "settings": "إعدادات القالب"
   },
   "shared": {
@@ -152,24 +150,6 @@
       "suggestionSection": "{{title}} ({{count}} عناصر)"
     }
   },
-  "guides": {
-    "title": "أدلة الوتيرة",
-    "create": "إنشاء دليل",
-    "syncLabel": "المزامنة: {{syncStatus}}"
-  },
-  "overrides": {
-    "title": "طلبات التجاوز",
-    "pacingGuide": "دليل الوتيرة",
-    "entryId": "معرّف الإدخال",
-    "weekNumber": "رقم الأسبوع",
-    "focus": "التركيز",
-    "objectives": "الأهداف (مفصولة بفواصل)",
-    "assessment": "التقييم",
-    "reason": "السبب",
-    "submit": "إرسال التجاوز",
-    "cardTitle": "تجاوز #{{id}}",
-    "weekLine": "الأسبوع {{week}}"
-  },
   "settings": {
     "title": "إعدادات القالب وسير العمل",
     "save": "حفظ الإعدادات",
@@ -218,10 +198,6 @@
     "googleDocImportQueued": "تمت إضافة مهمة استيراد مستند Google إلى قائمة الانتظار.",
     "importApplied": "تم تطبيق اقتراحات الاستيراد بالذكاء الاصطناعي على المسودة.",
     "workflowActionExecuted": "تم تنفيذ إجراء سير العمل: {{action}}.",
-    "deleteConfirm": "حذف \"{{title}}\"؟ لا يمكن التراجع عن هذا الإجراء.",
-    "guideCreated": "تم إنشاء دليل الوتيرة.",
-    "overrideSubmitted": "تم إرسال طلب التجاوز.",
-    "overrideApproved": "تمت الموافقة على التجاوز.",
-    "overrideRejected": "تم رفض التجاوز."
+    "deleteConfirm": "حذف \"{{title}}\"؟ لا يمكن التراجع عن هذا الإجراء."
   }
 }

@@ -72,8 +72,6 @@ import gradingScaleRoutes from "./routes/gradingScaleRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
 import communicationEmailRoutes from "./routes/communicationEmailRoutes.js";
 import curriculumMapRoutes from "./routes/curriculumMapRoutes.js";
-import pacingGuideRoutes from "./routes/pacingGuideRoutes.js";
-import pacingOverrideRoutes from "./routes/pacingOverrideRoutes.js";
 import curriculumSettingsRoutes from "./routes/curriculumSettingsRoutes.js";
 import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
@@ -279,8 +277,6 @@ app.use("/api/grading-scales", gradingScaleRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/communication-email", communicationEmailRoutes);
 app.use("/api/curriculum-maps", curriculumMapRoutes);
-app.use("/api/pacing-guides", pacingGuideRoutes);
-app.use("/api/pacing-overrides", pacingOverrideRoutes);
 app.use("/api/curriculum-settings", curriculumSettingsRoutes);
 app.use("/api/docs", apiDocsRoutes);
 

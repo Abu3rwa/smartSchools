@@ -146,6 +146,12 @@
     "deleteAssignment": "هل أنت متأكد من حذف هذا التعيين؟"
   },
   "toast": {
+    "periodCreated": "تم إنشاء الحصة بنجاح",
+    "periodUpdated": "تم تحديث الحصة بنجاح",
+    "periodDeleted": "تم حذف الحصة بنجاح",
+    "assignmentCreated": "تم إنشاء التعيين بنجاح",
+    "assignmentUpdated": "تم تحديث التعيين بنجاح",
+    "assignmentDeleted": "تم حذف التعيين بنجاح",
     "selectCsv": "يرجى اختيار ملف CSV",
     "noValidPeriodRows": "لا توجد صفوف حصص صالحة في CSV",
     "importedPeriods": "تم استيراد {{count}} حصص",

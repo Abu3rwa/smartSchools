@@ -146,6 +146,12 @@
     "deleteAssignment": "Are you sure you want to delete this assignment?"
   },
   "toast": {
+    "periodCreated": "Period created successfully",
+    "periodUpdated": "Period updated successfully",
+    "periodDeleted": "Period deleted successfully",
+    "assignmentCreated": "Assignment created successfully",
+    "assignmentUpdated": "Assignment updated successfully",
+    "assignmentDeleted": "Assignment deleted successfully",
     "selectCsv": "Please select a CSV file",
     "noValidPeriodRows": "No valid period rows found in CSV",
     "importedPeriods": "Imported {{count}} periods",

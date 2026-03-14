@@ -231,6 +231,13 @@
     align-items: center;
 }
 
+.assignment-details-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+}
+
 .subject-name {
     font-size: 0.875rem;
     color: var(--text-secondary);
@@ -305,6 +312,11 @@
         flex-direction: column;
         align-items: flex-start;
         gap: var(--spacing-xs);
+    }
+
+    .assignment-details-row {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }
 

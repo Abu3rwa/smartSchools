@@ -996,7 +996,9 @@ class NotificationService {
    * Send daily report for a student to all contact emails
    */
   async sendDailyReport(studentId, date, createdBy) {
-    const student = await Student.findById(studentId).populate("currentClass");
+    const student = await Student.findById(studentId)
+      .populate("currentClass")
+      .populate("user", "email");
     if (!student) throw new Error("Student not found");
 
     const recipients = student.getAllContactEmails();
@@ -1051,7 +1053,9 @@ class NotificationService {
    * Includes all classwork grades from the 1st of the month to today
    */
   async sendDailyClassworkUpdate(studentId, date, createdBy, filters = {}) {
-    const student = await Student.findById(studentId).populate("currentClass");
+    const student = await Student.findById(studentId)
+      .populate("currentClass")
+      .populate("user", "email");
     if (!student) throw new Error("Student not found");
 
     const recipients = student.getAllContactEmails();
@@ -1158,7 +1162,9 @@ class NotificationService {
    * Send monthly report to all contact emails
    */
   async sendMonthlyReport(studentId, month, academicYear, createdBy) {
-    const student = await Student.findById(studentId).populate("currentClass");
+    const student = await Student.findById(studentId)
+      .populate("currentClass")
+      .populate("user", "email");
     if (!student) throw new Error("Student not found");
 
     const recipients = student.getAllContactEmails();
@@ -1227,12 +1233,14 @@ class NotificationService {
    * @returns {Promise<Object>} Notification document
    */
   async sendAIReportToParent(studentId, reportContent, period, userId) {
-    const student = await Student.findById(studentId).populate("currentClass");
+    const student = await Student.findById(studentId)
+      .populate("currentClass")
+      .populate("user", "email");
     if (!student) throw new Error("Student not found");
 
     const recipients = student.getAllContactEmails();
     if (recipients.length === 0) {
-      throw new Error("No parent or student email found for student");
+      throw new Error("No student-related contact email found for this student");
     }
 
     const subject = `Progress Report for ${student.fullName} - ${period}`;

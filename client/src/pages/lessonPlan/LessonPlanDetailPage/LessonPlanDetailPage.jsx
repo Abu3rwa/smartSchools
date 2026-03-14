@@ -8,10 +8,10 @@ import {
     selectLessonsLoading
 } from '../../../store/slices/lessonSlice';
 import { selectUser } from '../../../store/slices/authSlice';
-import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
+import { selectCurrentAcademicYear, selectAppName } from '../../../store/slices/uiSlice';
 import { HiOutlineArrowLeft, HiOutlinePrinter, HiOutlineCalendar, HiOutlineAcademicCap, HiOutlineBookOpen, HiOutlineUser } from 'react-icons/hi';
 import { format } from 'date-fns';
-import { SAAS_NAME, SAAS_URL } from './constants';
+import { SAAS_URL } from './constants';
 import './LessonPlanDetailPage.css';
 
 const Section = ({ title, content }) => {
@@ -33,6 +33,7 @@ const LessonPlanDetailPage = () => {
     const loading = useSelector(selectLessonsLoading);
     const user = useSelector(selectUser);
     const academicYear = useSelector(selectCurrentAcademicYear);
+    const appName = useSelector(selectAppName);
     const printRef = useRef(null);
 
     useEffect(() => {
@@ -113,7 +114,7 @@ const LessonPlanDetailPage = () => {
                     </div>
                     <div className="lp-header-right">
                         <div className="lp-saas-brand">
-                            Powered by <strong>{SAAS_NAME}</strong>
+                            Powered by <strong>{appName}</strong>
                             <span className="lp-saas-url"> · {SAAS_URL}</span>
                         </div>
                     </div>
@@ -235,7 +236,7 @@ const LessonPlanDetailPage = () => {
                         {schoolName} &nbsp;·&nbsp; {dateStr}
                     </div>
                     <div className="lp-footer-right lp-saas-watermark">
-                        {SAAS_NAME} &nbsp;·&nbsp; {SAAS_URL}
+                        {appName} &nbsp;·&nbsp; {SAAS_URL}
                     </div>
                 </div>
 

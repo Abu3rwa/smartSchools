@@ -1,7 +1,10 @@
-import { HiOutlineUserGroup } from 'react-icons/hi';
+import { HiOutlineTrash, HiOutlineUserGroup } from 'react-icons/hi';
+import { useTranslation } from 'react-i18next';
 import { TEACHER_DETAILS_MESSAGES } from '../constants';
 
-const TeacherClassesPanel = ({ teacher }) => {
+const TeacherClassesPanel = ({ teacher, canManageTeachers, onRemoveAssignment }) => {
+    const { t } = useTranslation(['teachers', 'common']);
+
     return (
         <div className="profile-grid" style={{ paddingTop: 0 }}>
             <div className="info-section">
@@ -16,9 +19,20 @@ const TeacherClassesPanel = ({ teacher }) => {
                                         <span className="class-teacher-badge">Class Teacher</span>
                                     )}
                                 </div>
-                                <div className="assignment-details">
-                                    <span className="subject-name">{assignment.subject?.name}</span>
-                                    <span className="academic-year">{assignment.class?.academicYear}</span>
+                                <div className="assignment-details-row">
+                                    <div className="assignment-details">
+                                        <span className="subject-name">{assignment.subject?.name}</span>
+                                        <span className="academic-year">{assignment.class?.academicYear}</span>
+                                    </div>
+                                    {canManageTeachers && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-sm btn-danger"
+                                            onClick={() => onRemoveAssignment?.(assignment._id)}
+                                        >
+                                            <HiOutlineTrash size={14} /> {t('common:actions.remove')}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))

@@ -98,6 +98,18 @@
     flex-wrap: wrap;
 }
 
+.invite-status-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.invite-meta {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
 /* Modal Styles */
 .modal-overlay {
     position: fixed;
@@ -211,6 +223,7 @@
     display: flex;
     gap: var(--spacing-sm);
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .header-actions .btn {
@@ -343,6 +356,17 @@
     gap: 4px;
 }
 
+.student-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.badge-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
 .student-actions .btn-icon:disabled {
     opacity: 0.45;
     cursor: not-allowed;
@@ -430,8 +454,22 @@
     }
 
     .filters-bar .search-bar,
-    .filter-select {
+    .filter-select,
+    .filters-bar select {
         max-width: 100%;
         width: 100%;
+    }
+
+    .header-actions {
+        width: 100%;
+    }
+
+    .invite-status-cell {
+        min-width: 150px;
+    }
+
+    .credentials-row {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }

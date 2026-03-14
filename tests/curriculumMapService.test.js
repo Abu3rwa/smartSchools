@@ -291,7 +291,6 @@ test('deleteCurriculumMap deletes map and import artifacts for authorized manage
                 department: null,
                 createdBy: 'teacher-1'
             }),
-            countPacingGuidesByMapId: async () => 0,
             deleteCurriculumImportJobsByMap: async () => {
                 deleted.jobs = true;
             },
@@ -316,31 +315,4 @@ test('deleteCurriculumMap deletes map and import artifacts for authorized manage
     assert.equal(deleted.jobs, true);
     assert.equal(deleted.sources, true);
     assert.equal(deleted.map, true);
-});
-
-test('deleteCurriculumMap blocks deletion when pacing guides reference the map', async () => {
-    const service = createCurriculumMapService({
-        repository: {
-            findCurriculumMapById: async () => ({
-                _id: 'map-1',
-                department: null,
-                createdBy: 'teacher-1'
-            }),
-            countPacingGuidesByMapId: async () => 2
-        },
-        notificationService: { notifyUsers: async () => ({ sent: 0 }) }
-    });
-
-    await assert.rejects(
-        () => service.deleteCurriculumMap({
-            req: makeReq({
-                params: { mapId: 'map-1' },
-                user: { _id: 'admin-1', role: 'admin', permissions: [] }
-            })
-        }),
-        (error) => {
-            assert.equal(error.statusCode, 409);
-            return true;
-        }
-    );
 });

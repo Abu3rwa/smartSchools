@@ -124,6 +124,30 @@ export const bulkCreateStudentLogin = createAsyncThunk(
     }
 );
 
+export const sendStudentLoginInvite = createAsyncThunk(
+    'students/sendStudentLoginInvite',
+    async ({ studentId, email }, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/students/${studentId}/send-login-invite`, { email });
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send student invite');
+        }
+    }
+);
+
+export const bulkSendStudentLoginInvites = createAsyncThunk(
+    'students/bulkSendStudentLoginInvites',
+    async (studentIds, { rejectWithValue }) => {
+        try {
+            const response = await api.post('/students/bulk-send-login-invites', { studentIds });
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send student invites');
+        }
+    }
+);
+
 export const sendParentCredentials = createAsyncThunk(
     'students/sendParentCredentials',
     async (studentId, { rejectWithValue }) => {
@@ -132,6 +156,30 @@ export const sendParentCredentials = createAsyncThunk(
             return response.data;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to send parent credentials');
+        }
+    }
+);
+
+export const sendParentLoginInvite = createAsyncThunk(
+    'students/sendParentLoginInvite',
+    async (studentId, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/students/${studentId}/send-parent-login-invite`);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send parent invite');
+        }
+    }
+);
+
+export const bulkSendParentLoginInvites = createAsyncThunk(
+    'students/bulkSendParentLoginInvites',
+    async (studentIds, { rejectWithValue }) => {
+        try {
+            const response = await api.post('/students/bulk-send-parent-login-invites', { studentIds });
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send parent invites');
         }
     }
 );

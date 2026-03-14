@@ -40,8 +40,8 @@ export default function LandingPageHeader({
         <AppBar position="fixed" elevation={0} sx={{ bgcolor: 'background.default', backdropFilter: 'blur(16px)', borderBottom: 1, borderColor: 'divider' }}>
             <Toolbar sx={{ justifyContent: 'space-between', maxWidth: 1280, mx: 'auto', width: '100%', px: { xs: 1.5, sm: 2 } }}>
                 <Button onClick={() => window.scrollTo(0, 0)} sx={{ color: 'inherit', textTransform: 'none' }} startIcon={
-                    <Box sx={{ width: 40, height: 40, borderRadius: 2, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                        <HiOutlineAcademicCap size={24} />
+                    <Box sx={{ width: 40, height: 40, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <img src="/logo.svg" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     </Box>
                 }>
                     <Typography variant="h6" sx={{ fontWeight: 700, background: 'var(--brand-gradient)', backgroundClip: 'text', color: 'transparent' }}>

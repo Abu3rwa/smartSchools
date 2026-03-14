@@ -86,7 +86,7 @@ export const sendDailyReport = asyncHandler(async (req, res) => {
     if (!notification) {
         return res.status(400).json({
             success: false,
-            message: 'Could not send daily report. No grades found or no parent or student email.'
+            message: 'Could not send daily report. No grades found or no student-related contact email.'
         });
     }
 
@@ -121,7 +121,7 @@ export const sendMonthlyReport = asyncHandler(async (req, res) => {
     if (!notification) {
         return res.status(400).json({
             success: false,
-            message: 'Could not send monthly report. No parent or student email found.'
+            message: 'Could not send monthly report. No student-related contact email found.'
         });
     }
 

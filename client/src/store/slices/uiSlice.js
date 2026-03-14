@@ -44,6 +44,18 @@ export const fetchSchoolAcademicYear = createAsyncThunk(
     }
 );
 
+export const fetchAppName = createAsyncThunk(
+    'ui/fetchAppName',
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/landing/content');
+            return response.data?.data?.content?.brand?.name || 'GradeBook';
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to load app name');
+        }
+    }
+);
+
 export const updateSchoolAcademicYear = createAsyncThunk(
     'ui/updateSchoolAcademicYear',
     async (academicYear, { rejectWithValue }) => {
@@ -60,7 +72,8 @@ const uiSlice = createSlice({
     name: 'ui',
     initialState: {
         sidebarOpen: true,
-        theme: localStorage.getItem('theme') || 'dark',
+        theme: localStorage.getItem('theme') || 'light',
+        appName: 'GradeBook',
         language: getInitialLanguage(),
         currentAcademicYear: getInitialAcademicYear(),
         academicYearLoading: false,
@@ -146,9 +159,15 @@ const uiSlice = createSlice({
             .addCase(updateSchoolAcademicYear.rejected, (state, action) => {
                 state.academicYearLoading = false;
                 state.academicYearError = action.payload;
+            })
+            .addCase(fetchAppName.fulfilled, (state, action) => {
+                if (action.payload) {
+                    state.appName = action.payload;
+                }
             });
     }
 });
+
 
 export const {
     toggleSidebar,
@@ -168,6 +187,7 @@ export const {
 // Selectors
 export const selectSidebarOpen = (state) => state.ui.sidebarOpen;
 export const selectTheme = (state) => state.ui.theme;
+export const selectAppName = (state) => state.ui.appName;
 export const selectLanguage = (state) => state.ui.language;
 export const selectCurrentAcademicYear = (state) => state.ui.currentAcademicYear;
 export const selectAcademicYearLoading = (state) => state.ui.academicYearLoading;

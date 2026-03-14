@@ -73,26 +73,84 @@
     color: #fff;
 }
 
+/* ==========================================
+   Consistent Card System
+   All landing page cards share the same base
+   styling for uniform height/radius/shadow.
+   ========================================== */
+
 .landing-elevated-card,
 .landing-lift-card {
     transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background-color 220ms ease;
+    border-radius: 16px !important;
 }
 
 .landing-elevated-card:hover,
 .landing-lift-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 20px 35px rgba(16, 24, 40, 0.16);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(16, 24, 40, 0.14);
 }
 
+/* ==========================================
+   Landing Card Grid — CSS Grid for equal widths
+   3 cols desktop, 2 cols tablet, 1 col mobile.
+   Every card in a row is exactly the same width.
+   ========================================== */
+
+.landing-card-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+@media (min-width: 600px) {
+    .landing-card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 900px) {
+    .landing-card-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Cards inside the grid must stretch to fill */
+.landing-card-grid > *,
+.landing-card-grid-2col > * {
+    min-width: 0;         /* prevents overflow from long words */
+}
+
+/* 2-column variant for dynamic blocks */
+.landing-card-grid-2col {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+@media (min-width: 600px) {
+    .landing-card-grid-2col {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Section container — consistent max-width */
+.landing-section {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Feature card */
 .landing-feature-card {
     position: relative;
     overflow: hidden;
     border-color: color-mix(in srgb, var(--border-color) 78%, var(--primary) 22%);
     background:
-        radial-gradient(circle at top right, var(--feature-tint, rgba(90, 174, 238, 0.14)), transparent 45%),
+        radial-gradient(circle at top right, var(--feature-tint, rgba(13, 148, 136, 0.14)), transparent 45%),
         var(--bg-card);
     box-shadow: none !important;
-    border-radius: 12px !important;
+    border-radius: 16px !important;
     border-width: 1px !important;
     border-style: solid !important;
     transition: transform 220ms ease, 
@@ -113,12 +171,13 @@
 
 .landing-feature-card-icon {
     background: linear-gradient(135deg, color-mix(in srgb, var(--feature-tint, rgba(var(--brand-rgb-start), 0.2)) 75%, transparent) 0%, rgba(var(--brand-rgb-end), 0.17) 100%);
-    box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(13, 148, 136, 0.16);
+    border-radius: 12px;
 }
 
 .landing-feature-chip {
-    border: 1px solid color-mix(in srgb, var(--feature-tint, rgba(90,174,238,0.2)) 70%, var(--border-color) 30%);
-    background: color-mix(in srgb, var(--feature-tint, rgba(90,174,238,0.2)) 42%, var(--bg-card) 58%);
+    border: 1px solid color-mix(in srgb, var(--feature-tint, rgba(13, 148, 136, 0.2)) 70%, var(--border-color) 30%);
+    background: color-mix(in srgb, var(--feature-tint, rgba(13, 148, 136, 0.2)) 42%, var(--bg-card) 58%);
     color: var(--text-secondary);
 }
 
@@ -133,20 +192,51 @@
 }
 
 .landing-feature-card:hover {
+    transform: translateY(-4px);
     border-color: color-mix(in srgb, var(--primary) 72%, white 28%);
+    box-shadow: 0 20px 40px rgba(16, 24, 40, 0.14) !important;
     background:
-        radial-gradient(circle at top right, color-mix(in srgb, var(--feature-tint, rgba(90, 174, 238, 0.2)) 85%, transparent) 0%, transparent 52%),
+        radial-gradient(circle at top right, color-mix(in srgb, var(--feature-tint, rgba(13, 148, 136, 0.2)) 85%, transparent) 0%, transparent 52%),
         color-mix(in srgb, var(--bg-card) 92%, var(--primary) 8%);
 }
 
 .landing-school-item {
     transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
+    border-radius: 12px !important;
 }
 
 .landing-school-item:hover {
     transform: translateY(-2px);
     border-color: var(--primary);
     background-color: color-mix(in srgb, var(--bg-card) 90%, var(--primary) 10%);
+}
+
+/* ==========================================
+   Section Heading Pattern
+   ========================================== */
+
+.landing-section-overline {
+    text-align: center;
+    margin-bottom: 0.5rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+}
+
+.landing-section-title {
+    text-align: center;
+    font-weight: 800;
+    margin-bottom: 0.75rem;
+}
+
+.landing-section-subtitle {
+    text-align: center;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 3rem;
+    line-height: 1.7;
 }
 
 @media (prefers-reduced-motion: reduce) {

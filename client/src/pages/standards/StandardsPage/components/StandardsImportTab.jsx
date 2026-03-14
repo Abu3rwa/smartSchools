@@ -12,7 +12,9 @@ const StandardsImportTab = ({
     loading,
     onImport,
     onImportFile,
-    importResult
+    importResult,
+    templateMeta,
+    onDownloadTemplate
 }) => {
     const { t } = useTranslation(['standards']);
 
@@ -35,6 +37,16 @@ const StandardsImportTab = ({
             </div>
             <div className="form-group" style={{ marginBottom: 'var(--spacing-md)' }}>
                 <label>{t('standards:import.uploadFile')}</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                    <button type="button" className="btn btn-secondary" onClick={onDownloadTemplate}>
+                        Download Sample CSV
+                    </button>
+                    <span className="import-help" style={{ margin: 0 }}>
+                        {templateMeta?.hasActiveTemplate
+                            ? `Version ${templateMeta.activeTemplate?.version || 'v1'} - Updated ${templateMeta.activeTemplate?.updatedAt ? new Date(templateMeta.activeTemplate.updatedAt).toLocaleDateString() : 'N/A'}`
+                            : 'Using fallback template generated from import schema'}
+                    </span>
+                </div>
                 <input
                     type="file"
                     accept=".csv,.tsv,text/csv,text/tab-separated-values"

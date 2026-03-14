@@ -141,16 +141,6 @@ const schoolSchema = new mongoose.Schema({
                 enum: ['draft_review_publish', 'draft_publish'],
                 default: 'draft_review_publish'
             },
-            overridePolicy: {
-                allowTeacherOverrides: {
-                    type: Boolean,
-                    default: true
-                },
-                requireOverrideApproval: {
-                    type: Boolean,
-                    default: true
-                }
-            },
             exports: {
                 allowPdf: {
                     type: Boolean,

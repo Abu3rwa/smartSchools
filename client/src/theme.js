@@ -13,18 +13,18 @@ const baseThemeOptions = {
   palette: {
     mode: 'dark',
     primary: {
-      main: '#5aaeee',
-      light: '#78bdf1',
-      dark: '#2f7fd2',
+      main: '#14b8a6',
+      light: '#2dd4bf',
+      dark: '#0d9488',
     },
     secondary: {
-      main: '#8b5cf6',
-      light: '#a78bfa',
-      dark: '#6d28d9',
+      main: '#1e293b',
+      light: '#334155',
+      dark: '#0f172a',
     },
     background: {
-      default: '#161628',
-      paper: '#272744',
+      default: '#0f172a',
+      paper: '#1e293b',
     },
     text: {
       primary: '#ffffff',
@@ -73,18 +73,18 @@ const baseThemeOptions = {
 
 const lightPaletteOverrides = {
   primary: {
-    main: '#5f4b8b',
-    light: '#8a74bd',
-    dark: '#4a3a6c',
+    main: '#0d9488',
+    light: '#14b8a6',
+    dark: '#0f766e',
   },
   background: {
-    default: '#f5f7fa',
+    default: '#f8fafc',
     paper: '#ffffff',
   },
   text: {
-    primary: '#1a202c',
-    secondary: '#4a5568',
-    disabled: '#718096',
+    primary: '#0f172a',
+    secondary: '#334155',
+    disabled: '#94a3b8',
   },
 };
 
@@ -109,4 +109,4 @@ export const getTheme = (mode = 'dark', direction = 'ltr') => {
     });
 };
 
-export const theme = getTheme('dark');
+export const theme = getTheme('light');

@@ -233,6 +233,7 @@ const AdminTimetablePage = () => {
                 periodNumber: previousPeriod.periodNumber < 8 ? previousPeriod.periodNumber + 1 : 8
             }));
             await fetchTimetableData();
+            toast.success(t('adminTimetable:toast.periodCreated'));
         } catch (requestError) {
             setError(requestError?.response?.data?.message || requestError.message);
         } finally {
@@ -247,7 +248,11 @@ const AdminTimetablePage = () => {
             setSaving(true);
             setError(null);
             await timetableService.deletePeriod(id);
+            if (editingPeriod?._id === id) {
+                setEditingPeriod(null);
+            }
             await fetchTimetableData();
+            toast.success(t('adminTimetable:toast.periodDeleted'));
         } catch (requestError) {
             setError(requestError?.response?.data?.message || requestError.message);
         } finally {
@@ -270,6 +275,7 @@ const AdminTimetablePage = () => {
             });
             setEditingPeriod(null);
             await fetchTimetableData();
+            toast.success(t('adminTimetable:toast.periodUpdated'));
         } catch (requestError) {
             setError(requestError?.response?.data?.message || requestError.message);
         } finally {
@@ -289,9 +295,11 @@ const AdminTimetablePage = () => {
 
             if (editingAssignmentId) {
                 await timetableService.updateAssignment(editingAssignmentId, payload);
+                toast.success(t('adminTimetable:toast.assignmentUpdated'));
                 setEditingAssignmentId(null);
             } else {
                 await timetableService.createAssignment(payload);
+                toast.success(t('adminTimetable:toast.assignmentCreated'));
             }
 
             setNewAssignment(createDefaultAssignment());
@@ -331,7 +339,11 @@ const AdminTimetablePage = () => {
             setSaving(true);
             setError(null);
             await timetableService.deleteAssignment(id);
+            if (editingAssignmentId === id) {
+                cancelAssignmentEdit();
+            }
             await fetchTimetableData();
+            toast.success(t('adminTimetable:toast.assignmentDeleted'));
         } catch (requestError) {
             setError(requestError?.response?.data?.message || requestError.message);
         } finally {

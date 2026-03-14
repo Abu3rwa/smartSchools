@@ -22,6 +22,44 @@ export const ENTITY_DISPLAY_NAMES = {
     timetable_periods: 'timetable periods'
 };
 
+export const IMPORT_TEMPLATE_DEFINITIONS = {
+    students: {
+        displayName: 'Students',
+        headers: ['firstName', 'lastName', 'dateOfBirth', 'gender', 'email', 'studentId', 'fatherName', 'fatherPhone', 'fatherEmail', 'motherName', 'motherPhone', 'motherEmail'],
+        sampleRow: ['John', 'Doe', '2010-03-15', 'male', 'john.doe@example.com', 'STU260001', 'Ahmed Doe', '0812345678', 'ahmed.doe@example.com', 'Fatima Doe', '0823456789', 'fatima.doe@example.com']
+    },
+    teachers: {
+        displayName: 'Teachers',
+        headers: ['firstName', 'lastName', 'email', 'phone', 'employeeId', 'department', 'subjects', 'qualification', 'specialization', 'isActive'],
+        sampleRow: ['Aisha', 'Khan', 'aisha.khan@example.com', '0811111111', 'TCH260001', 'Science', 'SCI101,SCI102', 'B.Ed', 'Physics', 'true']
+    },
+    classes: {
+        displayName: 'Classes',
+        headers: ['grade', 'section', 'name', 'academicYear', 'room', 'capacity', 'classTeacherEmail', 'department', 'isActive'],
+        sampleRow: ['5', 'A', 'Grade 5-A', '2025-2026', 'Room 12', '35', 'aisha.khan@example.com', 'Science', 'true']
+    },
+    subjects: {
+        displayName: 'Subjects',
+        headers: ['name', 'code', 'description', 'applicableGrades', 'type', 'creditHours', 'maxMarks', 'passingMarks', 'dailyMaxMarks', 'isActive'],
+        sampleRow: ['English Language Arts', 'ELA5', 'Core ELA subject for grade 5', '5', 'core', '1', '100', '40', '10', 'true']
+    },
+    standards: {
+        displayName: 'Standards',
+        headers: ['code', 'name', 'description', 'subjectCode', 'gradeLevel', 'category', 'masteryThreshold', 'masteryMinQuestions', 'isActive'],
+        sampleRow: ['ELA.5.RL.1', 'Quote accurately', 'Quote accurately from a text when explaining', 'ELA5', '5', 'Reading Literature', '80', '5', 'true']
+    },
+    rooms: {
+        displayName: 'Rooms',
+        headers: ['name', 'type', 'capacity', 'building', 'floor', 'number', 'status', 'isAvailable', 'notes'],
+        sampleRow: ['Room 12', 'classroom', '35', 'Main Building', '1', '12', 'active', 'true', 'Grade 5 wing']
+    },
+    timetable_periods: {
+        displayName: 'Timetable Periods',
+        headers: ['name', 'startTime', 'endTime', 'order', 'isActive'],
+        sampleRow: ['Period 1', '08:00', '08:45', '1', 'true']
+    }
+};
+
 const ENTITY_ALIASES = {
     students: 'students',
     standards: 'standards',
@@ -453,6 +491,26 @@ const normalizeTimetablePeriodsRow = (row, rowNumber) => {
 export const normalizeEntityType = (value) => {
     const normalized = toLowerCase(value).replace(/\s+/g, '_');
     return ENTITY_ALIASES[normalized] || null;
+};
+
+const escapeCsvCell = (value) => {
+    const raw = value === undefined || value === null ? '' : String(value);
+    const escaped = raw.replace(/"/g, '""');
+    return `"${escaped}"`;
+};
+
+export const getImportTemplateDefinition = (entityType) => {
+    const normalized = normalizeEntityType(entityType);
+    if (!normalized) return null;
+    return IMPORT_TEMPLATE_DEFINITIONS[normalized] || null;
+};
+
+export const buildFallbackSampleCsv = (entityType) => {
+    const definition = getImportTemplateDefinition(entityType);
+    if (!definition) return '';
+    const headerLine = definition.headers.map((header) => escapeCsvCell(header)).join(',');
+    const sampleLine = definition.sampleRow.map((cell) => escapeCsvCell(cell)).join(',');
+    return `${headerLine}\n${sampleLine}\n`;
 };
 
 export const getEntityDisplayName = (entityType) => ENTITY_DISPLAY_NAMES[entityType] || entityType;

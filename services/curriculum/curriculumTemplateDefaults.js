@@ -124,10 +124,6 @@ export const createDefaultCurriculumSettings = () => ({
     defaultAcademicYear: '',
     weekStartDay: 'monday',
     approvalFlow: 'draft_review_publish',
-    overridePolicy: {
-        allowTeacherOverrides: true,
-        requireOverrideApproval: true
-    },
     exports: {
         allowPdf: true,
         allowCsv: true,

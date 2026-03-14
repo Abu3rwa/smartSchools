@@ -23,23 +23,29 @@
   transition: none;
   border-inline-end: none;
 }
+
 .MuiDrawer-paper .sidebar.open,
 .MuiDrawer-paper .sidebar.collapsed {
   width: 100% !important;
 }
+
 .MuiDrawer-paper .sidebar .nav-label {
   display: inline !important;
 }
+
 .MuiDrawer-paper .sidebar.collapsed .nav-item {
   justify-content: flex-start;
   padding: 0.75rem var(--spacing-md);
 }
+
 .MuiDrawer-paper .sidebar .toggle-btn {
   display: none;
 }
+
 .MuiDrawer-paper .sidebar .logo {
   display: flex !important;
 }
+
 .MuiDrawer-paper .sidebar .sidebar-header {
   justify-content: flex-start;
 }
@@ -75,7 +81,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-gradient);
+  /* background: var(--accent-gradient); */
   border-radius: var(--radius-md);
   color: var(--on-accent);
   flex-shrink: 0;
@@ -306,72 +312,95 @@
 .nav-item[href*="dashboard"] .nav-icon {
   color: var(--icon-blue);
 }
+
 .nav-item[href*="classes"] .nav-icon {
   color: var(--icon-purple);
 }
+
 .nav-item[href*="students"] .nav-icon {
   color: var(--icon-green);
 }
+
 .nav-item[href*="schedule"] .nav-icon {
   color: var(--icon-cyan);
 }
+
 .nav-item[href*="timetable"] .nav-icon {
   color: var(--icon-indigo);
 }
+
 .nav-item[href*="attendance"] .nav-icon {
   color: var(--icon-teal);
 }
+
 .nav-item[href*="newsletters"] .nav-icon {
   color: var(--icon-amber);
 }
+
 .nav-item[href*="lessons"] .nav-icon {
   color: var(--icon-orange);
 }
+
 .nav-item[href*="homework"] .nav-icon {
   color: var(--icon-orange);
 }
+
 .nav-item[href*="grades"] .nav-icon {
   color: var(--icon-pink);
 }
+
 .nav-item[href*="gradebook"] .nav-icon {
   color: var(--icon-blue);
 }
+
 .nav-item[href*="standards"] .nav-icon {
   color: var(--icon-purple);
 }
+
 .nav-item[href*="behavior"] .nav-icon {
   color: var(--icon-red);
 }
+
 .nav-item[href*="substitutions"] .nav-icon {
   color: var(--icon-amber);
 }
+
 .nav-item[href*="teachers"] .nav-icon {
   color: var(--icon-indigo);
 }
+
 .nav-item[href*="school-settings"] .nav-icon {
   color: var(--icon-cyan);
 }
+
 .nav-item[href*="api-docs"] .nav-icon {
   color: var(--icon-teal);
 }
+
 .nav-item[href*="subjects"] .nav-icon {
   color: var(--icon-orange);
 }
+
 .nav-item[href*="reading"] .nav-icon {
   color: var(--icon-green);
 }
+
 .nav-item[href*="practice"] .nav-icon {
   color: var(--icon-amber);
 }
+
 .nav-item[href*="revision"] .nav-icon {
   color: var(--icon-purple);
 }
+
 .nav-item[href*="notifications"] .nav-icon {
   color: var(--icon-pink);
 }
+
 .nav-item[href*="messages"] .nav-icon {
   color: var(--icon-cyan);
 }
+
 .nav-item[href*="settings"] .nav-icon {
   color: var(--icon-cyan);
 }

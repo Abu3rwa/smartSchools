@@ -13,7 +13,8 @@ const TeacherAssignmentsModal = ({
     onSubmit,
     onAddAssignmentRow,
     onRemoveAssignmentRow,
-    onAssignmentChange
+    onAssignmentChange,
+    onRemoveExistingAssignment
 }) => {
     const { t } = useTranslation(['teachers']);
     if (!open || !selectedTeacher) return null;
@@ -27,6 +28,46 @@ const TeacherAssignmentsModal = ({
                 </div>
                 <form onSubmit={onSubmit}>
                     <div className="modal-body">
+                        <div className="current-assignments-section">
+                            <div className="current-assignments-header">
+                                <h4>{t('teachers:assignments.currentTitle')}</h4>
+                                <span className="current-assignments-count">
+                                    {selectedTeacher.assignedClasses?.length || 0}
+                                </span>
+                            </div>
+                            {selectedTeacher.assignedClasses?.length > 0 ? (
+                                <div className="current-assignments-list">
+                                    {selectedTeacher.assignedClasses.map((assignment) => (
+                                        <div key={assignment._id} className="current-assignment-card">
+                                            <div>
+                                                <div className="current-assignment-title">
+                                                    {assignment.class?.name || t('teachers:assignments.unknownClass')}
+                                                </div>
+                                                <div className="current-assignment-meta">
+                                                    <span>{assignment.subject?.name || t('teachers:assignments.unknownSubject')}</span>
+                                                    {assignment.isClassTeacher && (
+                                                        <span className="assignment-flag">
+                                                            {t('teachers:assignments.classTeacherBadge')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-danger"
+                                                onClick={() => onRemoveExistingAssignment(assignment._id)}
+                                                disabled={submitting}
+                                            >
+                                                <HiOutlineTrash size={14} /> {t('common:actions.remove')}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="current-assignments-empty">{t('teachers:assignments.noneAssigned')}</p>
+                            )}
+                        </div>
+
                         <div className="assignments-container">
                             {assignments.map((assignment, index) => (
                                 <div key={index} className="assignment-row">

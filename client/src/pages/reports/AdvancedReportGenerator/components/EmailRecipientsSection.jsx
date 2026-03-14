@@ -16,36 +16,9 @@ const EmailRecipientsSection = ({ formData, onChange }) => (
 
     {formData.sendEmail && (
       <div className="recipient-checkboxes">
-        <div className="recipient-checkbox">
-          <input
-            type="checkbox"
-            id="recipients.mother"
-            name="recipients.mother"
-            checked={formData.recipients.mother}
-            onChange={onChange}
-          />
-          <label htmlFor="recipients.mother">Mother</label>
-        </div>
-        <div className="recipient-checkbox">
-          <input
-            type="checkbox"
-            id="recipients.father"
-            name="recipients.father"
-            checked={formData.recipients.father}
-            onChange={onChange}
-          />
-          <label htmlFor="recipients.father">Father</label>
-        </div>
-        <div className="recipient-checkbox">
-          <input
-            type="checkbox"
-            id="recipients.student"
-            name="recipients.student"
-            checked={formData.recipients.student}
-            onChange={onChange}
-          />
-          <label htmlFor="recipients.student">Student</label>
-        </div>
+        <p className="text-muted" style={{ margin: '0 0 12px' }}>
+          The report will always be sent to every student-related email on file, including student, mother, father, and guardian addresses when available.
+        </p>
         <div className="recipient-checkbox">
           <input
             type="checkbox"

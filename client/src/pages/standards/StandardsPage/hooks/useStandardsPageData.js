@@ -21,6 +21,7 @@ import {
     filterStandardsList,
     parseStandardsImportText
 } from '../utils/standardsPagePresentation';
+import importTemplateService from '../../../../services/importTemplateService';
 
 const useStandardsPageData = () => {
     const { t } = useTranslation(['standards']);
@@ -43,11 +44,26 @@ const useStandardsPageData = () => {
     const [importSubjectId, setImportSubjectId] = useState('');
     const [importFileName, setImportFileName] = useState('');
     const [formData, setFormData] = useState(createInitialStandardFormData());
+    const [templateMeta, setTemplateMeta] = useState(null);
 
     useEffect(() => {
         dispatch(fetchStandards());
         dispatch(fetchSubjects());
     }, [dispatch]);
+
+    useEffect(() => {
+        let mounted = true;
+        importTemplateService.getEntityTemplate('standards')
+            .then((meta) => {
+                if (mounted) setTemplateMeta(meta);
+            })
+            .catch(() => {
+                if (mounted) setTemplateMeta(null);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const filteredStandards = filterStandardsList(
         standards,
@@ -151,6 +167,14 @@ const useStandardsPageData = () => {
         reader.readAsText(file);
     };
 
+    const handleDownloadTemplate = async () => {
+        try {
+            await importTemplateService.downloadEntityTemplate('standards');
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('standards:toasts.importFailed'));
+        }
+    };
+
     return {
         activeTab,
         setActiveTab,
@@ -172,6 +196,7 @@ const useStandardsPageData = () => {
         setFormData,
         loading,
         importResult,
+        templateMeta,
         subjects,
         isAdmin,
         filteredStandards,
@@ -181,7 +206,8 @@ const useStandardsPageData = () => {
         handleDelete,
         handleSubmit,
         handleImport,
-        handleImportFile
+        handleImportFile,
+        handleDownloadTemplate
     };
 };
 

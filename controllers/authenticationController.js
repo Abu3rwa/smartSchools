@@ -3,7 +3,6 @@ import { google } from 'googleapis';
 import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
 import School from '../models/School.js';
-import gmailOAuthService from '../services/gmailOAuthService.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import {
@@ -14,6 +13,7 @@ import {
     isRefreshTokenValidForUser,
     storeRefreshToken
 } from '../services/authTokenService.js';
+import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
 
 /**
  * @desc    Register a new user
@@ -74,7 +74,8 @@ export const register = asyncHandler(async (req, res) => {
                 lastName: user.lastName,
                 fullName: user.fullName,
                 role: user.role,
-                school: user.school
+                school: user.school,
+                mustChangePassword: user.mustChangePassword
             },
             token
         }
@@ -148,6 +149,7 @@ export const login = asyncHandler(async (req, res) => {
                 school: user.school,
                 lastLogin: user.lastLogin,
                 permissions: user.permissions || [],
+                mustChangePassword: user.mustChangePassword,
                 permissionScopes: user.permissionScopes || {}
             },
             teacherProfile,
@@ -191,6 +193,7 @@ export const getMe = asyncHandler(async (req, res) => {
                 phone: user.phone,
                 avatar: user.avatar,
                 lastLogin: user.lastLogin,
+                mustChangePassword: user.mustChangePassword,
                 permissions: user.permissions || [],
                 permissionScopes: user.permissionScopes || {}
             },
@@ -274,7 +277,9 @@ export const changePassword = asyncHandler(async (req, res) => {
 
     // Update password
     user.password = newPassword;
+    user.mustChangePassword = false;
     await user.save();
+    await clearRefreshToken(user._id);
 
     res.json({
         success: true,
@@ -379,9 +384,11 @@ export const resetPassword = asyncHandler(async (req, res) => {
 
     // Set new password
     user.password = password;
+    user.mustChangePassword = false;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
+    await clearRefreshToken(user._id);
 
     res.json({
         success: true,
@@ -415,64 +422,14 @@ const sendPasswordResetEmail = async (user, resetUrl) => {
         </div>
     `;
 
-    const mailOptions = {
+    await sendTransactionalEmail({
         to: user.email,
         subject,
         text,
-        html
-    };
-
-    const smtpHost = process.env.EMAIL_HOST;
-    const smtpPort = Number(process.env.EMAIL_PORT || 587);
-    const smtpUser = process.env.EMAIL_USER;
-    const smtpPass = process.env.EMAIL_PASS;
-
-    if (smtpHost && smtpUser && smtpPass) {
-        const nodemailer = await import('nodemailer');
-        const transporter = nodemailer.default.createTransport({
-            host: smtpHost,
-            port: smtpPort,
-            secure: smtpPort === 465,
-            auth: {
-                user: smtpUser,
-                pass: smtpPass
-            }
-        });
-
-        await transporter.sendMail({
-            ...mailOptions,
-            from: process.env.EMAIL_FROM || `"GradeBook" <${smtpUser}>`
-        });
-        return;
-    }
-
-    if (await gmailOAuthService.hasValidTokens(user._id.toString())) {
-        await gmailOAuthService.sendEmail(user._id.toString(), mailOptions);
-        return;
-    }
-
-    if (user.school) {
-        const adminsWithGmail = await User.find({
-            school: user.school,
-            role: 'admin',
-            isActive: true,
-            'gmailTokens.refreshToken': { $exists: true, $ne: null }
-        })
-            .select('_id')
-            .setOptions({ skipTenantFilter: true })
-            .lean();
-
-        for (const admin of adminsWithGmail) {
-            try {
-                await gmailOAuthService.sendEmail(admin._id.toString(), mailOptions);
-                return;
-            } catch {
-                // Try next admin sender if this token is stale
-            }
-        }
-    }
-
-    throw new Error('No configured email transport available for password reset emails');
+        html,
+        schoolId: user.school,
+        preferredUserId: user._id
+    });
 };
 
 /**
@@ -492,7 +449,7 @@ export const refresh = asyncHandler(async (req, res) => {
     let decoded;
     try {
         decoded = decodeRefreshToken(refreshToken);
-    } catch (error) {
+    } catch {
         return res.status(401).json({
             success: false,
             message: 'Invalid refresh token'
@@ -692,7 +649,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
                 const school = await School.findOne({ slug: state.schoolSlug, isActive: true });
                 if (school) schoolId = school._id;
             }
-        } catch (e) {
+        } catch {
             // No school context in state, proceeding without school
         }
 

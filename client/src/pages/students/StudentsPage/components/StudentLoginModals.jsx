@@ -41,15 +41,31 @@ export const CredentialsModal = ({
                                 </button>
                             </div>
                         </div>
-                        <div className="credentials-row">
-                            <label>{t('students:credentials.password')}</label>
-                            <div className="credentials-value">
-                                <code className="password-display">{credentials.tempPassword}</code>
+                    <div className="credentials-row">
+                        <label>{t('students:credentials.password')}</label>
+                        <div className="credentials-value">
+                            <code className="password-display">{credentials.tempPassword}</code>
                                 <button className="btn-icon" onClick={() => copyToClipboard(credentials.tempPassword)} title={t('students:actions.copyPassword')}>
                                     <HiOutlineClipboardCopy size={16} />
                                 </button>
                             </div>
                         </div>
+                        <div className="credentials-row">
+                            <label>{t('students:table.columns.invite')}</label>
+                            <span className={`badge badge-${credentials.emailSent ? 'success' : 'warning'}`}>
+                                {credentials.emailSent
+                                    ? t('students:invite.status.sent')
+                                    : t('students:invite.status.failed')}
+                            </span>
+                        </div>
+                        {credentials.error && (
+                            <div className="import-errors mt-md">
+                                <h4><HiOutlineExclamationCircle /> {t('students:credentials.deliveryIssue')}</h4>
+                                <ul>
+                                    <li>{credentials.error}</li>
+                                </ul>
+                            </div>
+                        )}
                         <button
                             className="btn btn-outline btn-sm mt-md"
                             onClick={() => {
@@ -168,7 +184,7 @@ export const ParentCredentialsModal = ({
         <div className="modal-overlay" onClick={() => { setShowParentCredentialsResult(false); setParentCredentialsResult(null); }}>
             <div className="modal modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: 620 }}>
                 <div className="modal-header">
-                    <h3>{t('students:credentials.parentAppTitle')}</h3>
+                    <h3>{t('students:credentials.parentInviteTitle')}</h3>
                     <button className="modal-close" onClick={() => { setShowParentCredentialsResult(false); setParentCredentialsResult(null); }}>&times;</button>
                 </div>
                 <div className="modal-body">
@@ -256,7 +272,7 @@ export const EmailPromptModal = ({
         <div className="modal-overlay" onClick={() => setShowLoginEmailPrompt(false)}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
                 <div className="modal-header">
-                    <h3>{t('students:credentials.enterEmailForLogin')}</h3>
+                    <h3>{t('students:credentials.enterEmailForInvite')}</h3>
                     <button className="modal-close" onClick={() => setShowLoginEmailPrompt(false)}>&times;</button>
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); doCreateLogin(loginTargetStudent, loginEmail); }}>
@@ -282,7 +298,7 @@ export const EmailPromptModal = ({
                             {t('common:actions.cancel')}
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={!loginEmail}>
-                            {t('students:actions.createLogin')}
+                            {t('students:actions.sendInvite')}
                         </button>
                     </div>
                 </form>

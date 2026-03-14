@@ -32,7 +32,10 @@ export const generateAIReport = asyncHandler(async (req, res) => {
     } = req.body;
 
     // 1. Fetch Student
-    const student = await Student.findById(studentId);
+    const student = await Student.findById(studentId)
+        .populate('currentClass')
+        .populate('school')
+        .populate('user', 'email');
     if (!student) {
         return res.status(404).json({ success: false, message: 'Student not found' });
     }
@@ -133,7 +136,10 @@ export const generateAIReportByDateRange = asyncHandler(async (req, res) => {
     }
 
     // 1. Fetch Student
-    const student = await Student.findById(studentId);
+    const student = await Student.findById(studentId)
+        .populate('currentClass')
+        .populate('school')
+        .populate('user', 'email');
     if (!student) {
         return res.status(404).json({ success: false, message: 'Student not found' });
     }

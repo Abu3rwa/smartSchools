@@ -94,7 +94,7 @@ const useAdvancedReportGenerator = ({ token }) => {
         setError(data.message || 'Failed to generate report');
         toast.error(data.message || 'Failed to generate report');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to connect to server');
       toast.error('Failed to connect to server');
     } finally {
@@ -132,7 +132,7 @@ const useAdvancedReportGenerator = ({ token }) => {
         const { primaryRecipients, ccRecipients } = data.data.emailResults;
 
         toast.success(
-          `Report sent! ${primaryRecipients} parent(s), ${ccRecipients} CC`,
+          `Report sent! ${primaryRecipients} student contact(s), ${ccRecipients} teacher CC`,
           { duration: 5000 }
         );
 
@@ -145,7 +145,7 @@ const useAdvancedReportGenerator = ({ token }) => {
         setError(data.message || 'Failed to generate and send report');
         toast.error(data.message || 'Failed to send report');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to connect to server');
     } finally {
       setSending(false);

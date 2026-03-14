@@ -7,10 +7,14 @@
     "searchPlaceholder": "Search teachers..."
   },
   "table": {
+    "selectAll": "Select all teachers",
+    "selectTeacher": "Select teacher",
+    "noSubjects": "No subjects",
     "columns": {
       "name": "Name",
       "email": "Email",
       "subjects": "Subjects",
+      "invite": "Login invite",
       "actions": "Actions"
     }
   },
@@ -18,6 +22,14 @@
     "noTeachers": "No teachers found"
   },
   "actions": {
+    "selectTeachersFirst": "Select at least one teacher first",
+    "sendInvitesForSelected": "Send invites for selected ({{count}})",
+    "sendLoginInvite": "Send login invite",
+    "resendLoginInvite": "Resend login invite",
+    "sendInvite": "Send Invite",
+    "resendInvite": "Resend Invite",
+    "sendingInvite": "Sending...",
+    "sendingInvites": "Sending invites...",
     "importCsv": "Import CSV",
     "addTeacher": "Add Teacher",
     "viewDetails": "View Details",
@@ -25,6 +37,10 @@
     "assignClasses": "Assign Classes",
     "assign": "Assign",
     "deleteTeacher": "Delete Teacher",
+    "copyEmail": "Copy email",
+    "copyPassword": "Copy password",
+    "copyAll": "Copy all",
+    "downloadCsv": "Download CSV",
     "creating": "Creating...",
     "updating": "Updating...",
     "updateTeacher": "Update Teacher",
@@ -47,15 +63,42 @@
   },
   "assignments": {
     "title": "Assign Classes to {{name}}",
+    "currentTitle": "Current Assignments",
     "class": "Class *",
     "selectClass": "Select a class",
     "subject": "Subject *",
     "selectSubject": "Select a subject",
     "setAsClassTeacher": "Set as Class Teacher",
-    "addAnotherClass": "Add Another Class"
+    "addAnotherClass": "Add Another Class",
+    "noneAssigned": "No class assignments yet.",
+    "unknownClass": "Unknown class",
+    "unknownSubject": "Unknown subject",
+    "classTeacherBadge": "Class Teacher"
   },
   "confirm": {
-    "deleteTeacher": "Are you sure you want to delete {{name}}?"
+    "deleteTeacher": "Are you sure you want to delete {{name}}?",
+    "removeAssignment": "Are you sure you want to remove this class assignment?"
+  },
+  "invite": {
+    "noEmail": "No email on file",
+    "lastSentAt": "Last sent: {{value}}",
+    "status": {
+      "sent": "Sent",
+      "failed": "Failed",
+      "notSent": "Not sent"
+    }
+  },
+  "credentials": {
+    "singleTitle": "Teacher Login Invite",
+    "bulkTitle": "Bulk Teacher Login Invites",
+    "copyNow": "Copy these credentials now!",
+    "copyOrDownloadNow": "Copy or download these credentials now!",
+    "passwordCannotBeViewedAgain": "The password cannot be viewed again.",
+    "passwordsCannotBeViewedAgain": "Passwords cannot be viewed again.",
+    "password": "Password",
+    "issues": "Issues",
+    "deliveryIssue": "Delivery issue",
+    "emailDeliveredHint": "Email delivery was attempted for every selected teacher. Use the copied fallback credentials when delivery fails."
   },
   "toast": {
     "created": "Teacher created successfully!",
@@ -67,6 +110,8 @@
     "selectClassAndSubject": "Please select at least one class and subject",
     "assigned": "Classes assigned successfully!",
     "assignFailed": "Failed to assign classes",
+    "assignmentRemoved": "Class assignment removed successfully!",
+    "assignmentRemoveFailed": "Failed to remove class assignment",
     "selectCsv": "Please select a CSV file",
     "noValidRows": "No valid rows found in CSV",
     "imported": "Imported {{count}} teachers",
@@ -74,6 +119,15 @@
     "importSkippedRows": "{{count}} teacher rows skipped",
     "importFailed": "Failed to import teachers",
     "importRowError": "Row {{row}} {{field}}{{message}}",
-    "importValidationFailed": "Import validation failed"
+    "importValidationFailed": "Import validation failed",
+    "inviteSent": "Teacher invite sent",
+    "invitePreparedWithIssues": "Teacher credentials prepared, but email delivery failed",
+    "inviteFailed": "Failed to send teacher invite",
+    "bulkInvitesSent": "Teacher invites sent",
+    "bulkInvitesCompletedWithIssues": "Teacher invites completed with some issues",
+    "bulkInvitesFailed": "Failed to send teacher invites",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Failed to copy to clipboard",
+    "csvDownloaded": "CSV downloaded"
   }
 }

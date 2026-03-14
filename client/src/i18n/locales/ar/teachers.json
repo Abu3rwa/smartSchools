@@ -7,10 +7,14 @@
     "searchPlaceholder": "ابحث عن المعلمين..."
   },
   "table": {
+    "selectAll": "تحديد كل المعلمين",
+    "selectTeacher": "تحديد المعلم",
+    "noSubjects": "لا توجد مواد",
     "columns": {
       "name": "الاسم",
       "email": "البريد الإلكتروني",
       "subjects": "المواد",
+      "invite": "دعوة الدخول",
       "actions": "الإجراءات"
     }
   },
@@ -18,6 +22,14 @@
     "noTeachers": "لا يوجد معلمون"
   },
   "actions": {
+    "selectTeachersFirst": "حدد معلماً واحداً على الأقل أولاً",
+    "sendInvitesForSelected": "إرسال دعوات للمحدد ({{count}})",
+    "sendLoginInvite": "إرسال دعوة دخول",
+    "resendLoginInvite": "إعادة إرسال دعوة الدخول",
+    "sendInvite": "إرسال الدعوة",
+    "resendInvite": "إعادة الإرسال",
+    "sendingInvite": "جارٍ الإرسال...",
+    "sendingInvites": "جارٍ إرسال الدعوات...",
     "importCsv": "استيراد CSV",
     "addTeacher": "إضافة معلم",
     "viewDetails": "عرض التفاصيل",
@@ -25,6 +37,10 @@
     "assignClasses": "توزيع الفصول",
     "assign": "توزيع",
     "deleteTeacher": "حذف المعلم",
+    "copyEmail": "نسخ البريد",
+    "copyPassword": "نسخ كلمة المرور",
+    "copyAll": "نسخ الكل",
+    "downloadCsv": "تنزيل CSV",
     "creating": "جارٍ الإنشاء...",
     "updating": "جارٍ التحديث...",
     "updateTeacher": "تحديث المعلم",
@@ -47,15 +63,42 @@
   },
   "assignments": {
     "title": "توزيع الفصول على {{name}}",
+    "currentTitle": "التوزيعات الحالية",
     "class": "الفصل *",
     "selectClass": "اختر فصلاً",
     "subject": "المادة *",
     "selectSubject": "اختر مادة",
     "setAsClassTeacher": "تعيين كمعلم فصل",
-    "addAnotherClass": "إضافة فصل آخر"
+    "addAnotherClass": "إضافة فصل آخر",
+    "noneAssigned": "لا توجد توزيعات فصول بعد.",
+    "unknownClass": "فصل غير معروف",
+    "unknownSubject": "مادة غير معروفة",
+    "classTeacherBadge": "معلم الفصل"
   },
   "confirm": {
-    "deleteTeacher": "هل أنت متأكد من حذف {{name}}؟"
+    "deleteTeacher": "هل أنت متأكد من حذف {{name}}؟",
+    "removeAssignment": "هل أنت متأكد من إزالة توزيع هذا الفصل؟"
+  },
+  "invite": {
+    "noEmail": "لا يوجد بريد مسجل",
+    "lastSentAt": "آخر إرسال: {{value}}",
+    "status": {
+      "sent": "تم الإرسال",
+      "failed": "فشل",
+      "notSent": "لم تُرسل"
+    }
+  },
+  "credentials": {
+    "singleTitle": "دعوة دخول المعلم",
+    "bulkTitle": "دعوات دخول جماعية للمعلمين",
+    "copyNow": "انسخ هذه البيانات الآن!",
+    "copyOrDownloadNow": "انسخ أو نزّل هذه البيانات الآن!",
+    "passwordCannotBeViewedAgain": "لا يمكن عرض كلمة المرور مرة أخرى.",
+    "passwordsCannotBeViewedAgain": "لا يمكن عرض كلمات المرور مرة أخرى.",
+    "password": "كلمة المرور",
+    "issues": "المشكلات",
+    "deliveryIssue": "مشكلة في الإرسال",
+    "emailDeliveredHint": "تمت محاولة إرسال البريد لكل المعلمين المحددين. استخدم بيانات الاعتماد الاحتياطية المنسوخة عندما يفشل التسليم."
   },
   "toast": {
     "created": "تم إنشاء المعلم بنجاح!",
@@ -67,6 +110,8 @@
     "selectClassAndSubject": "يرجى اختيار فصل واحد على الأقل ومادة واحدة",
     "assigned": "تم توزيع الفصول بنجاح!",
     "assignFailed": "فشل توزيع الفصول",
+    "assignmentRemoved": "تمت إزالة توزيع الفصل بنجاح!",
+    "assignmentRemoveFailed": "فشلت إزالة توزيع الفصل",
     "selectCsv": "يرجى اختيار ملف CSV",
     "noValidRows": "لا توجد صفوف صالحة في CSV",
     "imported": "تم استيراد {{count}} معلمين",
@@ -74,6 +119,15 @@
     "importSkippedRows": "تم تخطي {{count}} من صفوف المعلمين",
     "importFailed": "فشل استيراد المعلمين",
     "importRowError": "الصف {{row}} {{field}}{{message}}",
-    "importValidationFailed": "فشل التحقق أثناء الاستيراد"
+    "importValidationFailed": "فشل التحقق أثناء الاستيراد",
+    "inviteSent": "تم إرسال دعوة المعلم",
+    "invitePreparedWithIssues": "تم تجهيز بيانات المعلم لكن تعذر تسليم البريد",
+    "inviteFailed": "فشل إرسال دعوة المعلم",
+    "bulkInvitesSent": "تم إرسال دعوات المعلمين",
+    "bulkInvitesCompletedWithIssues": "اكتملت دعوات المعلمين مع بعض المشكلات",
+    "bulkInvitesFailed": "فشل إرسال دعوات المعلمين",
+    "copied": "تم النسخ إلى الحافظة",
+    "copyFailed": "فشل النسخ إلى الحافظة",
+    "csvDownloaded": "تم تنزيل CSV"
   }
 }

@@ -28,11 +28,6 @@ export const PERMISSIONS = {
     EXPORT_CURRICULUM_MAP: 'export_curriculum_map',
     PRINT_CURRICULUM_MAP: 'print_curriculum_map',
     CONFIGURE_CURRICULUM_MAP_TEMPLATES: 'configure_curriculum_map_templates',
-    VIEW_PACING_GUIDES: 'view_pacing_guides',
-    EDIT_PACING_GUIDES: 'edit_pacing_guides',
-    REVIEW_PACING_GUIDES: 'review_pacing_guides',
-    PUBLISH_PACING_GUIDES: 'publish_pacing_guides',
-    APPROVE_PACING_OVERRIDES: 'approve_pacing_overrides',
     
     // Substitutions
     MANAGE_SUBSTITUTIONS: 'manage_substitutions',
@@ -202,31 +197,6 @@ export const PERMISSION_DEFINITIONS = {
     [PERMISSIONS.CONFIGURE_CURRICULUM_MAP_TEMPLATES]: {
         label: 'Configure Curriculum Templates',
         description: 'Configure school curriculum templates and workflow settings',
-        category: 'academic'
-    },
-    [PERMISSIONS.VIEW_PACING_GUIDES]: {
-        label: 'View Pacing Guides',
-        description: 'View class pacing guides and sync status',
-        category: 'academic'
-    },
-    [PERMISSIONS.EDIT_PACING_GUIDES]: {
-        label: 'Edit Pacing Guides',
-        description: 'Create and update pacing guides',
-        category: 'academic'
-    },
-    [PERMISSIONS.REVIEW_PACING_GUIDES]: {
-        label: 'Review Pacing Guides',
-        description: 'Review submitted pacing guides and override impact',
-        category: 'academic'
-    },
-    [PERMISSIONS.PUBLISH_PACING_GUIDES]: {
-        label: 'Publish Pacing Guides',
-        description: 'Publish class pacing guides',
-        category: 'academic'
-    },
-    [PERMISSIONS.APPROVE_PACING_OVERRIDES]: {
-        label: 'Approve Pacing Overrides',
-        description: 'Approve or reject teacher pacing override requests',
         category: 'academic'
     },
     [PERMISSIONS.MANAGE_SUBSTITUTIONS]: {
@@ -506,7 +476,6 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.EDIT_OWN_CURRICULUM_MAP,
         PERMISSIONS.EXPORT_CURRICULUM_MAP,
         PERMISSIONS.PRINT_CURRICULUM_MAP,
-        PERMISSIONS.VIEW_PACING_GUIDES,
         PERMISSIONS.VIEW_GRADES,
         PERMISSIONS.EDIT_GRADES,
         PERMISSIONS.CREATE_ASSIGNMENTS,
@@ -536,11 +505,6 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.EXPORT_CURRICULUM_MAP,
         PERMISSIONS.PRINT_CURRICULUM_MAP,
         PERMISSIONS.CONFIGURE_CURRICULUM_MAP_TEMPLATES,
-        PERMISSIONS.VIEW_PACING_GUIDES,
-        PERMISSIONS.EDIT_PACING_GUIDES,
-        PERMISSIONS.REVIEW_PACING_GUIDES,
-        PERMISSIONS.PUBLISH_PACING_GUIDES,
-        PERMISSIONS.APPROVE_PACING_OVERRIDES,
         PERMISSIONS.VIEW_ALL_REPORTS,
         PERMISSIONS.VIEW_HOMEWORK_SUBMISSIONS,
         PERMISSIONS.SEND_COMMUNICATION_EMAILS,

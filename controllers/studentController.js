@@ -1,36 +1,17 @@
-import crypto from 'crypto';
 import Student from '../models/Student.js';
-import User from '../models/User.js';
 import Class from '../models/Class.js';
-import Notification from '../models/Notification.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
-import notificationService from '../services/notificationService.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
+import {
+    deliverLoginInvite,
+    generateInvitePassword,
+    upsertInvitedUser
+} from '../services/accountInviteService.js';
 
-/**
- * Generate a human-readable temporary password.
- * Format: 3 letters + 4 digits + 1 special char  (e.g. "Abc1234!")
- */
-function generateTempPassword() {
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const lower = 'abcdefghjkmnpqrstuvwxyz';
-    const digits = '23456789';
-    const pick = (chars) => chars[crypto.randomInt(chars.length)];
-    return (
-        pick(upper) +
-        pick(lower) +
-        pick(lower) +
-        pick(digits) +
-        pick(digits) +
-        pick(digits) +
-        pick(digits) +
-        '!'
-    );
-}
-
+const generateTempPassword = generateInvitePassword;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 
 const splitContactName = (fullName = '', fallbackLastName = 'Parent') => {
@@ -96,124 +77,134 @@ const buildParentContacts = (student) => {
     }));
 };
 
-const createParentCredentialsEmailContent = ({
-    parentDisplayName,
-    studentFullName,
-    relationLabel,
-    email,
-    tempPassword
-}) => {
-    const portalUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
-    const greetingName = parentDisplayName || 'Parent';
-    const subject = `Parent App Login Credentials for ${studentFullName}`;
-    const message = [
-        `Hello ${greetingName},`,
-        '',
-        `You have been granted parent access for ${studentFullName}.`,
-        'Use these temporary credentials to sign in on the Parent Mobile App:',
-        `Email: ${email}`,
-        `Password: ${tempPassword}`,
-        '',
-        `Web Portal: ${portalUrl}`,
-        '',
-        'Please change your password after your first login.',
-        'If you did not expect this message, contact your school administrator.'
-    ].join('\n');
-    const htmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto;">
-            <h2>Parent App Login Credentials</h2>
-            <p>Hello ${greetingName},</p>
-            <p>You have been granted parent access for <strong>${studentFullName}</strong> (${relationLabel}).</p>
-            <p>Use these temporary credentials to sign in on the Parent Mobile App:</p>
-            <ul>
-                <li><strong>Email:</strong> ${email}</li>
-                <li><strong>Password:</strong> ${tempPassword}</li>
-            </ul>
-            <p><strong>Web Portal:</strong> <a href="${portalUrl}" target="_blank" rel="noreferrer">${portalUrl}</a></p>
-            <p>Please change your password after your first login.</p>
-            <p>If you did not expect this message, contact your school administrator.</p>
-        </div>
-    `;
+const buildParentInviteGroups = (students = []) => {
+    const byEmail = new Map();
 
-    return { subject, message, htmlContent };
-};
+    for (const student of students) {
+        const studentName = `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.studentId || 'Student';
+        for (const contact of buildParentContacts(student)) {
+            const email = String(contact.email || '').trim().toLowerCase();
+            if (!email) continue;
 
-const findOrCreateParentUser = async ({
-    schoolId,
-    email,
-    displayName,
-    fallbackLastName,
-    tempPassword
-}) => {
-    const existingUser = await User.findOne({ email })
-        .select('+password')
-        .setOptions({ skipTenantFilter: true });
+            if (!byEmail.has(email)) {
+                byEmail.set(email, {
+                    email,
+                    name: contact.name || '',
+                    relationLabels: new Set([contact.relationLabel]),
+                    linkedStudents: new Set([studentName]),
+                    studentIds: new Map([[String(student._id), student._id]])
+                });
+                continue;
+            }
 
-    if (existingUser) {
-        if (existingUser.school?.toString() !== schoolId.toString()) {
-            throw new Error(`Email "${email}" is linked to another school account`);
+            const existing = byEmail.get(email);
+            if (!existing.name && contact.name) existing.name = contact.name;
+            existing.relationLabels.add(contact.relationLabel);
+            existing.linkedStudents.add(studentName);
+            existing.studentIds.set(String(student._id), student._id);
         }
-        if (existingUser.role !== 'parent') {
-            throw new Error(`Email "${email}" is linked to a non-parent account`);
-        }
-        existingUser.password = tempPassword;
-        existingUser.isActive = true;
-        if (!existingUser.firstName || !existingUser.lastName) {
-            const parsed = splitContactName(displayName, fallbackLastName);
-            existingUser.firstName = existingUser.firstName || parsed.firstName;
-            existingUser.lastName = existingUser.lastName || parsed.lastName;
-        }
-        await existingUser.save();
-        return { user: existingUser, created: false };
     }
 
-    const parsed = splitContactName(displayName, fallbackLastName);
-    const user = await User.create({
-        email,
-        password: tempPassword,
-        role: 'parent',
-        school: schoolId,
-        firstName: parsed.firstName,
-        lastName: parsed.lastName,
-        isActive: true
-    });
-    return { user, created: true };
+    return Array.from(byEmail.values()).map((item) => ({
+        email: item.email,
+        name: item.name,
+        relationLabel: Array.from(item.relationLabels).join('/'),
+        linkedStudents: Array.from(item.linkedStudents),
+        studentIds: Array.from(item.studentIds.values())
+    }));
 };
 
-const sendParentCredentialsEmail = async ({
+const ensureStudentUserLink = async (student, userId) => {
+    if (student.user?.toString() === userId.toString()) {
+        return;
+    }
+    student.user = userId;
+    await student.save();
+};
+
+const prepareStudentLoginCredentials = async ({
     student,
-    parentUser,
-    contact,
-    tempPassword,
-    senderUserId
+    email,
+    actorUserId,
+    sendEmail = false
 }) => {
-    const studentFullName = `${student.firstName} ${student.lastName}`.trim();
-    const emailContent = createParentCredentialsEmailContent({
-        parentDisplayName: contact.name || parentUser.firstName,
-        studentFullName,
-        relationLabel: contact.relationLabel,
-        email: contact.email,
+    const tempPassword = generateTempPassword();
+    const inviteProvision = await upsertInvitedUser({
+        existingUserId: student.user || null,
+        schoolId: student.school,
+        email,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        role: 'student',
         tempPassword
     });
 
-    const notification = await Notification.create({
-        school: student.school,
-        recipient: parentUser._id,
-        recipientEmail: contact.email,
-        student: student._id,
-        type: 'custom',
-        subject: emailContent.subject,
-        message: emailContent.message,
-        htmlContent: emailContent.htmlContent,
-        channels: ['email'],
-        metadata: {
-            category: 'parent_mobile_credentials',
-            relation: contact.relationLabel
-        },
-        createdBy: senderUserId
+    await ensureStudentUserLink(student, inviteProvision.user._id);
+
+    const inviteDelivery = sendEmail
+        ? await deliverLoginInvite({
+            schoolId: student.school,
+            actorUserId,
+            recipientUser: inviteProvision.user,
+            recipientEmail: inviteProvision.email,
+            recipientName: `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+            role: 'student',
+            tempPassword,
+            studentId: student._id
+        })
+        : { emailSent: false, error: null };
+
+    return {
+        studentId: student._id,
+        userId: inviteProvision.user._id,
+        email: inviteProvision.email,
+        tempPassword,
+        created: inviteProvision.created,
+        emailSent: inviteDelivery.emailSent,
+        error: inviteDelivery.error || null
+    };
+};
+
+const inviteParentContactGroup = async ({
+    schoolId,
+    actorUserId,
+    contactGroup,
+    fallbackLastName = 'Parent'
+}) => {
+    const tempPassword = generateTempPassword();
+    const parsedName = splitContactName(contactGroup.name, fallbackLastName);
+    const inviteProvision = await upsertInvitedUser({
+        schoolId,
+        email: contactGroup.email,
+        firstName: parsedName.firstName,
+        lastName: parsedName.lastName,
+        role: 'parent',
+        tempPassword
     });
 
-    await notificationService.sendEmail(notification, senderUserId);
+    const inviteDelivery = await deliverLoginInvite({
+        schoolId,
+        actorUserId,
+        recipientUser: inviteProvision.user,
+        recipientEmail: inviteProvision.email,
+        recipientName: contactGroup.name || `${parsedName.firstName} ${parsedName.lastName}`.trim(),
+        role: 'parent',
+        tempPassword,
+        linkedStudents: contactGroup.linkedStudents,
+        studentId: contactGroup.studentIds.length === 1 ? contactGroup.studentIds[0] : null
+    });
+
+    return {
+        relation: contactGroup.relationLabel,
+        name: contactGroup.name || `${parsedName.firstName} ${parsedName.lastName}`.trim(),
+        email: inviteProvision.email,
+        userId: inviteProvision.user._id,
+        created: inviteProvision.created,
+        tempPassword,
+        emailSent: inviteDelivery.emailSent,
+        linkedStudents: contactGroup.linkedStudents,
+        error: inviteDelivery.error || null
+    };
 };
 
 /**
@@ -224,6 +215,11 @@ const sendParentCredentialsEmail = async ({
 export const getStudents = asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, search, classId, status, academicYear } = req.query;
     const effectiveAcademicYear = academicYear || req.academicYear;
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const parsedLimit = String(limit).toLowerCase() === 'all'
+        ? 0
+        : Math.max(parseInt(limit, 10) || 0, 0);
+    const shouldPaginate = parsedLimit > 0;
 
     const query = {};
 
@@ -263,10 +259,10 @@ export const getStudents = asyncHandler(async (req, res) => {
     const students = await Student.find(query)
         .populate('department', 'name type')
         .populate('currentClass', 'name grade section')
-        .populate('user', 'email isActive')
+        .populate('user', 'email isActive mustChangePassword loginInvite')
         .sort({ firstName: 1, lastName: 1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit));
+        .skip(shouldPaginate ? (parsedPage - 1) * parsedLimit : 0)
+        .limit(shouldPaginate ? parsedLimit : 0);
 
     const total = await Student.countDocuments(query);
 
@@ -275,10 +271,10 @@ export const getStudents = asyncHandler(async (req, res) => {
         data: {
             students,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: parsedPage,
+                limit: shouldPaginate ? parsedLimit : total,
                 total,
-                pages: Math.ceil(total / limit)
+                pages: shouldPaginate ? Math.ceil(total / parsedLimit) : 1
             }
         }
     });
@@ -294,7 +290,7 @@ export const getStudent = asyncHandler(async (req, res) => {
         .populate('department', 'name type')
         .populate('currentClass', 'name grade section academicYear')
         .populate('classEnrollmentHistory.class', 'name grade section academicYear')
-        .populate('user', 'email');
+        .populate('user', 'email isActive mustChangePassword loginInvite');
 
     if (!student) {
         return res.status(404).json({
@@ -609,16 +605,13 @@ export const createStudentLogin = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    // Already has a linked user account?
     if (student.user) {
-        const existingUser = await User.findById(student.user).select('email');
         return res.status(400).json({
             success: false,
-            message: `This student already has a login account (${existingUser?.email || 'unknown email'})`
+            message: 'This student already has a login account. Use reset password or send login invite instead.'
         });
     }
 
-    // Determine email: prefer student.email, then student.studentEmail
     const email = (req.body.email || student.email || student.studentEmail || '').trim().toLowerCase();
     if (!email) {
         return res.status(400).json({
@@ -627,41 +620,17 @@ export const createStudentLogin = asyncHandler(async (req, res) => {
         });
     }
 
-    // Check if a User with that email already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-        return res.status(400).json({
-            success: false,
-            message: `A user account with email "${email}" already exists.`
-        });
-    }
-
-    const tempPassword = generateTempPassword();
-
-    // Create the User document (pre-save hook hashes the password automatically)
-    const user = await User.create({
+    const credentials = await prepareStudentLoginCredentials({
+        student,
         email,
-        password: tempPassword,
-        role: 'student',
-        school: student.school,
-        firstName: student.firstName,
-        lastName: student.lastName,
-        isActive: true
+        actorUserId: req.user?._id,
+        sendEmail: false
     });
-
-    // Link User → Student
-    student.user = user._id;
-    await student.save();
 
     res.status(201).json({
         success: true,
         message: 'Student login created successfully',
-        data: {
-            studentId: student._id,
-            userId: user._id,
-            email: user.email,
-            tempPassword        // shown once, never stored in plain text
-        }
+        data: credentials
     });
 });
 
@@ -691,8 +660,7 @@ export const bulkCreateStudentLogin = asyncHandler(async (req, res) => {
     }
 
     const students = await Student.find({
-        _id: { $in: studentIds },
-        $or: [{ user: { $exists: false } }, { user: null }],
+        _id: { $in: studentIds }
     });
 
     const created = [];
@@ -702,37 +670,29 @@ export const bulkCreateStudentLogin = asyncHandler(async (req, res) => {
         const email = (student.email || student.studentEmail || '').trim().toLowerCase();
         const name = [student.firstName, student.lastName].filter(Boolean).join(' ') || 'Student';
 
+        if (student.user) {
+            errors.push({ studentId: student._id, name, error: 'Student already has a login account' });
+            continue;
+        }
+
         if (!email) {
             errors.push({ studentId: student._id, name, error: 'No email on file' });
             continue;
         }
 
-        const existingUser = await User.findOne({ email }).setOptions({ skipTenantFilter: true });
-        if (existingUser) {
-            errors.push({ studentId: student._id, name, error: `Email "${email}" already in use` });
-            continue;
-        }
-
         try {
-            const tempPassword = generateTempPassword();
-            const user = await User.create({
+            const credentials = await prepareStudentLoginCredentials({
+                student,
                 email,
-                password: tempPassword,
-                role: 'student',
-                school: student.school,
-                firstName: student.firstName,
-                lastName: student.lastName,
-                isActive: true,
+                actorUserId: req.user?._id,
+                sendEmail: false
             });
 
-            student.user = user._id;
-            await student.save();
-
             created.push({
-                studentId: student._id,
+                studentId: credentials.studentId,
                 name,
-                email: user.email,
-                tempPassword,
+                email: credentials.email,
+                tempPassword: credentials.tempPassword
             });
         } catch (err) {
             errors.push({
@@ -748,7 +708,7 @@ export const bulkCreateStudentLogin = asyncHandler(async (req, res) => {
         errors.push({
             studentId: null,
             name: null,
-            error: `${notFoundCount} student(s) already have a login or were not found.`,
+            error: `${notFoundCount} student(s) were not found.`,
         });
     }
 
@@ -782,23 +742,144 @@ export const resetStudentPassword = asyncHandler(async (req, res) => {
         });
     }
 
-    // Fetch user with password field so .save() triggers the hash hook
-    const user = await User.findById(student.user._id || student.user).select('+password');
-    if (!user) {
-        return res.status(404).json({ success: false, message: 'Linked user account not found' });
-    }
-
-    const tempPassword = generateTempPassword();
-    user.password = tempPassword;   // pre-save hook will bcrypt-hash this
-    await user.save();
+    const credentials = await prepareStudentLoginCredentials({
+        student,
+        email: student.user.email || student.email || student.studentEmail,
+        actorUserId: req.user?._id,
+        sendEmail: false
+    });
 
     res.json({
         success: true,
         message: 'Password reset successfully',
+        data: credentials
+    });
+});
+
+/**
+ * @desc    Create or rotate a student login and send invite email
+ * @route   POST /api/students/:id/send-login-invite
+ * @access  Private (Admin)
+ */
+export const sendStudentLoginInvite = asyncHandler(async (req, res) => {
+    const student = await Student.findById(req.params.id).setOptions({ skipTenantFilter: true });
+    if (!student || student.school?.toString() !== req.schoolId.toString()) {
+        return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    const email = (req.body.email || student.email || student.studentEmail || '').trim().toLowerCase();
+    if (!email) {
+        return res.status(400).json({
+            success: false,
+            message: 'No email available. Add a student email before sending an invite.'
+        });
+    }
+
+    const credentials = await prepareStudentLoginCredentials({
+        student,
+        email,
+        actorUserId: req.user?._id,
+        sendEmail: true
+    });
+
+    const message = credentials.emailSent
+        ? 'Student invite sent successfully'
+        : 'Student credentials prepared, but email delivery failed';
+
+    res.status(200).json({
+        success: true,
+        message,
+        data: credentials
+    });
+});
+
+/**
+ * @desc    Bulk create or rotate student logins and send invite emails
+ * @route   POST /api/students/bulk-send-login-invites
+ * @access  Private (Admin)
+ */
+export const bulkSendStudentLoginInvites = asyncHandler(async (req, res) => {
+    const { studentIds } = req.body;
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Provide an array of student IDs (studentIds).'
+        });
+    }
+
+    if (studentIds.length > 100) {
+        return res.status(400).json({
+            success: false,
+            message: 'Maximum 100 students per batch.'
+        });
+    }
+
+    const students = await Student.find({
+        _id: { $in: studentIds },
+        school: req.schoolId
+    }).setOptions({ skipTenantFilter: true });
+
+    const created = [];
+    const errors = [];
+
+    for (const student of students) {
+        const email = (student.email || student.studentEmail || '').trim().toLowerCase();
+        const name = [student.firstName, student.lastName].filter(Boolean).join(' ') || 'Student';
+
+        if (!email) {
+            errors.push({ studentId: student._id, name, error: 'No email on file' });
+            continue;
+        }
+
+        try {
+            const credentials = await prepareStudentLoginCredentials({
+                student,
+                email,
+                actorUserId: req.user?._id,
+                sendEmail: true
+            });
+
+            created.push({
+                studentId: credentials.studentId,
+                name,
+                email: credentials.email,
+                tempPassword: credentials.tempPassword,
+                emailSent: credentials.emailSent
+            });
+
+            if (!credentials.emailSent) {
+                errors.push({
+                    studentId: student._id,
+                    name,
+                    error: credentials.error || 'Credentials prepared but email delivery failed'
+                });
+            }
+        } catch (error) {
+            errors.push({
+                studentId: student._id,
+                name,
+                error: error.message || 'Failed to prepare invite'
+            });
+        }
+    }
+
+    const notFoundCount = studentIds.length - students.length;
+    if (notFoundCount > 0) {
+        errors.push({
+            studentId: null,
+            name: null,
+            error: `${notFoundCount} student(s) were not found.`
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: `Prepared ${created.length} student invite(s).${errors.length ? ` ${errors.length} issue(s) reported.` : ''}`,
         data: {
-            studentId: student._id,
-            email: user.email,
-            tempPassword        // shown once
+            created,
+            errors,
+            total: studentIds.length
         }
     });
 });
@@ -883,8 +964,8 @@ export const sendParentCredentials = asyncHandler(async (req, res) => {
         });
     }
 
-    const contacts = buildParentContacts(student);
-    if (contacts.length === 0) {
+    const parentGroups = buildParentInviteGroups([student]);
+    if (parentGroups.length === 0) {
         return res.status(400).json({
             success: false,
             message: 'No parent/guardian emails found for this student'
@@ -893,59 +974,48 @@ export const sendParentCredentials = asyncHandler(async (req, res) => {
 
     const sent = [];
     const errors = [];
-    for (const contact of contacts) {
-        if (!EMAIL_PATTERN.test(contact.email)) {
+    for (const contactGroup of parentGroups) {
+        if (!EMAIL_PATTERN.test(contactGroup.email)) {
             errors.push({
-                relation: contact.relationLabel,
-                email: contact.email,
+                relation: contactGroup.relationLabel,
+                email: contactGroup.email,
                 error: 'Invalid email format'
             });
             continue;
         }
 
-        const tempPassword = generateTempPassword();
         try {
-            const { user, created } = await findOrCreateParentUser({
+            const result = await inviteParentContactGroup({
                 schoolId: student.school,
-                email: contact.email,
-                displayName: contact.name,
-                fallbackLastName: student.lastName || 'Parent',
-                tempPassword
+                actorUserId: req.user._id,
+                contactGroup,
+                fallbackLastName: student.lastName || 'Parent'
             });
 
-            let emailSent = false;
-            try {
-                await sendParentCredentialsEmail({
-                    student,
-                    parentUser: user,
-                    contact,
-                    tempPassword,
-                    senderUserId: req.user._id
-                });
-                emailSent = true;
-            } catch (emailError) {
+            if (!result.emailSent) {
                 errors.push({
-                    relation: contact.relationLabel,
-                    name: contact.name || '',
-                    email: contact.email,
-                    error: emailError.message || 'Credentials created but email delivery failed'
+                    relation: result.relation,
+                    name: result.name || '',
+                    email: result.email,
+                    error: result.error || 'Credentials created but email delivery failed'
                 });
             }
 
             sent.push({
-                relation: contact.relationLabel,
-                name: contact.name || `${user.firstName} ${user.lastName}`.trim(),
-                email: contact.email,
-                userId: user._id,
-                created,
-                tempPassword,
-                emailSent
+                relation: result.relation,
+                name: result.name,
+                email: result.email,
+                userId: result.userId,
+                created: result.created,
+                tempPassword: result.tempPassword,
+                emailSent: result.emailSent,
+                linkedStudents: result.linkedStudents
             });
         } catch (error) {
             errors.push({
-                relation: contact.relationLabel,
-                name: contact.name || '',
-                email: contact.email,
+                relation: contactGroup.relationLabel,
+                name: contactGroup.name || '',
+                email: contactGroup.email,
                 error: error.message || 'Failed to send credentials'
             });
         }
@@ -967,11 +1037,126 @@ export const sendParentCredentials = asyncHandler(async (req, res) => {
     const successfulEmailCount = sent.filter((item) => item.emailSent).length;
 
     res.status(200).json({
-        success: true,
-        message: `Credentials prepared for ${sent.length} parent contact(s). ${successfulEmailCount} email(s) delivered.${errors.length ? ` ${errors.length} issue(s) reported.` : ''}`,
-        data: {
+            success: true,
+            message: `Credentials prepared for ${sent.length} parent contact(s). ${successfulEmailCount} email(s) delivered.${errors.length ? ` ${errors.length} issue(s) reported.` : ''}`,
+            data: {
             studentId: student._id,
             studentName: `${student.firstName} ${student.lastName}`.trim(),
+                sent,
+                errors
+            }
+        });
+});
+
+/**
+ * @desc    Create/reset parent account credentials for a student and send by email
+ * @route   POST /api/students/:id/send-parent-login-invite
+ * @access  Private (Admin)
+ */
+export const sendParentLoginInvite = sendParentCredentials;
+
+/**
+ * @desc    Bulk create/reset parent account credentials across selected students and send by email
+ * @route   POST /api/students/bulk-send-parent-login-invites
+ * @access  Private (Admin)
+ */
+export const bulkSendParentLoginInvites = asyncHandler(async (req, res) => {
+    const { studentIds } = req.body;
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Provide an array of student IDs (studentIds).'
+        });
+    }
+
+    if (studentIds.length > 100) {
+        return res.status(400).json({
+            success: false,
+            message: 'Maximum 100 students per batch.'
+        });
+    }
+
+    const students = await Student.find({
+        _id: { $in: studentIds },
+        school: req.schoolId
+    }).setOptions({ skipTenantFilter: true });
+
+    const studentNames = students.map((student) => `${student.firstName || ''} ${student.lastName || ''}`.trim());
+    const parentGroups = buildParentInviteGroups(students);
+    if (parentGroups.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'No parent/guardian emails found for the selected students'
+        });
+    }
+
+    const sent = [];
+    const errors = [];
+
+    for (const contactGroup of parentGroups) {
+        if (!EMAIL_PATTERN.test(contactGroup.email)) {
+            errors.push({
+                relation: contactGroup.relationLabel,
+                name: contactGroup.name || '',
+                email: contactGroup.email,
+                error: 'Invalid email format'
+            });
+            continue;
+        }
+
+        try {
+            const result = await inviteParentContactGroup({
+                schoolId: req.schoolId,
+                actorUserId: req.user._id,
+                contactGroup,
+                fallbackLastName: 'Parent'
+            });
+
+            sent.push({
+                relation: result.relation,
+                name: result.name,
+                email: result.email,
+                userId: result.userId,
+                created: result.created,
+                tempPassword: result.tempPassword,
+                emailSent: result.emailSent,
+                linkedStudents: result.linkedStudents
+            });
+
+            if (!result.emailSent) {
+                errors.push({
+                    relation: result.relation,
+                    name: result.name || '',
+                    email: result.email,
+                    error: result.error || 'Credentials created but email delivery failed'
+                });
+            }
+        } catch (error) {
+            errors.push({
+                relation: contactGroup.relationLabel,
+                name: contactGroup.name || '',
+                email: contactGroup.email,
+                error: error.message || 'Failed to send credentials'
+            });
+        }
+    }
+
+    const notFoundCount = studentIds.length - students.length;
+    if (notFoundCount > 0) {
+        errors.push({
+            relation: null,
+            name: null,
+            email: null,
+            error: `${notFoundCount} student(s) were not found.`
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        message: `Prepared ${sent.length} parent invite(s). ${sent.filter((item) => item.emailSent).length} email(s) delivered.${errors.length ? ` ${errors.length} issue(s) reported.` : ''}`,
+        data: {
+            studentNames,
             sent,
             errors
         }

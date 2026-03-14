@@ -32,15 +32,19 @@ export const generateAdvancedReport = asyncHandler(async (req, res) => {
         customPrompt,
         sendEmail = false,
         recipients = {
-            student: false,
+            student: true,
             mother: true,
             father: true,
-            teacher: true
+            guardian: true,
+            teacher: false
         }
     } = req.body;
 
     // 1. Fetch Student
-    const student = await Student.findById(studentId).populate('school');
+    const student = await Student.findById(studentId)
+        .populate('school')
+        .populate('currentClass')
+        .populate('user', 'email');
     if (!student) {
         return res.status(404).json({ success: false, message: 'Student not found' });
     }

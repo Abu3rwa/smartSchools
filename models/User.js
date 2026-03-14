@@ -64,11 +64,6 @@ const userSchema = new mongoose.Schema({
             'export_curriculum_map',
             'print_curriculum_map',
             'configure_curriculum_map_templates',
-            'view_pacing_guides',
-            'edit_pacing_guides',
-            'review_pacing_guides',
-            'publish_pacing_guides',
-            'approve_pacing_overrides',
             'manage_substitutions',
             'manage_events',
             'view_all_reports',
@@ -156,6 +151,10 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    mustChangePassword: {
+        type: Boolean,
+        default: false
+    },
     lastLogin: {
         type: Date
     },
@@ -170,6 +169,33 @@ const userSchema = new mongoose.Schema({
         type: Date,
         select: false,
         default: null
+    },
+    loginInvite: {
+        sentAt: Date,
+        sentBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        },
+        deliveryStatus: {
+            type: String,
+            enum: ['sent', 'failed'],
+            default: null
+        },
+        deliveryError: {
+            type: String,
+            default: null
+        },
+        recipientEmail: {
+            type: String,
+            lowercase: true,
+            trim: true
+        },
+        role: {
+            type: String,
+            enum: ['teacher', 'student', 'parent'],
+            default: null
+        }
     },
     // Gmail OAuth tokens for sending emails
     gmailTokens: {

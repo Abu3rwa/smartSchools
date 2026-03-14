@@ -9,6 +9,7 @@ import {
   selectSidebarOpen,
   toggleSidebar,
   setSidebarOpen,
+  selectAppName,
 } from "../../store/slices/uiSlice";
 import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
 import { PERMISSIONS } from "../../constants/permissions";
@@ -44,6 +45,7 @@ const Sidebar = () => {
   const { t, i18n } = useTranslation(["layout.sidebar"]);
   const user = useSelector(selectUser);
   const sidebarOpen = useSelector(selectSidebarOpen);
+  const appName = useSelector(selectAppName);
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const isAdmin = user?.role === "admin";
@@ -256,11 +258,6 @@ const Sidebar = () => {
         PERMISSIONS.EXPORT_CURRICULUM_MAP,
         PERMISSIONS.PRINT_CURRICULUM_MAP,
         PERMISSIONS.CONFIGURE_CURRICULUM_MAP_TEMPLATES,
-        PERMISSIONS.VIEW_PACING_GUIDES,
-        PERMISSIONS.EDIT_PACING_GUIDES,
-        PERMISSIONS.REVIEW_PACING_GUIDES,
-        PERMISSIONS.PUBLISH_PACING_GUIDES,
-        PERMISSIONS.APPROVE_PACING_OVERRIDES,
       ],
       section: "teaching",
     },
@@ -490,9 +487,9 @@ const Sidebar = () => {
       <div className="sidebar-header">
         <div className="logo">
           <div className="logo-icon">
-            <HiOutlineAcademicCap size={28} />
+            <img src="/logo.svg" alt="Logo" width={55} height={55} />
           </div>
-          {sidebarOpen && <span className="logo-text">GradeBook</span>}
+          {sidebarOpen && <span className="logo-text">{appName}</span>}
         </div>
         <button
           className="toggle-btn"

@@ -21,6 +21,7 @@ import useSubjectsPageState from './hooks/useSubjectsPageState';
 import { createDefaultSubjectForm } from './constants';
 import { mapSubjectToFormData } from './utils/subjectPresentation';
 import subjectService from '../../../services/subjectService';
+import importTemplateService from '../../../services/importTemplateService';
 import { parseCsvFile } from '../../../utils/csvImport';
 import './SubjectsPage.css';
 
@@ -32,6 +33,7 @@ const SubjectsPage = () => {
     const error = useSelector(selectSubjectsError);
     const isAdmin = useSelector(selectIsAdmin);
     const importInputRef = useRef(null);
+    const [templateMeta, setTemplateMeta] = useState(null);
 
     const {
         searchTerm,
@@ -51,6 +53,20 @@ const SubjectsPage = () => {
     useEffect(() => {
         dispatch(fetchSubjects());
     }, [dispatch]);
+
+    useEffect(() => {
+        let mounted = true;
+        importTemplateService.getEntityTemplate('subjects')
+            .then((meta) => {
+                if (mounted) setTemplateMeta(meta);
+            })
+            .catch(() => {
+                if (mounted) setTemplateMeta(null);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     if (isAdmin) {
         return <Navigate to="/portal/timetable#subjects" replace />;
@@ -111,6 +127,14 @@ const SubjectsPage = () => {
         importInputRef.current?.click();
     };
 
+    const handleDownloadSample = async () => {
+        try {
+            await importTemplateService.downloadEntityTemplate('subjects');
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('subjects:toast.importFailed'));
+        }
+    };
+
     const handleImportFileChange = async (event) => {
         const file = event.target.files?.[0];
         event.target.value = '';
@@ -161,6 +185,8 @@ const SubjectsPage = () => {
                 isAdmin={isAdmin}
                 onCreate={handleOpenCreate}
                 onImport={handleTriggerImport}
+                onDownloadTemplate={handleDownloadSample}
+                templateMeta={templateMeta}
             />
 
             <SubjectsFilters searchTerm={searchTerm} onSearchChange={setSearchTerm} />

@@ -14,8 +14,10 @@ import LandingLoadingState from './components/LandingLoadingState.jsx';
 import LandingHero from './components/LandingHero.jsx';
 import LandingDynamicBlocks from './components/LandingDynamicBlocks.jsx';
 import LandingTrustStrip from './components/LandingTrustStrip.jsx';
-import LandingHowItWorks from './components/LandingHowItWorks.jsx';
+import LandingBenefits from './components/LandingBenefits.jsx';
 import LandingFeatures from './components/LandingFeatures.jsx';
+import LandingScreenshots from './components/LandingScreenshots.jsx';
+import LandingHowItWorks from './components/LandingHowItWorks.jsx';
 import LandingPricing from './components/LandingPricing.jsx';
 import LandingTestimonials from './components/LandingTestimonials.jsx';
 import LandingFaq from './components/LandingFaq.jsx';
@@ -26,8 +28,10 @@ import RevealOnScroll from './components/RevealOnScroll.jsx';
 import './LandingPage.css';
 
 /**
- * Public landing page. Composes data from useLandingPageData and section components.
- * Preserves routes, API calls, Redux, theme toggle, school search, scroll-to-section, handleAction, SEO JSON-LD.
+ * Public landing page — modern SaaS layout.
+ * Section order:
+ *   Hero → Trust → Benefits → Features → Screenshots → How it Works →
+ *   Pricing → Testimonials → FAQ → CTA → Find School → Footer
  */
 export default function LandingPage() {
     const {
@@ -99,8 +103,10 @@ export default function LandingPage() {
                 handleAction={handleAction}
             />
 
+            {/* 1. Hero */}
             <LandingHero content={content} contentError={contentError} heroBadge={heroBadge} handleAction={handleAction} />
 
+            {/* 2. Dynamic CMS Blocks (if any) */}
             <LandingDynamicBlocks
                 blocks={dynamicBlocks}
                 loading={dynamicLoading}
@@ -108,35 +114,53 @@ export default function LandingPage() {
                 fallbackNotice={uiText.dynamicFallbackNotice}
                 onAction={handleAction}
             />
-            
-            <RevealOnScroll delay={0.2} duration={0.8}>
+
+            {/* 3. Trust Strip */}
+            <RevealOnScroll delay={0.1} duration={0.6}>
                 <LandingTrustStrip trustItems={trustItems} />
             </RevealOnScroll>
-            
+
+            {/* 4. Benefits — WHY use us */}
             <RevealOnScroll>
-                <LandingHowItWorks content={content} />
+                <LandingBenefits />
             </RevealOnScroll>
-            
+
+            {/* 5. Features — WHAT we offer (from CMS) */}
             <RevealOnScroll>
                 <LandingFeatures content={content} />
             </RevealOnScroll>
-            
+
+            {/* 6. Screenshots — SEE the product */}
+            <RevealOnScroll>
+                <LandingScreenshots />
+            </RevealOnScroll>
+
+            {/* 7. How It Works — simple 3 steps */}
+            <RevealOnScroll>
+                <LandingHowItWorks content={content} />
+            </RevealOnScroll>
+
+            {/* 8. Pricing */}
             <RevealOnScroll>
                 <LandingPricing content={content} handleAction={handleAction} />
             </RevealOnScroll>
-            
+
+            {/* 9. Testimonials */}
             <RevealOnScroll>
                 <LandingTestimonials content={content} />
             </RevealOnScroll>
-            
+
+            {/* 10. FAQ */}
             <RevealOnScroll>
                 <LandingFaq content={content} />
             </RevealOnScroll>
-            
+
+            {/* 11. Final CTA */}
             <RevealOnScroll>
                 <LandingCta content={content} handleAction={handleAction} />
             </RevealOnScroll>
-            
+
+            {/* 12. Find School */}
             <RevealOnScroll>
                 <LandingFindSchool
                     content={content}
@@ -154,9 +178,9 @@ export default function LandingPage() {
                     navigate={navigate}
                 />
             </RevealOnScroll>
-            
+
+            {/* 13. Footer */}
             <LandingFooter content={content} copyrightText={copyrightText} handleAction={handleAction} />
         </Box>
     );
 }
-

@@ -1,4 +1,3 @@
-import { HiOutlineAcademicCap } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 
 const RegisterLogo = () => {
@@ -7,7 +6,7 @@ const RegisterLogo = () => {
     return (
         <div className="register-info">
             <div className="register-icon">
-                <HiOutlineAcademicCap size={36} />
+                <img src="/logo.svg" alt="Logo" width={64} height={64} style={{ display: 'block', margin: '0 auto' }} />
             </div>
             <h2>{t('auth:register.hero.title')}</h2>
             <p>{t('auth:register.hero.subtitle')}</p>

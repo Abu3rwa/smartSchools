@@ -6,6 +6,8 @@ import {
     importTeachers,
     updateTeacher,
     deleteTeacher,
+    sendTeacherLoginInvite,
+    bulkSendTeacherLoginInvites,
     assignMultipleClasses,
     removeClassAssignment,
     getMyClasses
@@ -31,12 +33,14 @@ router.route('/')
     .post(authorize('admin', 'department_principal'), validationRules.createTeacher, validate, createTeacher);
 
 router.post('/import', authorize('admin', 'department_principal'), importTeachers);
+router.post('/bulk-send-login-invites', authorize('admin', 'department_principal'), bulkSendTeacherLoginInvites);
 
 router.route('/:id')
     .get(authorize('admin', 'department_principal'), validationRules.mongoId, validate, getTeacher)
     .put(authorize('admin', 'department_principal'), validationRules.mongoId, validate, updateTeacher)
     .delete(authorize('admin', 'department_principal'), validationRules.mongoId, validate, deleteTeacher);
 
+router.post('/:id/send-login-invite', authorize('admin', 'department_principal'), validationRules.mongoId, validate, sendTeacherLoginInvite);
 router.post('/:id/assign-classes', authorize('admin', 'department_principal'), validationRules.mongoId, validate, assignMultipleClasses);
 router.delete('/:id/remove-class/:assignmentId', authorize('admin', 'department_principal'), removeClassAssignment);
 

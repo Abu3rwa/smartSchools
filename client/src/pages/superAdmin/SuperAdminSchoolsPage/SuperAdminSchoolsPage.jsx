@@ -12,9 +12,13 @@ import {
     HiOutlineEye,
     HiOutlinePencil,
     HiOutlineX,
-    HiOutlineLogin
+    HiOutlineLogin,
+    HiOutlineUpload,
+    HiOutlineDownload,
+    HiOutlineTrash
 } from 'react-icons/hi';
 import '../../../components/superAdmin/SuperAdminBase.css';
+import importTemplateService from '../../../services/importTemplateService';
 
 const SuperAdminSchoolsPage = () => {
     const navigate = useNavigate();
@@ -25,6 +29,19 @@ const SuperAdminSchoolsPage = () => {
     const [search, setSearch] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [templates, setTemplates] = useState([]);
+    const [templatesLoading, setTemplatesLoading] = useState(true);
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [editingTemplate, setEditingTemplate] = useState(null);
+    const [savingTemplate, setSavingTemplate] = useState(false);
+    const [templateForm, setTemplateForm] = useState({
+        entityType: 'students',
+        version: 'v1',
+        notes: '',
+        changelog: '',
+        status: 'inactive',
+        file: null
+    });
     const [formData, setFormData] = useState({
         schoolName: '',
         adminName: '',
@@ -36,6 +53,7 @@ const SuperAdminSchoolsPage = () => {
 
     useEffect(() => {
         fetchSchools();
+        fetchTemplates();
     }, []);
 
     const fetchSchools = async () => {
@@ -62,6 +80,121 @@ const SuperAdminSchoolsPage = () => {
             toast.error(error.response?.data?.message || t('superAdminSchools:toast.createFailed'));
         } finally {
             setCreating(false);
+        }
+    };
+
+    const fetchTemplates = async () => {
+        setTemplatesLoading(true);
+        try {
+            const data = await importTemplateService.listAdminTemplates();
+            setTemplates(data);
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to load import templates');
+        } finally {
+            setTemplatesLoading(false);
+        }
+    };
+
+    const openCreateTemplateModal = () => {
+        setEditingTemplate(null);
+        setTemplateForm({
+            entityType: 'students',
+            version: 'v1',
+            notes: '',
+            changelog: '',
+            status: 'inactive',
+            file: null
+        });
+        setShowTemplateModal(true);
+    };
+
+    const openEditTemplateModal = (template) => {
+        setEditingTemplate(template);
+        setTemplateForm({
+            entityType: template.entityType,
+            version: template.version || 'v1',
+            notes: template.notes || '',
+            changelog: template.changelog || '',
+            status: template.status || 'inactive',
+            file: null
+        });
+        setShowTemplateModal(true);
+    };
+
+    const closeTemplateModal = () => {
+        setShowTemplateModal(false);
+        setEditingTemplate(null);
+        setTemplateForm({
+            entityType: 'students',
+            version: 'v1',
+            notes: '',
+            changelog: '',
+            status: 'inactive',
+            file: null
+        });
+    };
+
+    const submitTemplateForm = async (event) => {
+        event.preventDefault();
+        if (!editingTemplate && !templateForm.file) {
+            toast.error('CSV file is required');
+            return;
+        }
+
+        setSavingTemplate(true);
+        try {
+            const formData = new FormData();
+            formData.append('entityType', templateForm.entityType);
+            formData.append('version', templateForm.version || 'v1');
+            formData.append('notes', templateForm.notes || '');
+            formData.append('changelog', templateForm.changelog || '');
+            formData.append('status', templateForm.status || 'inactive');
+            if (templateForm.file) formData.append('file', templateForm.file);
+
+            if (editingTemplate) {
+                await importTemplateService.updateAdminTemplate(editingTemplate.id, formData);
+                toast.success('Import template updated');
+            } else {
+                await importTemplateService.createAdminTemplate(formData);
+                toast.success('Import template created');
+            }
+
+            closeTemplateModal();
+            fetchTemplates();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to save import template');
+        } finally {
+            setSavingTemplate(false);
+        }
+    };
+
+    const handleToggleTemplateStatus = async (template) => {
+        const nextStatus = template.status === 'active' ? 'inactive' : 'active';
+        try {
+            await importTemplateService.updateAdminTemplateStatus(template.id, nextStatus);
+            toast.success(`Template ${nextStatus}`);
+            fetchTemplates();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to update template status');
+        }
+    };
+
+    const handleDownloadTemplate = async (template) => {
+        try {
+            await importTemplateService.downloadAdminTemplate(template.id, template.filename || 'import-template.csv');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to download template');
+        }
+    };
+
+    const handleDeleteTemplate = async (template) => {
+        if (!window.confirm(`Delete template for ${template.entityType}?`)) return;
+        try {
+            await importTemplateService.deleteAdminTemplate(template.id);
+            toast.success('Template deleted');
+            fetchTemplates();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to delete template');
         }
     };
 
@@ -172,6 +305,71 @@ const SuperAdminSchoolsPage = () => {
                 )}
             </div>
 
+            <div className="admin-section" style={{ marginTop: 'var(--spacing-xl)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
+                    <div>
+                        <h2 style={{ margin: 0 }}>Import Templates</h2>
+                        <p className="text-muted" style={{ margin: '6px 0 0' }}>Manage global CSV sample templates for imports</p>
+                    </div>
+                    <button className="admin-action-btn primary" onClick={openCreateTemplateModal}>
+                        <HiOutlineUpload size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                        Upload Template
+                    </button>
+                </div>
+
+                {templatesLoading ? (
+                    <div className="admin-empty"><div className="spinner"></div></div>
+                ) : templates.length === 0 ? (
+                    <div className="admin-empty">
+                        <p>No templates uploaded yet</p>
+                    </div>
+                ) : (
+                    <div className="admin-table-wrap">
+                        <table className="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Entity</th>
+                                    <th>Version</th>
+                                    <th>Status</th>
+                                    <th>Updated</th>
+                                    <th>Filename</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {templates.map((template) => (
+                                    <tr key={template.id}>
+                                        <td>{template.entityType}</td>
+                                        <td>{template.version || 'v1'}</td>
+                                        <td>
+                                            <span className={`status-badge ${template.status}`}>{template.status}</span>
+                                        </td>
+                                        <td>{template.updatedAt ? new Date(template.updatedAt).toLocaleDateString() : '-'}</td>
+                                        <td>{template.filename}</td>
+                                        <td>
+                                            <div className="admin-actions">
+                                                <button className="admin-action-btn" title="Download" onClick={() => handleDownloadTemplate(template)}>
+                                                    <HiOutlineDownload size={14} />
+                                                </button>
+                                                <button className="admin-action-btn" title="Edit" onClick={() => openEditTemplateModal(template)}>
+                                                    <HiOutlinePencil size={14} />
+                                                </button>
+                                                <button className="admin-action-btn" title={template.status === 'active' ? 'Deactivate' : 'Activate'} onClick={() => handleToggleTemplateStatus(template)}>
+                                                    {template.status === 'active' ? 'Deactivate' : 'Activate'}
+                                                </button>
+                                                <button className="admin-action-btn" title="Delete" onClick={() => handleDeleteTemplate(template)}>
+                                                    <HiOutlineTrash size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
             {/* Create Modal */}
             {showCreateModal && (
                 <div style={{
@@ -237,6 +435,76 @@ const SuperAdminSchoolsPage = () => {
                                 <button type="button" className="admin-action-btn" onClick={() => setShowCreateModal(false)}>{t('superAdminSchools:actions.cancel')}</button>
                                 <button type="submit" className="admin-action-btn primary" disabled={creating}>
                                     {creating ? t('superAdminSchools:actions.creating') : t('superAdminSchools:actions.createSchool')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {showTemplateModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 1000, padding: 'var(--spacing-xl)', overflowY: 'auto'
+                }}>
+                    <div style={{
+                        background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)',
+                        padding: 'var(--spacing-2xl)', width: '100%', maxWidth: 560,
+                        border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-lg)',
+                        margin: 'var(--spacing-md) 0'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {editingTemplate ? 'Replace Import Template' : 'Upload Import Template'}
+                            </h2>
+                            <button onClick={closeTemplateModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                                <HiOutlineX size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={submitTemplateForm} className="register-form" style={{ gap: 'var(--spacing-md)' }}>
+                            <div className="form-group">
+                                <label>Entity</label>
+                                <select value={templateForm.entityType} onChange={(e) => setTemplateForm({ ...templateForm, entityType: e.target.value })} disabled={!!editingTemplate}>
+                                    <option value="students">students</option>
+                                    <option value="teachers">teachers</option>
+                                    <option value="classes">classes</option>
+                                    <option value="subjects">subjects</option>
+                                    <option value="standards">standards</option>
+                                    <option value="rooms">rooms</option>
+                                    <option value="timetable_periods">timetable_periods</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Version</label>
+                                <input type="text" value={templateForm.version} onChange={(e) => setTemplateForm({ ...templateForm, version: e.target.value })} placeholder="v1" />
+                            </div>
+                            <div className="form-group">
+                                <label>Status</label>
+                                <select value={templateForm.status} onChange={(e) => setTemplateForm({ ...templateForm, status: e.target.value })}>
+                                    <option value="inactive">inactive</option>
+                                    <option value="active">active</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>CSV File</label>
+                                <input type="file" accept=".csv,text/csv" onChange={(e) => setTemplateForm({ ...templateForm, file: e.target.files?.[0] || null })} />
+                                {editingTemplate && <small className="text-muted">Leave empty to keep current file</small>}
+                            </div>
+                            <div className="form-group">
+                                <label>Notes</label>
+                                <textarea value={templateForm.notes} onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })} rows={3} />
+                            </div>
+                            <div className="form-group">
+                                <label>Changelog</label>
+                                <textarea value={templateForm.changelog} onChange={(e) => setTemplateForm({ ...templateForm, changelog: e.target.value })} rows={3} />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end', marginTop: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+                                <button type="button" className="admin-action-btn" onClick={closeTemplateModal}>Cancel</button>
+                                <button type="submit" className="admin-action-btn primary" disabled={savingTemplate}>
+                                    {savingTemplate ? 'Saving...' : editingTemplate ? 'Update Template' : 'Create Template'}
                                 </button>
                             </div>
                         </form>

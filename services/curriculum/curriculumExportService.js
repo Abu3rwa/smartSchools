@@ -203,17 +203,6 @@ const buildHtmlTable = ({ rows, keys, columns }) => {
     return `<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
 };
 
-const toPacingCsvRow = (entry) => [
-    toText(entry.weekNumber),
-    toIsoDate(entry.startDate),
-    toIsoDate(entry.endDate),
-    toText(entry.unitRef?.unitTitle),
-    toText(entry.focus),
-    Array.isArray(entry.objectives) ? entry.objectives.join(' | ') : '',
-    toText(entry.assessment),
-    toText(entry.notes)
-];
-
 const curriculumExportApi = {
     exportCurriculumMapAsCsv(map, settings = {}) {
         const rows = flattenRows(map);
@@ -269,28 +258,6 @@ const curriculumExportApi = {
                 </body>
             </html>
         `.trim();
-    },
-
-    exportPacingGuideAsCsv(guide) {
-        const rows = [['Week', 'Start Date', 'End Date', 'Unit', 'Focus', 'Objectives', 'Assessment', 'Notes']];
-        for (const entry of guide.entries || []) rows.push(toPacingCsvRow(entry));
-        return rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
-    },
-
-    exportPacingGuideAsPdf(guide) {
-        const lines = [
-            `Pacing Guide: ${guide.title || ''}`,
-            `Academic Year: ${guide.academicYear || ''}`,
-            `Term: ${guide.term || ''}`,
-            `Status: ${guide.status || ''}`,
-            `Sync: ${guide.syncStatus || ''}`,
-            '',
-            'Weeks:'
-        ];
-        (guide.entries || []).forEach((entry) => {
-            lines.push(`Week ${entry.weekNumber}: ${entry.unitRef?.unitTitle || entry.focus || ''}`);
-        });
-        return createMinimalPdf(lines);
     }
 };
 

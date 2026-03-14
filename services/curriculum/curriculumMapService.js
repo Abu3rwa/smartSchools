@@ -159,13 +159,6 @@ const runPublishSideEffects = async ({ repository, req, map }) => {
         subjectId: map.subject?._id || map.subject
     });
     map.isCurrent = true;
-    await repository.markGuidesOutOfSync({
-        schoolId: req.schoolId,
-        academicYear: map.academicYear,
-        classId: map.classId?._id || map.classId,
-        subjectId: map.subject?._id || map.subject,
-        mapVersion: map.version
-    });
 };
 
 const buildTransitionPolicy = ({ settings, map }) => {
@@ -422,16 +415,6 @@ export const createCurriculumMapService = ({
         assertCondition(canManageCurriculumMap(req.user), 403, 'Not authorized to delete curriculum maps');
         assertCondition(isDepartmentAllowed(req.departmentId, map.department), 403, 'Map outside your department scope');
         await ensureTeacherMapScope({ repository, req, map });
-
-        const linkedGuidesCount = await repository.countPacingGuidesByMapId({
-            schoolId: req.schoolId,
-            mapId: map._id
-        });
-        assertCondition(
-            linkedGuidesCount === 0,
-            409,
-            'Cannot delete a curriculum map linked to pacing guides. Remove linked guides first.'
-        );
 
         await Promise.all([
             repository.deleteCurriculumImportJobsByMap({ schoolId: req.schoolId, mapId: map._id }),

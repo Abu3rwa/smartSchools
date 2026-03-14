@@ -80,38 +80,3 @@ export const canViewCurriculumMap = (user) => (
         PERMISSIONS.PRINT_CURRICULUM_MAP
     ])
 );
-
-export const canEditPacingGuide = (user) => (
-    ['admin', 'department_principal'].includes(user?.role)
-    || hasAny(user, [PERMISSIONS.EDIT_PACING_GUIDES])
-);
-
-export const canReviewPacingGuide = (user) => (
-    ['admin', 'department_principal'].includes(user?.role)
-    || hasAny(user, [PERMISSIONS.REVIEW_PACING_GUIDES])
-);
-
-export const canPublishPacingGuide = (user) => (
-    ['admin', 'department_principal'].includes(user?.role)
-    || hasAny(user, [PERMISSIONS.PUBLISH_PACING_GUIDES])
-);
-
-export const canViewPacingGuide = (user) => (
-    ['admin', 'department_principal', 'teacher'].includes(user?.role)
-    || hasAny(user, [
-        PERMISSIONS.VIEW_PACING_GUIDES,
-        PERMISSIONS.EDIT_PACING_GUIDES,
-        PERMISSIONS.REVIEW_PACING_GUIDES,
-        PERMISSIONS.PUBLISH_PACING_GUIDES
-    ])
-);
-
-export const canApproveOverride = (user) => (
-    ['admin', 'department_principal'].includes(user?.role)
-    || hasAny(user, [PERMISSIONS.APPROVE_PACING_OVERRIDES])
-);
-
-export const canSubmitOverride = (user) => (
-    ['teacher', 'admin', 'department_principal'].includes(user?.role)
-    || hasAny(user, [PERMISSIONS.EDIT_PACING_GUIDES, PERMISSIONS.APPROVE_PACING_OVERRIDES])
-);

@@ -26,11 +26,6 @@ export const PERMISSIONS = {
     EXPORT_CURRICULUM_MAP: 'export_curriculum_map',
     PRINT_CURRICULUM_MAP: 'print_curriculum_map',
     CONFIGURE_CURRICULUM_MAP_TEMPLATES: 'configure_curriculum_map_templates',
-    VIEW_PACING_GUIDES: 'view_pacing_guides',
-    EDIT_PACING_GUIDES: 'edit_pacing_guides',
-    REVIEW_PACING_GUIDES: 'review_pacing_guides',
-    PUBLISH_PACING_GUIDES: 'publish_pacing_guides',
-    APPROVE_PACING_OVERRIDES: 'approve_pacing_overrides',
     
     // Substitutions
     MANAGE_SUBSTITUTIONS: 'manage_substitutions',
@@ -190,31 +185,6 @@ export const PERMISSION_DEFINITIONS = {
     [PERMISSIONS.CONFIGURE_CURRICULUM_MAP_TEMPLATES]: {
         label: 'Configure Curriculum Templates',
         description: 'Configure school curriculum templates and workflow settings',
-        category: 'academic'
-    },
-    [PERMISSIONS.VIEW_PACING_GUIDES]: {
-        label: 'View Pacing Guides',
-        description: 'View class pacing guides and sync status',
-        category: 'academic'
-    },
-    [PERMISSIONS.EDIT_PACING_GUIDES]: {
-        label: 'Edit Pacing Guides',
-        description: 'Create and update pacing guides',
-        category: 'academic'
-    },
-    [PERMISSIONS.REVIEW_PACING_GUIDES]: {
-        label: 'Review Pacing Guides',
-        description: 'Review submitted pacing guides and override impact',
-        category: 'academic'
-    },
-    [PERMISSIONS.PUBLISH_PACING_GUIDES]: {
-        label: 'Publish Pacing Guides',
-        description: 'Publish class pacing guides',
-        category: 'academic'
-    },
-    [PERMISSIONS.APPROVE_PACING_OVERRIDES]: {
-        label: 'Approve Pacing Overrides',
-        description: 'Approve or reject teacher pacing override requests',
         category: 'academic'
     },
     [PERMISSIONS.MANAGE_SUBSTITUTIONS]: {

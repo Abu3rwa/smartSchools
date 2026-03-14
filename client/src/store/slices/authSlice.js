@@ -152,7 +152,7 @@ export const stopImpersonation = createAsyncThunk(
         dispatch(setCredentials({ user, token: adminToken }));
         return { user, token: adminToken };
       }
-    } catch (error) {
+    } catch {
       // If fetching the user fails, log out completely
       dispatch(logout());
       return rejectWithValue('Could not restore admin session. Please log in again.');
@@ -189,6 +189,18 @@ export const updateProfile = createAsyncThunk(
       }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update profile');
+    }
+  }
+);
+
+export const changePassword = createAsyncThunk(
+  'auth/changePassword',
+  async ({ currentPassword, newPassword }, { rejectWithValue }) => {
+    try {
+      const response = await api.put('/auth/password', { currentPassword, newPassword });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to change password');
     }
   }
 );
@@ -308,7 +320,7 @@ const authSlice = createSlice({
       .addCase(impersonateUser.pending, (state) => {
         state.loading = true;
       })
-      .addCase(impersonateUser.fulfilled, (state, action) => {
+      .addCase(impersonateUser.fulfilled, (state) => {
         state.loading = false;
         state.isImpersonating = true;
       })
@@ -320,7 +332,7 @@ const authSlice = createSlice({
       .addCase(stopImpersonation.pending, (state) => {
         state.loading = true;
       })
-      .addCase(stopImpersonation.fulfilled, (state, action) => {
+      .addCase(stopImpersonation.fulfilled, (state) => {
         state.loading = false;
         state.isImpersonating = false;
       })
@@ -337,7 +349,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.teacherProfile = action.payload.profile;
       })
-      .addCase(fetchCurrentUser.rejected, (state, action) => {
+      .addCase(fetchCurrentUser.rejected, (state) => {
         state.loading = false;
         state.user = null;
         state.token = null;
@@ -351,6 +363,12 @@ const authSlice = createSlice({
       // Update profile
       .addCase(updateProfile.fulfilled, (state, action) => {
         state.user = action.payload.user;
+      })
+      .addCase(changePassword.fulfilled, (state) => {
+        if (state.user) {
+          state.user.mustChangePassword = false;
+          localStorage.setItem('user', JSON.stringify(state.user));
+        }
       });
   }
 });

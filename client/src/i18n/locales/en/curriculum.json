@@ -1,12 +1,10 @@
 {
   "page": {
     "title": "Curriculum Mapping",
-    "description": "Flexible school-aligned curriculum maps, review workflow, export, pacing guides, and overrides."
+    "description": "Flexible school-aligned curriculum maps, review workflow, export, and template settings."
   },
   "tabs": {
     "maps": "Maps",
-    "guides": "Pacing Guides",
-    "overrides": "Overrides",
     "settings": "Template Settings"
   },
   "shared": {
@@ -152,24 +150,6 @@
       "suggestionSection": "{{title}} ({{count}} items)"
     }
   },
-  "guides": {
-    "title": "Pacing Guides",
-    "create": "Create Guide",
-    "syncLabel": "Sync: {{syncStatus}}"
-  },
-  "overrides": {
-    "title": "Override Requests",
-    "pacingGuide": "Pacing Guide",
-    "entryId": "Entry ID",
-    "weekNumber": "Week Number",
-    "focus": "Focus",
-    "objectives": "Objectives (comma-separated)",
-    "assessment": "Assessment",
-    "reason": "Reason",
-    "submit": "Submit Override",
-    "cardTitle": "Override #{{id}}",
-    "weekLine": "Week {{week}}"
-  },
   "settings": {
     "title": "Template & Workflow Settings",
     "save": "Save Settings",
@@ -218,10 +198,6 @@
     "googleDocImportQueued": "Google Doc import job queued.",
     "importApplied": "AI import suggestions applied to draft.",
     "workflowActionExecuted": "Workflow action executed: {{action}}.",
-    "deleteConfirm": "Delete \"{{title}}\"? This action cannot be undone.",
-    "guideCreated": "Pacing guide created.",
-    "overrideSubmitted": "Override request submitted.",
-    "overrideApproved": "Override approved.",
-    "overrideRejected": "Override rejected."
+    "deleteConfirm": "Delete \"{{title}}\"? This action cannot be undone."
   }
 }

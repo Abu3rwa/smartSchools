@@ -30,6 +30,7 @@ const StandardsPage = () => {
         setFormData,
         loading,
         importResult,
+        templateMeta,
         subjects,
         isAdmin,
         filteredStandards,
@@ -39,7 +40,8 @@ const StandardsPage = () => {
         handleDelete,
         handleSubmit,
         handleImport,
-        handleImportFile
+        handleImportFile,
+        handleDownloadTemplate
     } = useStandardsPageData();
 
     return (
@@ -81,6 +83,8 @@ const StandardsPage = () => {
                     onImport={handleImport}
                     onImportFile={handleImportFile}
                     importResult={importResult}
+                    templateMeta={templateMeta}
+                    onDownloadTemplate={handleDownloadTemplate}
                 />
             )}
 

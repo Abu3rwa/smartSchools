@@ -3,6 +3,7 @@ import ImportRun from '../models/ImportRun.js';
 import { normalizeEntityType } from '../services/import/importSchemas.js';
 import { buildImportErrorReportCsv } from '../services/import/importErrorReport.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
+import { buildTemplateMetadataForImportResponse } from '../services/import/importTemplateService.js';
 
 const buildContext = (req) => ({
     schoolId: req.schoolId,
@@ -22,7 +23,8 @@ const toUnifiedResponse = (result) => ({
     errorReportUrl: result.errorReportUrl,
     strictMode: result.strictMode,
     duplicatePolicy: result.duplicatePolicy,
-    idempotent: result.idempotent
+    idempotent: result.idempotent,
+    sampleTemplate: result.sampleTemplate || null
 });
 
 export const previewImport = asyncHandler(async (req, res) => {
@@ -32,6 +34,8 @@ export const previewImport = asyncHandler(async (req, res) => {
         payload: req.body,
         context: buildContext(req)
     });
+
+    result.sampleTemplate = await buildTemplateMetadataForImportResponse(req.params.entityType);
 
     res.status(result.statusCode).json(toUnifiedResponse(result));
 });
@@ -43,6 +47,8 @@ export const commitImport = asyncHandler(async (req, res) => {
         payload: req.body,
         context: buildContext(req)
     });
+
+    result.sampleTemplate = await buildTemplateMetadataForImportResponse(req.params.entityType);
 
     res.status(result.statusCode).json(toUnifiedResponse(result));
 });

@@ -249,92 +249,8 @@ export const curriculumImportApplyBodySchema = z.object({
     expectedUpdatedAt: z.coerce.date().optional()
 }).passthrough();
 
-const pacingEntrySchema = z.object({
-    _id: z.string().optional(),
-    weekNumber: weekNumberSchema,
-    startDate: z.coerce.date().optional().nullable(),
-    endDate: z.coerce.date().optional().nullable(),
-    unitRef: z.object({
-        unitId: objectIdSchema.optional().nullable(),
-        unitCode: z.string().trim().max(80).optional(),
-        unitTitle: z.string().trim().max(200).optional()
-    }).optional(),
-    focus: z.string().trim().max(300).optional(),
-    objectives: z.array(z.string().trim().max(300)).optional(),
-    assessment: z.string().trim().max(800).optional(),
-    notes: z.string().trim().max(2000).optional(),
-    isLocked: z.boolean().optional()
-});
-
-export const pacingGuideListQuerySchema = z.object({
-    page: z.coerce.number().int().min(1).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional(),
-    academicYear: z.string().trim().regex(/^\d{4}-\d{4}$/, 'Invalid academicYear').optional(),
-    classId: objectIdSchema.optional(),
-    subjectId: objectIdSchema.optional(),
-    status: z.enum(['draft', 'in_review', 'published']).optional(),
-    syncStatus: z.enum(['in_sync', 'out_of_sync', 'reconciled']).optional(),
-    term: z.string().trim().max(80).optional()
-}).passthrough();
-
-export const pacingGuideCreateBodySchema = z.object({
-    mapId: objectIdSchema,
-    classId: objectIdSchema,
-    term: z.string().trim().min(1).max(80),
-    title: z.string().trim().min(1).max(200).optional(),
-    includeWeeks: z.array(weekNumberSchema).optional()
-}).passthrough();
-
-export const pacingGuideUpdateBodySchema = z.object({
-    title: z.string().trim().min(1).max(200).optional(),
-    entries: z.array(pacingEntrySchema).max(80).optional(),
-    expectedUpdatedAt: z.coerce.date().optional()
-}).passthrough();
-
-export const pacingGuideReconcileBodySchema = z.object({
-    strategy: z.enum(['keep_current', 'apply_map_diff']).default('apply_map_diff')
-}).passthrough();
-
-export const pacingGuideReviewBodySchema = z.object({
-    decision: z.enum(['approved', 'rejected', 'changes_requested']),
-    note: z.string().trim().max(2000).optional()
-}).passthrough();
-
-export const pacingIdParamsSchema = z.object({
-    guideId: objectIdSchema
-}).passthrough();
-
 export const exportQuerySchema = z.object({
     format: z.enum(['csv', 'pdf', 'html']).default('csv')
-}).passthrough();
-
-export const pacingOverrideCreateBodySchema = z.object({
-    pacingGuideId: objectIdSchema,
-    pacingEntryId: z.string().trim().min(1).max(100),
-    reason: z.string().trim().min(1).max(1200),
-    requestPayload: z.object({
-        weekNumber: weekNumberSchema,
-        focus: z.string().trim().max(300).optional(),
-        objectives: z.array(z.string().trim().max(300)).max(30).optional(),
-        assessment: z.string().trim().max(800).optional(),
-        notes: z.string().trim().max(2000).optional()
-    })
-}).passthrough();
-
-export const pacingOverrideDecisionBodySchema = z.object({
-    note: z.string().trim().max(1200).optional()
-}).passthrough();
-
-export const pacingOverrideListQuerySchema = z.object({
-    page: z.coerce.number().int().min(1).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional(),
-    status: z.enum(['pending', 'approved', 'rejected']).optional(),
-    classId: objectIdSchema.optional(),
-    subjectId: objectIdSchema.optional()
-}).passthrough();
-
-export const pacingOverrideIdParamsSchema = z.object({
-    overrideId: objectIdSchema
 }).passthrough();
 
 export const curriculumSettingsBodySchema = z.object({
@@ -349,10 +265,6 @@ export const curriculumSettingsBodySchema = z.object({
     defaultAcademicYear: z.string().trim().regex(/^\d{4}-\d{4}$/).optional(),
     weekStartDay: z.enum(['monday', 'sunday', 'saturday']).optional(),
     approvalFlow: z.enum(['draft_review_publish', 'draft_publish']).optional(),
-    overridePolicy: z.object({
-        allowTeacherOverrides: z.boolean().optional(),
-        requireOverrideApproval: z.boolean().optional()
-    }).optional(),
     exports: z.object({
         allowPdf: z.boolean().optional(),
         allowCsv: z.boolean().optional(),

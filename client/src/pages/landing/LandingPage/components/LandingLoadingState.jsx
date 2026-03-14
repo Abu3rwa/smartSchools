@@ -2,18 +2,17 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
-import { HiOutlineAcademicCap } from 'react-icons/hi';
 
 /**
- * Full-page loading state. Uses existing CSS: landing-loading-shell, landing-loading-logo.
+ * Full-page loading state with brand logo.
  */
 export default function LandingLoadingState({ content }) {
     return (
         <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
             <Paper className="landing-loading-shell" variant="outlined">
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-                    <Box className="landing-loading-logo">
-                        <HiOutlineAcademicCap size={20} />
+                    <Box className="landing-loading-logo" sx={{ overflow: 'hidden', p: 0.5 }}>
+                        <img src="/logo.svg" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     </Box>
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>{content.brand.name}</Typography>
                 </Box>

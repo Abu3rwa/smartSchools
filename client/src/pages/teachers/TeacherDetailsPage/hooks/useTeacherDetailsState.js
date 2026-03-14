@@ -24,7 +24,7 @@ const useTeacherDetailsState = (teacherId) => {
             try {
                 if (isMounted) setLoading(true);
 
-                await dispatch(fetchTeachers()).unwrap();
+                await dispatch(fetchTeachers({ limit: 0 })).unwrap();
 
                 if (teacherId) {
                     await dispatch(fetchTeacher(teacherId)).unwrap();

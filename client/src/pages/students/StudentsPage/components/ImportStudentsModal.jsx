@@ -15,6 +15,7 @@ const ImportStudentsModal = ({
     classes,
     handleFileSelect,
     downloadTemplate,
+    importTemplateMeta,
     csvErrors,
     csvData,
     importResult,
@@ -67,6 +68,11 @@ const ImportStudentsModal = ({
                             <HiOutlineDownload size={16} />
                             {t('students:import.downloadTemplate')}
                         </button>
+                        <p className="text-muted text-sm mt-sm">
+                            {importTemplateMeta?.hasActiveTemplate
+                                ? `Version ${importTemplateMeta?.activeTemplate?.version || 'v1'} - Updated ${importTemplateMeta?.activeTemplate?.updatedAt ? new Date(importTemplateMeta.activeTemplate.updatedAt).toLocaleDateString() : 'N/A'}`
+                                : 'Using fallback template generated from import schema'}
+                        </p>
                     </div>
 
                     {/* Parse errors */}

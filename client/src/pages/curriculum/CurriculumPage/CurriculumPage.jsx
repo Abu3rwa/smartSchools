@@ -17,24 +17,6 @@ import {
 } from './utils/curriculumPresentation';
 import './CurriculumPage.css';
 
-const DEFAULT_GUIDE_FORM = {
-  mapId: '',
-  classId: '',
-  term: '',
-  title: '',
-};
-
-const DEFAULT_OVERRIDE_FORM = {
-  pacingGuideId: '',
-  pacingEntryId: '',
-  weekNumber: 1,
-  reason: '',
-  focus: '',
-  objectives: '',
-  assessment: '',
-  notes: '',
-};
-
 const hasAnyPermission = (permissions = [], keys = []) => keys.some((key) => permissions.includes(key));
 
 const CurriculumPage = () => {
@@ -68,8 +50,6 @@ const CurriculumPage = () => {
     PERMISSIONS.PUBLISH_CURRICULUM_MAPS,
     PERMISSIONS.APPROVE_CURRICULUM_MAP,
   ]);
-  const canEditGuide = isAdminLike || permissions.includes(PERMISSIONS.EDIT_PACING_GUIDES);
-  const canApproveOverride = isAdminLike || permissions.includes(PERMISSIONS.APPROVE_PACING_OVERRIDES);
   const canManageSettings = isAdminLike || hasAnyPermission(permissions, [
     PERMISSIONS.MANAGE_SCHOOL_SETTINGS,
     PERMISSIONS.CONFIGURE_CURRICULUM_MAP_TEMPLATES,
@@ -80,8 +60,6 @@ const CurriculumPage = () => {
   const [statusText, setStatusText] = useState('');
   const [maps, setMaps] = useState([]);
   const [mapHistory, setMapHistory] = useState(null);
-  const [guides, setGuides] = useState([]);
-  const [overrides, setOverrides] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [classes, setClasses] = useState([]);
   const [classSubjectPairs, setClassSubjectPairs] = useState([]);
@@ -97,8 +75,6 @@ const CurriculumPage = () => {
   const [importState, setImportState] = useState({ sources: [], jobs: [] });
   const [importLoading, setImportLoading] = useState(false);
   const [googleDriveStatus, setGoogleDriveStatus] = useState({ connected: false });
-  const [guideForm, setGuideForm] = useState(DEFAULT_GUIDE_FORM);
-  const [overrideForm, setOverrideForm] = useState(DEFAULT_OVERRIDE_FORM);
   const [settings, setSettings] = useState(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
 
@@ -130,17 +106,13 @@ const CurriculumPage = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [mapsData, guidesData, overridesData, optionsData, settingsData, driveStatus] = await Promise.all([
+      const [mapsData, optionsData, settingsData, driveStatus] = await Promise.all([
         curriculumService.listMaps({ limit: 100 }),
-        curriculumService.listGuides({ limit: 50 }),
-        curriculumService.listOverrides({ limit: 50 }),
         curriculumService.listOptions(),
         curriculumService.getSettings(),
         curriculumService.getGoogleDriveStatus().catch(() => ({ connected: false })),
       ]);
       setMaps(mapsData?.items || []);
-      setGuides(guidesData?.items || []);
-      setOverrides(overridesData?.items || []);
       setSubjects(optionsData?.subjects || []);
       setClasses(optionsData?.classes || []);
       setClassSubjectPairs(optionsData?.classSubjectPairs || []);
@@ -393,13 +365,6 @@ const CurriculumPage = () => {
     }
   };
 
-  const mapOptions = useMemo(() => (
-    maps.map((map) => ({
-      value: map._id,
-      label: `${map.title} (${map.classId?.name || t('shared.gradeFallback', { grade: map.grade || '' })})`,
-    }))
-  ), [maps, t]);
-
   return (
     <div className="curriculum-page">
       <div className="curriculum-page-header">
@@ -409,8 +374,6 @@ const CurriculumPage = () => {
 
       <div className="curriculum-tabs">
         <button type="button" className={activeTab === 'maps' ? 'active' : ''} onClick={() => setActiveTab('maps')}>{t('tabs.maps')}</button>
-        <button type="button" className={activeTab === 'guides' ? 'active' : ''} onClick={() => setActiveTab('guides')}>{t('tabs.guides')}</button>
-        <button type="button" className={activeTab === 'overrides' ? 'active' : ''} onClick={() => setActiveTab('overrides')}>{t('tabs.overrides')}</button>
         <button type="button" className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>{t('tabs.settings')}</button>
       </div>
 
@@ -477,175 +440,6 @@ const CurriculumPage = () => {
             />
           )}
         </div>
-      )}
-
-      {activeTab === 'guides' && (
-        <section className="curriculum-section">
-          <h2>{t('guides.title')}</h2>
-          {canEditGuide && (
-            <form
-              className="curriculum-form"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                await runAction(async () => {
-                  await curriculumService.createGuide({
-                    mapId: guideForm.mapId,
-                    classId: guideForm.classId,
-                    term: guideForm.term,
-                    title: guideForm.title,
-                  });
-                  setGuideForm(DEFAULT_GUIDE_FORM);
-                  const guidesData = await curriculumService.listGuides({ limit: 50 });
-                  setGuides(guidesData?.items || []);
-                }, t('messages.guideCreated'));
-              }}
-            >
-              <div className="form-grid">
-                <label>
-                  {t('shared.map')}
-                  <select value={guideForm.mapId} onChange={(event) => setGuideForm((prev) => ({ ...prev, mapId: event.target.value }))}>
-                    <option value="">{t('shared.selectMap')}</option>
-                    {mapOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </label>
-                <label>
-                  {t('shared.class')}
-                  <select value={guideForm.classId} onChange={(event) => setGuideForm((prev) => ({ ...prev, classId: event.target.value }))}>
-                    <option value="">{t('shared.selectClass')}</option>
-                    {classes.map((cls) => <option key={cls._id} value={cls._id}>{cls.name}</option>)}
-                  </select>
-                </label>
-                <label>
-                  {t('shared.term')}
-                  <input value={guideForm.term} onChange={(event) => setGuideForm((prev) => ({ ...prev, term: event.target.value }))} />
-                </label>
-                <label>
-                  {t('shared.title')}
-                  <input value={guideForm.title} onChange={(event) => setGuideForm((prev) => ({ ...prev, title: event.target.value }))} />
-                </label>
-              </div>
-              <button type="submit">{t('guides.create')}</button>
-            </form>
-          )}
-
-          <div className="curriculum-list">
-            {guides.map((guide) => (
-              <article key={guide._id} className="curriculum-card">
-                <div>
-                  <h3>{guide.title}</h3>
-                  <p>
-                    {guide.academicYear}
-                    {' • '}
-                    {guide.term}
-                    {' • '}
-                    {guide.classId?.name || t('shared.class')}
-                    {' • '}
-                    {guide.subject?.name || t('shared.subject')}
-                  </p>
-                  <p>
-                    {t('shared.statusLabel', { status: t(`status.${guide.status}`, { defaultValue: guide.status }) })}
-                    {' • '}
-                    {t('guides.syncLabel', { syncStatus: guide.syncStatus })}
-                  </p>
-                </div>
-                <div className="card-actions">
-                  <button type="button" onClick={() => curriculumService.downloadGuide(guide._id, 'csv')}>CSV</button>
-                  <button type="button" onClick={() => curriculumService.downloadGuide(guide._id, 'pdf')}>PDF</button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {activeTab === 'overrides' && (
-        <section className="curriculum-section">
-          <h2>{t('overrides.title')}</h2>
-          <form
-            className="curriculum-form"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              await runAction(async () => {
-                await curriculumService.createOverride({
-                  pacingGuideId: overrideForm.pacingGuideId,
-                  pacingEntryId: overrideForm.pacingEntryId,
-                  reason: overrideForm.reason,
-                  requestPayload: {
-                    weekNumber: Number(overrideForm.weekNumber),
-                    focus: overrideForm.focus,
-                    objectives: overrideForm.objectives.split(',').map((item) => item.trim()).filter(Boolean),
-                    assessment: overrideForm.assessment,
-                    notes: overrideForm.notes,
-                  },
-                });
-                setOverrideForm(DEFAULT_OVERRIDE_FORM);
-                const overridesData = await curriculumService.listOverrides({ limit: 50 });
-                setOverrides(overridesData?.items || []);
-              }, t('messages.overrideSubmitted'));
-            }}
-          >
-            <div className="form-grid">
-              <label>
-                {t('overrides.pacingGuide')}
-                <select value={overrideForm.pacingGuideId} onChange={(event) => setOverrideForm((prev) => ({ ...prev, pacingGuideId: event.target.value }))}>
-                  <option value="">{t('shared.selectGuide')}</option>
-                  {guides.map((guide) => <option key={guide._id} value={guide._id}>{guide.title}</option>)}
-                </select>
-              </label>
-              <label>
-                {t('overrides.entryId')}
-                <input value={overrideForm.pacingEntryId} onChange={(event) => setOverrideForm((prev) => ({ ...prev, pacingEntryId: event.target.value }))} />
-              </label>
-              <label>
-                {t('overrides.weekNumber')}
-                <input type="number" min={1} max={53} value={overrideForm.weekNumber} onChange={(event) => setOverrideForm((prev) => ({ ...prev, weekNumber: event.target.value }))} />
-              </label>
-              <label>
-                {t('overrides.focus')}
-                <input value={overrideForm.focus} onChange={(event) => setOverrideForm((prev) => ({ ...prev, focus: event.target.value }))} />
-              </label>
-            </div>
-            <label>
-              {t('overrides.objectives')}
-              <input value={overrideForm.objectives} onChange={(event) => setOverrideForm((prev) => ({ ...prev, objectives: event.target.value }))} />
-            </label>
-            <label>
-              {t('overrides.assessment')}
-              <input value={overrideForm.assessment} onChange={(event) => setOverrideForm((prev) => ({ ...prev, assessment: event.target.value }))} />
-            </label>
-            <label>
-              {t('overrides.reason')}
-              <textarea value={overrideForm.reason} onChange={(event) => setOverrideForm((prev) => ({ ...prev, reason: event.target.value }))} />
-            </label>
-            <label>
-              {t('shared.notes')}
-              <textarea value={overrideForm.notes} onChange={(event) => setOverrideForm((prev) => ({ ...prev, notes: event.target.value }))} />
-            </label>
-            <button type="submit">{t('overrides.submit')}</button>
-          </form>
-
-          <div className="curriculum-list">
-            {overrides.map((override) => (
-              <article key={override._id} className="curriculum-card">
-                <div>
-                  <h3>{t('overrides.cardTitle', { id: override._id?.slice(-6) })}</h3>
-                  <p>
-                    {t('shared.statusLabel', { status: t(`status.${override.status}`, { defaultValue: override.status }) })}
-                    {' • '}
-                    {t('overrides.weekLine', { week: override.requestPayload?.weekNumber })}
-                  </p>
-                  <p>{override.reason}</p>
-                </div>
-                {canApproveOverride && override.status === 'pending' && (
-                  <div className="card-actions">
-                    <button type="button" onClick={() => runAction(() => curriculumService.approveOverride(override._id), t('messages.overrideApproved'))}>{t('workflow.actions.approve')}</button>
-                    <button type="button" onClick={() => runAction(() => curriculumService.rejectOverride(override._id), t('messages.overrideRejected'))}>{t('workflow.actions.reject')}</button>
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
       )}
 
       {activeTab === 'settings' && settings && (

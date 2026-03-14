@@ -73,9 +73,37 @@ export const removeClassFromTeacher = createAsyncThunk(
             const response = await api.delete(`/teachers/${teacherId}/remove-class/${assignmentId}`);
             // Refresh classes so classSlice stays in sync
             dispatch({ type: 'classes/needsRefresh' });
-            return { teacherId, assignmentId };
+            return {
+                teacherId,
+                assignmentId,
+                teacher: response.data?.data?.teacher
+            };
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to remove class assignment');
+        }
+    }
+);
+
+export const sendTeacherLoginInvite = createAsyncThunk(
+    'teachers/sendTeacherLoginInvite',
+    async (teacherId, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/teachers/${teacherId}/send-login-invite`);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send teacher invite');
+        }
+    }
+);
+
+export const bulkSendTeacherLoginInvites = createAsyncThunk(
+    'teachers/bulkSendTeacherLoginInvites',
+    async (teacherIds, { rejectWithValue }) => {
+        try {
+            const response = await api.post('/teachers/bulk-send-login-invites', { teacherIds });
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send teacher invites');
         }
     }
 );
@@ -149,12 +177,26 @@ const teacherSlice = createSlice({
                 state.currentTeacher = action.payload.teacher;
             })
             .addCase(removeClassFromTeacher.fulfilled, (state, action) => {
-                // Update the teacher in the list
+                const nextTeacher = action.payload.teacher;
                 const index = state.teachers.findIndex(t => t._id === action.payload.teacherId);
+
                 if (index !== -1) {
-                    state.teachers[index].assignedClasses = state.teachers[index].assignedClasses.filter(
-                        ac => ac._id.toString() !== action.payload.assignmentId
-                    );
+                    if (nextTeacher) {
+                        state.teachers[index] = nextTeacher;
+                    } else {
+                        state.teachers[index].assignedClasses = state.teachers[index].assignedClasses.filter(
+                            ac => ac._id.toString() !== action.payload.assignmentId
+                        );
+                    }
+                }
+
+                if (state.currentTeacher?._id === action.payload.teacherId) {
+                    state.currentTeacher = nextTeacher || {
+                        ...state.currentTeacher,
+                        assignedClasses: state.currentTeacher.assignedClasses.filter(
+                            ac => ac._id.toString() !== action.payload.assignmentId
+                        )
+                    };
                 }
             })
             .addCase(updateTeacher.fulfilled, (state, action) => {

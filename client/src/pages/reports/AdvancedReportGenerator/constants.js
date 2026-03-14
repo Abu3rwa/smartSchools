@@ -22,9 +22,10 @@ export const createDefaultFormData = () => ({
   customPrompt: '',
   sendEmail: true,
   recipients: {
-    student: false,
+    student: true,
     mother: true,
     father: true,
-    teacher: true
+    guardian: true,
+    teacher: false
   }
 });

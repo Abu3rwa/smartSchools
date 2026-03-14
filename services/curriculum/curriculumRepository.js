@@ -2,8 +2,6 @@ import Class from '../../models/Class.js';
 import CurriculumImportJob from '../../models/CurriculumImportJob.js';
 import CurriculumMap from '../../models/CurriculumMap.js';
 import CurriculumSourceDocument from '../../models/CurriculumSourceDocument.js';
-import PacingGuide from '../../models/PacingGuide.js';
-import PacingOverrideRequest from '../../models/PacingOverrideRequest.js';
 import School from '../../models/School.js';
 import Subject from '../../models/Subject.js';
 import Teacher from '../../models/Teacher.js';
@@ -82,46 +80,6 @@ const clearCurrentMap = async ({ schoolId, academicYear, classId, subjectId }) =
     { $set: { isCurrent: false } }
 );
 
-const listPacingGuides = async (query, options) => PacingGuide.find(query)
-    .sort({ updatedAt: -1 })
-    .skip(options.skip)
-    .limit(options.limit)
-    .populate('subject', 'name code')
-    .populate('classId', 'name grade section department')
-    .populate('mapRef.mapId', 'title version status')
-    .populate('createdBy', 'firstName lastName role')
-    .lean();
-
-const countPacingGuides = async (query) => PacingGuide.countDocuments(query);
-
-const findPacingGuideById = async (guideId) => PacingGuide.findById(guideId)
-    .populate('subject', 'name code')
-    .populate('classId', 'name grade section department')
-    .populate('mapRef.mapId', 'title version status units updatedAt')
-    .populate('createdBy', 'firstName lastName role')
-    .populate('workflow.submittedBy', 'firstName lastName role')
-    .populate('workflow.reviewedBy', 'firstName lastName role')
-    .populate('workflow.publishedBy', 'firstName lastName role');
-
-const createPacingGuide = async (payload) => PacingGuide.create(payload);
-const savePacingGuide = async (guide) => guide.save();
-
-const markGuidesOutOfSync = async ({ schoolId, academicYear, classId, subjectId, mapVersion }) => PacingGuide.updateMany(
-    {
-        school: schoolId,
-        academicYear,
-        classId,
-        subject: subjectId,
-        'mapRef.mapVersion': { $lt: mapVersion },
-        status: 'published'
-    },
-    { $set: { syncStatus: 'out_of_sync' } }
-);
-const countPacingGuidesByMapId = async ({ schoolId, mapId }) => PacingGuide.countDocuments({
-    school: schoolId,
-    'mapRef.mapId': mapId
-});
-
 const findClassById = async (classId) => Class.findById(classId).select('grade department name section').lean();
 const listCurriculumOptionClasses = async ({ schoolId, departmentId = null, classIds = null }) => {
     const query = {
@@ -155,24 +113,6 @@ const listCurriculumOptionSubjects = async ({ schoolId, subjectIds = null }) => 
         .sort({ name: 1 })
         .lean();
 };
-const createOverrideRequest = async (payload) => PacingOverrideRequest.create(payload);
-
-const listOverrideRequests = async (query, options) => PacingOverrideRequest.find(query)
-    .sort({ createdAt: -1 })
-    .skip(options.skip)
-    .limit(options.limit)
-    .populate('pacingGuide', 'title term classId subject')
-    .populate('requestedBy', 'firstName lastName role')
-    .populate('decision.reviewedBy', 'firstName lastName role')
-    .lean();
-
-const countOverrideRequests = async (query) => PacingOverrideRequest.countDocuments(query);
-
-const findOverrideRequestById = async (overrideId) => PacingOverrideRequest.findById(overrideId)
-    .populate('pacingGuide', 'title term classId subject status')
-    .populate('requestedBy', 'firstName lastName role');
-
-const saveOverrideRequest = async (overrideRequest) => overrideRequest.save();
 const findSchoolById = async (schoolId) => School.findById(schoolId);
 
 const listApprovers = async ({ schoolId, departmentId, permission }) => {
@@ -273,21 +213,9 @@ export const createCurriculumRepository = () => ({
     saveCurriculumMap,
     deleteCurriculumMapById,
     clearCurrentMap,
-    listPacingGuides,
-    countPacingGuides,
-    findPacingGuideById,
-    createPacingGuide,
-    savePacingGuide,
-    countPacingGuidesByMapId,
-    markGuidesOutOfSync,
     findClassById,
     listCurriculumOptionClasses,
     listCurriculumOptionSubjects,
-    createOverrideRequest,
-    listOverrideRequests,
-    countOverrideRequests,
-    findOverrideRequestById,
-    saveOverrideRequest,
     findSchoolById,
     listApprovers,
     createCurriculumSourceDocument,

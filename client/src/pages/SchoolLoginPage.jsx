@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchSchoolBySlug, selectCurrentSchool, selectSchoolLoading, selectSchoolError } from '../store/slices/schoolSlice';
 import { googleLogin, selectAuth } from '../store/slices/authSlice';
+import { selectAppName } from '../store/slices/uiSlice';
 import { useTranslation } from 'react-i18next';
 import { HiOutlineAcademicCap, HiOutlineArrowLeft, HiOutlineExclamationCircle } from 'react-icons/hi';
 import toast from 'react-hot-toast';
@@ -25,6 +26,7 @@ const SchoolLoginPage = () => {
     const school = useSelector(selectCurrentSchool);
     const loading = useSelector(selectSchoolLoading);
     const error = useSelector(selectSchoolError);
+    const appName = useSelector(selectAppName);
     const { loading: authLoading } = useSelector(selectAuth);
 
     useEffect(() => {
@@ -77,7 +79,7 @@ const SchoolLoginPage = () => {
                     {t('schoolLogin:header.allSchools')}
                 </button>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {t('schoolLogin:header.poweredBy')}
+                    Powered by {appName}
                 </span>
             </header>
 
@@ -90,7 +92,7 @@ const SchoolLoginPage = () => {
                             <HiOutlineAcademicCap size={36} />
                         </div>
                         <h2>{school.name}</h2>
-                        <p>{t('schoolLogin:card.subtitle')}</p>
+                        <p>{t('schoolLogin:card.subtitle', { defaultValue: `Sign in to access your school's ${appName}` }).replace('GradeBook', appName)}</p>
                     </div>
 
                     {/* Google Login */}

@@ -218,25 +218,79 @@ studentSchema.methods.getPrimaryContact = function () {
     }
 };
 
-/**
- * Returns an array of unique, non-empty emails from father, mother, guardian, and student.
- * Used when sending notifications to all contacts (e.g. grade updates, reports).
- */
-studentSchema.methods.getAllContactEmails = function () {
-    const emails = new Set();
-    const add = (value) => {
-        if (value && typeof value === 'string') {
-            const normalized = value.trim().toLowerCase();
-            if (normalized) emails.add(normalized);
+studentSchema.methods.getAllContactEmailEntries = function () {
+    const contacts = new Map();
+
+    const addContact = ({ email, type, name }) => {
+        if (!email || typeof email !== 'string') return;
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedEmail) return;
+
+        if (!contacts.has(normalizedEmail)) {
+            contacts.set(normalizedEmail, {
+                email: normalizedEmail,
+                type,
+                name: String(name || '').trim()
+            });
+            return;
+        }
+
+        const existing = contacts.get(normalizedEmail);
+        if (!existing.name && name) {
+            existing.name = String(name).trim();
+        }
+        if (existing.type === 'student' && type !== 'student') {
+            existing.type = type;
         }
     };
+
     if (this.parentInfo) {
-        add(this.parentInfo.fatherEmail);
-        add(this.parentInfo.motherEmail);
-        add(this.parentInfo.guardianEmail);
+        addContact({
+            email: this.parentInfo.fatherEmail,
+            type: 'father',
+            name: this.parentInfo.fatherName
+        });
+        addContact({
+            email: this.parentInfo.motherEmail,
+            type: 'mother',
+            name: this.parentInfo.motherName
+        });
+        addContact({
+            email: this.parentInfo.guardianEmail,
+            type: 'guardian',
+            name: this.parentInfo.guardianName
+        });
     }
-    add(this.email);
-    return [...emails];
+
+    addContact({
+        email: this.studentEmail,
+        type: 'student',
+        name: this.fullName
+    });
+    addContact({
+        email: this.email,
+        type: 'student',
+        name: this.fullName
+    });
+
+    if (this.user && typeof this.user === 'object' && 'email' in this.user) {
+        addContact({
+            email: this.user.email,
+            type: 'student',
+            name: this.fullName
+        });
+    }
+
+    return Array.from(contacts.values());
+};
+
+/**
+ * Returns an array of unique, non-empty emails from father, mother, guardian,
+ * student record emails, and linked user email when populated.
+ * Used when sending notifications to all related contacts.
+ */
+studentSchema.methods.getAllContactEmails = function () {
+    return this.getAllContactEmailEntries().map((entry) => entry.email);
 };
 
 // Apply tenant isolation plugin

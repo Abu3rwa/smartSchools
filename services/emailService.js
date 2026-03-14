@@ -97,6 +97,73 @@ const escapeHtml = (value) =>
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
+const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+
+const addRecipientToMap = (map, { email, type, name }) => {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return;
+
+    if (!map.has(normalizedEmail)) {
+        map.set(normalizedEmail, {
+            email: normalizedEmail,
+            type,
+            name: String(name || '').trim()
+        });
+        return;
+    }
+
+    const existing = map.get(normalizedEmail);
+    if (!existing.name && name) {
+        existing.name = String(name).trim();
+    }
+    if (existing.type === 'student' && type !== 'student') {
+        existing.type = type;
+    }
+};
+
+const buildStudentContactRecipients = (studentData) => {
+    if (studentData && typeof studentData.getAllContactEmailEntries === 'function') {
+        return studentData.getAllContactEmailEntries();
+    }
+
+    const recipients = new Map();
+    const studentName = `${studentData?.firstName || ''} ${studentData?.lastName || ''}`.trim() || 'Student';
+    const parentInfo = studentData?.parentInfo || {};
+
+    addRecipientToMap(recipients, {
+        email: parentInfo.motherEmail,
+        type: 'mother',
+        name: parentInfo.motherName || `Mother of ${studentData?.firstName || 'Student'}`
+    });
+    addRecipientToMap(recipients, {
+        email: parentInfo.fatherEmail,
+        type: 'father',
+        name: parentInfo.fatherName || `Father of ${studentData?.firstName || 'Student'}`
+    });
+    addRecipientToMap(recipients, {
+        email: parentInfo.guardianEmail,
+        type: 'guardian',
+        name: parentInfo.guardianName || `Guardian of ${studentData?.firstName || 'Student'}`
+    });
+    addRecipientToMap(recipients, {
+        email: studentData?.studentEmail,
+        type: 'student',
+        name: studentName
+    });
+    addRecipientToMap(recipients, {
+        email: studentData?.email,
+        type: 'student',
+        name: studentName
+    });
+    addRecipientToMap(recipients, {
+        email: studentData?.user?.email,
+        type: 'student',
+        name: studentName
+    });
+
+    return Array.from(recipients.values());
+};
+
 class EmailService {
     constructor() {
         // Gmail OAuth service handles authentication
@@ -237,53 +304,21 @@ class EmailService {
      * Prepare list of all recipients for one email
      */
     prepareRecipientList({ studentData, recipients, teacher }) {
-        const emailList = [];
+        const recipientMap = new Map();
 
-        // Add parent emails (primary recipients)
-        if (recipients.mother && studentData.parentInfo?.motherEmail) {
-            emailList.push({
-                email: studentData.parentInfo.motherEmail,
-                type: 'mother',
-                name: studentData.parentInfo.motherName || `Mother of ${studentData.firstName}`
-            });
-        }
+        buildStudentContactRecipients(studentData).forEach((recipient) => {
+            addRecipientToMap(recipientMap, recipient);
+        });
 
-        if (recipients.father && studentData.parentInfo?.fatherEmail) {
-            emailList.push({
-                email: studentData.parentInfo.fatherEmail,
-                type: 'father', 
-                name: studentData.parentInfo.fatherName || `Father of ${studentData.firstName}`
-            });
-        }
-
-        // Add guardian if no parents
-        if (emailList.length === 0 && studentData.parentInfo?.guardianEmail) {
-            emailList.push({
-                email: studentData.parentInfo.guardianEmail,
-                type: 'guardian',
-                name: studentData.parentInfo.guardianName || `Guardian of ${studentData.firstName}`
-            });
-        }
-
-        // Add student email (CC)
-        if (recipients.student && studentData.studentEmail) {
-            emailList.push({
-                email: studentData.studentEmail,
-                type: 'student',
-                name: `${studentData.firstName} ${studentData.lastName}`
-            });
-        }
-
-        // Add teacher email (CC)
-        if (recipients.teacher && teacher?.email) {
-            emailList.push({
+        if (recipients?.teacher && teacher?.email) {
+            addRecipientToMap(recipientMap, {
                 email: teacher.email,
                 type: 'teacher',
-                name: `${teacher.firstName} ${teacher.lastName}`
+                name: `${teacher.firstName || ''} ${teacher.lastName || ''}`.trim()
             });
         }
 
-        return emailList;
+        return Array.from(recipientMap.values());
     }
 
     /**
@@ -301,12 +336,12 @@ class EmailService {
             schoolName
         } = options;
 
-        // Separate primary recipients (parents) from CC recipients
-        const primaryRecipients = recipients.filter(r => ['mother', 'father', 'guardian'].includes(r.type));
-        const ccRecipients = recipients.filter(r => ['student', 'teacher'].includes(r.type));
+        // Student-related contacts are primary recipients; teacher stays optional CC.
+        const primaryRecipients = recipients.filter((recipient) => recipient.type !== 'teacher');
+        const ccRecipients = recipients.filter((recipient) => recipient.type === 'teacher');
 
         if (primaryRecipients.length === 0) {
-            throw new Error('No primary recipients (parents/guardian) found');
+            throw new Error('No student-related email recipients found');
         }
 
         const subject = sanitizeSubject(
@@ -341,7 +376,9 @@ class EmailService {
             // Save email record
             const emailRecord = new EmailReport({
                 reportId,
-                recipientType: 'parents', // Single record for the group email
+                recipientType: primaryRecipients.some((recipient) => ['mother', 'father', 'guardian'].includes(recipient.type))
+                    ? 'parents'
+                    : 'student',
                 email: [...primaryRecipients, ...ccRecipients].map(r => r.email).join(', '),
                 subject,
                 content: htmlContent,
@@ -366,7 +403,9 @@ class EmailService {
             // Save failed email record
             const emailRecord = new EmailReport({
                 reportId,
-                recipientType: 'parents',
+                recipientType: primaryRecipients.some((recipient) => ['mother', 'father', 'guardian'].includes(recipient.type))
+                    ? 'parents'
+                    : 'student',
                 email: [...primaryRecipients, ...ccRecipients].map(r => r.email).join(', '),
                 subject,
                 content: htmlContent,

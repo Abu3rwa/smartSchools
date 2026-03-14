@@ -1,6 +1,7 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import TimetablePeriod from '../models/TimetablePeriod.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
+import Teacher from '../models/Teacher.js';
 import Class from '../models/Class.js';
 import Subject from '../models/Subject.js';
 import User from '../models/User.js';
@@ -119,6 +120,17 @@ function datesOverlap(aStart, aEnd, bStart, bEnd) {
     return aStart <= bEnd && bStart <= aEnd;
 }
 
+async function findActiveTeacherProfileForUser(userId) {
+    if (!userId) return null;
+
+    return Teacher.findOne({
+        user: userId,
+        isActive: true
+    })
+        .select('_id user department')
+        .lean();
+}
+
 /**
  * Check for teacher/class/room conflicts in the same period with overlapping dates and days.
  * @param {string} schoolId
@@ -225,8 +237,18 @@ export const createAssignment = asyncHandler(async (req, res) => {
     const subject = rawSubject || undefined;
     const room = rawRoom || undefined;
 
-    const teacherUser = await User.findById(teacher).setOptions({ skipTenantFilter: true });
-    if (!teacherUser || teacherUser.school?.toString() !== req.schoolId.toString() || teacherUser.role !== 'teacher') {
+    const [teacherUser, teacherProfile] = await Promise.all([
+        User.findById(teacher).setOptions({ skipTenantFilter: true }),
+        findActiveTeacherProfileForUser(teacher)
+    ]);
+
+    if (
+        !teacherUser ||
+        teacherUser.school?.toString() !== req.schoolId.toString() ||
+        teacherUser.role !== 'teacher' ||
+        teacherUser.isActive === false ||
+        !teacherProfile
+    ) {
         return res.status(400).json({ success: false, message: 'Invalid teacher' });
     }
 
@@ -467,7 +489,24 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     const subject = rawSubject !== undefined ? rawSubject || undefined : assignment.subject;
     const room = rawRoom !== undefined ? rawRoom || undefined : assignment.room;
 
-    if (bodyTeacher !== undefined) assignment.teacher = bodyTeacher;
+    if (bodyTeacher !== undefined) {
+        const [teacherUser, teacherProfile] = await Promise.all([
+            User.findById(bodyTeacher).setOptions({ skipTenantFilter: true }),
+            findActiveTeacherProfileForUser(bodyTeacher)
+        ]);
+
+        if (
+            !teacherUser ||
+            teacherUser.school?.toString() !== req.schoolId.toString() ||
+            teacherUser.role !== 'teacher' ||
+            teacherUser.isActive === false ||
+            !teacherProfile
+        ) {
+            return res.status(400).json({ success: false, message: 'Invalid teacher' });
+        }
+
+        assignment.teacher = bodyTeacher;
+    }
     if (classId !== undefined) {
         const classDoc = await Class.findById(classId);
         if (!classDoc || classDoc.school.toString() !== req.schoolId.toString()) {
