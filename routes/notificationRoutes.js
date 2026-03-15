@@ -11,19 +11,22 @@ import {
     markNotificationAsRead
 } from '../controllers/notificationController.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/featureGate.js';
+import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(protect);
+router.use(requireSchoolContext);
 
 // Send notifications
 router.post('/grade-update', authorize('teacher', 'admin'), sendGradeUpdateNotification);
 router.post('/daily-report/:studentId', authorize('teacher', 'admin'), sendDailyReport);
 router.post('/daily-classwork/:studentId', authorize('teacher', 'admin'), sendDailyClassworkUpdate);
 router.post('/monthly-report/:studentId', authorize('teacher', 'admin'), sendMonthlyReport);
-router.post('/send-ai-report/:studentId', authorize('teacher', 'admin'), sendAIReport);
+router.post('/send-ai-report/:studentId', authorize('teacher', 'admin'), requireFeature('academicIntelligence'), sendAIReport);
 
 
 // Get notifications

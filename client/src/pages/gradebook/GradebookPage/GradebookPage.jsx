@@ -48,6 +48,8 @@ const GradebookPage = () => {
         setShowAddModal,
         selectedCategoryFilter,
         setSelectedCategoryFilter,
+        showAcademicInsights,
+        setShowAcademicInsights,
         showAIModal,
         setShowAIModal,
         selectedStudentForAI,
@@ -111,7 +113,8 @@ const GradebookPage = () => {
         classId,
         subjectId: selectedSubject,
         selectedMonth,
-        academicYear
+        academicYear,
+        categoryFilter: selectedCategoryFilter
     });
 
     const {
@@ -229,6 +232,9 @@ const GradebookPage = () => {
                 onRefresh={refreshClassInsights}
                 selectedSubjectName={selectedSubjectName}
                 onCreateTask={handleOpenReteachTask}
+                categoryFilter={selectedCategoryFilter}
+                visible={showAcademicInsights}
+                onToggleVisibility={() => setShowAcademicInsights((prev) => !prev)}
             />
 
             <ReteachTasksPanel

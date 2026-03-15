@@ -38,7 +38,7 @@ const buildMonthDateRange = ({ academicYear, selectedMonth }) => {
     };
 };
 
-const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academicYear }) => {
+const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academicYear, categoryFilter = 'All' }) => {
     const [classInsights, setClassInsights] = useState(null);
     const [classInsightsLoading, setClassInsightsLoading] = useState(false);
     const [classInsightsError, setClassInsightsError] = useState('');
@@ -54,6 +54,10 @@ const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academ
         () => buildMonthDateRange({ academicYear, selectedMonth }),
         [academicYear, selectedMonth]
     );
+    const normalizedCategoryFilter = useMemo(() => {
+        const value = String(categoryFilter || '').trim();
+        return value && value !== 'All' ? value : null;
+    }, [categoryFilter]);
 
     const abortClassInsightsRequest = useCallback(() => {
         if (classInsightsAbortControllerRef.current) {
@@ -90,6 +94,7 @@ const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academ
             const response = await api.get(`/classes/${classId}/objective-performance`, {
                 params: {
                     subjectId,
+                    ...(normalizedCategoryFilter ? { category: normalizedCategoryFilter } : {}),
                     ...dateRange
                 },
                 timeout: ACADEMIC_INTELLIGENCE_TIMEOUT_MS,
@@ -118,7 +123,7 @@ const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academ
                 classInsightsAbortControllerRef.current = null;
             }
         }
-    }, [abortClassInsightsRequest, classId, dateRange, subjectId]);
+    }, [abortClassInsightsRequest, classId, dateRange, normalizedCategoryFilter, subjectId]);
 
     useEffect(() => {
         fetchClassInsights();
@@ -145,6 +150,7 @@ const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academ
             const response = await api.get(`/students/${studentId}/learning-trace`, {
                 params: {
                     subjectId,
+                    ...(normalizedCategoryFilter ? { category: normalizedCategoryFilter } : {}),
                     ...dateRange
                 },
                 timeout: ACADEMIC_INTELLIGENCE_TIMEOUT_MS,
@@ -173,7 +179,7 @@ const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academ
                 studentTraceAbortControllerRef.current = null;
             }
         }
-    }, [abortStudentTraceRequest, dateRange, subjectId]);
+    }, [abortStudentTraceRequest, dateRange, normalizedCategoryFilter, subjectId]);
 
     const resetStudentTrace = useCallback(() => {
         abortStudentTraceRequest();

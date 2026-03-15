@@ -79,7 +79,7 @@ const SchoolLoginPage = () => {
                     {t('schoolLogin:header.allSchools')}
                 </button>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Powered by {appName}
+                    {t('schoolLogin:header.poweredBy', { appName })}
                 </span>
             </header>
 
@@ -92,7 +92,7 @@ const SchoolLoginPage = () => {
                             <HiOutlineAcademicCap size={36} />
                         </div>
                         <h2>{school.name}</h2>
-                        <p>{t('schoolLogin:card.subtitle', { defaultValue: `Sign in to access your school's ${appName}` }).replace('GradeBook', appName)}</p>
+                        <p>{t('schoolLogin:card.subtitle', { appName })}</p>
                     </div>
 
                     {/* Google Login */}

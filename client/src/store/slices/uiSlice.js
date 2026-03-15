@@ -1,8 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../config/api';
+import { landingPageDefaults } from '../../config/landingPageDefaults';
 
 const DEFAULT_ACADEMIC_YEAR_START_MONTH = 8;
 const SUPPORTED_LANGUAGES = ['en', 'ar'];
+const DEFAULT_APP_NAME = landingPageDefaults?.brand?.name || 'School Platform';
 
 const getInitialLanguage = () => {
     const hasWindow = typeof window !== 'undefined';
@@ -49,7 +51,7 @@ export const fetchAppName = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const response = await api.get('/landing/content');
-            return response.data?.data?.content?.brand?.name || 'GradeBook';
+            return response.data?.data?.content?.brand?.name || DEFAULT_APP_NAME;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to load app name');
         }
@@ -73,7 +75,7 @@ const uiSlice = createSlice({
     initialState: {
         sidebarOpen: true,
         theme: localStorage.getItem('theme') || 'light',
-        appName: 'GradeBook',
+        appName: DEFAULT_APP_NAME,
         language: getInitialLanguage(),
         currentAcademicYear: getInitialAcademicYear(),
         academicYearLoading: false,

@@ -62,6 +62,7 @@ router.get(
 );
 router.get(
     '/children/:childId/learning-summary',
+    requireFeature('academicIntelligence'),
     param('childId').isMongoId().withMessage('Invalid childId format'),
     validate,
     getParentChildLearningSummaryController

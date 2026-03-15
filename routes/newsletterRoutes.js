@@ -1,5 +1,6 @@
 import express from "express";
 import { protect, authorize } from "../middleware/auth.js";
+import { requireFeature } from "../middleware/featureGate.js";
 import { requireSchoolContext } from "../middleware/tenantIsolation.js";
 import {
   ensureNewsletterIssue,
@@ -24,6 +25,7 @@ const router = express.Router();
 
 router.use(protect);
 router.use(requireSchoolContext);
+router.use(requireFeature("newsletterCommunication"));
 
 // Teacher/Admin shared
 router.post("/issues/ensure", authorize("teacher", "admin", "department_principal"), ensureNewsletterIssue);

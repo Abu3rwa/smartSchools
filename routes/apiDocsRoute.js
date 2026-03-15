@@ -12,7 +12,7 @@ export function registerApiDocsRoute(app) {
   app.get("/api", (req, res) => {
     res.json({
       success: true,
-      message: "GradeBook API v1.0",
+      message: "Platform API v1.0",
       endpoints: {
         auth: {
           "POST /api/auth/register": "Register a new user",

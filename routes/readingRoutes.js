@@ -1,5 +1,7 @@
 import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/featureGate.js';
+import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import {
   uploadText,
   getTexts,
@@ -18,6 +20,8 @@ import {
 const router = express.Router();
 
 router.use(protect);
+router.use(requireSchoolContext);
+router.use(requireFeature('readingAssistant'));
 
 // Teacher/Admin: upload and manage texts
 router.post('/upload-text', authorize('teacher', 'admin'), uploadText);

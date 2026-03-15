@@ -13,6 +13,7 @@ import {
 import { getClassAnalytics, getClassInsights } from '../controllers/classAnalyticsController.js';
 import { getClassObjectivePerformanceController } from '../controllers/academicIntelligenceController.js';
 import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
@@ -30,9 +31,9 @@ router.route('/')
 
 router.post('/import', authorize('admin', 'department_principal'), importClasses);
 
-router.get('/:id/analytics', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassAnalytics);
-router.get('/:id/insights', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassInsights);
-router.get('/:id/objective-performance', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassObjectivePerformanceController);
+router.get('/:id/analytics', authorize('admin', 'department_principal', 'teacher'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getClassAnalytics);
+router.get('/:id/insights', authorize('admin', 'department_principal', 'teacher'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getClassInsights);
+router.get('/:id/objective-performance', authorize('admin', 'department_principal', 'teacher'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getClassObjectivePerformanceController);
 
 router.route('/:id')
     .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClass)

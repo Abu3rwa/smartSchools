@@ -222,6 +222,7 @@ const Sidebar = () => {
       icon: HiOutlineClipboardCheck,
       labelKey: "standards",
       roles: ["admin", "teacher", "department_principal"],
+      feature: "standardsPractice",
       end: true,
       section: "teaching",
     },
@@ -230,6 +231,7 @@ const Sidebar = () => {
       icon: HiOutlineClipboardCheck,
       labelKey: "assignStandards",
       roles: ["admin", "teacher", "department_principal"],
+      feature: "standardsPractice",
       section: "teaching",
     },
     {
@@ -237,6 +239,7 @@ const Sidebar = () => {
       icon: HiOutlineChartBar,
       labelKey: "standardsGradebook",
       roles: ["admin", "teacher", "department_principal"],
+      feature: "standardsPractice",
       section: "teaching",
     },
     {
@@ -266,6 +269,7 @@ const Sidebar = () => {
       icon: HiOutlineExclamationCircle,
       labelKey: "interventions",
       roles: ["admin", "teacher", "department_principal"],
+      feature: "interventionTracking",
       section: "teaching",
     },
     {
@@ -273,6 +277,7 @@ const Sidebar = () => {
       icon: HiOutlineDocumentText,
       labelKey: "newsletters",
       teacher: true,
+      feature: "newsletterCommunication",
       section: "teaching",
     },
     {
@@ -280,6 +285,7 @@ const Sidebar = () => {
       icon: HiOutlineDocumentText,
       labelKey: "newslettersReview",
       admin: true,
+      feature: "newsletterCommunication",
       section: "teaching",
     },
     {
@@ -287,6 +293,7 @@ const Sidebar = () => {
       icon: HiOutlineDocumentText,
       labelKey: "newsletters",
       roles: ["parent"],
+      feature: "newsletterCommunication",
       section: "learning",
     },
     {
@@ -380,6 +387,7 @@ const Sidebar = () => {
       icon: HiOutlineBookOpen,
       labelKey: "reading",
       roles: ["admin", "teacher"],
+      feature: "readingAssistant",
       section: "teaching",
     },
     {
@@ -430,6 +438,7 @@ const Sidebar = () => {
       icon: HiOutlineBookOpen,
       labelKey: "reading",
       roles: ["student"],
+      feature: "readingAssistant",
       section: "learning",
     },
     {
@@ -437,6 +446,7 @@ const Sidebar = () => {
       icon: HiOutlineClipboardList,
       labelKey: "revisionPlans",
       roles: ["student", "teacher", "admin"],
+      feature: "revisionPlanning",
       section: "learning",
     },
     {
@@ -538,11 +548,11 @@ const Sidebar = () => {
                   {isLocked && sidebarOpen && (
                     <HiOutlineLockClosed className="nav-feature-lock" size={14} />
                   )}
-                  {isLocked && sidebarOpen && (
+                  {/* {isLocked && sidebarOpen && (
                     <span className="nav-badge nav-badge-upgrade">
                       {t("layout.sidebar:actions.upgrade")}
                     </span>
-                  )}
+                  )} */}
                   {isLocked && !sidebarOpen && (
                     <span className="nav-lock-dot" aria-label={t("layout.sidebar:actions.featureLocked")}>
                       <HiOutlineLockClosed size={10} />

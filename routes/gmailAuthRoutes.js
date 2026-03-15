@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import gmailOAuthService from '../services/gmailOAuthService.js';
+import { getPlatformBranding } from '../services/platformBrandingService.js';
 import { protect } from '../middleware/auth.js';
 import logger from '../utils/logger.js';
 
@@ -168,18 +169,20 @@ router.delete('/disconnect', protect, async (req, res) => {
 router.post('/test', protect, async (req, res) => {
     try {
         const { to } = req.body;
+        const branding = await getPlatformBranding();
+        const appName = branding.appName;
 
         const mailOptions = {
             to: to || req.user.email,
-            subject: 'GradeBook - Gmail Connection Test',
-            text: 'This is a test email from GradeBook to verify your Gmail connection is working.',
+            subject: `${appName} - Gmail Connection Test`,
+            text: `This is a test email from ${appName} to verify your Gmail connection is working.`,
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h2 style="color: #2c3e50;">✅ Gmail Connected Successfully!</h2>
-                    <p>This is a test email from GradeBook to verify your Gmail connection is working.</p>
+                    <p>This is a test email from ${appName} to verify your Gmail connection is working.</p>
                     <p>You can now send grade notifications and reports to parents using your Gmail account.</p>
                     <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #6c757d; font-size: 12px;">This is an automated test message from GradeBook.</p>
+                    <p style="color: #6c757d; font-size: 12px;">This is an automated test message from ${appName}.</p>
                 </div>
             `
         };

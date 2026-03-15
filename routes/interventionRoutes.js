@@ -1,5 +1,7 @@
 import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/featureGate.js';
+import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import {
   getInterventionQueue,
   acknowledgeInterventionCase,
@@ -10,6 +12,8 @@ import {
 const router = express.Router();
 
 router.use(protect);
+router.use(requireSchoolContext);
+router.use(requireFeature('interventionTracking'));
 router.use(authorize('admin', 'teacher', 'department_principal'));
 
 router.get('/queue', getInterventionQueue);

@@ -18,7 +18,7 @@
     "superAdmin": "Super Admin"
   },
   "platform": {
-    "version": "GradeBook Platform v1.0",
+    "version": "{{appName}} Platform v1.0",
     "comingSoon": "Billing, Stripe integration, and advanced platform settings coming soon."
   },
   "toast": {

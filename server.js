@@ -182,7 +182,7 @@ app.get("/favicon.ico", (req, res) => res.status(204).end());
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
-    message: "GradeBook API is running",
+    message: "Platform API is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
   });

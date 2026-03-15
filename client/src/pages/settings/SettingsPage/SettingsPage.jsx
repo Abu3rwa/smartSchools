@@ -5,6 +5,7 @@ import SettingsPageHeader from './components/SettingsPageHeader';
 import ProfileCard from './components/ProfileCard';
 import AppearanceCard from './components/AppearanceCard';
 import AcademicYearCard from './components/AcademicYearCard';
+import LockedFeaturesCard from './components/LockedFeaturesCard';
 import AccountCard from './components/AccountCard';
 import './SettingsPage.css';
 
@@ -39,6 +40,7 @@ const SettingsPage = () => {
                     isAdmin={isAdmin} 
                     onNavigateToSchoolSettings={navigateToSchoolSettings} 
                 />
+                <LockedFeaturesCard />
                 <AccountCard onLogout={handleLogout} />
             </Grid>
         </Box>

@@ -26,6 +26,14 @@
     color: var(--text-secondary, #64748b);
 }
 
+.academic-insights-panel__header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .academic-insights-panel__stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

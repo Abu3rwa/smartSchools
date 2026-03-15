@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { getPlatformBranding } from '../services/platformBrandingService.js';
 
 /**
  * @desc    Send a test email using stored Gmail tokens (via Gmail API)
@@ -55,9 +56,12 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
         // Create Gmail API client
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
+        const branding = await getPlatformBranding();
+        const appName = branding?.appName || 'School Platform';
+
         // Create email content
-        const emailSubject = subject || 'Test Email from GradeBook';
-        const emailBody = message || 'This is a test email sent using Gmail API through GradeBook!';
+        const emailSubject = subject || `Test Email from ${appName}`;
+        const emailBody = message || `This is a test email sent using Gmail API through ${appName}!`;
 
         // Build the email in RFC 2822 format
         const emailLines = [
@@ -72,7 +76,7 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
                 <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
                 <p style="color: #6c757d; font-size: 12px;">
                     Sent from: ${userEmail}<br>
-                    Sent via: GradeBook App (Gmail API)
+                    Sent via: ${appName} App (Gmail API)
                 </p>
             </div>`
         ];

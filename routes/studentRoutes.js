@@ -26,6 +26,7 @@ import {
     getStudentParentLearningSummaryController
 } from '../controllers/academicIntelligenceController.js';
 import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
@@ -48,8 +49,8 @@ router.post('/bulk-create-login', authorize('admin'), bulkCreateStudentLogin);
 router.post('/bulk-send-login-invites', authorize('admin'), bulkSendStudentLoginInvites);
 router.post('/bulk-send-parent-login-invites', authorize('admin'), bulkSendParentLoginInvites);
 router.get('/class/:classId', authorize('admin', 'department_principal', 'teacher'), getStudentsByClass);
-router.get('/:id/learning-trace', authorize('admin', 'department_principal', 'teacher', 'student'), validationRules.mongoId, validate, getStudentLearningTraceController);
-router.get('/:id/parent-learning-summary', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getStudentParentLearningSummaryController);
+router.get('/:id/learning-trace', authorize('admin', 'department_principal', 'teacher', 'student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentLearningTraceController);
+router.get('/:id/parent-learning-summary', authorize('admin', 'department_principal', 'teacher'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentParentLearningSummaryController);
 router.put('/:id/photo', authorize('admin'), validationRules.mongoId, validate, upload.single('photo'), uploadStudentPhoto);
 router.delete('/:id/photo', authorize('admin'), validationRules.mongoId, validate, removeStudentPhoto);
 

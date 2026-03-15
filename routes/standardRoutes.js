@@ -9,6 +9,7 @@ import {
     getStandardsBySubject
 } from '../controllers/standardController.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
 
@@ -17,6 +18,7 @@ const router = express.Router();
 // All routes require authentication
 router.use(protect);
 router.use(requireSchoolContext);
+router.use(requireFeature('standardsPractice'));
 
 // Standards CRUD
 router.route('/')

@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import User from '../models/User.js';
 import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
+import { getPlatformBranding } from './platformBrandingService.js';
 
 class GmailOAuthService {
     constructor() {
@@ -252,12 +253,13 @@ class GmailOAuthService {
     async sendEmail(userId, mailOptions) {
         try {
             const user = await this.refreshTokenIfNeeded(userId, false);
+            const branding = await getPlatformBranding();
 
             if (!user.gmailTokens || !user.gmailTokens.email) {
                 throw new Error('Gmail not connected. Please authenticate with Google first.');
             }
 
-            const fromName = user.fullName || user.firstName || 'GradeBook';
+            const fromName = user.fullName || user.firstName || branding.appName;
             const fromEmail = user.gmailTokens.email;
             const from = mailOptions.from || `"${fromName}" <${fromEmail}>`;
             const to = mailOptions.to;
@@ -286,12 +288,13 @@ class GmailOAuthService {
             if (error.code === 401 || error.code === 403) {
                 logger.info('Auth failed (Gmail API), forcing token refresh and retrying');
                 const user = await this.refreshTokenIfNeeded(userId, true);
+                const branding = await getPlatformBranding();
 
                 if (!user.gmailTokens || !user.gmailTokens.email) {
                     throw error;
                 }
 
-                const fromName = user.fullName || user.firstName || 'GradeBook';
+                const fromName = user.fullName || user.firstName || branding.appName;
                 const fromEmail = user.gmailTokens.email;
                 const from = mailOptions.from || `"${fromName}" <${fromEmail}>`;
                 const to = mailOptions.to;

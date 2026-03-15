@@ -1,7 +1,7 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { selectUser } from '../../../store/slices/authSlice';
-import { selectTheme, setTheme } from '../../../store/slices/uiSlice';
+import { selectAppName, selectTheme, setTheme } from '../../../store/slices/uiSlice';
 import { HiOutlineMoon, HiOutlineSun } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import '../../../components/superAdmin/SuperAdminBase.css';
@@ -10,6 +10,7 @@ const SuperAdminSettingsPage = () => {
     const dispatch = useDispatch();
     const user = useSelector(selectUser);
     const theme = useSelector(selectTheme);
+    const appName = useSelector(selectAppName);
     const { t } = useTranslation(['superAdminSettings']);
 
     const handleThemeChange = (newTheme) => {
@@ -71,7 +72,7 @@ const SuperAdminSettingsPage = () => {
                     <h2>{t('superAdminSettings:sections.platform')}</h2>
                 </div>
                 <div style={{ padding: 'var(--spacing-lg)', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                    <p>{t('superAdminSettings:platform.version')}</p>
+                    <p>{t('superAdminSettings:platform.version', { appName })}</p>
                     <p style={{ marginTop: 'var(--spacing-xs)' }}>{t('superAdminSettings:platform.comingSoon')}</p>
                 </div>
             </div>

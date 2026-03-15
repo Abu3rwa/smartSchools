@@ -1,0 +1,26 @@
+{
+  "lockedFeatures": {
+    "title": "الميزات المقفلة",
+    "currentPlan": "الخطة الحالية",
+    "unknownPlan": "غير معروف",
+    "loading": "جار تحميل صلاحيات الميزات...",
+    "allUnlocked": "كل الميزات المتاحة في خطتك مفتوحة حاليا.",
+    "requiresPlan": "يتطلب {{plan}}",
+    "higherPlan": "خطة أعلى",
+    "open": "فتح",
+    "openSchoolSettings": "فتح إعدادات المدرسة"
+  },
+  "featureLabels": {
+    "apiAccess": "وصول API",
+    "customReports": "تقارير مخصصة",
+    "advancedAnalytics": "تحليلات متقدمة",
+    "standardsPractice": "ممارسة المعايير",
+    "interventionTracking": "متابعة التدخل",
+    "aiLessonPlanEvaluation": "تقييم خطة الدرس بالذكاء الاصطناعي",
+    "readingAssistant": "مساعد القراءة",
+    "revisionPlanning": "تخطيط المراجعة",
+    "newsletterCommunication": "التواصل عبر النشرة",
+    "academicIntelligence": "الذكاء الأكاديمي",
+    "aiEmailDrafts": "مسودات البريد بالذكاء الاصطناعي"
+  }
+}

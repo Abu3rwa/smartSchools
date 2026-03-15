@@ -14,6 +14,7 @@ import {
     storeRefreshToken
 } from '../services/authTokenService.js';
 import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
+import { getPlatformBranding } from '../services/platformBrandingService.js';
 
 /**
  * @desc    Register a new user
@@ -765,20 +766,23 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
             }
         });
 
+        const branding = await getPlatformBranding();
+        const appName = branding?.appName || 'School Platform';
+
         // Send email
         const mailOptions = {
-            from: `"${user.firstName} via GradeBook" <${user.gmailTokens.email}>`,
+            from: `"${user.firstName} via ${appName}" <${user.gmailTokens.email}>`,
             to: to || user.email,
-            subject: subject || 'Test Email from GradeBook',
-            text: message || 'This is a test email sent using your Gmail account through GradeBook.',
+            subject: subject || `Test Email from ${appName}`,
+            text: message || `This is a test email sent using your Gmail account through ${appName}.`,
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h2 style="color: #2c3e50;">✅ Test Email Successful!</h2>
-                    <p>${message || 'This is a test email sent using your Gmail account through GradeBook.'}</p>
+                    <p>${message || `This is a test email sent using your Gmail account through ${appName}.`}</p>
                     <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
                     <p style="color: #6c757d; font-size: 12px;">
                         Sent from: ${user.gmailTokens.email}<br>
-                        Sent via: GradeBook App
+                        Sent via: ${appName} App
                     </p>
                 </div>
             `

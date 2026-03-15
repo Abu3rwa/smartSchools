@@ -175,7 +175,12 @@ export function useLandingPageData() {
         script.textContent = JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'Organization',
-            name: content?.seo?.organizationName || content?.brand?.name || 'NextGen School',
+            name:
+                content?.seo?.organizationName
+                || content?.brand?.name
+                || landingPageDefaults?.seo?.organizationName
+                || landingPageDefaults?.brand?.name
+                || 'School Platform',
             description: content?.seo?.description || 'School management platform for grades, attendance, timetables, and parent communication.',
             url: window.location.origin,
         });

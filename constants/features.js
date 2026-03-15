@@ -67,6 +67,48 @@ export const FEATURES = {
         label: 'AI Email Drafts',
         description: 'Generate AI-assisted email body drafts in the communication composer.',
         plans: ['professional', 'enterprise']
+    },
+    academicIntelligence: {
+        key: 'academicIntelligence',
+        label: 'Academic Intelligence',
+        description: 'Enable AI-powered academic insights, learning traces, and intelligence-driven reports.',
+        plans: ['professional', 'enterprise']
+    },
+    standardsPractice: {
+        key: 'standardsPractice',
+        label: 'Standards Practice',
+        description: 'Enable standards-based practice sessions, mastery tracking, and standards gradebook views.',
+        plans: ['professional', 'enterprise']
+    },
+    interventionTracking: {
+        key: 'interventionTracking',
+        label: 'Intervention Tracking',
+        description: 'Track intervention plans, progress, and follow-up actions for students.',
+        plans: ['professional', 'enterprise']
+    },
+    aiLessonPlanEvaluation: {
+        key: 'aiLessonPlanEvaluation',
+        label: 'AI Lesson Plan Evaluation',
+        description: 'Use AI scoring and feedback workflows for lesson plan review and approvals.',
+        plans: ['professional', 'enterprise']
+    },
+    readingAssistant: {
+        key: 'readingAssistant',
+        label: 'Reading Assistant',
+        description: 'Enable reading support tools including simplified passages and comprehension workflows.',
+        plans: ['professional', 'enterprise']
+    },
+    revisionPlanning: {
+        key: 'revisionPlanning',
+        label: 'Revision Planning',
+        description: 'Generate and manage revision plans tied to performance and standards gaps.',
+        plans: ['professional', 'enterprise']
+    },
+    newsletterCommunication: {
+        key: 'newsletterCommunication',
+        label: 'Newsletter Communication',
+        description: 'Enable school newsletter creation and distribution workflows.',
+        plans: ['professional', 'enterprise']
     }
 };
 

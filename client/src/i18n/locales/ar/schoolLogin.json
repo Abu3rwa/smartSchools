@@ -6,10 +6,10 @@
   },
   "header": {
     "allSchools": "كل المدارس",
-    "poweredBy": "مدعوم من GradeBook"
+    "poweredBy": "مدعوم من {{appName}}"
   },
   "card": {
-    "subtitle": "سجل الدخول للوصول إلى GradeBook الخاص بمدرستك"
+    "subtitle": "سجل الدخول للوصول إلى {{appName}} الخاص بمدرستك"
   },
   "actions": {
     "signingIn": "جارٍ تسجيل الدخول...",

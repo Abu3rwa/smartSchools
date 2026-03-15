@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import gmailOAuthService from './gmailOAuthService.js';
+import { getPlatformBranding } from './platformBrandingService.js';
 
 const normalizeRecipientList = (value) => {
     if (Array.isArray(value)) {
@@ -54,9 +55,10 @@ export const sendTransactionalEmail = async ({
     const smtpTransport = await createSmtpTransport();
     if (smtpTransport) {
         const smtpUser = process.env.EMAIL_USER;
+        const branding = await getPlatformBranding();
         await smtpTransport.sendMail({
             ...mailOptions,
-            from: process.env.EMAIL_FROM || `"GradeBook" <${smtpUser}>`
+            from: process.env.EMAIL_FROM || `"${branding.appName}" <${smtpUser}>`
         });
         return { channel: 'smtp' };
     }

@@ -2,8 +2,8 @@ export const getApiDocumentation = async (req, res) => {
     try {
         const documentation = {
             version: '1.0.0',
-            title: 'GradeBook API Documentation',
-            description: 'Complete API reference for the GradeBook school management system',
+            title: 'Platform API Documentation',
+            description: 'Complete API reference for the school management system',
             baseUrl: process.env.NODE_ENV === 'production' 
                 ? process.env.API_URL || 'https://your-app.herokuapp.com'
                 : 'http://localhost:5000',

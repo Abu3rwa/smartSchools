@@ -6,10 +6,10 @@
   },
   "header": {
     "allSchools": "All Schools",
-    "poweredBy": "Powered by GradeBook"
+    "poweredBy": "Powered by {{appName}}"
   },
   "card": {
-    "subtitle": "Sign in to access your school's GradeBook"
+    "subtitle": "Sign in to access your school's {{appName}}"
   },
   "actions": {
     "signingIn": "Signing in...",

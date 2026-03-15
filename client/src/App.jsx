@@ -530,7 +530,9 @@ function App() {
               path="newsletters/admin"
               element={
                 <RoleRoute roles={["admin"]}>
-                  <AdminNewslettersPage />
+                  <FeatureGate feature="newsletterCommunication" showUpgradePrompt>
+                    <AdminNewslettersPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -586,7 +588,9 @@ function App() {
               path="newsletters"
               element={
                 <RoleRoute roles={["teacher"]}>
-                  <TeacherNewslettersPage />
+                  <FeatureGate feature="newsletterCommunication" showUpgradePrompt>
+                    <TeacherNewslettersPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -594,7 +598,9 @@ function App() {
               path="newsletters/history"
               element={
                 <RoleRoute roles={["parent"]}>
-                  <ParentNewslettersPage />
+                  <FeatureGate feature="newsletterCommunication" showUpgradePrompt>
+                    <ParentNewslettersPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -719,7 +725,9 @@ function App() {
               path="standards"
               element={
                 <RoleRoute roles={["admin", "teacher"]}>
-                  <StandardsPage />
+                  <FeatureGate feature="standardsPractice" showUpgradePrompt>
+                    <StandardsPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -727,7 +735,9 @@ function App() {
               path="standards/assign"
               element={
                 <RoleRoute roles={["admin", "teacher"]}>
-                  <StandardAssignPage />
+                  <FeatureGate feature="standardsPractice" showUpgradePrompt>
+                    <StandardAssignPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -735,7 +745,9 @@ function App() {
               path="standards/gradebook"
               element={
                 <RoleRoute roles={["admin", "teacher", "department_principal"]}>
-                  <StandardsGradebookPage />
+                  <FeatureGate feature="standardsPractice" showUpgradePrompt>
+                    <StandardsGradebookPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -805,7 +817,9 @@ function App() {
               path="interventions"
               element={
                 <RoleRoute roles={["admin", "teacher", "department_principal"]}>
-                  <InterventionQueuePage />
+                  <FeatureGate feature="interventionTracking" showUpgradePrompt>
+                    <InterventionQueuePage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -830,7 +844,9 @@ function App() {
               path="revision"
               element={
                 <RoleRoute roles={["student", "teacher", "admin"]}>
-                  <RevisionPlansListPage />
+                  <FeatureGate feature="revisionPlanning" showUpgradePrompt>
+                    <RevisionPlansListPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -838,7 +854,9 @@ function App() {
               path="revision/create"
               element={
                 <RoleRoute roles={["student", "teacher", "admin"]}>
-                  <RevisionPlanCreatePage />
+                  <FeatureGate feature="revisionPlanning" showUpgradePrompt>
+                    <RevisionPlanCreatePage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -846,7 +864,9 @@ function App() {
               path="revision/:planId"
               element={
                 <RoleRoute roles={["student", "teacher", "admin"]}>
-                  <RevisionPlanViewPage />
+                  <FeatureGate feature="revisionPlanning" showUpgradePrompt>
+                    <RevisionPlanViewPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -855,7 +875,9 @@ function App() {
               path="reading"
               element={
                 <RoleRoute roles={["student"]}>
-                  <ReadingMyAssignmentsPage />
+                  <FeatureGate feature="readingAssistant" showUpgradePrompt>
+                    <ReadingMyAssignmentsPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -863,7 +885,9 @@ function App() {
               path="reading/view/:textId"
               element={
                 <RoleRoute roles={["student"]}>
-                  <ReadingViewPage />
+                  <FeatureGate feature="readingAssistant" showUpgradePrompt>
+                    <ReadingViewPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -872,7 +896,9 @@ function App() {
               path="reading/texts"
               element={
                 <RoleRoute roles={["teacher", "admin"]}>
-                  <ReadingTextsListPage />
+                  <FeatureGate feature="readingAssistant" showUpgradePrompt>
+                    <ReadingTextsListPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />
@@ -880,7 +906,9 @@ function App() {
               path="reading/upload"
               element={
                 <RoleRoute roles={["teacher", "admin"]}>
-                  <ReadingUploadPage />
+                  <FeatureGate feature="readingAssistant" showUpgradePrompt>
+                    <ReadingUploadPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />

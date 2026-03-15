@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, authorize, authorizeWithPermission, resolveDepartmentScope } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import {
@@ -65,11 +66,11 @@ router.post('/:id/submit', authorize('teacher', 'admin'), submitLessonPlan);
 router.post('/:id/evaluation/trigger', authorizeWithPermission(
     ['admin', 'department_principal'],
     [PERMISSIONS.REVIEW_LESSON_PLANS]
-), triggerEvaluation);
+), requireFeature('aiLessonPlanEvaluation'), triggerEvaluation);
 router.get('/:id/evaluation/history', authorizeWithPermission(
     ['admin', 'department_principal'],
     [PERMISSIONS.REVIEW_LESSON_PLANS]
-), getEvaluationHistory);
+), requireFeature('aiLessonPlanEvaluation'), getEvaluationHistory);
 router.post('/:id/review', authorizeWithPermission(
     ['admin', 'department_principal'],
     [PERMISSIONS.REVIEW_LESSON_PLANS]
