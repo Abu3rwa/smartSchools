@@ -9,6 +9,8 @@ import gradeService from '../services/gradeService.js';
 import notificationService from '../services/notificationService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject } from '../helpers/teacherScoping.js';
+import { validateGradeLessonPlanLinks } from '../helpers/gradeLessonPlanLinks.js';
+import { generateAssessmentGroupId } from '../helpers/assessmentGrouping.js';
 import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { decorateGradesWithScale, getActiveGradingScale } from '../services/gradingScaleEngine.js';
@@ -19,7 +21,22 @@ import { decorateGradesWithScale, getActiveGradingScale } from '../services/grad
  * @access  Private (Teacher)
  */
 export const addDailyGrade = asyncHandler(async (req, res) => {
-    const { student, subject, classId, marks, maxMarks, date, title, description, remarks, sendNotification } = req.body;
+    const {
+        student,
+        subject,
+        classId: classIdFromBody,
+        class: classFromBody,
+        marks,
+        maxMarks,
+        date,
+        title,
+        description,
+        remarks,
+        sendNotification,
+        lessonPlanIds,
+        assessmentGroupId
+    } = req.body;
+    const resolvedClassId = classIdFromBody || classFromBody;
     let teacherProfile = null;
 
     // Access Control: Verify teacher is assigned to this class+subject
@@ -27,7 +44,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         teacherProfile = await resolveTeacherProfile(req);
         if (!teacherProfile) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
 
-        const authorized = await isTeacherAuthorizedForClassSubject(teacherProfile._id, classId, subject);
+        const authorized = await isTeacherAuthorizedForClassSubject(teacherProfile._id, resolvedClassId, subject);
         if (!authorized) {
             return res.status(403).json({
                 success: false,
@@ -37,6 +54,13 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
     }
 
     const academicYear = resolveRequestedAcademicYear(req.body?.academicYear, req.school);
+    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+        lessonPlanIds,
+        schoolId: req.schoolId,
+        classId: resolvedClassId,
+        subjectId: subject,
+        user: req.user
+    });
 
     // Get subject details
     const subjectData = await Subject.findById(subject);
@@ -45,7 +69,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         school: req.schoolId,
         student,
         subject,
-        class: classId,
+        class: resolvedClassId,
         teacher: teacherProfile?._id || req.user._id,
         academicYear,
         gradeType: 'daily',
@@ -54,7 +78,9 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         maxMarks: maxMarks || subjectData?.dailyMaxMarks || 10,
         title,
         description,
-        remarks
+        remarks,
+        assessmentGroupId: assessmentGroupId || generateAssessmentGroupId('asg'),
+        lessonPlanIds: normalizedLessonPlanIds ?? []
     };
 
     const grade = await gradeService.addDailyGrade(gradeData);
@@ -84,7 +110,18 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
  * @access  Private (Teacher)
  */
 export const bulkAddGrades = asyncHandler(async (req, res) => {
-    const { classId, subject, date, maxMarks, grades, sendNotifications, gradeType, title, category } = req.body;
+    const {
+        classId,
+        subject,
+        date,
+        maxMarks,
+        grades,
+        sendNotifications,
+        gradeType,
+        title,
+        category,
+        lessonPlanIds
+    } = req.body;
     // grades: [{ student: id, marks, remarks, notes }]
     let teacherProfile = null;
 
@@ -103,9 +140,17 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
 
     const subjectData = await Subject.findById(subject);
     const academicYear = resolveRequestedAcademicYear(req.body?.academicYear, req.school);
+    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+        lessonPlanIds,
+        schoolId: req.schoolId,
+        classId,
+        subjectId: subject,
+        user: req.user
+    });
 
     // Determine the grade type - support both new types and legacy 'daily'
     const effectiveGradeType = gradeType || 'classwork';
+    const resolvedAssessmentGroupId = req.body.assessmentGroupId || generateAssessmentGroupId('asg');
 
     // Calculate month and semester from date (Use UTC to avoid timezone shifts)
     const gradeDate = date ? new Date(date) : new Date();
@@ -128,7 +173,9 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         maxMarks: maxMarks || subjectData?.dailyMaxMarks || 10,
         title: title || '',
         notes: g.notes || '',
-        remarks: g.remarks || ''
+        remarks: g.remarks || '',
+        assessmentGroupId: resolvedAssessmentGroupId,
+        lessonPlanIds: normalizedLessonPlanIds ?? []
     }));
 
     const savedGrades = await Grade.insertMany(gradeDocuments);
@@ -157,7 +204,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
  * @access  Private (Teacher, Admin)
  */
 export const bulkGradeHomework = asyncHandler(async (req, res) => {
-    const { homeworkAssignmentId, rows, sendNotifications } = req.body || {};
+    const { homeworkAssignmentId, rows, sendNotifications, assessmentGroupId } = req.body || {};
 
     if (!homeworkAssignmentId || !Array.isArray(rows) || rows.length === 0) {
         return res.status(400).json({
@@ -292,6 +339,7 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
         || String(sendNotifications || '').trim().toLowerCase() === 'true';
     const gradingDate = new Date();
     const gradingTeacherId = teacherProfile?._id || assignment.teacher || req.user._id;
+    const resolvedAssessmentGroupId = assessmentGroupId || generateAssessmentGroupId('asg');
 
     const graded = [];
 
@@ -336,6 +384,7 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
                     category: 'homework',
                     notes: row.notes,
                     remarks: row.remarks,
+                    assessmentGroupId: resolvedAssessmentGroupId,
                     homeworkSubmission: submission._id,
                     gradingSource: 'homework_submission'
                 },
@@ -414,7 +463,19 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
  * @access  Private (Teacher)
  */
 export const addExamGrade = asyncHandler(async (req, res) => {
-    const { student, subject, classId, marks, maxMarks, gradeType, examName, date, remarks } = req.body;
+    const {
+        student,
+        subject,
+        classId,
+        marks,
+        maxMarks,
+        gradeType,
+        examName,
+        date,
+        remarks,
+        lessonPlanIds,
+        assessmentGroupId
+    } = req.body;
     let teacherProfile = null;
 
     if (req.user.role === 'teacher') {
@@ -431,6 +492,13 @@ export const addExamGrade = asyncHandler(async (req, res) => {
     }
 
     const academicYear = resolveRequestedAcademicYear(req.body?.academicYear, req.school);
+    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+        lessonPlanIds,
+        schoolId: req.schoolId,
+        classId,
+        subjectId: subject,
+        user: req.user
+    });
 
     const grade = await Grade.create({
         school: req.schoolId,
@@ -444,7 +512,9 @@ export const addExamGrade = asyncHandler(async (req, res) => {
         marks,
         maxMarks: maxMarks || 100,
         examName,
-        remarks
+        remarks,
+        assessmentGroupId: assessmentGroupId || generateAssessmentGroupId('asg'),
+        lessonPlanIds: normalizedLessonPlanIds ?? []
     });
 
     res.status(201).json({
@@ -495,6 +565,14 @@ export const getMyGrades = asyncHandler(async (req, res) => {
     const grades = await Grade.find(query)
         .populate('subject', 'name code maxMarks passingMarks')
         .populate('class', 'name grade')
+        .populate({
+            path: 'lessonPlanIds',
+            select: 'date title topic teachingObjectives standardIds',
+            populate: {
+                path: 'standardIds',
+                select: 'code'
+            }
+        })
         .sort({ date: -1 });
     const gradingScale = await getActiveGradingScale(req.schoolId);
     const decoratedGrades = decorateGradesWithScale(grades, gradingScale);
@@ -791,14 +869,15 @@ export const getGradebookGrades = asyncHandler(async (req, res) => {
  * @access  Private (Teacher)
  */
 export const updateGrade = asyncHandler(async (req, res) => {
-    const { marks, maxMarks, remarks } = req.body;
+    const { marks, maxMarks, remarks, lessonPlanIds } = req.body;
+    let existingGrade = null;
 
     // Access Control
     if (req.user.role === 'teacher') {
         const teacher = await resolveTeacherProfile(req);
         if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
 
-        const existingGrade = await Grade.findById(req.params.id);
+        existingGrade = await Grade.findById(req.params.id);
         if (!existingGrade) {
             return res.status(404).json({ success: false, message: 'Grade not found' });
         }
@@ -815,11 +894,34 @@ export const updateGrade = asyncHandler(async (req, res) => {
         }
     }
 
-    const grade = await gradeService.updateGrade(req.params.id, {
+    if (!existingGrade && lessonPlanIds !== undefined) {
+        existingGrade = await Grade.findById(req.params.id).select('school class subject');
+        if (!existingGrade) {
+            return res.status(404).json({
+                success: false,
+                message: 'Grade not found'
+            });
+        }
+    }
+
+    const updatePayload = {
         marks,
         maxMarks,
         remarks
-    });
+    };
+
+    if (lessonPlanIds !== undefined) {
+        const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+            lessonPlanIds,
+            schoolId: existingGrade?.school || req.schoolId,
+            classId: existingGrade?.class,
+            subjectId: existingGrade?.subject,
+            user: req.user
+        });
+        updatePayload.lessonPlanIds = normalizedLessonPlanIds ?? [];
+    }
+
+    const grade = await gradeService.updateGrade(req.params.id, updatePayload);
 
     if (!grade) {
         return res.status(404).json({

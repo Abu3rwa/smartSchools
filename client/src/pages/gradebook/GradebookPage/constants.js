@@ -49,6 +49,7 @@ export const createDefaultGradeForm = (students = []) => {
         category: 'Classwork',
         customCategory: '',
         maxMarks: 10,
+        lessonPlanIds: [],
         studentGrades
     };
 };

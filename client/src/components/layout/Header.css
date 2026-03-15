@@ -150,7 +150,7 @@
 /* Mobile: Header adjustments */
 @media (max-width: 899px) {
     .header {
-        left: 0 !important;
+        inset-inline-start: 0 !important;
         padding: 0 var(--spacing-md);
     }
 

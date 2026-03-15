@@ -1,4 +1,4 @@
-import { HiOutlineSparkles } from 'react-icons/hi';
+import { HiOutlineChartBar, HiOutlineSparkles } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import {
     getClassCategoryAverage,
@@ -15,7 +15,8 @@ const GradebookTable = ({
     gradingScale,
     dynamicCategories,
     processedData,
-    onOpenAIModal
+    onOpenAIModal,
+    onOpenLearningTrace
 }) => {
     const { t } = useTranslation(['gradebook']);
 
@@ -98,6 +99,15 @@ const GradebookTable = ({
                                                 style={{ color: '#8b5cf6' }}
                                             >
                                                 <HiOutlineSparkles size={18} />
+                                            </button>
+
+                                            <button
+                                                className="btn-icon"
+                                                title={t('gradebook:table.openLearningTrace', { defaultValue: 'Open learning trace' })}
+                                                onClick={() => onOpenLearningTrace(student)}
+                                                style={{ color: '#0f766e' }}
+                                            >
+                                                <HiOutlineChartBar size={18} />
                                             </button>
                                         </div>
                                     </td>

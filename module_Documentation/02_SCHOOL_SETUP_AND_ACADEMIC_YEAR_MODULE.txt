@@ -1,0 +1,25 @@
+SCHOOL SETUP AND ACADEMIC YEAR MODULE
+Covered platform modules: schools, school profile, academic year setup, rollover controls, school-level settings
+
+SCHOOL PROBLEM
+School-wide settings are often spread across files and people, leading to inconsistent calendars, unclear academic years, and confusion at promotion time.
+
+APP SOLUTION
+This module gives school leadership one home for school identity, academic year controls, annual rollover, and key configuration decisions.
+
+HOW SCHOOLS USE THIS MODULE
+1. Configure school profile and annual settings.
+2. Set current academic year and key date boundaries.
+3. Use rollover tools to copy classes and promote students into the new year.
+4. Keep year-end operations controlled by leadership.
+
+ROLES AND PERMISSIONS FOCUS
+- School Owner / Super Admin: Organization-wide oversight.
+- Admin: Full control for school setup and annual operations.
+- Department Principal and Teacher: Visibility based on role needs.
+
+GREAT FEATURES TO HIGHLIGHT
+- Academic year confidence with structured rollover.
+- Clean school profile and branding management.
+- Centralized communication and reminder settings.
+- Leadership-ready control without technical complexity.

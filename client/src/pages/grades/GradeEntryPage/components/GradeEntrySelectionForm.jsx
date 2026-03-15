@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { GRADE_CATEGORY_OPTIONS } from '../constants';
+import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 
 const GradeEntrySelectionForm = ({
     selectedClass,
@@ -16,7 +17,9 @@ const GradeEntrySelectionForm = ({
     maxMarks,
     onMaxMarksChange,
     availableClasses,
-    availableSubjects
+    availableSubjects,
+    selectedLessonPlanIds,
+    onSelectedLessonPlanIdsChange
 }) => {
     const { t } = useTranslation(['grades']);
 
@@ -96,6 +99,14 @@ const GradeEntrySelectionForm = ({
                     />
                 </div>
             </div>
+
+            <LessonPlanLinkSelector
+                classId={selectedClass}
+                subjectId={selectedSubject}
+                selectedLessonPlanIds={selectedLessonPlanIds}
+                onChange={onSelectedLessonPlanIdsChange}
+                disabled={!selectedClass || !selectedSubject}
+            />
         </div>
     );
 };

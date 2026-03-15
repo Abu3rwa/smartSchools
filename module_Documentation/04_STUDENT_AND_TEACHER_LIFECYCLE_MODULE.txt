@@ -1,0 +1,25 @@
+STUDENT AND TEACHER LIFECYCLE MODULE
+Covered platform modules: students, teachers, user records, class assignment links
+
+SCHOOL PROBLEM
+Managing student and teacher records manually leads to duplicates, missing information, and delayed communication.
+
+APP SOLUTION
+This module centralizes student and teacher profiles, class placement, account invitations, and annual movement workflows.
+
+HOW SCHOOLS USE THIS MODULE
+1. Add or import student and teacher records.
+2. Assign teachers to classes and teaching loads.
+3. Manage login invitations for staff, students, and parents.
+4. Transfer, enroll, and update records as school needs change.
+
+ROLES AND PERMISSIONS FOCUS
+- Admin: full student/teacher lifecycle control.
+- Department Principal: department-scoped visibility and support.
+- Teacher: classroom-focused access to assigned data.
+
+GREAT FEATURES TO HIGHLIGHT
+- Faster onboarding at the start of term.
+- Cleaner records with fewer manual errors.
+- Better continuity across class and year transitions.
+- Easier family communication readiness.

@@ -1,0 +1,26 @@
+LESSON PLANS, CURRICULUM MAPS, AND AI SUPPORT MODULE
+Covered platform modules: lesson plans, lesson plan criteria, curriculum maps, curriculum settings, AI-assisted planning
+
+SCHOOL PROBLEM
+Teachers and principals lose time creating plans in inconsistent formats, and curriculum approval cycles become slow.
+
+APP SOLUTION
+The platform standardizes lesson planning and curriculum mapping, with AI-assisted drafting and structured review/approval paths.
+
+HOW SCHOOLS USE THIS MODULE
+1. Teachers draft lesson plans and curriculum maps.
+2. Use criteria and templates for consistency.
+3. Department principals review and approve where required.
+4. Export/publish plans for classroom and leadership use.
+
+ROLES AND PERMISSIONS FOCUS
+Important permissions include:
+- Edit and Review Lesson Plans
+- Create/Edit/Review/Approve/Publish Curriculum Maps
+- Configure Curriculum Templates
+
+GREAT FEATURES TO HIGHLIGHT
+- Less planning time, more teaching time.
+- Consistent instructional quality.
+- Clear approval accountability for principals.
+- AI support for faster high-quality draft content.

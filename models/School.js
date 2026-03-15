@@ -12,6 +12,7 @@ import {
     MAX_ATTENDANCE_REMINDER_DELAY_MINUTES,
     MIN_ATTENDANCE_REMINDER_DELAY_MINUTES
 } from '../utils/attendanceReminderSettings.js';
+import { normalizeAcademicIntelligenceSettings } from '../utils/academicIntelligenceSettings.js';
 
 const starterFeatureDefaults = getFeaturesForPlan('starter');
 const schoolFeatureSchemaDefinition = FEATURE_KEYS.reduce((acc, featureKey) => {
@@ -319,6 +320,44 @@ const schoolSchema = new mongoose.Schema({
                 max: MAX_ATTENDANCE_REMINDER_DELAY_MINUTES
             }
         },
+        academicIntelligence: {
+            thresholds: {
+                objectiveWeakThreshold: {
+                    type: Number,
+                    default: 70
+                },
+                repeatedWeakCount: {
+                    type: Number,
+                    default: 2
+                },
+                repeatedWeakWindowDays: {
+                    type: Number,
+                    default: 30
+                },
+                classWideWeakThreshold: {
+                    type: Number,
+                    default: 40
+                }
+            },
+            overrides: [{
+                class: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'Class',
+                    default: null
+                },
+                subject: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'Subject',
+                    default: null
+                },
+                thresholds: {
+                    objectiveWeakThreshold: { type: Number, default: 70 },
+                    repeatedWeakCount: { type: Number, default: 2 },
+                    repeatedWeakWindowDays: { type: Number, default: 30 },
+                    classWideWeakThreshold: { type: Number, default: 40 }
+                }
+            }]
+        },
         features: {
             ...schoolFeatureSchemaDefinition
         }
@@ -394,6 +433,7 @@ schoolSchema.index({ createdAt: -1 });
 schoolSchema.pre('save', function(next) {
     this.settings = this.settings || {};
     this.settings.curriculum = normalizeCurriculumSettings(this.settings.curriculum || createDefaultCurriculumSettings());
+    this.settings.academicIntelligence = normalizeAcademicIntelligenceSettings(this.settings.academicIntelligence || {});
     if (!this.settings.curriculum.activeTemplateKey) {
         this.settings.curriculum.activeTemplateKey = this.settings.curriculum.templates[0]?.key || DEFAULT_CURRICULUM_TEMPLATE_KEY;
     }

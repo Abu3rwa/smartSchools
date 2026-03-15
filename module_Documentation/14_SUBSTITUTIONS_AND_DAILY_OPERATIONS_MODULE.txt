@@ -1,0 +1,24 @@
+SUBSTITUTIONS AND DAILY OPERATIONS CONTINUITY MODULE
+Covered platform modules: substitutions, teacher absence support, replacement workflow coordination
+
+SCHOOL PROBLEM
+When substitute workflows are manual, classes lose instructional continuity and leaders face urgent daily disruption.
+
+APP SOLUTION
+Substitution workflows help schools manage teacher absence coverage with better speed, visibility, and confirmation.
+
+HOW SCHOOLS USE THIS MODULE
+1. Record teacher absence and required cover.
+2. Review available substitute options.
+3. Confirm assignment and notify relevant staff.
+4. Track active requests and close completed coverage.
+
+ROLES AND PERMISSIONS FOCUS
+- Department Principal and Admin: substitution management control.
+- Teacher: can interact with assigned substitution actions where allowed.
+
+GREAT FEATURES TO HIGHLIGHT
+- Reduced disruption from unexpected absences.
+- Faster substitution turnaround.
+- Better communication during schedule changes.
+- More stable classroom learning continuity.

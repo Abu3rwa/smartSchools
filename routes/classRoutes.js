@@ -11,6 +11,7 @@ import {
     getClassStats
 } from '../controllers/classManagementController.js';
 import { getClassAnalytics, getClassInsights } from '../controllers/classAnalyticsController.js';
+import { getClassObjectivePerformanceController } from '../controllers/academicIntelligenceController.js';
 import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';
@@ -31,6 +32,7 @@ router.post('/import', authorize('admin', 'department_principal'), importClasses
 
 router.get('/:id/analytics', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassAnalytics);
 router.get('/:id/insights', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassInsights);
+router.get('/:id/objective-performance', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassObjectivePerformanceController);
 
 router.route('/:id')
     .get(authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClass)

@@ -1,0 +1,24 @@
+PARENT PORTAL AND FAMILY EXPERIENCE MODULE
+Covered platform modules: parent dashboard, children overview, parent updates, parent messaging, parent settings
+
+SCHOOL PROBLEM
+Parents often receive late or fragmented information about their child, which weakens trust and home-school partnership.
+
+APP SOLUTION
+The parent module gives families a clear, role-specific portal to follow updates, progress, and communication from the school.
+
+HOW SCHOOLS USE THIS MODULE
+1. Parents view child-specific academic and school updates.
+2. Parents read communications and track announcements.
+3. Parents use structured messaging channels with teachers.
+4. Parents manage personal communication preferences.
+
+ROLES AND PERMISSIONS FOCUS
+- Parent: access only their linked child/children information.
+- Teacher and Admin: send relevant updates through controlled channels.
+
+GREAT FEATURES TO HIGHLIGHT
+- Stronger school-home communication.
+- Better parent confidence and engagement.
+- Clear, centralized updates without confusion.
+- A calmer and more transparent parent experience.

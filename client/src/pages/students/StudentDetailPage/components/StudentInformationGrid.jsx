@@ -104,6 +104,10 @@ const StudentInformationGrid = ({ student }) => {
                         <span className="info-label">{t('detail.info.enrollmentDate')}</span>
                         <span className="info-value">{formatDateValue(student.enrollmentDate, i18n.language, 'MMMM d, yyyy', na)}</span>
                     </div>
+                    <div className="info-item">
+                        <span className="info-label">{t('detail.info.email', { defaultValue: 'Email' })}</span>
+                        <span className="info-value">{student.email || student.studentEmail || na}</span>
+                    </div>
                 </div>
             </div>
 

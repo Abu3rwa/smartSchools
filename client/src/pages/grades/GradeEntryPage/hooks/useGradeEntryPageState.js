@@ -12,6 +12,7 @@ const useGradeEntryPageState = ({ initialClassId = '' }) => {
     const [maxMarks, setMaxMarks] = useState(DEFAULT_MAX_MARKS);
     const [grades, setGrades] = useState({});
     const [sendNotifications, setSendNotifications] = useState(false);
+    const [selectedLessonPlanIds, setSelectedLessonPlanIds] = useState([]);
 
     const handleGradeChange = useCallback((studentId, field, value) => {
         setGrades((prev) => ({
@@ -44,6 +45,8 @@ const useGradeEntryPageState = ({ initialClassId = '' }) => {
         setGrades,
         sendNotifications,
         setSendNotifications,
+        selectedLessonPlanIds,
+        setSelectedLessonPlanIds,
         handleGradeChange,
         resetGradesForStudents
     };

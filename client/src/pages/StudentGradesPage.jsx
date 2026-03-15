@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { selectUser } from '../store/slices/authSlice';
 import { fetchClasses, selectClasses } from '../store/slices/classSlice';
 import { fetchStudentsByClass, selectClassStudents as selectStudentsBySelectedClass } from '../store/slices/studentSlice';
 import { fetchMyClasses, selectMyClasses } from '../store/slices/teacherSlice';
+import LessonPlanLinkSelector from '../components/grades/LessonPlanLinkSelector';
 import './StudentGradesPage.css';
 
 const MONTHS = [
@@ -97,7 +98,7 @@ const StudentGradesPage = () => {
     const [endDate, setEndDate] = useState('');
     const [savingGradeId, setSavingGradeId] = useState('');
     const [editingGradeId, setEditingGradeId] = useState('');
-    const [editForm, setEditForm] = useState({ marks: '', maxMarks: '', remarks: '' });
+    const [editForm, setEditForm] = useState({ marks: '', maxMarks: '', remarks: '', lessonPlanIds: [] });
     const [selectedClassId, setSelectedClassId] = useState('');
     const [selectedStudentId, setSelectedStudentId] = useState(studentId || '');
 
@@ -306,17 +307,23 @@ const StudentGradesPage = () => {
     };
 
     const handleEditStart = (grade) => {
+        const linkedLessonPlanIds = Array.isArray(grade.lessonPlanIds)
+            ? grade.lessonPlanIds
+                .map((lesson) => (typeof lesson === 'string' ? lesson : lesson?._id))
+                .filter(Boolean)
+            : [];
         setEditingGradeId(grade._id);
         setEditForm({
             marks: grade.marks,
             maxMarks: grade.maxMarks,
-            remarks: grade.remarks || ''
+            remarks: grade.remarks || '',
+            lessonPlanIds: linkedLessonPlanIds
         });
     };
 
     const handleEditCancel = () => {
         setEditingGradeId('');
-        setEditForm({ marks: '', maxMarks: '', remarks: '' });
+        setEditForm({ marks: '', maxMarks: '', remarks: '', lessonPlanIds: [] });
     };
 
     const handleEditSave = async (gradeId) => {
@@ -333,7 +340,8 @@ const StudentGradesPage = () => {
             await api.put(`/grades/${gradeId}`, {
                 marks,
                 maxMarks,
-                remarks: String(editForm.remarks || '').trim()
+                remarks: String(editForm.remarks || '').trim(),
+                lessonPlanIds: Array.isArray(editForm.lessonPlanIds) ? editForm.lessonPlanIds : []
             });
             setEditingGradeId('');
             fetchGrades();
@@ -519,6 +527,7 @@ const StudentGradesPage = () => {
                                             <th>{t('studentGrades:table.columns.marks')}</th>
                                             <th>{t('studentGrades:table.columns.max')}</th>
                                             <th>%</th>
+                                            <th>{t('studentGrades:table.columns.linkedLessons', { defaultValue: 'Linked lessons' })}</th>
                                             <th>{t('studentGrades:table.columns.remarks')}</th>
                                             {canEditGrades && <th>{t('studentGrades:table.columns.actions')}</th>}
                                         </tr>
@@ -530,80 +539,114 @@ const StudentGradesPage = () => {
                                                 : 0;
                                             const isEditing = editingGradeId === g._id;
                                             const isSaving = savingGradeId === g._id;
+                                            const linkedLessons = Array.isArray(g.lessonPlanIds) ? g.lessonPlanIds : [];
+                                            const linkedLessonCount = linkedLessons.length;
+                                            const linkedLessonTitles = linkedLessons
+                                                .map((lesson) => lesson?.title || lesson?.topic)
+                                                .filter(Boolean)
+                                                .slice(0, 3)
+                                                .join(', ');
+                                            const columnCount = canEditGrades ? 9 : 8;
                                             return (
-                                                <tr key={g._id}>
-                                                    <td>{formatDate(g.date)}</td>
-                                                    <td>{g.subject?.name || t('studentGrades:common.dash')}</td>
-                                                    <td>{formatGradeType(g.gradeType)}</td>
-                                                    <td>
-                                                        {isEditing ? (
-                                                            <input
-                                                                type="number"
-                                                                className="table-input"
-                                                                value={editForm.marks}
-                                                                onChange={(e) => setEditForm((prev) => ({ ...prev, marks: e.target.value }))}
-                                                                min={0}
-                                                                step={0.5}
-                                                            />
-                                                        ) : g.marks}
-                                                    </td>
-                                                    <td>
-                                                        {isEditing ? (
-                                                            <input
-                                                                type="number"
-                                                                className="table-input"
-                                                                value={editForm.maxMarks}
-                                                                onChange={(e) => setEditForm((prev) => ({ ...prev, maxMarks: e.target.value }))}
-                                                                min={1}
-                                                                step={0.5}
-                                                            />
-                                                        ) : g.maxMarks}
-                                                    </td>
-                                                    <td>{isEditing ? t('studentGrades:common.dash') : `${pct}%`}</td>
-                                                    <td>
-                                                        {isEditing ? (
-                                                            <input
-                                                                type="text"
-                                                                className="table-input"
-                                                                value={editForm.remarks}
-                                                                onChange={(e) => setEditForm((prev) => ({ ...prev, remarks: e.target.value }))}
-                                                                placeholder={t('studentGrades:table.optionalRemarks')}
-                                                            />
-                                                        ) : (g.remarks || t('studentGrades:common.dash'))}
-                                                    </td>
-                                                    {canEditGrades && (
+                                                <Fragment key={g._id}>
+                                                    <tr>
+                                                        <td>{formatDate(g.date)}</td>
+                                                        <td>{g.subject?.name || t('studentGrades:common.dash')}</td>
+                                                        <td>{formatGradeType(g.gradeType)}</td>
                                                         <td>
                                                             {isEditing ? (
-                                                                <div className="table-actions">
-                                                                    <button
-                                                                        type="button"
-                                                                        className="btn btn-primary btn-sm"
-                                                                        onClick={() => handleEditSave(g._id)}
-                                                                        disabled={isSaving}
-                                                                    >
-                                                                        {isSaving ? t('studentGrades:table.saving') : t('studentGrades:table.save')}
-                                                                    </button>
+                                                                <input
+                                                                    type="number"
+                                                                    className="table-input"
+                                                                    value={editForm.marks}
+                                                                    onChange={(e) => setEditForm((prev) => ({ ...prev, marks: e.target.value }))}
+                                                                    min={0}
+                                                                    step={0.5}
+                                                                />
+                                                            ) : g.marks}
+                                                        </td>
+                                                        <td>
+                                                            {isEditing ? (
+                                                                <input
+                                                                    type="number"
+                                                                    className="table-input"
+                                                                    value={editForm.maxMarks}
+                                                                    onChange={(e) => setEditForm((prev) => ({ ...prev, maxMarks: e.target.value }))}
+                                                                    min={1}
+                                                                    step={0.5}
+                                                                />
+                                                            ) : g.maxMarks}
+                                                        </td>
+                                                        <td>{isEditing ? t('studentGrades:common.dash') : `${pct}%`}</td>
+                                                        <td title={linkedLessonTitles || ''}>
+                                                            {linkedLessonCount > 0
+                                                                ? t('studentGrades:table.linkedLessonCount', {
+                                                                    defaultValue: '{{count}} linked',
+                                                                    count: linkedLessonCount
+                                                                })
+                                                                : t('studentGrades:common.dash')}
+                                                        </td>
+                                                        <td>
+                                                            {isEditing ? (
+                                                                <input
+                                                                    type="text"
+                                                                    className="table-input"
+                                                                    value={editForm.remarks}
+                                                                    onChange={(e) => setEditForm((prev) => ({ ...prev, remarks: e.target.value }))}
+                                                                    placeholder={t('studentGrades:table.optionalRemarks')}
+                                                                />
+                                                            ) : (g.remarks || t('studentGrades:common.dash'))}
+                                                        </td>
+                                                        {canEditGrades && (
+                                                            <td>
+                                                                {isEditing ? (
+                                                                    <div className="table-actions">
+                                                                        <button
+                                                                            type="button"
+                                                                            className="btn btn-primary btn-sm"
+                                                                            onClick={() => handleEditSave(g._id)}
+                                                                            disabled={isSaving}
+                                                                        >
+                                                                            {isSaving ? t('studentGrades:table.saving') : t('studentGrades:table.save')}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="btn btn-secondary btn-sm"
+                                                                            onClick={handleEditCancel}
+                                                                            disabled={isSaving}
+                                                                        >
+                                                                            {t('studentGrades:table.cancel')}
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
                                                                     <button
                                                                         type="button"
                                                                         className="btn btn-secondary btn-sm"
-                                                                        onClick={handleEditCancel}
-                                                                        disabled={isSaving}
+                                                                        onClick={() => handleEditStart(g)}
                                                                     >
-                                                                        {t('studentGrades:table.cancel')}
+                                                                        {t('studentGrades:table.edit')}
                                                                     </button>
-                                                                </div>
-                                                            ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    className="btn btn-secondary btn-sm"
-                                                                    onClick={() => handleEditStart(g)}
-                                                                >
-                                                                    {t('studentGrades:table.edit')}
-                                                                </button>
-                                                            )}
-                                                        </td>
+                                                                )}
+                                                            </td>
+                                                        )}
+                                                    </tr>
+                                                    {isEditing && (
+                                                        <tr className="grade-edit-lessons-row">
+                                                            <td colSpan={columnCount}>
+                                                                <LessonPlanLinkSelector
+                                                                    classId={g.class?._id || g.class}
+                                                                    subjectId={g.subject?._id || g.subject}
+                                                                    selectedLessonPlanIds={editForm.lessonPlanIds}
+                                                                    onChange={(nextLessonPlanIds) => setEditForm((prev) => ({
+                                                                        ...prev,
+                                                                        lessonPlanIds: nextLessonPlanIds
+                                                                    }))}
+                                                                    disabled={isSaving}
+                                                                />
+                                                            </td>
+                                                        </tr>
                                                     )}
-                                                </tr>
+                                                </Fragment>
                                             );
                                         })}
                                     </tbody>

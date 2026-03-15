@@ -71,6 +71,8 @@ const AdminLayout = () => {
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
+    const isRtl = theme.direction === 'rtl';
+
     // Keep sidebar/drawer closed by default on small screens
     useEffect(() => {
         if (!isDesktop) {
@@ -92,7 +94,7 @@ const AdminLayout = () => {
             {!isDesktop && sidebarOpen && (
                 <Drawer
                     variant="temporary"
-                    anchor="left"
+                    anchor={isRtl ? 'right' : 'left'}
                     open
                     onClose={handleDrawerClose}
                     ModalProps={{
@@ -104,7 +106,7 @@ const AdminLayout = () => {
                             width: 'min(320px, 85vw)',
                             boxSizing: 'border-box',
                             background: 'var(--bg-secondary)',
-                            borderRight: '1px solid var(--border-color)',
+                            borderInlineEnd: '1px solid var(--border-color)',
                         },
                     }}
                 >

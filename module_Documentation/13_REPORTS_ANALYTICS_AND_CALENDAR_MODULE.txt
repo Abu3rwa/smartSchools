@@ -1,0 +1,25 @@
+REPORTS, ADVANCED REPORTS, AND CALENDAR MODULE
+Covered platform modules: reports, advanced reports, calendar, school calendar
+
+SCHOOL PROBLEM
+Leadership decisions are delayed when report data is scattered or not easy to interpret.
+
+APP SOLUTION
+This module gives school leaders consolidated reporting and calendar visibility to make timely, informed decisions.
+
+HOW SCHOOLS USE THIS MODULE
+1. Generate school and academic performance reports.
+2. Use advanced reports for deeper trend analysis.
+3. Track events and calendar decisions across the school year.
+4. Align departments around one source of truth.
+
+ROLES AND PERMISSIONS FOCUS
+- Admin and School Owner: broad report visibility.
+- Department Principal: scoped trend oversight.
+- Teacher: role-relevant report access where allowed.
+
+GREAT FEATURES TO HIGHLIGHT
+- Faster leadership decisions.
+- Clearer academic and operational trends.
+- Better planning alignment across teams.
+- More confidence in school strategy discussions.

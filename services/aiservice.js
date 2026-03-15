@@ -299,14 +299,51 @@ IMPORTANT: Your previous response was invalid. Return ONLY one valid JSON object
         const academicYear = studentData?.academicYear || 'Not specified';
         const preferredFamilyLanguage = studentData?.reportPreferences?.language || 'english';
 
-        // Format grades with dates
+        const clipText = (value, maxLen = 160) => {
+            const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+            if (!normalized) return '';
+            if (normalized.length <= maxLen) return normalized;
+            return `${normalized.slice(0, maxLen - 1)}...`;
+        };
+
+        const buildLinkedLessonContext = (grade) => {
+            const linkedLessons = Array.isArray(grade?.lessonPlanIds) ? grade.lessonPlanIds.slice(0, 3) : [];
+            if (linkedLessons.length === 0) return '';
+
+            const lessonParts = linkedLessons.map((lesson) => {
+                const lessonTitle = clipText(lesson?.title || lesson?.topic || 'Lesson');
+                const standards = Array.isArray(lesson?.standardIds)
+                    ? lesson.standardIds
+                        .map((standard) => standard?.code)
+                        .filter(Boolean)
+                        .slice(0, 5)
+                    : [];
+                const objectives = clipText(lesson?.teachingObjectives || '', 160);
+
+                const details = [];
+                details.push(`Lesson: ${lessonTitle}`);
+                if (standards.length > 0) {
+                    details.push(`Standards: ${standards.join(', ')}`);
+                }
+                if (objectives) {
+                    details.push(`Objectives: ${objectives}`);
+                }
+
+                return details.join(' | ');
+            });
+
+            return ` [LINKED LESSONS: ${lessonParts.join(' || ')}]`;
+        };
+
+        // Format grades with dates and linked lesson context
         const gradeList = sortedGrades.map(g => {
             const dateStr = new Date(g.date).toLocaleDateString();
             const notesAndRemarks = [g.notes, g.remarks]
                 .filter(n => n && n.trim().length > 0)
                 .join(' | ');
             const noteContent = notesAndRemarks ? `[NOTES: ${notesAndRemarks}]` : '';
-            return `- ${dateStr} | ${g.subject?.name || 'Subject'}: ${g.marks}/${g.maxMarks} (${g.gradeType}) ${noteContent}`;
+            const linkedLessonContent = buildLinkedLessonContext(g);
+            return `- ${dateStr} | ${g.subject?.name || 'Subject'}: ${g.marks}/${g.maxMarks} (${g.gradeType}) ${noteContent}${linkedLessonContent}`;
         }).join('\n');
 
         const normalizedRequestedLanguages = normalizeRequestedLanguages(

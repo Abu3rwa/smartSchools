@@ -3,6 +3,7 @@ import {
     clampDateRangeToAcademicYear,
     resolveAcademicYearDateRangeForRequest
 } from '../helpers/academicYearScope.js';
+export { getParentChildLearningSummaryController } from './academicIntelligenceController.js';
 import {
     getParentChildAcademicStats,
     getParentChildAttendanceSummary,

@@ -1,0 +1,25 @@
+SUBSCRIPTIONS, FEATURE ACCESS, AND SCHOOL GROWTH MODULE
+Covered platform modules: subscriptions, plan features, usage limits, pricing visibility
+
+SCHOOL PROBLEM
+Schools need clear visibility into what they can use today and what additional capabilities unlock as they grow.
+
+APP SOLUTION
+Subscription and feature controls align school plan level with enabled capabilities such as parent portal, advanced analytics, custom reporting, AI email drafts, and branding options.
+
+HOW SCHOOLS USE THIS MODULE
+1. School owner/admin reviews current plan and enabled features.
+2. Leadership aligns feature needs with growth stage.
+3. Manage billing and plan updates as the school expands.
+4. Communicate feature availability clearly to teams.
+
+ROLES AND PERMISSIONS FOCUS
+- School Owner / Super Admin: plan and portfolio oversight.
+- Admin: school-level feature operations.
+- Teachers and principals: use enabled capabilities within role scope.
+
+GREAT FEATURES TO HIGHLIGHT
+- Plan clarity tied to real school outcomes.
+- Scalable path from starter to enterprise readiness.
+- Better budgeting visibility.
+- Controlled rollout of advanced capabilities.

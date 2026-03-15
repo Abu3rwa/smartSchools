@@ -15,6 +15,10 @@ const useGradebookPageState = (students = []) => {
 
     const [showAIModal, setShowAIModal] = useState(false);
     const [selectedStudentForAI, setSelectedStudentForAI] = useState(null);
+    const [showLearningTraceModal, setShowLearningTraceModal] = useState(false);
+    const [selectedStudentForTrace, setSelectedStudentForTrace] = useState(null);
+    const [showReteachTaskModal, setShowReteachTaskModal] = useState(false);
+    const [selectedObjectiveForTask, setSelectedObjectiveForTask] = useState(null);
     const [aiReportContent, setAiReportContent] = useState('');
     const [generatingAI, setGeneratingAI] = useState(false);
     const [isEditingReport, setIsEditingReport] = useState(false);
@@ -54,6 +58,14 @@ const useGradebookPageState = (students = []) => {
         setShowAIModal,
         selectedStudentForAI,
         setSelectedStudentForAI,
+        showLearningTraceModal,
+        setShowLearningTraceModal,
+        selectedStudentForTrace,
+        setSelectedStudentForTrace,
+        showReteachTaskModal,
+        setShowReteachTaskModal,
+        selectedObjectiveForTask,
+        setSelectedObjectiveForTask,
         aiReportContent,
         setAiReportContent,
         generatingAI,

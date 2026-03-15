@@ -1,0 +1,25 @@
+AUTHENTICATION AND ACCOUNT ACCESS MODULE
+Covered platform modules: auth, user account access, login/session management
+
+SCHOOL PROBLEM
+When account access is hard to manage, teachers lose time, parents cannot log in, and support requests increase.
+
+APP SOLUTION
+The platform provides structured login and account access workflows so every role can securely access their own workspace and continue working without confusion.
+
+HOW SCHOOLS USE THIS MODULE
+1. Admin creates and activates staff/student/parent accounts.
+2. Users sign in to role-based dashboards.
+3. Admin supports password reset or account status updates when needed.
+4. School teams keep access clean during staff changes and student year transitions.
+
+ROLES AND PERMISSIONS FOCUS
+- Admin and School Owner: Full account lifecycle management.
+- Department Principal: Scoped account support where delegated.
+- Teacher/Student/Parent: Access only their own role-specific workspace.
+
+GREAT FEATURES TO HIGHLIGHT
+- Reliable login experience across roles.
+- Clear account ownership per school.
+- Faster onboarding for new users.
+- Better continuity during term changes and staffing updates.

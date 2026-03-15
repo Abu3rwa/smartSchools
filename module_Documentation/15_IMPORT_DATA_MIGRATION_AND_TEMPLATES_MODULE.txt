@@ -1,0 +1,24 @@
+IMPORT, DATA MIGRATION, AND TEMPLATES MODULE
+Covered platform modules: import templates, data import pipeline, bulk onboarding tools
+
+SCHOOL PROBLEM
+Manual data entry at school launch or term rollover takes too long and introduces avoidable errors.
+
+APP SOLUTION
+Import tools let schools onboard key records quickly using structured templates for consistency and speed.
+
+HOW SCHOOLS USE THIS MODULE
+1. Download the right template for each entity (students, teachers, rooms, etc.).
+2. Fill data using school records.
+3. Upload and validate imports.
+4. Resolve errors and complete onboarding in batches.
+
+ROLES AND PERMISSIONS FOCUS
+- Admin and Department Principal: import workflows and template access.
+- Teachers: consume imported data through normal teaching workflows.
+
+GREAT FEATURES TO HIGHLIGHT
+- Fast implementation for new schools.
+- Reduced data-entry errors.
+- Repeatable term-start onboarding process.
+- Strong foundation for accurate reporting and communication.

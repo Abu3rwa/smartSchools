@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { tenantIsolationPlugin } from "../middleware/tenantIsolation.js";
+import { normalizeLessonObjectives } from '../helpers/lessonObjectives.js';
 
 const lessonPlanSchema = new mongoose.Schema(
   {
@@ -52,6 +53,30 @@ const lessonPlanSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    objectives: [
+      {
+        objectiveKey: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        text: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        standardIds: [
+          {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Standard',
+          },
+        ],
+        order: {
+          type: Number,
+          default: 0,
+        },
+      },
+    ],
     vocabulary: {
       type: String,
       default: "",
@@ -260,6 +285,21 @@ lessonPlanSchema.index({ school: 1, teacher: 1, status: 1 });
 lessonPlanSchema.index({ school: 1, status: 1, submittedAt: -1 });
 lessonPlanSchema.index({ school: 1, aiEvaluationStatus: 1, updatedAt: -1 });
 lessonPlanSchema.index({ school: 1, 'aiEvaluationMeta.criteriaHash': 1 });
+
+lessonPlanSchema.pre('validate', function (next) {
+  this.objectives = normalizeLessonObjectives({
+    objectives: this.objectives,
+    teachingObjectives: this.teachingObjectives,
+    standardIds: this.standardIds,
+  }).map((objective) => ({
+    objectiveKey: objective.objectiveKey,
+    text: objective.text,
+    standardIds: objective.standardIds,
+    order: objective.order,
+  }));
+  next();
+});
+
 lessonPlanSchema.plugin(tenantIsolationPlugin);
 
 const LessonPlan = mongoose.model("LessonPlan", lessonPlanSchema);

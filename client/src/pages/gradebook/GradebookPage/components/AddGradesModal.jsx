@@ -2,12 +2,15 @@ import { format } from 'date-fns';
 import { HiOutlineX } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import { CATEGORY_FILTER_OPTIONS } from '../constants';
+import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 
 const AddGradesModal = ({
     open,
     formData,
     setFormData,
     students,
+    selectedClassId,
+    selectedSubjectId,
     onGradeChange,
     onClose,
     onSubmit
@@ -91,6 +94,14 @@ const AddGradesModal = ({
                                 placeholder={t('gradebook:addModal.titlePlaceholder')}
                             />
                         </div>
+
+                        <LessonPlanLinkSelector
+                            classId={selectedClassId}
+                            subjectId={selectedSubjectId}
+                            selectedLessonPlanIds={formData.lessonPlanIds || []}
+                            onChange={(nextLessonPlanIds) => setFormData({ ...formData, lessonPlanIds: nextLessonPlanIds })}
+                            disabled={!selectedClassId || !selectedSubjectId}
+                        />
 
                         <div className="grades-table-container">
                             <table className="grades-entry-table">

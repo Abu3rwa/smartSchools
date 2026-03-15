@@ -1,0 +1,26 @@
+USER ROLES, PERMISSIONS, AND DEPARTMENTS MODULE
+Covered platform modules: user management, permissions, departments, scoped access policies
+
+SCHOOL PROBLEM
+Without clear permissions, either too many people can edit sensitive data or too few can complete daily tasks quickly.
+
+APP SOLUTION
+Role and permission controls allow schools to assign exactly who can view, edit, approve, publish, message, and manage each part of operations.
+
+HOW SCHOOLS USE THIS MODULE
+1. Define who is Admin, Department Principal, Teacher, Parent, Student, or Staff.
+2. Assign department ownership for principals and relevant staff.
+3. Grant specific permissions for critical tasks (grading, homework publishing, communication, curriculum approvals).
+4. Review user access regularly to keep governance clean.
+
+ROLES AND PERMISSIONS FOCUS
+Important permission groups include:
+- Academic permissions: grading, assignments, homework, curriculum workflows.
+- Communication permissions: who can message own classes, department groups, or whole school.
+- Operational permissions: attendance reminders, behavior records, reports, and settings.
+
+GREAT FEATURES TO HIGHLIGHT
+- Role-based trust and accountability.
+- Department-scoped leadership workflows.
+- Better protection of student and school information.
+- Flexibility to match each school's leadership model.

@@ -1,6 +1,7 @@
 import express from 'express';
 import { body, param } from 'express-validator';
 import {
+    getParentChildLearningSummaryController,
     createParentMessageThreadController,
     getParentChildAcademicStatsController,
     getParentChildAttendanceSummaryController,
@@ -58,6 +59,12 @@ router.get(
     param('subjectId').isMongoId().withMessage('Invalid subjectId format'),
     validate,
     getParentChildSubjectAcademicStatsController
+);
+router.get(
+    '/children/:childId/learning-summary',
+    param('childId').isMongoId().withMessage('Invalid childId format'),
+    validate,
+    getParentChildLearningSummaryController
 );
 router.get(
     '/children/:childId/timetable',

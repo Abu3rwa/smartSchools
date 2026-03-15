@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { lazy, Suspense, useEffect, useMemo } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { CacheProvider } from "@emotion/react";
@@ -28,98 +28,96 @@ import MainLayout from "./components/layout/MainLayout";
 import AdminLayout from "./components/layout/AdminLayout";
 import FeatureGate from "./components/FeatureGate";
 
-// Pages
-import LandingPage from "./pages/landing/LandingPage";
-import RegisterSchoolPage from "./pages/auth/RegisterSchoolPage";
-import LoginPage from "./pages/auth/LoginPage";
-import AuthCallbackPage from "./pages/auth/AuthCallbackPage";
-import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
-import ForcePasswordChangePage from "./pages/auth/ForcePasswordChangePage";
-import DashboardPage from "./pages/dashboard/DashboardPage";
-import ClassesPage from "./pages/classes/ClassesPage";
-import ClassDetailPage from "./pages/classes/ClassDetailPage";
-import StudentsPage from "./pages/students/StudentsPage";
-import StudentDetailPage from "./pages/students/StudentDetailPage";
-import GradeEntryPage from "./pages/grades/GradeEntryPage";
-import GradeReportPage from "./pages/grades/GradeReportPage";
-import WeeklyReportPage from "./pages/reports/WeeklyReportPage";
-import WeeklyReportRedirectPage from "./pages/reports/WeeklyReportPage/WeeklyReportRedirectPage";
-import GradebookPage from "./pages/gradebook/GradebookPage";
-import GradebookRedirectPage from "./pages/gradebook/GradebookRedirectPage";
-import TeachersPage from "./pages/teachers/TeachersPage";
-import TeacherDetailsPage from "./pages/teachers/TeacherDetailsPage";
-import SubjectsPage from "./pages/subjects/SubjectsPage";
-import NotificationsPage from "./pages/notifications/NotificationsPage";
-import MessagesPage from "./pages/messages/MessagesPage";
-import EmailComposerPage from "./pages/EmailComposerPage";
-import SettingsPage from "./pages/settings/SettingsPage";
-import SchoolSettingsPage from "./pages/schoolSettings/SchoolSettingsPage";
-import AdminSchedulePage from "./pages/admin/schedule/AdminSchedulePage";
-import AdminAttendancePage from "./pages/admin/attendance/AdminAttendancePage";
-import AdminAttendanceRequestsPage from "./pages/admin/attendanceRequests/AdminAttendanceRequestsPage";
-import AdminAttendanceRequestTypesPage from "./pages/admin/attendanceRequestTypes/AdminAttendanceRequestTypesPage";
-import AdminSchoolCalendarPage from "./pages/admin/calendar/AdminSchoolCalendarPage";
-import AdminTimetablePage from "./pages/admin/timetable/AdminTimetablePage";
-import TeacherSchedulePage from "./pages/teacher/schedule/TeacherSchedulePage";
-import TeacherTimetablePage from "./pages/teacher/timetable/TeacherTimetablePage";
-import TeacherAttendanceNewPage from "./pages/teacher/attendance/TeacherAttendanceNewPage";
-import TeacherNewslettersPage from "./pages/teacher/newsletters/TeacherNewslettersPage";
-import LessonPlanPage from "./pages/lessonPlan/LessonPlanPage";
-import LessonPlanDetailPage from "./pages/lessonPlan/LessonPlanDetailPage";
-import AssignmentsPage from "./pages/assignments/AssignmentsPage";
-import AdminNewslettersPage from "./pages/admin/newsletters/AdminNewslettersPage";
-import ParentNewslettersPage from "./pages/parent/newsletters/ParentNewslettersPage";
-import AttendanceRemindersPage from "./pages/admin/attendanceReminders/AttendanceRemindersPage";
-import BehaviorManagementPage from "./pages/behavior/BehaviorManagementPage";
-import BehaviorTrackingDashboardPage from "./pages/behavior/BehaviorTrackingDashboardPage";
 import BehaviorAutoTracker from "./components/behavior/BehaviorAutoTracker";
 
-// Report Pages
-import AdvancedReportGenerator from "./pages/reports/AdvancedReportGenerator";
-import ReportAnalytics from "./pages/reports/ReportAnalytics";
-import ReportTemplates from "./pages/reports/ReportTemplates";
-import ReportHistory from "./pages/reports/ReportHistory";
+const LandingPage = lazy(() => import("./pages/landing/LandingPage"));
+const RegisterSchoolPage = lazy(() => import("./pages/auth/RegisterSchoolPage"));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
+const AuthCallbackPage = lazy(() => import("./pages/auth/AuthCallbackPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
+const ForcePasswordChangePage = lazy(() => import("./pages/auth/ForcePasswordChangePage"));
+const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
+const ClassesPage = lazy(() => import("./pages/classes/ClassesPage"));
+const ClassDetailPage = lazy(() => import("./pages/classes/ClassDetailPage"));
+const StudentsPage = lazy(() => import("./pages/students/StudentsPage"));
+const StudentDetailPage = lazy(() => import("./pages/students/StudentDetailPage"));
+const GradeEntryPage = lazy(() => import("./pages/grades/GradeEntryPage"));
+const GradeReportPage = lazy(() => import("./pages/grades/GradeReportPage"));
+const WeeklyReportPage = lazy(() => import("./pages/reports/WeeklyReportPage"));
+const WeeklyReportRedirectPage = lazy(() => import("./pages/reports/WeeklyReportPage/WeeklyReportRedirectPage"));
+const GradebookPage = lazy(() => import("./pages/gradebook/GradebookPage"));
+const GradebookRedirectPage = lazy(() => import("./pages/gradebook/GradebookRedirectPage"));
+const TeachersPage = lazy(() => import("./pages/teachers/TeachersPage"));
+const TeacherDetailsPage = lazy(() => import("./pages/teachers/TeacherDetailsPage"));
+const SubjectsPage = lazy(() => import("./pages/subjects/SubjectsPage"));
+const NotificationsPage = lazy(() => import("./pages/notifications/NotificationsPage"));
+const MessagesPage = lazy(() => import("./pages/messages/MessagesPage"));
+const EmailComposerPage = lazy(() => import("./pages/EmailComposerPage"));
+const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
+const SchoolSettingsPage = lazy(() => import("./pages/schoolSettings/SchoolSettingsPage"));
+const AdminSchedulePage = lazy(() => import("./pages/admin/schedule/AdminSchedulePage"));
+const AdminAttendancePage = lazy(() => import("./pages/admin/attendance/AdminAttendancePage"));
+const AdminAttendanceRequestsPage = lazy(() => import("./pages/admin/attendanceRequests/AdminAttendanceRequestsPage"));
+const AdminAttendanceRequestTypesPage = lazy(() => import("./pages/admin/attendanceRequestTypes/AdminAttendanceRequestTypesPage"));
+const AdminSchoolCalendarPage = lazy(() => import("./pages/admin/calendar/AdminSchoolCalendarPage"));
+const AdminTimetablePage = lazy(() => import("./pages/admin/timetable/AdminTimetablePage"));
+const TeacherSchedulePage = lazy(() => import("./pages/teacher/schedule/TeacherSchedulePage"));
+const TeacherTimetablePage = lazy(() => import("./pages/teacher/timetable/TeacherTimetablePage"));
+const TeacherAttendanceNewPage = lazy(() => import("./pages/teacher/attendance/TeacherAttendanceNewPage"));
+const TeacherNewslettersPage = lazy(() => import("./pages/teacher/newsletters/TeacherNewslettersPage"));
+const LessonPlanPage = lazy(() => import("./pages/lessonPlan/LessonPlanPage"));
+const LessonPlanDetailPage = lazy(() => import("./pages/lessonPlan/LessonPlanDetailPage"));
+const AssignmentsPage = lazy(() => import("./pages/assignments/AssignmentsPage"));
+const AdminNewslettersPage = lazy(() => import("./pages/admin/newsletters/AdminNewslettersPage"));
+const ParentNewslettersPage = lazy(() => import("./pages/parent/newsletters/ParentNewslettersPage"));
+const AttendanceRemindersPage = lazy(() => import("./pages/admin/attendanceReminders/AttendanceRemindersPage"));
+const BehaviorManagementPage = lazy(() => import("./pages/behavior/BehaviorManagementPage"));
+const BehaviorTrackingDashboardPage = lazy(() => import("./pages/behavior/BehaviorTrackingDashboardPage"));
+const AdvancedReportGenerator = lazy(() => import("./pages/reports/AdvancedReportGenerator"));
+const ReportAnalytics = lazy(() => import("./pages/reports/ReportAnalytics"));
+const ReportTemplates = lazy(() => import("./pages/reports/ReportTemplates"));
+const ReportHistory = lazy(() => import("./pages/reports/ReportHistory"));
+const StandardsPage = lazy(() => import("./pages/standards/StandardsPage"));
+const StandardAssignPage = lazy(() => import("./pages/standards/StandardAssignPage"));
+const StandardsGradebookPage = lazy(() => import("./pages/standards/StandardsGradebookPage"));
+const CurriculumPage = lazy(() => import("./pages/curriculum/CurriculumPage"));
+const PracticeDashboardPage = lazy(() => import("./pages/student/practice/PracticeDashboardPage"));
+const PracticeSessionPage = lazy(() => import("./pages/student/practice/PracticeSessionPage"));
+const PracticeHistoryPage = lazy(() => import("./pages/student/practice/PracticeHistoryPage"));
+const PracticeAssessmentResultsPage = lazy(() => import("./pages/student/practice/PracticeAssessmentResultsPage"));
+const InterventionQueuePage = lazy(() => import("./pages/interventions/InterventionQueuePage"));
+const StudentGradesPage = lazy(() => import("./pages/student/academics/StudentGradesPage"));
+const StudentAttendancePage = lazy(() => import("./pages/student/attendance/StudentAttendancePage"));
+const AttendanceRequestFormPage = lazy(() => import("./pages/attendance/AttendanceRequestFormPage"));
+const MyAttendanceRequestsPage = lazy(() => import("./pages/attendance/MyAttendanceRequestsPage"));
+const RevisionPlansListPage = lazy(() => import("./pages/revisionPlans/RevisionPlansListPage"));
+const RevisionPlanCreatePage = lazy(() => import("./pages/revisionPlans/RevisionPlanCreatePage"));
+const RevisionPlanViewPage = lazy(() => import("./pages/revisionPlans/RevisionPlanViewPage"));
+const ReadingMyAssignmentsPage = lazy(() => import("./pages/student/reading/ReadingMyAssignmentsPage"));
+const ReadingTextsListPage = lazy(() => import("./pages/teacher/reading/ReadingTextsListPage"));
+const ReadingUploadPage = lazy(() => import("./pages/teacher/reading/ReadingUploadPage"));
+const ReadingViewPage = lazy(() => import("./pages/student/reading/ReadingViewPage"));
+const CreateSubRequest = lazy(() => import("./pages/substitutions/CreateSubRequest"));
+const SubRequestsList = lazy(() => import("./pages/substitutions/SubRequestsList"));
+const SubRequestDetail = lazy(() => import("./pages/substitutions/SubRequestDetail"));
+const SubstitutionRespond = lazy(() => import("./pages/substitutions/SubstitutionRespond"));
+const SuperAdminDashboardPage = lazy(() => import("./pages/superAdmin/SuperAdminDashboardPage"));
+const SuperAdminSchoolsPage = lazy(() => import("./pages/superAdmin/SuperAdminSchoolsPage"));
+const SuperAdminSchoolDetailsPage = lazy(() => import("./pages/superAdmin/SuperAdminSchoolDetailsPage"));
+const SuperAdminUsersPage = lazy(() => import("./pages/superAdmin/SuperAdminUsersPage"));
+const SuperAdminSettingsPage = lazy(() => import("./pages/superAdmin/SuperAdminSettingsPage"));
+const SuperAdminSubscriptionsPage = lazy(() => import("./pages/superAdmin/SuperAdminSubscriptionsPage"));
+const SuperAdminSubscriptionDetailsPage = lazy(() => import("./pages/superAdmin/SuperAdminSubscriptionDetailsPage"));
+const BehaviorAnalyticsPage = lazy(() => import("./pages/superAdmin/BehaviorAnalyticsPage"));
+const SuperAdminLandingPageEditor = lazy(() => import("./pages/superAdmin/SuperAdminLandingPageEditor"));
+const ApiDocsPage = lazy(() => import("./pages/docs/ApiDocsPage"));
 
-// Standards Practice Pages
-import StandardsPage from "./pages/standards/StandardsPage";
-import StandardAssignPage from "./pages/standards/StandardAssignPage";
-import StandardsGradebookPage from "./pages/standards/StandardsGradebookPage";
-import CurriculumPage from "./pages/curriculum/CurriculumPage";
-import PracticeDashboardPage from "./pages/student/practice/PracticeDashboardPage";
-import PracticeSessionPage from "./pages/student/practice/PracticeSessionPage";
-import PracticeHistoryPage from "./pages/student/practice/PracticeHistoryPage";
-import PracticeAssessmentResultsPage from "./pages/student/practice/PracticeAssessmentResultsPage";
-import InterventionQueuePage from "./pages/interventions/InterventionQueuePage";
-import StudentGradesPage from "./pages/student/academics/StudentGradesPage";
-import StudentAttendancePage from "./pages/student/attendance/StudentAttendancePage";
-import AttendanceRequestFormPage from "./pages/attendance/AttendanceRequestFormPage";
-import MyAttendanceRequestsPage from "./pages/attendance/MyAttendanceRequestsPage";
-import RevisionPlansListPage from "./pages/revisionPlans/RevisionPlansListPage";
-import RevisionPlanCreatePage from "./pages/revisionPlans/RevisionPlanCreatePage";
-import RevisionPlanViewPage from "./pages/revisionPlans/RevisionPlanViewPage";
-import ReadingMyAssignmentsPage from "./pages/student/reading/ReadingMyAssignmentsPage";
-import ReadingTextsListPage from "./pages/teacher/reading/ReadingTextsListPage";
-import ReadingUploadPage from "./pages/teacher/reading/ReadingUploadPage";
-import ReadingViewPage from "./pages/student/reading/ReadingViewPage";
-
-// Substitution pages
-import CreateSubRequest from "./pages/substitutions/CreateSubRequest";
-import SubRequestsList from "./pages/substitutions/SubRequestsList";
-import SubRequestDetail from "./pages/substitutions/SubRequestDetail";
-import SubstitutionRespond from "./pages/substitutions/SubstitutionRespond";
-
-// Platform Admin Pages
-import SuperAdminDashboardPage from "./pages/superAdmin/SuperAdminDashboardPage";
-import SuperAdminSchoolsPage from "./pages/superAdmin/SuperAdminSchoolsPage";
-import SuperAdminSchoolDetailsPage from "./pages/superAdmin/SuperAdminSchoolDetailsPage";
-import SuperAdminUsersPage from "./pages/superAdmin/SuperAdminUsersPage";
-import SuperAdminSettingsPage from "./pages/superAdmin/SuperAdminSettingsPage";
-import SuperAdminSubscriptionsPage from "./pages/superAdmin/SuperAdminSubscriptionsPage";
-import SuperAdminSubscriptionDetailsPage from "./pages/superAdmin/SuperAdminSubscriptionDetailsPage";
-import BehaviorAnalyticsPage from "./pages/superAdmin/BehaviorAnalyticsPage";
-import SuperAdminLandingPageEditor from "./pages/superAdmin/SuperAdminLandingPageEditor";
-import ApiDocsPage from "./pages/docs/ApiDocsPage";
+const RouteLoadingFallback = () => (
+  <div className="loading-overlay">
+    <div className="spinner"></div>
+  </div>
+);
 
 // Protected Route - requires authentication
 const ProtectedRoute = ({ children }) => {
@@ -283,7 +281,8 @@ function App() {
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
         <BehaviorAutoTracker />
-        <Routes>
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/register-school" element={<RegisterSchoolPage />} />
@@ -919,7 +918,8 @@ function App() {
 
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </ThemeProvider>
     </CacheProvider>
   );

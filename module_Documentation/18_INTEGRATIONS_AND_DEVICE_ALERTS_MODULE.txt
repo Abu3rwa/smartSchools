@@ -1,0 +1,25 @@
+INTEGRATIONS, EXTERNAL CONNECTORS, AND DEVICE ALERTS MODULE
+Covered platform modules: Gmail auth, Google Drive auth, device notifications, delivery support
+
+SCHOOL PROBLEM
+Schools need communication and file workflows that connect to tools teams already use.
+
+APP SOLUTION
+Integration modules connect platform workflows with external communication and content services, while device alerts improve real-time visibility.
+
+HOW SCHOOLS USE THIS MODULE
+1. Connect school communication channels.
+2. Support trusted file and content workflows.
+3. Enable device-level alert delivery for timely updates.
+4. Monitor communication operations through admin oversight.
+
+ROLES AND PERMISSIONS FOCUS
+- Admin: integration setup and oversight.
+- Teachers: use enabled communication/content workflows.
+- Parents and staff: receive updates on supported channels/devices.
+
+GREAT FEATURES TO HIGHLIGHT
+- Faster school communication delivery.
+- Better continuity with existing school tools.
+- More timely alerts for important updates.
+- Stronger reliability of outbound communication.

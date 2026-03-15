@@ -87,6 +87,7 @@ const useGradebookActions = ({
                 maxMarks: formData.maxMarks,
                 title: formData.title,
                 category: formData.category === 'Custom' ? formData.customCategory : formData.category,
+                lessonPlanIds: Array.isArray(formData.lessonPlanIds) ? formData.lessonPlanIds : [],
                 academicYear,
                 grades: gradesToSubmit
             });

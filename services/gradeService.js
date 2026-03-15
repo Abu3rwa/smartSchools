@@ -56,7 +56,16 @@ class GradeService {
 
         const grades = await Grade.find(query)
             .populate('subject', 'name code')
+            .populate('class', 'name grade section')
             .populate('teacher', 'user')
+            .populate({
+                path: 'lessonPlanIds',
+                select: 'date title topic teachingObjectives standardIds',
+                populate: {
+                    path: 'standardIds',
+                    select: 'code'
+                }
+            })
             .sort({ date: -1 });
 
         if (!filters.schoolId) {
@@ -91,7 +100,16 @@ class GradeService {
 
         return await Grade.find(query)
             .populate('subject', 'name code')
+            .populate('class', 'name grade section')
             .populate('teacher', 'user')
+            .populate({
+                path: 'lessonPlanIds',
+                select: 'date title topic teachingObjectives standardIds',
+                populate: {
+                    path: 'standardIds',
+                    select: 'code'
+                }
+            })
             .sort({ date: -1 });
     }
 
@@ -189,7 +207,8 @@ class GradeService {
             maxMarks: g.maxMarks || 10,
             title: g.title,
             notes: g.notes,
-            remarks: g.remarks
+            remarks: g.remarks,
+            lessonPlanIds: Array.isArray(g.lessonPlanIds) ? g.lessonPlanIds : []
         }));
         return await Grade.insertMany(gradeDocuments);
     }

@@ -189,3 +189,7 @@
 .grades-table tbody tr:hover {
     background: var(--bg-secondary, #f9fafb);
 }
+
+.grade-edit-lessons-row td {
+    background: var(--bg-secondary, #f8fafc);
+}

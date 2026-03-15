@@ -179,6 +179,7 @@ export const createLessonPlan = asyncHandler(async (req, res) => {
         homework: body.homework ?? '',
         previousKnowledge: body.previousKnowledge ?? '',
         teachingObjectives: body.teachingObjectives ?? '',
+        objectives: Array.isArray(body.objectives) ? body.objectives : [],
         vocabulary: body.vocabulary ?? '',
         characterTraitLinks: body.characterTraitLinks ?? '',
         techIntegration: body.techIntegration ?? '',
@@ -222,7 +223,7 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
     const body = req.body;
     const allowed = [
         'class', 'subject', 'date', 'title', 'summary', 'description', 'homework',
-        'previousKnowledge', 'teachingObjectives', 'vocabulary', 'characterTraitLinks', 'techIntegration', 'standardIds', 'stages'
+        'previousKnowledge', 'teachingObjectives', 'objectives', 'vocabulary', 'characterTraitLinks', 'techIntegration', 'standardIds', 'stages'
     ];
     for (const key of allowed) {
         if (body[key] === undefined) continue;
@@ -232,6 +233,8 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
         else if (key === 'title') existing.title = (body.title || '').trim();
         else if (key === 'standardIds' && Array.isArray(body.standardIds)) {
             existing.standardIds = body.standardIds;
+        } else if (key === 'objectives' && Array.isArray(body.objectives)) {
+            existing.objectives = body.objectives;
         } else if (key === 'stages' && Array.isArray(body.stages)) {
             existing.stages = body.stages.map(s => ({
                 name: s.name ?? '',

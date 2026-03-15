@@ -1,0 +1,34 @@
+GRADEBOOK PRO - PLATFORM GUIDE FOR SCHOOLS
+Audience: Teachers, Department Principals, School Owners, Admin Teams
+Purpose: Marketing + User Guide (Non-Technical)
+
+WHAT PROBLEM SCHOOLS FACE
+Many schools run daily operations using disconnected tools: one system for attendance, one for grades, another for parent communication, and manual spreadsheets for planning. This creates delays, confusion, and communication gaps.
+
+HOW THIS APP SOLVES IT
+GradeBook Pro combines academic operations, communication, parent engagement, and school-level leadership controls in one unified platform. Teams work faster, parents stay informed, and school leaders get clearer visibility.
+
+CORE BENEFITS FOR YOUR SCHOOL
+1. One connected platform for academic and operational workflows.
+2. Clear role-based access so every user sees only what they need.
+3. Faster communication with parents, teachers, and students.
+4. Better consistency in grading, planning, and student follow-up.
+5. Actionable insight for leadership through dashboards and reports.
+
+MAIN ROLES IN THE PLATFORM
+- School Owner / Super Admin: Multi-school governance, subscription oversight, and global control.
+- School Admin: Full school operations management.
+- Department Principal: Department-level leadership and approvals.
+- Teacher: Daily teaching, grading, assignments, lesson planning, communication.
+- Parent: Child progress visibility, updates, and school communication.
+- Student: Learning tasks, revision, practice, and progress tracking.
+- Support Staff: Scoped operational support where assigned.
+
+HOW TO USE THIS DOCUMENTATION SET
+1. Start with this file.
+2. Open each module file that matches your team function.
+3. Use each module's section: Problem -> Solution -> How to Use -> Roles & Permissions -> Great Features.
+4. Use 20_COMPLETE_MODULE_CATALOG.txt to confirm complete coverage of platform modules.
+
+OUTCOME FOR SCHOOLS
+Schools using this platform can centralize operations, reduce manual overhead, improve teacher-parent alignment, and make leadership decisions with confidence.

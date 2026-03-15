@@ -12,9 +12,15 @@ import GradebookFilters from './components/GradebookFilters';
 import GradebookTable from './components/GradebookTable';
 import AddGradesModal from './components/AddGradesModal';
 import AIReportModal from './components/AIReportModal';
+import AcademicInsightsPanel from './components/AcademicInsightsPanel';
+import ReteachTaskModal from './components/ReteachTaskModal';
+import ReteachTasksPanel from './components/ReteachTasksPanel';
+import StudentLearningTraceModal from './components/StudentLearningTraceModal';
 import useGradebookPageState from './hooks/useGradebookPageState';
 import useGradebookData from './hooks/useGradebookData';
 import useGradebookActions from './hooks/useGradebookActions';
+import useAcademicIntelligenceData from './hooks/useAcademicIntelligenceData';
+import useReteachTasks from './hooks/useReteachTasks';
 import { MONTHS } from './constants';
 import './GradebookPage.css';
 
@@ -46,6 +52,14 @@ const GradebookPage = () => {
         setShowAIModal,
         selectedStudentForAI,
         setSelectedStudentForAI,
+        showLearningTraceModal,
+        setShowLearningTraceModal,
+        selectedStudentForTrace,
+        setSelectedStudentForTrace,
+        showReteachTaskModal,
+        setShowReteachTaskModal,
+        selectedObjectiveForTask,
+        setSelectedObjectiveForTask,
         aiReportContent,
         setAiReportContent,
         generatingAI,
@@ -81,6 +95,36 @@ const GradebookPage = () => {
         setGrades,
         setGradingScale,
         setLoading
+    });
+
+    const {
+        classInsights,
+        classInsightsLoading,
+        classInsightsError,
+        refreshClassInsights,
+        studentTrace,
+        studentTraceLoading,
+        studentTraceError,
+        fetchStudentTrace,
+        resetStudentTrace
+    } = useAcademicIntelligenceData({
+        classId,
+        subjectId: selectedSubject,
+        selectedMonth,
+        academicYear
+    });
+
+    const {
+        tasks: reteachTasks,
+        loading: reteachTasksLoading,
+        error: reteachTasksError,
+        saving: reteachTasksSaving,
+        refreshTasks,
+        createTask,
+        updateTaskStatus
+    } = useReteachTasks({
+        classId,
+        subjectId: selectedSubject
     });
 
     const {
@@ -126,6 +170,35 @@ const GradebookPage = () => {
         selectedStudentForAI
     });
 
+    const handleOpenLearningTrace = async (student) => {
+        setSelectedStudentForTrace(student);
+        setShowLearningTraceModal(true);
+        await fetchStudentTrace(student?._id);
+    };
+
+    const handleCloseLearningTrace = () => {
+        setShowLearningTraceModal(false);
+        setSelectedStudentForTrace(null);
+        resetStudentTrace();
+    };
+
+    const handleOpenReteachTask = (objective) => {
+        setSelectedObjectiveForTask(objective);
+        setShowReteachTaskModal(true);
+    };
+
+    const handleCloseReteachTask = () => {
+        setShowReteachTaskModal(false);
+        setSelectedObjectiveForTask(null);
+    };
+
+    const handleCreateReteachTask = async (payload) => {
+        await createTask(payload);
+        handleCloseReteachTask();
+    };
+
+    const selectedSubjectName = availableSubjects.find((subject) => subject?._id === selectedSubject)?.name || '';
+
     return (
         <div className="gradebook-page">
             <GradebookHeader
@@ -149,6 +222,24 @@ const GradebookPage = () => {
                 months={MONTHS}
             />
 
+            <AcademicInsightsPanel
+                loading={classInsightsLoading}
+                error={classInsightsError}
+                data={classInsights}
+                onRefresh={refreshClassInsights}
+                selectedSubjectName={selectedSubjectName}
+                onCreateTask={handleOpenReteachTask}
+            />
+
+            <ReteachTasksPanel
+                tasks={reteachTasks}
+                loading={reteachTasksLoading}
+                error={reteachTasksError}
+                saving={reteachTasksSaving}
+                onRefresh={refreshTasks}
+                onStatusChange={updateTaskStatus}
+            />
+
             <div className="grades-content">
                 <GradebookTable
                     loading={loading}
@@ -158,6 +249,7 @@ const GradebookPage = () => {
                     dynamicCategories={dynamicCategories}
                     processedData={processedData}
                     onOpenAIModal={handleOpenAIModal}
+                    onOpenLearningTrace={handleOpenLearningTrace}
                 />
             </div>
 
@@ -166,6 +258,8 @@ const GradebookPage = () => {
                 formData={formData}
                 setFormData={setFormData}
                 students={students}
+                selectedClassId={classId}
+                selectedSubjectId={selectedSubject}
                 onGradeChange={handleGradeChange}
                 onClose={handleCloseAddModal}
                 onSubmit={handleAddGrades}
@@ -192,6 +286,25 @@ const GradebookPage = () => {
                 onRegenerate={handleRegenerateReport}
                 onEditedContentBlur={handleEditedContentBlur}
                 onSendToParents={handleSendAIReport}
+            />
+
+            <StudentLearningTraceModal
+                open={showLearningTraceModal}
+                onClose={handleCloseLearningTrace}
+                student={selectedStudentForTrace}
+                trace={studentTrace}
+                loading={studentTraceLoading}
+                error={studentTraceError}
+            />
+
+            <ReteachTaskModal
+                open={showReteachTaskModal}
+                objective={selectedObjectiveForTask}
+                classId={classId}
+                subjectId={selectedSubject}
+                onClose={handleCloseReteachTask}
+                onSubmit={handleCreateReteachTask}
+                saving={reteachTasksSaving}
             />
         </div>
     );

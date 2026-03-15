@@ -82,6 +82,17 @@ const gradeSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    assessmentGroupId: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    lessonPlanIds: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'LessonPlan'
+        }
+    ],
     // Teacher notes - detailed explanation for the grade
     notes: {
         type: String,
@@ -129,6 +140,8 @@ gradeSchema.index({ student: 1, semester: 1, academicYear: 1 });
 gradeSchema.index({ class: 1, subject: 1, date: 1 });
 gradeSchema.index({ teacher: 1, date: 1 });
 gradeSchema.index({ gradeType: 1 });
+gradeSchema.index({ school: 1, lessonPlanIds: 1 });
+gradeSchema.index({ school: 1, assessmentGroupId: 1 });
 gradeSchema.index({ school: 1, homeworkAssignment: 1, student: 1 });
 gradeSchema.index(
     { school: 1, assignment: 1, student: 1 },
@@ -154,6 +167,10 @@ gradeSchema.virtual('letterGrade').get(function () {
 
 // Pre-save hook to set month and semester
 gradeSchema.pre('save', function (next) {
+    if (!this.assessmentGroupId) {
+        this.assessmentGroupId = new mongoose.Types.ObjectId().toString();
+    }
+
     const date = new Date(this.date);
     this.month = date.getMonth() + 1; // 1-12
 

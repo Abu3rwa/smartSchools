@@ -52,6 +52,8 @@ const GradeEntryPage = () => {
         grades,
         sendNotifications,
         setSendNotifications,
+        selectedLessonPlanIds,
+        setSelectedLessonPlanIds,
         handleGradeChange,
         resetGradesForStudents,
         setGrades
@@ -71,6 +73,10 @@ const GradeEntryPage = () => {
             setGrades({});
         }
     }, [dispatch, selectedClass, setGrades]);
+
+    useEffect(() => {
+        setSelectedLessonPlanIds([]);
+    }, [selectedClass, selectedSubject, setSelectedLessonPlanIds]);
 
     useEffect(() => {
         resetGradesForStudents(classStudents);
@@ -103,6 +109,7 @@ const GradeEntryPage = () => {
             category: selectedCategory === 'Custom' ? customCategory : selectedCategory,
             date: selectedDate,
             maxMarks,
+            lessonPlanIds: selectedLessonPlanIds,
             academicYear,
             grades: gradesToSubmit,
             sendNotifications
@@ -135,6 +142,8 @@ const GradeEntryPage = () => {
                 onMaxMarksChange={setMaxMarks}
                 availableClasses={availableClasses}
                 availableSubjects={availableSubjects}
+                selectedLessonPlanIds={selectedLessonPlanIds}
+                onSelectedLessonPlanIdsChange={setSelectedLessonPlanIds}
             />
 
             {selectedClass && selectedSubject && classStudents.length > 0 && (

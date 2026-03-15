@@ -1,0 +1,24 @@
+PUBLIC SITE, LANDING, AND ENROLLMENT JOURNEY MODULE
+Covered platform modules: public routes, landing content, school registration/pricing presentation
+
+SCHOOL PROBLEM
+Schools need a professional first impression and a clean enrollment/interest journey for families and stakeholders.
+
+APP SOLUTION
+The public module supports external-facing school presentation, structured landing pages, and guided registration pathways.
+
+HOW SCHOOLS USE THIS MODULE
+1. Present school value and offerings clearly through landing content.
+2. Share pricing and onboarding information where relevant.
+3. Capture school registration interest and route it for onboarding.
+4. Keep the public journey aligned with school brand.
+
+ROLES AND PERMISSIONS FOCUS
+- School Owner/Admin: manage public-facing positioning and onboarding readiness.
+- Families and visitors: consume clear, trustworthy school information.
+
+GREAT FEATURES TO HIGHLIGHT
+- Strong first impression for prospective families.
+- Consistent message from marketing to onboarding.
+- Better conversion from interest to registration.
+- Professional digital presence for school growth.

@@ -1,0 +1,27 @@
+COMMUNICATION, MESSAGING, EMAIL, NEWSLETTER, AND NOTIFICATIONS MODULE
+Covered platform modules: messages, communication email composer, newsletters, notifications, email delivery
+
+SCHOOL PROBLEM
+School communication is often inconsistent, delayed, and hard to track across teachers, departments, and families.
+
+APP SOLUTION
+The communication stack supports direct messaging, school email campaigns, structured newsletters, and update notifications with role-based scope controls.
+
+HOW SCHOOLS USE THIS MODULE
+1. Teachers send classroom-level updates.
+2. Department principals send department announcements.
+3. Admin teams send school-wide communication and newsletter issues.
+4. Parents receive organized updates through preferred channels.
+
+ROLES AND PERMISSIONS FOCUS
+Important communication permissions include:
+- Message own students and own student parents
+- Message department students/parents/teachers/everyone
+- Message school students/parents/teachers/everyone
+- Send communication emails
+
+GREAT FEATURES TO HIGHLIGHT
+- Right message, right audience, right time.
+- Less confusion from scattered channels.
+- Better communication accountability.
+- Improved parent satisfaction and trust.

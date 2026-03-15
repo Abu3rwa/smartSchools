@@ -1,0 +1,26 @@
+CLASSES, SUBJECTS, ROOMS, TIMETABLE, AND SCHEDULE MODULE
+Covered platform modules: classes, subjects, rooms, timetable, schedules, enhanced scheduling
+
+SCHOOL PROBLEM
+Schools struggle with timetable conflicts, room clashes, and unclear daily schedules across teams.
+
+APP SOLUTION
+This module coordinates class structure, subject planning, room management, period setup, and daily schedules in one connected flow.
+
+HOW SCHOOLS USE THIS MODULE
+1. Set up subjects, classes, rooms, and period structure.
+2. Assign periods and teacher workloads.
+3. Publish daily/weekly schedules for teachers and students.
+4. Adjust schedules when conflicts or changes appear.
+
+ROLES AND PERMISSIONS FOCUS
+- Admin: full planning control.
+- Department Principal: department schedule management.
+- Teacher: view own timetable and manage approved schedule actions.
+- Student: view assigned timetable.
+
+GREAT FEATURES TO HIGHLIGHT
+- Reduced timetable conflicts.
+- Better room and period utilization.
+- Clear daily visibility for every classroom.
+- Faster response when schedules change.

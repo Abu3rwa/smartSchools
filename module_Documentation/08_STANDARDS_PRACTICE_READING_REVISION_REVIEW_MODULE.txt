@@ -1,0 +1,25 @@
+STANDARDS, PRACTICE, READING, REVISION, AND REVIEW MODULE
+Covered platform modules: standards, standard assignments, practice, reading, revision, review queue
+
+SCHOOL PROBLEM
+Schools often lack a structured way to connect standards mastery with daily student practice and revision.
+
+APP SOLUTION
+This learning module links standards to assignments, practice sessions, reading support, revision plans, and student review routines.
+
+HOW SCHOOLS USE THIS MODULE
+1. Define standards and attach them to instruction.
+2. Deliver practice and assessment opportunities.
+3. Support student reading progression and comprehension.
+4. Use revision and review workflows for mastery growth over time.
+
+ROLES AND PERMISSIONS FOCUS
+- Teacher/Admin: monitor progress and release outcomes.
+- Student: complete practice, reading activities, revision plans, and review tasks.
+- Department Principal: visibility into department learning quality.
+
+GREAT FEATURES TO HIGHLIGHT
+- Standards-linked learning clarity.
+- Ongoing mastery tracking, not one-time testing.
+- Student-centered revision and review habits.
+- Better academic recovery for struggling learners.

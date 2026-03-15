@@ -1,0 +1,26 @@
+ATTENDANCE AND ATTENDANCE REQUESTS MODULE
+Covered platform modules: attendance, attendance reminders, attendance requests, request types
+
+SCHOOL PROBLEM
+Late attendance submission and inconsistent absence handling create parent frustration and weak attendance oversight.
+
+APP SOLUTION
+The app provides class attendance workflows, reminder automation, and structured attendance request handling.
+
+HOW SCHOOLS USE THIS MODULE
+1. Teachers record attendance daily.
+2. School teams review attendance trends and flagged patterns.
+3. Parents and staff use attendance request flows for legitimate exceptions.
+4. Leadership uses reminder settings to improve compliance.
+
+ROLES AND PERMISSIONS FOCUS
+- Teacher: daily attendance updates.
+- Admin: attendance policies, reports, and reminder settings.
+- Department Principal: scoped attendance visibility.
+- Parent: request and update visibility where enabled.
+
+GREAT FEATURES TO HIGHLIGHT
+- Better attendance consistency.
+- Reduced late submission through reminders.
+- Clear documentation of attendance exceptions.
+- Stronger school-home trust around attendance records.

@@ -1,0 +1,27 @@
+ASSIGNMENTS, HOMEWORK, GRADING, AND GRADE SCALES MODULE
+Covered platform modules: assignments, assignment types, homework, grades, grade scales, gradebook actions
+
+SCHOOL PROBLEM
+When grading and assignments are disconnected, teachers duplicate effort and students receive delayed or inconsistent feedback.
+
+APP SOLUTION
+This module unifies assignment creation, homework publishing, grading workflows, and scale consistency.
+
+HOW SCHOOLS USE THIS MODULE
+1. Configure assignment types and grading scales.
+2. Teachers create and publish assignments/homework.
+3. Students submit work and track completion.
+4. Teachers grade and leadership monitors grade quality trends.
+
+ROLES AND PERMISSIONS FOCUS
+Key permissions include:
+- Create Assignments / Publish Assignments / Grade Assignments
+- Create Homework / Publish Homework / Grade Homework
+- View Homework Submissions
+- Manage Grade Scaling
+
+GREAT FEATURES TO HIGHLIGHT
+- Faster teacher workflow from planning to grading.
+- Consistent school-wide grading logic.
+- Better student accountability for submissions.
+- Improved parent visibility of academic progress.

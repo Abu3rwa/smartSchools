@@ -1,0 +1,26 @@
+BEHAVIOR, STUDENT BEHAVIOR, AND INTERVENTION MODULE
+Covered platform modules: behavior analytics, student behavior records, interventions
+
+SCHOOL PROBLEM
+Behavior incidents are often logged in scattered places, making follow-up inconsistent and late.
+
+APP SOLUTION
+This module centralizes behavior events, student follow-up records, and intervention tracking so teams can respond early and consistently.
+
+HOW SCHOOLS USE THIS MODULE
+1. Record incidents and behavior patterns in a shared system.
+2. Review class and student summaries.
+3. Assign intervention actions and monitor status.
+4. Use leadership dashboards for prevention-focused decision making.
+
+ROLES AND PERMISSIONS FOCUS
+- Admin / Super Admin: behavior dashboards and analytics.
+- Department Principal: department-level behavior oversight.
+- Teacher: submit and track relevant behavior records.
+- Assigned staff: support interventions under scope.
+
+GREAT FEATURES TO HIGHLIGHT
+- Earlier intervention before issues escalate.
+- Better consistency in discipline workflows.
+- Data-informed behavior support.
+- Improved student wellbeing outcomes.
