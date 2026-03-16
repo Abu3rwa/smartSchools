@@ -75,6 +75,7 @@ import communicationEmailRoutes from "./routes/communicationEmailRoutes.js";
 import curriculumMapRoutes from "./routes/curriculumMapRoutes.js";
 import curriculumSettingsRoutes from "./routes/curriculumSettingsRoutes.js";
 import academicExcellenceRoutes from "./routes/academicExcellenceRoutes.js";
+import sbrRoutes from "./routes/sbrRoutes.js";
 import reteachTaskRoutes from "./routes/reteachTaskRoutes.js";
 import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
@@ -286,6 +287,7 @@ app.use("/api/communication-email", communicationEmailRoutes);
 app.use("/api/curriculum-maps", curriculumMapRoutes);
 app.use("/api/curriculum-settings", curriculumSettingsRoutes);
 app.use("/api/academic-excellence", academicExcellenceRoutes);
+app.use("/api/sbr", sbrRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);

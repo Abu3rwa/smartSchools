@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en" dir="{{#if isArabic}}rtl{{else}}ltr{{/if}}">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SBR Report Card - {{reportCardId}}</title>
+    <style>
+        :root {
+            --primary: {{primaryColor}};
+            --secondary: {{secondaryColor}};
+            --text: #1f2937;
+            --muted: #6b7280;
+            --border: #d1d5db;
+            --bg-soft: #f8fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            color: var(--text);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #fff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .page {
+            width: 100%;
+            min-height: 100%;
+            padding: 12mm;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        .cover-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+        }
+
+        .school-logo {
+            width: 72px;
+            height: 72px;
+            object-fit: contain;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            padding: 4px;
+            background: #fff;
+        }
+
+        .school-title {
+            text-align: center;
+            flex: 1;
+            margin: 0 16px;
+        }
+
+        .school-title h1 {
+            margin: 0;
+            color: var(--primary);
+            font-size: 22px;
+        }
+
+        .school-title p {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .report-heading {
+            text-align: center;
+            margin: 18px 0 20px;
+        }
+
+        .report-heading h2 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 0.4px;
+            color: var(--secondary);
+        }
+
+        .report-heading p {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .student-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+
+        .student-table td {
+            border: 1px solid var(--border);
+            padding: 8px 10px;
+            vertical-align: top;
+        }
+
+        .student-table td:first-child,
+        .student-table td:nth-child(3) {
+            width: 24%;
+            background: var(--bg-soft);
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .legend {
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--primary);
+            background: var(--bg-soft);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 10px;
+        }
+
+        .legend h3 {
+            margin: 0 0 8px;
+            color: var(--secondary);
+            font-size: 15px;
+        }
+
+        .legend ul {
+            margin: 0;
+            padding-left: 18px;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .cover-footer {
+            margin-top: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border);
+            padding-top: 10px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .qr {
+            width: 64px;
+            height: 64px;
+            object-fit: contain;
+            border: 1px solid var(--border);
+            padding: 3px;
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        .subject-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: #fff;
+            border-radius: 8px;
+        }
+
+        .subject-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .overall-score {
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            padding: 6px 10px;
+            min-width: 90px;
+        }
+
+        .overall-score .label {
+            display: block;
+            font-size: 10px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .overall-score .value {
+            display: block;
+            font-size: 20px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .category {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .category-header {
+            background: var(--bg-soft);
+            color: var(--secondary);
+            padding: 8px 10px;
+            font-size: 13px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .standards-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .standards-table th,
+        .standards-table td {
+            border-bottom: 1px solid var(--border);
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .standards-table th {
+            color: var(--muted);
+            font-size: 11px;
+            background: #fff;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .standards-table td.score {
+            width: 90px;
+            text-align: center;
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .na-badge {
+            display: inline-block;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 10px;
+            padding: 2px 8px;
+            color: var(--muted);
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+    <section class="page">
+        <div class="cover-header">
+            {{#if schoolLogo}}
+                <img class="school-logo" src="{{schoolLogo}}" alt="School Logo" />
+            {{else}}
+                <div class="school-logo"></div>
+            {{/if}}
+            <div class="school-title">
+                <h1>{{schoolName}}</h1>
+                <p>{{periodLabel}}</p>
+            </div>
+            {{#if ministryLogo}}
+                <img class="school-logo" src="{{ministryLogo}}" alt="Ministry Logo" />
+            {{else}}
+                <div class="school-logo"></div>
+            {{/if}}
+        </div>
+
+        <div class="report-heading">
+            <h2>{{reportTitle}}</h2>
+            <p>{{reportSubtitle}}</p>
+        </div>
+
+        <table class="student-table">
+            <tr>
+                <td>{{labels.studentName}}</td>
+                <td>{{studentName}}</td>
+                <td>{{labels.gradeLevel}}</td>
+                <td>{{gradeLevelLabel}}</td>
+            </tr>
+            <tr>
+                <td>{{labels.studentId}}</td>
+                <td>{{studentId}}</td>
+                <td>{{labels.reportCardId}}</td>
+                <td>{{reportCardId}}</td>
+            </tr>
+            <tr>
+                <td>{{labels.academicYear}}</td>
+                <td>{{academicYear}}</td>
+                <td>{{labels.generatedAt}}</td>
+                <td>{{generatedAtLabel}}</td>
+            </tr>
+        </table>
+
+        <div class="legend">
+            <h3>{{labels.scaleLegend}}</h3>
+            <ul>
+                {{#each scaleLevels}}
+                    <li>{{value}} - {{label}} ({{minPercent}}-{{maxPercent}}%)</li>
+                {{/each}}
+                {{#each specialCodes}}
+                    <li>{{code}} - {{label}}</li>
+                {{/each}}
+            </ul>
+        </div>
+
+        <div class="cover-footer">
+            <div>
+                <div>{{schoolPhone}}</div>
+                <div>{{schoolEmail}}</div>
+                <div>{{schoolWebsite}}</div>
+            </div>
+            {{#if qrCodeDataUrl}}
+                <img class="qr" src="{{qrCodeDataUrl}}" alt="Report Verification QR" />
+            {{/if}}
+        </div>
+    </section>
+
+    {{#each subjects}}
+        <section class="page page-break">
+            <div class="subject-header">
+                <h3>{{subjectName}}</h3>
+                <div class="overall-score">
+                    <span class="label">{{../labels.overallScore}}</span>
+                    <span class="value">{{#if overallScore}}{{overallScore}}{{else}}NA{{/if}}</span>
+                </div>
+            </div>
+
+            {{#if categories.length}}
+                {{#each categories}}
+                    <div class="category">
+                        <div class="category-header">{{categoryName}}</div>
+                        <table class="standards-table">
+                            <thead>
+                                <tr>
+                                    <th>{{../../labels.standard}}</th>
+                                    <th>{{../../labels.rawPercentage}}</th>
+                                    <th>{{../../labels.score}}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{#each standards}}
+                                    <tr>
+                                        <td>
+                                            {{#if standardCode}}<span class="muted">{{standardCode}}</span> - {{/if}}{{standardName}}
+                                        </td>
+                                        <td>{{#if rawPercentage}}{{rawPercentage}}%{{else}}<span class="na-badge">NA</span>{{/if}}</td>
+                                        <td class="score">{{#if isNA}}NA{{else}}{{score}}{{/if}}</td>
+                                    </tr>
+                                {{/each}}
+                            </tbody>
+                        </table>
+                    </div>
+                {{/each}}
+            {{else}}
+                <p class="muted">No standards assigned for this subject.</p>
+            {{/if}}
+        </section>
+    {{/each}}
+</body>
+</html>
