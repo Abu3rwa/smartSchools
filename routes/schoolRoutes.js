@@ -11,7 +11,7 @@ import { PERMISSIONS } from '../config/permissions.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { generateToken } from '../middleware/auth.js';
 import { FEATURE_KEYS, getPlanName, isRecognizedPlan, normalizePlan, toSchoolPlan } from '../constants/features.js';
-import { buildFeatureMetadata, resolveSchoolFeatureContext } from '../middleware/featureGate.js';
+import { buildFeatureMetadata, resolveSchoolFeatureContext, requireFeature } from '../middleware/featureGate.js';
 import {
     getAttendanceReminderSettingsFromSchool,
     validateAttendanceReminderSettingsPayload
@@ -29,6 +29,13 @@ import {
 } from '../utils/academicYear.js';
 import upload from '../middleware/upload.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
+import {
+    getSchoolAcademicExcellenceAnalytics,
+    getSchoolAcademicExcellenceAtRisk,
+    getAcademicExcellenceSettings,
+    updateAcademicExcellenceSettings,
+    exportAcademicExcellenceReport
+} from '../controllers/academicExcellenceAnalyticsController.js';
 
 const router = express.Router();
 const userManagementAccess = authorizeWithPermission(
@@ -1039,5 +1046,12 @@ router.delete('/:id', superAdminOnly, asyncHandler(async (req, res) => {
         message: 'School deactivated successfully'
     });
 }));
+
+// ─── Academic Excellence (school-level) ─────────────────────────────
+router.get('/:schoolId/academic-excellence/analytics', requireSchoolContext, authorize('admin', 'department_principal'), requireFeature('academicIntelligence'), getSchoolAcademicExcellenceAnalytics);
+router.get('/:schoolId/academic-excellence/at-risk', requireSchoolContext, authorize('admin', 'department_principal'), requireFeature('academicIntelligence'), getSchoolAcademicExcellenceAtRisk);
+router.get('/:schoolId/academic-excellence/settings', requireSchoolContext, authorize('admin', 'department_principal'), requireFeature('academicIntelligence'), getAcademicExcellenceSettings);
+router.patch('/:schoolId/academic-excellence/settings', requireSchoolContext, authorize('admin'), requireFeature('academicIntelligence'), updateAcademicExcellenceSettings);
+router.get('/:schoolId/academic-excellence/export', requireSchoolContext, authorize('admin', 'department_principal'), requireFeature('academicIntelligence'), exportAcademicExcellenceReport);
 
 export default router;

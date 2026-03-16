@@ -74,6 +74,7 @@ import calendarRoutes from "./routes/calendarRoutes.js";
 import communicationEmailRoutes from "./routes/communicationEmailRoutes.js";
 import curriculumMapRoutes from "./routes/curriculumMapRoutes.js";
 import curriculumSettingsRoutes from "./routes/curriculumSettingsRoutes.js";
+import academicExcellenceRoutes from "./routes/academicExcellenceRoutes.js";
 import reteachTaskRoutes from "./routes/reteachTaskRoutes.js";
 import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
@@ -83,6 +84,7 @@ import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js"
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { processAttendanceRemindersForEnabledSchools } from "./controllers/attendanceReminderController.js";
 import { runCurriculumImportJobCycle } from "./jobs/curriculumAiImportJobRunner.js";
+import { runAcademicExcellenceNightlyJob } from "./jobs/academicExcellenceSyncJob.js";
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
 // Validate environment variables
 validateEnvironment();
@@ -283,6 +285,7 @@ app.use("/api/calendar", calendarRoutes);
 app.use("/api/communication-email", communicationEmailRoutes);
 app.use("/api/curriculum-maps", curriculumMapRoutes);
 app.use("/api/curriculum-settings", curriculumSettingsRoutes);
+app.use("/api/academic-excellence", academicExcellenceRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);
@@ -320,6 +323,7 @@ const SUBSCRIPTION_LIFECYCLE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
 const ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS = 15 * 1000; // 15 seconds
+const ACADEMIC_EXCELLENCE_NIGHTLY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const httpServer = createServer(app);
 initRealtimeGateway(httpServer);
@@ -432,6 +436,19 @@ const server = httpServer.listen(PORT, () => {
     };
     setTimeout(runCurriculumImportScheduler, 15 * 1000);
     setInterval(runCurriculumImportScheduler, CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS);
+  }
+
+  if (process.env.RUN_ACADEMIC_EXCELLENCE_NIGHTLY_JOB !== "false") {
+    const runAcademicExcellenceScheduler = async () => {
+      try {
+        await runAcademicExcellenceNightlyJob();
+      } catch (err) {
+        logger.error("Academic Excellence nightly job error:", err?.message || err);
+      }
+    };
+    // First run 2 minutes after startup, then every 24 hours
+    setTimeout(runAcademicExcellenceScheduler, 2 * 60 * 1000);
+    setInterval(runAcademicExcellenceScheduler, ACADEMIC_EXCELLENCE_NIGHTLY_INTERVAL_MS);
   }
 });
 

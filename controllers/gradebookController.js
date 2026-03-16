@@ -14,6 +14,7 @@ import { generateAssessmentGroupId } from '../helpers/assessmentGrouping.js';
 import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { decorateGradesWithScale, getActiveGradingScale } from '../services/gradingScaleEngine.js';
+import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
 
 /**
  * @desc    Add daily classwork grade
@@ -96,6 +97,15 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
             req.user._id
         );
     }
+
+    // Fire-and-forget AE sync
+    syncObjectivesForGrade({
+        schoolId: req.schoolId,
+        studentId: student,
+        subjectId: subject,
+        classId: resolvedClassId,
+        academicYear
+    }).catch(() => {});
 
     res.status(201).json({
         success: true,
@@ -188,6 +198,22 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
                 { ...grade.toObject(), subjectName: subjectData?.name },
                 req.user._id
             ).catch(err => console.error('Notification error:', err));
+        }
+    }
+
+    // Fire-and-forget AE sync for each student in bulk
+    const seenStudents = new Set();
+    for (const grade of savedGrades) {
+        const sid = grade.student?.toString();
+        if (sid && !seenStudents.has(sid)) {
+            seenStudents.add(sid);
+            syncObjectivesForGrade({
+                schoolId: req.schoolId,
+                studentId: grade.student,
+                subjectId: subject,
+                classId,
+                academicYear
+            }).catch(() => {});
         }
     }
 

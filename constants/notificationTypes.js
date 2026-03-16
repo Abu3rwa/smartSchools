@@ -24,7 +24,14 @@ export const NOTIFICATION_TYPES = {
     SUBSCRIPTION_CANCELLED: 'subscription_cancelled',
     SUBSCRIPTION_UPGRADED: 'subscription_upgraded',
     SUBSCRIPTION_DOWNGRADED: 'subscription_downgraded',
-    USAGE_LIMIT_WARNING: 'usage_limit_warning'
+    USAGE_LIMIT_WARNING: 'usage_limit_warning',
+    // Academic Excellence
+    ACADEMIC_EXCELLENCE_MASTERY_CHANGE: 'academic_excellence_mastery_change',
+    ACADEMIC_EXCELLENCE_AT_RISK: 'academic_excellence_at_risk',
+    ACADEMIC_EXCELLENCE_TASK_ASSIGNED: 'academic_excellence_task_assigned',
+    ACADEMIC_EXCELLENCE_TASK_OVERDUE: 'academic_excellence_task_overdue',
+    ACADEMIC_EXCELLENCE_WEEKLY_DIGEST: 'academic_excellence_weekly_digest',
+    ACADEMIC_EXCELLENCE_MILESTONE: 'academic_excellence_milestone'
 };
 
 export const NOTIFICATION_TYPE_VALUES = Object.freeze(Object.values(NOTIFICATION_TYPES));
