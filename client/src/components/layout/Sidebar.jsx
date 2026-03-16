@@ -61,6 +61,7 @@ const Sidebar = () => {
       user?.role,
     );
   }, [user?.role]);
+  const displayUnreadCount = canSeeMessages ? messageUnreadCount : 0;
 
   // Helper function to check if user has permission
   const hasPermission = (permission) => {
@@ -84,7 +85,6 @@ const Sidebar = () => {
 
   useEffect(() => {
     if (!canSeeMessages) {
-      setMessageUnreadCount(0);
       return undefined;
     }
 
@@ -96,7 +96,7 @@ const Sidebar = () => {
         if (isMounted) {
           setMessageUnreadCount(data?.unreadCount || 0);
         }
-      } catch (error) {
+      } catch {
         if (isMounted) {
           setMessageUnreadCount(0);
         }
@@ -141,7 +141,7 @@ const Sidebar = () => {
       labelKey: "messages",
       roles: ["admin", "teacher", "department_principal", "staff"],
       section: "overview",
-      badgeCount: messageUnreadCount,
+      badgeCount: displayUnreadCount,
     },
     {
       path: "/portal/email-composer",
@@ -311,6 +311,30 @@ const Sidebar = () => {
       labelKey: "newsletters",
       roles: ["parent"],
       feature: "newsletterCommunication",
+      section: "learning",
+    },
+    {
+      path: "/portal/sbr/config",
+      icon: HiOutlineCog,
+      labelKey: "sbrConfig",
+      roles: ["admin"],
+      permissions: [PERMISSIONS.MANAGE_SBR_SCALES],
+      section: "school",
+    },
+    {
+      path: "/portal/sbr/generate",
+      icon: HiOutlineDocumentText,
+      labelKey: "sbrGenerate",
+      roles: ["admin", "teacher"],
+      permissions: [PERMISSIONS.GENERATE_SBR_REPORTS],
+      section: "teaching",
+    },
+    {
+      path: "/portal/sbr/reports",
+      icon: HiOutlineClipboardCheck,
+      labelKey: "sbrReports",
+      roles: ["admin", "teacher", "parent"],
+      permissions: [PERMISSIONS.VIEW_SBR_REPORTS],
       section: "learning",
     },
     {

@@ -1,6 +1,7 @@
 import express from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorizeWithPermission } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { PERMISSIONS } from '../config/permissions.js';
 import {
     getScales,
     createScale,
@@ -26,23 +27,23 @@ router.use(protect);
 router.use(requireSchoolContext);
 
 // Scale config routes (admin only)
-router.get('/scales', authorize('admin'), getScales);
-router.post('/scales', authorize('admin'), createScale);
-router.put('/scales/:id', authorize('admin'), updateScale);
-router.delete('/scales/:id', authorize('admin'), deleteScale);
-router.post('/scales/:id/default', authorize('admin'), setDefaultScale);
+router.get('/scales', authorizeWithPermission(['admin'], [PERMISSIONS.MANAGE_SBR_SCALES]), getScales);
+router.post('/scales', authorizeWithPermission(['admin'], [PERMISSIONS.MANAGE_SBR_SCALES]), createScale);
+router.put('/scales/:id', authorizeWithPermission(['admin'], [PERMISSIONS.MANAGE_SBR_SCALES]), updateScale);
+router.delete('/scales/:id', authorizeWithPermission(['admin'], [PERMISSIONS.MANAGE_SBR_SCALES]), deleteScale);
+router.post('/scales/:id/default', authorizeWithPermission(['admin'], [PERMISSIONS.MANAGE_SBR_SCALES]), setDefaultScale);
 
 // Generation routes (teacher + admin)
-router.post('/generate', authorize('admin', 'teacher'), generateSBR);
-router.post('/generate-bulk', authorize('admin', 'teacher'), generateBulkSBR);
-router.get('/preview/:studentId', authorize('admin', 'teacher'), previewSBR);
+router.post('/generate', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), generateSBR);
+router.post('/generate-bulk', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), generateBulkSBR);
+router.get('/preview/:studentId', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), previewSBR);
 
 // Report access routes
-router.get('/reports', authorize('admin', 'teacher', 'parent'), getReportCards);
-router.get('/reports/:id', authorize('admin', 'teacher', 'parent'), getReportCard);
-router.get('/reports/:id/pdf', authorize('admin', 'teacher', 'parent'), downloadReportCardPdf);
-router.post('/reports/:id/publish', authorize('admin', 'teacher'), publishReportCard);
-router.post('/reports/:id/email', authorize('admin', 'teacher'), emailReportCard);
-router.delete('/reports/:id', authorize('admin', 'teacher'), deleteReportCard);
+router.get('/reports', authorizeWithPermission(['admin', 'teacher', 'parent'], [PERMISSIONS.VIEW_SBR_REPORTS]), getReportCards);
+router.get('/reports/:id', authorizeWithPermission(['admin', 'teacher', 'parent'], [PERMISSIONS.VIEW_SBR_REPORTS]), getReportCard);
+router.get('/reports/:id/pdf', authorizeWithPermission(['admin', 'teacher', 'parent'], [PERMISSIONS.VIEW_SBR_REPORTS]), downloadReportCardPdf);
+router.post('/reports/:id/publish', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), publishReportCard);
+router.post('/reports/:id/email', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), emailReportCard);
+router.delete('/reports/:id', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.GENERATE_SBR_REPORTS]), deleteReportCard);
 
 export default router;

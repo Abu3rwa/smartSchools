@@ -1,5 +1,6 @@
 import SBRReportCard from '../models/SBRReportCard.js';
 import User from '../models/User.js';
+import Student from '../models/Student.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import {
     buildSBRReportData,
@@ -50,6 +51,63 @@ const parsePagination = (query = {}) => {
     return { page, limit };
 };
 
+const getNormalizedParentEmail = (req) => String(req.user?.email || '').trim().toLowerCase();
+
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const toObjectIdString = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (value?._id) return String(value._id);
+    return String(value);
+};
+
+const getParentLinkedStudentIds = async (schoolId, parentEmail) => {
+    if (!parentEmail) return [];
+
+    const parentEmailPattern = new RegExp(`^${escapeRegex(parentEmail)}$`, 'i');
+
+    const students = await Student.find({
+        school: schoolId,
+        $or: [
+            { 'parentInfo.fatherEmail': parentEmailPattern },
+            { 'parentInfo.motherEmail': parentEmailPattern },
+            { 'parentInfo.guardianEmail': parentEmailPattern }
+        ]
+    })
+        .select('_id')
+        .lean();
+
+    return students.map((student) => String(student._id));
+};
+
+const ensureParentHasReportAccess = async ({ req, reportCard }) => {
+    if (req.user?.role !== 'parent') return true;
+
+    const reportStudentId = toObjectIdString(reportCard?.student);
+    if (!reportStudentId) return false;
+
+    const student = await Student.findOne({
+        _id: reportStudentId,
+        school: req.schoolId
+    })
+        .select('parentInfo')
+        .lean();
+
+    if (!student) return false;
+
+    const parentEmail = getNormalizedParentEmail(req);
+    const linkedEmails = [
+        student.parentInfo?.fatherEmail,
+        student.parentInfo?.motherEmail,
+        student.parentInfo?.guardianEmail
+    ]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean);
+
+    return linkedEmails.includes(parentEmail);
+};
+
 const findSenderUserId = async (schoolId, preferredUserId) => {
     if (preferredUserId && await gmailOAuthService.hasValidTokens(preferredUserId)) {
         return preferredUserId;
@@ -78,6 +136,7 @@ const toReportListItem = (report) => ({
     status: report.status,
     generatedAt: report.generatedAt,
     emailedAt: report.emailedAt,
+    emailedTo: Array.isArray(report.emailedTo) ? report.emailedTo : [],
     pdfUrl: report.pdfUrl || null
 });
 
@@ -334,8 +393,49 @@ export const getReportCards = asyncHandler(async (req, res) => {
     const { page, limit } = parsePagination(req.query);
     const query = { school: req.schoolId };
 
+    if (req.user?.role === 'parent') {
+        const parentEmail = getNormalizedParentEmail(req);
+        const linkedStudentIds = await getParentLinkedStudentIds(req.schoolId, parentEmail);
+        if (linkedStudentIds.length === 0) {
+            return res.json({
+                success: true,
+                data: {
+                    items: [],
+                    pagination: {
+                        page,
+                        limit,
+                        total: 0,
+                        pages: 0
+                    }
+                }
+            });
+        }
+        query.student = { $in: linkedStudentIds };
+    }
+
     if (req.query.classId) query.class = req.query.classId;
-    if (req.query.studentId) query.student = req.query.studentId;
+    if (req.query.studentId) {
+        if (req.user?.role === 'parent') {
+            const existingStudentFilter = query.student?.$in || [];
+            if (existingStudentFilter.length > 0 && !existingStudentFilter.includes(String(req.query.studentId))) {
+                return res.json({
+                    success: true,
+                    data: {
+                        items: [],
+                        pagination: {
+                            page,
+                            limit,
+                            total: 0,
+                            pages: 0
+                        }
+                    }
+                });
+            }
+            query.student = { $in: [String(req.query.studentId)] };
+        } else {
+            query.student = req.query.studentId;
+        }
+    }
     if (req.query.period) {
         const periodInfo = normalizePeriod(req.query.period);
         if (periodInfo) query['period.type'] = periodInfo.type;
@@ -382,6 +482,11 @@ export const getReportCard = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'Report card not found' });
     }
 
+    const hasAccess = await ensureParentHasReportAccess({ req, reportCard });
+    if (!hasAccess) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     res.json({ success: true, data: { reportCard } });
 });
 
@@ -393,6 +498,11 @@ export const downloadReportCardPdf = asyncHandler(async (req, res) => {
 
     if (!reportCard) {
         return res.status(404).json({ success: false, message: 'Report card not found' });
+    }
+
+    const hasAccess = await ensureParentHasReportAccess({ req, reportCard });
+    if (!hasAccess) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
     if (reportCard.pdfRef) {
@@ -427,6 +537,8 @@ export const publishReportCard = asyncHandler(async (req, res) => {
 export const emailReportCard = asyncHandler(async (req, res) => {
     const reportCard = await SBRReportCard.findOne({ _id: req.params.id, school: req.schoolId })
         .populate('student', 'firstName lastName studentId parentInfo')
+        .populate('class', 'name grade section')
+        .populate('scale')
         .lean();
 
     if (!reportCard) {
@@ -448,6 +560,37 @@ export const emailReportCard = asyncHandler(async (req, res) => {
     if (reportCard.pdfRef) {
         const file = await downloadFile(reportCard.pdfRef);
         pdfAttachmentBuffer = file.buffer;
+    } else {
+        // Ensure email delivery always includes a PDF, even for legacy records without stored files.
+        const generatedPdfBuffer = await generateSBRPdf(reportCard, {
+            schoolName: '',
+            primaryColor: '#1f3c88',
+            secondaryColor: '#37517e',
+            domain: process.env.CLIENT_URL || ''
+        });
+
+        const storagePath = getReportStoragePath({
+            schoolId: req.schoolId,
+            academicYear: reportCard.academicYear,
+            reportCardId: reportCard.reportCardId
+        });
+
+        const uploaded = await uploadPrivateFile(generatedPdfBuffer, 'application/pdf', storagePath);
+        const signedUrl = await getSignedUrl(uploaded.fileRef);
+
+        await SBRReportCard.updateOne(
+            { _id: reportCard._id, school: req.schoolId },
+            {
+                $set: {
+                    pdfRef: uploaded.fileRef,
+                    pdfUrl: signedUrl
+                }
+            }
+        );
+
+        reportCard.pdfRef = uploaded.fileRef;
+        reportCard.pdfUrl = signedUrl;
+        pdfAttachmentBuffer = generatedPdfBuffer;
     }
 
     const senderId = await findSenderUserId(req.schoolId, req.user._id?.toString?.() || null);

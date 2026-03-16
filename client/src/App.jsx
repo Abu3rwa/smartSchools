@@ -72,6 +72,9 @@ const LessonPlanDetailPage = lazy(() => import("./pages/lessonPlan/LessonPlanDet
 const AssignmentsPage = lazy(() => import("./pages/assignments/AssignmentsPage"));
 const AdminNewslettersPage = lazy(() => import("./pages/admin/newsletters/AdminNewslettersPage"));
 const ParentNewslettersPage = lazy(() => import("./pages/parent/newsletters/ParentNewslettersPage"));
+const SBRConfigPage = lazy(() => import("./pages/sbr/SBRConfigPage"));
+const SBRGenerationPage = lazy(() => import("./pages/sbr/SBRGenerationPage"));
+const SBRParentReportsPage = lazy(() => import("./pages/sbr/SBRParentReportsPage"));
 const AttendanceRemindersPage = lazy(() => import("./pages/admin/attendanceReminders/AttendanceRemindersPage"));
 const BehaviorManagementPage = lazy(() => import("./pages/behavior/BehaviorManagementPage"));
 const BehaviorTrackingDashboardPage = lazy(() => import("./pages/behavior/BehaviorTrackingDashboardPage"));
@@ -613,6 +616,39 @@ function App() {
                   <FeatureGate feature="newsletterCommunication" showUpgradePrompt>
                     <ParentNewslettersPage />
                   </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="sbr/config"
+              element={
+                <RoleRoute
+                  roles={["admin"]}
+                  permissions={["sbr:manage_scales"]}
+                >
+                  <SBRConfigPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="sbr/generate"
+              element={
+                <RoleRoute
+                  roles={["admin", "teacher"]}
+                  permissions={["sbr:generate_reports"]}
+                >
+                  <SBRGenerationPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="sbr/reports"
+              element={
+                <RoleRoute
+                  roles={["admin", "teacher", "parent"]}
+                  permissions={["sbr:view_reports"]}
+                >
+                  <SBRParentReportsPage />
                 </RoleRoute>
               }
             />

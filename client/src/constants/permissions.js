@@ -36,6 +36,9 @@ export const PERMISSIONS = {
     // Reports
     VIEW_ALL_REPORTS: 'view_all_reports',
     EDIT_REPORTS: 'edit_reports',
+    MANAGE_SBR_SCALES: 'sbr:manage_scales',
+    GENERATE_SBR_REPORTS: 'sbr:generate_reports',
+    VIEW_SBR_REPORTS: 'sbr:view_reports',
     
     // Behavior
     MANAGE_BEHAVIOR: 'manage_behavior',
@@ -226,6 +229,21 @@ export const PERMISSION_DEFINITIONS = {
     [PERMISSIONS.EDIT_REPORTS]: {
         label: 'Edit Reports',
         description: 'Create and edit reports',
+        category: 'reports'
+    },
+    [PERMISSIONS.MANAGE_SBR_SCALES]: {
+        label: 'Manage SBR Scales',
+        description: 'Create, update, delete, and set default standards-based report scales',
+        category: 'reports'
+    },
+    [PERMISSIONS.GENERATE_SBR_REPORTS]: {
+        label: 'Generate SBR Reports',
+        description: 'Generate and publish standards-based report cards',
+        category: 'reports'
+    },
+    [PERMISSIONS.VIEW_SBR_REPORTS]: {
+        label: 'View SBR Reports',
+        description: 'View and download standards-based report cards',
         category: 'reports'
     },
     [PERMISSIONS.MANAGE_BEHAVIOR]: {
