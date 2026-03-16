@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { NOTIFICATION_TYPE_VALUES } from '../constants/notificationTypes.js';
 
 const notificationSchema = new mongoose.Schema({
     school: {
@@ -28,24 +29,7 @@ const notificationSchema = new mongoose.Schema({
     // Notification type
     type: {
         type: String,
-        enum: [
-            'grade_update',
-            'daily_report',
-            'daily_classwork_update',
-            'monthly_report',
-            'semester_report',
-            'attendance',
-            'announcement',
-            'custom',
-            'ai_report',
-            'attendance_request',
-            'attendance_request_status',
-            'assignment_posted',
-            'assignment_graded',
-            'homework_posted',
-            'homework_due_reminder',
-            'homework_graded'
-        ],
+        enum: NOTIFICATION_TYPE_VALUES,
         required: true
     },
 

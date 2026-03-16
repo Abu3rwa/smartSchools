@@ -2,15 +2,15 @@
     animation: fadeIn 0.4s ease;
     max-width: 1200px;
     margin: 0 auto;
-    padding: var(--spacing-xl);
+    padding: var(--spacing-lg);
 }
 
 .school-details-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--spacing-xl);
-    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    gap: var(--spacing-md);
 }
 
 .header-actions {
@@ -27,10 +27,10 @@
 
 .school-header {
     background: var(--accent-gradient);
-    padding: var(--spacing-2xl);
+    padding: var(--spacing-lg);
     display: flex;
     align-items: center;
-    gap: var(--spacing-xl);
+    gap: var(--spacing-md);
     color: white;
 }
 
@@ -138,26 +138,26 @@
 }
 
 .tab-content {
-    padding: var(--spacing-2xl);
+    padding: var(--spacing-md);
 }
 
 /* Overview Styles */
 .overview-content {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-2xl);
+    gap: var(--spacing-md);
 }
 
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--spacing-lg);
+    gap: var(--spacing-md);
 }
 
 .stat-card {
     background: var(--bg-secondary);
-    padding: var(--spacing-lg);
-    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
     display: flex;
     align-items: center;
@@ -190,13 +190,13 @@
 
 .info-sections {
     display: grid;
-    gap: var(--spacing-xl);
+    gap: var(--spacing-md);
 }
 
 .info-section {
     background: var(--bg-secondary);
-    padding: var(--spacing-lg);
-    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
 }
 
@@ -207,7 +207,7 @@
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
 }
 
 .info-section h3 svg {
@@ -217,7 +217,7 @@
 .info-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: var(--spacing-lg);
+    gap: var(--spacing-sm);
 }
 
 .info-item {

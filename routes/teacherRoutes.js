@@ -16,6 +16,7 @@ import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.j
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
+import { requireLimit } from '../middleware/checkUsageLimit.js';
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ router.get('/my-classes', authorize('teacher'), getMyClasses);
 // CRUD: admin sees all; department_principal sees only their department
 router.route('/')
     .get(authorize('admin', 'department_principal'), getTeachers)
-    .post(authorize('admin', 'department_principal'), validationRules.createTeacher, validate, createTeacher);
+    .post(authorize('admin', 'department_principal'), requireLimit('teachers'), validationRules.createTeacher, validate, createTeacher);
 
 router.post('/import', authorize('admin', 'department_principal'), importTeachers);
 router.post('/bulk-send-login-invites', authorize('admin', 'department_principal'), bulkSendTeacherLoginInvites);

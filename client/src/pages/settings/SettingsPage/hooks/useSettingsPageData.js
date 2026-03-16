@@ -31,6 +31,10 @@ const useSettingsPageData = () => {
         navigate('/portal/school-settings');
     };
 
+    const navigateToSubscription = () => {
+        navigate('/portal/settings/subscription');
+    };
+
     const handleAvatarUpload = async (file) => {
         if (!file) return;
         const formData = new FormData();
@@ -70,6 +74,7 @@ const useSettingsPageData = () => {
         handleThemeChange,
         handleLogout,
         navigateToSchoolSettings,
+        navigateToSubscription,
         handleAvatarUpload,
         handleAvatarRemove
     };

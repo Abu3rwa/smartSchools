@@ -17,6 +17,11 @@ import {
 import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
+import {
+    fetchSchoolFeatures,
+    selectSchoolFeatureLimits,
+    selectSchoolFeatureUsage
+} from '../../../store/slices/schoolFeaturesSlice';
 import { selectIsAdmin, selectUser } from '../../../store/slices/authSlice';
 import toast from 'react-hot-toast';
 import TeachersHeader from './components/TeachersHeader';
@@ -47,6 +52,8 @@ const TeachersPage = () => {
     const classes = useSelector(selectClasses);
     const departments = useSelector(selectDepartments);
     const loading = useSelector(selectTeachersLoading);
+    const schoolLimits = useSelector(selectSchoolFeatureLimits);
+    const schoolUsage = useSelector(selectSchoolFeatureUsage);
     const isAdmin = useSelector(selectIsAdmin);
     const user = useSelector(selectUser);
     const canManageTeachers = isAdmin || user?.role === 'department_principal';
@@ -91,7 +98,34 @@ const TeachersPage = () => {
         dispatch(fetchSubjects());
         dispatch(fetchClasses());
         dispatch(fetchDepartments());
+        dispatch(fetchSchoolFeatures());
     }, [dispatch]);
+
+    const teacherCapacity = useMemo(() => {
+        const maxTeachers = Number(schoolLimits?.maxTeachers);
+        const currentTeachers = Number(schoolUsage?.currentTeachers || 0);
+
+        if (!Number.isFinite(maxTeachers) || maxTeachers < 0) {
+            return {
+                isLimited: false,
+                maxTeachers: null,
+                currentTeachers,
+                remainingSeats: null,
+                isFull: false
+            };
+        }
+
+        const remainingSeats = Math.max(0, maxTeachers - currentTeachers);
+        return {
+            isLimited: true,
+            maxTeachers,
+            currentTeachers,
+            remainingSeats,
+            isFull: remainingSeats <= 0
+        };
+    }, [schoolLimits, schoolUsage]);
+
+    const showCapacityBanner = canManageTeachers && (teacherCapacity.isLimited || teacherCapacity.currentTeachers > 0);
 
     useEffect(() => {
         let mounted = true;
@@ -290,6 +324,7 @@ const TeachersPage = () => {
             }));
             if (createTeacher.fulfilled.match(result)) {
                 toast.success(t('teachers:toast.created'));
+                dispatch(fetchSchoolFeatures());
                 handleCloseCreateModal();
             } else {
                 toast.error(result.payload || t('teachers:toast.createFailed'));
@@ -336,6 +371,7 @@ const TeachersPage = () => {
             const result = await dispatch(deleteTeacher(teacher._id));
             if (deleteTeacher.fulfilled.match(result)) {
                 toast.success(t('teachers:toast.deleted'));
+                dispatch(fetchSchoolFeatures());
                 if (selectedTeacher?._id === teacher._id) {
                     handleCloseAssignModal();
                 }
@@ -485,6 +521,7 @@ const TeachersPage = () => {
                 toast(t('teachers:toast.importSkippedRows', { count: skipped }));
             }
             dispatch(fetchTeachers({ limit: 0 }));
+            dispatch(fetchSchoolFeatures());
         } catch (importError) {
             const responseData = importError?.response?.data || {};
             const failed = responseData?.summary?.failedRows ?? responseData?.data?.failed ?? 0;
@@ -526,7 +563,33 @@ const TeachersPage = () => {
                 selectedCount={selectedTeacherIds.size}
                 bulkInviteLoading={bulkInviteLoading}
                 templateMeta={templateMeta}
+                importDisabled={teacherCapacity.isFull}
+                createDisabled={teacherCapacity.isFull}
+                capacityTitle={t('teachers:capacity.planFull')}
             />
+
+            {showCapacityBanner && (
+                <div className={`teachers-capacity-banner ${teacherCapacity.isFull ? 'full' : ''}`}>
+                    {teacherCapacity.isLimited ? (
+                        <>
+                            <strong>{t('teachers:capacity.title')}</strong>
+                            <span>
+                                {t('teachers:capacity.summary', {
+                                    current: teacherCapacity.currentTeachers,
+                                    max: teacherCapacity.maxTeachers,
+                                    remaining: teacherCapacity.remainingSeats
+                                })}
+                            </span>
+                        </>
+                    ) : (
+                        <span>
+                            {t('teachers:capacity.unlimitedSummary', {
+                                current: teacherCapacity.currentTeachers
+                            })}
+                        </span>
+                    )}
+                </div>
+            )}
 
             <TeachersFilters
                 searchTerm={searchTerm}

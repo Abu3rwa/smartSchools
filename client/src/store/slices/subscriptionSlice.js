@@ -100,12 +100,42 @@ export const fetchBillingHistory = createAsyncThunk(
     }
 );
 
+export const renewSubscription = createAsyncThunk(
+    'subscriptions/renewSubscription',
+    async ({ id, cycles = 1, amount, notes, resetCancelAtPeriodEnd = true }, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/subscriptions/${id}/renew`, {
+                cycles,
+                amount,
+                notes,
+                resetCancelAtPeriodEnd
+            });
+            return response.data.data.subscription;
+        } catch (error) {
+            return rejectWithValue(error.response.data.message);
+        }
+    }
+);
+
+export const fetchSubscriptionAuditLogs = createAsyncThunk(
+    'subscriptions/fetchSubscriptionAuditLogs',
+    async (id, { rejectWithValue }) => {
+        try {
+            const response = await api.get(`/subscriptions/${id}/audit`);
+            return response.data.data.logs;
+        } catch (error) {
+            return rejectWithValue(error.response.data.message);
+        }
+    }
+);
+
 // Initial state
 const initialState = {
     subscriptions: [],
     currentSubscription: null,
     analytics: null,
     billingHistory: [],
+    auditLogs: [],
     pagination: {
         page: 1,
         limit: 10,
@@ -288,6 +318,43 @@ const subscriptionSlice = createSlice({
             .addCase(fetchBillingHistory.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
+            })
+
+            // Renew subscription
+            .addCase(renewSubscription.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(renewSubscription.fulfilled, (state, action) => {
+                state.loading = false;
+                if (state.currentSubscription?._id === action.payload._id) {
+                    state.currentSubscription = action.payload;
+                }
+                const index = state.subscriptions.findIndex(
+                    sub => sub._id === action.payload._id
+                );
+                if (index !== -1) {
+                    state.subscriptions[index] = action.payload;
+                }
+                state.success = 'Subscription renewed successfully';
+            })
+            .addCase(renewSubscription.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+
+            // Fetch audit logs
+            .addCase(fetchSubscriptionAuditLogs.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(fetchSubscriptionAuditLogs.fulfilled, (state, action) => {
+                state.loading = false;
+                state.auditLogs = action.payload;
+            })
+            .addCase(fetchSubscriptionAuditLogs.rejected, (state, action) => {
+                state.loading = false;
+                state.error = action.payload;
             });
     }
 });
@@ -305,6 +372,7 @@ export const selectSubscriptions = (state) => state.subscriptions.subscriptions;
 export const selectCurrentSubscription = (state) => state.subscriptions.currentSubscription;
 export const selectSubscriptionAnalytics = (state) => state.subscriptions.analytics;
 export const selectBillingHistory = (state) => state.subscriptions.billingHistory;
+export const selectSubscriptionAuditLogs = (state) => state.subscriptions.auditLogs;
 export const selectSubscriptionPagination = (state) => state.subscriptions.pagination;
 export const selectSubscriptionStatistics = (state) => state.subscriptions.statistics;
 export const selectSubscriptionPlanDistribution = (state) => state.subscriptions.planDistribution;

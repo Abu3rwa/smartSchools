@@ -3,6 +3,12 @@
     "title": "Teachers",
     "subtitle": "Manage teaching staff and class assignments"
   },
+  "capacity": {
+    "title": "Plan Capacity:",
+    "summary": "{{current}} of {{max}} teachers used. {{remaining}} seats left.",
+    "unlimitedSummary": "{{current}} active teachers. Your plan has unlimited teacher seats.",
+    "planFull": "Teacher limit reached for your current plan."
+  },
   "filters": {
     "searchPlaceholder": "Search teachers..."
   },

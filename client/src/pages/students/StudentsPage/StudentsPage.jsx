@@ -16,6 +16,11 @@ import {
 } from '../../../store/slices/studentSlice';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
+import {
+    fetchSchoolFeatures,
+    selectSchoolFeatureLimits,
+    selectSchoolFeatureUsage
+} from '../../../store/slices/schoolFeaturesSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
 import {
@@ -64,6 +69,8 @@ const StudentsPage = () => {
     const loading = useSelector(selectStudentsLoading);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = useSelector(selectIsAdmin);
+    const schoolLimits = useSelector(selectSchoolFeatureLimits);
+    const schoolUsage = useSelector(selectSchoolFeatureUsage);
 
     const [searchTerm, setSearchTerm] = useState(searchFromUrl);
     const [filterClass, setFilterClass] = useState('');
@@ -132,6 +139,7 @@ const StudentsPage = () => {
         dispatch(fetchStudents({ search: searchFromUrl || undefined, limit: 'all' }));
         dispatch(fetchClasses());
         dispatch(fetchDepartments());
+        dispatch(fetchSchoolFeatures());
     }, [dispatch, searchFromUrl]);
 
     useEffect(() => {
@@ -151,7 +159,34 @@ const StudentsPage = () => {
 
     const refreshStudents = () => {
         dispatch(fetchStudents({ search: searchFromUrl || undefined, limit: 'all' }));
+        dispatch(fetchSchoolFeatures());
     };
+
+    const studentCapacity = useMemo(() => {
+        const maxStudents = Number(schoolLimits?.maxStudents);
+        const currentStudents = Number(schoolUsage?.currentStudents || 0);
+
+        if (!Number.isFinite(maxStudents) || maxStudents < 0) {
+            return {
+                isLimited: false,
+                maxStudents: null,
+                currentStudents,
+                remainingSeats: null,
+                isFull: false
+            };
+        }
+
+        const remainingSeats = Math.max(0, maxStudents - currentStudents);
+        return {
+            isLimited: true,
+            maxStudents,
+            currentStudents,
+            remainingSeats,
+            isFull: remainingSeats <= 0
+        };
+    }, [schoolLimits, schoolUsage]);
+
+    const showCapacityBanner = isAdmin && (studentCapacity.isLimited || studentCapacity.currentStudents > 0);
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -609,17 +644,50 @@ const StudentsPage = () => {
                                 ? t('students:actions.sendingParentInvites')
                                 : t('students:actions.sendParentInvitesForSelected', { count: selectedStudentIds.size })}
                         </button>
-                        <button className="btn btn-outline" onClick={() => setShowImportModal(true)}>
+                        <button
+                            className="btn btn-outline"
+                            onClick={() => setShowImportModal(true)}
+                            disabled={studentCapacity.isFull}
+                            title={studentCapacity.isFull ? t('students:capacity.planFull') : ''}
+                        >
                             <HiOutlineUpload size={20} />
                             {t('students:actions.importCsv')}
                         </button>
-                        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => setShowModal(true)}
+                            disabled={studentCapacity.isFull}
+                            title={studentCapacity.isFull ? t('students:capacity.planFull') : ''}
+                        >
                             <HiOutlinePlus size={20} />
                             {t('students:actions.addStudent')}
                         </button>
                     </div>
                 )}
             </div>
+
+            {showCapacityBanner && (
+                <div className={`students-capacity-banner ${studentCapacity.isFull ? 'full' : ''}`}>
+                    {studentCapacity.isLimited ? (
+                        <>
+                            <strong>{t('students:capacity.title')}</strong>
+                            <span>
+                                {t('students:capacity.summary', {
+                                    current: studentCapacity.currentStudents,
+                                    max: studentCapacity.maxStudents,
+                                    remaining: studentCapacity.remainingSeats
+                                })}
+                            </span>
+                        </>
+                    ) : (
+                        <span>
+                            {t('students:capacity.unlimitedSummary', {
+                                current: studentCapacity.currentStudents
+                            })}
+                        </span>
+                    )}
+                </div>
+            )}
 
             <div className="filters-bar">
                 <div className="search-bar">

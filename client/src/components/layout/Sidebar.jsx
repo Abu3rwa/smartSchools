@@ -36,6 +36,7 @@ import {
   HiOutlineExclamationCircle,
   HiOutlineLockClosed,
   HiOutlineMail,
+  HiOutlineChartSquareBar,
 } from "react-icons/hi";
 import "./Sidebar.css";
 
@@ -273,6 +274,22 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
+      path: "/portal/teacher-academic-excellence",
+      icon: HiOutlineAcademicCap,
+      labelKey: "academicExcellenceTeacher",
+      roles: ["admin", "teacher", "department_principal"],
+      feature: "academicIntelligence",
+      section: "teaching",
+    },
+    {
+      path: "/portal/admin-academic-excellence",
+      icon: HiOutlineChartSquareBar,
+      labelKey: "academicExcellenceAnalytics",
+      roles: ["admin", "department_principal"],
+      feature: "academicIntelligence",
+      section: "school",
+    },
+    {
       path: "/portal/newsletters",
       icon: HiOutlineDocumentText,
       labelKey: "newsletters",
@@ -398,6 +415,13 @@ const Sidebar = () => {
       section: "school",
     },
     {
+      path: "/portal/settings/subscription",
+      icon: HiOutlineLockClosed,
+      labelKey: "subscription",
+      admin: true,
+      section: "school",
+    },
+    {
       path: "/portal/api-docs",
       icon: HiOutlineDocumentText,
       labelKey: "apiDocumentation",
@@ -431,6 +455,14 @@ const Sidebar = () => {
       icon: HiOutlineChartBar,
       labelKey: "sbResults",
       roles: ["student"],
+      section: "learning",
+    },
+    {
+      path: "/portal/academic-excellence",
+      icon: HiOutlineAcademicCap,
+      labelKey: "academicExcellence",
+      roles: ["student"],
+      feature: "academicIntelligence",
       section: "learning",
     },
     {

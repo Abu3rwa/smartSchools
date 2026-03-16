@@ -79,6 +79,7 @@ import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
+import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
 import { processAttendanceRemindersForEnabledSchools } from "./controllers/attendanceReminderController.js";
 import { runCurriculumImportJobCycle } from "./jobs/curriculumAiImportJobRunner.js";
@@ -315,6 +316,7 @@ const PORT = process.env.PORT || 5000;
 
 const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const REVIEW_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const SUBSCRIPTION_LIFECYCLE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
 const ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS = 15 * 1000; // 15 seconds
@@ -387,6 +389,22 @@ const server = httpServer.listen(PORT, () => {
         logger.error("Review scheduler job error:", err?.message || err);
       }
       }, REVIEW_SCHEDULER_INTERVAL_MS);
+  }
+
+  if (process.env.RUN_SUBSCRIPTION_LIFECYCLE_JOB !== "false") {
+    const runLifecycle = async () => {
+      try {
+        const summary = await runSubscriptionLifecycleJob();
+        if ((summary?.statusTransitions || 0) > 0 || (summary?.notificationsCreated || 0) > 0 || (summary?.errors?.length || 0) > 0) {
+          logger.info("subscription_lifecycle_job_run", summary);
+        }
+      } catch (err) {
+        logger.error("Subscription lifecycle job error:", err?.message || err);
+      }
+    };
+
+    setTimeout(runLifecycle, 60 * 1000);
+    setInterval(runLifecycle, SUBSCRIPTION_LIFECYCLE_INTERVAL_MS);
   }
 
   if (process.env.RUN_COMMUNICATION_EMAIL_SCHEDULER !== "false") {

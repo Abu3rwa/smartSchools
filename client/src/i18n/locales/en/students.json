@@ -3,6 +3,12 @@
     "title": "Students",
     "subtitle": "Manage student records and view performance"
   },
+  "capacity": {
+    "title": "Plan Capacity:",
+    "summary": "{{current}} of {{max}} students used. {{remaining}} seats left.",
+    "unlimitedSummary": "{{current}} active students. Your plan has unlimited student seats.",
+    "planFull": "Student limit reached for your current plan."
+  },
   "filters": {
     "searchPlaceholder": "Search students...",
     "allClasses": "All Classes",

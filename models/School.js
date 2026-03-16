@@ -13,6 +13,7 @@ import {
     MIN_ATTENDANCE_REMINDER_DELAY_MINUTES
 } from '../utils/attendanceReminderSettings.js';
 import { normalizeAcademicIntelligenceSettings } from '../utils/academicIntelligenceSettings.js';
+import { normalizeAcademicExcellenceSettings } from '../utils/academicExcellenceSettings.js';
 
 const starterFeatureDefaults = getFeaturesForPlan('starter');
 const schoolFeatureSchemaDefinition = FEATURE_KEYS.reduce((acc, featureKey) => {
@@ -358,6 +359,109 @@ const schoolSchema = new mongoose.Schema({
                 }
             }]
         },
+        academicExcellence: {
+            enabled: {
+                type: Boolean,
+                default: true
+            },
+            studentDashboardEnabled: {
+                type: Boolean,
+                default: true
+            },
+            practiceTasksEnabled: {
+                type: Boolean,
+                default: true
+            },
+            selfInitiatedPracticeEnabled: {
+                type: Boolean,
+                default: true
+            },
+            thresholds: {
+                objectiveWeakThreshold: {
+                    type: Number,
+                    default: 70
+                },
+                masteryThreshold: {
+                    type: Number,
+                    default: 85
+                },
+                repeatedWeakCount: {
+                    type: Number,
+                    default: 2
+                },
+                repeatedWeakWindowDays: {
+                    type: Number,
+                    default: 30
+                },
+                classWideWeakThreshold: {
+                    type: Number,
+                    default: 40
+                }
+            },
+            overrides: [{
+                class: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'Class',
+                    default: null
+                },
+                subject: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'Subject',
+                    default: null
+                },
+                thresholds: {
+                    objectiveWeakThreshold: { type: Number, default: 70 },
+                    masteryThreshold: { type: Number, default: 85 },
+                    repeatedWeakCount: { type: Number, default: 2 },
+                    repeatedWeakWindowDays: { type: Number, default: 30 },
+                    classWideWeakThreshold: { type: Number, default: 40 }
+                }
+            }],
+            notificationDefaults: {
+                onTaskCompleted: {
+                    type: Boolean,
+                    default: true
+                },
+                onObjectiveMastered: {
+                    type: Boolean,
+                    default: true
+                },
+                onStudentStruggling: {
+                    type: Boolean,
+                    default: true
+                },
+                onWeeklyDigest: {
+                    type: Boolean,
+                    default: true
+                },
+                channels: {
+                    inApp: {
+                        type: Boolean,
+                        default: true
+                    },
+                    email: {
+                        type: Boolean,
+                        default: false
+                    },
+                    push: {
+                        type: Boolean,
+                        default: false
+                    }
+                }
+            },
+            autoSyncOnGradeSave: {
+                type: Boolean,
+                default: true
+            },
+            taskDueDateDefault: {
+                type: Number,
+                default: 7
+            },
+            maxTasksPerObjective: {
+                type: Number,
+                default: 5
+            }
+        },
         features: {
             ...schoolFeatureSchemaDefinition
         }
@@ -434,6 +538,7 @@ schoolSchema.pre('save', function(next) {
     this.settings = this.settings || {};
     this.settings.curriculum = normalizeCurriculumSettings(this.settings.curriculum || createDefaultCurriculumSettings());
     this.settings.academicIntelligence = normalizeAcademicIntelligenceSettings(this.settings.academicIntelligence || {});
+    this.settings.academicExcellence = normalizeAcademicExcellenceSettings(this.settings.academicExcellence || {});
     if (!this.settings.curriculum.activeTemplateKey) {
         this.settings.curriculum.activeTemplateKey = this.settings.curriculum.templates[0]?.key || DEFAULT_CURRICULUM_TEMPLATE_KEY;
     }

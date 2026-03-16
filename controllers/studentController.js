@@ -3,6 +3,7 @@ import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
+import { resolveSchoolFeatureContext } from '../middleware/featureGate.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
 import {
@@ -13,6 +14,32 @@ import {
 
 const generateTempPassword = generateInvitePassword;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+
+const getStudentCapacityContext = async (schoolId) => {
+    const featureContext = await resolveSchoolFeatureContext(schoolId);
+    const rawLimit = featureContext?.limits?.maxStudents;
+    const maxStudents = Number(rawLimit);
+
+    if (!Number.isFinite(maxStudents) || maxStudents < 0) {
+        return {
+            isLimited: false,
+            maxStudents: null,
+            currentStudents: await Student.countDocuments({ school: schoolId, status: 'active' })
+        };
+    }
+
+    const currentStudents = await Student.countDocuments({ school: schoolId, status: 'active' });
+    return {
+        isLimited: true,
+        maxStudents,
+        currentStudents,
+        remainingSeats: Math.max(0, maxStudents - currentStudents)
+    };
+};
+
+const buildStudentLimitReachedMessage = ({ maxStudents, currentStudents }) => (
+    `Student limit reached for your plan. You can have up to ${maxStudents} active students and currently have ${currentStudents}. Please request an upgrade to add more students.`
+);
 
 const splitContactName = (fullName = '', fallbackLastName = 'Parent') => {
     const normalized = String(fullName || '').trim().replace(/\s+/g, ' ');
@@ -360,6 +387,23 @@ export const createStudent = asyncHandler(async (req, res) => {
         delete studentData.email;
     }
 
+    const targetStatus = String(studentData.status || 'active').toLowerCase();
+    if (targetStatus === 'active') {
+        const capacity = await getStudentCapacityContext(req.schoolId);
+        if (capacity.isLimited && capacity.currentStudents >= capacity.maxStudents) {
+            return res.status(403).json({
+                success: false,
+                code: 'STUDENT_LIMIT_REACHED',
+                message: buildStudentLimitReachedMessage(capacity),
+                data: {
+                    maxStudents: capacity.maxStudents,
+                    currentStudents: capacity.currentStudents,
+                    remainingSeats: 0
+                }
+            });
+        }
+    }
+
     try {
         const student = await Student.create(studentData);
 
@@ -576,6 +620,7 @@ export const importStudents = asyncHandler(async (req, res) => {
     res.status(result.statusCode).json({
         success: result.success,
         message: result.message,
+        code: result.code,
         data: {
             imported: result.summary.importedRows,
             failed: result.summary.failedRows,
@@ -583,6 +628,7 @@ export const importStudents = asyncHandler(async (req, res) => {
             skipped: result.summary.skippedRows,
             importRunId: result.importRunId,
             errorReportUrl: result.errorReportUrl,
+            capacity: result.capacity,
             errors: result.errors.length > 0 ? result.errors : undefined
         },
         summary: result.summary,

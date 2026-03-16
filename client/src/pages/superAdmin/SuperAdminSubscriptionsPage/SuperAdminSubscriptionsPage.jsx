@@ -70,8 +70,25 @@ const SuperAdminSubscriptionsPage = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
+  const [upgradeRequests, setUpgradeRequests] = useState([]);
+  const [upgradeRequestsLoading, setUpgradeRequestsLoading] = useState(false);
+  const [upgradeFilter, setUpgradeFilter] = useState("pending");
+  const [updatingRequestId, setUpdatingRequestId] = useState("");
   const [analyticsPeriod, setAnalyticsPeriod] = useState("month");
+  const [expiringSubscriptions, setExpiringSubscriptions] = useState([]);
+  const [overdueActiveSubscriptions, setOverdueActiveSubscriptions] = useState([]);
+  const [expiringLoading, setExpiringLoading] = useState(false);
+  const [bulkExpiring, setBulkExpiring] = useState(false);
+  const [notifyingSubscriptionId, setNotifyingSubscriptionId] = useState("");
+  const [renewingSubscriptionId, setRenewingSubscriptionId] = useState("");
+  const [renewForm, setRenewForm] = useState({
+    cycles: 1,
+    amount: "",
+    notes: "",
+    resetCancelAtPeriodEnd: true,
+  });
   const [createForm, setCreateForm] = useState({
     schoolId: "",
     plan: "starter",
@@ -185,10 +202,58 @@ const SuperAdminSubscriptionsPage = () => {
     }
   };
 
+  const loadUpgradeRequests = async (status = upgradeFilter) => {
+    setUpgradeRequestsLoading(true);
+    try {
+      const response = await api.get("/schools/upgrade-requests", {
+        params: { status, limit: 25 },
+      });
+      setUpgradeRequests(response.data?.data?.requests || []);
+    } catch (requestError) {
+      toast.error(
+        requestError.response?.data?.message ||
+          "Failed to load upgrade requests",
+      );
+      setUpgradeRequests([]);
+    } finally {
+      setUpgradeRequestsLoading(false);
+    }
+  };
+
+  const loadExpiryInsights = async () => {
+    setExpiringLoading(true);
+    try {
+      const [expiringResponse, activeResponse] = await Promise.all([
+        api.get('/subscriptions/expiring', { params: { days: 30 } }),
+        api.get('/subscriptions', { params: { status: 'active', limit: 1000 } })
+      ]);
+
+      const expiring = expiringResponse.data?.data?.subscriptions || [];
+      const activeSubscriptions = activeResponse.data?.data?.subscriptions || [];
+      const now = new Date();
+      const overdue = activeSubscriptions.filter((subscription) => {
+        if (!subscription?.currentPeriodEnd) return false;
+        const periodEnd = new Date(subscription.currentPeriodEnd);
+        return Number.isFinite(periodEnd.getTime()) && periodEnd.getTime() < now.getTime();
+      });
+
+      setExpiringSubscriptions(expiring);
+      setOverdueActiveSubscriptions(overdue);
+    } catch (requestError) {
+      toast.error(requestError.response?.data?.message || 'Failed to load expiry insights');
+      setExpiringSubscriptions([]);
+      setOverdueActiveSubscriptions([]);
+    } finally {
+      setExpiringLoading(false);
+    }
+  };
+
   useEffect(() => {
     dispatch(fetchSubscriptions());
     dispatch(fetchSubscriptionAnalytics(analyticsPeriod));
     loadPlans();
+    loadUpgradeRequests(upgradeFilter);
+    loadExpiryInsights();
     // Fetch all schools for admin create modal
     api
       .get("/schools?limit=1000")
@@ -197,6 +262,88 @@ const SuperAdminSubscriptionsPage = () => {
       })
       .catch(() => {});
   }, [dispatch, analyticsPeriod]);
+
+  const handleSendRenewalReminder = async (subscriptionId) => {
+    setNotifyingSubscriptionId(subscriptionId);
+    try {
+      await api.post(`/subscriptions/${subscriptionId}/notify`);
+      toast.success('Renewal reminder sent');
+      await loadExpiryInsights();
+    } catch (requestError) {
+      toast.error(requestError.response?.data?.message || 'Failed to send renewal reminder');
+    } finally {
+      setNotifyingSubscriptionId('');
+    }
+  };
+
+  const handleBulkExpire = async () => {
+    setBulkExpiring(true);
+    try {
+      await api.post('/subscriptions/bulk-expire');
+      toast.success('Expired subscriptions were marked as inactive');
+      await Promise.all([
+        dispatch(fetchSubscriptions()),
+        loadExpiryInsights()
+      ]);
+    } catch (requestError) {
+      toast.error(requestError.response?.data?.message || 'Failed to bulk expire subscriptions');
+    } finally {
+      setBulkExpiring(false);
+    }
+  };
+
+  const handleRenewSubscription = async ({
+    subscriptionId,
+    cycles = 1,
+    amount,
+    notes,
+    resetCancelAtPeriodEnd = true,
+  }) => {
+    setRenewingSubscriptionId(subscriptionId);
+    try {
+      await api.post(`/subscriptions/${subscriptionId}/renew`, {
+        cycles,
+        amount,
+        notes,
+        resetCancelAtPeriodEnd,
+      });
+      toast.success("Subscription renewed successfully");
+      await Promise.all([
+        dispatch(fetchSubscriptions()),
+        dispatch(fetchSubscriptionAnalytics(analyticsPeriod)),
+        loadExpiryInsights(),
+      ]);
+      setShowRenewModal(false);
+      setSelectedSubscription(null);
+      setRenewForm({
+        cycles: 1,
+        amount: "",
+        notes: "",
+        resetCancelAtPeriodEnd: true,
+      });
+    } catch (requestError) {
+      toast.error(
+        requestError.response?.data?.message || "Failed to renew subscription",
+      );
+    } finally {
+      setRenewingSubscriptionId("");
+    }
+  };
+
+  const openRenewModal = (subscription) => {
+    setSelectedSubscription(subscription);
+    setRenewForm({
+      cycles: 1,
+      amount: subscription?.billing?.amount ?? "",
+      notes: "",
+      resetCancelAtPeriodEnd: true,
+    });
+    setShowRenewModal(true);
+  };
+
+  useEffect(() => {
+    loadUpgradeRequests(upgradeFilter);
+  }, [upgradeFilter]);
 
   useEffect(() => {
     if (activePlans.length === 0) return;
@@ -455,6 +602,34 @@ const SuperAdminSubscriptionsPage = () => {
     }
   };
 
+  const updateUpgradeRequestStatus = async (requestId, status) => {
+    setUpdatingRequestId(requestId);
+    try {
+      await api.patch(`/schools/upgrade-requests/${requestId}`, { status });
+      toast.success(`Upgrade request marked as ${status}`);
+      await Promise.all([
+        loadUpgradeRequests(upgradeFilter),
+        dispatch(fetchSubscriptions()),
+        dispatch(fetchSubscriptionAnalytics(analyticsPeriod)),
+      ]);
+    } catch (requestError) {
+      toast.error(
+        requestError.response?.data?.message ||
+          "Failed to update upgrade request",
+      );
+    } finally {
+      setUpdatingRequestId("");
+    }
+  };
+
+  const openRequestSubscriptionDetails = (request) => {
+    if (!request?.schoolSubscriptionId) {
+      toast.error("No active subscription found for this school.");
+      return;
+    }
+    navigate(`/admin/subscriptions/${request.schoolSubscriptionId}`);
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case "active":
@@ -558,6 +733,48 @@ const SuperAdminSubscriptionsPage = () => {
           },
         ];
 
+  const derivedKpis = useMemo(() => {
+    const breakdown = Array.isArray(analytics?.statusBreakdown)
+      ? analytics.statusBreakdown
+      : [];
+    const planRevenueTotal = Array.isArray(analytics?.planDistribution)
+      ? analytics.planDistribution.reduce(
+          (sum, entry) => sum + (Number(entry?.revenue) || 0),
+          0,
+        )
+      : 0;
+
+    if (breakdown.length === 0) {
+      return {
+        totalSubscriptions: statistics.totalSubscriptions || 0,
+        activeSubscriptions: statistics.activeSubscriptions || 0,
+        trialSubscriptions: statistics.trialSubscriptions || 0,
+        totalRevenue: planRevenueTotal || Number(statistics.totalRevenue) || 0,
+      };
+    }
+
+    const countByStatus = breakdown.reduce((acc, entry) => {
+      const statusKey = String(entry?._id || "").toLowerCase();
+      const countValue = Number(entry?.count) || 0;
+      if (statusKey) {
+        acc[statusKey] = (acc[statusKey] || 0) + countValue;
+      }
+      return acc;
+    }, {});
+
+    const totalSubscriptions = Object.values(countByStatus).reduce(
+      (sum, value) => sum + (Number(value) || 0),
+      0,
+    );
+
+    return {
+      totalSubscriptions,
+      activeSubscriptions: countByStatus.active || 0,
+      trialSubscriptions: countByStatus.trial || 0,
+      totalRevenue: planRevenueTotal || Number(statistics.totalRevenue) || 0,
+    };
+  }, [analytics, statistics]);
+
   if (loading && subscriptions.length === 0) {
     return (
       <div className="admin-subscriptions-loading">
@@ -612,7 +829,7 @@ const SuperAdminSubscriptionsPage = () => {
             <HiOutlineUsers size={24} />
           </div>
           <div className="stat-content">
-            <h3>{statistics.totalSubscriptions}</h3>
+            <h3>{derivedKpis.totalSubscriptions}</h3>
             <p>{t("superAdminSubscriptions:stats.totalSubscriptions")}</p>
           </div>
         </div>
@@ -621,7 +838,7 @@ const SuperAdminSubscriptionsPage = () => {
             <HiOutlineCheckCircle size={24} />
           </div>
           <div className="stat-content">
-            <h3>{statistics.activeSubscriptions}</h3>
+            <h3>{derivedKpis.activeSubscriptions}</h3>
             <p>{t("superAdminSubscriptions:stats.activeSubscriptions")}</p>
           </div>
         </div>
@@ -630,7 +847,7 @@ const SuperAdminSubscriptionsPage = () => {
             <HiOutlineClock size={24} />
           </div>
           <div className="stat-content">
-            <h3>{statistics.trialSubscriptions}</h3>
+            <h3>{derivedKpis.trialSubscriptions}</h3>
             <p>{t("superAdminSubscriptions:stats.trialSubscriptions")}</p>
           </div>
         </div>
@@ -639,7 +856,7 @@ const SuperAdminSubscriptionsPage = () => {
             <HiOutlineCurrencyDollar size={24} />
           </div>
           <div className="stat-content">
-            <h3>{formatCurrency(statistics.totalRevenue)}</h3>
+            <h3>{formatCurrency(derivedKpis.totalRevenue)}</h3>
             <p>{t("superAdminSubscriptions:stats.totalRevenue")}</p>
           </div>
         </div>
@@ -658,6 +875,181 @@ const SuperAdminSubscriptionsPage = () => {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="upgrade-requests-panel">
+        <div className="upgrade-requests-header">
+          <h3>Upgrade Requests</h3>
+          <select
+            value={upgradeFilter}
+            onChange={(event) => setUpgradeFilter(event.target.value)}
+          >
+            <option value="pending">Pending</option>
+            <option value="in_review">In Review</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+
+        {upgradeRequestsLoading && (
+          <p className="muted-text">Loading upgrade requests...</p>
+        )}
+
+        {!upgradeRequestsLoading && upgradeRequests.length === 0 && (
+          <p className="muted-text">No upgrade requests found.</p>
+        )}
+
+        {!upgradeRequestsLoading && upgradeRequests.length > 0 && (
+          <table className="upgrade-requests-table">
+            <thead>
+              <tr>
+                <th>School</th>
+                <th>Current Plan</th>
+                <th>Requested Plan</th>
+                <th>Requested By</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {upgradeRequests.map((request) => (
+                <tr key={request._id}>
+                  <td>{request.school?.name || "Unknown school"}</td>
+                  <td>{getPlanDisplayName(request.currentPlan)}</td>
+                  <td>{request.requestedPlan ? getPlanDisplayName(request.requestedPlan) : "N/A"}</td>
+                  <td>{`${request.requestedBy?.firstName || ""} ${request.requestedBy?.lastName || ""}`.trim() || request.requestedBy?.email || "Unknown"}</td>
+                  <td>
+                    <span className={`status-badge ${getStatusColor(request.status)}`}>
+                      {getStatusLabel(request.status)}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="sa-upgrade-request-actions">
+                      <button
+                        className="view-action-btn"
+                        disabled={updatingRequestId === request._id || request.status === "approved"}
+                        onClick={() => updateUpgradeRequestStatus(request._id, "approved")}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="edit-action-btn"
+                        disabled={updatingRequestId === request._id || request.status === "in_review"}
+                        onClick={() => updateUpgradeRequestStatus(request._id, "in_review")}
+                      >
+                        Review
+                      </button>
+                      <button
+                        className="cancel-action-btn"
+                        disabled={updatingRequestId === request._id || request.status === "rejected"}
+                        onClick={() => updateUpgradeRequestStatus(request._id, "rejected")}
+                      >
+                        Reject
+                      </button>
+                      <button
+                        className="view-action-btn"
+                        disabled={!request.schoolSubscriptionId}
+                        onClick={() => openRequestSubscriptionDetails(request)}
+                      >
+                        Open Subscription
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="expiry-insights-panel">
+        <div className="expiry-insights-header">
+          <h3>Subscription expiry insights</h3>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleBulkExpire}
+            disabled={bulkExpiring || overdueActiveSubscriptions.length === 0}
+          >
+            {bulkExpiring ? 'Updating...' : 'Mark overdue as inactive'}
+          </button>
+        </div>
+
+        {expiringLoading && <p className="muted-text">Loading expiry insights...</p>}
+
+        {!expiringLoading && (
+          <div className="expiry-insights-grid">
+            <div>
+              <h4>Expiring in 30 days</h4>
+              {expiringSubscriptions.length === 0 && <p className="muted-text">No subscriptions expiring in the next 30 days.</p>}
+              {expiringSubscriptions.length > 0 && (
+                <ul className="expiry-list">
+                  {expiringSubscriptions.slice(0, 10).map((subscription) => (
+                    <li key={subscription._id}>
+                      <div>
+                        <strong>{subscription.school?.name || 'Unknown school'}</strong>
+                        <span>{subscription.daysRemaining ?? 'N/A'} days remaining</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => handleSendRenewalReminder(subscription._id)}
+                        disabled={
+                          notifyingSubscriptionId === subscription._id ||
+                          renewingSubscriptionId === subscription._id
+                        }
+                      >
+                        {notifyingSubscriptionId === subscription._id ? 'Sending...' : 'Send renewal reminder'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => openRenewModal(subscription)}
+                        disabled={renewingSubscriptionId === subscription._id}
+                      >
+                        {renewingSubscriptionId === subscription._id ? 'Renewing...' : 'Renew now'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <h4>Overdue but still active</h4>
+              {overdueActiveSubscriptions.length === 0 && <p className="muted-text">No integrity alerts detected.</p>}
+              {overdueActiveSubscriptions.length > 0 && (
+                <ul className="expiry-list overdue">
+                  {overdueActiveSubscriptions.slice(0, 10).map((subscription) => (
+                    <li key={subscription._id}>
+                      <div>
+                        <strong>{subscription.school?.name || 'Unknown school'}</strong>
+                        <span>
+                          Period ended {formatDate(subscription.currentPeriodEnd)}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => openRenewModal(subscription)}
+                        disabled={renewingSubscriptionId === subscription._id}
+                      >
+                        {renewingSubscriptionId === subscription._id ? 'Renewing...' : 'Renew now'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => handleViewDetails(subscription)}
+                      >
+                        Open
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Search and Filters */}
@@ -829,6 +1221,17 @@ const SuperAdminSubscriptionsPage = () => {
                     >
                       {t("superAdminSubscriptions:actions.edit")}
                     </button>
+                    {subscription.status !== "active" && (
+                      <button
+                        className="view-action-btn"
+                        onClick={() => openRenewModal(subscription)}
+                        disabled={renewingSubscriptionId === subscription._id}
+                      >
+                        {renewingSubscriptionId === subscription._id
+                          ? "Renewing..."
+                          : "Renew"}
+                      </button>
+                    )}
                     {subscription.status !== "cancelled" && (
                       <button
                         className="cancel-action-btn cancel"
@@ -1122,6 +1525,105 @@ const SuperAdminSubscriptionsPage = () => {
               >
                 <HiOutlinePlus size={20} />
                 {t("superAdminSubscriptions:actions.createSubscription")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Renew Subscription Modal */}
+      {showRenewModal && selectedSubscription && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>Renew Subscription</h2>
+              <button
+                className="modal-close"
+                onClick={() => setShowRenewModal(false)}
+              >
+                <HiOutlineX size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="muted-text" style={{ marginBottom: "0.75rem" }}>
+                {selectedSubscription.school?.name} ({getPlanDisplayName(selectedSubscription.plan)})
+              </p>
+              <div className="form-group">
+                <label>Billing cycles to renew</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={renewForm.cycles}
+                  onChange={(e) =>
+                    setRenewForm((prev) => ({
+                      ...prev,
+                      cycles: Math.max(1, parseInt(e.target.value, 10) || 1),
+                    }))
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label>Amount (optional override)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={renewForm.amount}
+                  onChange={(e) =>
+                    setRenewForm((prev) => ({ ...prev, amount: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label>Notes</label>
+                <textarea
+                  rows="3"
+                  value={renewForm.notes}
+                  onChange={(e) =>
+                    setRenewForm((prev) => ({ ...prev, notes: e.target.value }))
+                  }
+                  placeholder="Reason or reference for manual renewal"
+                ></textarea>
+              </div>
+              <label className="plan-active-toggle" style={{ marginTop: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  checked={renewForm.resetCancelAtPeriodEnd}
+                  onChange={(e) =>
+                    setRenewForm((prev) => ({
+                      ...prev,
+                      resetCancelAtPeriodEnd: e.target.checked,
+                    }))
+                  }
+                />
+                <span>Reset cancel at period end flag</span>
+              </label>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowRenewModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() =>
+                  handleRenewSubscription({
+                    subscriptionId: selectedSubscription._id,
+                    cycles: renewForm.cycles,
+                    amount:
+                      renewForm.amount === "" ? undefined : Number(renewForm.amount),
+                    notes: renewForm.notes,
+                    resetCancelAtPeriodEnd: renewForm.resetCancelAtPeriodEnd,
+                  })
+                }
+                disabled={renewingSubscriptionId === selectedSubscription._id}
+              >
+                {renewingSubscriptionId === selectedSubscription._id
+                  ? "Renewing..."
+                  : "Confirm renewal"}
               </button>
             </div>
           </div>

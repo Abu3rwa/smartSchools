@@ -4,7 +4,11 @@ import School from '../models/School.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
+import Notification from '../models/Notification.js';
+import SubscriptionAuditLog from '../models/SubscriptionAuditLog.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { NOTIFICATION_TYPES } from '../constants/notificationTypes.js';
+import { sendSubscriptionEventEmail } from '../services/subscriptionEmailService.js';
 import {
     coerceFeatureFlags,
     DEFAULT_PLAN_CONFIGS,
@@ -112,7 +116,7 @@ const serializePlan = (planDoc) => {
     };
 };
 
-const syncSchoolSubscriptionState = async ({ schoolId, plan, status, features }) => {
+export const syncSchoolSubscriptionState = async ({ schoolId, plan, status, features }) => {
     const school = await School.findById(schoolId);
     if (!school) return;
 
@@ -133,6 +137,142 @@ const syncSchoolSubscriptionState = async ({ schoolId, plan, status, features })
     }
 
     await school.save();
+};
+
+const collectSchoolAdmins = async (schoolId) => {
+    return User.find({ school: schoolId, role: 'admin', isActive: true })
+        .select('_id email firstName lastName')
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+};
+
+const createSubscriptionReminderNotifications = async ({
+    school,
+    subscription,
+    admins,
+    subject,
+    message,
+    daysRemaining,
+    type = NOTIFICATION_TYPES.SUBSCRIPTION_EXPIRING
+}) => {
+    const metadata = {
+        subscriptionId: String(subscription._id),
+        planName: subscription.plan,
+        expiresAt: subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toISOString() : null,
+        daysRemaining,
+        billingInterval: subscription.billing?.interval === 'year' ? 'annually' : 'monthly'
+    };
+
+    const payload = admins
+        .filter((admin) => admin.email)
+        .map((admin) => ({
+            school: school._id,
+            recipient: admin._id,
+            recipientEmail: admin.email,
+            type,
+            subject,
+            message,
+            channels: ['email', 'push'],
+            status: 'pending',
+            priority: daysRemaining <= 1 ? 'high' : 'normal',
+            metadata
+        }));
+
+    if (payload.length > 0) {
+        await Notification.insertMany(payload, { ordered: false });
+    }
+
+    await Promise.allSettled(
+        admins.map((admin) => sendSubscriptionEventEmail({
+            eventType: type,
+            recipientEmail: admin.email,
+            schoolId: school._id,
+            schoolName: school.name,
+            planName: subscription.plan,
+            billingInterval: subscription.billing?.interval === 'year' ? 'annually' : 'monthly',
+            expiresAt: subscription.currentPeriodEnd,
+            nextBillingDate: subscription.billing?.nextBillingAt || subscription.currentPeriodEnd,
+            daysRemaining,
+            preferredUserId: admin._id
+        }))
+    );
+
+    return payload.length;
+};
+
+const addMonths = (dateValue, monthsToAdd) => {
+    const date = new Date(dateValue);
+    date.setMonth(date.getMonth() + monthsToAdd);
+    return date;
+};
+
+const createInvoiceNumber = (schoolId, invoiceCount) => {
+    return `INV-${schoolId.toString().slice(-6).toUpperCase()}-${String(invoiceCount).padStart(4, '0')}`;
+};
+
+const createSubscriptionRenewedNotifications = async ({
+    school,
+    subscription,
+    admins,
+    nextBillingDate
+}) => {
+    const metadata = {
+        subscriptionId: String(subscription._id),
+        planName: subscription.plan,
+        expiresAt: subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toISOString() : null,
+        billingInterval: subscription.billing?.interval === 'year' ? 'annually' : 'monthly'
+    };
+
+    const payload = admins
+        .filter((admin) => admin.email)
+        .map((admin) => ({
+            school: school._id,
+            recipient: admin._id,
+            recipientEmail: admin.email,
+            type: NOTIFICATION_TYPES.SUBSCRIPTION_RENEWED,
+            subject: 'Subscription renewed successfully',
+            message: 'Your school subscription has been renewed and remains active.',
+            channels: ['email', 'push'],
+            status: 'pending',
+            priority: 'normal',
+            metadata
+        }));
+
+    if (payload.length > 0) {
+        await Notification.insertMany(payload, { ordered: false });
+    }
+
+    await Promise.allSettled(
+        admins.map((admin) => sendSubscriptionEventEmail({
+            eventType: NOTIFICATION_TYPES.SUBSCRIPTION_RENEWED,
+            recipientEmail: admin.email,
+            schoolId: school._id,
+            schoolName: school.name,
+            planName: subscription.plan,
+            billingInterval: subscription.billing?.interval === 'year' ? 'annually' : 'monthly',
+            expiresAt: subscription.currentPeriodEnd,
+            nextBillingDate,
+            preferredUserId: admin._id
+        }))
+    );
+
+    return payload.length;
+};
+
+const writeSubscriptionAuditLog = async ({
+    schoolId,
+    subscriptionId,
+    performedBy,
+    action,
+    details
+}) => {
+    return SubscriptionAuditLog.create({
+        school: schoolId,
+        subscription: subscriptionId,
+        performedBy,
+        action,
+        details
+    });
 };
 
 // @desc    Get all subscriptions (super admin only)
@@ -479,6 +619,159 @@ export const recordPayment = asyncHandler(async (req, res) => {
         .populate('school', 'name contact.adminName contact.adminEmail');
 
     res.json({ success: true, data: { subscription: updated } });
+});
+
+// @desc    Renew subscription period and reactivate school access
+// @route   POST /api/subscriptions/:id/renew
+// @access  Private/Super Admin
+export const renewSubscription = asyncHandler(async (req, res) => {
+    const {
+        cycles = 1,
+        amount,
+        notes,
+        resetCancelAtPeriodEnd = true
+    } = req.body || {};
+
+    const normalizedCycles = Number.parseInt(cycles, 10);
+    if (!Number.isFinite(normalizedCycles) || normalizedCycles < 1 || normalizedCycles > 24) {
+        return res.status(400).json({
+            success: false,
+            message: 'cycles must be an integer between 1 and 24'
+        });
+    }
+
+    const subscription = await Subscription.findById(req.params.id)
+        .populate('school', 'name contact.adminName contact.adminEmail');
+
+    if (!subscription) {
+        return res.status(404).json({
+            success: false,
+            message: 'Subscription not found'
+        });
+    }
+
+    const now = new Date();
+    const previousStatus = subscription.status;
+    const previousPeriodEnd = subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd) : null;
+    const monthsPerCycle = subscription.billing?.interval === 'year' ? 12 : 1;
+    const currentPeriodEnd = subscription.currentPeriodEnd
+        ? new Date(subscription.currentPeriodEnd)
+        : null;
+    const renewalAnchor = currentPeriodEnd && currentPeriodEnd.getTime() > now.getTime()
+        ? currentPeriodEnd
+        : now;
+    const nextBillingDate = addMonths(renewalAnchor, monthsPerCycle * normalizedCycles);
+
+    const invoiceAmount = Number.isFinite(Number(amount))
+        ? Number(amount)
+        : (Number(subscription.billing?.amount) || 0) * normalizedCycles;
+
+    const invoiceCount = subscription.invoices.length + 1;
+    const invoiceNumber = createInvoiceNumber(subscription.school?._id || subscription.school, invoiceCount);
+
+    subscription.invoices.push({
+        stripeInvoiceId: `MANUAL-RENEW-${Date.now()}`,
+        number: invoiceNumber,
+        amount: invoiceAmount,
+        currency: subscription.billing?.currency || 'USD',
+        status: 'paid',
+        paidAt: now,
+        createdAt: now
+    });
+
+    subscription.currentPeriodStart = renewalAnchor;
+    subscription.currentPeriodEnd = nextBillingDate;
+    subscription.billing.lastBilledAt = now;
+    subscription.billing.nextBillingAt = nextBillingDate;
+    subscription.status = 'active';
+    subscription.trialEndsAt = undefined;
+    if (resetCancelAtPeriodEnd) {
+        subscription.cancelAtPeriodEnd = false;
+    }
+    subscription.metadata = {
+        ...toPlainObject(subscription.metadata),
+        upgradedBy: req.user?._id,
+        notes: notes || `Subscription renewed for ${normalizedCycles} billing cycle(s) on ${now.toISOString()}`
+    };
+
+    await subscription.save();
+
+    await writeSubscriptionAuditLog({
+        schoolId: subscription.school?._id || subscription.school,
+        subscriptionId: subscription._id,
+        performedBy: req.user?._id,
+        action: 'manual_renewal',
+        details: {
+            cycles: normalizedCycles,
+            amount: invoiceAmount,
+            currency: subscription.billing?.currency || 'USD',
+            previousStatus,
+            renewedStatus: subscription.status,
+            previousPeriodEnd,
+            renewedUntil: nextBillingDate,
+            note: notes || ''
+        }
+    });
+
+    await syncSchoolSubscriptionState({
+        schoolId: subscription.school?._id || subscription.school,
+        plan: subscription.plan,
+        status: subscription.status,
+        features: subscription.features
+    });
+
+    const admins = await collectSchoolAdmins(subscription.school?._id || subscription.school);
+    const notifications = await createSubscriptionRenewedNotifications({
+        school: subscription.school,
+        subscription,
+        admins,
+        nextBillingDate
+    });
+
+    const updated = await Subscription.findById(subscription._id)
+        .populate('school', 'name contact.adminName contact.adminEmail')
+        .populate('metadata.upgradedBy', 'firstName lastName email');
+
+    res.json({
+        success: true,
+        message: 'Subscription renewed successfully',
+        data: {
+            subscription: updated,
+            notifications,
+            renewedUntil: nextBillingDate
+        }
+    });
+});
+
+// @desc    Get subscription audit logs
+// @route   GET /api/subscriptions/:id/audit
+// @access  Private/Super Admin
+export const getSubscriptionAuditLogs = asyncHandler(async (req, res) => {
+    const subscription = await Subscription.findById(req.params.id)
+        .select('_id school')
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+
+    if (!subscription) {
+        return res.status(404).json({
+            success: false,
+            message: 'Subscription not found'
+        });
+    }
+
+    const logs = await SubscriptionAuditLog.find({ subscription: subscription._id })
+        .populate('performedBy', 'firstName lastName email')
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+
+    res.json({
+        success: true,
+        data: {
+            logs
+        }
+    });
 });
 
 // @desc    Get subscription analytics
@@ -841,4 +1134,130 @@ export const getBillingHistory = asyncHandler(async (req, res) => {
     const invoices = (subscription.invoices || []).sort((a, b) => b.createdAt - a.createdAt);
 
     res.json({ success: true, data: { invoices } });
+});
+
+// @desc    Get subscriptions expiring in next 30 days
+// @route   GET /api/subscriptions/expiring
+// @access  Private/Super Admin
+export const getExpiringSubscriptions = asyncHandler(async (req, res) => {
+    const days = Math.max(1, Number.parseInt(req.query.days, 10) || 30);
+    const now = new Date();
+    const threshold = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    const subscriptions = await Subscription.find({
+        status: { $in: ['active', 'trial'] },
+        currentPeriodEnd: { $gte: now, $lte: threshold }
+    })
+        .populate('school', 'name contact.adminName contact.adminEmail')
+        .sort({ currentPeriodEnd: 1 });
+
+    const data = subscriptions.map((subscription) => {
+        const currentPeriodEnd = subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd) : null;
+        const daysRemaining = currentPeriodEnd
+            ? Math.ceil((currentPeriodEnd.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+            : null;
+
+        return {
+            ...toPlainObject(subscription),
+            daysRemaining
+        };
+    });
+
+    res.json({
+        success: true,
+        data: {
+            subscriptions: data,
+            total: data.length,
+            days
+        }
+    });
+});
+
+// @desc    Send manual renewal reminder for subscription
+// @route   POST /api/subscriptions/:id/notify
+// @access  Private/Super Admin
+export const notifySubscriptionRenewal = asyncHandler(async (req, res) => {
+    const subscription = await Subscription.findById(req.params.id)
+        .populate('school', 'name');
+
+    if (!subscription) {
+        return res.status(404).json({
+            success: false,
+            message: 'Subscription not found'
+        });
+    }
+
+    const school = subscription.school;
+    const admins = await collectSchoolAdmins(subscription.school?._id || subscription.school);
+    if (admins.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'No active school admins found to notify'
+        });
+    }
+
+    const now = new Date();
+    const periodEnd = subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd) : null;
+    const daysRemaining = periodEnd
+        ? Math.ceil((periodEnd.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+        : null;
+
+    const notifications = await createSubscriptionReminderNotifications({
+        school,
+        subscription,
+        admins,
+        subject: 'Subscription renewal reminder',
+        message: 'This is a reminder that your subscription is approaching renewal.',
+        daysRemaining,
+        type: NOTIFICATION_TYPES.SUBSCRIPTION_EXPIRING
+    });
+
+    res.json({
+        success: true,
+        message: 'Renewal reminder sent successfully',
+        data: {
+            notifications
+        }
+    });
+});
+
+// @desc    Bulk expire overdue subscriptions
+// @route   POST /api/subscriptions/bulk-expire
+// @access  Private/Super Admin
+export const bulkExpireSubscriptions = asyncHandler(async (req, res) => {
+    const now = new Date();
+    const query = {
+        status: { $in: ['active', 'trial'] },
+        currentPeriodEnd: { $lt: now }
+    };
+
+    const subscriptions = await Subscription.find(query);
+    let updated = 0;
+
+    for (const subscription of subscriptions) {
+        if (subscription.status !== 'inactive') {
+            subscription.status = 'inactive';
+            subscription.metadata = {
+                ...toPlainObject(subscription.metadata),
+                upgradedBy: req.user?._id,
+                notes: `Bulk expired by super admin on ${now.toISOString()}`
+            };
+            await subscription.save();
+
+            await syncSchoolSubscriptionState({
+                schoolId: subscription.school,
+                plan: subscription.plan,
+                status: subscription.status,
+                features: subscription.features
+            });
+
+            updated += 1;
+        }
+    }
+
+    res.json({
+        success: true,
+        message: `Updated ${updated} expired subscriptions`,
+        data: { updated }
+    });
 });

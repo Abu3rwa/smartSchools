@@ -1,0 +1,30 @@
+export const NOTIFICATION_TYPES = {
+    GRADE_UPDATE: 'grade_update',
+    DAILY_REPORT: 'daily_report',
+    DAILY_CLASSWORK_UPDATE: 'daily_classwork_update',
+    MONTHLY_REPORT: 'monthly_report',
+    SEMESTER_REPORT: 'semester_report',
+    ATTENDANCE: 'attendance',
+    ANNOUNCEMENT: 'announcement',
+    CUSTOM: 'custom',
+    AI_REPORT: 'ai_report',
+    ATTENDANCE_REQUEST: 'attendance_request',
+    ATTENDANCE_REQUEST_STATUS: 'attendance_request_status',
+    ASSIGNMENT_POSTED: 'assignment_posted',
+    ASSIGNMENT_GRADED: 'assignment_graded',
+    HOMEWORK_POSTED: 'homework_posted',
+    HOMEWORK_DUE_REMINDER: 'homework_due_reminder',
+    HOMEWORK_GRADED: 'homework_graded',
+    SUBSCRIPTION_TRIAL_ENDING: 'subscription_trial_ending',
+    SUBSCRIPTION_TRIAL_EXPIRED: 'subscription_trial_expired',
+    SUBSCRIPTION_EXPIRING: 'subscription_expiring',
+    SUBSCRIPTION_EXPIRED: 'subscription_expired',
+    SUBSCRIPTION_PAYMENT_FAILED: 'subscription_payment_failed',
+    SUBSCRIPTION_RENEWED: 'subscription_renewed',
+    SUBSCRIPTION_CANCELLED: 'subscription_cancelled',
+    SUBSCRIPTION_UPGRADED: 'subscription_upgraded',
+    SUBSCRIPTION_DOWNGRADED: 'subscription_downgraded',
+    USAGE_LIMIT_WARNING: 'usage_limit_warning'
+};
+
+export const NOTIFICATION_TYPE_VALUES = Object.freeze(Object.values(NOTIFICATION_TYPES));

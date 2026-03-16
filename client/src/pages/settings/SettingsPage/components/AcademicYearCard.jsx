@@ -2,6 +2,16 @@ import React from 'react';
 import { Grid } from '@mui/material';
 
 const AcademicYearCard = ({ academicYear, isAdmin, onNavigateToSchoolSettings }) => {
+    const handleOpenSchoolSettings = () => {
+        if (typeof onNavigateToSchoolSettings === 'function') {
+            onNavigateToSchoolSettings();
+            return;
+        }
+
+        // Fallback for rare cases where parent handler is not bound.
+        window.location.assign('/portal/school-settings');
+    };
+
     return (
         <Grid item xs={12} md={6}>
             <div className="card settings-card">
@@ -26,8 +36,8 @@ const AcademicYearCard = ({ academicYear, isAdmin, onNavigateToSchoolSettings })
                         <div className="setting-info">
                             <span className="setting-description">Need to change it for all users?</span>
                         </div>
-                        <button className="btn btn-secondary" onClick={onNavigateToSchoolSettings}>
-                            Open School Settings
+                        <button type="button" className="btn btn-secondary" onClick={handleOpenSchoolSettings}>
+                            Edit School Settings
                         </button>
                     </div>
                 )}

@@ -25,8 +25,15 @@ import {
     getStudentLearningTraceController,
     getStudentParentLearningSummaryController
 } from '../controllers/academicIntelligenceController.js';
+import {
+    getStudentAcademicExcellenceDashboard,
+    getStudentObjectivesList,
+    getStudentTasks,
+    studentCompleteTask
+} from '../controllers/academicExcellenceStudentController.js';
 import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
+import { requireLimit } from '../middleware/checkUsageLimit.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
@@ -41,7 +48,7 @@ router.use(parseQueryFilter);
 
 router.route('/')
     .get(authorize('admin', 'department_principal', 'teacher'), getStudents)
-    .post(authorize('admin'), validationRules.createStudent, validate, createStudent);
+    .post(authorize('admin'), requireLimit('students'), validationRules.createStudent, validate, createStudent);
 
 // Additional routes (before /:id to avoid param conflicts)
 router.post('/import', authorize('admin'), importStudents);
@@ -51,6 +58,10 @@ router.post('/bulk-send-parent-login-invites', authorize('admin'), bulkSendParen
 router.get('/class/:classId', authorize('admin', 'department_principal', 'teacher'), getStudentsByClass);
 router.get('/:id/learning-trace', authorize('admin', 'department_principal', 'teacher', 'student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentLearningTraceController);
 router.get('/:id/parent-learning-summary', authorize('admin', 'department_principal', 'teacher'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentParentLearningSummaryController);
+router.get('/:id/academic-excellence', authorize('admin', 'department_principal', 'teacher', 'student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentAcademicExcellenceDashboard);
+router.get('/:id/academic-excellence/objectives', authorize('admin', 'department_principal', 'teacher', 'student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentObjectivesList);
+router.get('/:id/academic-excellence/tasks', authorize('admin', 'department_principal', 'teacher', 'student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentTasks);
+router.patch('/:id/academic-excellence/tasks/:taskId/complete', authorize('student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, studentCompleteTask);
 router.put('/:id/photo', authorize('admin'), validationRules.mongoId, validate, upload.single('photo'), uploadStudentPhoto);
 router.delete('/:id/photo', authorize('admin'), validationRules.mongoId, validate, removeStudentPhoto);
 

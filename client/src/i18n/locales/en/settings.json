@@ -3,12 +3,40 @@
     "title": "Locked Features",
     "currentPlan": "Current plan",
     "unknownPlan": "Unknown",
+    "unlockedTitle": "Unlocked features on your current plan",
+    "noUnlocked": "No unlocked features were detected.",
+    "lockedTitle": "Locked features",
     "loading": "Loading feature access...",
     "allUnlocked": "All available features for your plan are currently unlocked.",
     "requiresPlan": "Requires {{plan}}",
     "higherPlan": "higher plan",
     "open": "Open",
-    "openSchoolSettings": "Open School Settings"
+    "openSchoolSettings": "Open School Settings",
+    "requestTitle": "Request plan upgrade",
+    "requestDescription": "Send an upgrade request to super admin for approval and plan change.",
+    "requestPlanLabel": "Requested plan",
+    "requestMessageLabel": "Message (optional)",
+    "requestMessagePlaceholder": "Explain what your school needs and why.",
+    "requestCta": "Request upgrade",
+    "requestSubmitting": "Submitting...",
+    "requestValidation": "Please select a plan or write a request message.",
+    "requestSubmitted": "Upgrade request submitted",
+    "requestFailed": "Failed to submit upgrade request",
+    "requestHistoryTitle": "Recent upgrade requests",
+    "requestHistoryLoading": "Loading requests...",
+    "requestHistoryEmpty": "No upgrade requests yet.",
+    "requestHistoryItem": "{{plan}} - {{status}}"
+  },
+  "planLabels": {
+    "starter": "Starter",
+    "professional": "Professional",
+    "enterprise": "Enterprise"
+  },
+  "requestStatus": {
+    "pending": "Pending",
+    "in_review": "In review",
+    "approved": "Approved",
+    "rejected": "Rejected"
   },
   "featureLabels": {
     "apiAccess": "API Access",

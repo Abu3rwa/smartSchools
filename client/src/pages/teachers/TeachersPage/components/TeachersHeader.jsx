@@ -9,7 +9,10 @@ const TeachersHeader = ({
     onBulkSendInvites,
     selectedCount = 0,
     bulkInviteLoading = false,
-    templateMeta = null
+    templateMeta = null,
+    importDisabled = false,
+    createDisabled = false,
+    capacityTitle = ''
 }) => {
     const { t } = useTranslation(['teachers']);
 
@@ -39,7 +42,12 @@ const TeachersHeader = ({
                             ? t('teachers:actions.sendingInvites')
                             : t('teachers:actions.sendInvitesForSelected', { count: selectedCount })}
                     </button>
-                    <button className="btn btn-outline" onClick={onImportTeachers}>
+                    <button
+                        className="btn btn-outline"
+                        onClick={onImportTeachers}
+                        disabled={importDisabled}
+                        title={importDisabled ? capacityTitle : ''}
+                    >
                         <HiOutlineUpload size={20} />
                         {t('teachers:actions.importCsv')}
                     </button>
@@ -47,7 +55,12 @@ const TeachersHeader = ({
                         <HiOutlineDownload size={20} />
                         Download Sample CSV
                     </button>
-                    <button className="btn btn-primary" onClick={onCreateTeacher}>
+                    <button
+                        className="btn btn-primary"
+                        onClick={onCreateTeacher}
+                        disabled={createDisabled}
+                        title={createDisabled ? capacityTitle : ''}
+                    >
                         <HiOutlinePlus size={20} />
                         {t('teachers:actions.addTeacher')}
                     </button>

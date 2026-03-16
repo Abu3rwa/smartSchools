@@ -1,13 +1,16 @@
 import { useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTheme, useMediaQuery } from '@mui/material';
 import { Drawer } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { selectSidebarOpen, setSidebarOpen } from '../../store/slices/uiSlice';
 import { selectIsImpersonating, stopImpersonation, selectUser } from '../../store/slices/authSlice';
+import { selectSubscriptionStatus } from '../../store/slices/schoolFeaturesSlice';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import SubscriptionExpiredWall from '../SubscriptionExpiredWall';
+import SubscriptionExpiredBanner from '../SubscriptionExpiredBanner';
 import './MainLayout.css';
 import { HiOutlineLogout, HiOutlineExclamation } from 'react-icons/hi';
 import toast from 'react-hot-toast';
@@ -71,12 +74,21 @@ const ImpersonationBanner = () => {
 
 const MainLayout = () => {
     const dispatch = useDispatch();
+    const location = useLocation();
     const { i18n, t } = useTranslation(['common']);
     const sidebarOpen = useSelector(selectSidebarOpen);
     const isImpersonating = useSelector(selectIsImpersonating);
+    const user = useSelector(selectUser);
+    const subscriptionStatus = useSelector(selectSubscriptionStatus);
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
     const isRtl = i18n.dir() === 'rtl';
+    const normalizedStatus = String(subscriptionStatus || '').toLowerCase();
+    const isExpired = ['inactive', 'cancelled', 'suspended', 'expired'].includes(normalizedStatus);
+    const shouldShowWall = isExpired
+        && user?.role === 'admin'
+        && !['/portal/settings', '/portal/settings/subscription', '/portal/school-settings'].includes(location.pathname);
+    const shouldShowBanner = isExpired && ['teacher', 'student'].includes(user?.role);
 
     // Keep sidebar/drawer closed by default on small screens
     useEffect(() => {
@@ -125,10 +137,12 @@ const MainLayout = () => {
                     {isImpersonating && <ImpersonationBanner />}
                     <Header />
                     <main id="main-content" className="page-content">
+                        {shouldShowBanner && <SubscriptionExpiredBanner />}
                         <Outlet />
                     </main>
                 </div>
             </div>
+            {shouldShowWall && <SubscriptionExpiredWall />}
         </div>
     );
 };

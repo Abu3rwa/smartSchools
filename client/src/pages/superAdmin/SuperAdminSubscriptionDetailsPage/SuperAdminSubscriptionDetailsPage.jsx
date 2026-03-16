@@ -5,13 +5,16 @@ import { useTranslation } from 'react-i18next';
 import {
     fetchSubscriptionById,
     fetchBillingHistory,
+    fetchSubscriptionAuditLogs,
     recordPayment,
+    renewSubscription,
     updateSubscription,
     cancelSubscription,
     clearError,
     clearSuccess,
     selectCurrentSubscription,
     selectBillingHistory,
+    selectSubscriptionAuditLogs,
     selectSubscriptionLoading,
     selectSubscriptionError,
     selectSubscriptionSuccess
@@ -39,7 +42,8 @@ import {
     HiOutlineCloud,
     HiOutlineAcademicCap,
     HiOutlineBookOpen,
-    HiOutlineMail
+    HiOutlineMail,
+    HiOutlineRefresh
 } from 'react-icons/hi';
 import '../../../components/superAdmin/SuperAdminBase.css';
 import './SuperAdminSubscriptionDetailsPage.css';
@@ -54,6 +58,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
     // Redux state
     const subscription = useSelector(selectCurrentSubscription);
     const billingHistory = useSelector(selectBillingHistory);
+    const auditLogs = useSelector(selectSubscriptionAuditLogs);
     const loading = useSelector(selectSubscriptionLoading);
     const error = useSelector(selectSubscriptionError);
     const success = useSelector(selectSubscriptionSuccess);
@@ -63,6 +68,13 @@ const SuperAdminSubscriptionDetailsPage = () => {
     const [showEditModal, setShowEditModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [showRenewModal, setShowRenewModal] = useState(false);
+    const [renewForm, setRenewForm] = useState({
+        cycles: 1,
+        amount: '',
+        notes: '',
+        resetCancelAtPeriodEnd: true
+    });
     const [featureDraft, setFeatureDraft] = useState({});
     const [savingFeatures, setSavingFeatures] = useState(false);
 
@@ -70,6 +82,7 @@ const SuperAdminSubscriptionDetailsPage = () => {
         if (id) {
             dispatch(fetchSubscriptionById(id));
             dispatch(fetchBillingHistory(id));
+            dispatch(fetchSubscriptionAuditLogs(id));
         }
     }, [dispatch, id]);
 
@@ -109,6 +122,31 @@ const SuperAdminSubscriptionDetailsPage = () => {
             ...paymentData
         }));
         setShowPaymentModal(false);
+    };
+
+    const handleOpenRenewModal = () => {
+        setRenewForm({
+            cycles: 1,
+            amount: subscription?.billing?.amount ?? '',
+            notes: '',
+            resetCancelAtPeriodEnd: true
+        });
+        setShowRenewModal(true);
+    };
+
+    const handleRenewSubscription = async () => {
+        await dispatch(renewSubscription({
+            id: subscription._id,
+            cycles: renewForm.cycles,
+            amount: renewForm.amount === '' ? undefined : Number(renewForm.amount),
+            notes: renewForm.notes,
+            resetCancelAtPeriodEnd: renewForm.resetCancelAtPeriodEnd
+        })).unwrap();
+
+        dispatch(fetchSubscriptionById(subscription._id));
+        dispatch(fetchBillingHistory(subscription._id));
+        dispatch(fetchSubscriptionAuditLogs(subscription._id));
+        setShowRenewModal(false);
     };
 
     const getStatusColor = (status) => {
@@ -310,6 +348,13 @@ const SuperAdminSubscriptionDetailsPage = () => {
                 </div>
                 <div className="header-actions">
                     <button
+                        className="btn btn-primary"
+                        onClick={handleOpenRenewModal}
+                    >
+                        <HiOutlineRefresh size={20} />
+                        Renew
+                    </button>
+                    <button
                         className="btn btn-secondary"
                         onClick={() => setShowEditModal(true)}
                     >
@@ -466,6 +511,14 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                     >
                                         <HiOutlineCurrencyDollar size={20} />
                                         {t('superAdminSubscriptionDetails:actions.recordCashPayment')}
+                                    </button>
+                                    <button
+                                        className="btn btn-secondary"
+                                        onClick={handleOpenRenewModal}
+                                        style={{ marginInlineStart: '0.5rem' }}
+                                    >
+                                        <HiOutlineRefresh size={20} />
+                                        Renew subscription
                                     </button>
                                 </div>
                             </div>
@@ -650,6 +703,28 @@ const SuperAdminSubscriptionDetailsPage = () => {
                                     <HiOutlineDocumentText size={48} />
                                     <h3>{t('superAdminSubscriptionDetails:billing.empty.title')}</h3>
                                     <p>{t('superAdminSubscriptionDetails:billing.empty.description')}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="overview-card" style={{ marginTop: '1rem' }}>
+                            <h3>Manual Renewal Audit Trail</h3>
+                            {auditLogs.length === 0 ? (
+                                <p className="muted-text">No renewal events recorded yet.</p>
+                            ) : (
+                                <div className="detail-grid">
+                                    {auditLogs.map((log) => (
+                                        <div className="detail-item" key={log._id}>
+                                            <label>{formatDate(log.createdAt)}</label>
+                                            <span>
+                                                {log.details?.cycles || 1} cycle(s), {formatCurrency(log.details?.amount || 0, log.details?.currency || 'USD')} until {log.details?.renewedUntil ? formatDate(log.details.renewedUntil) : 'N/A'}
+                                            </span>
+                                            <span className="muted-text" style={{ fontSize: '0.8rem' }}>
+                                                By {`${log.performedBy?.firstName || ''} ${log.performedBy?.lastName || ''}`.trim() || log.performedBy?.email || 'Unknown'}
+                                                {log.details?.note ? ` - ${log.details.note}` : ''}
+                                            </span>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -888,6 +963,89 @@ const SuperAdminSubscriptionDetailsPage = () => {
                             >
                                 <HiOutlineCurrencyDollar size={20} />
                                 {t('superAdminSubscriptionDetails:actions.recordPayment')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Renew Subscription Modal */}
+            {showRenewModal && (
+                <div className="modal-overlay">
+                    <div className="modal">
+                        <div className="modal-header">
+                            <h2>Renew subscription</h2>
+                            <button
+                                className="modal-close"
+                                onClick={() => setShowRenewModal(false)}
+                            >
+                                <HiOutlineX size={20} />
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label>Billing cycles</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="24"
+                                    value={renewForm.cycles}
+                                    onChange={(event) => setRenewForm((prev) => ({
+                                        ...prev,
+                                        cycles: Math.max(1, parseInt(event.target.value, 10) || 1)
+                                    }))}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Amount (optional override)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={renewForm.amount}
+                                    onChange={(event) => setRenewForm((prev) => ({
+                                        ...prev,
+                                        amount: event.target.value
+                                    }))}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('superAdminSubscriptionDetails:labels.notes')}</label>
+                                <textarea
+                                    rows="3"
+                                    value={renewForm.notes}
+                                    onChange={(event) => setRenewForm((prev) => ({
+                                        ...prev,
+                                        notes: event.target.value
+                                    }))}
+                                    placeholder="Reason or reference for this renewal"
+                                ></textarea>
+                            </div>
+                            <label className="plan-active-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={renewForm.resetCancelAtPeriodEnd}
+                                    onChange={(event) => setRenewForm((prev) => ({
+                                        ...prev,
+                                        resetCancelAtPeriodEnd: event.target.checked
+                                    }))}
+                                />
+                                <span>Reset cancel-at-period-end flag</span>
+                            </label>
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setShowRenewModal(false)}
+                            >
+                                {t('superAdminSubscriptionDetails:actions.cancel')}
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleRenewSubscription}
+                            >
+                                <HiOutlineRefresh size={20} />
+                                Confirm renewal
                             </button>
                         </div>
                     </div>

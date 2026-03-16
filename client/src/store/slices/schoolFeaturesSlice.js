@@ -17,6 +17,9 @@ export const fetchSchoolFeatures = createAsyncThunk(
 const initialState = {
     plan: null,
     planName: null,
+    subscriptionStatus: null,
+    trialEndsAt: null,
+    currentPeriodEnd: null,
     features: {},
     featureMetadata: {},
     limits: null,
@@ -44,6 +47,9 @@ const schoolFeaturesSlice = createSlice({
                 state.loading = false;
                 state.plan = action.payload.plan;
                 state.planName = action.payload.planName;
+                state.subscriptionStatus = action.payload.subscriptionStatus || null;
+                state.trialEndsAt = action.payload.trialEndsAt || null;
+                state.currentPeriodEnd = action.payload.currentPeriodEnd || null;
                 state.features = action.payload.features || {};
                 state.featureMetadata = action.payload.featureMetadata || {};
                 state.limits = action.payload.limits || null;
@@ -62,6 +68,9 @@ export const { clearSchoolFeaturesError, resetSchoolFeatures } = schoolFeaturesS
 export const selectSchoolFeaturesState = (state) => state.schoolFeatures;
 export const selectPlan = (state) => state.schoolFeatures.plan;
 export const selectPlanName = (state) => state.schoolFeatures.planName;
+export const selectSubscriptionStatus = (state) => state.schoolFeatures.subscriptionStatus;
+export const selectSubscriptionTrialEndsAt = (state) => state.schoolFeatures.trialEndsAt;
+export const selectSubscriptionCurrentPeriodEnd = (state) => state.schoolFeatures.currentPeriodEnd;
 export const selectSchoolFeatures = (state) => state.schoolFeatures.features || {};
 export const selectFeatureMetadataMap = (state) => state.schoolFeatures.featureMetadata || {};
 export const selectFeatureMetadata = (state, featureKey) =>

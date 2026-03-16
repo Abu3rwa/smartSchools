@@ -17,6 +17,7 @@ import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';
 import { validate, validationRules } from '../middleware/validator.js';
+import { requireLimit } from '../middleware/checkUsageLimit.js';
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.use(parseQueryFilter);
 
 router.route('/')
     .get(authorize('admin', 'department_principal', 'teacher'), getClasses)
-    .post(authorize('admin'), validationRules.createClass, validate, createClass);
+    .post(authorize('admin'), requireLimit('classes'), validationRules.createClass, validate, createClass);
 
 router.post('/import', authorize('admin', 'department_principal'), importClasses);
 

@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+﻿import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 import { decryptSecret, encryptSecret } from '../utils/secretCrypto.js';
@@ -99,7 +99,26 @@ const userSchema = new mongoose.Schema({
             'message_school_teachers',
             'message_school_everyone',
             'message_assigned_subordinates',
-            'delegated_communication_scope'
+            'delegated_communication_scope',
+            'view_academic_excellence_student',
+            'view_academic_excellence_class',
+            'view_academic_excellence_school',
+            'view_academic_excellence_department',
+            'assign_academic_excellence_tasks',
+            'review_academic_excellence_tasks',
+            'bulk_assign_academic_excellence_tasks',
+            'disable_academic_excellence_for_student',
+            'disable_academic_excellence_for_class',
+            'exclude_academic_excellence_lesson',
+            'manage_academic_excellence_exclusions',
+            'manage_academic_excellence_notifications',
+            'override_academic_excellence_notifications',
+            'manage_academic_excellence_settings',
+            'view_academic_excellence_settings',
+            'view_academic_excellence_school_analytics',
+            'view_academic_excellence_class_analytics',
+            'export_academic_excellence_reports',
+            'view_academic_excellence_at_risk_report'
         ],
         default: []
     },
@@ -355,3 +374,4 @@ userSchema.pre(['find', 'findOne'], function() {
 
 const User = mongoose.model('User', userSchema);
 export default User;
+

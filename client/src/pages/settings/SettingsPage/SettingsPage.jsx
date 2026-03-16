@@ -19,6 +19,7 @@ const SettingsPage = () => {
         handleThemeChange,
         handleLogout,
         navigateToSchoolSettings,
+        navigateToSubscription,
         handleAvatarUpload,
         handleAvatarRemove
     } = useSettingsPageData();
@@ -26,6 +27,13 @@ const SettingsPage = () => {
     return (
         <Box className="settings-page" sx={{ px: { xs: 0, sm: 0 } }}>
             <SettingsPageHeader />
+            {isAdmin && (
+                <div className="settings-actions-strip">
+                    <button type="button" className="btn btn-secondary" onClick={navigateToSubscription}>
+                        Open subscription details
+                    </button>
+                </div>
+            )}
 
             <Grid container spacing={2} className="settings-grid">
                 <ProfileCard

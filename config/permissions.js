@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Permission constants and role-to-permission mappings
  */
 
@@ -99,7 +99,28 @@ export const PERMISSIONS = {
     MESSAGE_SCHOOL_TEACHERS: 'message_school_teachers',
     MESSAGE_SCHOOL_EVERYONE: 'message_school_everyone',
     MESSAGE_ASSIGNED_SUBORDINATES: 'message_assigned_subordinates',
-    DELEGATED_COMMUNICATION_SCOPE: 'delegated_communication_scope'
+    DELEGATED_COMMUNICATION_SCOPE: 'delegated_communication_scope',
+
+    // Academic Excellence
+    VIEW_ACADEMIC_EXCELLENCE_STUDENT: 'view_academic_excellence_student',
+    VIEW_ACADEMIC_EXCELLENCE_CLASS: 'view_academic_excellence_class',
+    VIEW_ACADEMIC_EXCELLENCE_SCHOOL: 'view_academic_excellence_school',
+    VIEW_ACADEMIC_EXCELLENCE_DEPARTMENT: 'view_academic_excellence_department',
+    ASSIGN_ACADEMIC_EXCELLENCE_TASKS: 'assign_academic_excellence_tasks',
+    REVIEW_ACADEMIC_EXCELLENCE_TASKS: 'review_academic_excellence_tasks',
+    BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS: 'bulk_assign_academic_excellence_tasks',
+    DISABLE_ACADEMIC_EXCELLENCE_FOR_STUDENT: 'disable_academic_excellence_for_student',
+    DISABLE_ACADEMIC_EXCELLENCE_FOR_CLASS: 'disable_academic_excellence_for_class',
+    EXCLUDE_ACADEMIC_EXCELLENCE_LESSON: 'exclude_academic_excellence_lesson',
+    MANAGE_ACADEMIC_EXCELLENCE_EXCLUSIONS: 'manage_academic_excellence_exclusions',
+    MANAGE_ACADEMIC_EXCELLENCE_NOTIFICATIONS: 'manage_academic_excellence_notifications',
+    OVERRIDE_ACADEMIC_EXCELLENCE_NOTIFICATIONS: 'override_academic_excellence_notifications',
+    MANAGE_ACADEMIC_EXCELLENCE_SETTINGS: 'manage_academic_excellence_settings',
+    VIEW_ACADEMIC_EXCELLENCE_SETTINGS: 'view_academic_excellence_settings',
+    VIEW_ACADEMIC_EXCELLENCE_SCHOOL_ANALYTICS: 'view_academic_excellence_school_analytics',
+    VIEW_ACADEMIC_EXCELLENCE_CLASS_ANALYTICS: 'view_academic_excellence_class_analytics',
+    EXPORT_ACADEMIC_EXCELLENCE_REPORTS: 'export_academic_excellence_reports',
+    VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT: 'view_academic_excellence_at_risk_report'
 };
 
 // Permission definitions with metadata
@@ -418,6 +439,101 @@ export const PERMISSION_DEFINITIONS = {
         label: 'Delegated Communication Scope',
         description: 'Use delegated communication scope metadata for recipient access',
         category: 'operations'
+    },
+    [PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_STUDENT]: {
+        label: 'View Academic Excellence Student',
+        description: 'View student-level Academic Excellence insights',
+        category: 'academic'
+    },
+    [PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS]: {
+        label: 'View Academic Excellence Class',
+        description: 'View class-level Academic Excellence insights',
+        category: 'academic'
+    },
+    [PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_SCHOOL]: {
+        label: 'View Academic Excellence School',
+        description: 'View school-wide Academic Excellence insights',
+        category: 'reports'
+    },
+    [PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_DEPARTMENT]: {
+        label: 'View Academic Excellence Department',
+        description: 'View department-level Academic Excellence insights',
+        category: 'reports'
+    },
+    [PERMISSIONS.ASSIGN_ACADEMIC_EXCELLENCE_TASKS]: {
+        label: 'Assign AE Tasks',
+        description: 'Assign Academic Excellence tasks to students',
+        category: 'academic'
+    },
+    [PERMISSIONS.REVIEW_ACADEMIC_EXCELLENCE_TASKS]: {
+        label: 'Review AE Tasks',
+        description: 'Review completed Academic Excellence tasks',
+        category: 'academic'
+    },
+    [PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS]: {
+        label: 'Bulk Assign AE Tasks',
+        description: 'Bulk assign Academic Excellence tasks by class or group',
+        category: 'academic'
+    },
+    [PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_STUDENT]: {
+        label: 'Disable AE For Student',
+        description: 'Disable Academic Excellence tracking for a student',
+        category: 'academic'
+    },
+    [PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_CLASS]: {
+        label: 'Disable AE For Class',
+        description: 'Disable Academic Excellence tracking for a class',
+        category: 'academic'
+    },
+    [PERMISSIONS.EXCLUDE_ACADEMIC_EXCELLENCE_LESSON]: {
+        label: 'Exclude AE Lesson',
+        description: 'Exclude lessons or objectives from Academic Excellence',
+        category: 'academic'
+    },
+    [PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_EXCLUSIONS]: {
+        label: 'Manage AE Exclusions',
+        description: 'Manage Academic Excellence exclusions and rules',
+        category: 'admin'
+    },
+    [PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_NOTIFICATIONS]: {
+        label: 'Manage AE Notifications',
+        description: 'Manage Academic Excellence notification preferences',
+        category: 'operations'
+    },
+    [PERMISSIONS.OVERRIDE_ACADEMIC_EXCELLENCE_NOTIFICATIONS]: {
+        label: 'Override AE Notifications',
+        description: 'Override Academic Excellence notification settings school-wide',
+        category: 'admin'
+    },
+    [PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_SETTINGS]: {
+        label: 'Manage AE Settings',
+        description: 'Manage Academic Excellence settings and thresholds',
+        category: 'admin'
+    },
+    [PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_SETTINGS]: {
+        label: 'View AE Settings',
+        description: 'View Academic Excellence settings',
+        category: 'academic'
+    },
+    [PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_SCHOOL_ANALYTICS]: {
+        label: 'View AE School Analytics',
+        description: 'View school-level Academic Excellence analytics',
+        category: 'reports'
+    },
+    [PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS_ANALYTICS]: {
+        label: 'View AE Class Analytics',
+        description: 'View class-level Academic Excellence analytics',
+        category: 'reports'
+    },
+    [PERMISSIONS.EXPORT_ACADEMIC_EXCELLENCE_REPORTS]: {
+        label: 'Export AE Reports',
+        description: 'Export Academic Excellence reports',
+        category: 'reports'
+    },
+    [PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT]: {
+        label: 'View AE At Risk Report',
+        description: 'View at-risk student Academic Excellence reports',
+        category: 'reports'
     }
 };
 
@@ -487,7 +603,20 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.VIEW_HOMEWORK_SUBMISSIONS,
         PERMISSIONS.SEND_COMMUNICATION_EMAILS,
         PERMISSIONS.MESSAGE_OWN_STUDENTS,
-        PERMISSIONS.MESSAGE_OWN_STUDENT_PARENTS
+        PERMISSIONS.MESSAGE_OWN_STUDENT_PARENTS,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_STUDENT,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS,
+        PERMISSIONS.ASSIGN_ACADEMIC_EXCELLENCE_TASKS,
+        PERMISSIONS.REVIEW_ACADEMIC_EXCELLENCE_TASKS,
+        PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS,
+        PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_STUDENT,
+        PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_CLASS,
+        PERMISSIONS.EXCLUDE_ACADEMIC_EXCELLENCE_LESSON,
+        PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_NOTIFICATIONS,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_SETTINGS,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS_ANALYTICS,
+        PERMISSIONS.EXPORT_ACADEMIC_EXCELLENCE_REPORTS,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT
     ],
     department_principal: [
         PERMISSIONS.MANAGE_SUBSTITUTIONS,
@@ -511,11 +640,30 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.MESSAGE_DEPARTMENT_STUDENTS,
         PERMISSIONS.MESSAGE_DEPARTMENT_PARENTS,
         PERMISSIONS.MESSAGE_DEPARTMENT_TEACHERS,
-        PERMISSIONS.MESSAGE_DEPARTMENT_EVERYONE
+        PERMISSIONS.MESSAGE_DEPARTMENT_EVERYONE,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_STUDENT,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_DEPARTMENT,
+        PERMISSIONS.ASSIGN_ACADEMIC_EXCELLENCE_TASKS,
+        PERMISSIONS.REVIEW_ACADEMIC_EXCELLENCE_TASKS,
+        PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS,
+        PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_STUDENT,
+        PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_CLASS,
+        PERMISSIONS.EXCLUDE_ACADEMIC_EXCELLENCE_LESSON,
+        PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_EXCLUSIONS,
+        PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_NOTIFICATIONS,
+        PERMISSIONS.OVERRIDE_ACADEMIC_EXCELLENCE_NOTIFICATIONS,
+        PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_SETTINGS,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_SETTINGS,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS_ANALYTICS,
+        PERMISSIONS.EXPORT_ACADEMIC_EXCELLENCE_REPORTS,
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT
     ],
     staff: [],
     parent: [],
-    student: []
+    student: [
+        PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_STUDENT
+    ]
 };
 
 // Permission categories for UI grouping
@@ -631,3 +779,4 @@ export default {
     hasAllPermissions,
     getUserPermissions
 };
+

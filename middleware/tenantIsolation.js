@@ -1,9 +1,18 @@
 import { AsyncLocalStorage } from "async_hooks";
+import { requireActiveSubscription } from './requireActiveSubscription.js';
 /**
  * Request-scoped tenant context. Set by auth so the plugin can scope all queries
  * to the current user's school without controllers passing schoolId every time.
  */
 export const tenantStore = new AsyncLocalStorage();
+
+const enforceActiveSubscription = requireActiveSubscription({
+  allowedPaths: [
+    '/api/schools/me/features',
+    '/api/schools/me/subscription',
+    '/api/schools/me/upgrade-requests'
+  ]
+});
 
 /**
  * Run the rest of the request in a tenant context so Mongoose queries are auto-scoped.
@@ -98,7 +107,8 @@ export const requireSchoolContext = (req, res, next) => {
       message: "School context required for this operation",
     });
   }
-  next();
+
+  return enforceActiveSubscription(req, res, next);
 };
 
 /**

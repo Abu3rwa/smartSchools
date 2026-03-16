@@ -55,6 +55,7 @@ const NotificationsPage = lazy(() => import("./pages/notifications/Notifications
 const MessagesPage = lazy(() => import("./pages/messages/MessagesPage"));
 const EmailComposerPage = lazy(() => import("./pages/EmailComposerPage"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
+const SubscriptionPage = lazy(() => import("./pages/settings/SubscriptionPage/SubscriptionPage"));
 const SchoolSettingsPage = lazy(() => import("./pages/schoolSettings/SchoolSettingsPage"));
 const AdminSchedulePage = lazy(() => import("./pages/admin/schedule/AdminSchedulePage"));
 const AdminAttendancePage = lazy(() => import("./pages/admin/attendance/AdminAttendancePage"));
@@ -86,6 +87,9 @@ const PracticeDashboardPage = lazy(() => import("./pages/student/practice/Practi
 const PracticeSessionPage = lazy(() => import("./pages/student/practice/PracticeSessionPage"));
 const PracticeHistoryPage = lazy(() => import("./pages/student/practice/PracticeHistoryPage"));
 const PracticeAssessmentResultsPage = lazy(() => import("./pages/student/practice/PracticeAssessmentResultsPage"));
+const StudentAcademicExcellencePage = lazy(() => import("./pages/student/academicExcellence/StudentAcademicExcellencePage"));
+const TeacherAcademicExcellencePage = lazy(() => import("./pages/teacher/academicExcellence/TeacherAcademicExcellencePage"));
+const AdminAcademicExcellenceDashboard = lazy(() => import("./pages/admin/academicExcellence/AdminAcademicExcellenceDashboard"));
 const InterventionQueuePage = lazy(() => import("./pages/interventions/InterventionQueuePage"));
 const StudentGradesPage = lazy(() => import("./pages/student/academics/StudentGradesPage"));
 const StudentAttendancePage = lazy(() => import("./pages/student/attendance/StudentAttendancePage"));
@@ -320,6 +324,14 @@ function App() {
             <Route index element={<DashboardPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route
+              path="settings/subscription"
+              element={
+                <RoleRoute roles={["admin"]}>
+                  <SubscriptionPage />
+                </RoleRoute>
+              }
+            />
             <Route
               path="school-settings"
               element={
@@ -836,6 +848,42 @@ function App() {
               element={
                 <RoleRoute roles={["student"]}>
                   <StudentAttendancePage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="academic-excellence"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <FeatureGate feature="academicIntelligence" showUpgradePrompt>
+                    <StudentAcademicExcellencePage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="teacher-academic-excellence"
+              element={
+                <RoleRoute
+                  roles={["admin", "department_principal", "teacher"]}
+                  permissions={["view_academic_excellence_class"]}
+                >
+                  <FeatureGate feature="academicIntelligence" showUpgradePrompt>
+                    <TeacherAcademicExcellencePage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="admin-academic-excellence"
+              element={
+                <RoleRoute
+                  roles={["admin", "department_principal"]}
+                  permissions={["view_academic_excellence_school", "view_academic_excellence_department"]}
+                >
+                  <FeatureGate feature="academicIntelligence" showUpgradePrompt>
+                    <AdminAcademicExcellenceDashboard />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />

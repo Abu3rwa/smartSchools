@@ -3,13 +3,14 @@ import { protect, authorize, authorizeWithPermission } from '../middleware/auth.
 import { requireSchoolContext, superAdminOnly } from '../middleware/tenantIsolation.js';
 import School from '../models/School.js';
 import Subscription from '../models/Subscription.js';
+import UpgradeRequest from '../models/UpgradeRequest.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { generateToken } from '../middleware/auth.js';
-import { normalizePlan, toSchoolPlan } from '../constants/features.js';
+import { FEATURE_KEYS, getPlanName, isRecognizedPlan, normalizePlan, toSchoolPlan } from '../constants/features.js';
 import { buildFeatureMetadata, resolveSchoolFeatureContext } from '../middleware/featureGate.js';
 import {
     getAttendanceReminderSettingsFromSchool,
@@ -134,15 +135,78 @@ router.get('/me/features', requireSchoolContext, asyncHandler(async (req, res) =
         currentStorage: featureContext.subscription?.usage?.currentStorage || 0
     };
 
+    const subscriptionStatus = featureContext.subscription?.status
+        || featureContext.school?.subscription?.status
+        || 'inactive';
+
     res.json({
         success: true,
         data: {
             plan: featureContext.plan,
             planName: featureContext.planName,
+            subscriptionStatus,
+            trialEndsAt: featureContext.subscription?.trialEndsAt || featureContext.school?.subscription?.trialEndsAt || null,
+            currentPeriodEnd: featureContext.subscription?.currentPeriodEnd || featureContext.school?.subscription?.currentPeriodEnd || null,
             features: featureContext.features,
             limits,
             usage,
             featureMetadata: buildFeatureMetadata(featureContext.features, featureContext.plan)
+        }
+    });
+}));
+
+/**
+ * @desc    Get current school subscription status and usage
+ * @route   GET /api/schools/me/subscription
+ * @access  Private (Admin)
+ */
+router.get('/me/subscription', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const featureContext = await resolveSchoolFeatureContext(req.schoolId);
+    if (!featureContext) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const [currentStudents, currentTeachers, currentClasses] = await Promise.all([
+        Student.countDocuments({ school: req.schoolId, status: 'active' }),
+        User.countDocuments({ school: req.schoolId, role: 'teacher' }),
+        Class.countDocuments({ school: req.schoolId })
+    ]);
+
+    const subscription = featureContext.subscription;
+    const now = new Date();
+    const currentPeriodEnd = subscription?.currentPeriodEnd || null;
+    const trialEndsAt = subscription?.trialEndsAt || null;
+    const targetDate = currentPeriodEnd || trialEndsAt;
+    const daysRemaining = targetDate
+        ? Math.ceil((new Date(targetDate).getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+        : null;
+
+    const fallbackPlanConfig = await Subscription.getPlanConfig(featureContext.plan)
+        || await Subscription.getPlanConfig('starter');
+
+    const limits = featureContext.limits || fallbackPlanConfig?.limits || {};
+    const usage = {
+        currentStudents,
+        currentTeachers,
+        currentClasses,
+        currentStorage: subscription?.usage?.currentStorage || 0
+    };
+
+    res.json({
+        success: true,
+        data: {
+            status: subscription?.status || featureContext.school?.subscription?.status || 'inactive',
+            plan: featureContext.plan,
+            billingInterval: subscription?.billing?.interval === 'year' ? 'annually' : 'monthly',
+            currentPeriodStart: subscription?.currentPeriodStart || null,
+            currentPeriodEnd,
+            daysRemaining,
+            trialEndsAt,
+            cancelAtPeriodEnd: Boolean(subscription?.cancelAtPeriodEnd),
+            limits,
+            usage,
+            features: featureContext.features,
+            invoices: subscription?.invoices || []
         }
     });
 }));
@@ -562,6 +626,83 @@ router.post('/me/rollover/deactivate-year', requireSchoolContext, authorize('adm
  */
 router.post('/me/rollover/promote-students', requireSchoolContext, authorize('admin'), asyncHandler(promoteStudents));
 
+/**
+ * @desc    Submit an upgrade request for the current school (school admin)
+ * @route   POST /api/schools/me/upgrade-requests
+ * @access  Private (Admin)
+ */
+router.post('/me/upgrade-requests', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const { requestedPlan, requestedFeatures, message } = req.body || {};
+    const normalizedRequestedPlan = requestedPlan ? normalizePlan(requestedPlan) : '';
+
+    if (requestedPlan && !isRecognizedPlan(normalizedRequestedPlan)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid requestedPlan'
+        });
+    }
+
+    const featureSet = new Set(FEATURE_KEYS);
+    const normalizedFeatures = Array.isArray(requestedFeatures)
+        ? requestedFeatures
+            .map((key) => String(key || '').trim())
+            .filter((key) => featureSet.has(key))
+        : [];
+
+    const trimmedMessage = String(message || '').trim();
+    if (!normalizedRequestedPlan && normalizedFeatures.length === 0 && !trimmedMessage) {
+        return res.status(400).json({
+            success: false,
+            message: 'Please include a requested plan, requested features, or a message.'
+        });
+    }
+
+    const featureContext = await resolveSchoolFeatureContext(req.schoolId);
+    if (!featureContext) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const request = await UpgradeRequest.create({
+        school: req.schoolId,
+        requestedBy: req.user._id,
+        currentPlan: featureContext.plan,
+        requestedPlan: normalizedRequestedPlan,
+        requestedFeatures: normalizedFeatures,
+        message: trimmedMessage,
+        status: 'pending'
+    });
+
+    const populated = await UpgradeRequest.findById(request._id)
+        .populate('requestedBy', 'firstName lastName email');
+
+    res.status(201).json({
+        success: true,
+        message: 'Upgrade request submitted',
+        data: { request: populated }
+    });
+}));
+
+/**
+ * @desc    Get upgrade requests for the current school (school admin)
+ * @route   GET /api/schools/me/upgrade-requests
+ * @access  Private (Admin)
+ */
+router.get('/me/upgrade-requests', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const requests = await UpgradeRequest.find({ school: req.schoolId })
+        .populate('requestedBy', 'firstName lastName email')
+        .populate('review.handledBy', 'firstName lastName email')
+        .sort({ createdAt: -1 })
+        .limit(limit);
+
+    res.json({
+        success: true,
+        data: {
+            requests
+        }
+    });
+}));
+
 // ─── Super Admin Routes ───
 
 /**
@@ -691,6 +832,129 @@ router.get('/', superAdminOnly, asyncHandler(async (req, res) => {
                 limit: parseInt(limit),
                 total,
                 pages: Math.ceil(total / limit)
+            }
+        }
+    });
+}));
+
+/**
+ * @desc    List upgrade requests across schools (super admin)
+ * @route   GET /api/schools/upgrade-requests
+ * @access  Private (Super Admin)
+ */
+router.get('/upgrade-requests', superAdminOnly, asyncHandler(async (req, res) => {
+    const { status } = req.query;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+
+    const query = {};
+    if (status) {
+        query.status = status;
+    }
+
+    const [requests, total] = await Promise.all([
+        UpgradeRequest.find(query)
+            .populate('school', 'name contact.adminName contact.adminEmail subscription.plan')
+            .populate('requestedBy', 'firstName lastName email')
+            .populate('review.handledBy', 'firstName lastName email')
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .setOptions({ skipTenantFilter: true }),
+        UpgradeRequest.countDocuments(query).setOptions({ skipTenantFilter: true })
+    ]);
+
+    const schoolIds = requests
+        .map((request) => request.school?._id)
+        .filter(Boolean);
+
+    const subscriptions = schoolIds.length > 0
+        ? await Subscription.find({ school: { $in: schoolIds } })
+            .select('_id school')
+            .setOptions({ skipTenantFilter: true })
+            .lean()
+        : [];
+
+    const subscriptionIdBySchoolId = new Map(
+        subscriptions.map((subscription) => [String(subscription.school), String(subscription._id)])
+    );
+
+    const requestsWithSubscription = requests.map((request) => {
+        const plainRequest = request.toObject();
+        const schoolId = plainRequest.school?._id ? String(plainRequest.school._id) : '';
+        return {
+            ...plainRequest,
+            schoolSubscriptionId: subscriptionIdBySchoolId.get(schoolId) || null
+        };
+    });
+
+    res.json({
+        success: true,
+        data: {
+            requests: requestsWithSubscription,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        }
+    });
+}));
+
+/**
+ * @desc    Update upgrade request status (super admin)
+ * @route   PATCH /api/schools/upgrade-requests/:id
+ * @access  Private (Super Admin)
+ */
+router.patch('/upgrade-requests/:id', superAdminOnly, asyncHandler(async (req, res) => {
+    const allowedStatuses = new Set(['pending', 'in_review', 'approved', 'rejected']);
+    const nextStatus = String(req.body?.status || '').trim().toLowerCase();
+    const reviewNote = String(req.body?.reviewNote || '').trim();
+
+    if (!allowedStatuses.has(nextStatus)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid status'
+        });
+    }
+
+    const request = await UpgradeRequest.findById(req.params.id).setOptions({ skipTenantFilter: true });
+    if (!request) {
+        return res.status(404).json({ success: false, message: 'Upgrade request not found' });
+    }
+
+    request.status = nextStatus;
+    request.review = {
+        handledBy: req.user._id,
+        handledAt: new Date(),
+        note: reviewNote
+    };
+
+    await request.save();
+
+    const populated = await UpgradeRequest.findById(request._id)
+        .populate('school', 'name contact.adminName contact.adminEmail subscription.plan')
+        .populate('requestedBy', 'firstName lastName email')
+        .populate('review.handledBy', 'firstName lastName email')
+        .setOptions({ skipTenantFilter: true });
+
+    const schoolSubscription = populated?.school?._id
+        ? await Subscription.findOne({ school: populated.school._id })
+            .select('_id')
+            .setOptions({ skipTenantFilter: true })
+            .lean()
+        : null;
+
+    res.json({
+        success: true,
+        message: `Upgrade request marked as ${nextStatus}`,
+        data: {
+            request: {
+                ...populated.toObject(),
+                schoolSubscriptionId: schoolSubscription?._id ? String(schoolSubscription._id) : null,
+                requestedPlanName: populated.requestedPlan ? getPlanName(populated.requestedPlan) : '',
+                currentPlanName: getPlanName(populated.currentPlan)
             }
         }
     });

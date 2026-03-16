@@ -11,6 +11,7 @@ import Department from '../../models/Department.js';
 import TimetablePeriod from '../../models/TimetablePeriod.js';
 import ImportRun from '../../models/ImportRun.js';
 import { resolveSchoolAcademicYear } from '../../utils/academicYear.js';
+import { resolveSchoolFeatureContext } from '../../middleware/featureGate.js';
 import {
     MAX_IMPORT_ROWS,
     ENTITY_TYPES,
@@ -51,6 +52,16 @@ const makeMessage = (entityType, summary, { preview = false } = {}) => {
     if (preview) {
         return `Preview generated for ${summary.totalRows} ${label} rows`;
     }
+
+    if (
+        summary.totalRows > 0
+        && summary.importedRows === 0
+        && summary.failedRows === 0
+        && summary.skippedRows === summary.totalRows
+    ) {
+        return `No ${label} rows were imported. All ${summary.totalRows} rows were skipped.`;
+    }
+
     return `${summary.importedRows} of ${summary.totalRows} ${label} imported successfully`;
 };
 
@@ -82,6 +93,98 @@ const flattenIssues = (candidates, key) => {
         for (const issue of candidate[key]) out.push(issue);
     }
     return out;
+};
+
+const resolveEntityCapacity = async ({ entityType, schoolId }) => {
+    if (!['students', 'teachers'].includes(entityType)) {
+        return null;
+    }
+
+    const featureContext = await resolveSchoolFeatureContext(schoolId);
+    const config = entityType === 'students'
+        ? {
+            limitKey: 'maxStudents',
+            countQuery: { school: schoolId, status: 'active' },
+            limitCode: 'STUDENT_LIMIT_REACHED',
+            label: 'students'
+        }
+        : {
+            limitKey: 'maxTeachers',
+            countQuery: { school: schoolId, isActive: true },
+            limitCode: 'TEACHER_LIMIT_REACHED',
+            label: 'teachers'
+        };
+
+    const rawLimit = featureContext?.limits?.[config.limitKey];
+    const maxAllowed = Number(rawLimit);
+    const currentCount = entityType === 'students'
+        ? await Student.countDocuments(config.countQuery)
+        : await Teacher.countDocuments(config.countQuery);
+
+    if (!Number.isFinite(maxAllowed) || maxAllowed < 0) {
+        return {
+            entityType,
+            isLimited: false,
+            maxAllowed: null,
+            currentCount,
+            remainingSeats: null
+        };
+    }
+
+    return {
+        entityType,
+        isLimited: true,
+        maxAllowed,
+        currentCount,
+        remainingSeats: Math.max(0, maxAllowed - currentCount),
+        limitCode: config.limitCode,
+        label: config.label,
+        limitKey: config.limitKey
+    };
+};
+
+const mapCapacityForResponse = (capacity) => {
+    if (!capacity) return null;
+
+    if (capacity.entityType === 'students') {
+        return {
+            isLimited: capacity.isLimited,
+            maxStudents: capacity.maxAllowed,
+            currentStudents: capacity.currentCount,
+            remainingSeats: capacity.remainingSeats
+        };
+    }
+
+    return {
+        isLimited: capacity.isLimited,
+        maxTeachers: capacity.maxAllowed,
+        currentTeachers: capacity.currentCount,
+        remainingSeats: capacity.remainingSeats
+    };
+};
+
+const enforceEntityCapacityLimit = ({ candidates, capacity }) => {
+    if (!capacity?.isLimited) return;
+
+    let seatsLeft = capacity.remainingSeats;
+    for (const candidate of candidates) {
+        if (candidate.errors.length > 0) continue;
+        if (candidate.action !== 'create') continue;
+
+        if (seatsLeft > 0) {
+            seatsLeft -= 1;
+            continue;
+        }
+
+        candidate.action = 'error';
+        candidate.errors.push(createIssue(
+            candidate.rowNumber,
+            'row',
+            capacity.limitCode,
+            `${capacity.label.slice(0, 1).toUpperCase() + capacity.label.slice(1)} limit reached for this plan (${capacity.maxAllowed} active ${capacity.label}). Upgrade the plan to import more ${capacity.label}.`,
+            candidate.sourceRow
+        ));
+    }
 };
 
 const nextStudentId = (counterRef) => {
@@ -214,7 +317,7 @@ const buildPreparation = async ({ entityType, normalizedRows, context, payload }
         const or = [];
         if (studentIds.length) or.push({ studentId: { $in: studentIds } });
         if (emails.length) or.push({ email: { $in: emails } });
-        const existing = or.length ? await Student.find({ $or: or }).select('_id studentId email').lean() : [];
+        const existing = or.length ? await Student.find({ $or: or }).select('_id studentId email status').lean() : [];
         prep.studentById = new Map();
         prep.studentByEmail = new Map();
         for (const item of existing) {
@@ -951,6 +1054,8 @@ export const runImportPipeline = async ({
             entityType: normalizedEntityType,
             fileHash,
             status: 'completed',
+            failedRows: 0,
+            importedRows: { $gt: 0 },
             createdAt: { $gte: duplicateWindowStart }
         }).sort({ createdAt: -1 });
         if (recentRun) return mapIdempotentRunToResult(recentRun, normalizedEntityType);
@@ -982,6 +1087,11 @@ export const runImportPipeline = async ({
         payload
     });
 
+    const entityCapacity = await resolveEntityCapacity({
+        entityType: normalizedEntityType,
+        schoolId: context.schoolId
+    });
+
     validateFileLevelDuplicates({ candidates, options });
 
     for (const candidate of candidates) {
@@ -996,6 +1106,10 @@ export const runImportPipeline = async ({
             preparation
         });
         if (candidate.action === 'pending') candidate.action = 'create';
+    }
+
+    if (entityCapacity) {
+        enforceEntityCapacityLimit({ candidates, capacity: entityCapacity });
     }
 
     if (normalizedEntityType === 'timetable_periods') {
@@ -1022,6 +1136,7 @@ export const runImportPipeline = async ({
             sample: buildSample(candidates, options.sampleLimit),
             importRunId: null,
             errorReportUrl: null,
+            capacity: mapCapacityForResponse(entityCapacity),
             strictMode: options.strictMode,
             duplicatePolicy: options.duplicatePolicy,
             idempotent: false
@@ -1074,6 +1189,7 @@ export const runImportPipeline = async ({
             sample: buildSample(candidates, options.sampleLimit),
             importRunId: importRun._id,
             errorReportUrl: finalized.errorReportUrl,
+            capacity: mapCapacityForResponse(entityCapacity),
             strictMode: options.strictMode,
             duplicatePolicy: options.duplicatePolicy,
             idempotent: false
@@ -1140,6 +1256,7 @@ export const runImportPipeline = async ({
         success: hasImportedRows || !hasFailedRows,
         statusCode: hasImportedRows ? 201 : (hasFailedRows ? 400 : 200),
         message: makeMessage(normalizedEntityType, summary),
+        code: summary.importedRows === 0 && summary.failedRows > 0 ? 'IMPORT_VALIDATION_FAILED' : undefined,
         entityType: normalizedEntityType,
         summary,
         errors,
@@ -1147,6 +1264,7 @@ export const runImportPipeline = async ({
         sample: buildSample(candidates, options.sampleLimit),
         importRunId: importRun._id,
         errorReportUrl: finalized.errorReportUrl,
+        capacity: mapCapacityForResponse(entityCapacity),
         strictMode: options.strictMode,
         duplicatePolicy: options.duplicatePolicy,
         idempotent: false
