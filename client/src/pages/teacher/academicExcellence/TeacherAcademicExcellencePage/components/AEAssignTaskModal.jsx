@@ -1,16 +1,16 @@
 import { useState } from "react";
+import api from "../../../../../config/api";
 
 const TASK_TYPES = [
   { value: "practice_questions", label: "Practice Questions" },
-  { value: "video_watch", label: "Video Watch" },
-  { value: "reading", label: "Reading" },
+  { value: "reading", label: "Reading Comprehension" },
   { value: "teacher_review", label: "Teacher Review" },
   { value: "peer_discussion", label: "Peer Discussion" },
   { value: "project", label: "Project" },
   { value: "custom", label: "Custom" },
 ];
 
-const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, onAssign, onClose }) => {
+const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjectId, subjectName, onAssign, onClose }) => {
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -20,6 +20,35 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, onAssi
     estimatedMinutes: 15,
   });
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const selectedObj = (objectives || []).find((o) => o.objectiveKey === form.objectiveKey);
+
+  const handleGenerate = async () => {
+    if (!form.objectiveKey) return;
+    setGenerating(true);
+    try {
+      const res = await api.post("/academic-excellence/tasks/generate", {
+        objectiveKey: form.objectiveKey,
+        objectiveName: selectedObj?.objectiveName || form.objectiveKey,
+        subjectName: subjectName || "",
+        taskType: form.taskType,
+      });
+      const data = res.data?.data;
+      if (data) {
+        setForm((p) => ({
+          ...p,
+          title: data.title || p.title,
+          description: data.description || p.description,
+          estimatedMinutes: data.estimatedMinutes || p.estimatedMinutes,
+        }));
+      }
+    } catch {
+      /* silent – teacher can write manually */
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.title.trim() || !form.objectiveKey) return;
@@ -28,6 +57,7 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, onAssi
       await onAssign({
         studentId,
         classId,
+        subjectId,
         objectiveKey: form.objectiveKey,
         title: form.title,
         description: form.description,
@@ -54,22 +84,13 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, onAssi
             value={form.objectiveKey}
             onChange={(e) => setForm((p) => ({ ...p, objectiveKey: e.target.value }))}
           >
+            <option value="">— Select an objective —</option>
             {(objectives || []).map((obj) => (
               <option key={obj.objectiveKey} value={obj.objectiveKey}>
                 {obj.objectiveName || obj.objectiveKey}
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="teacher-ae-form-group">
-          <label>Title</label>
-          <input
-            className="teacher-ae-input"
-            value={form.title}
-            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-            placeholder="e.g. Practice adding fractions"
-          />
         </div>
 
         <div className="teacher-ae-form-group">
@@ -85,13 +106,36 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, onAssi
           </select>
         </div>
 
+        {/* AI Generate Button */}
+        <button
+          type="button"
+          className="teacher-ae-btn-primary"
+          style={{ width: "100%", marginBottom: "0.5rem" }}
+          onClick={handleGenerate}
+          disabled={generating || !form.objectiveKey}
+        >
+          {generating ? "Generating with AI..." : "✨ Generate Task with AI"}
+        </button>
+
         <div className="teacher-ae-form-group">
-          <label>Description (optional)</label>
+          <label>Title</label>
+          <input
+            className="teacher-ae-input"
+            value={form.title}
+            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+            placeholder="e.g. Practice adding fractions"
+          />
+        </div>
+
+        <div className="teacher-ae-form-group">
+          <label>Task Content / Instructions</label>
           <textarea
             className="teacher-ae-textarea"
+            rows={8}
             value={form.description}
             onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-            placeholder="Task instructions..."
+            placeholder="AI will generate exercises here, or write your own..."
+            style={{ minHeight: "140px" }}
           />
         </div>
 

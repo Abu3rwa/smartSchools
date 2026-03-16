@@ -1,16 +1,16 @@
 import { useState } from "react";
+import api from "../../../../../config/api";
 
 const TASK_TYPES = [
   { value: "practice_questions", label: "Practice Questions" },
-  { value: "video_watch", label: "Video Watch" },
-  { value: "reading", label: "Reading" },
+  { value: "reading", label: "Reading Comprehension" },
   { value: "teacher_review", label: "Teacher Review" },
   { value: "peer_discussion", label: "Peer Discussion" },
   { value: "project", label: "Project" },
   { value: "custom", label: "Custom" },
 ];
 
-const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, onAssign, onClose }) => {
+const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, subjectId, subjectName, onAssign, onClose }) => {
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -19,6 +19,33 @@ const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, onAssign, onC
     estimatedMinutes: 15,
   });
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerate = async () => {
+    if (!objectiveKey) return;
+    setGenerating(true);
+    try {
+      const res = await api.post("/academic-excellence/tasks/generate", {
+        objectiveKey,
+        objectiveName: objectiveName || objectiveKey,
+        subjectName: subjectName || "",
+        taskType: form.taskType,
+      });
+      const data = res.data?.data;
+      if (data) {
+        setForm((p) => ({
+          ...p,
+          title: data.title || p.title,
+          description: data.description || p.description,
+          estimatedMinutes: data.estimatedMinutes || p.estimatedMinutes,
+        }));
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.title.trim()) return;
@@ -27,6 +54,7 @@ const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, onAssign, onC
       await onAssign({
         classId,
         objectiveKey,
+        subjectId,
         title: form.title,
         description: form.description,
         taskType: form.taskType,
@@ -49,16 +77,6 @@ const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, onAssign, onC
         </p>
 
         <div className="teacher-ae-form-group">
-          <label>Title</label>
-          <input
-            className="teacher-ae-input"
-            value={form.title}
-            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-            placeholder="e.g. Practice worksheet: Adding Fractions"
-          />
-        </div>
-
-        <div className="teacher-ae-form-group">
           <label>Task Type</label>
           <select
             className="teacher-ae-select"
@@ -71,13 +89,36 @@ const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, onAssign, onC
           </select>
         </div>
 
+        {/* AI Generate Button */}
+        <button
+          type="button"
+          className="teacher-ae-btn-primary"
+          style={{ width: "100%", marginBottom: "0.5rem" }}
+          onClick={handleGenerate}
+          disabled={generating}
+        >
+          {generating ? "Generating with AI..." : "✨ Generate Task with AI"}
+        </button>
+
         <div className="teacher-ae-form-group">
-          <label>Description (optional)</label>
+          <label>Title</label>
+          <input
+            className="teacher-ae-input"
+            value={form.title}
+            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+            placeholder="e.g. Practice worksheet: Adding Fractions"
+          />
+        </div>
+
+        <div className="teacher-ae-form-group">
+          <label>Task Content / Instructions</label>
           <textarea
             className="teacher-ae-textarea"
+            rows={8}
             value={form.description}
             onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-            placeholder="Instructions for all students..."
+            placeholder="AI will generate exercises here, or write your own..."
+            style={{ minHeight: "140px" }}
           />
         </div>
 

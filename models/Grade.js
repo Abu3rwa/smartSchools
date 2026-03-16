@@ -35,13 +35,13 @@ const gradeSchema = new mongoose.Schema({
     // Grade type: classwork, homework, quiz, project, participation, test, exam
     gradeType: {
         type: String,
-        enum: ['classwork', 'homework', 'quiz', 'project', 'participation', 'monthly_test', 'semester_exam', 'other', 'daily', 'weekly'],
+        enum: ['classwork', 'homework', 'quiz', 'project', 'participation', 'monthly_test', 'midterm_exam', 'semester_exam', 'final_exam', 'oral', 'practical', 'assignment', 'other', 'daily', 'weekly'],
         required: true
     },
     // Assessment category for grouping
     category: {
         type: String,
-        enum: ['classwork', 'homework', 'quiz', 'project', 'participation', 'test', 'exam', 'other'],
+        enum: ['classwork', 'homework', 'quiz', 'project', 'participation', 'test', 'exam', 'midterm', 'final', 'oral', 'practical', 'assignment', 'other'],
         default: 'classwork'
     },
     // Common fields

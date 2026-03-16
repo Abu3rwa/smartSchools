@@ -8,6 +8,7 @@ import {
     createAcademicExcellenceTask,
     bulkCreateAcademicExcellenceTasks,
     reviewAcademicExcellenceTask,
+    generateAcademicExcellenceTask,
     getAcademicExcellenceExclusions,
     createAcademicExcellenceExclusion,
     toggleAcademicExcellenceExclusion,
@@ -47,6 +48,11 @@ router.patch(
     '/tasks/:taskId/review',
     authorize('admin', 'department_principal', 'teacher'),
     reviewAcademicExcellenceTask
+);
+router.post(
+    '/tasks/generate',
+    authorize('admin', 'department_principal', 'teacher'),
+    generateAcademicExcellenceTask
 );
 
 // ─── Exclusions ─────────────────────────────────────────────────────

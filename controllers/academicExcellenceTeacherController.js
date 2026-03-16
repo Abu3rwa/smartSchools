@@ -3,6 +3,8 @@ import AcademicExcellenceObjective from '../models/AcademicExcellenceObjective.j
 import AcademicExcellenceTask from '../models/AcademicExcellenceTask.js';
 import AcademicExcellenceExclusion from '../models/AcademicExcellenceExclusion.js';
 import Student from '../models/Student.js';
+import Standard from '../models/Standard.js';
+import StandardAssignment from '../models/StandardAssignment.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherAssignments, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyExclusions } from '../services/academicExcellenceService.js';
@@ -12,6 +14,7 @@ import {
     toggleExclusion,
     getActiveExclusions
 } from '../services/academicExcellenceSettingsService.js';
+import { connectAi } from '../utils/connectAi.js';
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
 
@@ -110,6 +113,8 @@ export const getClassAcademicExcellenceSummary = asyncHandler(async (req, res) =
 /**
  * GET /classes/:id/academic-excellence/objectives
  * Paginated list of objectives for a class.
+ * Merges AcademicExcellenceObjective records with assigned Standards
+ * so teachers see objectives even before grades exist.
  */
 export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res) => {
     const classId = req.params.id;
@@ -125,7 +130,8 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
     if (academicYear) match.academicYear = academicYear;
     if (semester) match.semester = semester;
 
-    const [objectives, total] = await Promise.all([
+    // 1) Tracked objectives from AE sync
+    const [trackedObjectives, trackedTotal] = await Promise.all([
         AcademicExcellenceObjective.find(match)
             .sort({ objectiveKey: 1 })
             .skip((page - 1) * limit)
@@ -136,13 +142,43 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
         AcademicExcellenceObjective.countDocuments(match)
     ]);
 
-    const filtered = await applyExclusions(objectives, req.schoolId);
+    const filtered = await applyExclusions({ objectiveList: trackedObjectives, schoolId: req.schoolId, classId });
+
+    // 2) Also pull available standards assigned to this class so the
+    //    teacher sees objectives even if no grades have been recorded yet.
+    const assignmentQuery = { school: req.schoolId, class: classId };
+    if (subjectId) assignmentQuery.subject = subjectId;
+
+    const assignments = await StandardAssignment.find(assignmentQuery)
+        .populate('standard', 'code name description subject gradeLevel category')
+        .lean();
+
+    const trackedKeys = new Set(filtered.map((o) => o.objectiveKey));
+    const availableFromStandards = [];
+    for (const sa of assignments) {
+        const std = sa.standard;
+        if (!std || trackedKeys.has(std.code)) continue;
+        trackedKeys.add(std.code);
+        availableFromStandards.push({
+            _id: `std_${std._id}`,
+            objectiveKey: std.code,
+            objectiveName: std.name,
+            description: std.description,
+            masteryLevel: 'not_started',
+            masteryScore: 0,
+            trend: 'stable',
+            subject: std.subject,
+            source: 'standard'
+        });
+    }
+
+    const combined = [...filtered, ...availableFromStandards];
 
     res.json({
         success: true,
         data: {
-            objectives: filtered,
-            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+            objectives: combined,
+            pagination: { page, limit, total: trackedTotal + availableFromStandards.length, pages: Math.ceil((trackedTotal + availableFromStandards.length) / limit) }
         }
     });
 });
@@ -159,25 +195,12 @@ export const getAcademicExcellenceTaskQueue = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: 'Teacher profile not found' });
     }
 
-    const { classId, academicYear, semester } = req.query;
-    const { page, limit } = parsePagination(req.query);
+    const { classId } = req.query;
+    const teacherIdFilter = req.user.role === 'teacher' ? teacherProfile._id : null;
 
-    let teacherIdFilter = null;
-    if (req.user.role === 'teacher') {
-        teacherIdFilter = teacherProfile._id;
-    }
+    const tasks = await getTeacherTaskQueue(teacherIdFilter || req.user._id, classId || null);
 
-    const result = await getTeacherTaskQueue({
-        schoolId: req.schoolId,
-        teacherId: teacherIdFilter,
-        classId,
-        academicYear,
-        semester,
-        page,
-        limit
-    });
-
-    res.json({ success: true, data: result });
+    res.json({ success: true, data: { tasks } });
 });
 
 /**
@@ -185,11 +208,20 @@ export const getAcademicExcellenceTaskQueue = asyncHandler(async (req, res) => {
  * Assign a single practice task.
  */
 export const createAcademicExcellenceTask = asyncHandler(async (req, res) => {
-    const task = await assignTask({
-        ...req.body,
-        school: req.schoolId,
-        assignedBy: req.user._id
-    });
+    const teacherProfile = await resolveTeacherProfile(req);
+    const teacherId = teacherProfile?._id || req.user._id;
+
+    const { studentId, objectiveKey, title, description, taskType, dueDate, estimatedMinutes, classId, subjectId } = req.body;
+
+    const task = await assignTask(teacherId, studentId, objectiveKey, {
+        title,
+        description,
+        taskType,
+        dueDate,
+        estimatedMinutes,
+        classId,
+        subjectId
+    }, { schoolId: req.schoolId });
 
     res.status(201).json({ success: true, data: { task } });
 });
@@ -199,11 +231,19 @@ export const createAcademicExcellenceTask = asyncHandler(async (req, res) => {
  * Bulk-assign tasks to a class.
  */
 export const bulkCreateAcademicExcellenceTasks = asyncHandler(async (req, res) => {
-    const result = await bulkAssignTasks({
-        ...req.body,
-        school: req.schoolId,
-        assignedBy: req.user._id
-    });
+    const teacherProfile = await resolveTeacherProfile(req);
+    const teacherId = teacherProfile?._id || req.user._id;
+
+    const { classId, objectiveKey, title, description, taskType, dueDate, estimatedMinutes, subjectId } = req.body;
+
+    const result = await bulkAssignTasks(teacherId, classId, objectiveKey, {
+        title,
+        description,
+        taskType,
+        dueDate,
+        estimatedMinutes,
+        subjectId
+    }, { schoolId: req.schoolId });
 
     res.status(201).json({ success: true, data: result });
 });
@@ -213,11 +253,10 @@ export const bulkCreateAcademicExcellenceTasks = asyncHandler(async (req, res) =
  * Teacher reviews a completed task.
  */
 export const reviewAcademicExcellenceTask = asyncHandler(async (req, res) => {
-    const task = await reviewTask(req.params.taskId, {
-        ...req.body,
-        reviewedBy: req.user._id,
-        school: req.schoolId
-    });
+    const teacherProfile = await resolveTeacherProfile(req);
+    const teacherId = teacherProfile?._id || req.user._id;
+
+    const task = await reviewTask(teacherId, req.params.taskId, req.body.teacherFeedback || '');
 
     if (!task) {
         return res.status(404).json({ success: false, message: 'Task not found' });
@@ -234,8 +273,7 @@ export const reviewAcademicExcellenceTask = asyncHandler(async (req, res) => {
 export const getAcademicExcellenceExclusions = asyncHandler(async (req, res) => {
     const { classId, limit, page } = req.query;
 
-    const result = await getActiveExclusions({
-        schoolId: req.schoolId,
+    const result = await getActiveExclusions(req.schoolId, {
         classId,
         page,
         limit
@@ -248,10 +286,9 @@ export const getAcademicExcellenceExclusions = asyncHandler(async (req, res) => 
  * POST /academic-excellence/exclusions
  */
 export const createAcademicExcellenceExclusion = asyncHandler(async (req, res) => {
-    const exclusion = await createExclusion({
+    const exclusion = await createExclusion(req.user._id, {
         ...req.body,
-        school: req.schoolId,
-        createdBy: req.user._id
+        school: req.schoolId
     });
 
     res.status(201).json({ success: true, data: { exclusion } });
@@ -261,11 +298,12 @@ export const createAcademicExcellenceExclusion = asyncHandler(async (req, res) =
  * PATCH /academic-excellence/exclusions/:exclusionId/toggle
  */
 export const toggleAcademicExcellenceExclusion = asyncHandler(async (req, res) => {
-    const exclusion = await toggleExclusion(req.params.exclusionId, req.schoolId);
-
-    if (!exclusion) {
+    // Toggle: flip the current state
+    const existing = await AcademicExcellenceExclusion.findOne({ _id: req.params.exclusionId, school: req.schoolId }).lean();
+    if (!existing) {
         return res.status(404).json({ success: false, message: 'Exclusion not found' });
     }
+    const exclusion = await toggleExclusion(req.params.exclusionId, !existing.isActive);
 
     res.json({ success: true, data: { exclusion } });
 });
@@ -284,4 +322,78 @@ export const deleteAcademicExcellenceExclusion = asyncHandler(async (req, res) =
     }
 
     res.json({ success: true, message: 'Exclusion deleted' });
+});
+
+/* ─── AI Task Generation ─────────────────────────────────────────── */
+
+/**
+ * POST /academic-excellence/tasks/generate
+ * Uses AI to generate practice task content (questions/exercises)
+ * based on the selected objective.
+ */
+export const generateAcademicExcellenceTask = asyncHandler(async (req, res) => {
+    const { objectiveKey, objectiveName, subjectName, gradeLevel, taskType, language } = req.body;
+
+    if (!objectiveKey && !objectiveName) {
+        return res.status(400).json({ success: false, message: 'objectiveKey or objectiveName is required' });
+    }
+
+    const lang = language || 'English';
+    const type = taskType || 'practice_questions';
+
+    const taskTypeLabels = {
+        practice_questions: 'practice questions with clear answers',
+        reading: 'a focused reading comprehension exercise with questions',
+        teacher_review: 'a structured review checklist for the teacher to assess the student',
+        peer_discussion: 'discussion prompts for peer-to-peer learning',
+        project: 'a mini-project with clear deliverables and rubric',
+        custom: 'a creative learning activity'
+    };
+
+    const activityDescription = taskTypeLabels[type] || taskTypeLabels.practice_questions;
+
+    const prompt = `You are an expert curriculum designer. Generate a practice task for a student.
+
+Subject: ${subjectName || 'General'}
+Grade Level: ${gradeLevel || 'Not specified'}
+Objective/Standard: ${objectiveName || objectiveKey}
+Standard Code: ${objectiveKey || ''}
+Activity Type: ${activityDescription}
+Language: ${lang}
+
+Generate the following in JSON format:
+{
+  "title": "A concise task title (max 80 chars)",
+  "description": "Detailed task instructions with the actual exercises/questions. Include 3-5 practice items. Each item should test understanding of the objective. Do NOT include video links or external URLs.",
+  "estimatedMinutes": <number between 10-30>
+}
+
+IMPORTANT:
+- Generate actual practice content (questions, exercises, prompts) — NOT just a description of what to do.
+- Do NOT include video links, YouTube links, or any external URLs.
+- The description must be self-contained: the student should be able to complete the task using only the description text.
+- Write in ${lang}.
+- Return ONLY valid JSON, no markdown fences.`;
+
+    const aiResult = await connectAi(prompt);
+    let generated;
+    try {
+        // Strip potential markdown fences
+        const cleaned = aiResult.text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+        generated = JSON.parse(cleaned);
+    } catch {
+        return res.status(500).json({ success: false, message: 'AI returned invalid format. Please try again.' });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            title: String(generated.title || '').slice(0, 120),
+            description: String(generated.description || ''),
+            estimatedMinutes: Math.max(5, Math.min(60, Number(generated.estimatedMinutes) || 15)),
+            taskType: type,
+            objectiveKey,
+            objectiveName
+        }
+    });
 });

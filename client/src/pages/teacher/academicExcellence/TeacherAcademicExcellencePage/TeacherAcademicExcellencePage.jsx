@@ -645,6 +645,8 @@ const TeacherAcademicExcellencePage = () => {
           studentName={assignModal.studentName}
           classId={selectedClassId}
           objectives={objectives}
+          subjectId={selectedSubjectId}
+          subjectName={subjects.find((s) => (s._id || s) === selectedSubjectId)?.name || ""}
           onAssign={async (taskData) => {
             await assignTask(taskData);
             setAssignModal(null);
@@ -658,6 +660,8 @@ const TeacherAcademicExcellencePage = () => {
           classId={selectedClassId}
           objectiveKey={bulkAssignModal.objectiveKey}
           objectiveName={bulkAssignModal.objectiveName}
+          subjectId={selectedSubjectId}
+          subjectName={subjects.find((s) => (s._id || s) === selectedSubjectId)?.name || ""}
           onAssign={async (taskData) => {
             await bulkAssignTasks(taskData);
             setBulkAssignModal(null);

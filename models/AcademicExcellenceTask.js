@@ -68,7 +68,6 @@ const academicExcellenceTaskSchema = new mongoose.Schema({
         type: String,
         enum: [
             'practice_questions',
-            'video_watch',
             'reading',
             'teacher_review',
             'peer_discussion',
