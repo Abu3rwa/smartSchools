@@ -1,1 +1,0 @@
-import{a2 as e}from"./index-1_6cEl8e.js";const a={getRooms:async()=>(await e.get("/rooms")).data,createRoom:async o=>(await e.post("/rooms",o)).data,updateRoom:async(o,s)=>(await e.put(`/rooms/${o}`,s)).data,deleteRoom:async o=>(await e.delete(`/rooms/${o}`)).data,importRooms:async(o,s={})=>(await e.post("/rooms/import",{rooms:o,...s})).data};export{a as r};

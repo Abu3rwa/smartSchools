@@ -16,6 +16,32 @@ import {
 import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
 import { getPlatformBranding } from '../services/platformBrandingService.js';
 
+const DEFAULT_CLIENT_URL = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+
+const getAllowedClientOrigins = () => (
+    [
+        process.env.FRONTEND_URL,
+        process.env.CLIENT_URL,
+        'http://localhost:5173',
+        'https://smile3-8c8c5.web.app',
+        'https://aqueous-fortress-98392-f4793139e201.herokuapp.com'
+    ]
+        .filter(Boolean)
+        .map((value) => String(value).trim().replace(/\/$/, ''))
+);
+
+const resolveSafeClientUrl = (candidate) => {
+    if (!candidate) return DEFAULT_CLIENT_URL;
+    try {
+        const parsed = new URL(String(candidate));
+        const normalizedOrigin = `${parsed.protocol}//${parsed.host}`;
+        const allowedOrigins = getAllowedClientOrigins();
+        return allowedOrigins.includes(normalizedOrigin) ? normalizedOrigin : DEFAULT_CLIENT_URL;
+    } catch {
+        return DEFAULT_CLIENT_URL;
+    }
+};
+
 /**
  * @desc    Register a new user
  * @route   POST /api/auth/register
@@ -559,7 +585,7 @@ export const impersonateUser = asyncHandler(async (req, res) => {
  * @access  Public
  */
 export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
-    const { schoolSlug } = req.query;
+    const { schoolSlug, frontendOrigin } = req.query;
 
     // Check if Google OAuth credentials are configured
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -584,7 +610,10 @@ export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
     ];
 
     // Step 3: Prepare state with school context
-    const state = schoolSlug ? JSON.stringify({ schoolSlug }) : '';
+    const statePayload = {};
+    if (schoolSlug) statePayload.schoolSlug = schoolSlug;
+    if (frontendOrigin) statePayload.frontendOrigin = resolveSafeClientUrl(frontendOrigin);
+    const state = Object.keys(statePayload).length > 0 ? JSON.stringify(statePayload) : '';
 
     // Step 4: Generate the authorization URL
     const authUrl = oauth2Client.generateAuthUrl({
@@ -607,7 +636,13 @@ export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
  */
 export const googleCallback = asyncHandler(async (req, res) => {
     const { code, error } = req.query;
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    let state = {};
+    try {
+        state = JSON.parse(req.query.state || '{}');
+    } catch {
+        state = {};
+    }
+    const clientUrl = resolveSafeClientUrl(state.frontendOrigin);
 
     // Handle errors from Google
     if (error) {
@@ -644,14 +679,9 @@ export const googleCallback = asyncHandler(async (req, res) => {
 
         // Step 5: Get school from state parameter
         let schoolId = null;
-        try {
-            const state = JSON.parse(req.query.state || '{}');
-            if (state.schoolSlug) {
-                const school = await School.findOne({ slug: state.schoolSlug, isActive: true });
-                if (school) schoolId = school._id;
-            }
-        } catch {
-            // No school context in state, proceeding without school
+        if (state.schoolSlug) {
+            const school = await School.findOne({ slug: state.schoolSlug, isActive: true });
+            if (school) schoolId = school._id;
         }
 
         // Step 6: Find or create user in our database

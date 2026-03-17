@@ -46,9 +46,15 @@ export const googleLogin = createAsyncThunk(
   'auth/googleLogin',
   async (schoolSlug = null, { rejectWithValue }) => {
     try {
-      const url = schoolSlug
-        ? `/auth/google/url?schoolSlug=${schoolSlug}`
-        : '/auth/google/url';
+      const params = new URLSearchParams();
+      if (schoolSlug) {
+        params.set('schoolSlug', schoolSlug);
+      }
+      if (typeof window !== 'undefined' && window.location?.origin) {
+        params.set('frontendOrigin', window.location.origin);
+      }
+      const query = params.toString();
+      const url = query ? `/auth/google/url?${query}` : '/auth/google/url';
       const response = await api.get(url);
       if (response.data.success) {
         window.location.href = response.data.authUrl;

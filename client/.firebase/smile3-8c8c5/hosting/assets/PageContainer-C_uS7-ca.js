@@ -1,0 +1,1 @@
+import{j as s}from"./index-YWf6EY58.js";import{B as x}from"./Box-Bj_OqK7e.js";const r=({children:a,maxWidth:o=!0,...t})=>s.jsx(x,{className:"page-container",sx:{width:"100%",maxWidth:o?"var(--content-max-width, 1400px)":void 0,margin:"0 auto",px:{xs:0,sm:0,md:0},...t.sx},...t,children:a});export{r as P};
