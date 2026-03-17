@@ -125,7 +125,7 @@
 }
 
 .assign-card-footer {
-       display: flex;
+    display: flex;
     justify-content: space-between;
     align-items: center;
     margin-top: var(--spacing-md);
@@ -148,9 +148,17 @@
     transition: width 0.3s ease;
 }
 
-.progress-bar-mini .fill.green { background: var(--success-500, #10b981); }
-.progress-bar-mini .fill.yellow { background: var(--warning-500, #f59e0b); }
-.progress-bar-mini .fill.red { background: var(--danger-500, #ef4444); }
+.progress-bar-mini .fill.green {
+    background: var(--success-500, #10b981);
+}
+
+.progress-bar-mini .fill.yellow {
+    background: var(--warning-500, #f59e0b);
+}
+
+.progress-bar-mini .fill.red {
+    background: var(--danger-500, #ef4444);
+}
 
 /* Progress modal content */
 .progress-list {
@@ -277,11 +285,9 @@
     border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 12px;
-    background: linear-gradient(
-        130deg,
-        var(--bg-card) 0%,
-        var(--bg-secondary) 100%
-    );
+    background: linear-gradient(130deg,
+            var(--bg-card) 0%,
+            var(--bg-secondary) 100%);
     cursor: pointer;
 }
 
@@ -461,7 +467,7 @@
 }
 
 .assign-inline-checkboxes {
-       display: flex;
+    display: flex;
     flex-wrap: wrap;
     gap: 10px 15px;
     background: var(--accent);
@@ -478,15 +484,16 @@
     gap: 6px;
     cursor: pointer;
 }
-input[type="radio"], input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
+
+input[type="radio"],
+input[type="checkbox"] {
+    width: 16px !important;
+    height: 16px !important;
     border: 1px solid var(--border-color);
     border-radius: 4px;
     background: var(--bg-card);
     cursor: pointer;
-    width: 16px;
-    height: 16px;
+
 }
 
 .assign-step-actions {

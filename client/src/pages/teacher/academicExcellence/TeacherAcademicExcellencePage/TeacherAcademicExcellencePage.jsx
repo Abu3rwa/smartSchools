@@ -21,6 +21,7 @@ import AENotificationsTab   from "./components/AENotificationsTab";
 
 import { TABS, PAGE_SIZE } from "./constants";
 import "./TeacherAcademicExcellencePage.css";
+import { PageLoader } from "../../../../../components/ui";
 
 // ─── Page ────────────────────────────────────────────────────────────
 const TeacherAcademicExcellencePage = () => {
@@ -272,7 +273,7 @@ const TeacherAcademicExcellencePage = () => {
         )}
       </div>
 
-      {loading && <div className="teacher-ae-loading">Loading academic excellence data...</div>}
+      {loading && <PageLoader message="Loading academic excellence data…" />}
       {error   && <div className="teacher-ae-error">{error}</div>}
 
       {/* Tabs */}

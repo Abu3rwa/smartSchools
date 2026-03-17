@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../../../../config/api";
+import { InlineSpinner, ProgressBar } from "../../../../../../../components/ui";
 
 const TASK_TYPES = [
   { value: "practice_questions", label: "Practice Questions" },
@@ -121,15 +122,26 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjec
         </div>
 
         {!isInteractiveType && (
-          <button
-            type="button"
-            className="teacher-ae-btn-primary"
-            style={{ width: "100%", marginBottom: "0.5rem" }}
-            onClick={handleGenerate}
-            disabled={generating || !form.objectiveKey}
-          >
-            {generating ? "Generating with AI..." : "✨ Generate Task with AI"}
-          </button>
+          <div style={{ marginBottom: "0.5rem" }}>
+            <button
+              type="button"
+              className="teacher-ae-btn-primary"
+              style={{ width: "100%" }}
+              onClick={handleGenerate}
+              disabled={generating || !form.objectiveKey}
+            >
+              {generating ? (
+                <>
+                  <InlineSpinner size="md" /> Generating…
+                </>
+              ) : "✨ Generate Task with AI"}
+            </button>
+            {generating && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <ProgressBar indeterminate size="sm" />
+              </div>
+            )}
+          </div>
         )}
 
         {isInteractiveType && (

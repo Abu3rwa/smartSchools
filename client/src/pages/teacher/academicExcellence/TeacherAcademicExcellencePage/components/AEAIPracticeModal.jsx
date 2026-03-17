@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ProgressBar } from "../../../../../../../components/ui";
 
 const QUESTION_TYPE_OPTIONS = [
   { value: "multiple_choice", label: "Multiple Choice" },
@@ -235,17 +236,26 @@ const AEAIPracticeModal = ({
           )}
         </div>
 
-        <div className="teacher-ae-modal-actions">
-          <button type="button" className="teacher-ae-btn" onClick={onClose}>Cancel</button>
-          <button
-            type="button"
-            className="teacher-ae-btn-primary"
-            onClick={handleSubmit}
-            disabled={!formValid || creating}
-          >
-            {creating ? "Creating..." : "Create AI Practice"}
-          </button>
-        </div>
+        {creating ? (
+          <div style={{ padding: '1rem', width: '100%', textAlign: 'center' }}>
+            <ProgressBar indeterminate label="Creating AI practice assignment…" color="primary" />
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6b7280)', marginTop: '0.5rem' }}>
+              Generating questions — this usually takes 15–30 seconds
+            </p>
+          </div>
+        ) : (
+          <div className="teacher-ae-modal-actions">
+            <button type="button" className="teacher-ae-btn" onClick={onClose}>Cancel</button>
+            <button
+              type="button"
+              className="teacher-ae-btn-primary"
+              onClick={handleSubmit}
+              disabled={!formValid}
+            >
+              Create AI Practice
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

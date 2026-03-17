@@ -17,8 +17,9 @@ import {
     TREND_CATEGORY_OPTIONS,
     toId
 } from '../utils/studentDetailPresentation';
+import TablePagination from '../../../../components/common/TablePagination';
 
-const MAX_ASSIGNMENT_ROWS = 10;
+const DEFAULT_ASSIGNMENT_PAGE_SIZE = 10;
 const PERFORMANCE_COLORS = {
     excellent: '#16a34a',
     good: '#0ea5e9',
@@ -158,7 +159,12 @@ const StudentInsightsSection = ({
     const [trendSubjectFilter, setTrendSubjectFilter] = useState('all');
     const [trendCategoryFilter, setTrendCategoryFilter] = useState('all');
     const [subjectChartType, setSubjectChartType] = useState('column');
-    const [trendChartType, setTrendChartType] = useState('line');
+    const [trendChartType, setTrendChartType] = useState('column');
+    const [assignmentPagination, setAssignmentPagination] = useState({
+        scope: '',
+        page: 1,
+        pageSize: DEFAULT_ASSIGNMENT_PAGE_SIZE
+    });
     const scaleBands = useMemo(() => normalizeScaleBands(gradingScale?.bands), [gradingScale?.bands]);
 
     const chartTooltipStyle = {
@@ -225,6 +231,24 @@ const StudentInsightsSection = ({
         () => filteredMonthlyTrendData.some((row) => Number.isFinite(row.average)),
         [filteredMonthlyTrendData]
     );
+
+    const assignmentPaginationScope = `${schoolYearFilter || 'all'}:${semesterFilter || 'all'}`;
+    const assignmentPageSize = assignmentPagination.scope === assignmentPaginationScope
+        ? assignmentPagination.pageSize
+        : DEFAULT_ASSIGNMENT_PAGE_SIZE;
+    const requestedAssignmentPage = assignmentPagination.scope === assignmentPaginationScope
+        ? assignmentPagination.page
+        : 1;
+    const assignmentTotalPages = useMemo(
+        () => Math.max(1, Math.ceil(assignmentRows.length / assignmentPageSize)),
+        [assignmentPageSize, assignmentRows.length]
+    );
+    const assignmentPage = Math.min(requestedAssignmentPage, assignmentTotalPages);
+
+    const paginatedAssignmentRows = useMemo(() => {
+        const startIndex = (assignmentPage - 1) * assignmentPageSize;
+        return assignmentRows.slice(startIndex, startIndex + assignmentPageSize);
+    }, [assignmentPage, assignmentPageSize, assignmentRows]);
 
     const localizedMonthlyTrendData = useMemo(() => {
         return filteredMonthlyTrendData.map((row) => {
@@ -536,41 +560,59 @@ const StudentInsightsSection = ({
                         <div className="assignments-card">
                             <div className="assignments-card-header">
                                 <h4>{t('detail.insights.assignmentsAndGradeEntries')}</h4>
-                                <span className="text-muted">
-                                    {t('detail.insights.showingLatest', { count: Math.min(assignmentRows.length, MAX_ASSIGNMENT_ROWS) })}
-                                </span>
                             </div>
                             {assignmentRows.length ? (
-                                <div className="assignment-table-wrap">
-                                    <table className="assignment-table">
-                                        <thead>
-                                            <tr>
-                                                <th>{t('detail.insights.columns.title')}</th>
-                                                <th>{t('detail.insights.columns.subject')}</th>
-                                                <th>{t('detail.insights.columns.type')}</th>
-                                                <th>{t('detail.insights.columns.date')}</th>
-                                                <th>{t('detail.insights.columns.score')}</th>
-                                                <th>{t('detail.insights.columns.status')}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {assignmentRows.slice(0, MAX_ASSIGNMENT_ROWS).map((row) => (
-                                                <tr key={row.id}>
-                                                    <td>{row.title}</td>
-                                                    <td>{row.subjectName}</td>
-                                                    <td>{getLocalizedTypeLabel(row.typeLabel)}</td>
-                                                    <td>{formatDateValue(row.gradedAt || row.dueDate, i18n.language)}</td>
-                                                    <td><ScoreCell scoreLabel={getLocalizedScoreLabel(row.scoreLabel)} percentage={row.percentage} /></td>
-                                                    <td>
-                                                        <span className={`status-pill status-pill-${row.statusTone}`}>
-                                                            {getLocalizedStatus(row.status)}
-                                                        </span>
-                                                    </td>
+                                <>
+                                    <div className="assignment-table-wrap">
+                                        <table className="assignment-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{t('detail.insights.columns.title')}</th>
+                                                    <th>{t('detail.insights.columns.subject')}</th>
+                                                    <th>{t('detail.insights.columns.type')}</th>
+                                                    <th>{t('detail.insights.columns.date')}</th>
+                                                    <th>{t('detail.insights.columns.score')}</th>
+                                                    <th>{t('detail.insights.columns.status')}</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            </thead>
+                                            <tbody>
+                                                {paginatedAssignmentRows.map((row) => (
+                                                    <tr key={row.id}>
+                                                        <td>{row.title}</td>
+                                                        <td>{row.subjectName}</td>
+                                                        <td>{getLocalizedTypeLabel(row.typeLabel)}</td>
+                                                        <td>{formatDateValue(row.gradedAt || row.dueDate, i18n.language)}</td>
+                                                        <td><ScoreCell scoreLabel={getLocalizedScoreLabel(row.scoreLabel)} percentage={row.percentage} /></td>
+                                                        <td>
+                                                            <span className={`status-pill status-pill-${row.statusTone}`}>
+                                                                {getLocalizedStatus(row.status)}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <TablePagination
+                                        page={assignmentPage}
+                                        pageSize={assignmentPageSize}
+                                        totalItems={assignmentRows.length}
+                                        totalPages={assignmentTotalPages}
+                                        onPageChange={(nextPage) => setAssignmentPagination((prev) => ({
+                                            ...prev,
+                                            scope: assignmentPaginationScope,
+                                            page: Math.max(1, Math.min(nextPage, assignmentTotalPages))
+                                        }))}
+                                        onPageSizeChange={(nextSize) => {
+                                            setAssignmentPagination({
+                                                scope: assignmentPaginationScope,
+                                                page: 1,
+                                                pageSize: nextSize
+                                            });
+                                        }}
+                                    />
+                                </>
                             ) : (
                                 <p className="text-muted mb-0">{t('detail.insights.noAssignmentsOrGrades')}</p>
                             )}

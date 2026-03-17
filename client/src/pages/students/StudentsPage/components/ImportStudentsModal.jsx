@@ -6,6 +6,7 @@ import {
     HiOutlineCheckCircle
 } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
+import { ProgressBar } from '../../../../components/ui';
 
 const ImportStudentsModal = ({
     showImportModal,
@@ -25,6 +26,11 @@ const ImportStudentsModal = ({
     const { t } = useTranslation(['students']);
     if (!showImportModal) return null;
 
+    let currentStep = 0;
+    if (csvData.length > 0) currentStep = 1;
+    if (importing)          currentStep = 2;
+    if (importResult)       currentStep = 3;
+
     return (
         <div className="modal-overlay" onClick={resetImportModal}>
             <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
@@ -32,6 +38,14 @@ const ImportStudentsModal = ({
                     <h3>{t('students:import.title')}</h3>
                     <button className="modal-close" onClick={resetImportModal}>&times;</button>
                 </div>
+                
+                <div style={{ padding: '1.25rem 1.5rem 0' }}>
+                    <ProgressBar 
+                        steps={['Upload CSV', 'Preview', 'Importing', 'Done']} 
+                        currentStep={currentStep} 
+                    />
+                </div>
+
                 <div className="modal-body">
                     {/* Step 1: Select class */}
                     <div className="form-group">
@@ -142,7 +156,7 @@ const ImportStudentsModal = ({
                     )}
                 </div>
                 <div className="modal-footer">
-                    <button type="button" className="btn btn-secondary" onClick={resetImportModal}>
+                    <button type="button" className="btn btn-secondary" onClick={resetImportModal} disabled={importing}>
                         {importResult ? t('common:actions.close') : t('common:actions.cancel')}
                     </button>
                     {!importResult && (
@@ -151,7 +165,9 @@ const ImportStudentsModal = ({
                             className="btn btn-primary"
                             onClick={handleImport}
                             disabled={importing || csvData.length === 0 || !importClassId}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                         >
+                            {importing && <span className="inline-spinner inline-spinner--sm" />}
                             {importing ? t('students:actions.importing') : t('students:actions.importStudents', { count: csvData.length })}
                         </button>
                     )}

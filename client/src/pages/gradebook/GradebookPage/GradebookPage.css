@@ -6,7 +6,7 @@
 
 .academic-insights-panel {
     margin-bottom: 1.5rem;
-    border: 1px solid var(--border, #e2e8f0);
+    border: 1px solid var(--border-color);
 }
 
 .academic-insights-panel__header {
@@ -44,8 +44,8 @@
 .academic-insights-stat {
     padding: 0.85rem 1rem;
     border-radius: 12px;
-    background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
-    border: 1px solid #dbeafe;
+    background: var(--stat-primary-bg, rgba(20, 184, 166, 0.15));
+    border: 1px solid var(--border-color);
 }
 
 .academic-insights-stat__label {
@@ -63,8 +63,8 @@
 .academic-insights-item {
     padding: 0.95rem 1rem;
     border-radius: 14px;
-    border: 1px solid var(--border, #e2e8f0);
-    background: #fff;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
 }
 
 .academic-insights-item__title-row {
@@ -108,31 +108,31 @@
 }
 
 .academic-insights-chip--reteach {
-    background: #fee2e2;
-    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-500, #ef4444);
 }
 
 .academic-insights-chip--intervention {
-    background: #ffedd5;
-    color: #c2410c;
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning-500, #f59e0b);
 }
 
 .academic-insights-chip--practice,
 .academic-insights-chip--reassessment {
-    background: #dcfce7;
-    color: #166534;
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-500, #10b981);
 }
 
 .academic-insights-panel__empty {
     padding: 1rem;
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--bg-secondary);
     color: var(--text-secondary, #64748b);
 }
 
 .academic-insights-panel__empty--error {
-    background: #fef2f2;
-    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-500, #ef4444);
 }
 
 .academic-trace-modal {
@@ -157,10 +157,10 @@
 }
 
 .academic-trace-item {
-    border: 1px solid var(--border, #e2e8f0);
+    border: 1px solid var(--border-color);
     border-radius: 14px;
     padding: 1rem;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    background: var(--bg-card);
 }
 
 .academic-trace-item__header {
@@ -205,19 +205,19 @@
 
 .academic-trace-item__section p {
     margin: 0;
-    color: var(--text-primary, #0f172a);
+    color: var(--text-primary);
 }
 
 .academic-trace-empty {
     padding: 1rem;
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--bg-secondary);
     color: var(--text-secondary, #64748b);
 }
 
 .academic-trace-empty--error {
-    background: #fef2f2;
-    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-500, #ef4444);
 }
 
 .reteach-tasks-panel {
@@ -244,13 +244,13 @@
 .reteach-tasks-panel__empty {
     padding: 1rem;
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--bg-secondary);
     color: var(--text-secondary, #64748b);
 }
 
 .reteach-tasks-panel__empty--error {
-    background: #fef2f2;
-    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-500, #ef4444);
 }
 
 .reteach-task-list {
@@ -263,9 +263,9 @@
     justify-content: space-between;
     gap: 1rem;
     padding: 1rem;
-    border: 1px solid var(--border, #e2e8f0);
+    border: 1px solid var(--border-color);
     border-radius: 14px;
-    background: #fff;
+    background: var(--bg-card);
 }
 
 .reteach-task-item__top {
@@ -278,7 +278,7 @@
 
 .reteach-task-item p {
     margin: 0 0 0.5rem;
-    color: var(--text-primary, #0f172a);
+    color: var(--text-primary);
 }
 
 .reteach-task-item__meta {
@@ -312,23 +312,23 @@
 }
 
 .reteach-task-status--planned {
-    background: #e0f2fe;
-    color: #0369a1;
+    background: rgba(14, 165, 233, 0.1);
+    color: var(--icon-blue, #3b82f6);
 }
 
 .reteach-task-status--in_progress {
-    background: #fef3c7;
-    color: #b45309;
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning-500, #f59e0b);
 }
 
 .reteach-task-status--completed {
-    background: #dcfce7;
-    color: #166534;
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-500, #10b981);
 }
 
 .reteach-task-status--cancelled {
-    background: #e5e7eb;
-    color: #374151;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
 }
 
 .reteach-task-modal {
@@ -351,7 +351,7 @@
     gap: 0.75rem 1rem;
     padding: 0.85rem 1rem;
     border-radius: 12px;
-    background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    background: var(--bg-secondary);
     color: var(--text-secondary, #475569);
     font-size: 0.9rem;
 }
@@ -404,7 +404,7 @@
     background: var(--surface);
     padding: 1.5rem;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
 }
 
 .gradebook-header h1 {
@@ -503,7 +503,7 @@
     padding: 0.5rem;
     background: var(--surface);
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
 }
 
 .tab-btn {
@@ -605,7 +605,7 @@
     align-items: center;
     padding: 1rem 1.5rem;
     background: var(--surface-secondary);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .entry-info {
@@ -651,7 +651,7 @@
 .entry-grades td {
     padding: 0.75rem 1rem;
     text-align: left;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .entry-grades th {
@@ -752,7 +752,7 @@ overflow-y: auto;
 .grades-table-container {
     max-height: 400px;
     overflow-y: auto;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
 }
 
@@ -765,7 +765,7 @@ overflow-y: auto;
 .grades-entry-table td {
     padding: 0.75rem 1rem;
     text-align: left;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .grades-entry-table th {
@@ -783,7 +783,7 @@ overflow-y: auto;
 .notes-input {
     width: 100%;
     padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     background: var(--surface);
     color: var(--text-primary);
@@ -838,7 +838,7 @@ overflow-y: auto;
 
 .empty-state svg {
     margin-bottom: 1rem;
-    color: var(--border);
+    color: var(--border-color);
 }
 
 .empty-state h3 {
