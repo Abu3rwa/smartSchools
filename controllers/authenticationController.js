@@ -24,7 +24,7 @@ const getAllowedClientOrigins = () => (
         process.env.CLIENT_URL,
         'http://localhost:5173',
         'https://smile3-8c8c5.web.app',
-        'https://aqueous-fortress-98392-f4793139e201.herokuapp.com'
+        'https://schoolworkso.onrender.com'
     ]
         .filter(Boolean)
         .map((value) => String(value).trim().replace(/\/$/, ''))

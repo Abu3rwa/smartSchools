@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const PROD_FALLBACK_API_URL = 'https://aqueous-fortress-98392-f4793139e201.herokuapp.com/api';
+const PROD_FALLBACK_API_URL = 'https://schoolworkso.onrender.com/api';
 
 const resolveApiUrl = () => {
     if (import.meta.env.PROD) {

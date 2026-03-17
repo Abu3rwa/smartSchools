@@ -2,7 +2,7 @@ import api from '../config/api';
 
 const BASE = '/messages';
 const DEV_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const PROD_FALLBACK_API_URL = 'https://aqueous-fortress-98392-f4793139e201.herokuapp.com/api';
+const PROD_FALLBACK_API_URL = 'https://schoolworkso.onrender.com/api';
 
 const resolveApiBaseUrl = () => {
     if (import.meta.env.PROD) {

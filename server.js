@@ -98,8 +98,7 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
   "https://smile3-8c8c5.web.app",
-  "https://aqueous-fortress-98392-f4793139e201.herokuapp.com"
-].filter(Boolean);
+ "https://schoolworkso.onrender.com"].filter(Boolean);
 
 app.use(
   cors({

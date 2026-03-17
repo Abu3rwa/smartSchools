@@ -3032,13 +3032,37 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
       title: assignment.title || null,
       assignedDate: assignment.assignedDate || null,
       dueDate: assignment.dueDate || null,
+      studentIds: Array.isArray(assignment.students)
+        ? assignment.students.map((value) => String(value)).filter(Boolean)
+        : [],
     });
     assignmentBucketById.set(String(assignment._id), key);
   });
 
   const rowMap = new Map();
 
+  const isStudentAssignedToAssignment = ({ student, assignment, classId }) => {
+    const assignmentStudentIds = Array.isArray(assignment.studentIds)
+      ? assignment.studentIds
+      : [];
+
+    if (assignmentStudentIds.length > 0) {
+      return assignmentStudentIds.includes(String(student._id));
+    }
+
+    return String(student.currentClass || "") === String(classId || "");
+  };
+
   const ensureRow = (student, bucket) => {
+    const assignedAssignments = bucket.assignments.filter((assignment) =>
+      isStudentAssignedToAssignment({
+        student,
+        assignment,
+        classId: bucket.class._id,
+      })
+    );
+    if (!assignedAssignments.length) return null;
+
     const rowKey = `${student._id}|${bucket.key}`;
     if (!rowMap.has(rowKey)) {
       rowMap.set(rowKey, {
@@ -3053,8 +3077,8 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
         subject: bucket.subject,
         standard: bucket.standard,
         sessionType: bucket.sessionType,
-        assignments: bucket.assignments,
-        totalAssignments: bucket.assignments.length,
+        assignments: assignedAssignments,
+        totalAssignments: assignedAssignments.length,
         totalAttempts: 0,
         correctCount: 0,
         masteryPercentage: 0,
@@ -3078,9 +3102,25 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
 
   attempts.forEach((attempt) => {
     const student = studentMap.get(String(attempt.student));
+    const assignment = assignmentMap.get(String(attempt.assignment));
     const bucketKey = assignmentBucketById.get(String(attempt.assignment));
     if (!student || !bucketKey || !bucketMap.has(bucketKey)) return;
+    if (
+      assignment &&
+      !isStudentAssignedToAssignment({
+        student,
+        assignment: {
+          studentIds: Array.isArray(assignment.students)
+            ? assignment.students.map((value) => String(value)).filter(Boolean)
+            : [],
+        },
+        classId: assignment.class?._id || assignment.class,
+      })
+    ) {
+      return;
+    }
     const row = ensureRow(student, bucketMap.get(bucketKey));
+    if (!row) return;
     row.totalAttempts += 1;
     if (attempt.isCorrect) row.correctCount += 1;
     const activityTime = toTimeOrNull(attempt.answeredAt || attempt.createdAt);
@@ -3092,9 +3132,25 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   const percentageTotalsByRow = new Map();
   gradebookEntries.forEach((entry) => {
     const student = studentMap.get(String(entry.student));
+    const assignment = assignmentMap.get(String(entry.assignment));
     const bucketKey = assignmentBucketById.get(String(entry.assignment));
     if (!student || !bucketKey || !bucketMap.has(bucketKey)) return;
+    if (
+      assignment &&
+      !isStudentAssignedToAssignment({
+        student,
+        assignment: {
+          studentIds: Array.isArray(assignment.students)
+            ? assignment.students.map((value) => String(value)).filter(Boolean)
+            : [],
+        },
+        classId: assignment.class?._id || assignment.class,
+      })
+    ) {
+      return;
+    }
     const row = ensureRow(student, bucketMap.get(bucketKey));
+    if (!row) return;
 
     if (entry.status === "submitted") row.submittedCount += 1;
     if (entry.status === "released") row.releasedCount += 1;
