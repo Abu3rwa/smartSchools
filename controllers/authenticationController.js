@@ -715,6 +715,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
             expiryDate: new Date(tokens.expiry_date),
             isActive: true
         };
+        user.mustChangePassword = false;
         await user.save();
 
         // Step 8: Update last login

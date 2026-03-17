@@ -65,6 +65,7 @@ const StandardAssignForm = ({
         });
 
     const [currentStep, setCurrentStep] = useState(1);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [studentScope, setStudentScope] = useState(
         Array.isArray(formData.students) && formData.students.length > 0 ? 'specific' : 'whole'
     );
@@ -299,6 +300,39 @@ const StandardAssignForm = ({
         </div>
     );
 
+    const renderSummaryContent = () => (
+        <div className="assign-summary-grid">
+            <span>{t('standardAssign:form.summary.name')}</span>
+            <strong>{String(formData.title || '').trim() || t('standardAssign:form.summary.untitledAssignment')}</strong>
+            <span>{t('standardAssign:form.summary.class')}</span>
+            <strong>{selectedClass?.name || t('standardAssign:common.notSelected')}</strong>
+            <span>{t('standardAssign:form.summary.subject')}</span>
+            <strong>{selectedSubjectName}</strong>
+            <span>{t('standardAssign:form.summary.standard')}</span>
+            <strong>{selectedStandardLabel}</strong>
+            <span>{t('standardAssign:form.summary.mode')}</span>
+            <strong>
+                {formData.practiceConfig.sessionType === 'assessment'
+                    ? t('standardAssign:modes.gradedAssessment')
+                    : t('standardAssign:modes.practice')}
+            </strong>
+            <span>{t('standardAssign:form.summary.learners')}</span>
+            <strong>
+                {studentScope === 'whole'
+                    ? t('standardAssign:form.studentScope.wholeClass', { count: students.length })
+                    : t('standardAssign:form.studentScope.selectedCount', { count: selectedStudents.length })}
+            </strong>
+            <span>{t('standardAssign:form.summary.dueDate')}</span>
+            <strong>{formatDateValue(formData.dueDate, locale, t('standardAssign:common.notSet'))}</strong>
+            <span>{t('standardAssign:form.summary.preGenerated')}</span>
+            <strong>{t('standardAssign:form.summary.preGeneratedCount', { count: formData.preGeneratedQuestionCount || 10 })}</strong>
+            <span>{t('standardAssign:form.summary.aiLanguages')}</span>
+            <strong>
+                {selectedAiLanguages.map((code) => getAiLanguageLabel(code)).join(' + ')}
+            </strong>
+        </div>
+    );
+
     return (
         <div className="modal-body standard-assign-form-body">
             <div className="assign-stepper" role="tablist" aria-label={t('standardAssign:form.aria.assignmentSetupSteps')}>
@@ -323,39 +357,65 @@ const StandardAssignForm = ({
                 })}
             </div>
 
-            <div className="assign-summary-card">
-                <h4>{t('standardAssign:form.summary.title')}</h4>
-                <div className="assign-summary-grid">
-                    <span>{t('standardAssign:form.summary.name')}</span>
-                    <strong>{String(formData.title || '').trim() || t('standardAssign:form.summary.untitledAssignment')}</strong>
-                    <span>{t('standardAssign:form.summary.class')}</span>
-                    <strong>{selectedClass?.name || t('standardAssign:common.notSelected')}</strong>
-                    <span>{t('standardAssign:form.summary.subject')}</span>
-                    <strong>{selectedSubjectName}</strong>
-                    <span>{t('standardAssign:form.summary.standard')}</span>
-                    <strong>{selectedStandardLabel}</strong>
-                    <span>{t('standardAssign:form.summary.mode')}</span>
-                    <strong>
-                        {formData.practiceConfig.sessionType === 'assessment'
-                            ? t('standardAssign:modes.gradedAssessment')
-                            : t('standardAssign:modes.practice')}
-                    </strong>
-                    <span>{t('standardAssign:form.summary.learners')}</span>
-                    <strong>
-                        {studentScope === 'whole'
-                            ? t('standardAssign:form.studentScope.wholeClass', { count: students.length })
-                            : t('standardAssign:form.studentScope.selectedCount', { count: selectedStudents.length })}
-                    </strong>
-                    <span>{t('standardAssign:form.summary.dueDate')}</span>
-                    <strong>{formatDateValue(formData.dueDate, locale, t('standardAssign:common.notSet'))}</strong>
-                    <span>{t('standardAssign:form.summary.preGenerated')}</span>
-                    <strong>{t('standardAssign:form.summary.preGeneratedCount', { count: formData.preGeneratedQuestionCount || 10 })}</strong>
-                    <span>{t('standardAssign:form.summary.aiLanguages')}</span>
-                    <strong>
-                        {selectedAiLanguages.map((code) => getAiLanguageLabel(code)).join(' + ')}
-                    </strong>
+            <div
+                className="assign-summary-card"
+                role="button"
+                tabIndex={0}
+                onClick={() => setShowSummaryModal(true)}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setShowSummaryModal(true);
+                    }
+                }}
+            >
+                <div className="assign-summary-card-header">
+                    <h4>{t('standardAssign:form.summary.title')}</h4>
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            setShowSummaryModal(true);
+                        }}
+                    >
+                        {t('standardAssign:actions.openSummary', { defaultValue: 'Open Summary' })}
+                    </button>
                 </div>
+                {renderSummaryContent()}
             </div>
+
+            {showSummaryModal && (
+                <div className="assign-summary-modal-overlay" onClick={() => setShowSummaryModal(false)}>
+                    <div
+                        className="assign-summary-modal"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="assign-summary-modal-header">
+                            <h4>{t('standardAssign:form.summary.title')}</h4>
+                            <button
+                                type="button"
+                                className="modal-close"
+                                onClick={() => setShowSummaryModal(false)}
+                            >
+                                &times;
+                            </button>
+                        </div>
+                        <div className="assign-summary-modal-body">
+                            {renderSummaryContent()}
+                        </div>
+                        <div className="assign-summary-modal-actions">
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() => setShowSummaryModal(false)}
+                            >
+                                {t('standardAssign:actions.close', { defaultValue: 'Close' })}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {currentStep === 1 && (
                 <section className="assign-step-section">

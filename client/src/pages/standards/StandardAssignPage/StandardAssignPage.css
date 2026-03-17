@@ -6,6 +6,63 @@
     margin-bottom: var(--spacing-lg);
 }
 
+.assign-page .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(4px);
+}
+
+.assign-page .modal {
+    width: min(980px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    box-shadow: var(--shadow-lg);
+}
+
+.assign-page .modal-header,
+.assign-page .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 20px;
+}
+
+.assign-page .modal-header {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.assign-page .modal-header h3 {
+    margin: 0;
+}
+
+.assign-page .modal-close {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 1.75rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.assign-page .modal form {
+    display: flex;
+    flex-direction: column;
+}
+
+.assign-page .modal-footer {
+    border-top: 1px solid var(--border-color);
+}
+
 .assign-cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -225,10 +282,19 @@
         var(--bg-card) 0%,
         var(--bg-secondary) 100%
     );
+    cursor: pointer;
+}
+
+.assign-summary-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
 }
 
 .assign-summary-card h4 {
-    margin: 0 0 10px;
+    margin: 0;
     font-size: 0.9rem;
 }
 
@@ -275,6 +341,10 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    background: var(--primary-100);
+    padding: 4px;
+    border-radius: 8px;
+    cursor: pointer;
 }
 
 .assign-student-picker {
@@ -391,9 +461,15 @@
 }
 
 .assign-inline-checkboxes {
-    display: flex;
+       display: flex;
     flex-wrap: wrap;
     gap: 10px 15px;
+    background: var(--accent);
+    padding: 6px;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    align-items: center;
+
 }
 
 .assign-checkbox-option {
@@ -402,6 +478,16 @@
     gap: 6px;
     cursor: pointer;
 }
+input[type="radio"], input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-card);
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
 
 .assign-step-actions {
     display: flex;
@@ -409,6 +495,53 @@
     align-items: center;
     gap: 10px;
     padding-top: 4px;
+}
+
+.assign-summary-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 1200;
+}
+
+.assign-summary-modal {
+    width: min(720px, 100%);
+    max-height: 85vh;
+    overflow: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+}
+
+.assign-summary-modal-header,
+.assign-summary-modal-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+}
+
+.assign-summary-modal-header {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.assign-summary-modal-header h4 {
+    margin: 0;
+}
+
+.assign-summary-modal-body {
+    padding: 18px;
+}
+
+.assign-summary-modal-actions {
+    justify-content: flex-end;
+    border-top: 1px solid var(--border-color);
 }
 
 .question-pool-editor {
