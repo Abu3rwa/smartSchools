@@ -15,6 +15,7 @@ import {
     listCurriculumOptions,
     listCurriculumMaps,
     publishCurriculumMap,
+    refineObjectives,
     reviewCurriculumMap,
     submitCurriculumMap,
     transitionCurriculumMap,
@@ -35,6 +36,7 @@ import {
     curriculumMapCloneYearBodySchema,
     curriculumMapCreateBodySchema,
     curriculumMapListQuerySchema,
+    curriculumObjectiveRefinementBodySchema,
     curriculumMapReviewBodySchema,
     curriculumMapWorkflowActionBodySchema,
     curriculumMapUpdateBodySchema,
@@ -80,6 +82,21 @@ router.get(
         ]
     ),
     listCurriculumOptions
+);
+
+router.post(
+    '/refine-objectives',
+    authorizeWithPermission(
+        ['admin', 'department_principal', 'teacher'],
+        [
+            PERMISSIONS.EDIT_CURRICULUM_MAPS,
+            PERMISSIONS.EDIT_OWN_CURRICULUM_MAP,
+            PERMISSIONS.EDIT_ANY_CURRICULUM_MAP,
+            PERMISSIONS.CREATE_CURRICULUM_MAP
+        ]
+    ),
+    validateRequestSchema({ bodySchema: curriculumObjectiveRefinementBodySchema }),
+    refineObjectives
 );
 
 router.post(

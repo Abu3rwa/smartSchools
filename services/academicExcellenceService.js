@@ -257,7 +257,8 @@ export const getStudentExcellenceDashboardData = async ({ school, studentId, sub
 
     const objectiveQuery = {
         school: school._id,
-        student: student._id
+        student: student._id,
+        deletedAt: null
     };
     if (subjectId) objectiveQuery.subject = subjectId;
 

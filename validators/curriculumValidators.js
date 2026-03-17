@@ -249,6 +249,15 @@ export const curriculumImportApplyBodySchema = z.object({
     expectedUpdatedAt: z.coerce.date().optional()
 }).passthrough();
 
+export const curriculumObjectiveRefinementBodySchema = z.object({
+    objectives: z.array(z.string().trim().min(1).max(300)).min(1).max(30),
+    context: z.object({
+        subject: z.string().trim().max(120).optional(),
+        grade: z.string().trim().max(80).optional(),
+        weekTitle: z.string().trim().max(220).optional()
+    }).optional()
+}).passthrough();
+
 export const exportQuerySchema = z.object({
     format: z.enum(['csv', 'pdf', 'html']).default('csv')
 }).passthrough();

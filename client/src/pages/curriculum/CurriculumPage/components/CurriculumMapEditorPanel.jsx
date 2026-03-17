@@ -25,6 +25,7 @@ const CurriculumMapEditorPanel = ({
   isTeacherLimited = false,
   onApplyImportJob,
   onConnectGoogleDrive,
+  onRefineObjectives,
   onSave,
   onCancel,
   saving,
@@ -34,6 +35,7 @@ const CurriculumMapEditorPanel = ({
   const [googleDocInput, setGoogleDocInput] = useState('');
   const [selectedJobId, setSelectedJobId] = useState('');
   const [selectedSectionIds, setSelectedSectionIds] = useState([]);
+  const [refiningObjectiveKeys, setRefiningObjectiveKeys] = useState({});
 
   const fieldConfig = Array.isArray(activeTemplate?.fields) ? activeTemplate.fields : [];
   const fieldEnabled = (fieldKey) => {
@@ -92,6 +94,124 @@ const CurriculumMapEditorPanel = ({
         };
       }),
     }));
+  };
+
+  const getItemObjectives = (item = {}) => {
+    if (Array.isArray(item.objectives)) return item.objectives;
+    return String(item.objectivesText || '')
+      .split('\n')
+      .map((objective) => objective.trim())
+      .filter(Boolean);
+  };
+
+  const updateItemObjectives = (sectionIndex, itemIndex, objectives = []) => {
+    const normalizedObjectives = objectives
+      .map((objective) => String(objective || '').trim())
+      .filter(Boolean);
+    updateItem(sectionIndex, itemIndex, {
+      objectives: normalizedObjectives,
+      objectivesText: normalizedObjectives.join('\n'),
+    });
+  };
+
+  const addObjective = (sectionIndex, itemIndex) => {
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          items: section.items.map((item, iIdx) => {
+            if (iIdx !== itemIndex) return item;
+            const currentObjectives = getItemObjectives(item);
+            const nextObjectives = [...currentObjectives, ''];
+            return {
+              ...item,
+              objectives: nextObjectives,
+              objectivesText: nextObjectives.join('\n'),
+            };
+          }),
+        };
+      }),
+    }));
+  };
+
+  const removeObjective = (sectionIndex, itemIndex, objectiveIndex) => {
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          items: section.items.map((item, iIdx) => {
+            if (iIdx !== itemIndex) return item;
+            const currentObjectives = getItemObjectives(item);
+            const nextObjectives = currentObjectives.filter((_, index) => index !== objectiveIndex);
+            return {
+              ...item,
+              objectives: nextObjectives,
+              objectivesText: nextObjectives.join('\n'),
+            };
+          }),
+        };
+      }),
+    }));
+  };
+
+  const updateObjective = (sectionIndex, itemIndex, objectiveIndex, value) => {
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section, sIdx) => {
+        if (sIdx !== sectionIndex) return section;
+        return {
+          ...section,
+          items: section.items.map((item, iIdx) => {
+            if (iIdx !== itemIndex) return item;
+            const currentObjectives = getItemObjectives(item);
+            const nextObjectives = currentObjectives.map((objective, index) => (
+              index === objectiveIndex ? value : objective
+            ));
+            return {
+              ...item,
+              objectives: nextObjectives,
+              objectivesText: nextObjectives.join('\n'),
+            };
+          }),
+        };
+      }),
+    }));
+  };
+
+  const handleRefineObjectives = async (sectionIndex, itemIndex, item) => {
+    if (typeof onRefineObjectives !== 'function') return;
+
+    const objectiveKey = `${sectionIndex}-${itemIndex}`;
+    const objectives = getItemObjectives(item)
+      .map((objective) => String(objective || '').trim())
+      .filter(Boolean);
+    if (objectives.length === 0) return;
+
+    const selectedClass = classes.find((cls) => String(cls._id) === String(draft?.classId || ''));
+    const selectedSubject = subjects.find((subject) => String(subject._id) === String(draft?.subjectId || ''));
+
+    setRefiningObjectiveKeys((prev) => ({ ...prev, [objectiveKey]: true }));
+    try {
+      const result = await onRefineObjectives({
+        objectives,
+        context: {
+          subject: selectedSubject?.name || '',
+          grade: selectedClass?.grade || selectedClass?.gradeLevel || '',
+          weekTitle: item?.title || '',
+        },
+      });
+
+      const refined = Array.isArray(result?.refinedObjectives) ? result.refinedObjectives : [];
+      if (refined.length > 0) {
+        updateItemObjectives(sectionIndex, itemIndex, refined);
+      }
+    } finally {
+      setRefiningObjectiveKeys((prev) => ({ ...prev, [objectiveKey]: false }));
+    }
   };
 
   const addSection = () => {
@@ -416,13 +536,42 @@ const CurriculumMapEditorPanel = ({
                   </label>
                 )}
                 {fieldEnabled('learningObjectives') && (
-                  <label>
-                    {activeTemplate?.labels?.learningObjectives || t('shared.learningObjectives')}
-                    <textarea
-                      value={item.objectivesText || ''}
-                      onChange={(event) => updateItem(sectionIndex, itemIndex, { objectivesText: event.target.value })}
-                    />
-                  </label>
+                  <div className="curriculum-objectives-editor">
+                    <div className="curriculum-objectives-header">
+                      <span>{activeTemplate?.labels?.learningObjectives || t('shared.learningObjectives')}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRefineObjectives(sectionIndex, itemIndex, item)}
+                        disabled={refiningObjectiveKeys[`${sectionIndex}-${itemIndex}`]}
+                      >
+                        {refiningObjectiveKeys[`${sectionIndex}-${itemIndex}`]
+                          ? t('editor.refiningObjectives', { defaultValue: 'Refining...' })
+                          : t('editor.refineObjectives', { defaultValue: 'Refine with AI' })}
+                      </button>
+                    </div>
+
+                    <div className="curriculum-objective-list">
+                      {getItemObjectives(item).map((objective, objectiveIndex) => (
+                        <div key={`objective-${sectionIndex}-${itemIndex}-${objectiveIndex}`} className="curriculum-objective-row">
+                          <input
+                            value={objective}
+                            placeholder={t('editor.objectivePlaceholder', { defaultValue: 'Enter learning objective' })}
+                            onChange={(event) => updateObjective(sectionIndex, itemIndex, objectiveIndex, event.target.value)}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeObjective(sectionIndex, itemIndex, objectiveIndex)}
+                          >
+                            {t('shared.remove')}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button type="button" onClick={() => addObjective(sectionIndex, itemIndex)}>
+                      {t('editor.addObjective', { defaultValue: 'Add Objective' })}
+                    </button>
+                  </div>
                 )}
                 {fieldEnabled('performanceTasks') && (
                   <label>

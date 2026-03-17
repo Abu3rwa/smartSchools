@@ -15,7 +15,9 @@ import {
     getAcademicExcellenceExclusions,
     createAcademicExcellenceExclusion,
     toggleAcademicExcellenceExclusion,
-    deleteAcademicExcellenceExclusion
+    deleteAcademicExcellenceExclusion,
+    renameAcademicExcellenceObjective,
+    softDeleteAcademicExcellenceObjective
 } from '../controllers/academicExcellenceTeacherController.js';
 import {
     getAcademicExcellenceNotificationPreferences,
@@ -92,6 +94,18 @@ router.delete(
     '/exclusions/:exclusionId',
     authorize('admin', 'department_principal', 'teacher'),
     deleteAcademicExcellenceExclusion
+);
+
+// ─── Objective management ───────────────────────────────────────────
+router.patch(
+    '/objectives/:objectiveId/rename',
+    authorize('admin', 'department_principal', 'teacher'),
+    renameAcademicExcellenceObjective
+);
+router.delete(
+    '/objectives/:objectiveId',
+    authorize('admin', 'department_principal', 'teacher'),
+    softDeleteAcademicExcellenceObjective
 );
 
 // ─── Notification preferences ───────────────────────────────────────

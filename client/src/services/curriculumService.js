@@ -53,6 +53,11 @@ export const curriculumService = {
         return toData(response);
     },
 
+    async refineObjectives(payload) {
+        const response = await api.post('/curriculum-maps/refine-objectives', payload);
+        return toData(response);
+    },
+
     async createMap(payload) {
         const response = await api.post('/curriculum-maps', payload);
         return toData(response);

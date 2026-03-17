@@ -125,6 +125,10 @@
     "startWeek": "أسبوع البداية",
     "endWeek": "أسبوع النهاية",
     "saveMap": "حفظ الخريطة",
+    "refineObjectives": "تحسين بالذكاء الاصطناعي",
+    "refiningObjectives": "جارٍ التحسين...",
+    "addObjective": "إضافة هدف",
+    "objectivePlaceholder": "أدخل هدف التعلم",
     "addItem": "إضافة {{label}}",
     "addSection": "إضافة {{label}}",
     "sectionTitlePlaceholder": "عنوان {{label}}",
@@ -197,6 +201,7 @@
     "importQueuedFromFile": "تمت إضافة مهمة الاستيراد من الملف المرفوع إلى قائمة الانتظار.",
     "googleDocImportQueued": "تمت إضافة مهمة استيراد مستند Google إلى قائمة الانتظار.",
     "importApplied": "تم تطبيق اقتراحات الاستيراد بالذكاء الاصطناعي على المسودة.",
+    "objectivesRefined": "تم تحسين الأهداف بالذكاء الاصطناعي.",
     "workflowActionExecuted": "تم تنفيذ إجراء سير العمل: {{action}}.",
     "deleteConfirm": "حذف \"{{title}}\"؟ لا يمكن التراجع عن هذا الإجراء."
   }

@@ -26,6 +26,11 @@ const toEditorItem = (item = {}) => ({
   endWeek: item.endWeek || '',
   standardsText: item.standardsText || toStandardsText(item.standards || []),
   skillsText: item.skillsText || toListText(item.skills || []),
+  objectives: Array.isArray(item.objectives)
+    ? item.objectives
+    : Array.isArray(item.learningObjectives)
+      ? item.learningObjectives
+      : toArrayFromText(item.objectivesText),
   objectivesText: item.objectivesText || toListText(item.learningObjectives || []),
   performanceTasksText: item.performanceTasksText || toListText(item.performanceTasks || []),
   essentialQuestionsText: item.essentialQuestionsText || toListText(item.essentialQuestions || []),
@@ -49,7 +54,11 @@ const toPayloadItem = (item = {}, index = 0) => ({
   endWeek: item.endWeek ? Number(item.endWeek) : item.startWeek ? Number(item.startWeek) : null,
   standards: standardsFromText(item.standardsText),
   skills: toArrayFromText(item.skillsText),
-  learningObjectives: toArrayFromText(item.objectivesText),
+  learningObjectives: Array.isArray(item.objectives)
+    ? item.objectives
+      .map((objective) => String(objective || '').trim())
+      .filter(Boolean)
+    : toArrayFromText(item.objectivesText),
   performanceTasks: toArrayFromText(item.performanceTasksText),
   essentialQuestions: toArrayFromText(item.essentialQuestionsText),
   activitiesResources: toArrayFromText(item.activitiesText),

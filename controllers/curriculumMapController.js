@@ -35,7 +35,8 @@ export const createCurriculumMapController = ({ mapService = curriculumMapServic
     importCurriculumSourceFromGoogleDocController: createJsonHandler(201, fromService(mapService, 'importCurriculumSourceFromGoogleDoc')),
     listCurriculumImportSourcesController: createJsonHandler(200, fromService(mapService, 'listCurriculumImportSources')),
     getCurriculumImportJobController: createJsonHandler(200, fromService(mapService, 'getCurriculumImportJob')),
-    applyCurriculumImportJobController: createJsonHandler(200, fromService(mapService, 'applyCurriculumImportJob'))
+    applyCurriculumImportJobController: createJsonHandler(200, fromService(mapService, 'applyCurriculumImportJob')),
+    refineObjectivesController: createJsonHandler(200, fromService(mapService, 'refineObjectives'))
 });
 
 const curriculumMapController = createCurriculumMapController();
@@ -60,5 +61,6 @@ export const {
     importCurriculumSourceFromGoogleDocController: importCurriculumSourceFromGoogleDoc,
     listCurriculumImportSourcesController: listCurriculumImportSources,
     getCurriculumImportJobController: getCurriculumImportJob,
-    applyCurriculumImportJobController: applyCurriculumImportJob
+    applyCurriculumImportJobController: applyCurriculumImportJob,
+    refineObjectivesController: refineObjectives
 } = curriculumMapController;

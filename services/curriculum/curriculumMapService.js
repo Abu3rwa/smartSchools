@@ -43,6 +43,7 @@ import {
     normalizeLegacyStatus
 } from './curriculumTemplateDefaults.js';
 import { createCurriculumAiImportService } from './curriculumAiImportService.js';
+import { objectiveRefinementService } from '../objectiveRefinementService.js';
 
 const toComparableTime = (value) => new Date(value).getTime();
 const EDITABLE_STATUSES = ['draft', 'revision_requested', 'rejected'];
@@ -311,7 +312,8 @@ export const createCurriculumMapService = ({
     repository = curriculumRepository,
     notificationService = curriculumNotificationService,
     exportService = curriculumExportService,
-    aiImportService = null
+    aiImportService = null,
+    objectiveService = objectiveRefinementService
 } = {}) => {
     const resolvedAiImportService = aiImportService || createCurriculumAiImportService({
         repository,
@@ -659,6 +661,11 @@ export const createCurriculumMapService = ({
         const file = buildMapExportFile({ exportService, map, settings, format });
         assertCondition(Boolean(file), 400, 'Unsupported export format');
         return file;
+    },
+
+    async refineObjectives({ req }) {
+        assertCondition(canEditCurriculumMap(req.user), 403, 'Not authorized to refine objectives');
+        return objectiveService.refineObjectives({ req });
     }
 });
 };

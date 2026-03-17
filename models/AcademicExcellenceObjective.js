@@ -146,6 +146,10 @@ const academicExcellenceObjectiveSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
+    deletedAt: {
+        type: Date,
+        default: null
+    },
     lastUpdatedAt: {
         type: Date,
         default: Date.now

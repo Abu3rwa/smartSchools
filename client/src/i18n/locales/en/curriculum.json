@@ -125,6 +125,10 @@
     "startWeek": "Start Week",
     "endWeek": "End Week",
     "saveMap": "Save Map",
+    "refineObjectives": "Refine with AI",
+    "refiningObjectives": "Refining...",
+    "addObjective": "Add Objective",
+    "objectivePlaceholder": "Enter learning objective",
     "addItem": "Add {{label}}",
     "addSection": "Add {{label}}",
     "sectionTitlePlaceholder": "{{label}} title",
@@ -197,6 +201,7 @@
     "importQueuedFromFile": "Import job queued from uploaded file.",
     "googleDocImportQueued": "Google Doc import job queued.",
     "importApplied": "AI import suggestions applied to draft.",
+    "objectivesRefined": "Objectives refined with AI.",
     "workflowActionExecuted": "Workflow action executed: {{action}}.",
     "deleteConfirm": "Delete \"{{title}}\"? This action cannot be undone."
   }

@@ -281,6 +281,17 @@ const CurriculumPage = () => {
     );
   };
 
+  const handleRefineObjectives = async (payload) => {
+    let result = null;
+    await runAction(
+      async () => {
+        result = await curriculumService.refineObjectives(payload);
+      },
+      t('messages.objectivesRefined', { defaultValue: 'Objectives refined with AI.' })
+    );
+    return result;
+  };
+
   const handleConnectGoogleDrive = async () => {
     try {
       const result = await curriculumService.getGoogleDriveAuthUrl();
@@ -418,6 +429,7 @@ const CurriculumPage = () => {
               onImportGoogleDoc={handleImportGoogleDoc}
               onApplyImportJob={handleApplyImportJob}
               onConnectGoogleDrive={handleConnectGoogleDrive}
+              onRefineObjectives={handleRefineObjectives}
               onSave={handleSaveMap}
               onCancel={() => setEditorState({ mode: 'view', draft: null })}
               saving={savingMap}

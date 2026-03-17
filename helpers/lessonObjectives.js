@@ -1,4 +1,4 @@
-const OBJECTIVE_TEXT_MAX_LENGTH = 160;
+const OBJECTIVE_TEXT_MAX_LENGTH = 200;
 const PREAMBLE_PATTERNS = [
     /^By the end of (?:this lesson|the lesson)[,:]?\s*(?:students will be able to[,:]?)?\s*/i,
     /^(?:Students will be able to|Learners will)[,:]?\s*/i,

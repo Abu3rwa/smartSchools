@@ -184,7 +184,7 @@ export const getClassAcademicExcellenceSummary = asyncHandler(async (req, res) =
 
     const { subjectId, academicYear, semester } = req.query;
 
-    const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId) };
+    const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId), deletedAt: null };
     if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) {
         match.subject = new mongoose.Types.ObjectId(subjectId);
     }
@@ -255,7 +255,7 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
     const { subjectId, academicYear, semester } = req.query;
     const { page, limit } = parsePagination(req.query);
 
-    const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId) };
+    const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId), deletedAt: null };
     if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) {
         match.subject = new mongoose.Types.ObjectId(subjectId);
     }
@@ -491,9 +491,7 @@ export const generateAcademicExcellenceTask = asyncHandler(async (req, res) => {
 
 Subject: ${subjectName || 'General'}
 Grade Level: ${gradeLevel || 'Not specified'}
-Objective/Standard: ${process.env.AE_SANITIZE_LEGACY === 'true'
-    ? sanitizeObjectiveText(objectiveName || objectiveKey)
-    : (objectiveName || objectiveKey)}
+Objective/Standard: ${sanitizeObjectiveText(objectiveName || objectiveKey)}
 Standard Code: ${objectiveKey || ''}
 Activity Type: ${activityDescription}
 Language: ${lang}
@@ -702,6 +700,82 @@ export const getAIPracticePool = asyncHandler(async (req, res) => {
             assignment,
             questionWorkflow: assignment.questionWorkflow || null,
             questionPool: pool || null,
+        }
+    });
+});
+
+/* ─── Objective Edit / Delete ────────────────────────────────────── */
+
+/**
+ * PATCH /academic-excellence/objectives/:objectiveId/rename
+ * Renames an objective's display name across all student records that
+ * share the same objectiveKey within the school.
+ */
+export const renameAcademicExcellenceObjective = asyncHandler(async (req, res) => {
+    const { objectiveId } = req.params;
+    const { objectiveName } = req.body;
+
+    if (!objectiveName || typeof objectiveName !== 'string' || !objectiveName.trim()) {
+        return res.status(400).json({ success: false, message: 'objectiveName is required' });
+    }
+
+    const trimmedName = objectiveName.trim().slice(0, 300);
+
+    const objective = await AcademicExcellenceObjective.findOne({
+        _id: objectiveId,
+        school: req.schoolId,
+        deletedAt: null
+    });
+
+    if (!objective) {
+        return res.status(404).json({ success: false, message: 'Objective not found' });
+    }
+
+    // Rename all records sharing the same objectiveKey within school
+    const result = await AcademicExcellenceObjective.updateMany(
+        { school: req.schoolId, objectiveKey: objective.objectiveKey, deletedAt: null },
+        { $set: { objectiveName: trimmedName, lastUpdatedAt: new Date() } }
+    );
+
+    res.json({
+        success: true,
+        data: {
+            objectiveKey: objective.objectiveKey,
+            objectiveName: trimmedName,
+            updatedCount: result.modifiedCount
+        }
+    });
+});
+
+/**
+ * DELETE /academic-excellence/objectives/:objectiveId
+ * Soft-deletes an objective and all associated student records that
+ * share the same objectiveKey within the school.
+ */
+export const softDeleteAcademicExcellenceObjective = asyncHandler(async (req, res) => {
+    const { objectiveId } = req.params;
+
+    const objective = await AcademicExcellenceObjective.findOne({
+        _id: objectiveId,
+        school: req.schoolId,
+        deletedAt: null
+    });
+
+    if (!objective) {
+        return res.status(404).json({ success: false, message: 'Objective not found' });
+    }
+
+    const now = new Date();
+    const result = await AcademicExcellenceObjective.updateMany(
+        { school: req.schoolId, objectiveKey: objective.objectiveKey, deletedAt: null },
+        { $set: { deletedAt: now, lastUpdatedAt: now } }
+    );
+
+    res.json({
+        success: true,
+        data: {
+            objectiveKey: objective.objectiveKey,
+            deletedCount: result.modifiedCount
         }
     });
 });

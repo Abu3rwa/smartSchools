@@ -250,6 +250,31 @@
   gap: 0.6rem;
 }
 
+.curriculum-objectives-editor {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.curriculum-objectives-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.curriculum-objective-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.curriculum-objective-row {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .editor-footer {
   display: flex;
   align-items: center;
@@ -488,6 +513,10 @@
   }
 
   .template-field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .curriculum-objective-row {
     grid-template-columns: 1fr;
   }
 }
