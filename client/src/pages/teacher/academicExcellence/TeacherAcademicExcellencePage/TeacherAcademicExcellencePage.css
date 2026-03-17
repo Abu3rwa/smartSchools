@@ -392,6 +392,114 @@
   padding: 1rem;
 }
 
+/* ── List ────────────────────────────────────── */
+.teacher-ae-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+/* ── Objective name: full-text, no truncation ── */
+.teacher-ae-objective-cell {
+  text-align: left;
+  font-weight: 600;
+}
+
+.teacher-ae-objective-name {
+  word-break: break-word;
+  white-space: normal;
+}
+
+.teacher-ae-objective-name-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.teacher-ae-objective-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.teacher-ae-icon-btn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1;
+}
+
+.teacher-ae-icon-btn:hover {
+  background: var(--surface-bg, #f3f4f6);
+  color: var(--text-primary, #111827);
+}
+
+.teacher-ae-icon-btn-danger:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.teacher-ae-inline-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.teacher-ae-inline-edit .teacher-ae-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Toggle (generic) ────────────────────────── */
+.teacher-ae-toggle {
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  border: 0;
+  cursor: pointer;
+  position: relative;
+  transition: background var(--transition-fast, 150ms ease);
+}
+
+.teacher-ae-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--transition-fast, 150ms ease);
+}
+
+.teacher-ae-toggle.on {
+  background: #0f766e;
+}
+
+.teacher-ae-toggle.on::after {
+  transform: translateX(18px);
+}
+
+.teacher-ae-toggle.off {
+  background: var(--border-color, #d1d5db);
+}
+
+/* ── Responsive ──────────────────────────────── */
+@media (max-width: 680px) {
+  .teacher-ae-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .teacher-ae-panel h2 {
   margin: 0 0 0.75rem;
   font-size: 1.05rem;

@@ -103,6 +103,12 @@ label{
   flex-wrap: wrap;
 }
 
+.academic-excellence-list-item-header strong {
+  word-break: break-word;
+  white-space: normal;
+  min-width: 0;
+}
+
 .academic-excellence-badge {
   border-radius: 999px;
   padding: 0.2rem 0.6rem;

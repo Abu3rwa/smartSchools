@@ -58,9 +58,9 @@ const AEStudentProgressDrawer = ({ student, classId, onClose }) => {
           ) : (
             <div className="teacher-ae-list" style={{ marginTop: "0.4rem" }}>
               {objectives.map((obj) => (
-                <div key={obj._id || obj.objectiveKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0", borderBottom: "1px solid var(--border-color, #f3f4f6)" }}>
-                  <span style={{ fontSize: "0.88rem" }}>{obj.objectiveName || obj.objectiveKey}</span>
-                  <span className={`academic-excellence-badge ${obj.masteryLevel || "not_started"}`}>
+                <div key={obj._id || obj.objectiveKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0", borderBottom: "1px solid var(--border-color, #f3f4f6)", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.88rem", wordBreak: "break-word" }}>{obj.objectiveName || obj.objectiveKey}</span>
+                  <span className={`academic-excellence-badge ${obj.masteryLevel || "not_started"}`} style={{ flexShrink: 0 }}>
                     {labelFromMastery(obj.masteryLevel)} · {obj.masteryScore || 0}%
                   </span>
                 </div>

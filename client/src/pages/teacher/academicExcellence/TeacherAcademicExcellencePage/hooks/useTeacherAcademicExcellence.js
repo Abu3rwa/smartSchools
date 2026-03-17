@@ -191,6 +191,16 @@ const useTeacherAcademicExcellence = () => {
     await loadExclusions();
   }, [loadExclusions]);
 
+  const renameObjective = useCallback(async (objectiveId, objectiveName) => {
+    await api.patch(`/academic-excellence/objectives/${objectiveId}/rename`, { objectiveName });
+    await loadClassSummary();
+  }, [loadClassSummary]);
+
+  const deleteObjective = useCallback(async (objectiveId) => {
+    await api.delete(`/academic-excellence/objectives/${objectiveId}`);
+    await loadClassSummary();
+  }, [loadClassSummary]);
+
   const saveNotificationPrefs = useCallback(async (prefs) => {
     await api.put("/academic-excellence/notification-preferences", prefs);
     await loadNotificationPrefs();
@@ -247,6 +257,8 @@ const useTeacherAcademicExcellence = () => {
     createExclusion,
     toggleExclusion,
     deleteExclusion,
+    renameObjective,
+    deleteObjective,
     saveNotificationPrefs,
     refresh,
   };

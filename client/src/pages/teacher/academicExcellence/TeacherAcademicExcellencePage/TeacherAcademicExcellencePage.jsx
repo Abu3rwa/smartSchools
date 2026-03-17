@@ -48,6 +48,11 @@ const TeacherAcademicExcellencePage = () => {
     reason: "",
   });
 
+  // Objective edit/delete state
+  const [editingObjectiveId, setEditingObjectiveId] = useState(null);
+  const [editingObjectiveName, setEditingObjectiveName] = useState("");
+  const [confirmDeleteObjectiveId, setConfirmDeleteObjectiveId] = useState(null);
+
   // Notification prefs local state
   const [localNotifPrefs, setLocalNotifPrefs] = useState(null);
   const [savingNotifs, setSavingNotifs] = useState(false);
@@ -76,6 +81,8 @@ const TeacherAcademicExcellencePage = () => {
     createExclusion,
     toggleExclusion,
     deleteExclusion,
+    renameObjective,
+    deleteObjective,
     saveNotificationPrefs,
     refresh,
   } = useTeacherAcademicExcellence();
@@ -168,6 +175,36 @@ const TeacherAcademicExcellencePage = () => {
     } finally {
       setSavingNotifs(false);
     }
+  };
+
+  const handleStartRename = (obj) => {
+    setEditingObjectiveId(obj._id);
+    setEditingObjectiveName(obj.objectiveName || obj.objectiveKey || "");
+  };
+
+  const handleConfirmRename = async () => {
+    if (!editingObjectiveId || !editingObjectiveName.trim()) return;
+    try {
+      await renameObjective(editingObjectiveId, editingObjectiveName.trim());
+    } catch {
+      /* toast */
+    }
+    setEditingObjectiveId(null);
+    setEditingObjectiveName("");
+  };
+
+  const handleCancelRename = () => {
+    setEditingObjectiveId(null);
+    setEditingObjectiveName("");
+  };
+
+  const handleDeleteObjective = async (objectiveId) => {
+    try {
+      await deleteObjective(objectiveId);
+    } catch {
+      /* toast */
+    }
+    setConfirmDeleteObjectiveId(null);
   };
 
   const updateNotifField = (path, value) => {
@@ -357,8 +394,18 @@ const TeacherAcademicExcellencePage = () => {
                   <tbody>
                     {(heatmapData.objectives || []).map((obj) => (
                       <tr key={obj.objectiveKey}>
-                        <td style={{ textAlign: "left", fontWeight: 600 }}>
-                          {obj.objectiveName || obj.objectiveKey}
+                        <td className="teacher-ae-objective-cell">
+                          <span className="teacher-ae-objective-name" title={obj.objectiveName || obj.objectiveKey}>
+                            {obj.objectiveName || obj.objectiveKey}
+                          </span>
+                          <span className="teacher-ae-objective-actions">
+                            {obj._id && (
+                              <>
+                                <button type="button" className="teacher-ae-icon-btn" title="Rename" onClick={() => handleStartRename(obj)}>✎</button>
+                                <button type="button" className="teacher-ae-icon-btn teacher-ae-icon-btn-danger" title="Delete" onClick={() => setConfirmDeleteObjectiveId(obj._id)}>✕</button>
+                              </>
+                            )}
+                          </span>
                           {hasPermission(PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS) && (
                             <button
                               type="button"
@@ -419,7 +466,36 @@ const TeacherAcademicExcellencePage = () => {
                 {objectives.map((obj) => (
                   <article key={obj._id || obj.objectiveKey} className="teacher-ae-task-item">
                     <div className="teacher-ae-task-header">
-                      <strong>{obj.objectiveName || obj.objectiveKey}</strong>
+                      {editingObjectiveId === obj._id ? (
+                        <div className="teacher-ae-inline-edit">
+                          <input
+                            className="teacher-ae-input"
+                            value={editingObjectiveName}
+                            onChange={(e) => setEditingObjectiveName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleConfirmRename(); if (e.key === "Escape") handleCancelRename(); }}
+                            autoFocus
+                          />
+                          <button type="button" className="teacher-ae-btn-primary" style={{ padding: "0.2rem 0.5rem", fontSize: "0.78rem" }} onClick={handleConfirmRename}>Save</button>
+                          <button type="button" className="teacher-ae-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.78rem" }} onClick={handleCancelRename}>Cancel</button>
+                        </div>
+                      ) : (
+                        <div className="teacher-ae-objective-name-group">
+                          <strong className="teacher-ae-objective-name" title={obj.objectiveName || obj.objectiveKey}>{obj.objectiveName || obj.objectiveKey}</strong>
+                          {obj._id && typeof obj._id === "string" && obj._id.length === 24 && (
+                            <span className="teacher-ae-objective-actions">
+                              <button type="button" className="teacher-ae-icon-btn" title="Rename" onClick={() => handleStartRename(obj)}>✎</button>
+                              {confirmDeleteObjectiveId === obj._id ? (
+                                <>
+                                  <button type="button" className="teacher-ae-btn-danger" style={{ padding: "0.15rem 0.4rem", fontSize: "0.75rem" }} onClick={() => handleDeleteObjective(obj._id)}>Confirm</button>
+                                  <button type="button" className="teacher-ae-btn" style={{ padding: "0.15rem 0.4rem", fontSize: "0.75rem" }} onClick={() => setConfirmDeleteObjectiveId(null)}>Cancel</button>
+                                </>
+                              ) : (
+                                <button type="button" className="teacher-ae-icon-btn teacher-ae-icon-btn-danger" title="Delete" onClick={() => setConfirmDeleteObjectiveId(obj._id)}>✕</button>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <span className={`academic-excellence-badge ${obj.masteryLevel || "not_started"}`}>
                         {labelFromMastery(obj.masteryLevel)}
                       </span>

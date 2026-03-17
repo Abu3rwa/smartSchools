@@ -231,7 +231,8 @@ export const getStudentObjectivesList = asyncHandler(async (req, res) => {
 
     const query = {
         school: req.schoolId,
-        student: student._id
+        student: student._id,
+        deletedAt: null
     };
 
     if (subjectId) query.subject = subjectId;
