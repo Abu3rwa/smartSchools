@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import api from "../../../../config/api";
 import { PERMISSIONS } from "../../../../constants/permissions";
@@ -129,7 +129,7 @@ const TeacherAcademicExcellencePage = () => {
   }, [objectives, heatmapData, selectedSubjectId]);
 
   // Init local notif prefs from loaded data
-  useMemo(() => {
+  useEffect(() => {
     if (notificationPrefs && !localNotifPrefs) {
       setLocalNotifPrefs(notificationPrefs);
     }
@@ -177,8 +177,11 @@ const TeacherAcademicExcellencePage = () => {
       const keys = path.split(".");
       let obj = next;
       for (let i = 0; i < keys.length - 1; i++) {
-        obj = obj[keys[i]];
-        if (!obj) return prev;
+        const key = keys[i];
+        if (!obj[key] || typeof obj[key] !== "object") {
+          obj[key] = {};
+        }
+        obj = obj[key];
       }
       obj[keys[keys.length - 1]] = value;
       return next;

@@ -283,12 +283,16 @@
 
 .practice-item {
   display: grid;
-  grid-template-columns: 60px 1fr 60px 40px auto;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 0.875rem;
+    /* grid-template-columns: 60px 1fr 60px 40px auto; */
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    /* border-bottom: 1px solid var(--primary-900); */
+    font-size: 0.875rem;
+    margin-bottom: 8px;
+    box-shadow: rgba(0, 0, 0, 0.15) 1.95px 1.95px 2.6px;
+    border-radius: 6px;
+    padding: 5px;
 }
 
 .practice-item:last-child {
@@ -329,12 +333,14 @@
 }
 
 .badge-mastered {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--success-700);
-  background: var(--success-100);
-  padding: 2px 6px;
-  border-radius: 4px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    background: var(--primary-600);
+    color: var(--success-50);
+    padding: 2px 6px;
+    border-radius: 4px;
+    width: fit-content;
+     box-shadow: rgba(0, 0, 0, 0.15) 1.95px 1.95px 2.6px;
 }
 
 .practice-item .btn-sm {

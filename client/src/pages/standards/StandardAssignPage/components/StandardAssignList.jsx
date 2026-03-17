@@ -100,6 +100,22 @@ const StandardAssignList = ({
                         <span>
                             <HiOutlineBookOpen size={14} /> {t('standardAssign:list.workflow')}{' '}
                             {getWorkflowStatusLabel(assignment.questionWorkflow?.status || 'legacy')}
+                            {canApproveQuestionPool &&
+                                assignment.practiceConfig?.sessionType === 'assessment' &&
+                                ['draft', 'reviewed', 'approved'].includes(
+                                    String(assignment.questionWorkflow?.status || '').toLowerCase()
+                                ) && (
+                                <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ marginInlineStart: '0.45rem', padding: '0.2rem 0.5rem' }}
+                                    onClick={() => onPublishQuestionPool(assignment)}
+                                    disabled={poolActionLoadingId === assignment._id}
+                                >
+                                    {poolActionLoadingId === assignment._id
+                                        ? t('standardAssign:actions.publishing')
+                                        : t('standardAssign:actions.publishPool')}
+                                </button>
+                                )}
                         </span>
                         <span>
                             <HiOutlineBookOpen size={14} /> {t('standardAssign:list.poolSize')}{' '}
@@ -184,10 +200,12 @@ const StandardAssignList = ({
                             )}
                         {canApproveQuestionPool &&
                             assignment.practiceConfig?.sessionType === 'assessment' &&
-                            assignment.questionWorkflow?.status === 'approved' && (
+                            ['draft', 'reviewed', 'approved'].includes(
+                                String(assignment.questionWorkflow?.status || '').toLowerCase()
+                            ) && (
                             <button
                                 className="btn btn-secondary btn-sm"
-                                onClick={() => onPublishQuestionPool(assignment._id)}
+                                onClick={() => onPublishQuestionPool(assignment)}
                                 disabled={poolActionLoadingId === assignment._id}
                             >
                                 <HiOutlineEye size={16} />

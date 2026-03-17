@@ -68,12 +68,13 @@
 }
 
 .assign-card-footer {
-    display: flex;
+       display: flex;
     justify-content: space-between;
     align-items: center;
     margin-top: var(--spacing-md);
     padding-top: var(--spacing-sm);
     border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
 }
 
 .progress-bar-mini {

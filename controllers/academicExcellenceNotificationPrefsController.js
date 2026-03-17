@@ -1,6 +1,36 @@
 import AcademicExcellenceNotificationPreference from '../models/AcademicExcellenceNotificationPreference.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
+const DEFAULT_NOTIFICATION_PREFERENCES = {
+    global: {
+        enabled: true,
+        onTaskCompleted: true,
+        onObjectiveMastered: true,
+        onStudentStruggling: true,
+        onWeeklyDigest: true,
+        channels: {
+            inApp: true,
+            email: false,
+            push: false
+        }
+    },
+    classOverrides: [],
+    studentOverrides: []
+};
+
+const mergeWithDefaults = (prefs) => ({
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+    ...(prefs || {}),
+    global: {
+        ...DEFAULT_NOTIFICATION_PREFERENCES.global,
+        ...(prefs?.global || {}),
+        channels: {
+            ...DEFAULT_NOTIFICATION_PREFERENCES.global.channels,
+            ...(prefs?.global?.channels || {})
+        }
+    }
+});
+
 /**
  * GET /academic-excellence/notification-preferences
  * Returns the current user's AE notification preferences (or school defaults).
@@ -8,18 +38,10 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 export const getAcademicExcellenceNotificationPreferences = asyncHandler(async (req, res) => {
     let prefs = await AcademicExcellenceNotificationPreference.findOne({
         school: req.schoolId,
-        user: req.user._id
+        teacher: req.user._id
     }).lean();
 
-    if (!prefs) {
-        // Return school-level defaults
-        prefs = await AcademicExcellenceNotificationPreference.findOne({
-            school: req.schoolId,
-            user: { $exists: false }
-        }).lean();
-    }
-
-    res.json({ success: true, data: prefs || {} });
+    res.json({ success: true, data: mergeWithDefaults(prefs) });
 });
 
 /**
@@ -35,10 +57,10 @@ export const updateAcademicExcellenceNotificationPreferences = asyncHandler(asyn
     if (studentOverrides !== undefined) update.studentOverrides = studentOverrides;
 
     const prefs = await AcademicExcellenceNotificationPreference.findOneAndUpdate(
-        { school: req.schoolId, user: req.user._id },
+        { school: req.schoolId, teacher: req.user._id },
         { $set: update },
         { new: true, upsert: true, runValidators: true }
     ).lean();
 
-    res.json({ success: true, data: prefs });
+    res.json({ success: true, data: mergeWithDefaults(prefs) });
 });

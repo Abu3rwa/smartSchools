@@ -135,6 +135,10 @@ export async function createStandardAssignmentWithPool(opts = {}) {
         preGeneratedQuestionCount,
         resolvedPracticeConfig?.questionLimit
     );
+    const workflowStatus = String(questionWorkflow?.status || 'draft').toLowerCase();
+    const shouldAutoPublishPool =
+        questionWorkflow?.requireApprovalBeforeStudentAccess === false
+        && workflowStatus === 'published';
 
     const assignment = await StandardAssignment.create({
         school: schoolId,
@@ -154,7 +158,7 @@ export async function createStandardAssignmentWithPool(opts = {}) {
             requireApprovalBeforeStudentAccess: questionWorkflow?.requireApprovalBeforeStudentAccess ?? true,
             preGeneratedQuestionCount: generatedCount,
             aiLanguages,
-            status: questionWorkflow?.status || 'draft',
+            status: workflowStatus,
             currentPoolVersion: questionWorkflow?.currentPoolVersion || 1,
             generatedAt: new Date(),
         },
@@ -204,8 +208,10 @@ export async function createStandardAssignmentWithPool(opts = {}) {
                 generatedQuestionCount: generatedCount,
                 generationLanguages: aiLanguages,
                 currentVersion: 1,
-                status: 'draft',
+                status: shouldAutoPublishPool ? 'published' : 'draft',
                 questions: generatedQuestions,
+                publishedBy: shouldAutoPublishPool ? actorUserId : null,
+                publishedAt: shouldAutoPublishPool ? new Date() : null,
                 isActive: true,
             },
             ...(generationError

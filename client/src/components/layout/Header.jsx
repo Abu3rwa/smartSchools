@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTheme, useMediaQuery, Menu, MenuItem } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { selectUser, logout } from '../../store/slices/authSlice';
 import { selectTheme, setTheme, selectCurrentAcademicYear, toggleSidebar, selectLanguage, setLanguage } from '../../store/slices/uiSlice';
 import {
+    HiOutlineHome,
     HiOutlineMoon,
     HiOutlineSun,
     HiOutlineLogout,
@@ -20,6 +21,7 @@ import './Header.css';
 const Header = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const location = useLocation();
     const { t, i18n } = useTranslation(['layout.header', 'common']);
     const user = useSelector(selectUser);
     const theme = useSelector(selectTheme);
@@ -28,6 +30,8 @@ const Header = () => {
     const muiTheme = useTheme();
     const isDesktop = useMediaQuery(muiTheme.breakpoints.up('md'));
     const isRtl = i18n.dir(language) === 'rtl';
+    const showDirectorySearch = isDesktop && user?.role !== 'student';
+    const showStudentDashboardBack = user?.role === 'student' && location.pathname !== '/portal/dashboard';
 
     const [searchTerm, setSearchTerm] = useState('');
     const [notificationCount, setNotificationCount] = useState(0);
@@ -95,7 +99,7 @@ const Header = () => {
                     </button>
                 )}
 
-                <form className="search-box" style={{ display: isDesktop ? 'block' : 'none' }} onSubmit={handleSearch}>
+                <form className="search-box" style={{ display: showDirectorySearch ? 'block' : 'none' }} onSubmit={handleSearch}>
                     <HiOutlineSearch className="search-icon" aria-hidden />
                     <input
                         type="text"
@@ -112,6 +116,17 @@ const Header = () => {
                 <div className="academic-year">
                     <span className="badge badge-primary">{academicYear}</span>
                 </div>
+
+                {showStudentDashboardBack && (
+                    <button
+                        className="header-btn"
+                        onClick={() => navigate('/portal/dashboard')}
+                        aria-label={t('layout.header:actions.backToDashboard', { defaultValue: 'Back to Dashboard' })}
+                        title={t('layout.header:actions.backToDashboard', { defaultValue: 'Back to Dashboard' })}
+                    >
+                        <HiOutlineHome size={20} />
+                    </button>
+                )}
 
                 <button
                     className="header-btn"

@@ -524,8 +524,58 @@ const useStandardAssignPageData = () => {
         runQuestionPoolAction(assignmentId, 'review');
     const handleApproveQuestionPool = async (assignmentId) =>
         runQuestionPoolAction(assignmentId, 'approve');
-    const handlePublishQuestionPool = async (assignmentId) =>
-        runQuestionPoolAction(assignmentId, 'publish');
+    const handlePublishQuestionPool = async (assignmentOrId) => {
+        const assignmentId = typeof assignmentOrId === 'string'
+            ? assignmentOrId
+            : assignmentOrId?._id;
+        const initialStatus = String(
+            typeof assignmentOrId === 'string'
+                ? ''
+                : (assignmentOrId?.questionWorkflow?.status || '')
+        ).toLowerCase();
+
+        if (!assignmentId) return;
+
+        // Fallback for call sites that only pass assignment id.
+        if (!initialStatus) {
+            await runQuestionPoolAction(assignmentId, 'publish');
+            return;
+        }
+
+        if (initialStatus === 'published') {
+            toast.success(t('standardAssign:toasts.questionPoolUpdated'));
+            return;
+        }
+
+        setPoolActionLoadingId(assignmentId);
+        try {
+            let status = initialStatus;
+
+            if (status === 'draft') {
+                await api.post(`/standard-assignments/${assignmentId}/question-pool/review`);
+                status = 'reviewed';
+            }
+            if (status === 'reviewed') {
+                await api.post(`/standard-assignments/${assignmentId}/question-pool/approve`);
+                status = 'approved';
+            }
+            if (status === 'approved') {
+                await api.post(`/standard-assignments/${assignmentId}/question-pool/publish`);
+            }
+
+            toast.success(t('standardAssign:toasts.questionPoolUpdated'));
+            if (questionPoolAssignmentId === assignmentId) {
+                await loadQuestionPool(assignmentId);
+            }
+            dispatch(fetchAssignments({ academicYear, semester: selectedSemester }));
+        } catch (error) {
+            toast.error(
+                error?.response?.data?.message || t('standardAssign:toasts.failedToUpdateQuestionPool')
+            );
+        } finally {
+            setPoolActionLoadingId(null);
+        }
+    };
 
     return {
         standards,

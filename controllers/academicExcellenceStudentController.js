@@ -96,6 +96,52 @@ Be lenient on phrasing; focus on conceptual correctness.
 Return ONLY valid JSON:
 { "isCorrect": true|false, "feedback": "1-2 sentence explanation suitable for a student" }`;
 
+const normalizeMcqValue = (value = '') => String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/^[a-d][\.)\-:]\s*/i, '');
+
+const extractMcqLabel = (value = '') => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    if (/^[a-d]$/i.test(text)) return text.toUpperCase();
+    const prefixed = text.match(/^([a-d])[\.)\-:]/i);
+    if (prefixed?.[1]) return prefixed[1].toUpperCase();
+    return '';
+};
+
+const isMultipleChoiceCorrect = (question = {}, studentAnswer = '') => {
+    const options = Array.isArray(question?.options)
+        ? question.options.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+
+    const normalizedStudent = normalizeMcqValue(studentAnswer);
+    const normalizedCorrect = normalizeMcqValue(question?.correctAnswer || '');
+    if (normalizedStudent && normalizedCorrect && normalizedStudent === normalizedCorrect) {
+        return true;
+    }
+
+    const studentLabel = extractMcqLabel(studentAnswer);
+    const correctLabel = extractMcqLabel(question?.correctAnswer || '');
+    if (studentLabel && correctLabel && studentLabel === correctLabel) {
+        return true;
+    }
+
+    if (!options.length) return false;
+
+    const indexToLabel = ['A', 'B', 'C', 'D'];
+    const optionMatchIndex = options.findIndex((option) => normalizeMcqValue(option) === normalizedStudent);
+    if (optionMatchIndex === -1) return false;
+
+    if (correctLabel && indexToLabel[optionMatchIndex] === correctLabel) {
+        return true;
+    }
+
+    const correctOptionIndex = options.findIndex((option) => normalizeMcqValue(option) === normalizedCorrect);
+    return correctOptionIndex !== -1 && correctOptionIndex === optionMatchIndex;
+};
+
 const loadStudentForRequest = async (req) => Student.findOne({
     _id: req.params.id,
     school: req.schoolId,
@@ -436,7 +482,7 @@ export const studentAnswerInteractiveSession = asyncHandler(async (req, res) => 
     let aiFeedback = '';
 
     if (targetQuestion.questionType === 'multiple_choice') {
-        isCorrect = String(normalizedStudentAnswer).toLowerCase() === String(targetQuestion.correctAnswer || '').trim().toLowerCase();
+        isCorrect = isMultipleChoiceCorrect(targetQuestion, normalizedStudentAnswer);
         aiFeedback = isCorrect
             ? 'Great work. You selected the correct answer.'
             : 'Not quite yet. Review the explanation and try to understand the concept.';
