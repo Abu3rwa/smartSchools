@@ -1,6 +1,7 @@
 import Student from '../models/Student.js';
 import AcademicExcellenceTask from '../models/AcademicExcellenceTask.js';
 import AcademicExcellenceObjective from '../models/AcademicExcellenceObjective.js';
+import User from '../models/User.js';
 
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
 
@@ -179,11 +180,65 @@ export const getTeacherTaskQueue = async (teacherId, classId = null) => {
         .lean();
 };
 
+export const autoAssignAIInteractiveTask = async (studentId, objectiveDoc, context = {}) => {
+    const objectiveKey = String(objectiveDoc?.objectiveKey || '').trim();
+    if (!objectiveKey) return null;
+
+    const student = await Student.findById(studentId)
+        .select('_id school currentClass academicYear status')
+        .lean();
+    if (!student || student.status !== 'active') return null;
+
+    const schoolId = context.schoolId || student.school;
+    const classId = context.classId || objectiveDoc?.class || student.currentClass;
+    const subjectId = context.subjectId || objectiveDoc?.subject || null;
+    if (!classId || !subjectId) return null;
+
+    const existing = await AcademicExcellenceTask.findOne({
+        school: schoolId,
+        student: student._id,
+        objectiveKey,
+        taskType: 'ai_interactive',
+        status: { $in: ['assigned', 'in_progress'] }
+    }).select('_id').lean();
+    if (existing) return null;
+
+    let teacherId = context.teacherId || null;
+    if (!teacherId) {
+        const fallbackTeacher = await User.findOne({
+            school: schoolId,
+            role: { $in: ['teacher', 'admin', 'department_principal'] },
+            isActive: true
+        }).select('_id').lean();
+        teacherId = fallbackTeacher?._id || null;
+    }
+    if (!teacherId) return null;
+
+    return AcademicExcellenceTask.create({
+        school: schoolId,
+        academicYear: student.academicYear || null,
+        student: student._id,
+        class: classId,
+        subject: subjectId,
+        teacher: teacherId,
+        objectiveKey,
+        objectiveName: String(objectiveDoc?.objectiveName || objectiveKey).trim(),
+        objectiveRef: objectiveDoc?._id || null,
+        title: `AI Practice: ${String(objectiveDoc?.objectiveName || objectiveKey).trim()}`,
+        description: '',
+        taskType: 'ai_interactive',
+        estimatedMinutes: 15,
+        status: 'assigned',
+        assignedAt: new Date()
+    });
+};
+
 export default {
     assignTask,
     bulkAssignTasks,
     completeTask,
     reviewTask,
     getStudentPendingTasks,
-    getTeacherTaskQueue
+    getTeacherTaskQueue,
+    autoAssignAIInteractiveTask
 };

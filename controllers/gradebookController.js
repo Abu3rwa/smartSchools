@@ -366,6 +366,13 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
     const gradingDate = new Date();
     const gradingTeacherId = teacherProfile?._id || assignment.teacher || req.user._id;
     const resolvedAssessmentGroupId = assessmentGroupId || generateAssessmentGroupId('asg');
+    const homeworkLessonPlanIds = await validateGradeLessonPlanLinks({
+        lessonPlanIds: assignment.lessonPlan ? [assignment.lessonPlan] : [],
+        schoolId: req.schoolId,
+        classId: assignment.class,
+        subjectId: assignment.subject,
+        user: req.user
+    });
 
     const graded = [];
 
@@ -412,7 +419,8 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
                     remarks: row.remarks,
                     assessmentGroupId: resolvedAssessmentGroupId,
                     homeworkSubmission: submission._id,
-                    gradingSource: 'homework_submission'
+                    gradingSource: 'homework_submission',
+                    lessonPlanIds: homeworkLessonPlanIds ?? []
                 },
                 $setOnInsert: {
                     school: req.schoolId,
@@ -470,6 +478,14 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
             marks: grade.marks,
             maxMarks: grade.maxMarks
         });
+
+        syncObjectivesForGrade({
+            schoolId: req.schoolId,
+            studentId: row.studentId,
+            subjectId: assignment.subject,
+            classId: assignment.class,
+            academicYear: assignment.academicYear
+        }).catch(() => {});
     }
 
     res.status(200).json({

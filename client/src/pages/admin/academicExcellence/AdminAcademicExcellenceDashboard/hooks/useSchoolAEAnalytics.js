@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import api from "../../../../../config/api";
-import { selectCurrentAcademicYear, selectSelectedSemester } from "../../../../../store/slices/uiSlice";
+import { selectCurrentAcademicYear } from "../../../../../store/slices/uiSlice";
 import { selectUser } from "../../../../../store/slices/authSlice";
+
+const isMongoObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || ""));
 
 const useSchoolAEAnalytics = () => {
   const user = useSelector(selectUser);
   const academicYear = useSelector(selectCurrentAcademicYear);
-  const selectedSemester = useSelector(selectSelectedSemester);
 
   const schoolId = user?.school?._id || user?.school || "";
 
@@ -34,14 +35,14 @@ const useSchoolAEAnalytics = () => {
   const loadClasses = useCallback(async () => {
     try {
       const res = await api.get("/classes", {
-        params: { academicYear, semester: selectedSemester, limit: 200 },
+        params: { academicYear, limit: 200 },
       });
       const list = res.data?.data?.classes || res.data?.classes || [];
       setClasses(list);
     } catch {
       /* non-critical */
     }
-  }, [academicYear, selectedSemester]);
+  }, [academicYear]);
 
   useEffect(() => {
     loadClasses();
@@ -53,7 +54,10 @@ const useSchoolAEAnalytics = () => {
     setLoading(true);
     setError("");
     try {
-      const params = { academicYear, semester: selectedSemester };
+      const params = {};
+      if (isMongoObjectId(academicYear)) {
+        params.academicYear = academicYear;
+      }
       if (selectedClassId) params.classId = selectedClassId;
       if (selectedSubjectId) params.subjectId = selectedSubjectId;
 
@@ -73,7 +77,7 @@ const useSchoolAEAnalytics = () => {
     } finally {
       setLoading(false);
     }
-  }, [schoolId, selectedClassId, selectedSubjectId, academicYear, selectedSemester]);
+  }, [schoolId, selectedClassId, selectedSubjectId, academicYear]);
 
   useEffect(() => {
     loadAnalytics();
@@ -109,7 +113,10 @@ const useSchoolAEAnalytics = () => {
   // Export
   const exportReport = useCallback(async (format = "csv") => {
     if (!schoolId) return;
-    const params = { format, academicYear, semester: selectedSemester };
+    const params = { format };
+    if (isMongoObjectId(academicYear)) {
+      params.academicYear = academicYear;
+    }
     if (selectedClassId) params.classId = selectedClassId;
     if (selectedSubjectId) params.subjectId = selectedSubjectId;
 
@@ -126,7 +133,7 @@ const useSchoolAEAnalytics = () => {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
-  }, [schoolId, selectedClassId, selectedSubjectId, academicYear, selectedSemester]);
+  }, [schoolId, selectedClassId, selectedSubjectId, academicYear]);
 
   return {
     loading,

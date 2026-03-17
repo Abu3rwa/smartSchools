@@ -1,5 +1,6 @@
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
+import User from '../models/User.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
@@ -14,6 +15,16 @@ import {
 
 const generateTempPassword = generateInvitePassword;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+
+const normalizeEmail = (value) => {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toLowerCase();
+    return normalized || null;
+};
+
+const resolvePreferredStudentLoginEmail = ({ studentEmail, legacyEmail }) => {
+    return normalizeEmail(legacyEmail) || normalizeEmail(studentEmail);
+};
 
 const getStudentCapacityContext = async (schoolId) => {
     const featureContext = await resolveSchoolFeatureContext(schoolId);
@@ -430,7 +441,8 @@ export const createStudent = asyncHandler(async (req, res) => {
  * @access  Private (Admin, Teacher)
  */
 export const updateStudent = asyncHandler(async (req, res) => {
-    let student = await Student.findById(req.params.id);
+    let student = await Student.findById(req.params.id)
+        .populate('user', 'email');
 
     if (!student) {
         return res.status(404).json({
@@ -449,11 +461,55 @@ export const updateStudent = asyncHandler(async (req, res) => {
         if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
     if (updates.email === '') updates.email = null;
+    if (updates.studentEmail === '') updates.studentEmail = null;
+
+    const nextLegacyEmail = updates.email !== undefined ? updates.email : student.email;
+    const nextStudentEmail = updates.studentEmail !== undefined ? updates.studentEmail : student.studentEmail;
+    const nextPreferredLoginEmail = resolvePreferredStudentLoginEmail({
+        studentEmail: nextStudentEmail,
+        legacyEmail: nextLegacyEmail
+    });
+
+    if (student.user?._id && nextPreferredLoginEmail) {
+        const currentUserEmail = normalizeEmail(student.user.email);
+        if (currentUserEmail !== nextPreferredLoginEmail) {
+            const conflictingUser = await User.findOne({
+                email: nextPreferredLoginEmail,
+                _id: { $ne: student.user._id }
+            })
+                .setOptions({ skipTenantFilter: true })
+                .select('_id')
+                .lean();
+
+            if (conflictingUser) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'This email is already used by another account. Please use a different email.'
+                });
+            }
+        }
+    }
 
     student = await Student.findByIdAndUpdate(req.params.id, updates, {
         new: true,
         runValidators: true
-    }).populate('department', 'name type').populate('currentClass', 'name grade section');
+    })
+        .populate('department', 'name type')
+        .populate('currentClass', 'name grade section')
+        .populate('user', 'email isActive mustChangePassword loginInvite');
+
+    if (student?.user?._id && nextPreferredLoginEmail) {
+        const currentUserEmail = normalizeEmail(student.user.email);
+        if (currentUserEmail !== nextPreferredLoginEmail) {
+            await User.findByIdAndUpdate(
+                student.user._id,
+                { email: nextPreferredLoginEmail },
+                { runValidators: true }
+            ).setOptions({ skipTenantFilter: true });
+
+            student.user.email = nextPreferredLoginEmail;
+        }
+    }
 
     res.json({
         success: true,
@@ -789,9 +845,21 @@ export const resetStudentPassword = asyncHandler(async (req, res) => {
         });
     }
 
+    const preferredLoginEmail = resolvePreferredStudentLoginEmail({
+        studentEmail: student.studentEmail,
+        legacyEmail: student.email
+    }) || normalizeEmail(student.user.email);
+
+    if (!preferredLoginEmail) {
+        return res.status(400).json({
+            success: false,
+            message: 'No email available. Add a student email before resetting the password.'
+        });
+    }
+
     const credentials = await prepareStudentLoginCredentials({
         student,
-        email: student.user.email || student.email || student.studentEmail,
+        email: preferredLoginEmail,
         actorUserId: req.user?._id,
         sendEmail: false
     });

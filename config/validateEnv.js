@@ -75,6 +75,23 @@ export function validateEnvironment() {
     if (allowLocalServiceAccount === 'true') {
       warnings.push('ALLOW_LOCAL_SERVICE_ACCOUNT should be false/empty in production');
     }
+
+    const requiredProdVars = ['CLIENT_URL', 'GOOGLE_LOGIN_REDIRECT_URI'];
+    for (const varName of requiredProdVars) {
+      if (!process.env[varName]) {
+        missing.push(varName);
+      }
+    }
+
+    const oauthUris = ['GOOGLE_LOGIN_REDIRECT_URI', 'GOOGLE_REDIRECT_URI'];
+    for (const varName of oauthUris) {
+      const value = String(process.env[varName] || '').trim().toLowerCase();
+      if (!value) continue;
+
+      if (value.includes('localhost') || value.includes('127.0.0.1')) {
+        warnings.push(`${varName} points to localhost in production`);
+      }
+    }
   }
 
   if (warnings.length > 0) {

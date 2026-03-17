@@ -1,0 +1,1 @@
+import{at as o,Z as u,au as m}from"./index-1_6cEl8e.js";const p=o();function c({props:t,name:a,defaultTheme:r,themeId:s}){let e=u(r);return s&&(e=e[s]||e),m({theme:e,name:a,props:t})}export{p as s,c as u};

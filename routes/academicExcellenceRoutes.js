@@ -1,14 +1,17 @@
 import express from 'express';
-import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
+import { protect, authorize, resolveDepartmentScope, requirePermission } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { parseQueryFilter } from '../middleware/queryFilter.js';
+import { PERMISSIONS } from '../config/permissions.js';
 import {
     getAcademicExcellenceTaskQueue,
     createAcademicExcellenceTask,
     bulkCreateAcademicExcellenceTasks,
     reviewAcademicExcellenceTask,
     generateAcademicExcellenceTask,
+    createAIPracticeAssignment,
+    getAIPracticePool,
     getAcademicExcellenceExclusions,
     createAcademicExcellenceExclusion,
     toggleAcademicExcellenceExclusion,
@@ -53,6 +56,20 @@ router.post(
     '/tasks/generate',
     authorize('admin', 'department_principal', 'teacher'),
     generateAcademicExcellenceTask
+);
+
+router.post(
+    '/ai-practice',
+    authorize('admin', 'department_principal', 'teacher'),
+    requirePermission(PERMISSIONS.ASSIGN_ACADEMIC_EXCELLENCE_TASKS),
+    createAIPracticeAssignment
+);
+
+router.get(
+    '/ai-practice/:assignmentId/pool',
+    authorize('admin', 'department_principal', 'teacher', 'staff'),
+    requirePermission(PERMISSIONS.ASSIGN_ACADEMIC_EXCELLENCE_TASKS),
+    getAIPracticePool
 );
 
 // ─── Exclusions ─────────────────────────────────────────────────────

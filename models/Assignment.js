@@ -86,6 +86,12 @@ const assignmentSchema = new mongoose.Schema(
                 ref: 'Student'
             }
         ],
+        lessonPlanIds: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'LessonPlan'
+            }
+        ],
         maxMarks: {
             type: Number,
             required: true,
@@ -127,6 +133,7 @@ assignmentSchema.index({ school: 1, class: 1, status: 1, dueDate: 1 });
 assignmentSchema.index({ school: 1, teacher: 1, status: 1, assignedDate: -1 });
 assignmentSchema.index({ school: 1, assignmentTypeKey: 1, status: 1, assignedDate: -1 });
 assignmentSchema.index({ school: 1, academicYear: 1, class: 1, subject: 1 });
+assignmentSchema.index({ school: 1, lessonPlanIds: 1 });
 
 assignmentSchema.plugin(tenantIsolationPlugin);
 

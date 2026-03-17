@@ -1,11 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
+import api from "../../../../config/api";
 import { PERMISSIONS } from "../../../../constants/permissions";
 import { selectUser } from "../../../../store/slices/authSlice";
 import useTeacherAcademicExcellence from "./hooks/useTeacherAcademicExcellence";
 import AEAssignTaskModal from "./components/AEAssignTaskModal";
 import AEBulkAssignModal from "./components/AEBulkAssignModal";
+import AEAIPracticeModal from "./components/AEAIPracticeModal";
 import AEStudentProgressDrawer from "./components/AEStudentProgressDrawer";
+import QuestionPoolEditorModal from "../../../standards/StandardAssignPage/components/QuestionPoolEditorModal";
 import "./TeacherAcademicExcellencePage.css";
 
 const labelFromMastery = (value) =>
@@ -30,6 +33,10 @@ const TeacherAcademicExcellencePage = () => {
   const [assignModal, setAssignModal] = useState(null);
   const [bulkAssignModal, setBulkAssignModal] = useState(null);
   const [drawerStudent, setDrawerStudent] = useState(null);
+  const [aiPracticeModal, setAiPracticeModal] = useState(null);
+  const [poolEditorModal, setPoolEditorModal] = useState(null);
+  const [savingPool, setSavingPool] = useState(false);
+  const [poolEditorError, setPoolEditorError] = useState("");
   const [reviewingTaskId, setReviewingTaskId] = useState(null);
   const [feedbackText, setFeedbackText] = useState("");
 
@@ -60,8 +67,11 @@ const TeacherAcademicExcellencePage = () => {
     taskQueue,
     exclusions,
     notificationPrefs,
+    aiPracticeCreating,
     assignTask,
     bulkAssignTasks,
+    createAIPracticeAssignment,
+    fetchAIPracticePool,
     reviewTask,
     createExclusion,
     toggleExclusion,
@@ -96,6 +106,27 @@ const TeacherAcademicExcellencePage = () => {
     if (!classSummary?.heatmap) return null;
     return classSummary.heatmap;
   }, [classSummary]);
+
+  const assignableObjectives = useMemo(() => {
+    const fromObjectives = Array.isArray(objectives) ? objectives : [];
+    const fromHeatmap = Array.isArray(heatmapData?.objectives) ? heatmapData.objectives : [];
+    const merged = [...fromObjectives, ...fromHeatmap];
+
+    const map = new Map();
+    for (const item of merged) {
+      const key = String(item?.objectiveKey || "").trim();
+      if (!key) continue;
+      if (!map.has(key)) {
+        map.set(key, {
+          objectiveKey: key,
+          objectiveName: item?.objectiveName || key,
+          subject: item?.subject || selectedSubjectId || "",
+        });
+      }
+    }
+
+    return Array.from(map.values());
+  }, [objectives, heatmapData, selectedSubjectId]);
 
   // Init local notif prefs from loaded data
   useMemo(() => {
@@ -153,6 +184,74 @@ const TeacherAcademicExcellencePage = () => {
       return next;
     });
   };
+
+  const resolveObjectiveSubject = useCallback((objective) => {
+    const objectiveSubjectId = objective?.subject?._id || objective?.subject || selectedSubjectId;
+    const subjectEntry = (subjects || []).find((item) => (item?._id || item) === objectiveSubjectId)
+      || (subjects || []).find((item) => (item?._id || item) === selectedSubjectId)
+      || null;
+    return {
+      subjectId: objectiveSubjectId || selectedSubjectId || "",
+      subjectName: subjectEntry?.name || "",
+    };
+  }, [selectedSubjectId, subjects]);
+
+  const openAIPracticeModal = useCallback((objective, options = {}) => {
+    const { subjectId, subjectName } = resolveObjectiveSubject(objective);
+    setAiPracticeModal({
+      objectiveKey: objective?.objectiveKey || "",
+      objectiveName: objective?.objectiveName || objective?.objectiveKey || "",
+      subjectId,
+      subjectName,
+      classId: selectedClassId,
+      ...options,
+    });
+  }, [resolveObjectiveSubject, selectedClassId]);
+
+  const handleAIPracticeSuccess = useCallback(async (result) => {
+    if (!result?.assignmentId) return;
+    setAiPracticeModal(null);
+    setPoolEditorError("");
+    setPoolEditorModal({ assignmentId: result.assignmentId, loading: true, poolData: null });
+    try {
+      const poolData = await fetchAIPracticePool(result.assignmentId);
+      setPoolEditorModal({ assignmentId: result.assignmentId, loading: false, poolData });
+    } catch (err) {
+      setPoolEditorError(err?.response?.data?.message || "Unable to load question pool.");
+      setPoolEditorModal({ assignmentId: result.assignmentId, loading: false, poolData: null });
+    }
+  }, [fetchAIPracticePool]);
+
+  const retryAIPracticePool = useCallback(async () => {
+    if (!poolEditorModal?.assignmentId) return;
+    setPoolEditorError("");
+    setPoolEditorModal((prev) => (prev ? { ...prev, loading: true } : prev));
+    try {
+      const poolData = await fetchAIPracticePool(poolEditorModal.assignmentId);
+      setPoolEditorModal({ assignmentId: poolEditorModal.assignmentId, loading: false, poolData });
+    } catch (err) {
+      setPoolEditorError(err?.response?.data?.message || "Unable to load question pool.");
+      setPoolEditorModal((prev) => (prev ? { ...prev, loading: false } : prev));
+    }
+  }, [fetchAIPracticePool, poolEditorModal]);
+
+  const handlePoolSave = useCallback(async (questions, changeSummary = "") => {
+    if (!poolEditorModal?.assignmentId) return;
+    setSavingPool(true);
+    setPoolEditorError("");
+    try {
+      await api.put(`/standard-assignments/${poolEditorModal.assignmentId}/question-pool`, {
+        questions,
+        changeSummary,
+      });
+      const poolData = await fetchAIPracticePool(poolEditorModal.assignmentId);
+      setPoolEditorModal((prev) => (prev ? { ...prev, poolData } : prev));
+    } catch (err) {
+      setPoolEditorError(err?.response?.data?.message || "Failed to save question pool.");
+    } finally {
+      setSavingPool(false);
+    }
+  }, [fetchAIPracticePool, poolEditorModal]);
 
   // ── Render ──
   return (
@@ -267,6 +366,16 @@ const TeacherAcademicExcellencePage = () => {
                               Assign All
                             </button>
                           )}
+                          {hasPermission(PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS) && (
+                            <button
+                              type="button"
+                              className="teacher-ae-btn"
+                              style={{ marginLeft: "0.35rem", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
+                              onClick={() => openAIPracticeModal(obj, { isBulk: true })}
+                            >
+                              AI Practice (All)
+                            </button>
+                          )}
                         </td>
                         {(heatmapData.students || []).map((s) => {
                           const cell = (obj.studentLevels || {})[s._id] || "not_started";
@@ -276,7 +385,11 @@ const TeacherAcademicExcellencePage = () => {
                               className={cell}
                               style={{ cursor: "pointer" }}
                               onClick={() => setDrawerStudent({ ...s, objectiveKey: obj.objectiveKey })}
-                              title={`${s.name}: ${labelFromMastery(cell)}`}
+                              onDoubleClick={() => openAIPracticeModal(obj, {
+                                studentId: s._id,
+                                studentName: s.name,
+                              })}
+                              title={`${s.name}: ${labelFromMastery(cell)} (double click to assign AI practice)`}
                             >
                               {labelFromMastery(cell).charAt(0)}
                             </td>
@@ -311,6 +424,17 @@ const TeacherAcademicExcellencePage = () => {
                     <div className="teacher-ae-task-meta">
                       <span>Avg Score: {obj.avgScore ?? obj.masteryScore ?? 0}%</span>
                       <span>Students at risk: {obj.atRiskCount || 0}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                      {hasPermission(PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS) && (
+                        <button
+                          type="button"
+                          className="teacher-ae-btn"
+                          onClick={() => openAIPracticeModal(obj, { isBulk: true })}
+                        >
+                          AI Practice (All)
+                        </button>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -644,7 +768,7 @@ const TeacherAcademicExcellencePage = () => {
           studentId={assignModal.studentId}
           studentName={assignModal.studentName}
           classId={selectedClassId}
-          objectives={objectives}
+          objectives={assignableObjectives}
           subjectId={selectedSubjectId}
           subjectName={subjects.find((s) => (s._id || s) === selectedSubjectId)?.name || ""}
           onAssign={async (taskData) => {
@@ -675,6 +799,40 @@ const TeacherAcademicExcellencePage = () => {
           student={drawerStudent}
           classId={selectedClassId}
           onClose={() => setDrawerStudent(null)}
+        />
+      )}
+
+      {aiPracticeModal && (
+        <AEAIPracticeModal
+          studentId={aiPracticeModal.studentId}
+          studentName={aiPracticeModal.studentName}
+          isBulk={aiPracticeModal.isBulk}
+          classId={aiPracticeModal.classId}
+          objectiveKey={aiPracticeModal.objectiveKey}
+          objectiveName={aiPracticeModal.objectiveName}
+          subjectId={aiPracticeModal.subjectId}
+          subjectName={aiPracticeModal.subjectName}
+          creating={aiPracticeCreating}
+          onCreate={createAIPracticeAssignment}
+          onSuccess={handleAIPracticeSuccess}
+          onClose={() => setAiPracticeModal(null)}
+        />
+      )}
+
+      {poolEditorModal && (
+        <QuestionPoolEditorModal
+          show={true}
+          onClose={() => {
+            setPoolEditorModal(null);
+            setPoolEditorError("");
+          }}
+          loading={poolEditorModal.loading}
+          error={poolEditorError}
+          data={poolEditorModal.poolData}
+          assignmentId={poolEditorModal.assignmentId}
+          saving={savingPool}
+          onSave={handlePoolSave}
+          onRetry={retryAIPracticePool}
         />
       )}
     </div>

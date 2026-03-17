@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../../../../config/api";
 
 const TASK_TYPES = [
   { value: "practice_questions", label: "Practice Questions" },
+  { value: "ai_interactive", label: "AI Interactive Quiz" },
   { value: "reading", label: "Reading Comprehension" },
   { value: "teacher_review", label: "Teacher Review" },
   { value: "peer_discussion", label: "Peer Discussion" },
@@ -21,8 +22,16 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjec
   });
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const isInteractiveType = form.taskType === "ai_interactive";
 
   const selectedObj = (objectives || []).find((o) => o.objectiveKey === form.objectiveKey);
+
+  useEffect(() => {
+    if (form.objectiveKey) return;
+    const firstObjectiveKey = objectives?.[0]?.objectiveKey || "";
+    if (!firstObjectiveKey) return;
+    setForm((prev) => ({ ...prev, objectiveKey: firstObjectiveKey }));
+  }, [objectives, form.objectiveKey]);
 
   const handleGenerate = async () => {
     if (!form.objectiveKey) return;
@@ -91,6 +100,11 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjec
               </option>
             ))}
           </select>
+          {(!objectives || objectives.length === 0) && (
+            <small style={{ color: "#b45309" }}>
+              No objectives loaded for this class yet. Try Refresh on the Academic Excellence page.
+            </small>
+          )}
         </div>
 
         <div className="teacher-ae-form-group">
@@ -106,16 +120,23 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjec
           </select>
         </div>
 
-        {/* AI Generate Button */}
-        <button
-          type="button"
-          className="teacher-ae-btn-primary"
-          style={{ width: "100%", marginBottom: "0.5rem" }}
-          onClick={handleGenerate}
-          disabled={generating || !form.objectiveKey}
-        >
-          {generating ? "Generating with AI..." : "✨ Generate Task with AI"}
-        </button>
+        {!isInteractiveType && (
+          <button
+            type="button"
+            className="teacher-ae-btn-primary"
+            style={{ width: "100%", marginBottom: "0.5rem" }}
+            onClick={handleGenerate}
+            disabled={generating || !form.objectiveKey}
+          >
+            {generating ? "Generating with AI..." : "✨ Generate Task with AI"}
+          </button>
+        )}
+
+        {isInteractiveType && (
+          <p style={{ margin: "0.25rem 0 0.75rem", color: "#0f766e", fontSize: "0.86rem" }}>
+            An AI-guided quiz session will be generated automatically when the student starts this task.
+          </p>
+        )}
 
         <div className="teacher-ae-form-group">
           <label>Title</label>
@@ -127,17 +148,19 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjec
           />
         </div>
 
-        <div className="teacher-ae-form-group">
-          <label>Task Content / Instructions</label>
-          <textarea
-            className="teacher-ae-textarea"
-            rows={8}
-            value={form.description}
-            onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-            placeholder="AI will generate exercises here, or write your own..."
-            style={{ minHeight: "140px" }}
-          />
-        </div>
+        {!isInteractiveType && (
+          <div className="teacher-ae-form-group">
+            <label>Task Content / Instructions</label>
+            <textarea
+              className="teacher-ae-textarea"
+              rows={8}
+              value={form.description}
+              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              placeholder="AI will generate exercises here, or write your own..."
+              style={{ minHeight: "140px" }}
+            />
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: "0.6rem" }}>
           <div className="teacher-ae-form-group" style={{ flex: 1 }}>

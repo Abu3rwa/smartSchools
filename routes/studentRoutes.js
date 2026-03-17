@@ -29,7 +29,10 @@ import {
     getStudentAcademicExcellenceDashboard,
     getStudentObjectivesList,
     getStudentTasks,
-    studentCompleteTask
+    studentCompleteTask,
+    studentStartInteractiveSession,
+    studentAnswerInteractiveSession,
+    studentCompleteInteractiveSession
 } from '../controllers/academicExcellenceStudentController.js';
 import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
@@ -62,6 +65,9 @@ router.get('/:id/academic-excellence', authorize('admin', 'department_principal'
 router.get('/:id/academic-excellence/objectives', authorize('admin', 'department_principal', 'teacher', 'student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentObjectivesList);
 router.get('/:id/academic-excellence/tasks', authorize('admin', 'department_principal', 'teacher', 'student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentTasks);
 router.patch('/:id/academic-excellence/tasks/:taskId/complete', authorize('student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, studentCompleteTask);
+router.post('/:id/academic-excellence/tasks/:taskId/session/start', authorize('student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, studentStartInteractiveSession);
+router.post('/:id/academic-excellence/tasks/:taskId/session/answer', authorize('student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, studentAnswerInteractiveSession);
+router.post('/:id/academic-excellence/tasks/:taskId/session/complete', authorize('student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, studentCompleteInteractiveSession);
 router.put('/:id/photo', authorize('admin'), validationRules.mongoId, validate, upload.single('photo'), uploadStudentPhoto);
 router.delete('/:id/photo', authorize('admin'), validationRules.mongoId, validate, removeStudentPhoto);
 

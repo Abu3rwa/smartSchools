@@ -113,6 +113,30 @@ const buildPeriodLabel = (academicYear, periodInfo) => {
     return `${academicYear}, ${periodInfo.label}`;
 };
 
+const normalizeText = (value) => String(value || '').trim();
+
+const eqText = (a, b) => normalizeText(a).toLowerCase() === normalizeText(b).toLowerCase();
+
+const buildStandardDisplayName = (standard, mode = 'code_definition') => {
+    const code = normalizeText(standard?.code);
+    const name = normalizeText(standard?.name);
+    const definition = normalizeText(standard?.description);
+
+    if (mode === 'code_name') {
+        return name || definition || code || 'Standard';
+    }
+
+    if (mode === 'code_name_definition') {
+        if (name && definition && !eqText(name, definition)) {
+            return `${name} - ${definition}`;
+        }
+        return name || definition || code || 'Standard';
+    }
+
+    // default: code_definition
+    return definition || name || code || 'Standard';
+};
+
 const mapRawPercentageToLevel = (rawPercentage, scale) => {
     if (!Number.isFinite(rawPercentage)) {
         return { score: null, isNA: true };
@@ -230,7 +254,8 @@ export const aggregateStudentSBRScores = async ({
     subjectId,
     period,
     academicYear,
-    scale
+    scale,
+    standardDisplayMode = 'code_definition'
 }) => {
     const periodInfo = normalizePeriod(period);
     if (!periodInfo) {
@@ -437,7 +462,7 @@ export const aggregateStudentSBRScores = async ({
         categoriesMap.get(categoryName).standards.push({
             standard: standard?._id || null,
             standardCode: String(standard?.code || '').trim(),
-            standardName: String(standard?.name || '').trim() || String(standard?.description || '').trim() || 'Standard',
+            standardName: buildStandardDisplayName(standard, standardDisplayMode),
             score: mapped.score,
             rawPercentage: round2(rawPercentage),
             assessmentCount,
@@ -522,6 +547,7 @@ export const buildSBRReportData = async ({
     ).trim();
 
     const subjectIds = resolveClassSubjectIds(classDoc);
+    const standardDisplayMode = String(school?.reportSettings?.sbrStandardDisplayMode || 'code_definition').trim();
 
     const subjects = [];
     for (const subjectId of subjectIds) {
@@ -532,7 +558,8 @@ export const buildSBRReportData = async ({
             subjectId,
             period: periodInfo.type,
             academicYear: selectedAcademicYear,
-            scale
+            scale,
+            standardDisplayMode
         });
         subjects.push(subjectScores);
     }

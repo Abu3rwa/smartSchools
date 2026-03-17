@@ -18,6 +18,8 @@ const round2 = (value) => {
     return Math.round(parsed * 100) / 100;
 };
 
+const normalizeLower = (value) => String(value || '').trim().toLowerCase();
+
 const formatDate = (value) => {
     const date = value ? new Date(value) : new Date();
     if (Number.isNaN(date.getTime())) return '';
@@ -134,7 +136,22 @@ const mapReportForTemplate = async (reportData, schoolBranding = {}) => {
                 ...category,
                 standards: (category.standards || []).map((standard) => ({
                     ...standard,
-                    rawPercentage: round2(standard.rawPercentage)
+                    rawPercentage: round2(standard.rawPercentage),
+                    showCodePrefix: (() => {
+                        const code = String(standard?.standardCode || '').trim();
+                        const name = String(standard?.standardName || '').trim();
+                        if (!code) return false;
+                        if (!name) return true;
+
+                        const normalizedCode = normalizeLower(code);
+                        const normalizedName = normalizeLower(name);
+
+                        if (normalizedName === normalizedCode) return false;
+                        if (normalizedName.startsWith(`${normalizedCode} -`)) return false;
+                        if (normalizedName.startsWith(`${normalizedCode}:`)) return false;
+                        if (normalizedName.startsWith(`${normalizedCode} `)) return false;
+                        return true;
+                    })()
                 }))
             }))
         }))

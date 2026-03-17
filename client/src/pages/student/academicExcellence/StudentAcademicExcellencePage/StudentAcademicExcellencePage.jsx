@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import api from "../../../../config/api";
 import { fetchMyAssignments, selectPracticeStudentId } from "../../../../store/slices/practiceSlice";
 import { selectCurrentAcademicYear, selectSelectedSemester } from "../../../../store/slices/uiSlice";
+import AIPracticeSession from "../AIPracticeSession/AIPracticeSession";
 import "./StudentAcademicExcellencePage.css";
 
 const masteryOrder = ["mastered", "developing", "at_risk", "not_started"];
@@ -13,6 +14,31 @@ const labelFromMastery = (value) =>
     .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : ""))
     .join(" ");
 
+const toNumber = (value, fallback = 0) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+const formatObjectiveLabel = (objective = {}) => {
+  const preferred = String(
+    objective?.objectiveTitle || objective?.objectiveName || "",
+  ).trim();
+  if (preferred) return preferred;
+
+  const rawKey = String(objective?.objectiveKey || "").trim();
+  if (!rawKey) return "Objective";
+
+  const normalized = rawKey
+    .replace(/^obj_/, "")
+    .replace(/_[a-z0-9]{6}$/i, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return "Objective";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
 const StudentAcademicExcellencePage = () => {
   const dispatch = useDispatch();
   const practiceStudentId = useSelector(selectPracticeStudentId);
@@ -21,6 +47,7 @@ const StudentAcademicExcellencePage = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resolvedStudentId, setResolvedStudentId] = useState("");
   const [dashboard, setDashboard] = useState(null);
   const [objectives, setObjectives] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -82,6 +109,8 @@ const StudentAcademicExcellencePage = () => {
       return;
     }
 
+    setResolvedStudentId(studentId);
+
     await loadAcademicExcellenceData(studentId);
   }, [loadAcademicExcellenceData, resolveStudentId]);
 
@@ -124,6 +153,24 @@ const StudentAcademicExcellencePage = () => {
     return defaultCounts;
   }, [objectives]);
 
+  const dashboardStats = dashboard?.stats || dashboard?.summary || {};
+  const tasksTotal = Array.isArray(tasks) ? tasks.length : 0;
+  const tasksCompleted = Array.isArray(tasks)
+    ? tasks.filter((task) => task?.status === "completed").length
+    : 0;
+  const completionRate =
+    toNumber(dashboardStats.taskCompletionRate, NaN) >= 0
+      ? toNumber(dashboardStats.taskCompletionRate, 0)
+      : tasksTotal > 0
+        ? tasksCompleted / tasksTotal
+        : 0;
+  const pendingTasksCount =
+    dashboardStats.pendingTasksCount ?? dashboardStats.tasksPending ?? tasks.filter((task) => ["assigned", "in_progress", "overdue"].includes(task?.status)).length;
+  const masteredObjectivesCount =
+    dashboardStats.masteredObjectivesCount
+    ?? dashboardStats.masteredThisMonth
+    ?? masteryCounts.mastered;
+
   return (
     <div className="student-academic-excellence-page">
       <header className="academic-excellence-header">
@@ -147,15 +194,15 @@ const StudentAcademicExcellencePage = () => {
       <section className="academic-excellence-grid">
         <article className="academic-excellence-card">
           <h3>Completion Rate</h3>
-          <strong>{Math.round((dashboard?.summary?.taskCompletionRate || 0) * 100)}%</strong>
+          <strong>{Math.round(toNumber(completionRate, 0) * 100)}%</strong>
         </article>
         <article className="academic-excellence-card">
           <h3>Pending Tasks</h3>
-          <strong>{dashboard?.summary?.pendingTasksCount || 0}</strong>
+          <strong>{toNumber(pendingTasksCount, 0)}</strong>
         </article>
         <article className="academic-excellence-card">
           <h3>Mastered Objectives</h3>
-          <strong>{masteryCounts.mastered}</strong>
+          <strong>{toNumber(masteredObjectivesCount, 0)}</strong>
         </article>
       </section>
 
@@ -168,7 +215,7 @@ const StudentAcademicExcellencePage = () => {
             {objectives.map((objective) => (
               <article key={objective._id} className="academic-excellence-list-item">
                 <div className="academic-excellence-list-item-header">
-                  <strong>{objective.objectiveTitle || objective.objectiveKey || "Objective"}</strong>
+                  <strong>{formatObjectiveLabel(objective)}</strong>
                   <span className={`academic-excellence-badge ${objective.masteryLevel || "not_started"}`}>
                     {labelFromMastery(objective.masteryLevel || "not_started")}
                   </span>
@@ -191,7 +238,7 @@ const StudentAcademicExcellencePage = () => {
               return (
                 <article key={task._id} className="academic-excellence-list-item">
                   <div className="academic-excellence-list-item-header">
-                    <strong>{task.title || task.objectiveTitle || "Task"}</strong>
+                    <strong>{task.title || task.objectiveName || formatObjectiveLabel(task) || "Task"}</strong>
                     <span className={`academic-excellence-badge ${task.status || "not_started"}`}>
                       {labelFromMastery(task.status || "assigned")}
                     </span>
@@ -202,8 +249,14 @@ const StudentAcademicExcellencePage = () => {
                       Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "Any time"}
                     </span>
                   </div>
-                  {task.description ? <div>{task.description}</div> : null}
-                  {canComplete ? (
+                  {task.taskType === "ai_interactive" ? (
+                    <AIPracticeSession
+                      task={task}
+                      studentId={resolvedStudentId || practiceStudentId || dashboard?.student?.id}
+                      onComplete={refresh}
+                    />
+                  ) : task.description ? <div>{task.description}</div> : null}
+                  {task.taskType !== "ai_interactive" && canComplete ? (
                     <button
                       type="button"
                       className="academic-excellence-complete-btn"

@@ -141,6 +141,9 @@ const AssignmentsPage = () => {
                 assignmentTypeId: form.assignmentTypeId,
                 title: form.title.trim(),
                 instructions: form.instructions.trim(),
+                lessonPlanIds: Array.isArray(form.lessonPlanIds) && form.lessonPlanIds.length > 0
+                    ? form.lessonPlanIds
+                    : undefined,
                 dueDate: form.dueDate || undefined,
                 maxMarks: Number(form.maxMarks || 10),
                 publishNow: form.publishNow,
@@ -177,6 +180,11 @@ const AssignmentsPage = () => {
             assignmentTypeId: assignment.assignmentType?.id || prev.assignmentTypeId,
             title: assignment.title || '',
             instructions: assignment.instructions || '',
+            lessonPlanIds: Array.isArray(assignment.lessonPlanIds)
+                ? assignment.lessonPlanIds
+                : Array.isArray(assignment.lessonPlans)
+                    ? assignment.lessonPlans.map((lesson) => lesson.id).filter(Boolean)
+                    : [],
             dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().slice(0, 10) : '',
             maxMarks: assignment.maxMarks || 10,
             publishNow: assignment.status === 'published',
@@ -319,6 +327,8 @@ const AssignmentsPage = () => {
                 form={form}
                 setForm={setForm}
                 assignmentTypes={assignmentTypes}
+                selectedClass={selectedClass}
+                selectedSubject={selectedSubject}
                 isEditing={Boolean(editingAssignment)}
                 onCancelEdit={onCancelEdit}
                 onSubmit={onCreateAssignment}

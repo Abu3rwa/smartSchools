@@ -4,6 +4,7 @@ export const DEFAULT_ASSIGNMENT_FORM = {
     assignmentTypeId: '',
     title: '',
     instructions: '',
+    lessonPlanIds: [],
     dueDate: '',
     maxMarks: 10,
     publishNow: false,

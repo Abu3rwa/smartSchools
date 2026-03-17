@@ -83,6 +83,7 @@ const MainLayout = () => {
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
     const isRtl = i18n.dir() === 'rtl';
+    const showSidebarForRole = user?.role !== 'student';
     const normalizedStatus = String(subscriptionStatus || '').toLowerCase();
     const isExpired = ['inactive', 'cancelled', 'suspended', 'expired'].includes(normalizedStatus);
     const shouldShowWall = isExpired
@@ -102,13 +103,13 @@ const MainLayout = () => {
     };
 
     return (
-        <div className={`main-layout ${sidebarOpen && isDesktop ? '' : 'sidebar-collapsed'}`}>
+        <div className={`main-layout ${sidebarOpen && isDesktop && showSidebarForRole ? '' : 'sidebar-collapsed'}`}>
             <a href="#main-content" className="skip-link">{t('common:accessibility.skipToMainContent')}</a>
             {/* Desktop: Persistent sidebar */}
-            {isDesktop && <Sidebar />}
+            {isDesktop && showSidebarForRole && <Sidebar />}
             
             {/* Mobile: Drawer sidebar */}
-            {!isDesktop && sidebarOpen && (
+            {!isDesktop && sidebarOpen && showSidebarForRole && (
                 <Drawer
                     variant="temporary"
                     anchor={isRtl ? 'right' : 'left'}

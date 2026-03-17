@@ -291,9 +291,11 @@ function App() {
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
           {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
+          {/* <Route path="/" element={<LandingPage />} /> */}
           <Route path="/register-school" element={<RegisterSchoolPage />} />
           <Route path="/login" element={<LoginPage />} />
+                    <Route path="/" element={<LoginPage />} />
+
           <Route path="/login/:schoolSlug" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />

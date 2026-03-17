@@ -92,7 +92,7 @@ const StudentsTable = ({
                             const lastInviteAt = formatInviteTimestamp(student.user?.loginInvite?.sentAt);
                             const isSendingStudentInvite = sendingStudentInviteFor === student._id;
                             const isSendingParentInvite = sendingParentInviteFor === student._id;
-                            const primaryEmail = student.user?.email || student.email || student.studentEmail || student.parentInfo?.fatherEmail;
+                            const primaryEmail = student.email || student.studentEmail || student.user?.email || student.parentInfo?.fatherEmail;
 
                             return (
                                 <tr key={student._id}>

@@ -1,5 +1,6 @@
 import { HiOutlinePlus, HiOutlineUpload } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
+import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 
 const CreateAssignmentForm = ({
     open,
@@ -7,6 +8,8 @@ const CreateAssignmentForm = ({
     form,
     setForm,
     assignmentTypes,
+    selectedClass,
+    selectedSubject,
     isEditing,
     onCancelEdit,
     onSubmit
@@ -69,6 +72,15 @@ const CreateAssignmentForm = ({
                         value={form.instructions}
                         onChange={(event) => setForm((prev) => ({ ...prev, instructions: event.target.value }))}
                         placeholder={t('assignments:form.instructionsPlaceholder')}
+                    />
+                </div>
+                <div className="form-group full">
+                    <LessonPlanLinkSelector
+                        classId={selectedClass}
+                        subjectId={selectedSubject}
+                        selectedLessonPlanIds={form.lessonPlanIds || []}
+                        onChange={(lessonPlanIds) => setForm((prev) => ({ ...prev, lessonPlanIds }))}
+                        disabled={submitting}
                     />
                 </div>
             </div>

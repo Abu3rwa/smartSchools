@@ -1,4 +1,10 @@
 const OBJECTIVE_TEXT_MAX_LENGTH = 160;
+const PREAMBLE_PATTERNS = [
+    /^By the end of (?:this lesson|the lesson)[,:]?\s*(?:students will be able to[,:]?)?\s*/i,
+    /^(?:Students will be able to|Learners will)[,:]?\s*/i,
+    /^Learning objectives?[,:]?\s*/i,
+    /^Objectives?(?:\s*\(\d+\))?[,:]?\s*/i,
+];
 
 const toIdString = (value) => {
     if (!value) return '';
@@ -36,12 +42,21 @@ const buildObjectiveKey = (text, order) => {
 };
 
 const splitLegacyObjectives = (value = '') => {
-    const normalized = String(value || '').replace(/\r\n?/g, '\n');
+    const stripPreamble = (input = '') => {
+        let next = String(input || '').trim();
+        for (const pattern of PREAMBLE_PATTERNS) {
+            next = next.replace(pattern, '').trim();
+        }
+        return next;
+    };
+
+    const normalized = stripPreamble(String(value || '').replace(/\r\n?/g, '\n'));
     const chunks = normalized
         .split('\n')
         .map((line) => line
             .replace(/^\s*[\u2022•\-*]\s+/, '')
             .replace(/^\s*\d+[.)]\s+/, ''))
+        .map((line) => stripPreamble(line))
         .flatMap((line) => String(line || '').split(/\s*;\s*/))
         .map((item) => normalizeWhitespace(item))
         .filter(Boolean);

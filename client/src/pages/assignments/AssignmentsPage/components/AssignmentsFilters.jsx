@@ -13,6 +13,14 @@ const AssignmentsFilters = ({
 }) => {
     const { t } = useTranslation(['assignments']);
 
+    const uniqueClasses = Array.from(
+        new Map((availableClasses || []).map((item) => [String(item?._id || ''), item])).values()
+    ).filter((item) => item?._id);
+
+    const uniqueSubjects = Array.from(
+        new Map((availableSubjects || []).map((item) => [String(item?._id || ''), item])).values()
+    ).filter((item) => item?._id);
+
     return (
         <div className="filters card">
             <div className="filters-grid">
@@ -20,7 +28,7 @@ const AssignmentsFilters = ({
                     <label>{t('assignments:filters.class')}</label>
                     <select value={selectedClass} onChange={(event) => onClassChange(event.target.value)}>
                         <option value="">{t('assignments:filters.selectClass')}</option>
-                        {availableClasses.map((item) => (
+                        {uniqueClasses.map((item) => (
                             <option key={item._id} value={item._id}>{item.name}</option>
                         ))}
                     </select>
@@ -30,7 +38,7 @@ const AssignmentsFilters = ({
                     <label>{t('assignments:filters.subject')}</label>
                     <select value={selectedSubject} onChange={(event) => onSubjectChange(event.target.value)}>
                         <option value="">{t('assignments:filters.allSubjects')}</option>
-                        {availableSubjects.map((item) => (
+                        {uniqueSubjects.map((item) => (
                             <option key={item._id} value={item._id}>{item.name}</option>
                         ))}
                     </select>

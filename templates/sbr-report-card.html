@@ -350,7 +350,7 @@
                                 {{#each standards}}
                                     <tr>
                                         <td>
-                                            {{#if standardCode}}<span class="muted">{{standardCode}}</span> - {{/if}}{{standardName}}
+                                            {{#if showCodePrefix}}{{#if standardCode}}<span class="muted">{{standardCode}}</span> - {{/if}}{{/if}}{{standardName}}
                                         </td>
                                         <td>{{#if rawPercentage}}{{rawPercentage}}%{{else}}<span class="na-badge">NA</span>{{/if}}</td>
                                         <td class="score">{{#if isNA}}NA{{else}}{{score}}{{/if}}</td>

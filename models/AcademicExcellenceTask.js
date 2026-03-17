@@ -1,6 +1,23 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 
+const aiSessionQuestionSchema = new mongoose.Schema({
+    questionId: { type: String, required: true, trim: true },
+    questionText: { type: String, required: true, trim: true },
+    questionType: {
+        type: String,
+        enum: ['multiple_choice', 'short_answer'],
+        required: true
+    },
+    options: [{ type: String, trim: true }],
+    correctAnswer: { type: String, default: '', trim: true, select: false },
+    explanation: { type: String, default: '', trim: true, select: false },
+    studentAnswer: { type: String, default: '', trim: true },
+    isCorrect: { type: Boolean, default: null },
+    aiFeedback: { type: String, default: '', trim: true },
+    answeredAt: { type: Date, default: null }
+}, { _id: false });
+
 const academicExcellenceTaskSchema = new mongoose.Schema({
     school: {
         type: mongoose.Schema.Types.ObjectId,
@@ -72,7 +89,8 @@ const academicExcellenceTaskSchema = new mongoose.Schema({
             'teacher_review',
             'peer_discussion',
             'project',
-            'custom'
+            'custom',
+            'ai_interactive'
         ],
         default: 'practice_questions'
     },
@@ -144,6 +162,31 @@ const academicExcellenceTaskSchema = new mongoose.Schema({
     completionNotificationSentAt: {
         type: Date,
         default: null
+    },
+    aiSession: {
+        questions: {
+            type: [aiSessionQuestionSchema],
+            default: []
+        },
+        sessionScore: {
+            type: Number,
+            min: 0,
+            max: 100,
+            default: null
+        },
+        sessionCompleted: {
+            type: Boolean,
+            default: false
+        },
+        sessionCompletedAt: {
+            type: Date,
+            default: null
+        },
+        currentQuestionIndex: {
+            type: Number,
+            min: 0,
+            default: 0
+        }
     }
 }, {
     timestamps: true

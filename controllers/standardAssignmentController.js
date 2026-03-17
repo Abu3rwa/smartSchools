@@ -8,26 +8,22 @@ import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { practiceConfigSchema, assessmentConfigSchema } from '../schemas/practiceSchemas.js';
-import standardsPracticeAIService from '../services/standardsPracticeAIService.js';
 import { hasPermission, PERMISSIONS } from '../config/permissions.js';
-import logger from '../utils/logger.js';
 import {
     getClassIdsForAcademicYear,
     isClassInAcademicYear,
     resolveAcademicYearForRequest
 } from '../helpers/academicYearScope.js';
 import { resolveRequestedLanguages } from '../utils/aiLanguageUtils.js';
+import {
+    buildDefaultAssignmentTitle,
+    createStandardAssignmentWithPool,
+    resolvePreGeneratedQuestionCount,
+    DEFAULT_PREGENERATED_QUESTION_COUNT
+} from '../services/standardAssignmentService.js';
 
 const normalizeTitle = (value = '') => String(value || '').trim();
 const normalizeComparableTitle = (value = '') => normalizeTitle(value).toLowerCase();
-
-const buildDefaultAssignmentTitle = ({ standard, classDoc, sessionType }) => {
-    const standardCode = standard?.code ? `${standard.code} ` : '';
-    const standardName = standard?.name || 'Standard';
-    const classLabel = classDoc?.name || `Grade ${classDoc?.grade || ''}`;
-    const typeLabel = sessionType ? ` (${sessionType})` : '';
-    return `${standardCode}${standardName} - ${classLabel}${typeLabel}`.trim();
-};
 
 const resolveSemesterFromDate = (dateValue = new Date()) => {
     const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
@@ -43,22 +39,6 @@ const normalizeSemester = (value) => {
     return [1, 2].includes(semester) ? semester : null;
 };
 
-const DEFAULT_PREGENERATED_QUESTION_COUNT = 10;
-const MAX_PREGENERATED_QUESTION_COUNT = 50;
-
-const resolvePreGeneratedQuestionCount = (value, fallbackValue = null) => {
-    const candidates = [value, fallbackValue, DEFAULT_PREGENERATED_QUESTION_COUNT];
-    for (const candidate of candidates) {
-        const parsed = Number(candidate);
-        if (!Number.isFinite(parsed)) continue;
-        const intValue = Math.trunc(parsed);
-        if (intValue >= 1) {
-            return Math.min(intValue, MAX_PREGENERATED_QUESTION_COUNT);
-        }
-    }
-    return DEFAULT_PREGENERATED_QUESTION_COUNT;
-};
-
 const canApproveQuestionPool = (user) => {
     if (!user) return false;
     if (user.role === 'admin' || user.role === 'department_principal') return true;
@@ -72,77 +52,6 @@ const ensureTeacherOwnsAssignment = async (req, assignment) => {
     return assignment.teacher?.toString() === teacher._id.toString();
 };
 
-const buildQuestionPool = async ({
-    standard,
-    subjectName,
-    questionCount,
-    practiceConfig,
-    generationLanguages = ['en'],
-}) => {
-    const allowedQuestionTypes =
-        Array.isArray(practiceConfig?.allowedQuestionTypes) && practiceConfig.allowedQuestionTypes.length > 0
-            ? practiceConfig.allowedQuestionTypes
-            : ['multiple_choice', 'short_answer', 'true_false'];
-    const allowedDifficulties =
-        Array.isArray(practiceConfig?.allowedDifficulties) && practiceConfig.allowedDifficulties.length > 0
-            ? practiceConfig.allowedDifficulties
-            : ['easy', 'medium', 'hard'];
-
-    const questions = [];
-    for (let i = 0; i < questionCount; i += 1) {
-        const questionType = allowedQuestionTypes[i % allowedQuestionTypes.length];
-        const difficulty = allowedDifficulties[i % allowedDifficulties.length];
-        try {
-            // Keep a rolling window to reduce repetitive generations.
-            const previousQuestions = questions.map((question) => question.questionText).slice(-20);
-            const generated = await standardsPracticeAIService.generateQuestion({
-                standard,
-                subjectName,
-                difficulty,
-                questionType,
-                requestedLanguages: generationLanguages,
-                previousQuestions,
-                previousQuestionFingerprints: [],
-                recentAttempts: [],
-                studentFirstName: '',
-                contextHints: {
-                    recentTopics: [],
-                    recentMistakes: [],
-                    confidenceHint: 'Focus on the standard objective.',
-                },
-                attemptNumber: i + 1,
-            });
-            questions.push({
-                questionText: generated.questionText,
-                questionType: generated.questionType,
-                options: generated.options || [],
-                correctAnswer: generated.correctAnswer,
-                explanation: generated.explanation || '',
-                difficulty: generated.difficulty || difficulty,
-            });
-        } catch (error) {
-            logger.warn('Question generation failed for pool item; using deterministic fallback', {
-                standardId: standard?._id?.toString?.() || null,
-                standardCode: standard?.code || null,
-                questionType,
-                difficulty,
-                itemIndex: i,
-                error: error?.message || String(error),
-            });
-
-            const standardName = standard?.name || 'this standard';
-            questions.push({
-                questionText: `In 1-2 sentences, explain the key idea of ${standardName}.`,
-                questionType: 'short_answer',
-                options: [],
-                correctAnswer: `A strong response explains the key idea of ${standardName} using evidence from the lesson.`,
-                explanation: 'Focus on the main concept and explain it clearly.',
-                difficulty,
-            });
-        }
-    }
-    return questions;
-};
 
 /**
  * @desc    Get assignments (teacher sees own, admin sees all)
@@ -500,87 +409,34 @@ export const createAssignment = asyncHandler(async (req, res) => {
         });
     }
 
-    const assignment = await StandardAssignment.create({
-        school: req.schoolId,
-        standard: standardId,
-        teacher: teacherId,
-        class: classId,
-        subject: subjectId,
-        title: resolvedTitle,
-        academicYear: classDoc.academicYear || effectiveAcademicYear,
-        semester: assignmentSemester,
+    const { assignment, pool, generationError } = await createStandardAssignmentWithPool({
+        schoolId: req.schoolId,
+        actorUserId: req.user._id,
+        standard,
+        classDoc,
+        subjectId,
+        subjectName: subjectDoc?.name || 'General Studies',
+        teacherId,
+        classId,
         students: students || [],
         dueDate: dueDate || null,
         instructions: instructions || '',
+        title: resolvedTitle,
+        academicYear: classDoc.academicYear || effectiveAcademicYear,
+        semester: assignmentSemester,
         practiceConfig: parsedConfig,
         assessmentConfig: parsedAssessmentConfig,
+        preGeneratedQuestionCount: resolvePreGeneratedQuestionCount(
+            preGeneratedQuestionCount,
+            parsedConfig?.questionLimit || practiceConfig?.questionLimit
+        ),
+        aiLanguages: generationLanguages,
         questionWorkflow: {
             requireApprovalBeforeStudentAccess: requiresReviewedPoolBeforeAccess,
-            preGeneratedQuestionCount: resolvePreGeneratedQuestionCount(
-                preGeneratedQuestionCount,
-                parsedConfig?.questionLimit || practiceConfig?.questionLimit
-            ),
-            aiLanguages: generationLanguages,
             status: 'draft',
             currentPoolVersion: 1,
-            generatedAt: new Date()
-        }
-    });
-
-    const resolvedPracticeConfig = assignment.practiceConfig
-        ? assignment.practiceConfig.toObject()
-        : (parsedConfig || {});
-    const generatedCount = assignment.questionWorkflow?.preGeneratedQuestionCount
-        || DEFAULT_PREGENERATED_QUESTION_COUNT;
-
-    let generatedQuestions = [];
-    let generationError = null;
-    try {
-        generatedQuestions = await buildQuestionPool({
-            standard,
-            subjectName: subjectDoc?.name || 'General Studies',
-            questionCount: generatedCount,
-            practiceConfig: resolvedPracticeConfig,
-            generationLanguages,
-        });
-    } catch (error) {
-        generationError = error?.message || 'Question generation failed';
-        logger.error('standard_assignment_pool_generation_failed', {
-            schoolId: req.schoolId,
-            assignmentId: assignment._id,
-            error: generationError,
-        });
-    }
-
-    await StandardQuestionPool.findOneAndUpdate(
-        { school: req.schoolId, assignment: assignment._id },
-        {
-            $set: {
-                standard: assignment.standard,
-                class: assignment.class,
-                subject: assignment.subject,
-                generatedQuestionCount: generatedCount,
-                generationLanguages,
-                currentVersion: 1,
-                status: 'draft',
-                questions: generatedQuestions,
-                isActive: true,
-            },
-            ...(generationError
-                ? {
-                      $push: {
-                          editHistory: {
-                              version: 1,
-                              editedBy: req.user._id,
-                              editedAt: new Date(),
-                              changeSummary: `Auto-generation warning: ${generationError}`,
-                          },
-                      },
-                  }
-                : {}),
         },
-        { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    });
 
     const populated = await StandardAssignment.findById(assignment._id)
         .populate('standard', 'code name description gradeLevel')
@@ -597,9 +453,9 @@ export const createAssignment = asyncHandler(async (req, res) => {
             assignment: populated,
             questionPool: {
                 status: 'draft',
-                generatedQuestionCount: generatedCount,
+                generatedQuestionCount: pool.generatedQuestionCount || DEFAULT_PREGENERATED_QUESTION_COUNT,
                 generationLanguages,
-                generatedQuestions: generatedQuestions.length,
+                generatedQuestions: Array.isArray(pool.questions) ? pool.questions.length : 0,
                 generationError
             }
         }
@@ -905,10 +761,10 @@ export const getAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (!teacherOwnsAssignment) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
-    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
         return res.status(400).json({
             success: false,
-            message: 'Question pool workflow is only available for formal assessments'
+            message: 'Question pool workflow is not enabled for this assignment'
         });
     }
 
@@ -951,10 +807,10 @@ export const updateAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (!teacherOwnsAssignment) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
-    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
         return res.status(400).json({
             success: false,
-            message: 'Question pool workflow is only available for formal assessments'
+            message: 'Question pool workflow is not enabled for this assignment'
         });
     }
 
@@ -1044,10 +900,10 @@ export const reviewAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (req.user.role === 'teacher' && !teacherOwnsAssignment) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
-    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
         return res.status(400).json({
             success: false,
-            message: 'Question pool review is only available for formal assessments'
+            message: 'Question pool review is not enabled for this assignment'
         });
     }
 
@@ -1100,10 +956,10 @@ export const approveAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (!assignment || !assignment.isActive) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
-    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
         return res.status(400).json({
             success: false,
-            message: 'Question pool approval is only available for formal assessments'
+            message: 'Question pool approval is not enabled for this assignment'
         });
     }
 
@@ -1155,10 +1011,10 @@ export const publishAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (!assignment || !assignment.isActive) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
-    if (assignment.practiceConfig?.sessionType !== 'assessment') {
+    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
         return res.status(400).json({
             success: false,
-            message: 'Question pool publishing is only available for formal assessments'
+            message: 'Question pool publishing is not enabled for this assignment'
         });
     }
 

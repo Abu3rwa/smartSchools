@@ -3,6 +3,20 @@ import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
 import Department from '../models/Department.js';
+import Assignment from '../models/Assignment.js';
+import HomeworkAssignment from '../models/HomeworkAssignment.js';
+import HomeworkSubmission from '../models/HomeworkSubmission.js';
+import ReadingAssignment from '../models/ReadingAssignment.js';
+import ReadingCompletion from '../models/ReadingCompletion.js';
+import StandardAssignment from '../models/StandardAssignment.js';
+import StandardQuestionPool from '../models/StandardQuestionPool.js';
+import PracticeSession from '../models/PracticeSession.js';
+import PracticeIntegrityEvent from '../models/PracticeIntegrityEvent.js';
+import StandardsGradebookEntry from '../models/StandardsGradebookEntry.js';
+import ReviewTask from '../models/ReviewTask.js';
+import InterventionCase from '../models/InterventionCase.js';
+import AcademicExcellenceTask from '../models/AcademicExcellenceTask.js';
+import Grade from '../models/Grade.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds, getTeacherProfile } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope, enforceDepartmentOnWrite } from '../helpers/departmentScope.js';
@@ -340,7 +354,7 @@ export const updateClass = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 export const deleteClass = asyncHandler(async (req, res) => {
-    const classData = await Class.findById(req.params.id);
+    const classData = await Class.findOne({ _id: req.params.id, school: req.schoolId });
 
     if (!classData) {
         return res.status(404).json({
@@ -349,21 +363,93 @@ export const deleteClass = asyncHandler(async (req, res) => {
         });
     }
 
-    // Check if class has students
-    const studentCount = await Student.countDocuments({ currentClass: req.params.id });
-    if (studentCount > 0) {
-        return res.status(400).json({
-            success: false,
-            message: `Cannot delete class with ${studentCount} enrolled students. Transfer students first.`
-        });
-    }
+    const classId = classData._id;
+    const schoolId = req.schoolId;
+    const now = new Date();
+
+    const [assignmentIds, homeworkAssignmentIds, readingAssignmentIds, standardAssignmentIds, aeTaskCount] = await Promise.all([
+        Assignment.find({ school: schoolId, class: classId }).distinct('_id'),
+        HomeworkAssignment.find({ school: schoolId, class: classId }).distinct('_id'),
+        ReadingAssignment.find({ school: schoolId, class: classId }).distinct('_id'),
+        StandardAssignment.find({ school: schoolId, class: classId }).distinct('_id'),
+        AcademicExcellenceTask.countDocuments({ school: schoolId, class: classId })
+    ]);
+
+    const [studentsUpdatedResult] = await Promise.all([
+        Student.updateMany(
+            { school: schoolId, currentClass: classId },
+            { $set: { currentClass: null } }
+        ),
+        Student.updateMany(
+            {
+                school: schoolId,
+                'classEnrollmentHistory.class': classId,
+                'classEnrollmentHistory.leftAt': null
+            },
+            {
+                $set: {
+                    'classEnrollmentHistory.$[entry].leftAt': now
+                }
+            },
+            {
+                arrayFilters: [
+                    {
+                        'entry.class': classId,
+                        'entry.leftAt': null
+                    }
+                ]
+            }
+        ),
+        Teacher.updateMany(
+            { school: schoolId, 'assignedClasses.class': classId },
+            { $pull: { assignedClasses: { class: classId } } }
+        )
+    ]);
+
+    await Promise.all([
+        PracticeIntegrityEvent.deleteMany({ school: schoolId, assignment: { $in: standardAssignmentIds } }),
+        PracticeSession.deleteMany({ school: schoolId, assignment: { $in: standardAssignmentIds } }),
+        StandardsGradebookEntry.deleteMany({ school: schoolId, $or: [{ class: classId }, { assignment: { $in: standardAssignmentIds } }] }),
+        ReviewTask.deleteMany({ school: schoolId, $or: [{ class: classId }, { assignment: { $in: standardAssignmentIds } }] }),
+        InterventionCase.deleteMany({ school: schoolId, $or: [{ class: classId }, { assignment: { $in: standardAssignmentIds } }] }),
+        StandardQuestionPool.deleteMany({ school: schoolId, $or: [{ class: classId }, { assignment: { $in: standardAssignmentIds } }] }),
+        StandardAssignment.deleteMany({ school: schoolId, class: classId }),
+
+        HomeworkSubmission.deleteMany({ school: schoolId, homeworkAssignment: { $in: homeworkAssignmentIds } }),
+        ReadingCompletion.deleteMany({ school: schoolId, assignment: { $in: readingAssignmentIds } }),
+        Grade.deleteMany({
+            school: schoolId,
+            $or: [
+                { class: classId },
+                { assignment: { $in: assignmentIds } },
+                { homeworkAssignment: { $in: homeworkAssignmentIds } }
+            ]
+        }),
+
+        Assignment.deleteMany({ school: schoolId, class: classId }),
+        HomeworkAssignment.deleteMany({ school: schoolId, class: classId }),
+        ReadingAssignment.deleteMany({ school: schoolId, class: classId }),
+        AcademicExcellenceTask.deleteMany({ school: schoolId, class: classId })
+    ]);
 
     classData.isActive = false;
+    classData.classTeacher = null;
+    classData.subjects = [];
     await classData.save();
 
     res.json({
         success: true,
-        message: 'Class deleted successfully'
+        message: 'Class deleted successfully',
+        data: {
+            detachedStudents: studentsUpdatedResult.modifiedCount || 0,
+            deletedAssignments: {
+                standard: standardAssignmentIds.length,
+                generic: assignmentIds.length,
+                homework: homeworkAssignmentIds.length,
+                reading: readingAssignmentIds.length,
+                academicExcellenceTasks: aeTaskCount
+            }
+        }
     });
 });
 

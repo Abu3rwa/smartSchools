@@ -12,12 +12,23 @@ const AssignmentGradePanel = ({
     const { t } = useTranslation(['assignments']);
     if (!gradingAssignment) return null;
 
+    const linkedLessons = Array.isArray(gradingAssignment.lessonPlans)
+        ? gradingAssignment.lessonPlans
+        : [];
+
     return (
         <div className="grade-panel card">
             <div className="card-header">
                 <h3 className="card-title">{t('assignments:gradePanel.title', { title: gradingAssignment.title })}</h3>
                 <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>{t('assignments:common.close')}</button>
             </div>
+
+            {linkedLessons.length > 0 && (
+                <div className="card-body">
+                    <strong>{t('assignments:gradePanel.linkedLessons', { defaultValue: 'Linked lesson plans:' })}</strong>{' '}
+                    {linkedLessons.map((lesson) => lesson.title || lesson.id).join(', ')}
+                </div>
+            )}
 
             <div className="table-container">
                 <table className="assignment-table">

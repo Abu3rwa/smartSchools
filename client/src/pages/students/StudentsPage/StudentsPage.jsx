@@ -302,7 +302,7 @@ const StudentsPage = () => {
     };
 
     const handleSendStudentInvite = (student) => {
-        const email = student.user?.email || student.email || student.studentEmail || '';
+        const email = student.email || student.studentEmail || student.user?.email || '';
         if (!email) {
             setLoginTargetStudent(student);
             setLoginEmail('');

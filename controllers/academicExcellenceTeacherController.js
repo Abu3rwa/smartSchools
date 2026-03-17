@@ -5,16 +5,26 @@ import AcademicExcellenceExclusion from '../models/AcademicExcellenceExclusion.j
 import Student from '../models/Student.js';
 import Standard from '../models/Standard.js';
 import StandardAssignment from '../models/StandardAssignment.js';
+import StandardQuestionPool from '../models/StandardQuestionPool.js';
+import Subject from '../models/Subject.js';
+import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherAssignments, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyExclusions } from '../services/academicExcellenceService.js';
 import { assignTask, bulkAssignTasks, reviewTask, getTeacherTaskQueue } from '../services/academicExcellenceTaskService.js';
+import { resolveStandardForObjective } from '../services/academicExcellenceStandardResolver.js';
+import {
+    buildDefaultAssignmentTitle,
+    createStandardAssignmentWithPool,
+    resolvePreGeneratedQuestionCount
+} from '../services/standardAssignmentService.js';
 import {
     createExclusion,
     toggleExclusion,
     getActiveExclusions
 } from '../services/academicExcellenceSettingsService.js';
 import { connectAi } from '../utils/connectAi.js';
+import { sanitizeObjectiveText, isObjectiveTextDegenerate } from '../utils/sanitizeObjectiveText.js';
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
 
@@ -29,6 +39,121 @@ const parsePagination = (query = {}) => {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.max(1, Math.min(200, Number(query.limit) || 20));
     return { page, limit };
+};
+
+const ALLOWED_QUESTION_TYPES = ['multiple_choice', 'short_answer', 'true_false'];
+const ALLOWED_DIFFICULTIES = ['easy', 'medium', 'hard'];
+const ALLOWED_SESSION_TYPES = ['assessment', 'homework', 'classwork', 'practice'];
+
+export const validateAIPracticePayload = (payload = {}) => {
+    const {
+        objectiveKey,
+        objectiveName,
+        classId,
+        subjectId,
+        questionCount,
+        questionTypes,
+        difficulties,
+        sessionType,
+        dueDate,
+        title,
+        students
+    } = payload;
+
+    if (!String(objectiveKey || '').trim() || !String(objectiveName || '').trim()) {
+        const error = new Error('objectiveKey and objectiveName are required.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (!toIdString(classId) || !toIdString(subjectId)) {
+        const error = new Error('classId and subjectId are required.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const numericQuestionCount = Number(questionCount);
+    if (!Number.isInteger(numericQuestionCount) || numericQuestionCount < 1 || numericQuestionCount > 50) {
+        const error = new Error('Question count must be between 1 and 50.');
+        error.statusCode = 400;
+        error.code = 'INVALID_QUESTION_COUNT';
+        throw error;
+    }
+
+    if (!Array.isArray(questionTypes) || questionTypes.length === 0) {
+        const error = new Error('At least one valid question type is required.');
+        error.statusCode = 400;
+        error.code = 'INVALID_QUESTION_TYPES';
+        throw error;
+    }
+
+    const hasInvalidQuestionType = questionTypes.some((item) => !ALLOWED_QUESTION_TYPES.includes(item));
+    if (hasInvalidQuestionType) {
+        const error = new Error('At least one valid question type is required.');
+        error.statusCode = 400;
+        error.code = 'INVALID_QUESTION_TYPES';
+        throw error;
+    }
+
+    if (Array.isArray(difficulties) && difficulties.length > 0) {
+        const hasInvalidDifficulty = difficulties.some((item) => !ALLOWED_DIFFICULTIES.includes(item));
+        if (hasInvalidDifficulty) {
+            const error = new Error('Invalid difficulty values provided.');
+            error.statusCode = 400;
+            throw error;
+        }
+    }
+
+    if (sessionType && !ALLOWED_SESSION_TYPES.includes(sessionType)) {
+        const error = new Error('Invalid sessionType value.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (dueDate) {
+        const parsed = new Date(dueDate);
+        if (Number.isNaN(parsed.getTime())) {
+            const error = new Error('dueDate must be a valid date.');
+            error.statusCode = 400;
+            throw error;
+        }
+    }
+
+    if (title && String(title).length > 200) {
+        const error = new Error('title must be 200 characters or less.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (students !== undefined && !Array.isArray(students)) {
+        const error = new Error('students must be an array of ids.');
+        error.statusCode = 400;
+        throw error;
+    }
+};
+
+const ensureTeacherOwnsAssignment = async (req, assignmentId) => {
+    const assignment = await StandardAssignment.findOne({
+        _id: assignmentId,
+        school: req.schoolId,
+        isActive: true
+    });
+
+    if (!assignment) {
+        return { ok: false, notFound: true, assignment: null };
+    }
+
+    if (['admin', 'department_principal', 'staff'].includes(req.user.role)) {
+        return { ok: true, notFound: false, assignment };
+    }
+
+    if (req.user.role !== 'teacher') {
+        return { ok: false, notFound: false, assignment };
+    }
+
+    const teacher = await resolveTeacherProfile(req);
+    const ok = Boolean(teacher && assignment.teacher?.toString() === teacher._id.toString());
+    return { ok, notFound: false, assignment };
 };
 
 /**
@@ -60,9 +185,14 @@ export const getClassAcademicExcellenceSummary = asyncHandler(async (req, res) =
     const { subjectId, academicYear, semester } = req.query;
 
     const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId) };
-    if (subjectId) match.subject = new mongoose.Types.ObjectId(subjectId);
-    if (academicYear) match.academicYear = academicYear;
-    if (semester) match.semester = semester;
+    if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) {
+        match.subject = new mongoose.Types.ObjectId(subjectId);
+    }
+    if (academicYear && mongoose.Types.ObjectId.isValid(academicYear)) {
+        match.academicYear = new mongoose.Types.ObjectId(academicYear);
+    }
+    // `semester` is not persisted on AcademicExcellenceObjective; ignore this filter.
+    void semester;
 
     const [distribution, subjectAgg, totalStudents] = await Promise.all([
         AcademicExcellenceObjective.aggregate([
@@ -126,9 +256,14 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
     const { page, limit } = parsePagination(req.query);
 
     const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId) };
-    if (subjectId) match.subject = new mongoose.Types.ObjectId(subjectId);
-    if (academicYear) match.academicYear = academicYear;
-    if (semester) match.semester = semester;
+    if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) {
+        match.subject = new mongoose.Types.ObjectId(subjectId);
+    }
+    if (academicYear && mongoose.Types.ObjectId.isValid(academicYear)) {
+        match.academicYear = new mongoose.Types.ObjectId(academicYear);
+    }
+    // `semester` is not persisted on AcademicExcellenceObjective; ignore this filter.
+    void semester;
 
     // 1) Tracked objectives from AE sync
     const [trackedObjectives, trackedTotal] = await Promise.all([
@@ -356,7 +491,9 @@ export const generateAcademicExcellenceTask = asyncHandler(async (req, res) => {
 
 Subject: ${subjectName || 'General'}
 Grade Level: ${gradeLevel || 'Not specified'}
-Objective/Standard: ${objectiveName || objectiveKey}
+Objective/Standard: ${process.env.AE_SANITIZE_LEGACY === 'true'
+    ? sanitizeObjectiveText(objectiveName || objectiveKey)
+    : (objectiveName || objectiveKey)}
 Standard Code: ${objectiveKey || ''}
 Activity Type: ${activityDescription}
 Language: ${lang}
@@ -394,6 +531,177 @@ IMPORTANT:
             taskType: type,
             objectiveKey,
             objectiveName
+        }
+    });
+});
+
+/**
+ * POST /academic-excellence/ai-practice
+ * Creates a standard assignment + draft question pool from an AE objective.
+ */
+export const createAIPracticeAssignment = asyncHandler(async (req, res) => {
+    validateAIPracticePayload(req.body || {});
+
+    const teacherProfile = await resolveTeacherProfile(req);
+    const teacherId = teacherProfile?._id || req.user._id;
+
+    const {
+        objectiveKey,
+        objectiveName,
+        classId,
+        subjectId,
+        questionCount,
+        questionTypes,
+        difficulties,
+        sessionType,
+        dueDate,
+        title,
+        students,
+    } = req.body;
+
+    const hasClassAccess = await ensureClassAccess(req, String(classId));
+    if (!hasClassAccess) {
+        return res.status(403).json({
+            success: false,
+            code: 'CLASS_ACCESS_DENIED',
+            message: 'Access denied'
+        });
+    }
+
+    const cleanedObjectiveName = sanitizeObjectiveText(objectiveName);
+    const standard = await resolveStandardForObjective({
+        objectiveKey,
+        objectiveName: cleanedObjectiveName,
+        schoolId: req.schoolId,
+        subjectId,
+        classId,
+    });
+
+    if (!standard) {
+        return res.status(422).json({
+            success: false,
+            code: 'STANDARD_NOT_FOUND',
+            message: `Could not find a matching standard for objective '${objectiveKey}'. Please assign manually or contact your curriculum coordinator.`
+        });
+    }
+
+    const [classDoc, subjectDoc] = await Promise.all([
+        Class.findOne({ _id: classId, school: req.schoolId }).lean(),
+        Subject.findOne({ _id: subjectId, school: req.schoolId }).select('name').lean()
+    ]);
+
+    if (!classDoc) {
+        return res.status(404).json({ success: false, message: 'Class not found' });
+    }
+    if (!subjectDoc) {
+        return res.status(404).json({ success: false, message: 'Subject not found' });
+    }
+
+    const effectiveObjectiveName = isObjectiveTextDegenerate(cleanedObjectiveName)
+        ? (standard.name || `${standard.code || ''} ${standard.name || ''}`.trim())
+        : cleanedObjectiveName;
+
+    let assignmentResult;
+    try {
+        assignmentResult = await createStandardAssignmentWithPool({
+            schoolId: req.schoolId,
+            actorUserId: req.user._id,
+            standard,
+            classDoc,
+            subjectId,
+            subjectName: subjectDoc?.name || 'General Studies',
+            teacherId,
+            classId,
+            students: Array.isArray(students) ? students : [],
+            dueDate: dueDate || null,
+            instructions: '',
+            title: String(title || '').trim() || buildDefaultAssignmentTitle({
+                standard,
+                classDoc,
+                sessionType: sessionType || 'practice'
+            }),
+            academicYear: classDoc.academicYear,
+            semester: null,
+            practiceConfig: {
+                sessionType: sessionType || 'practice',
+                questionLimit: resolvePreGeneratedQuestionCount(questionCount),
+                allowedQuestionTypes: questionTypes,
+                allowedDifficulties: Array.isArray(difficulties) && difficulties.length > 0
+                    ? difficulties
+                    : ['easy', 'medium', 'hard'],
+            },
+            preGeneratedQuestionCount: resolvePreGeneratedQuestionCount(questionCount),
+            aiLanguages: ['en'],
+            questionWorkflow: {
+                requireApprovalBeforeStudentAccess: false,
+                preGeneratedQuestionCount: resolvePreGeneratedQuestionCount(questionCount),
+                status: 'published',
+            },
+            generationContext: {
+                objectiveName: effectiveObjectiveName,
+            },
+            failOnGenerationError: true,
+        });
+    } catch (error) {
+        if (error.code === 'AI_GENERATION_FAILED') {
+            return res.status(502).json({
+                success: false,
+                code: 'AI_GENERATION_FAILED',
+                message: 'Question generation failed. The assignment was saved — retry generation from the pool editor.',
+                data: error.data || null,
+            });
+        }
+        throw error;
+    }
+
+    const { assignment, pool } = assignmentResult;
+
+    res.status(201).json({
+        success: true,
+        data: {
+            assignmentId: assignment._id,
+            poolStatus: pool?.status || 'draft',
+            generatedCount: Array.isArray(pool?.questions) ? pool.questions.length : 0,
+            standardCode: standard.code,
+            standardName: standard.name,
+            reviewUrl: `/standards/assignments/${assignment._id}/pool`
+        }
+    });
+});
+
+/**
+ * GET /academic-excellence/ai-practice/:assignmentId/pool
+ */
+export const getAIPracticePool = asyncHandler(async (req, res) => {
+    const { assignmentId } = req.params;
+
+    const ownership = await ensureTeacherOwnsAssignment(req, assignmentId);
+    if (ownership.notFound) {
+        return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+    if (!ownership.ok) {
+        return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const [assignment, pool] = await Promise.all([
+        StandardAssignment.findOne({ _id: assignmentId, school: req.schoolId, isActive: true })
+            .populate('standard', 'code name description gradeLevel')
+            .populate('class', 'name grade section')
+            .populate('subject', 'name code')
+            .lean(),
+        StandardQuestionPool.findOne({ assignment: assignmentId, school: req.schoolId, isActive: true }).lean(),
+    ]);
+
+    if (!assignment) {
+        return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            assignment,
+            questionWorkflow: assignment.questionWorkflow || null,
+            questionPool: pool || null,
         }
     });
 });

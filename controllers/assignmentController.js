@@ -13,6 +13,8 @@ import {
     resolveTeacherProfile
 } from '../helpers/teacherScoping.js';
 import { ensureDefaultAssignmentTypes } from './assignmentTypeController.js';
+import { validateGradeLessonPlanLinks } from '../helpers/gradeLessonPlanLinks.js';
+import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
 
 const toId = (value) => (value == null ? '' : String(value));
 
@@ -69,50 +71,68 @@ const gradeTypeCategoryFromAssignmentKey = (key = '') => {
     }
 };
 
-const mapAssignmentSummary = (assignment) => ({
-    id: assignment._id,
-    title: assignment.title || '',
-    instructions: assignment.instructions || '',
-    assignmentType: assignment.assignmentType
-        ? {
-            id: toId(assignment.assignmentType?._id || assignment.assignmentType),
-            key: assignment.assignmentType?.key || assignment.assignmentTypeKey || '',
-            name: assignment.assignmentType?.name || assignment.assignmentTypeName || ''
-        }
-        : {
-            id: '',
-            key: assignment.assignmentTypeKey || '',
-            name: assignment.assignmentTypeName || ''
-        },
-    assignedDate: assignment.assignedDate || null,
-    dueDate: assignment.dueDate || null,
-    status: assignment.status || 'draft',
-    scope: assignment.scope || 'class',
-    studentIds: Array.isArray(assignment.studentIds)
-        ? assignment.studentIds.map((studentId) => toId(studentId))
-        : [],
-    maxMarks: Number(assignment.maxMarks || 10),
-    allowLateSubmission: assignment.allowLateSubmission === true,
-    notifyOnAssign: assignment.notifyOnAssign !== false,
-    notifyOnGrade: assignment.notifyOnGrade !== false,
-    publishedAt: assignment.publishedAt || null,
-    academicYear: assignment.academicYear || '',
-    class: assignment.class
-        ? {
-            id: toId(assignment.class?._id || assignment.class),
-            name: assignment.class?.name || '',
-            grade: assignment.class?.grade ?? null,
-            section: assignment.class?.section || ''
-        }
-        : null,
-    subject: assignment.subject
-        ? {
-            id: toId(assignment.subject?._id || assignment.subject),
-            name: assignment.subject?.name || '',
-            code: assignment.subject?.code || ''
-        }
-        : null
-});
+const mapAssignmentSummary = (assignment) => {
+    const linkedLessonPlans = Array.isArray(assignment.lessonPlanIds)
+        ? assignment.lessonPlanIds
+            .map((lesson) => {
+                const id = toId(lesson?._id || lesson);
+                if (!id) return null;
+                return {
+                    id,
+                    title: lesson?.title || '',
+                    date: lesson?.date || null
+                };
+            })
+            .filter(Boolean)
+        : [];
+
+    return {
+        id: assignment._id,
+        title: assignment.title || '',
+        instructions: assignment.instructions || '',
+        assignmentType: assignment.assignmentType
+            ? {
+                id: toId(assignment.assignmentType?._id || assignment.assignmentType),
+                key: assignment.assignmentType?.key || assignment.assignmentTypeKey || '',
+                name: assignment.assignmentType?.name || assignment.assignmentTypeName || ''
+            }
+            : {
+                id: '',
+                key: assignment.assignmentTypeKey || '',
+                name: assignment.assignmentTypeName || ''
+            },
+        assignedDate: assignment.assignedDate || null,
+        dueDate: assignment.dueDate || null,
+        status: assignment.status || 'draft',
+        scope: assignment.scope || 'class',
+        studentIds: Array.isArray(assignment.studentIds)
+            ? assignment.studentIds.map((studentId) => toId(studentId))
+            : [],
+        lessonPlanIds: linkedLessonPlans.map((lesson) => lesson.id),
+        lessonPlans: linkedLessonPlans,
+        maxMarks: Number(assignment.maxMarks || 10),
+        allowLateSubmission: assignment.allowLateSubmission === true,
+        notifyOnAssign: assignment.notifyOnAssign !== false,
+        notifyOnGrade: assignment.notifyOnGrade !== false,
+        publishedAt: assignment.publishedAt || null,
+        academicYear: assignment.academicYear || '',
+        class: assignment.class
+            ? {
+                id: toId(assignment.class?._id || assignment.class),
+                name: assignment.class?.name || '',
+                grade: assignment.class?.grade ?? null,
+                section: assignment.class?.section || ''
+            }
+            : null,
+        subject: assignment.subject
+            ? {
+                id: toId(assignment.subject?._id || assignment.subject),
+                name: assignment.subject?.name || '',
+                code: assignment.subject?.code || ''
+            }
+            : null
+    };
+};
 
 const resolveTargetStudentsForAssignment = async (assignment) => {
     const query = {
@@ -230,6 +250,7 @@ export const getAssignments = asyncHandler(async (req, res) => {
             .populate('assignmentType', 'key name')
             .populate('class', 'name grade section')
             .populate('subject', 'name code')
+            .populate('lessonPlanIds', 'title date')
             .sort({ assignedDate: -1, createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(limit)
@@ -283,6 +304,7 @@ export const getMyAssignmentsForStudent = asyncHandler(async (req, res) => {
         .populate('assignmentType', 'key name')
         .populate('class', 'name grade section')
         .populate('subject', 'name code')
+        .populate('lessonPlanIds', 'title date')
         .sort({ dueDate: 1, assignedDate: -1, createdAt: -1 })
         .lean();
 
@@ -404,6 +426,14 @@ export const createAssignment = asyncHandler(async (req, res) => {
         });
     }
 
+    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+        lessonPlanIds: body.lessonPlanIds,
+        schoolId: req.schoolId,
+        classId,
+        subjectId,
+        user: req.user
+    });
+
     const publishNow = parseBoolean(body.publishNow, false) || String(body.status || '').trim().toLowerCase() === 'published';
     const assignment = await Assignment.create({
         school: req.schoolId,
@@ -421,6 +451,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         status: publishNow ? 'published' : 'draft',
         scope,
         studentIds: scope === 'selected_students' ? validSelectedStudentIds : [],
+        lessonPlanIds: normalizedLessonPlanIds ?? [],
         maxMarks: parsePositiveNumber(body.maxMarks, Number(type.defaults?.maxMarks || 10)),
         allowLateSubmission: body.allowLateSubmission === undefined
             ? type.defaults?.allowLateSubmission === true
@@ -445,6 +476,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         .populate('assignmentType', 'key name')
         .populate('class', 'name grade section')
         .populate('subject', 'name code')
+        .populate('lessonPlanIds', 'title date')
         .lean();
 
     res.status(201).json({
@@ -486,6 +518,7 @@ export const getAssignmentGradebook = asyncHandler(async (req, res) => {
         .populate('assignmentType', 'key name')
         .populate('class', 'name grade section')
         .populate('subject', 'name code')
+        .populate('lessonPlanIds', 'title date')
         .lean();
     if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
 
@@ -545,6 +578,13 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
     const typed = gradeTypeCategoryFromAssignmentKey(assignment.assignmentTypeKey);
     const teacherProfile = req.user.role === 'teacher' ? await resolveTeacherProfile(req) : null;
     const gradingTeacherId = teacherProfile?._id || assignment.teacher || req.user._id;
+    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+        lessonPlanIds: req.body?.lessonPlanIds ?? assignment.lessonPlanIds ?? [],
+        schoolId: req.schoolId,
+        classId: assignment.class,
+        subjectId: assignment.subject,
+        user: req.user
+    });
 
     const gradedRows = [];
     for (const row of rows) {
@@ -585,7 +625,8 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
                     academicYear: assignment.academicYear,
                     gradeType: typed.gradeType,
                     assignment: assignment._id,
-                    gradingSource: 'manual'
+                    gradingSource: 'manual',
+                    lessonPlanIds: normalizedLessonPlanIds ?? []
                 },
                 $setOnInsert: {
                     school: req.schoolId,
@@ -613,6 +654,21 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
             gradedRows,
             createdBy: req.user._id
         });
+    }
+
+    const seenStudentIds = new Set();
+    for (const row of gradedRows) {
+        const studentId = toId(row.studentId);
+        if (!studentId || seenStudentIds.has(studentId)) continue;
+        seenStudentIds.add(studentId);
+
+        syncObjectivesForGrade({
+            schoolId: req.schoolId,
+            studentId: row.studentId,
+            subjectId: assignment.subject,
+            classId: assignment.class,
+            academicYear: assignment.academicYear
+        }).catch(() => {});
     }
 
     res.json({
@@ -738,6 +794,14 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         });
     }
 
+    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+        lessonPlanIds: body.lessonPlanIds === undefined ? assignment.lessonPlanIds : body.lessonPlanIds,
+        schoolId: req.schoolId,
+        classId,
+        subjectId,
+        user: req.user
+    });
+
     const status = body.status && ['draft', 'published', 'closed', 'archived'].includes(String(body.status).toLowerCase())
         ? String(body.status).toLowerCase()
         : assignment.status;
@@ -753,6 +817,7 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     assignment.dueDate = dueDate;
     assignment.scope = scope;
     assignment.studentIds = scope === 'selected_students' ? validSelectedStudentIds : [];
+    assignment.lessonPlanIds = normalizedLessonPlanIds ?? [];
     assignment.maxMarks = body.maxMarks === undefined
         ? assignment.maxMarks
         : parsePositiveNumber(body.maxMarks, assignment.maxMarks);
@@ -785,6 +850,7 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         .populate('assignmentType', 'key name')
         .populate('class', 'name grade section')
         .populate('subject', 'name code')
+        .populate('lessonPlanIds', 'title date')
         .lean();
 
     res.json({

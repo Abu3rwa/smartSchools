@@ -6,6 +6,7 @@ import {
     getEffectiveAcademicExcellenceThresholds,
     getActiveExclusions
 } from './academicExcellenceSettingsService.js';
+import { autoAssignAIInteractiveTask } from './academicExcellenceTaskService.js';
 
 const roundOneDecimal = (value) => Number(Number(value || 0).toFixed(1));
 
@@ -178,6 +179,7 @@ export const syncStudentObjectiveMastery = async ({ school, studentId, subjectId
         };
 
         if (existing) {
+            const previousMasteryLevel = existing.masteryLevel;
             existing.objectiveName = item.objectiveName || existing.objectiveName;
             existing.class = student.currentClass || existing.class;
             existing.masteryScore = averageScore;
@@ -188,6 +190,15 @@ export const syncStudentObjectiveMastery = async ({ school, studentId, subjectId
                 existing.firstWeakDetectedAt = new Date();
             }
             await existing.save();
+
+            if (masteryLevel === 'at_risk' && previousMasteryLevel !== 'at_risk') {
+                Promise.resolve(autoAssignAIInteractiveTask(student._id, existing, {
+                    schoolId: school._id,
+                    classId: student.currentClass,
+                    subjectId: item.subject
+                })).catch(() => null);
+            }
+
             syncedObjectives.push(existing.toObject());
             continue;
         }
@@ -206,6 +217,15 @@ export const syncStudentObjectiveMastery = async ({ school, studentId, subjectId
             history: [historyEntry],
             firstWeakDetectedAt: masteryLevel === 'at_risk' ? new Date() : null
         });
+
+        if (masteryLevel === 'at_risk') {
+            Promise.resolve(autoAssignAIInteractiveTask(student._id, created, {
+                schoolId: school._id,
+                classId: student.currentClass,
+                subjectId: item.subject
+            })).catch(() => null);
+        }
+
         syncedObjectives.push(created.toObject());
     }
 

@@ -473,6 +473,11 @@ const schoolSchema = new mongoose.Schema({
             enum: ['english', 'arabic', 'bilingual'],
             default: 'english'
         },
+        sbrStandardDisplayMode: {
+            type: String,
+            enum: ['code_name', 'code_definition', 'code_name_definition'],
+            default: 'code_definition'
+        },
         allowedReportTypes: {
             type: [String],
             enum: ['weekly', 'monthly', 'quarterly', 'yearly', 'custom'],

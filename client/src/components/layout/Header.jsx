@@ -85,7 +85,7 @@ const Header = () => {
     return (
         <header className="header">
             <div className="header-left">
-                {!isDesktop && (
+                {!isDesktop && user?.role !== 'student' && (
                     <button
                         className="header-btn hamburger-btn"
                         onClick={handleMenuClick}
