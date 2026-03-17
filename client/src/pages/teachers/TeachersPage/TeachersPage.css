@@ -96,7 +96,7 @@
 }
 
 .subject-tag {
-    background: rgba(102, 126, 234, 0.15);
+    background: var(--stat-primary-bg);
     color: var(--primary-400);
     padding: 0.25rem 0.5rem;
     border-radius: var(--radius-sm);

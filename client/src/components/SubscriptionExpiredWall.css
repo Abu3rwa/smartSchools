@@ -14,9 +14,9 @@
     width: min(640px, 100%);
     border-radius: 16px;
     padding: 1.5rem;
-    background: linear-gradient(155deg, #fff7e8 0%, #fff 45%, #f4f9ff 100%);
-    border: 1px solid #e6d6b1;
-    box-shadow: 0 20px 50px rgba(12, 18, 30, 0.25);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
 }
 
 .subscription-wall-overline {
@@ -24,26 +24,26 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.76rem;
-    color: #8a6b1f;
+    color: var(--accent-amber);
 }
 
 .subscription-wall-card h1 {
     margin: 0.4rem 0 0.5rem;
     font-size: 1.8rem;
-    color: #1f2937;
+    color: var(--text-primary);
 }
 
 .subscription-wall-message {
     margin: 0;
-    color: #475569;
+    color: var(--text-secondary);
 }
 
 .subscription-wall-meta {
     margin-top: 1rem;
     padding: 1rem;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.8);
-    border: 1px solid #e2e8f0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
@@ -56,7 +56,7 @@
 }
 
 .subscription-wall-meta .label {
-    color: #64748b;
+    color: var(--text-muted);
     font-size: 0.76rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;

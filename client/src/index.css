@@ -159,6 +159,36 @@
   --icon-orange: #fb923c;
   --icon-indigo: #818cf8;
   --icon-teal: #2dd4bf;
+
+  /* Status / mastery semantic tokens (dark theme) */
+  --status-success: #34d399;
+  --status-success-bg: rgba(52, 211, 153, 0.15);
+  --status-error: #f87171;
+  --status-error-bg: rgba(248, 113, 113, 0.15);
+  --status-warning: #fbbf24;
+  --status-warning-bg: rgba(251, 191, 36, 0.15);
+  --status-info: #60a5fa;
+  --status-info-bg: rgba(96, 165, 250, 0.15);
+
+  --mastery-mastered: #34d399;
+  --mastery-mastered-bg: rgba(52, 211, 153, 0.18);
+  --mastery-developing: #60a5fa;
+  --mastery-developing-bg: rgba(96, 165, 250, 0.18);
+  --mastery-at-risk: #f87171;
+  --mastery-at-risk-bg: rgba(248, 113, 113, 0.18);
+  --mastery-not-started: #94a3b8;
+  --mastery-not-started-bg: rgba(148, 163, 184, 0.12);
+
+  /* Chart palette (dark theme) */
+  --chart-1: #2dd4bf;
+  --chart-2: #60a5fa;
+  --chart-3: #a78bfa;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
+
+  /* Surface / subtle background for sections */
+  --surface-bg: #1e293b;
+  --surface-muted: rgba(255, 255, 255, 0.04);
 }
 
 /* Light Theme Override */
@@ -275,6 +305,36 @@
   --stat-secondary-bg: rgba(20, 184, 166, 0.12);
   --stat-success-bg: rgba(5, 150, 105, 0.12);
   --stat-warning-bg: rgba(217, 119, 6, 0.12);
+
+  /* Status / mastery semantic tokens (light theme) */
+  --status-success: #059669;
+  --status-success-bg: rgba(5, 150, 105, 0.12);
+  --status-error: #dc2626;
+  --status-error-bg: rgba(220, 38, 38, 0.1);
+  --status-warning: #d97706;
+  --status-warning-bg: rgba(217, 119, 6, 0.1);
+  --status-info: #3b82f6;
+  --status-info-bg: rgba(59, 130, 246, 0.1);
+
+  --mastery-mastered: #059669;
+  --mastery-mastered-bg: rgba(5, 150, 105, 0.12);
+  --mastery-developing: #3b82f6;
+  --mastery-developing-bg: rgba(59, 130, 246, 0.12);
+  --mastery-at-risk: #dc2626;
+  --mastery-at-risk-bg: rgba(220, 38, 38, 0.12);
+  --mastery-not-started: #64748b;
+  --mastery-not-started-bg: rgba(100, 116, 139, 0.1);
+
+  /* Chart palette (light theme) */
+  --chart-1: #0d9488;
+  --chart-2: #3b82f6;
+  --chart-3: #8b5cf6;
+  --chart-4: #d97706;
+  --chart-5: #ec4899;
+
+  /* Surface / subtle background for sections */
+  --surface-bg: #f8fafc;
+  --surface-muted: rgba(0, 0, 0, 0.03);
 }
 
 /* ==========================================

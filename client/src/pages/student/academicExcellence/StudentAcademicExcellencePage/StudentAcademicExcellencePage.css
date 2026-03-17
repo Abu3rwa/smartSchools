@@ -119,23 +119,23 @@ label{
 }
 
 .academic-excellence-badge.mastered {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--mastery-mastered-bg);
+  color: var(--mastery-mastered);
 }
 
 .academic-excellence-badge.developing {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--mastery-developing-bg);
+  color: var(--mastery-developing);
 }
 
 .academic-excellence-badge.at_risk {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--mastery-at-risk-bg);
+  color: var(--mastery-at-risk);
 }
 
 .academic-excellence-badge.not_started {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--mastery-not-started-bg);
+  color: var(--mastery-not-started);
 }
 
 .academic-excellence-task-meta {
@@ -148,8 +148,8 @@ label{
 
 .academic-excellence-complete-btn {
   border: 0;
-  background: #0f766e;
-  color: #ffffff;
+  background: var(--primary, #0f766e);
+  color: var(--on-accent, #ffffff);
   border-radius: 8px;
   padding: 0.4rem 0.75rem;
   cursor: pointer;

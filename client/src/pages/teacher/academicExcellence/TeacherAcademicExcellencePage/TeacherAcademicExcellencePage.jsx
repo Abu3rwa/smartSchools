@@ -25,6 +25,22 @@ const TABS = [
   { key: "notifications", label: "Notification Settings" },
 ];
 
+const PAGE_SIZE = 10;
+
+const PaginationBar = ({ page, total, pageSize, onPage }) => {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) return null;
+  return (
+    <div className="teacher-ae-pagination">
+      <button type="button" className="teacher-ae-btn" disabled={page === 1} onClick={() => onPage(1)}>«</button>
+      <button type="button" className="teacher-ae-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
+      <span className="teacher-ae-pagination-info">{page} / {totalPages}</span>
+      <button type="button" className="teacher-ae-btn" disabled={page === totalPages} onClick={() => onPage(page + 1)}>›</button>
+      <button type="button" className="teacher-ae-btn" disabled={page === totalPages} onClick={() => onPage(totalPages)}>»</button>
+    </div>
+  );
+};
+
 const TeacherAcademicExcellencePage = () => {
   const user = useSelector(selectUser);
   const [activeTab, setActiveTab] = useState("overview");
@@ -47,6 +63,13 @@ const TeacherAcademicExcellencePage = () => {
     targetType: "all_students",
     reason: "",
   });
+
+  // Pagination
+  const [objectivesPage, setObjectivesPage] = useState(1);
+  const [heatmapPage, setHeatmapPage] = useState(1);
+  const [studentsPage, setStudentsPage] = useState(1);
+  const [tasksPage, setTasksPage] = useState(1);
+  const [exclusionsPage, setExclusionsPage] = useState(1);
 
   // Objective edit/delete state
   const [editingObjectiveId, setEditingObjectiveId] = useState(null);
@@ -134,6 +157,15 @@ const TeacherAcademicExcellencePage = () => {
 
     return Array.from(map.values());
   }, [objectives, heatmapData, selectedSubjectId]);
+
+  // Reset pages when class or subject changes
+  useEffect(() => {
+    setObjectivesPage(1);
+    setHeatmapPage(1);
+    setStudentsPage(1);
+    setTasksPage(1);
+    setExclusionsPage(1);
+  }, [selectedClassId, selectedSubjectId]);
 
   // Init local notif prefs from loaded data
   useEffect(() => {
@@ -392,7 +424,9 @@ const TeacherAcademicExcellencePage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(heatmapData.objectives || []).map((obj) => (
+                    {(heatmapData.objectives || [])
+                      .slice((heatmapPage - 1) * PAGE_SIZE, heatmapPage * PAGE_SIZE)
+                      .map((obj) => (
                       <tr key={obj.objectiveKey}>
                         <td className="teacher-ae-objective-cell">
                           <span className="teacher-ae-objective-name" title={obj.objectiveName || obj.objectiveKey}>
@@ -455,6 +489,14 @@ const TeacherAcademicExcellencePage = () => {
                 {selectedClassId ? "No heatmap data available for this class." : "Select a class to view the heatmap."}
               </div>
             )}
+            {heatmapData?.objectives?.length > 0 && (
+              <PaginationBar
+                page={heatmapPage}
+                total={heatmapData.objectives.length}
+                pageSize={PAGE_SIZE}
+                onPage={setHeatmapPage}
+              />
+            )}
           </section>
 
           <section className="teacher-ae-panel">
@@ -463,7 +505,9 @@ const TeacherAcademicExcellencePage = () => {
               <div className="teacher-ae-empty">No objectives tracked yet.</div>
             ) : (
               <div className="teacher-ae-list">
-                {objectives.map((obj) => (
+                {objectives
+                  .slice((objectivesPage - 1) * PAGE_SIZE, objectivesPage * PAGE_SIZE)
+                  .map((obj) => (
                   <article key={obj._id || obj.objectiveKey} className="teacher-ae-task-item">
                     <div className="teacher-ae-task-header">
                       {editingObjectiveId === obj._id ? (
@@ -519,6 +563,14 @@ const TeacherAcademicExcellencePage = () => {
                 ))}
               </div>
             )}
+            {objectives.length > 0 && (
+              <PaginationBar
+                page={objectivesPage}
+                total={objectives.length}
+                pageSize={PAGE_SIZE}
+                onPage={setObjectivesPage}
+              />
+            )}
           </section>
         </>
       )}
@@ -543,7 +595,9 @@ const TeacherAcademicExcellencePage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => {
+                  {students
+                    .slice((studentsPage - 1) * PAGE_SIZE, studentsPage * PAGE_SIZE)
+                    .map((student) => {
                     const aeData = classSummary?.studentBreakdown?.[student._id] || {};
                     return (
                       <tr key={student._id}>
@@ -595,6 +649,14 @@ const TeacherAcademicExcellencePage = () => {
               </table>
             </div>
           )}
+          {students.length > 0 && (
+            <PaginationBar
+              page={studentsPage}
+              total={students.length}
+              pageSize={PAGE_SIZE}
+              onPage={setStudentsPage}
+            />
+          )}
         </section>
       )}
 
@@ -606,7 +668,9 @@ const TeacherAcademicExcellencePage = () => {
             <div className="teacher-ae-empty">No tasks awaiting review.</div>
           ) : (
             <div className="teacher-ae-list">
-              {taskQueue.map((task) => (
+              {taskQueue
+                .slice((tasksPage - 1) * PAGE_SIZE, tasksPage * PAGE_SIZE)
+                .map((task) => (
                 <article key={task._id} className="teacher-ae-task-item">
                   <div className="teacher-ae-task-header">
                     <strong>{task.title || task.objectiveName || "Task"}</strong>
@@ -654,6 +718,14 @@ const TeacherAcademicExcellencePage = () => {
                 </article>
               ))}
             </div>
+          )}
+          {taskQueue.length > 0 && (
+            <PaginationBar
+              page={tasksPage}
+              total={taskQueue.length}
+              pageSize={PAGE_SIZE}
+              onPage={setTasksPage}
+            />
           )}
         </section>
       )}
@@ -719,7 +791,9 @@ const TeacherAcademicExcellencePage = () => {
             <div className="teacher-ae-empty">No active exclusions.</div>
           ) : (
             <div className="teacher-ae-list">
-              {exclusions.map((exc) => (
+              {exclusions
+                .slice((exclusionsPage - 1) * PAGE_SIZE, exclusionsPage * PAGE_SIZE)
+                .map((exc) => (
                 <div key={exc._id} className="teacher-ae-exclusion-item">
                   <div>
                     <strong>{exc.objectiveKey || exc.lessonPlanId || exc.subjectId || "—"}</strong>
@@ -748,6 +822,14 @@ const TeacherAcademicExcellencePage = () => {
                 </div>
               ))}
             </div>
+          )}
+          {exclusions.length > 0 && (
+            <PaginationBar
+              page={exclusionsPage}
+              total={exclusions.length}
+              pageSize={PAGE_SIZE}
+              onPage={setExclusionsPage}
+            />
           )}
         </section>
       )}

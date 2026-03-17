@@ -96,7 +96,7 @@ const GradebookTable = ({
                                                 className="btn-icon"
                                                 title={t('gradebook:table.generateProgressReport')}
                                                 onClick={() => onOpenAIModal(student)}
-                                                style={{ color: '#8b5cf6' }}
+                                                style={{ color: 'var(--accent-purple)' }}
                                             >
                                                 <HiOutlineSparkles size={18} />
                                             </button>
@@ -105,7 +105,7 @@ const GradebookTable = ({
                                                 className="btn-icon"
                                                 title={t('gradebook:table.openLearningTrace', { defaultValue: 'Open learning trace' })}
                                                 onClick={() => onOpenLearningTrace(student)}
-                                                style={{ color: '#0f766e' }}
+                                                style={{ color: 'var(--primary)' }}
                                             >
                                                 <HiOutlineChartBar size={18} />
                                             </button>

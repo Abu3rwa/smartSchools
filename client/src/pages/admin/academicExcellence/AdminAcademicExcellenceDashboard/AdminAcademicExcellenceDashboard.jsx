@@ -33,6 +33,22 @@ const TABS = [
   { key: "settings", label: "Settings" },
 ];
 
+const PAGE_SIZE = 10;
+
+const PaginationBar = ({ page, total, pageSize, onPage }) => {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) return null;
+  return (
+    <div className="admin-ae-pagination" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", marginTop: "1rem" }}>
+      <button type="button" className="admin-ae-btn" disabled={page === 1} onClick={() => onPage(1)}>«</button>
+      <button type="button" className="admin-ae-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
+      <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>{page} / {totalPages}</span>
+      <button type="button" className="admin-ae-btn" disabled={page === totalPages} onClick={() => onPage(page + 1)}>›</button>
+      <button type="button" className="admin-ae-btn" disabled={page === totalPages} onClick={() => onPage(totalPages)}>»</button>
+    </div>
+  );
+};
+
 const AdminAcademicExcellenceDashboard = () => {
   const user = useSelector(selectUser);
   const [activeTab, setActiveTab] = useState("analytics");
@@ -40,6 +56,10 @@ const AdminAcademicExcellenceDashboard = () => {
   // Local settings state
   const [localSettings, setLocalSettings] = useState(null);
   const [settingsInitialized, setSettingsInitialized] = useState(false);
+
+  // Pagination bounds
+  const [weakObjectivesPage, setWeakObjectivesPage] = useState(1);
+  const [atRiskStudentsPage, setAtRiskStudentsPage] = useState(1);
 
   const {
     loading,
@@ -323,7 +343,9 @@ const AdminAcademicExcellenceDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {weakestObjectives.map((obj, idx) => (
+                    {weakestObjectives
+                      .slice((weakObjectivesPage - 1) * PAGE_SIZE, weakObjectivesPage * PAGE_SIZE)
+                      .map((obj, idx) => (
                       <tr key={obj.objectiveKey || idx}>
                         <td>{obj.objectiveName || obj.objectiveKey}</td>
                         <td>{obj.belowMasteryPercent || 0}%</td>
@@ -336,6 +358,14 @@ const AdminAcademicExcellenceDashboard = () => {
               </div>
             ) : (
               <div className="admin-ae-empty">No weak objective data available.</div>
+            )}
+            {weakestObjectives.length > 0 && (
+              <PaginationBar
+                page={weakObjectivesPage}
+                total={weakestObjectives.length}
+                pageSize={PAGE_SIZE}
+                onPage={setWeakObjectivesPage}
+              />
             )}
           </section>
 
@@ -363,7 +393,9 @@ const AdminAcademicExcellenceDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {atRiskStudents.map((student) => (
+                    {atRiskStudents
+                      .slice((atRiskStudentsPage - 1) * PAGE_SIZE, atRiskStudentsPage * PAGE_SIZE)
+                      .map((student) => (
                       <tr key={student._id || student.studentId}>
                         <td>{student.studentName || student.name || "—"}</td>
                         <td>{student.className || "—"}</td>
@@ -382,6 +414,14 @@ const AdminAcademicExcellenceDashboard = () => {
               </div>
             ) : (
               <div className="admin-ae-empty">No at-risk students identified.</div>
+            )}
+            {atRiskStudents.length > 0 && (
+              <PaginationBar
+                page={atRiskStudentsPage}
+                total={atRiskStudents.length}
+                pageSize={PAGE_SIZE}
+                onPage={setAtRiskStudentsPage}
+              />
             )}
           </section>
         </>

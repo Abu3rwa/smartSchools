@@ -41,7 +41,7 @@ const AIReportModal = ({
             <div className="modal modal-lg" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ background: '#f3e8ff', padding: '8px', borderRadius: '50%', color: '#7c3aed' }}>
+                        <div style={{ background: 'var(--stat-secondary-bg)', padding: '8px', borderRadius: '50%', color: 'var(--accent-purple)' }}>
                             <HiOutlineSparkles size={24} />
                         </div>
                         <div>
@@ -124,7 +124,7 @@ const AIReportModal = ({
                             </div>
 
                             {aiSendEmail && (
-                                <div style={{ marginTop: '12px', padding: '12px', background: '#f9fafb', borderRadius: '8px' }}>
+                                <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
                                     <label style={{ display: 'block', fontWeight: 500, marginBottom: '8px', fontSize: '13px' }}>
                                         {t('gradebook:ai.emailRecipients')}
                                     </label>
@@ -152,8 +152,8 @@ const AIReportModal = ({
                         <div className="ai-report-preview">
                             <div
                                 style={{
-                                    background: '#ffffff',
-                                    border: '1px solid #e5e7eb',
+                                    background: 'var(--bg-card)',
+                                    border: '1px solid var(--border-color)',
                                     borderRadius: '8px',
                                     maxHeight: '500px',
                                     overflowY: 'auto'
@@ -174,10 +174,10 @@ const AIReportModal = ({
                                 <div
                                     style={{
                                         padding: '30px',
-                                        background: '#ffffff',
+                                        background: 'var(--bg-card)',
                                         fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
                                         lineHeight: '1.6',
-                                        color: '#333'
+                                        color: 'var(--text-primary)'
                                     }}
                                 >
                                     <div
@@ -185,12 +185,12 @@ const AIReportModal = ({
                                         suppressContentEditableWarning={true}
                                         onBlur={(event) => onEditedContentBlur(event.currentTarget.innerHTML)}
                                         style={{
-                                            outline: isEditingReport ? '2px solid #667eea' : 'none',
+                                            outline: isEditingReport ? '2px solid var(--primary)' : 'none',
                                             padding: isEditingReport ? '15px' : '0',
                                             borderRadius: isEditingReport ? '8px' : '0',
                                             minHeight: '200px',
                                             cursor: isEditingReport ? 'text' : 'default',
-                                            background: isEditingReport ? '#fffbeb' : 'transparent'
+                                            background: isEditingReport ? 'var(--warning-50)' : 'transparent'
                                         }}
                                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editedReportContent || aiReportContent) }}
                                     />
@@ -202,11 +202,11 @@ const AIReportModal = ({
                                     style={{
                                         marginTop: '15px',
                                         padding: '12px 16px',
-                                        background: '#eff6ff',
-                                        border: '1px solid #3b82f6',
+                                        background: 'var(--status-info-bg)',
+                                        border: '1px solid var(--icon-blue)',
                                         borderRadius: '8px',
                                         fontSize: '13px',
-                                        color: '#1e40af'
+                                        color: 'var(--icon-blue)'
                                     }}
                                 >
                                     <strong>{t('gradebook:ai.editModeActive')}</strong> {t('gradebook:ai.editModeDescription')}

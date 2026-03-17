@@ -5,8 +5,24 @@ import { fetchMyAssignments, selectPracticeStudentId } from "../../../../store/s
 import { selectCurrentAcademicYear, selectSelectedSemester } from "../../../../store/slices/uiSlice";
 import AIPracticeSession from "../AIPracticeSession/AIPracticeSession";
 import "./StudentAcademicExcellencePage.css";
-
 const masteryOrder = ["mastered", "developing", "at_risk", "not_started"];
+
+const PAGE_SIZE = 10;
+
+const PaginationBar = ({ page, total, pageSize, onPage }) => {
+  const totalPages = Math.ceil(total / pageSize);
+  if (totalPages <= 1) return null;
+  return (
+    <div className="academic-excellence-pagination" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", marginTop: "1rem" }}>
+      <button type="button" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === 1} onClick={() => onPage(1)}>«</button>
+      <button type="button" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
+      <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>{page} / {totalPages}</span>
+      <button type="button" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === totalPages} onClick={() => onPage(page + 1)}>›</button>
+      <button type="button" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === totalPages} onClick={() => onPage(totalPages)}>»</button>
+    </div>
+  );
+};
+
 
 const labelFromMastery = (value) =>
   String(value || "")
@@ -52,6 +68,9 @@ const StudentAcademicExcellencePage = () => {
   const [objectives, setObjectives] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [completingTaskId, setCompletingTaskId] = useState("");
+
+  const [objectivesPage, setObjectivesPage] = useState(1);
+  const [tasksPage, setTasksPage] = useState(1);
 
   const resolveStudentId = useCallback(async () => {
     if (practiceStudentId) return practiceStudentId;
@@ -110,6 +129,8 @@ const StudentAcademicExcellencePage = () => {
     }
 
     setResolvedStudentId(studentId);
+    setObjectivesPage(1);
+    setTasksPage(1);
 
     await loadAcademicExcellenceData(studentId);
   }, [loadAcademicExcellenceData, resolveStudentId]);
@@ -212,7 +233,9 @@ const StudentAcademicExcellencePage = () => {
           <div className="academic-excellence-empty">No objectives available yet.</div>
         ) : (
           <div className="academic-excellence-list">
-            {objectives.map((objective) => (
+            {objectives
+              .slice((objectivesPage - 1) * PAGE_SIZE, objectivesPage * PAGE_SIZE)
+              .map((objective) => (
               <article key={objective._id} className="academic-excellence-list-item">
                 <div className="academic-excellence-list-item-header">
                   <strong>{formatObjectiveLabel(objective)}</strong>
@@ -225,6 +248,14 @@ const StudentAcademicExcellencePage = () => {
             ))}
           </div>
         )}
+        {objectives.length > 0 && (
+          <PaginationBar
+            page={objectivesPage}
+            total={objectives.length}
+            pageSize={PAGE_SIZE}
+            onPage={setObjectivesPage}
+          />
+        )}
       </section>
 
       <section className="academic-excellence-panel">
@@ -233,7 +264,9 @@ const StudentAcademicExcellencePage = () => {
           <div className="academic-excellence-empty">No tasks assigned right now.</div>
         ) : (
           <div className="academic-excellence-list">
-            {tasks.map((task) => {
+            {tasks
+              .slice((tasksPage - 1) * PAGE_SIZE, tasksPage * PAGE_SIZE)
+              .map((task) => {
               const canComplete = ["assigned", "in_progress", "overdue"].includes(task.status);
               return (
                 <article key={task._id} className="academic-excellence-list-item">
@@ -270,6 +303,14 @@ const StudentAcademicExcellencePage = () => {
               );
             })}
           </div>
+        )}
+        {tasks.length > 0 && (
+          <PaginationBar
+            page={tasksPage}
+            total={tasks.length}
+            pageSize={PAGE_SIZE}
+            onPage={setTasksPage}
+          />
         )}
       </section>
 
