@@ -2,11 +2,11 @@ import api from '../config/api';
 
 const BASE = '/messages';
 const DEV_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const PROD_FALLBACK_API_URL = 'https://aqueous-fortress-98392-f4793139e201.herokuapp.com/api';
 
 const resolveApiBaseUrl = () => {
     if (import.meta.env.PROD) {
-        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000';
-        return `${origin}/api`;
+        return import.meta.env.VITE_API_URL || PROD_FALLBACK_API_URL;
     }
     return DEV_API_BASE_URL;
 };

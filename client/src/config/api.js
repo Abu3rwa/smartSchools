@@ -1,8 +1,15 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.PROD
-    ? '/api'
-    : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
+const PROD_FALLBACK_API_URL = 'https://aqueous-fortress-98392-f4793139e201.herokuapp.com/api';
+
+const resolveApiUrl = () => {
+    if (import.meta.env.PROD) {
+        return import.meta.env.VITE_API_URL || PROD_FALLBACK_API_URL;
+    }
+    return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+};
+
+const API_URL = resolveApiUrl();
 
 // Create axios instance
 const api = axios.create({
