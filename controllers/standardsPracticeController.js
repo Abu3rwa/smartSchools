@@ -2852,7 +2852,7 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   if (sessionType) assignmentQuery["practiceConfig.sessionType"] = sessionType;
 
   const assignments = await StandardAssignment.find(assignmentQuery)
-    .select("_id title class subject standard assignedDate dueDate practiceConfig")
+    .select("_id title class subject standard assignedDate dueDate practiceConfig students")
     .populate("class", "name grade section")
     .populate("subject", "name code")
     .populate("standard", "code name masteryThreshold masteryMinQuestions")
@@ -2887,12 +2887,43 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   const assignmentMap = new Map(assignments.map((assignment) => [String(assignment._id), assignment]));
 
   const classIdSet = new Set(assignments.map((assignment) => String(assignment.class?._id || assignment.class)).filter(Boolean));
+  const generalClassIdSet = new Set();
+  const targetedStudentIdSet = new Set();
+
+  assignments.forEach((assignment) => {
+    const assignmentStudentIds = Array.isArray(assignment.students)
+      ? assignment.students.map((value) => String(value)).filter(Boolean)
+      : [];
+
+    if (assignmentStudentIds.length > 0) {
+      assignmentStudentIds.forEach((id) => targetedStudentIdSet.add(id));
+      return;
+    }
+
+    const assignmentClassId = String(assignment.class?._id || assignment.class || "");
+    if (assignmentClassId) generalClassIdSet.add(assignmentClassId);
+  });
+
   const studentQuery = {
     school: req.schoolId,
-    currentClass: { $in: Array.from(classIdSet) },
     status: "active",
     academicYear: effectiveAcademicYear,
   };
+
+  const studentOrFilters = [];
+  if (generalClassIdSet.size > 0) {
+    studentOrFilters.push({ currentClass: { $in: Array.from(generalClassIdSet) } });
+  }
+  if (targetedStudentIdSet.size > 0) {
+    studentOrFilters.push({ _id: { $in: Array.from(targetedStudentIdSet) } });
+  }
+
+  if (studentOrFilters.length > 0) {
+    studentQuery.$or = studentOrFilters;
+  } else {
+    studentQuery.currentClass = { $in: Array.from(classIdSet) };
+  }
+
   if (studentId) studentQuery._id = studentId;
 
   const students = await Student.find(studentQuery)

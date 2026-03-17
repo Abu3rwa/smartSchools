@@ -312,7 +312,8 @@ export const aggregateStudentSBRScores = async ({
         student: studentId,
         class: classId,
         subject: subjectId,
-        standard: { $in: standardIds }
+        standard: { $in: standardIds },
+        status: 'released'
     };
 
     if (academicYear) gradebookFilter.academicYear = academicYear;

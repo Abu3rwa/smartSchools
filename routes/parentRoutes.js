@@ -7,6 +7,8 @@ import {
     getParentChildAttendanceSummaryController,
     getParentChildGradesController,
     getParentChildReportsController,
+    getParentChildSbrReportByIdController,
+    getParentChildSbrReportsController,
     getParentChildSubjectAcademicStatsController,
     getParentChildTimetableController,
     getParentChildrenController,
@@ -78,6 +80,19 @@ router.get(
     param('childId').isMongoId().withMessage('Invalid childId format'),
     validate,
     getParentChildReportsController
+);
+router.get(
+    '/children/:childId/sbr-report-cards',
+    param('childId').isMongoId().withMessage('Invalid childId format'),
+    validate,
+    getParentChildSbrReportsController
+);
+router.get(
+    '/children/:childId/sbr-report-cards/:reportId',
+    param('childId').isMongoId().withMessage('Invalid childId format'),
+    param('reportId').isMongoId().withMessage('Invalid reportId format'),
+    validate,
+    getParentChildSbrReportByIdController
 );
 router.get('/dashboard', getParentDashboardController);
 router.patch('/updates/read-all', markAllParentUpdatesAsReadController);

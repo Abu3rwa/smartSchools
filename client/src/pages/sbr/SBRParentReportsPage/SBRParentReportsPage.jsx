@@ -145,9 +145,11 @@ const SBRParentReportsPage = () => {
                                     <ul>
                                         {(category.standards || []).map((standard) => (
                                             <li key={standard.standardId || standard.standardCode}>
-                                                <strong>{standard.standardCode}</strong> - {standard.standardDescription || 'No description'}
+                                                <strong>{standard.standardCode}</strong> - {standard.standardName || 'No description'}
                                                 <span className="sbr-level-inline">
-                                                    {standard.levelLabel || standard.levelValue || standard.specialCode || 'N/A'}
+                                                    {standard.isNA
+                                                        ? 'N/A'
+                                                        : `${standard.score ?? '-'}${typeof standard.rawPercentage === 'number' ? ` (${standard.rawPercentage}%)` : ''}`}
                                                 </span>
                                             </li>
                                         ))}

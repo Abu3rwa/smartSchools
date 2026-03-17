@@ -9,6 +9,8 @@ import {
     getParentChildAttendanceSummary,
     getParentChildGrades,
     getParentChildReports,
+    getParentChildSbrReportById,
+    getParentChildSbrReports,
     getParentChildSubjectAcademicStats,
     getParentChildTimetable,
     getParentChildren,
@@ -410,6 +412,66 @@ export const getParentChildReportsController = asyncHandler(async (req, res) => 
         return res.status(404).json({
             success: false,
             message: 'Child not found'
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data
+    });
+});
+
+/**
+ * @desc    Get child SBR report cards for parent view
+ * @route   GET /api/parent/children/:childId/sbr-report-cards
+ * @access  Private (parent)
+ */
+export const getParentChildSbrReportsController = asyncHandler(async (req, res) => {
+    const { academicYear } = resolveAcademicYearDateRangeForRequest(req);
+
+    const data = await getParentChildSbrReports({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+        childId: req.params.childId,
+        period: req.query.period || null,
+        page: req.query.page,
+        limit: req.query.limit
+    });
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            message: 'Child not found'
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        data
+    });
+});
+
+/**
+ * @desc    Get single child SBR report card for parent view
+ * @route   GET /api/parent/children/:childId/sbr-report-cards/:reportId
+ * @access  Private (parent)
+ */
+export const getParentChildSbrReportByIdController = asyncHandler(async (req, res) => {
+    const { academicYear } = resolveAcademicYearDateRangeForRequest(req);
+
+    const data = await getParentChildSbrReportById({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+        childId: req.params.childId,
+        reportId: req.params.reportId
+    });
+
+    if (!data) {
+        return res.status(404).json({
+            success: false,
+            message: 'Report card not found'
         });
     }
 

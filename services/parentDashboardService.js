@@ -4,9 +4,11 @@ import Grade from '../models/Grade.js';
 import Notification from '../models/Notification.js';
 import ParentSetting from '../models/ParentSetting.js';
 import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
+import SBRReportCard from '../models/SBRReportCard.js';
 import Student from '../models/Student.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import { DEFAULT_WEEK_WORKING_DAYS, normalizeWeekWorkingDays } from '../utils/schoolWeekWorkingDays.js';
+import { normalizePeriod } from './sbrService.js';
 
 const PARENT_EMAIL_FIELDS = [
     'parentInfo.fatherEmail',
@@ -1192,6 +1194,127 @@ export const getParentChildReports = async ({
             total,
             totalPages: Math.ceil(total / pageSize)
         }
+    };
+};
+
+const mapSbrReportListItem = (report) => ({
+    id: report._id,
+    reportCardId: report.reportCardId,
+    academicYear: report.academicYear,
+    period: report.period || null,
+    status: report.status || 'draft',
+    generatedAt: report.generatedAt || report.createdAt || null,
+    student: report.student
+        ? {
+            id: report.student._id,
+            firstName: report.student.firstName || '',
+            lastName: report.student.lastName || '',
+            studentId: report.student.studentId || ''
+        }
+        : null,
+    class: report.class
+        ? {
+            id: report.class._id,
+            name: report.class.name || '',
+            grade: report.class.grade,
+            section: report.class.section || ''
+        }
+        : null,
+    emailedAt: report.emailedAt || null,
+    pdfUrl: report.pdfUrl || null
+});
+
+export const getParentChildSbrReports = async ({
+    schoolId,
+    parentUser,
+    academicYear,
+    childId,
+    period = null,
+    page = 1,
+    limit = 20
+}) => {
+    const child = await resolveParentChildOrNull({
+        schoolId,
+        parentUser,
+        academicYear,
+        childId
+    });
+    if (!child) return null;
+
+    const pageNumber = parsePositiveIntOrDefault(page, 1);
+    const pageSize = Math.min(parsePositiveIntOrDefault(limit, 20), 100);
+
+    const query = {
+        school: schoolId,
+        student: child._id,
+        status: 'published'
+    };
+
+    if (academicYear) {
+        query.academicYear = String(academicYear).trim();
+    }
+
+    if (period) {
+        const periodInfo = normalizePeriod(period);
+        if (periodInfo) {
+            query['period.type'] = periodInfo.type;
+        }
+    }
+
+    const [items, total] = await Promise.all([
+        SBRReportCard.find(query)
+            .sort({ generatedAt: -1, createdAt: -1 })
+            .skip((pageNumber - 1) * pageSize)
+            .limit(pageSize)
+            .populate('student', 'firstName lastName studentId')
+            .populate('class', 'name grade section')
+            .lean(),
+        SBRReportCard.countDocuments(query)
+    ]);
+
+    return {
+        childId: child._id,
+        reports: items.map(mapSbrReportListItem),
+        pagination: {
+            page: pageNumber,
+            limit: pageSize,
+            total,
+            totalPages: Math.ceil(total / pageSize)
+        }
+    };
+};
+
+export const getParentChildSbrReportById = async ({
+    schoolId,
+    parentUser,
+    academicYear,
+    childId,
+    reportId
+}) => {
+    const child = await resolveParentChildOrNull({
+        schoolId,
+        parentUser,
+        academicYear,
+        childId
+    });
+    if (!child) return null;
+
+    const reportCard = await SBRReportCard.findOne({
+        _id: reportId,
+        school: schoolId,
+        student: child._id,
+        status: 'published'
+    })
+        .populate('student', 'firstName lastName studentId')
+        .populate('class', 'name grade section')
+        .populate('scale')
+        .lean();
+
+    if (!reportCard) return null;
+
+    return {
+        childId: child._id,
+        reportCard
     };
 };
 
