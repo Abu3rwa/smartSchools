@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../../../../config/api";
-import { InlineSpinner, ProgressBar } from "../../../../../../../components/ui";
+import { InlineSpinner, ProgressBar } from "@/components/ui";
 
 const TASK_TYPES = [
   { value: "practice_questions", label: "Practice Questions" },

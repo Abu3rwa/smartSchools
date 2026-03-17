@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "build": "npm install --prefix client && npm run build --prefix client",
     "seed": "node seeds/seedData.js",
     "seed:import-templates": "node seeds/seedImportTemplates.js",
     "test": "node --test tests",
@@ -34,8 +35,8 @@
     "coverage:maintainability:curriculum:check": "c8 --include=controllers/curriculumMapController.js --include=controllers/curriculumSettingsController.js --include=services/curriculum/curriculumSettingsService.js --include=validators/curriculumValidators.js --check-coverage --lines 70 --functions 70 --statements 70 --branches 60 node --test tests/curriculumValidators.test.js tests/curriculumControllers.contract.test.js tests/curriculumMapService.test.js tests/curriculumSettingsService.test.js",
     "quality:maintainability:curriculum": "npm run lint:maintainability:curriculum && npm run dup:maintainability:curriculum && npm run coverage:maintainability:curriculum:check",
     "quality:maintainability:all": "npm run quality:maintainability && npm run quality:maintainability:messaging && npm run quality:maintainability:curriculum",
-    "deploy": "git add . ; git commit -m \"Deployment\" ; git push heroku main",
-    "heroku-postbuild": "cd client && npm install && npm run build"
+    "deploy": "git add . ; git commit -m \"Deployment\" ; git push origin main",
+    "render-build": "cd client && npm install && npm run build"
   },
   "keywords": [
     "mern",

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ProgressBar } from "../../../../../../../components/ui";
+import { ProgressBar } from "@/components/ui";
 
 const QUESTION_TYPE_OPTIONS = [
   { value: "multiple_choice", label: "Multiple Choice" },

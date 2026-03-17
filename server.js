@@ -9,6 +9,7 @@ import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
 import compression from "compression";
 import { createServer } from "http";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
@@ -122,7 +123,7 @@ app.use(
   }),
 );
 
-// HTTPS enforcement in production (Heroku)
+// HTTPS enforcement in production behind a reverse proxy (Render/Heroku/etc.)
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     if (req.headers['x-forwarded-proto'] !== 'https') {
@@ -298,11 +299,22 @@ const __dirnameServer = path.dirname(fileURLToPath(import.meta.url));
 
 if (process.env.NODE_ENV === "production") {
   const __dirname = __dirnameServer;
+  const clientDistPath = path.join(__dirname, "client", "dist");
+  const clientIndexPath = path.join(clientDistPath, "index.html");
 
-  app.use(express.static(path.join(__dirname, "client/dist")));
+  app.use(express.static(clientDistPath));
 
   app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "client", "dist", "index.html"));
+    if (fs.existsSync(clientIndexPath)) {
+      res.sendFile(clientIndexPath);
+      return;
+    }
+
+    logger.warn("frontend_bundle_missing", { clientIndexPath });
+    res.status(503).json({
+      message: "Frontend bundle is not available in this deployment.",
+      expectedPath: clientIndexPath,
+    });
   });
 } else {
   app.get("/", (req, res) => {

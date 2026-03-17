@@ -21,7 +21,7 @@ import AENotificationsTab   from "./components/AENotificationsTab";
 
 import { TABS, PAGE_SIZE } from "./constants";
 import "./TeacherAcademicExcellencePage.css";
-import { PageLoader } from "../../../../../components/ui";
+import { PageLoader } from "@/components/ui";
 
 // ─── Page ────────────────────────────────────────────────────────────
 const TeacherAcademicExcellencePage = () => {
