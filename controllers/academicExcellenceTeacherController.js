@@ -194,7 +194,7 @@ export const getClassAcademicExcellenceSummary = asyncHandler(async (req, res) =
     // `semester` is not persisted on AcademicExcellenceObjective; ignore this filter.
     void semester;
 
-    const [distribution, subjectAgg, totalStudents] = await Promise.all([
+    const [distribution, subjectAgg, totalStudents, allObjectiveRecords, classStudents] = await Promise.all([
         AcademicExcellenceObjective.aggregate([
             { $match: match },
             { $group: { _id: '$masteryLevel', count: { $sum: 1 } } }
@@ -221,7 +221,15 @@ export const getClassAcademicExcellenceSummary = asyncHandler(async (req, res) =
             { $unwind: { path: '$subjectDoc', preserveNullAndEmptyArrays: true } },
             { $project: { _id: 1, name: '$subjectDoc.name', total: 1, mastered: 1, progressing: 1, notMet: 1 } }
         ]),
-        Student.countDocuments({ currentClass: classId, school: req.schoolId })
+        Student.countDocuments({ currentClass: classId, school: req.schoolId }),
+        // All AE objective records for the class (for heatmap)
+        AcademicExcellenceObjective.find(match)
+            .populate('student', 'firstName lastName name studentId')
+            .lean(),
+        // All students in the class (so we show all columns even if no AE data yet)
+        Student.find({ currentClass: classId, school: req.schoolId })
+            .select('firstName lastName name studentId')
+            .lean()
     ]);
 
     const masteryDistribution = {};
@@ -229,13 +237,85 @@ export const getClassAcademicExcellenceSummary = asyncHandler(async (req, res) =
         masteryDistribution[d._id || 'unknown'] = d.count;
     }
 
+    // ── Build heatmap ──────────────────────────────────────────────
+    // Collect unique objectives (by objectiveKey)
+    const objectiveMap = new Map(); // objectiveKey → { objectiveKey, objectiveName, _id, studentLevels: {} }
+    for (const rec of allObjectiveRecords) {
+        const key = rec.objectiveKey;
+        if (!objectiveMap.has(key)) {
+            objectiveMap.set(key, {
+                _id: rec._id,
+                objectiveKey: key,
+                objectiveName: rec.objectiveName || key,
+                studentLevels: {}
+            });
+        }
+        const studentId = rec.student?._id?.toString() || rec.student?.toString();
+        if (studentId) {
+            objectiveMap.get(key).studentLevels[studentId] = rec.masteryLevel || 'not_started';
+        }
+    }
+
+    // Build student list for heatmap columns (prefer students from class roster)
+    const heatmapStudentSet = new Map();
+    for (const s of classStudents) {
+        const sid = s._id.toString();
+        heatmapStudentSet.set(sid, {
+            _id: sid,
+            name: s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || sid
+        });
+    }
+    // Also include any students that appear in AE records but aren't in roster (edge case)
+    for (const rec of allObjectiveRecords) {
+        if (rec.student?._id) {
+            const sid = rec.student._id.toString();
+            if (!heatmapStudentSet.has(sid)) {
+                heatmapStudentSet.set(sid, {
+                    _id: sid,
+                    name: rec.student.name || `${rec.student.firstName || ''} ${rec.student.lastName || ''}`.trim() || sid
+                });
+            }
+        }
+    }
+
+    const heatmap = objectiveMap.size > 0 ? {
+        objectives: Array.from(objectiveMap.values()),
+        students: Array.from(heatmapStudentSet.values())
+    } : null;
+
+    // ── Student breakdown (for student monitor tab KPIs) ───────────
+    const studentBreakdown = {};
+    for (const rec of allObjectiveRecords) {
+        const sid = rec.student?._id?.toString() || rec.student?.toString();
+        if (!sid) continue;
+        if (!studentBreakdown[sid]) {
+            studentBreakdown[sid] = { atRiskCount: 0, developingCount: 0, masteredCount: 0, pendingTasksCount: 0 };
+        }
+        if (rec.masteryLevel === 'at_risk') studentBreakdown[sid].atRiskCount++;
+        else if (rec.masteryLevel === 'developing') studentBreakdown[sid].developingCount++;
+        else if (rec.masteryLevel === 'mastered') studentBreakdown[sid].masteredCount++;
+    }
+
+    // KPI summary
+    const allStudentIds = Array.from(heatmapStudentSet.keys());
+    const atRiskStudentCount = allStudentIds.filter(sid => (studentBreakdown[sid]?.atRiskCount || 0) > 0).length;
+    const masteredStudentCount = allStudentIds.filter(sid => (studentBreakdown[sid]?.masteredCount || 0) > 0).length;
+
     res.json({
         success: true,
         data: {
             classId,
             totalStudents,
             masteryDistribution,
-            subjects: subjectAgg
+            subjects: subjectAgg,
+            heatmap,
+            studentBreakdown,
+            summary: {
+                totalStudents,
+                atRiskPercent: totalStudents > 0 ? Math.round((atRiskStudentCount / totalStudents) * 100) : 0,
+                masteredPercent: totalStudents > 0 ? Math.round((masteredStudentCount / totalStudents) * 100) : 0,
+                developingPercent: 0
+            }
         }
     });
 });
