@@ -17,7 +17,8 @@ import {
     toggleAcademicExcellenceExclusion,
     deleteAcademicExcellenceExclusion,
     renameAcademicExcellenceObjective,
-    softDeleteAcademicExcellenceObjective
+    softDeleteAcademicExcellenceObjective,
+    toggleStudentAE
 } from '../controllers/academicExcellenceTeacherController.js';
 import {
     getAcademicExcellenceNotificationPreferences,
@@ -95,6 +96,15 @@ router.delete(
     authorize('admin', 'department_principal', 'teacher'),
     deleteAcademicExcellenceExclusion
 );
+
+// ─── Student AE toggle ──────────────────────────────────────────────
+router.patch(
+    '/students/:studentId/ae-toggle',
+    authorize('admin', 'department_principal', 'teacher'),
+    requirePermission(PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_STUDENT),
+    toggleStudentAE
+);
+
 
 // ─── Objective management ───────────────────────────────────────────
 router.patch(

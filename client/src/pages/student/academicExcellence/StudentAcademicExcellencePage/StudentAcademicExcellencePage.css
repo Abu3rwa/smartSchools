@@ -1,8 +1,10 @@
+/* ── Page Layout ──────────────────────────────── */
 .student-academic-excellence-page {
   display: grid;
   gap: 1rem;
 }
 
+/* ── Header ──────────────────────────────────── */
 .academic-excellence-header {
   display: flex;
   align-items: center;
@@ -14,52 +16,61 @@
 .academic-excellence-header h1 {
   margin: 0;
   font-size: 1.4rem;
+  color: var(--text-primary);
 }
 
 .academic-excellence-header p {
   margin: 0.25rem 0 0;
-  color: var(--text-secondary, #4b5563);
+  color: var(--text-secondary);
 }
 
+/* ── Refresh button ──────────────────────────── */
 .academic-excellence-refresh-btn {
-  border: 1px solid var(--border-color, #d1d5db);
-  background: var(--card-bg, #ffffff);
-  color: var(--text-primary, #111827);
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.8rem;
   cursor: pointer;
   font-weight: 600;
+  font-size: 0.88rem;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
+.academic-excellence-refresh-btn:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  border-color: var(--border-color-hover);
+}
+
+.academic-excellence-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── KPI Card Grid ───────────────────────────── */
 .academic-excellence-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.8rem;
 }
-label{
-      /* display: block !important; */
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    margin-bottom: var(--spacing-xs);
-    border: 1px var(--primary) solid;
-    padding: 5px;
-    margin: 5px;
-    border-radius: 10px;
-    cursor: pointer;
-    background: var(--accent);
-}
+
 .academic-excellence-card {
-  background: var(--card-bg, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 0.9rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.academic-excellence-card:hover {
+  border-color: var(--border-color-hover);
+  box-shadow: var(--shadow-sm);
 }
 
 .academic-excellence-card h3 {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
@@ -67,32 +78,41 @@ label{
   display: block;
   margin-top: 0.3rem;
   font-size: 1.5rem;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
+/* ── Panel ───────────────────────────────────── */
 .academic-excellence-panel {
-  background: var(--card-bg, #ffffff);
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 1rem;
 }
 
 .academic-excellence-panel h2 {
   margin: 0 0 0.75rem;
   font-size: 1.05rem;
+  color: var(--text-primary);
 }
 
+/* ── List ────────────────────────────────────── */
 .academic-excellence-list {
   display: grid;
   gap: 0.65rem;
 }
 
 .academic-excellence-list-item {
-  border: 1px solid var(--border-color, #e5e7eb);
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 0.75rem;
   display: grid;
   gap: 0.35rem;
+  background: var(--bg-card);
+  transition: border-color var(--transition-fast);
+}
+
+.academic-excellence-list-item:hover {
+  border-color: var(--border-color-hover);
 }
 
 .academic-excellence-list-item-header {
@@ -107,8 +127,10 @@ label{
   word-break: break-word;
   white-space: normal;
   min-width: 0;
+  color: var(--text-primary);
 }
 
+/* ── Mastery badges ──────────────────────────── */
 .academic-excellence-badge {
   border-radius: 999px;
   padding: 0.2rem 0.6rem;
@@ -116,66 +138,56 @@ label{
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  display: inline-block;
 }
 
-.academic-excellence-badge.mastered {
-  background: var(--mastery-mastered-bg);
-  color: var(--mastery-mastered);
-}
+.academic-excellence-badge.mastered    { background: var(--mastery-mastered-bg);    color: var(--mastery-mastered); }
+.academic-excellence-badge.developing  { background: var(--mastery-developing-bg);  color: var(--mastery-developing); }
+.academic-excellence-badge.at_risk     { background: var(--mastery-at-risk-bg);     color: var(--mastery-at-risk); }
+.academic-excellence-badge.not_started { background: var(--mastery-not-started-bg); color: var(--mastery-not-started); }
+.academic-excellence-badge.assigned    { background: var(--mastery-developing-bg);  color: var(--mastery-developing); }
+.academic-excellence-badge.in_progress { background: var(--status-warning-bg);      color: var(--status-warning); }
+.academic-excellence-badge.completed   { background: var(--mastery-mastered-bg);    color: var(--mastery-mastered); }
+.academic-excellence-badge.overdue     { background: var(--mastery-at-risk-bg);     color: var(--mastery-at-risk); }
 
-.academic-excellence-badge.developing {
-  background: var(--mastery-developing-bg);
-  color: var(--mastery-developing);
-}
-
-.academic-excellence-badge.at_risk {
-  background: var(--mastery-at-risk-bg);
-  color: var(--mastery-at-risk);
-}
-
-.academic-excellence-badge.not_started {
-  background: var(--mastery-not-started-bg);
-  color: var(--mastery-not-started);
-}
-
+/* ── Task meta ───────────────────────────────── */
 .academic-excellence-task-meta {
   display: flex;
   gap: 0.6rem;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   flex-wrap: wrap;
 }
 
+/* ── Complete button ─────────────────────────── */
 .academic-excellence-complete-btn {
   border: 0;
-  background: var(--primary, #0f766e);
-  color: var(--on-accent, #ffffff);
-  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-accent);
+  border-radius: var(--radius-sm);
   padding: 0.4rem 0.75rem;
   cursor: pointer;
   font-weight: 600;
+  font-size: 0.88rem;
+  transition: opacity var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.academic-excellence-complete-btn:disabled,
-.academic-excellence-refresh-btn:disabled {
-  opacity: 0.6;
+.academic-excellence-complete-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: var(--shadow-glow);
+}
+
+.academic-excellence-complete-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.academic-excellence-empty,
-.academic-excellence-error,
-.academic-excellence-loading {
-  border: 1px dashed var(--border-color, #d1d5db);
-  border-radius: 8px;
-  padding: 0.9rem;
-  color: var(--text-secondary, #6b7280);
-}
-
+/* ── AI Practice Modal ───────────────────────── */
 .ai-practice-modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 1200;
-  background: rgba(15, 23, 42, 0.72);
+  background: var(--overlay-bg);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: stretch;
@@ -184,33 +196,36 @@ label{
 }
 
 .ai-practice-modal {
-  background: var(--card-bg, #ffffff);
-  border-radius: 12px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: var(--shadow-lg);
 }
 
 .ai-practice-modal-header {
   padding: 1rem;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
+  background: var(--bg-card);
 }
 
 .ai-practice-modal-header h3 {
   margin: 0;
   font-size: 1.1rem;
+  color: var(--text-primary);
 }
 
 .ai-practice-modal-header p {
   margin: 0.2rem 0 0;
-  color: var(--text-secondary, #6b7280);
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -218,6 +233,8 @@ label{
   padding: 1rem;
   overflow: auto;
   flex: 1;
+  background: var(--bg-card);
+  color: var(--text-primary);
 }
 
 .ai-practice-empty-state {
@@ -232,6 +249,25 @@ label{
   flex-wrap: wrap;
 }
 
+/* ── States ──────────────────────────────────── */
+.academic-excellence-empty,
+.academic-excellence-loading {
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.academic-excellence-error {
+  border: 1px dashed var(--mastery-at-risk-bg);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem;
+  color: var(--mastery-at-risk);
+  text-align: center;
+}
+
+/* ── Responsive ──────────────────────────────── */
 @media (max-width: 1024px) {
   .academic-excellence-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

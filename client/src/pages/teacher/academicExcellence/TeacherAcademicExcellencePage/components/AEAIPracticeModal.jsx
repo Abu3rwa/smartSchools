@@ -43,7 +43,8 @@ const AEAIPracticeModal = ({
   subjectId,
   subjectName,
   creating,
-  onCreate,
+  onCreate,            // legacy — kept for backward compat
+  onCreateAssignment,  // canonical name used by TeacherAcademicExcellencePage
   onSuccess,
   onClose,
 }) => {
@@ -101,7 +102,9 @@ const AEAIPracticeModal = ({
     };
 
     try {
-      const result = await onCreate(payload);
+      // Support both `onCreateAssignment` (page prop name) and legacy `onCreate`
+      const createFn = onCreateAssignment || onCreate;
+      const result = await createFn(payload);
       if (result) onSuccess(result);
     } catch (err) {
       const responseCode = err?.response?.data?.code;

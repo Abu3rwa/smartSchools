@@ -4,113 +4,75 @@ import api from "../../../../config/api";
 import { PERMISSIONS } from "../../../../constants/permissions";
 import { selectUser } from "../../../../store/slices/authSlice";
 import useTeacherAcademicExcellence from "./hooks/useTeacherAcademicExcellence";
-import AEAssignTaskModal from "./components/AEAssignTaskModal";
-import AEBulkAssignModal from "./components/AEBulkAssignModal";
-import AEAIPracticeModal from "./components/AEAIPracticeModal";
-import AEStudentProgressDrawer from "./components/AEStudentProgressDrawer";
-import QuestionPoolEditorModal from "../../../standards/StandardAssignPage/components/QuestionPoolEditorModal";
+
+// Modals & Drawers (existing)
+import AEAssignTaskModal        from "./components/AEAssignTaskModal";
+import AEBulkAssignModal        from "./components/AEBulkAssignModal";
+import AEAIPracticeModal        from "./components/AEAIPracticeModal";
+import AEStudentProgressDrawer  from "./components/AEStudentProgressDrawer";
+import QuestionPoolEditorModal  from "../../../standards/StandardAssignPage/components/QuestionPoolEditorModal";
+
+// Tab components
+import AEOverviewTab        from "./components/AEOverviewTab";
+import AEStudentMonitorTab  from "./components/AEStudentMonitorTab";
+import AETaskQueueTab       from "./components/AETaskQueueTab";
+import AEExclusionsTab      from "./components/AEExclusionsTab";
+import AENotificationsTab   from "./components/AENotificationsTab";
+
+import { TABS, PAGE_SIZE } from "./constants";
 import "./TeacherAcademicExcellencePage.css";
 
-const labelFromMastery = (value) =>
-  String(value || "")
-    .split("_")
-    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : ""))
-    .join(" ");
-
-const TABS = [
-  { key: "overview", label: "Class Overview" },
-  { key: "students", label: "Student Monitor" },
-  { key: "tasks", label: "Task Queue" },
-  { key: "exclusions", label: "Controls & Exclusions" },
-  { key: "notifications", label: "Notification Settings" },
-];
-
-const PAGE_SIZE = 10;
-
-const PaginationBar = ({ page, total, pageSize, onPage }) => {
-  const totalPages = Math.ceil(total / pageSize);
-  if (totalPages <= 1) return null;
-  return (
-    <div className="teacher-ae-pagination">
-      <button type="button" className="teacher-ae-btn" disabled={page === 1} onClick={() => onPage(1)}>«</button>
-      <button type="button" className="teacher-ae-btn" disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
-      <span className="teacher-ae-pagination-info">{page} / {totalPages}</span>
-      <button type="button" className="teacher-ae-btn" disabled={page === totalPages} onClick={() => onPage(page + 1)}>›</button>
-      <button type="button" className="teacher-ae-btn" disabled={page === totalPages} onClick={() => onPage(totalPages)}>»</button>
-    </div>
-  );
-};
-
+// ─── Page ────────────────────────────────────────────────────────────
 const TeacherAcademicExcellencePage = () => {
   const user = useSelector(selectUser);
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Modals
-  const [assignModal, setAssignModal] = useState(null);
-  const [bulkAssignModal, setBulkAssignModal] = useState(null);
-  const [drawerStudent, setDrawerStudent] = useState(null);
-  const [aiPracticeModal, setAiPracticeModal] = useState(null);
-  const [poolEditorModal, setPoolEditorModal] = useState(null);
-  const [savingPool, setSavingPool] = useState(false);
-  const [poolEditorError, setPoolEditorError] = useState("");
-  const [reviewingTaskId, setReviewingTaskId] = useState(null);
-  const [feedbackText, setFeedbackText] = useState("");
+  // ── Modal / drawer state ──
+  const [assignModal,       setAssignModal]       = useState(null);
+  const [bulkAssignModal,   setBulkAssignModal]   = useState(null);
+  const [drawerStudent,     setDrawerStudent]     = useState(null);
+  const [aiPracticeModal,   setAiPracticeModal]   = useState(null);
+  const [poolEditorModal,   setPoolEditorModal]   = useState(null);
+  const [savingPool,        setSavingPool]        = useState(false);
+  const [poolEditorError,   setPoolEditorError]   = useState("");
+  const [reviewingTaskId,   setReviewingTaskId]   = useState(null);
+  const [feedbackText,      setFeedbackText]      = useState("");
 
-  // Exclusion form
+  // ── Exclusion form ──
   const [newExclusion, setNewExclusion] = useState({
-    scopeType: "objective",
-    objectiveKey: "",
-    targetType: "all_students",
-    reason: "",
+    scopeType: "objective", objectiveKey: "", targetType: "all_students", reason: "",
   });
 
-  // Pagination
-  const [objectivesPage, setObjectivesPage] = useState(1);
-  const [heatmapPage, setHeatmapPage] = useState(1);
-  const [studentsPage, setStudentsPage] = useState(1);
-  const [tasksPage, setTasksPage] = useState(1);
-  const [exclusionsPage, setExclusionsPage] = useState(1);
+  // ── Pagination ──
+  const [objectivesPage,      setObjectivesPage]      = useState(1);
+  const [heatmapPage,         setHeatmapPage]         = useState(1);
+  const [heatmapStudentsPage, setHeatmapStudentsPage] = useState(1);
+  const [studentsPage,        setStudentsPage]        = useState(1);
+  const [tasksPage,           setTasksPage]           = useState(1);
+  const [exclusionsPage,      setExclusionsPage]      = useState(1);
 
-  // Objective edit/delete state
-  const [editingObjectiveId, setEditingObjectiveId] = useState(null);
-  const [editingObjectiveName, setEditingObjectiveName] = useState("");
+  // ── Objective edit state ──
+  const [editingObjectiveId,       setEditingObjectiveId]       = useState(null);
+  const [editingObjectiveName,     setEditingObjectiveName]     = useState("");
   const [confirmDeleteObjectiveId, setConfirmDeleteObjectiveId] = useState(null);
 
-  // Notification prefs local state
+  // ── Notification prefs ──
   const [localNotifPrefs, setLocalNotifPrefs] = useState(null);
-  const [savingNotifs, setSavingNotifs] = useState(false);
+  const [savingNotifs,    setSavingNotifs]    = useState(false);
 
+  // ── Hook ──
   const {
-    loading,
-    error,
-    classes,
-    selectedClassId,
-    setSelectedClassId,
-    subjects,
-    selectedSubjectId,
-    setSelectedSubjectId,
-    classSummary,
-    objectives,
-    students,
-    taskQueue,
-    exclusions,
-    notificationPrefs,
+    loading, error,
+    classes, selectedClassId, setSelectedClassId,
+    subjects, selectedSubjectId, setSelectedSubjectId,
+    classSummary, objectives, students, taskQueue, exclusions, notificationPrefs,
     aiPracticeCreating,
-    assignTask,
-    bulkAssignTasks,
-    createAIPracticeAssignment,
-    fetchAIPracticePool,
-    reviewTask,
-    createExclusion,
-    toggleExclusion,
-    deleteExclusion,
-    renameObjective,
-    deleteObjective,
-    saveNotificationPrefs,
-    refresh,
+    assignTask, bulkAssignTasks, createAIPracticeAssignment, fetchAIPracticePool,
+    reviewTask, createExclusion, toggleExclusion, deleteExclusion,
+    renameObjective, deleteObjective, saveNotificationPrefs, toggleStudentAE, refresh,
   } = useTeacherAcademicExcellence();
 
-  // Permission check helper
+  // ── Permission helper ──
   const hasPermission = useCallback(
     (perm) => {
       if (!user) return false;
@@ -120,93 +82,65 @@ const TeacherAcademicExcellencePage = () => {
     [user],
   );
 
-  // Summary KPIs from classSummary
+  // ── Derived data ──
   const kpis = useMemo(() => {
     const summary = classSummary?.summary || {};
     return {
-      totalStudents: summary.totalStudents || students.length || 0,
-      atRiskPercent: summary.atRiskPercent || 0,
-      developingPercent: summary.developingPercent || 0,
-      masteredPercent: summary.masteredPercent || 0,
+      totalStudents:    summary.totalStudents    || students.length || 0,
+      atRiskPercent:    summary.atRiskPercent    || 0,
+      developingPercent:summary.developingPercent|| 0,
+      masteredPercent:  summary.masteredPercent  || 0,
     };
   }, [classSummary, students]);
 
-  // Heatmap: objectives as rows, students as columns
-  const heatmapData = useMemo(() => {
-    if (!classSummary?.heatmap) return null;
-    return classSummary.heatmap;
-  }, [classSummary]);
+  const heatmapData = useMemo(() => classSummary?.heatmap || null, [classSummary]);
 
   const assignableObjectives = useMemo(() => {
-    const fromObjectives = Array.isArray(objectives) ? objectives : [];
-    const fromHeatmap = Array.isArray(heatmapData?.objectives) ? heatmapData.objectives : [];
-    const merged = [...fromObjectives, ...fromHeatmap];
-
+    const fromObjectives = Array.isArray(objectives)             ? objectives             : [];
+    const fromHeatmap    = Array.isArray(heatmapData?.objectives)? heatmapData.objectives : [];
     const map = new Map();
-    for (const item of merged) {
+    for (const item of [...fromObjectives, ...fromHeatmap]) {
       const key = String(item?.objectiveKey || "").trim();
-      if (!key) continue;
-      if (!map.has(key)) {
-        map.set(key, {
-          objectiveKey: key,
-          objectiveName: item?.objectiveName || key,
-          subject: item?.subject || selectedSubjectId || "",
-        });
-      }
+      if (!key || map.has(key)) continue;
+      map.set(key, {
+        objectiveKey:  key,
+        objectiveName: item?.objectiveName || key,
+        subject:       item?.subject || selectedSubjectId || "",
+      });
     }
-
     return Array.from(map.values());
   }, [objectives, heatmapData, selectedSubjectId]);
 
-  // Reset pages when class or subject changes
+  // ── Reset pages on class/subject change ──
   useEffect(() => {
-    setObjectivesPage(1);
-    setHeatmapPage(1);
-    setStudentsPage(1);
-    setTasksPage(1);
-    setExclusionsPage(1);
+    setObjectivesPage(1); setHeatmapPage(1); setHeatmapStudentsPage(1);
+    setStudentsPage(1);   setTasksPage(1);   setExclusionsPage(1);
   }, [selectedClassId, selectedSubjectId]);
 
-  // Init local notif prefs from loaded data
+  // ── Sync notification prefs ──
   useEffect(() => {
-    if (notificationPrefs && !localNotifPrefs) {
-      setLocalNotifPrefs(notificationPrefs);
-    }
+    if (notificationPrefs && !localNotifPrefs) setLocalNotifPrefs(notificationPrefs);
   }, [notificationPrefs, localNotifPrefs]);
 
   // ── Handlers ──
   const handleReviewSubmit = async (taskId) => {
-    try {
-      await reviewTask(taskId, { teacherFeedback: feedbackText });
-      setReviewingTaskId(null);
-      setFeedbackText("");
-    } catch {
-      /* toast can go here */
-    }
+    try { await reviewTask(taskId, { teacherFeedback: feedbackText }); }
+    catch { /* toast */ }
+    setReviewingTaskId(null); setFeedbackText("");
   };
 
   const handleCreateExclusion = async () => {
-    try {
-      await createExclusion({
-        ...newExclusion,
-        classId: selectedClassId,
-      });
-      setNewExclusion({ scopeType: "objective", objectiveKey: "", targetType: "all_students", reason: "" });
-    } catch {
-      /* toast */
-    }
+    try { await createExclusion({ ...newExclusion, classId: selectedClassId }); }
+    catch { /* toast */ }
+    setNewExclusion({ scopeType: "objective", objectiveKey: "", targetType: "all_students", reason: "" });
   };
 
   const handleSaveNotifPrefs = async () => {
     if (!localNotifPrefs) return;
     setSavingNotifs(true);
-    try {
-      await saveNotificationPrefs(localNotifPrefs);
-    } catch {
-      /* toast */
-    } finally {
-      setSavingNotifs(false);
-    }
+    try { await saveNotificationPrefs(localNotifPrefs); }
+    catch { /* toast */ }
+    finally { setSavingNotifs(false); }
   };
 
   const handleStartRename = (obj) => {
@@ -216,26 +150,16 @@ const TeacherAcademicExcellencePage = () => {
 
   const handleConfirmRename = async () => {
     if (!editingObjectiveId || !editingObjectiveName.trim()) return;
-    try {
-      await renameObjective(editingObjectiveId, editingObjectiveName.trim());
-    } catch {
-      /* toast */
-    }
-    setEditingObjectiveId(null);
-    setEditingObjectiveName("");
+    try { await renameObjective(editingObjectiveId, editingObjectiveName.trim()); }
+    catch { /* toast */ }
+    setEditingObjectiveId(null); setEditingObjectiveName("");
   };
 
-  const handleCancelRename = () => {
-    setEditingObjectiveId(null);
-    setEditingObjectiveName("");
-  };
+  const handleCancelRename = () => { setEditingObjectiveId(null); setEditingObjectiveName(""); };
 
   const handleDeleteObjective = async (objectiveId) => {
-    try {
-      await deleteObjective(objectiveId);
-    } catch {
-      /* toast */
-    }
+    try { await deleteObjective(objectiveId); }
+    catch { /* toast */ }
     setConfirmDeleteObjectiveId(null);
   };
 
@@ -246,11 +170,8 @@ const TeacherAcademicExcellencePage = () => {
       const keys = path.split(".");
       let obj = next;
       for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        if (!obj[key] || typeof obj[key] !== "object") {
-          obj[key] = {};
-        }
-        obj = obj[key];
+        if (!obj[keys[i]] || typeof obj[keys[i]] !== "object") obj[keys[i]] = {};
+        obj = obj[keys[i]];
       }
       obj[keys[keys.length - 1]] = value;
       return next;
@@ -259,22 +180,17 @@ const TeacherAcademicExcellencePage = () => {
 
   const resolveObjectiveSubject = useCallback((objective) => {
     const objectiveSubjectId = objective?.subject?._id || objective?.subject || selectedSubjectId;
-    const subjectEntry = (subjects || []).find((item) => (item?._id || item) === objectiveSubjectId)
-      || (subjects || []).find((item) => (item?._id || item) === selectedSubjectId)
-      || null;
-    return {
-      subjectId: objectiveSubjectId || selectedSubjectId || "",
-      subjectName: subjectEntry?.name || "",
-    };
+    const subjectEntry = (subjects || []).find((s) => (s?._id || s) === objectiveSubjectId)
+      || (subjects || []).find((s) => (s?._id || s) === selectedSubjectId) || null;
+    return { subjectId: objectiveSubjectId || selectedSubjectId || "", subjectName: subjectEntry?.name || "" };
   }, [selectedSubjectId, subjects]);
 
   const openAIPracticeModal = useCallback((objective, options = {}) => {
     const { subjectId, subjectName } = resolveObjectiveSubject(objective);
     setAiPracticeModal({
-      objectiveKey: objective?.objectiveKey || "",
+      objectiveKey:  objective?.objectiveKey  || "",
       objectiveName: objective?.objectiveName || objective?.objectiveKey || "",
-      subjectId,
-      subjectName,
+      subjectId, subjectName,
       classId: selectedClassId,
       ...options,
     });
@@ -297,27 +213,23 @@ const TeacherAcademicExcellencePage = () => {
   const retryAIPracticePool = useCallback(async () => {
     if (!poolEditorModal?.assignmentId) return;
     setPoolEditorError("");
-    setPoolEditorModal((prev) => (prev ? { ...prev, loading: true } : prev));
+    setPoolEditorModal((prev) => prev ? { ...prev, loading: true } : prev);
     try {
       const poolData = await fetchAIPracticePool(poolEditorModal.assignmentId);
       setPoolEditorModal({ assignmentId: poolEditorModal.assignmentId, loading: false, poolData });
     } catch (err) {
       setPoolEditorError(err?.response?.data?.message || "Unable to load question pool.");
-      setPoolEditorModal((prev) => (prev ? { ...prev, loading: false } : prev));
+      setPoolEditorModal((prev) => prev ? { ...prev, loading: false } : prev);
     }
   }, [fetchAIPracticePool, poolEditorModal]);
 
   const handlePoolSave = useCallback(async (questions, changeSummary = "") => {
     if (!poolEditorModal?.assignmentId) return;
-    setSavingPool(true);
-    setPoolEditorError("");
+    setSavingPool(true); setPoolEditorError("");
     try {
-      await api.put(`/standard-assignments/${poolEditorModal.assignmentId}/question-pool`, {
-        questions,
-        changeSummary,
-      });
+      await api.put(`/standard-assignments/${poolEditorModal.assignmentId}/question-pool`, { questions, changeSummary });
       const poolData = await fetchAIPracticePool(poolEditorModal.assignmentId);
-      setPoolEditorModal((prev) => (prev ? { ...prev, poolData } : prev));
+      setPoolEditorModal((prev) => prev ? { ...prev, poolData } : prev);
     } catch (err) {
       setPoolEditorError(err?.response?.data?.message || "Failed to save question pool.");
     } finally {
@@ -328,6 +240,7 @@ const TeacherAcademicExcellencePage = () => {
   // ── Render ──
   return (
     <div className="teacher-academic-excellence-page">
+
       {/* Header */}
       <header className="teacher-ae-header">
         <div>
@@ -343,36 +256,24 @@ const TeacherAcademicExcellencePage = () => {
 
       {/* Filters */}
       <div className="teacher-ae-filters">
-        <select
-          className="teacher-ae-select"
-          value={selectedClassId}
-          onChange={(e) => setSelectedClassId(e.target.value)}
-        >
+        <select className="teacher-ae-select" value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}>
           <option value="">Select Class</option>
           {classes.map((cls) => (
-            <option key={cls._id} value={cls._id}>
-              {cls.name || cls.className || cls._id}
-            </option>
+            <option key={cls._id} value={cls._id}>{cls.name || cls.className || cls._id}</option>
           ))}
         </select>
         {subjects.length > 0 && (
-          <select
-            className="teacher-ae-select"
-            value={selectedSubjectId}
-            onChange={(e) => setSelectedSubjectId(e.target.value)}
-          >
+          <select className="teacher-ae-select" value={selectedSubjectId} onChange={(e) => setSelectedSubjectId(e.target.value)}>
             <option value="">All Subjects</option>
             {subjects.map((sub) => (
-              <option key={sub._id || sub} value={sub._id || sub}>
-                {sub.name || sub}
-              </option>
+              <option key={sub._id || sub} value={sub._id || sub}>{sub.name || sub}</option>
             ))}
           </select>
         )}
       </div>
 
       {loading && <div className="teacher-ae-loading">Loading academic excellence data...</div>}
-      {error && <div className="teacher-ae-error">{error}</div>}
+      {error   && <div className="teacher-ae-error">{error}</div>}
 
       {/* Tabs */}
       <nav className="teacher-ae-tabs">
@@ -388,542 +289,86 @@ const TeacherAcademicExcellencePage = () => {
         ))}
       </nav>
 
-      {/* ═══ Tab 1: Class Overview ═══ */}
+      {/* ── Tab panels ── */}
       {activeTab === "overview" && (
-        <>
-          <div className="teacher-ae-grid">
-            <article className="teacher-ae-card">
-              <h3>Total Students</h3>
-              <strong>{kpis.totalStudents}</strong>
-            </article>
-            <article className="teacher-ae-card">
-              <h3>At Risk</h3>
-              <strong>{kpis.atRiskPercent}%</strong>
-            </article>
-            <article className="teacher-ae-card">
-              <h3>Developing</h3>
-              <strong>{kpis.developingPercent}%</strong>
-            </article>
-            <article className="teacher-ae-card">
-              <h3>Mastered</h3>
-              <strong>{kpis.masteredPercent}%</strong>
-            </article>
-          </div>
-
-          <section className="teacher-ae-panel">
-            <h2>Objective × Student Heatmap</h2>
-            {heatmapData ? (
-              <div className="teacher-ae-heatmap-wrap">
-                <table className="teacher-ae-heatmap">
-                  <thead>
-                    <tr>
-                      <th>Objective</th>
-                      {(heatmapData.students || []).map((s) => (
-                        <th key={s._id}>{s.name || s._id}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(heatmapData.objectives || [])
-                      .slice((heatmapPage - 1) * PAGE_SIZE, heatmapPage * PAGE_SIZE)
-                      .map((obj) => (
-                      <tr key={obj.objectiveKey}>
-                        <td className="teacher-ae-objective-cell">
-                          <span className="teacher-ae-objective-name" title={obj.objectiveName || obj.objectiveKey}>
-                            {obj.objectiveName || obj.objectiveKey}
-                          </span>
-                          <span className="teacher-ae-objective-actions">
-                            {obj._id && (
-                              <>
-                                <button type="button" className="teacher-ae-icon-btn" title="Rename" onClick={() => handleStartRename(obj)}>✎</button>
-                                <button type="button" className="teacher-ae-icon-btn teacher-ae-icon-btn-danger" title="Delete" onClick={() => setConfirmDeleteObjectiveId(obj._id)}>✕</button>
-                              </>
-                            )}
-                          </span>
-                          {hasPermission(PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS) && (
-                            <button
-                              type="button"
-                              className="teacher-ae-btn"
-                              style={{ marginLeft: "0.5rem", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
-                              onClick={() => setBulkAssignModal({ objectiveKey: obj.objectiveKey, objectiveName: obj.objectiveName })}
-                            >
-                              Assign All
-                            </button>
-                          )}
-                          {hasPermission(PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS) && (
-                            <button
-                              type="button"
-                              className="teacher-ae-btn"
-                              style={{ marginLeft: "0.35rem", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}
-                              onClick={() => openAIPracticeModal(obj, { isBulk: true })}
-                            >
-                              AI Practice (All)
-                            </button>
-                          )}
-                        </td>
-                        {(heatmapData.students || []).map((s) => {
-                          const cell = (obj.studentLevels || {})[s._id] || "not_started";
-                          return (
-                            <td
-                              key={s._id}
-                              className={cell}
-                              style={{ cursor: "pointer" }}
-                              onClick={() => setDrawerStudent({ ...s, objectiveKey: obj.objectiveKey })}
-                              onDoubleClick={() => openAIPracticeModal(obj, {
-                                studentId: s._id,
-                                studentName: s.name,
-                              })}
-                              title={`${s.name}: ${labelFromMastery(cell)} (double click to assign AI practice)`}
-                            >
-                              {labelFromMastery(cell).charAt(0)}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="teacher-ae-empty">
-                {selectedClassId ? "No heatmap data available for this class." : "Select a class to view the heatmap."}
-              </div>
-            )}
-            {heatmapData?.objectives?.length > 0 && (
-              <PaginationBar
-                page={heatmapPage}
-                total={heatmapData.objectives.length}
-                pageSize={PAGE_SIZE}
-                onPage={setHeatmapPage}
-              />
-            )}
-          </section>
-
-          <section className="teacher-ae-panel">
-            <h2>Objectives ({objectives.length})</h2>
-            {objectives.length === 0 ? (
-              <div className="teacher-ae-empty">No objectives tracked yet.</div>
-            ) : (
-              <div className="teacher-ae-list">
-                {objectives
-                  .slice((objectivesPage - 1) * PAGE_SIZE, objectivesPage * PAGE_SIZE)
-                  .map((obj) => (
-                  <article key={obj._id || obj.objectiveKey} className="teacher-ae-task-item">
-                    <div className="teacher-ae-task-header">
-                      {editingObjectiveId === obj._id ? (
-                        <div className="teacher-ae-inline-edit">
-                          <input
-                            className="teacher-ae-input"
-                            value={editingObjectiveName}
-                            onChange={(e) => setEditingObjectiveName(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") handleConfirmRename(); if (e.key === "Escape") handleCancelRename(); }}
-                            autoFocus
-                          />
-                          <button type="button" className="teacher-ae-btn-primary" style={{ padding: "0.2rem 0.5rem", fontSize: "0.78rem" }} onClick={handleConfirmRename}>Save</button>
-                          <button type="button" className="teacher-ae-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.78rem" }} onClick={handleCancelRename}>Cancel</button>
-                        </div>
-                      ) : (
-                        <div className="teacher-ae-objective-name-group">
-                          <strong className="teacher-ae-objective-name" title={obj.objectiveName || obj.objectiveKey}>{obj.objectiveName || obj.objectiveKey}</strong>
-                          {obj._id && typeof obj._id === "string" && obj._id.length === 24 && (
-                            <span className="teacher-ae-objective-actions">
-                              <button type="button" className="teacher-ae-icon-btn" title="Rename" onClick={() => handleStartRename(obj)}>✎</button>
-                              {confirmDeleteObjectiveId === obj._id ? (
-                                <>
-                                  <button type="button" className="teacher-ae-btn-danger" style={{ padding: "0.15rem 0.4rem", fontSize: "0.75rem" }} onClick={() => handleDeleteObjective(obj._id)}>Confirm</button>
-                                  <button type="button" className="teacher-ae-btn" style={{ padding: "0.15rem 0.4rem", fontSize: "0.75rem" }} onClick={() => setConfirmDeleteObjectiveId(null)}>Cancel</button>
-                                </>
-                              ) : (
-                                <button type="button" className="teacher-ae-icon-btn teacher-ae-icon-btn-danger" title="Delete" onClick={() => setConfirmDeleteObjectiveId(obj._id)}>✕</button>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <span className={`academic-excellence-badge ${obj.masteryLevel || "not_started"}`}>
-                        {labelFromMastery(obj.masteryLevel)}
-                      </span>
-                    </div>
-                    <div className="teacher-ae-task-meta">
-                      <span>Avg Score: {obj.avgScore ?? obj.masteryScore ?? 0}%</span>
-                      <span>Students at risk: {obj.atRiskCount || 0}</span>
-                    </div>
-                    <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-                      {hasPermission(PERMISSIONS.BULK_ASSIGN_ACADEMIC_EXCELLENCE_TASKS) && (
-                        <button
-                          type="button"
-                          className="teacher-ae-btn"
-                          onClick={() => openAIPracticeModal(obj, { isBulk: true })}
-                        >
-                          AI Practice (All)
-                        </button>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-            {objectives.length > 0 && (
-              <PaginationBar
-                page={objectivesPage}
-                total={objectives.length}
-                pageSize={PAGE_SIZE}
-                onPage={setObjectivesPage}
-              />
-            )}
-          </section>
-        </>
+        <AEOverviewTab
+          kpis={kpis}
+          heatmapData={heatmapData}
+          selectedClassId={selectedClassId}
+          objectives={objectives}
+          heatmapPage={heatmapPage}           setHeatmapPage={setHeatmapPage}
+          heatmapStudentsPage={heatmapStudentsPage} setHeatmapStudentsPage={setHeatmapStudentsPage}
+          objectivesPage={objectivesPage}     setObjectivesPage={setObjectivesPage}
+          editingObjectiveId={editingObjectiveId}
+          editingObjectiveName={editingObjectiveName}
+          setEditingObjectiveName={setEditingObjectiveName}
+          confirmDeleteObjectiveId={confirmDeleteObjectiveId}
+          hasPermission={hasPermission}
+          onHeatmapCellClick={(s, obj) => setDrawerStudent({ ...s, objectiveKey: obj.objectiveKey })}
+          onHeatmapCellDoubleClick={(obj, s) => openAIPracticeModal(obj, { studentId: s._id, studentName: s.name })}
+          onStartRename={handleStartRename}
+          onConfirmRename={handleConfirmRename}
+          onCancelRename={handleCancelRename}
+          onDeleteRequest={setConfirmDeleteObjectiveId}
+          onDeleteConfirm={handleDeleteObjective}
+          onBulkAssign={(obj) => setBulkAssignModal({ objectiveKey: obj.objectiveKey, objectiveName: obj.objectiveName })}
+          onAIPracticeAll={(obj) => openAIPracticeModal(obj, { isBulk: true })}
+        />
       )}
 
-      {/* ═══ Tab 2: Student Monitor ═══ */}
       {activeTab === "students" && (
-        <section className="teacher-ae-panel">
-          <h2>Student Monitor</h2>
-          {students.length === 0 ? (
-            <div className="teacher-ae-empty">No students in this class.</div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="teacher-ae-student-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>At Risk</th>
-                    <th>Developing</th>
-                    <th>Mastered</th>
-                    <th>Tasks Pending</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students
-                    .slice((studentsPage - 1) * PAGE_SIZE, studentsPage * PAGE_SIZE)
-                    .map((student) => {
-                    const aeData = classSummary?.studentBreakdown?.[student._id] || {};
-                    return (
-                      <tr key={student._id}>
-                        <td>
-                          <button
-                            type="button"
-                            className="teacher-ae-btn"
-                            style={{ border: 0, background: "transparent", fontWeight: 600, cursor: "pointer", padding: 0, textDecoration: "underline" }}
-                            onClick={() => setDrawerStudent(student)}
-                          >
-                            {student.name || `${student.firstName || ""} ${student.lastName || ""}`.trim() || student._id}
-                          </button>
-                        </td>
-                        <td>{aeData.atRiskCount || 0}</td>
-                        <td>{aeData.developingCount || 0}</td>
-                        <td>{aeData.masteredCount || 0}</td>
-                        <td>{aeData.pendingTasksCount || 0}</td>
-                        <td>
-                          <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
-                            {hasPermission(PERMISSIONS.ASSIGN_ACADEMIC_EXCELLENCE_TASKS) && (
-                              <button
-                                type="button"
-                                className="teacher-ae-btn-primary"
-                                style={{ fontSize: "0.78rem", padding: "0.25rem 0.5rem" }}
-                                onClick={() => setAssignModal({ studentId: student._id, studentName: student.name || student.firstName })}
-                              >
-                                Assign Task
-                              </button>
-                            )}
-                            {hasPermission(PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_STUDENT) && (
-                              <button
-                                type="button"
-                                className="teacher-ae-btn"
-                                style={{ fontSize: "0.78rem", padding: "0.25rem 0.5rem" }}
-                                title={aeData.isDisabled ? "Re-enable AE" : "Disable AE"}
-                                onClick={() => {
-                                  /* TODO: toggle AE for student */
-                                }}
-                              >
-                                {aeData.isDisabled ? "Enable AE" : "Disable AE"}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {students.length > 0 && (
-            <PaginationBar
-              page={studentsPage}
-              total={students.length}
-              pageSize={PAGE_SIZE}
-              onPage={setStudentsPage}
-            />
-          )}
-        </section>
+        <AEStudentMonitorTab
+          students={students}
+          classSummary={classSummary}
+          studentsPage={studentsPage}
+          setStudentsPage={setStudentsPage}
+          selectedClassId={selectedClassId}
+          hasPermission={hasPermission}
+          onOpenDrawer={setDrawerStudent}
+          onAssignTask={(student) => setAssignModal({ studentId: student._id, studentName: student.name || student.firstName })}
+          onToggleAE={toggleStudentAE}
+        />
       )}
 
-      {/* ═══ Tab 3: Task Queue ═══ */}
       {activeTab === "tasks" && (
-        <section className="teacher-ae-panel">
-          <h2>Task Queue ({taskQueue.length})</h2>
-          {taskQueue.length === 0 ? (
-            <div className="teacher-ae-empty">No tasks awaiting review.</div>
-          ) : (
-            <div className="teacher-ae-list">
-              {taskQueue
-                .slice((tasksPage - 1) * PAGE_SIZE, tasksPage * PAGE_SIZE)
-                .map((task) => (
-                <article key={task._id} className="teacher-ae-task-item">
-                  <div className="teacher-ae-task-header">
-                    <strong>{task.title || task.objectiveName || "Task"}</strong>
-                    <span className={`academic-excellence-badge ${task.status || "assigned"}`}>
-                      {labelFromMastery(task.status)}
-                    </span>
-                  </div>
-                  <div className="teacher-ae-task-meta">
-                    <span>Student: {task.studentName || task.student?.name || "—"}</span>
-                    <span>Objective: {task.objectiveName || task.objectiveKey || "—"}</span>
-                    <span>Score: {task.studentScore != null ? `${task.studentScore}%` : "—"}</span>
-                    <span>Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}</span>
-                  </div>
-                  {task.studentNotes && <div style={{ fontSize: "0.85rem", fontStyle: "italic" }}>"{task.studentNotes}"</div>}
-                  {hasPermission(PERMISSIONS.REVIEW_ACADEMIC_EXCELLENCE_TASKS) && task.status === "completed" && (
-                    <>
-                      {reviewingTaskId === task._id ? (
-                        <div className="teacher-ae-task-feedback">
-                          <textarea
-                            placeholder="Your feedback..."
-                            value={feedbackText}
-                            onChange={(e) => setFeedbackText(e.target.value)}
-                          />
-                          <div style={{ display: "flex", gap: "0.4rem" }}>
-                            <button type="button" className="teacher-ae-btn-primary" onClick={() => handleReviewSubmit(task._id)}>
-                              Submit Feedback
-                            </button>
-                            <button type="button" className="teacher-ae-btn" onClick={() => { setReviewingTaskId(null); setFeedbackText(""); }}>
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button type="button" className="teacher-ae-btn-primary" onClick={() => setReviewingTaskId(task._id)}>
-                          Review
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {task.teacherFeedback && (
-                    <div style={{ fontSize: "0.85rem", color: "var(--text-secondary, #6b7280)" }}>
-                      Feedback: {task.teacherFeedback}
-                    </div>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
-          {taskQueue.length > 0 && (
-            <PaginationBar
-              page={tasksPage}
-              total={taskQueue.length}
-              pageSize={PAGE_SIZE}
-              onPage={setTasksPage}
-            />
-          )}
-        </section>
+        <AETaskQueueTab
+          taskQueue={taskQueue}
+          tasksPage={tasksPage}
+          setTasksPage={setTasksPage}
+          reviewingTaskId={reviewingTaskId}
+          feedbackText={feedbackText}
+          setFeedbackText={setFeedbackText}
+          hasPermission={hasPermission}
+          onStartReview={setReviewingTaskId}
+          onSubmitReview={handleReviewSubmit}
+          onCancelReview={() => { setReviewingTaskId(null); setFeedbackText(""); }}
+        />
       )}
 
-      {/* ═══ Tab 4: Controls & Exclusions ═══ */}
       {activeTab === "exclusions" && (
-        <section className="teacher-ae-panel">
-          <h2>Exclusions ({exclusions.length})</h2>
-
-          {(hasPermission(PERMISSIONS.EXCLUDE_ACADEMIC_EXCELLENCE_LESSON) ||
-            hasPermission(PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_EXCLUSIONS)) && (
-            <div style={{ display: "grid", gap: "0.5rem", marginBottom: "1rem", padding: "0.75rem", border: "1px solid var(--border-color, #e5e7eb)", borderRadius: "8px" }}>
-              <strong style={{ fontSize: "0.9rem" }}>Add Exclusion</strong>
-              <div className="teacher-ae-form-group">
-                <label>Scope Type</label>
-                <select
-                  className="teacher-ae-select"
-                  value={newExclusion.scopeType}
-                  onChange={(e) => setNewExclusion((p) => ({ ...p, scopeType: e.target.value }))}
-                >
-                  <option value="objective">Objective</option>
-                  <option value="lesson">Lesson</option>
-                  <option value="subject">Subject</option>
-                </select>
-              </div>
-              <div className="teacher-ae-form-group">
-                <label>Objective Key</label>
-                <input
-                  className="teacher-ae-input"
-                  value={newExclusion.objectiveKey}
-                  onChange={(e) => setNewExclusion((p) => ({ ...p, objectiveKey: e.target.value }))}
-                  placeholder="e.g. MATH-G5-FRACTIONS-ADD"
-                />
-              </div>
-              <div className="teacher-ae-form-group">
-                <label>Target</label>
-                <select
-                  className="teacher-ae-select"
-                  value={newExclusion.targetType}
-                  onChange={(e) => setNewExclusion((p) => ({ ...p, targetType: e.target.value }))}
-                >
-                  <option value="all_students">All Students</option>
-                  <option value="class">This Class</option>
-                  <option value="student">Individual Student</option>
-                </select>
-              </div>
-              <div className="teacher-ae-form-group">
-                <label>Reason</label>
-                <input
-                  className="teacher-ae-input"
-                  value={newExclusion.reason}
-                  onChange={(e) => setNewExclusion((p) => ({ ...p, reason: e.target.value }))}
-                  placeholder="Why exclude this?"
-                />
-              </div>
-              <button type="button" className="teacher-ae-btn-primary" onClick={handleCreateExclusion}>
-                Create Exclusion
-              </button>
-            </div>
-          )}
-
-          {exclusions.length === 0 ? (
-            <div className="teacher-ae-empty">No active exclusions.</div>
-          ) : (
-            <div className="teacher-ae-list">
-              {exclusions
-                .slice((exclusionsPage - 1) * PAGE_SIZE, exclusionsPage * PAGE_SIZE)
-                .map((exc) => (
-                <div key={exc._id} className="teacher-ae-exclusion-item">
-                  <div>
-                    <strong>{exc.objectiveKey || exc.lessonPlanId || exc.subjectId || "—"}</strong>
-                    <div className="teacher-ae-exclusion-meta">
-                      {exc.scopeType} · {exc.targetType} · {exc.reason || "No reason"}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: "0.35rem" }}>
-                    <button
-                      type="button"
-                      className="teacher-ae-btn"
-                      onClick={() => toggleExclusion(exc._id)}
-                    >
-                      {exc.isActive ? "Deactivate" : "Activate"}
-                    </button>
-                    {hasPermission(PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_EXCLUSIONS) && (
-                      <button
-                        type="button"
-                        className="teacher-ae-btn-danger"
-                        onClick={() => deleteExclusion(exc._id)}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {exclusions.length > 0 && (
-            <PaginationBar
-              page={exclusionsPage}
-              total={exclusions.length}
-              pageSize={PAGE_SIZE}
-              onPage={setExclusionsPage}
-            />
-          )}
-        </section>
+        <AEExclusionsTab
+          exclusions={exclusions}
+          exclusionsPage={exclusionsPage}
+          setExclusionsPage={setExclusionsPage}
+          newExclusion={newExclusion}
+          setNewExclusion={setNewExclusion}
+          hasPermission={hasPermission}
+          onCreateExclusion={handleCreateExclusion}
+          onToggleExclusion={toggleExclusion}
+          onDeleteExclusion={deleteExclusion}
+        />
       )}
 
-      {/* ═══ Tab 5: Notification Settings ═══ */}
       {activeTab === "notifications" && (
-        <section className="teacher-ae-panel">
-          <h2>Notification Preferences</h2>
-          {localNotifPrefs ? (
-            <div style={{ display: "grid", gap: "0.5rem" }}>
-              <div className="teacher-ae-noti-row">
-                <label>Enable AE Notifications</label>
-                <button
-                  type="button"
-                  className={`teacher-ae-toggle ${localNotifPrefs.global?.enabled ? "on" : "off"}`}
-                  onClick={() => updateNotifField("global.enabled", !localNotifPrefs.global?.enabled)}
-                />
-              </div>
-              <div className="teacher-ae-noti-row">
-                <label>On Task Completed</label>
-                <button
-                  type="button"
-                  className={`teacher-ae-toggle ${localNotifPrefs.global?.onTaskCompleted ? "on" : "off"}`}
-                  onClick={() => updateNotifField("global.onTaskCompleted", !localNotifPrefs.global?.onTaskCompleted)}
-                />
-              </div>
-              <div className="teacher-ae-noti-row">
-                <label>On Objective Mastered</label>
-                <button
-                  type="button"
-                  className={`teacher-ae-toggle ${localNotifPrefs.global?.onObjectiveMastered ? "on" : "off"}`}
-                  onClick={() => updateNotifField("global.onObjectiveMastered", !localNotifPrefs.global?.onObjectiveMastered)}
-                />
-              </div>
-              <div className="teacher-ae-noti-row">
-                <label>On Student Struggling</label>
-                <button
-                  type="button"
-                  className={`teacher-ae-toggle ${localNotifPrefs.global?.onStudentStruggling ? "on" : "off"}`}
-                  onClick={() => updateNotifField("global.onStudentStruggling", !localNotifPrefs.global?.onStudentStruggling)}
-                />
-              </div>
-              <div className="teacher-ae-noti-row">
-                <label>Weekly Digest</label>
-                <button
-                  type="button"
-                  className={`teacher-ae-toggle ${localNotifPrefs.global?.onWeeklyDigest ? "on" : "off"}`}
-                  onClick={() => updateNotifField("global.onWeeklyDigest", !localNotifPrefs.global?.onWeeklyDigest)}
-                />
-              </div>
-
-              <strong style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>Channels</strong>
-              <div className="teacher-ae-noti-row">
-                <label>In-App</label>
-                <button
-                  type="button"
-                  className={`teacher-ae-toggle ${localNotifPrefs.global?.channels?.inApp ? "on" : "off"}`}
-                  onClick={() => updateNotifField("global.channels.inApp", !localNotifPrefs.global?.channels?.inApp)}
-                />
-              </div>
-              <div className="teacher-ae-noti-row">
-                <label>Email</label>
-                <button
-                  type="button"
-                  className={`teacher-ae-toggle ${localNotifPrefs.global?.channels?.email ? "on" : "off"}`}
-                  onClick={() => updateNotifField("global.channels.email", !localNotifPrefs.global?.channels?.email)}
-                />
-              </div>
-              <div className="teacher-ae-noti-row">
-                <label>Push</label>
-                <button
-                  type="button"
-                  className={`teacher-ae-toggle ${localNotifPrefs.global?.channels?.push ? "on" : "off"}`}
-                  onClick={() => updateNotifField("global.channels.push", !localNotifPrefs.global?.channels?.push)}
-                />
-              </div>
-
-              <button
-                type="button"
-                className="teacher-ae-btn-primary"
-                style={{ marginTop: "0.75rem", justifySelf: "start" }}
-                disabled={savingNotifs}
-                onClick={handleSaveNotifPrefs}
-              >
-                {savingNotifs ? "Saving..." : "Save Preferences"}
-              </button>
-            </div>
-          ) : (
-            <div className="teacher-ae-empty">Loading notification preferences...</div>
-          )}
-        </section>
+        <AENotificationsTab
+          localNotifPrefs={localNotifPrefs}
+          savingNotifs={savingNotifs}
+          onUpdateField={updateNotifField}
+          onSave={handleSaveNotifPrefs}
+        />
       )}
 
-      {/* ═══ Modals ═══ */}
+      {/* ── Modals ── */}
       {assignModal && (
         <AEAssignTaskModal
           studentId={assignModal.studentId}
@@ -932,10 +377,7 @@ const TeacherAcademicExcellencePage = () => {
           objectives={assignableObjectives}
           subjectId={selectedSubjectId}
           subjectName={subjects.find((s) => (s._id || s) === selectedSubjectId)?.name || ""}
-          onAssign={async (taskData) => {
-            await assignTask(taskData);
-            setAssignModal(null);
-          }}
+          onAssign={async (taskData) => { await assignTask(taskData); setAssignModal(null); }}
           onClose={() => setAssignModal(null)}
         />
       )}
@@ -947,10 +389,7 @@ const TeacherAcademicExcellencePage = () => {
           objectiveName={bulkAssignModal.objectiveName}
           subjectId={selectedSubjectId}
           subjectName={subjects.find((s) => (s._id || s) === selectedSubjectId)?.name || ""}
-          onAssign={async (taskData) => {
-            await bulkAssignTasks(taskData);
-            setBulkAssignModal(null);
-          }}
+          onAssign={async (taskData) => { await bulkAssignTasks(taskData); setBulkAssignModal(null); }}
           onClose={() => setBulkAssignModal(null)}
         />
       )}
@@ -965,35 +404,24 @@ const TeacherAcademicExcellencePage = () => {
 
       {aiPracticeModal && (
         <AEAIPracticeModal
-          studentId={aiPracticeModal.studentId}
-          studentName={aiPracticeModal.studentName}
-          isBulk={aiPracticeModal.isBulk}
-          classId={aiPracticeModal.classId}
-          objectiveKey={aiPracticeModal.objectiveKey}
-          objectiveName={aiPracticeModal.objectiveName}
-          subjectId={aiPracticeModal.subjectId}
-          subjectName={aiPracticeModal.subjectName}
+          {...aiPracticeModal}
           creating={aiPracticeCreating}
-          onCreate={createAIPracticeAssignment}
           onSuccess={handleAIPracticeSuccess}
           onClose={() => setAiPracticeModal(null)}
+          onCreateAssignment={createAIPracticeAssignment}
         />
       )}
 
       {poolEditorModal && (
         <QuestionPoolEditorModal
-          show={true}
-          onClose={() => {
-            setPoolEditorModal(null);
-            setPoolEditorError("");
-          }}
-          loading={poolEditorModal.loading}
-          error={poolEditorError}
-          data={poolEditorModal.poolData}
           assignmentId={poolEditorModal.assignmentId}
+          loading={poolEditorModal.loading}
+          poolData={poolEditorModal.poolData}
+          error={poolEditorError}
           saving={savingPool}
           onSave={handlePoolSave}
           onRetry={retryAIPracticePool}
+          onClose={() => { setPoolEditorModal(null); setPoolEditorError(""); }}
         />
       )}
     </div>

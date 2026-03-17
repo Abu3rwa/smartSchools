@@ -166,9 +166,11 @@ const ensureClassAccess = async (req, classId) => {
     const teacherProfile = await resolveTeacherProfile(req);
     if (!teacherProfile) return false;
 
+    // getTeacherClassIds expects a Teacher document _id, NOT the full req
     const classIds = await getTeacherClassIds(teacherProfile._id);
-    return classIds.some((id) => id.toString() === classId);
+    return classIds.some((id) => id.toString() === String(classId).trim());
 };
+
 
 /* ─── Class-level endpoints (mounted on /classes/:id/academic-excellence) ── */
 
@@ -856,6 +858,91 @@ export const softDeleteAcademicExcellenceObjective = asyncHandler(async (req, re
         data: {
             objectiveKey: objective.objectiveKey,
             deletedCount: result.modifiedCount
+        }
+    });
+});
+
+/* ─── Student AE toggle ───────────────────────────────────────────── */
+
+const AE_DISABLED_SENTINEL = '__AE_DISABLED__';
+
+/**
+ * PATCH /academic-excellence/students/:studentId/ae-toggle
+ * Toggles Academic Excellence on/off for a specific student in a class.
+ *
+ * Uses a sentinel exclusion record with objectiveKey='__AE_DISABLED__'
+ * and targetType='student' to represent the disabled state.
+ * If no such record exists → creates one (disabled).
+ * If one exists → flips its isActive flag.
+ *
+ * Body: { classId: string } (required — scopes the exclusion to the class)
+ */
+export const toggleStudentAE = asyncHandler(async (req, res) => {
+    const { studentId } = req.params;
+    const { classId }   = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ success: false, message: 'Invalid studentId' });
+    }
+    if (!classId || !mongoose.Types.ObjectId.isValid(classId)) {
+        return res.status(400).json({ success: false, message: 'classId is required' });
+    }
+
+
+    const classIdStr = String(classId).trim();
+
+
+    // Find existing sentinel exclusion for this student + class
+    // Resolve teacher profile first so we pass the Teacher _id (not req) to getTeacherClassIds
+    const teacherProfileForToggle = await resolveTeacherProfile(req);
+    const allowedClassIds = req.user.role === 'admin' || req.user.role === 'department_principal'
+        ? null  // admins skip class-scope check
+        : teacherProfileForToggle
+            ? (await getTeacherClassIds(teacherProfileForToggle._id)).map(String)
+            : [];
+
+    if (allowedClassIds !== null && !allowedClassIds.includes(classIdStr)) {
+        return res.status(403).json({ success: false, message: 'Not authorized for this class' });
+    }
+
+    let exclusion = await AcademicExcellenceExclusion.findOne({
+        school:       req.schoolId,
+        studentId:    studentId,
+        classId:      classId,
+        objectiveKey: AE_DISABLED_SENTINEL,
+        scopeType:    'objective',
+        targetType:   'student',
+    });
+
+    if (!exclusion) {
+        // First time → create a DISABLED (active) exclusion
+        exclusion = await AcademicExcellenceExclusion.create({
+            school:       req.schoolId,
+            studentId:    studentId,
+            classId:      classId,
+            objectiveKey: AE_DISABLED_SENTINEL,
+            scopeType:    'objective',
+            targetType:   'student',
+            reason:       'Manually disabled by teacher',
+            createdBy:    req.user._id,
+            isActive:     true,
+            activatedAt:  new Date(),
+        });
+    } else {
+        // Toggle
+        exclusion.isActive = !exclusion.isActive;
+        exclusion.activatedAt   = exclusion.isActive ? new Date() : exclusion.activatedAt;
+        exclusion.deactivatedAt = exclusion.isActive ? null        : new Date();
+        await exclusion.save();
+    }
+
+    res.json({
+        success: true,
+        data: {
+            studentId,
+            classId,
+            aeDisabled: exclusion.isActive,   // true → AE is disabled for this student
+            exclusionId: exclusion._id,
         }
     });
 });

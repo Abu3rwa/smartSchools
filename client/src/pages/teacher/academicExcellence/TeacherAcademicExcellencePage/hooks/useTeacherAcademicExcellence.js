@@ -38,9 +38,12 @@ const useTeacherAcademicExcellence = () => {
   const loadClasses = useCallback(async () => {
     try {
       const response = await api.get("/classes", {
-        params: { academicYear, semester: selectedSemester, limit: 100 },
+        params: { limit: 100 },
       });
-      const rawList = response.data?.data?.classes || response.data?.classes || [];
+      const rawList =
+        response.data?.data?.classes ||
+        response.data?.classes ||
+        [];
       const normalized = rawList
         .map((cls) => {
           const id = getEntityId(cls);
@@ -55,10 +58,13 @@ const useTeacherAcademicExcellence = () => {
       if (!hasSelectedClass) {
         setSelectedClassId(normalized[0]?._id || "");
       }
-    } catch {
-      /* classes may already be loaded */
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message || "Failed to load classes";
+      console.error("[AE] loadClasses error:", msg);
+      setError(msg);
     }
   }, [academicYear, selectedSemester, selectedClassId]);
+
 
   useEffect(() => {
     loadClasses();
@@ -206,6 +212,13 @@ const useTeacherAcademicExcellence = () => {
     await loadNotificationPrefs();
   }, [loadNotificationPrefs]);
 
+  const toggleStudentAE = useCallback(async (studentId, classId) => {
+    const res = await api.patch(`/academic-excellence/students/${studentId}/ae-toggle`, { classId });
+    // Refresh summary so studentBreakdown.isDisabled reflects the new state
+    await loadClassSummary();
+    return res?.data?.data || null;
+  }, [loadClassSummary]);
+
   const createAIPracticeAssignment = useCallback(async (payload) => {
     setAiPracticeCreating(true);
     setAiPracticeError(null);
@@ -260,8 +273,10 @@ const useTeacherAcademicExcellence = () => {
     renameObjective,
     deleteObjective,
     saveNotificationPrefs,
+    toggleStudentAE,
     refresh,
   };
+
 };
 
 export default useTeacherAcademicExcellence;
