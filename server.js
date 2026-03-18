@@ -9,6 +9,7 @@ import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
 import compression from "compression";
 import { createServer } from "http";
+import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -301,6 +302,18 @@ if (process.env.NODE_ENV === "production") {
   const __dirname = __dirnameServer;
   const clientDistPath = path.join(__dirname, "client", "dist");
   const clientIndexPath = path.join(clientDistPath, "index.html");
+
+  if (!fs.existsSync(clientIndexPath)) {
+    try {
+      logger.warn("frontend_bundle_missing_building", { clientIndexPath });
+      execSync("npm install --prefix client && npm run build --prefix client", {
+        cwd: __dirname,
+        stdio: "inherit",
+      });
+    } catch (error) {
+      logger.error("frontend_bundle_build_failed", error?.message || error);
+    }
+  }
 
   app.use(express.static(clientDistPath));
 
