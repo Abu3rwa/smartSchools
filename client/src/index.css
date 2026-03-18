@@ -501,7 +501,10 @@ label {
   transition: all var(--transition-fast);
   white-space: nowrap;
 }
-
+input[type="checkbox"], input[type="radio"] {
+    width: 16px !important;
+    height: 16px !important;
+}
 .btn-primary {
   background: var(--accent-gradient);
   color: white;

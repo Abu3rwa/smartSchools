@@ -85,6 +85,30 @@ const standardsGradebookEntrySchema = new mongoose.Schema({
         type: Date,
         default: null
     },
+    manualScore: {
+        type: Number,
+        enum: [0, 1, 2, 3, 4],
+        default: null
+    },
+    isManualEntry: {
+        type: Boolean,
+        default: false
+    },
+    manualEnteredBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
+    manualEnteredAt: {
+        type: Date,
+        default: null
+    },
+    effectiveScore: {
+        type: Number,
+        min: 0,
+        max: 4,
+        default: null
+    },
     metadata: {
         type: mongoose.Schema.Types.Mixed,
         default: {}

@@ -130,6 +130,7 @@ const KPICards = ({ kpis }) => (
 // ─── Heatmap ──────────────────────────────────────────────────────────
 const HeatmapPanel = ({
   heatmapData, selectedClassId,
+  trackingMode,
   heatmapPage, setHeatmapPage,
   heatmapStudentsPage, setHeatmapStudentsPage,
   hasPermission,
@@ -138,7 +139,7 @@ const HeatmapPanel = ({
 }) => (
   <section className="teacher-ae-panel">
     <div className="teacher-ae-heatmap-header-row">
-      <h2 style={{ margin: 0 }}>Objective × Student Heatmap</h2>
+      <h2 style={{ margin: 0 }}>{trackingMode === "standards" ? "Standard × Student Heatmap" : "Objective × Student Heatmap"}</h2>
       {heatmapData && <HeatmapLegend />}
     </div>
 
@@ -147,7 +148,7 @@ const HeatmapPanel = ({
         <table className="teacher-ae-heatmap">
           <thead>
             <tr>
-              <th>Objective</th>
+              <th>{trackingMode === "standards" ? "Standard" : "Objective"}</th>
               {(heatmapData.students || [])
                 .slice((heatmapStudentsPage - 1) * PAGE_SIZE, heatmapStudentsPage * PAGE_SIZE)
                 .map((s) => <th key={s._id}>{s.name || s._id}</th>)}
@@ -221,66 +222,117 @@ const HeatmapPanel = ({
 // ─── Objectives List ──────────────────────────────────────────────────
 const ObjectivesList = ({
   objectives,
+  trackingMode,
   objectivesPage, setObjectivesPage,
   editingObjectiveId,
   editingObjectiveName, setEditingObjectiveName,
   confirmDeleteObjectiveId,
+  selectedObjectiveIds,
+  deletingSelectedObjectives,
   onStartRename, onConfirmRename, onCancelRename,
   onDeleteRequest, onDeleteConfirm,
+  onToggleObjectiveSelection,
+  onToggleSelectAllVisibleObjectives,
+  onBulkDeleteSelectedObjectives,
   onAIPracticeAll,
   hasPermission,
-}) => (
-  <section className="teacher-ae-panel">
-    <h2>Objectives ({objectives.length})</h2>
-    {objectives.length === 0 ? (
-      <div className="teacher-ae-empty">No objectives tracked yet.</div>
-    ) : (
-      <div className="teacher-ae-list">
-        {objectives
-          .slice((objectivesPage - 1) * PAGE_SIZE, objectivesPage * PAGE_SIZE)
-          .map((obj) => (
+}) => {
+  const pagedObjectives = objectives.slice((objectivesPage - 1) * PAGE_SIZE, objectivesPage * PAGE_SIZE);
+  const visibleSelectableIds = pagedObjectives
+    .map((obj) => obj?._id)
+    .filter((id) => typeof id === "string" && id.length === 24);
+  const selectedCount = Array.isArray(selectedObjectiveIds) ? selectedObjectiveIds.length : 0;
+  const selectedSet = new Set(Array.isArray(selectedObjectiveIds) ? selectedObjectiveIds : []);
+  const allVisibleSelected = visibleSelectableIds.length > 0 && visibleSelectableIds.every((id) => selectedSet.has(id));
+
+  return (
+    <section className="teacher-ae-panel">
+      <div className="teacher-ae-objectives-toolbar">
+        <h2>{trackingMode === "standards" ? "Standards" : "Objectives"} ({objectives.length})</h2>
+        <div className="teacher-ae-objectives-toolbar-actions">
+          <label className="teacher-ae-objectives-selectall">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              disabled={visibleSelectableIds.length === 0}
+              onChange={(e) => onToggleSelectAllVisibleObjectives(visibleSelectableIds, e.target.checked)}
+            />
+            <span>Select page</span>
+          </label>
+          <button
+            type="button"
+            className="teacher-ae-btn-danger"
+            onClick={onBulkDeleteSelectedObjectives}
+            disabled={selectedCount === 0 || deletingSelectedObjectives}
+          >
+            {deletingSelectedObjectives ? "Deleting..." : `Delete Selected (${selectedCount})`}
+          </button>
+        </div>
+      </div>
+
+      {objectives.length === 0 ? (
+        <div className="teacher-ae-empty">No objectives tracked yet.</div>
+      ) : (
+        <div className="teacher-ae-list">
+          {pagedObjectives.map((obj) => {
+            const canSelect = typeof obj?._id === "string" && obj._id.length === 24;
+            return (
             <article key={obj._id || obj.objectiveKey} className="teacher-ae-task-item">
               <div className="teacher-ae-task-header">
-                {editingObjectiveId === obj._id ? (
-                  <div className="teacher-ae-inline-edit">
-                    <input
-                      className="teacher-ae-input"
-                      value={editingObjectiveName}
-                      onChange={(e) => setEditingObjectiveName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter")  onConfirmRename();
-                        if (e.key === "Escape") onCancelRename();
-                      }}
-                      autoFocus
-                    />
-                    <button type="button" className="teacher-ae-btn-primary" style={{ padding: "0.2rem 0.5rem", fontSize: "0.78rem" }} onClick={onConfirmRename}>Save</button>
-                    <button type="button" className="teacher-ae-btn"         style={{ padding: "0.2rem 0.5rem", fontSize: "0.78rem" }} onClick={onCancelRename}>Cancel</button>
-                  </div>
-                ) : (
-                  <div className="teacher-ae-objective-name-group">
-                    <strong className="teacher-ae-objective-name" title={obj.objectiveName || obj.objectiveKey}>
-                      {obj.objectiveName || obj.objectiveKey}
-                    </strong>
+                <div className="teacher-ae-objective-row-main">
+                  <span className="teacher-ae-objective-checkbox-wrap" aria-hidden={!canSelect}>
+                    {canSelect ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedSet.has(obj._id)}
+                        onChange={(e) => onToggleObjectiveSelection(obj._id, e.target.checked)}
+                        aria-label={`Select objective ${obj.objectiveName || obj.objectiveKey}`}
+                      />
+                    ) : null}
+                  </span>
 
-                    {/* Three-dot menu */}
-                    <ObjectiveActionsMenu
-                      obj={obj}
-                      hasPermission={hasPermission}
-                      onRename={onStartRename}
-                      onDeleteRequest={onDeleteRequest}
-                      onBulkAssign={() => {/* no bulk assign in list view */}}
-                      onAIPracticeAll={onAIPracticeAll}
-                    />
+                  {editingObjectiveId === obj._id ? (
+                    <div className="teacher-ae-inline-edit">
+                      <input
+                        className="teacher-ae-input"
+                        value={editingObjectiveName}
+                        onChange={(e) => setEditingObjectiveName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter")  onConfirmRename();
+                          if (e.key === "Escape") onCancelRename();
+                        }}
+                        autoFocus
+                      />
+                      <button type="button" className="teacher-ae-btn-primary" style={{ padding: "0.2rem 0.5rem", fontSize: "0.78rem" }} onClick={onConfirmRename}>Save</button>
+                      <button type="button" className="teacher-ae-btn"         style={{ padding: "0.2rem 0.5rem", fontSize: "0.78rem" }} onClick={onCancelRename}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div className="teacher-ae-objective-name-group">
+                      <strong className="teacher-ae-objective-name" title={obj.objectiveName || obj.objectiveKey}>
+                        {obj.objectiveName || obj.objectiveKey}
+                      </strong>
 
-                    {/* Confirm delete inline */}
-                    {confirmDeleteObjectiveId === obj._id && (
-                      <span className="teacher-ae-confirm-delete">
-                        <button type="button" className="teacher-ae-btn-danger" style={{ padding: "0.15rem 0.4rem", fontSize: "0.75rem" }} onClick={() => onDeleteConfirm(obj._id)}>Confirm</button>
-                        <button type="button" className="teacher-ae-btn"        style={{ padding: "0.15rem 0.4rem", fontSize: "0.75rem" }} onClick={() => onDeleteRequest(null)}>Cancel</button>
-                      </span>
-                    )}
-                  </div>
-                )}
+                      {/* Three-dot menu */}
+                      <ObjectiveActionsMenu
+                        obj={obj}
+                        hasPermission={hasPermission}
+                        onRename={onStartRename}
+                        onDeleteRequest={onDeleteRequest}
+                        onBulkAssign={() => {/* no bulk assign in list view */}}
+                        onAIPracticeAll={onAIPracticeAll}
+                      />
+
+                      {/* Confirm delete inline */}
+                      {confirmDeleteObjectiveId === obj._id && (
+                        <span className="teacher-ae-confirm-delete">
+                          <button type="button" className="teacher-ae-btn-danger" style={{ padding: "0.15rem 0.4rem", fontSize: "0.75rem" }} onClick={() => onDeleteConfirm(obj._id)}>Confirm</button>
+                          <button type="button" className="teacher-ae-btn"        style={{ padding: "0.15rem 0.4rem", fontSize: "0.75rem" }} onClick={() => onDeleteRequest(null)}>Cancel</button>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <span className={`academic-excellence-badge ${obj.masteryLevel || "not_started"}`}>
                   {labelFromMastery(obj.masteryLevel)}
                 </span>
@@ -290,30 +342,38 @@ const ObjectivesList = ({
                 <span>Students at risk: {obj.atRiskCount || 0}</span>
               </div>
             </article>
-          ))}
-      </div>
-    )}
-    {objectives.length > 0 && (
-      <PaginationBar page={objectivesPage} total={objectives.length} pageSize={PAGE_SIZE} onPage={setObjectivesPage} />
-    )}
-  </section>
-);
+          );
+          })}
+        </div>
+      )}
+      {objectives.length > 0 && (
+        <PaginationBar page={objectivesPage} total={objectives.length} pageSize={PAGE_SIZE} onPage={setObjectivesPage} />
+      )}
+    </section>
+  );
+};
 
 // ─── AEOverviewTab ────────────────────────────────────────────────────
 const AEOverviewTab = ({
   kpis,
   heatmapData, selectedClassId,
   objectives,
+  trackingMode,
   heatmapPage,         setHeatmapPage,
   heatmapStudentsPage, setHeatmapStudentsPage,
   objectivesPage,      setObjectivesPage,
   editingObjectiveId,
   editingObjectiveName, setEditingObjectiveName,
   confirmDeleteObjectiveId,
+  selectedObjectiveIds,
+  deletingSelectedObjectives,
   hasPermission,
   onHeatmapCellClick, onHeatmapCellDoubleClick,
   onStartRename, onConfirmRename, onCancelRename,
   onDeleteRequest, onDeleteConfirm,
+  onToggleObjectiveSelection,
+  onToggleSelectAllVisibleObjectives,
+  onBulkDeleteSelectedObjectives,
   onBulkAssign, onAIPracticeAll,
 }) => (
   <>
@@ -321,6 +381,7 @@ const AEOverviewTab = ({
     <HeatmapPanel
       heatmapData={heatmapData}
       selectedClassId={selectedClassId}
+      trackingMode={trackingMode}
       heatmapPage={heatmapPage}               setHeatmapPage={setHeatmapPage}
       heatmapStudentsPage={heatmapStudentsPage} setHeatmapStudentsPage={setHeatmapStudentsPage}
       hasPermission={hasPermission}
@@ -333,15 +394,21 @@ const AEOverviewTab = ({
     />
     <ObjectivesList
       objectives={objectives}
+      trackingMode={trackingMode}
       objectivesPage={objectivesPage}           setObjectivesPage={setObjectivesPage}
       editingObjectiveId={editingObjectiveId}
       editingObjectiveName={editingObjectiveName} setEditingObjectiveName={setEditingObjectiveName}
       confirmDeleteObjectiveId={confirmDeleteObjectiveId}
+      selectedObjectiveIds={selectedObjectiveIds}
+      deletingSelectedObjectives={deletingSelectedObjectives}
       onStartRename={onStartRename}
       onConfirmRename={onConfirmRename}
       onCancelRename={onCancelRename}
       onDeleteRequest={onDeleteRequest}
       onDeleteConfirm={onDeleteConfirm}
+      onToggleObjectiveSelection={onToggleObjectiveSelection}
+      onToggleSelectAllVisibleObjectives={onToggleSelectAllVisibleObjectives}
+      onBulkDeleteSelectedObjectives={onBulkDeleteSelectedObjectives}
       onAIPracticeAll={onAIPracticeAll}
       hasPermission={hasPermission}
     />

@@ -15,7 +15,7 @@ const DEFAULT_SBR_LEVELS = [
     {
         value: 4,
         label: 'Exceeds Standard',
-        labelAr: '',
+        labelAr: 'يتجاوز المعيار',
         description: 'Student consistently demonstrates advanced proficiency.',
         minPercent: 90,
         maxPercent: 100,
@@ -24,7 +24,7 @@ const DEFAULT_SBR_LEVELS = [
     {
         value: 3,
         label: 'Meets Standard',
-        labelAr: '',
+        labelAr: 'يلبّي المعيار',
         description: 'Student demonstrates expected proficiency.',
         minPercent: 75,
         maxPercent: 89,
@@ -33,7 +33,7 @@ const DEFAULT_SBR_LEVELS = [
     {
         value: 2,
         label: 'Approaching Standard',
-        labelAr: '',
+        labelAr: 'يقترب من المعيار',
         description: 'Student is developing proficiency.',
         minPercent: 60,
         maxPercent: 74,
@@ -42,11 +42,20 @@ const DEFAULT_SBR_LEVELS = [
     {
         value: 1,
         label: 'Below Standard',
-        labelAr: '',
+        labelAr: 'دون المعيار',
         description: 'Student needs additional support.',
-        minPercent: 0,
+        minPercent: 1,
         maxPercent: 59,
         color: '#c53030'
+    },
+    {
+        value: 0,
+        label: 'Not Demonstrated',
+        labelAr: 'لم يُظهر أي أداء',
+        description: 'Student has not demonstrated any proficiency.',
+        minPercent: 0,
+        maxPercent: 0,
+        color: '#718096'
     }
 ];
 
@@ -142,7 +151,8 @@ const mapRawPercentageToLevel = (rawPercentage, scale) => {
         return { score: null, isNA: true };
     }
 
-    const sortedLevels = [...(scale?.levels || [])].sort((a, b) => Number(b.value) - Number(a.value));
+    const levels = scale?.levels?.length > 0 ? scale.levels : DEFAULT_SBR_LEVELS;
+    const sortedLevels = [...levels].sort((a, b) => Number(b.value) - Number(a.value));
     if (sortedLevels.length === 0) {
         return { score: null, isNA: true };
     }
@@ -320,18 +330,26 @@ export const aggregateStudentSBRScores = async ({
     if (periodInfo.semester !== null) gradebookFilter.semester = periodInfo.semester;
 
     const gradebookEntries = await StandardsGradebookEntry.find(gradebookFilter)
-        .select('standard percentage')
+        .select('standard percentage effectiveScore manualScore isManualEntry')
         .lean();
 
     const gradebookByStandard = new Map();
     for (const entry of gradebookEntries) {
         const key = toIdString(entry?.standard);
+        // Prefer effectiveScore (0-4 discrete) if set; fall back to percentage
+        const hasEffective = entry?.effectiveScore != null && Number.isFinite(entry.effectiveScore);
         const percentage = toNumber(entry?.percentage);
-        if (!key || percentage === null) continue;
+        if (!key || (!hasEffective && percentage === null)) continue;
         if (!gradebookByStandard.has(key)) {
-            gradebookByStandard.set(key, []);
+            gradebookByStandard.set(key, { percentages: [], effectiveScores: [] });
         }
-        gradebookByStandard.get(key).push(percentage);
+        const bucket = gradebookByStandard.get(key);
+        if (hasEffective) {
+            bucket.effectiveScores.push(entry.effectiveScore);
+        }
+        if (percentage !== null) {
+            bucket.percentages.push(percentage);
+        }
     }
 
     const masteryRecords = await MasteryRecord.find({
@@ -417,8 +435,10 @@ export const aggregateStudentSBRScores = async ({
         const standard = standardsMap.get(standardId);
         const categoryName = String(standard?.category || 'General').trim() || 'General';
 
-        const directScores = gradebookByStandard.get(standardId) || [];
-        const directAvg = mean(directScores);
+        const bucket = gradebookByStandard.get(standardId) || { percentages: [], effectiveScores: [] };
+        const directPercentages = bucket.percentages;
+        const directEffective = bucket.effectiveScores;
+        const directAvg = mean(directPercentages);
 
         const mastery = masteryByStandard.get(standardId);
         const masteryAttempts = toNumber(mastery?.totalAttemptsAllTime) || 0;
@@ -434,9 +454,13 @@ export const aggregateStudentSBRScores = async ({
         let rawPercentage = null;
         let assessmentCount = 0;
 
-        if (directAvg !== null) {
+        // If we have effective scores (manual or pre-computed 0-4), use their average directly
+        if (directEffective.length > 0) {
+            rawPercentage = directAvg; // keep raw pct for display
+            assessmentCount = Math.max(directPercentages.length, directEffective.length);
+        } else if (directAvg !== null) {
             rawPercentage = directAvg;
-            assessmentCount = directScores.length;
+            assessmentCount = directPercentages.length;
         } else if (masteryPct !== null) {
             rawPercentage = masteryPct;
             assessmentCount = masteryAttempts;
@@ -445,7 +469,17 @@ export const aggregateStudentSBRScores = async ({
             assessmentCount = linkedScores.length;
         }
 
-        const mapped = mapRawPercentageToLevel(rawPercentage, scale);
+        // If effective scores exist, use their average directly as the scale score
+        let mapped;
+        if (directEffective.length > 0) {
+            const avgEffective = mean(directEffective);
+            const score = avgEffective !== null ? Math.round(avgEffective) : null;
+            mapped = score !== null
+                ? { score, isNA: false }
+                : { score: null, isNA: true };
+        } else {
+            mapped = mapRawPercentageToLevel(rawPercentage, scale);
+        }
 
         if (!mapped.isNA && Number.isFinite(mapped.score)) {
             subjectScores.push(mapped.score);

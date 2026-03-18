@@ -56,6 +56,8 @@ const TeacherAcademicExcellencePage = () => {
   const [editingObjectiveId,       setEditingObjectiveId]       = useState(null);
   const [editingObjectiveName,     setEditingObjectiveName]     = useState("");
   const [confirmDeleteObjectiveId, setConfirmDeleteObjectiveId] = useState(null);
+  const [selectedObjectiveIds,     setSelectedObjectiveIds]     = useState([]);
+  const [deletingSelectedObjectives, setDeletingSelectedObjectives] = useState(false);
 
   // ── Notification prefs ──
   const [localNotifPrefs, setLocalNotifPrefs] = useState(null);
@@ -65,12 +67,12 @@ const TeacherAcademicExcellencePage = () => {
   const {
     loading, error,
     classes, selectedClassId, setSelectedClassId,
-    subjects, selectedSubjectId, setSelectedSubjectId,
+    subjects, selectedSubjectId, setSelectedSubjectId, trackingMode,
     classSummary, objectives, students, taskQueue, exclusions, notificationPrefs,
     aiPracticeCreating,
     assignTask, bulkAssignTasks, createAIPracticeAssignment, fetchAIPracticePool,
     reviewTask, createExclusion, toggleExclusion, deleteExclusion,
-    renameObjective, deleteObjective, saveNotificationPrefs, toggleStudentAE, refresh,
+    renameObjective, deleteObjective, deleteObjectivesBulk, saveNotificationPrefs, toggleStudentAE, refresh,
   } = useTeacherAcademicExcellence();
 
   // ── Permission helper ──
@@ -96,9 +98,49 @@ const TeacherAcademicExcellencePage = () => {
 
   const heatmapData = useMemo(() => classSummary?.heatmap || null, [classSummary]);
 
+  const effectiveHeatmapData = useMemo(() => {
+    if (heatmapData) return heatmapData;
+    if (!selectedClassId) return null;
+
+    const objectiveRows = Array.isArray(objectives) ? objectives : [];
+    if (objectiveRows.length === 0) return null;
+
+    const map = new Map();
+    for (const row of objectiveRows) {
+      const key = String(row?.objectiveKey || "").trim();
+      if (!key) continue;
+      if (!map.has(key)) {
+        map.set(key, {
+          _id: row?._id,
+          objectiveKey: key,
+          objectiveName: row?.objectiveName || key,
+          studentLevels: {},
+        });
+      }
+      const studentId = row?.student?._id || row?.student;
+      if (studentId) {
+        map.get(key).studentLevels[String(studentId)] = row?.masteryLevel || "not_started";
+      }
+    }
+
+    if (map.size === 0) return null;
+
+    const normalizedStudents = (Array.isArray(students) ? students : []).map((s) => ({
+      _id: String(s?._id || "").trim(),
+      name: s?.name || `${s?.firstName || ""} ${s?.lastName || ""}`.trim() || s?.studentId || "",
+    })).filter((s) => s._id);
+
+    return {
+      objectives: Array.from(map.values()),
+      students: normalizedStudents,
+    };
+  }, [heatmapData, objectives, selectedClassId, students]);
+
   const assignableObjectives = useMemo(() => {
     const fromObjectives = Array.isArray(objectives)             ? objectives             : [];
-    const fromHeatmap    = Array.isArray(heatmapData?.objectives)? heatmapData.objectives : [];
+    const fromHeatmap = trackingMode === "objectives" && Array.isArray(heatmapData?.objectives)
+      ? heatmapData.objectives
+      : [];
     const map = new Map();
     for (const item of [...fromObjectives, ...fromHeatmap]) {
       const key = String(item?.objectiveKey || "").trim();
@@ -110,13 +152,23 @@ const TeacherAcademicExcellencePage = () => {
       });
     }
     return Array.from(map.values());
-  }, [objectives, heatmapData, selectedSubjectId]);
+  }, [objectives, heatmapData, selectedSubjectId, trackingMode]);
 
   // ── Reset pages on class/subject change ──
   useEffect(() => {
     setObjectivesPage(1); setHeatmapPage(1); setHeatmapStudentsPage(1);
     setStudentsPage(1);   setTasksPage(1);   setExclusionsPage(1);
+    setSelectedObjectiveIds([]);
   }, [selectedClassId, selectedSubjectId]);
+
+  useEffect(() => {
+    const objectiveIdSet = new Set(
+      (Array.isArray(objectives) ? objectives : [])
+        .map((obj) => obj?._id)
+        .filter((id) => typeof id === "string" && id.length === 24)
+    );
+    setSelectedObjectiveIds((prev) => prev.filter((id) => objectiveIdSet.has(id)));
+  }, [objectives]);
 
   // ── Sync notification prefs ──
   useEffect(() => {
@@ -161,8 +213,50 @@ const TeacherAcademicExcellencePage = () => {
   const handleDeleteObjective = async (objectiveId) => {
     try { await deleteObjective(objectiveId); }
     catch { /* toast */ }
+    setSelectedObjectiveIds((prev) => prev.filter((id) => id !== objectiveId));
     setConfirmDeleteObjectiveId(null);
   };
+
+  const handleToggleObjectiveSelection = useCallback((objectiveId, checked) => {
+    if (!objectiveId) return;
+    setSelectedObjectiveIds((prev) => {
+      const hasId = prev.includes(objectiveId);
+      if (checked && !hasId) return [...prev, objectiveId];
+      if (!checked && hasId) return prev.filter((id) => id !== objectiveId);
+      return prev;
+    });
+  }, []);
+
+  const handleToggleSelectAllVisibleObjectives = useCallback((visibleIds = [], checked) => {
+    const ids = Array.from(new Set((visibleIds || []).filter(Boolean)));
+    setSelectedObjectiveIds((prev) => {
+      if (checked) {
+        return Array.from(new Set([...prev, ...ids]));
+      }
+      const visibleSet = new Set(ids);
+      return prev.filter((id) => !visibleSet.has(id));
+    });
+  }, []);
+
+  const handleBulkDeleteSelectedObjectives = useCallback(async () => {
+    const ids = Array.from(new Set(selectedObjectiveIds.filter(Boolean)));
+    if (ids.length === 0) return;
+
+    const confirmed = window.confirm(`Delete ${ids.length} selected objective${ids.length === 1 ? "" : "s"}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingSelectedObjectives(true);
+    try {
+      const result = await deleteObjectivesBulk(ids);
+      const failedIds = new Set((result?.failed || []).map((item) => item.objectiveId));
+      setSelectedObjectiveIds((prev) => prev.filter((id) => failedIds.has(id)));
+      setConfirmDeleteObjectiveId((prev) => (prev && !failedIds.has(prev) ? null : prev));
+    } catch {
+      /* toast */
+    } finally {
+      setDeletingSelectedObjectives(false);
+    }
+  }, [deleteObjectivesBulk, selectedObjectiveIds]);
 
   const updateNotifField = (path, value) => {
     setLocalNotifPrefs((prev) => {
@@ -294,9 +388,10 @@ const TeacherAcademicExcellencePage = () => {
       {activeTab === "overview" && (
         <AEOverviewTab
           kpis={kpis}
-          heatmapData={heatmapData}
+          heatmapData={effectiveHeatmapData}
           selectedClassId={selectedClassId}
           objectives={objectives}
+          trackingMode={trackingMode}
           heatmapPage={heatmapPage}           setHeatmapPage={setHeatmapPage}
           heatmapStudentsPage={heatmapStudentsPage} setHeatmapStudentsPage={setHeatmapStudentsPage}
           objectivesPage={objectivesPage}     setObjectivesPage={setObjectivesPage}
@@ -304,6 +399,8 @@ const TeacherAcademicExcellencePage = () => {
           editingObjectiveName={editingObjectiveName}
           setEditingObjectiveName={setEditingObjectiveName}
           confirmDeleteObjectiveId={confirmDeleteObjectiveId}
+          selectedObjectiveIds={selectedObjectiveIds}
+          deletingSelectedObjectives={deletingSelectedObjectives}
           hasPermission={hasPermission}
           onHeatmapCellClick={(s, obj) => setDrawerStudent({ ...s, objectiveKey: obj.objectiveKey })}
           onHeatmapCellDoubleClick={(obj, s) => openAIPracticeModal(obj, { studentId: s._id, studentName: s.name })}
@@ -312,6 +409,9 @@ const TeacherAcademicExcellencePage = () => {
           onCancelRename={handleCancelRename}
           onDeleteRequest={setConfirmDeleteObjectiveId}
           onDeleteConfirm={handleDeleteObjective}
+          onToggleObjectiveSelection={handleToggleObjectiveSelection}
+          onToggleSelectAllVisibleObjectives={handleToggleSelectAllVisibleObjectives}
+          onBulkDeleteSelectedObjectives={handleBulkDeleteSelectedObjectives}
           onBulkAssign={(obj) => setBulkAssignModal({ objectiveKey: obj.objectiveKey, objectiveName: obj.objectiveName })}
           onAIPracticeAll={(obj) => openAIPracticeModal(obj, { isBulk: true })}
         />
@@ -353,6 +453,7 @@ const TeacherAcademicExcellencePage = () => {
           setExclusionsPage={setExclusionsPage}
           newExclusion={newExclusion}
           setNewExclusion={setNewExclusion}
+          trackingMode={trackingMode}
           hasPermission={hasPermission}
           onCreateExclusion={handleCreateExclusion}
           onToggleExclusion={toggleExclusion}
@@ -378,6 +479,7 @@ const TeacherAcademicExcellencePage = () => {
           objectives={assignableObjectives}
           subjectId={selectedSubjectId}
           subjectName={subjects.find((s) => (s._id || s) === selectedSubjectId)?.name || ""}
+          trackingMode={trackingMode}
           onAssign={async (taskData) => { await assignTask(taskData); setAssignModal(null); }}
           onClose={() => setAssignModal(null)}
         />
@@ -390,6 +492,7 @@ const TeacherAcademicExcellencePage = () => {
           objectiveName={bulkAssignModal.objectiveName}
           subjectId={selectedSubjectId}
           subjectName={subjects.find((s) => (s._id || s) === selectedSubjectId)?.name || ""}
+          trackingMode={trackingMode}
           onAssign={async (taskData) => { await bulkAssignTasks(taskData); setBulkAssignModal(null); }}
           onClose={() => setBulkAssignModal(null)}
         />
@@ -406,6 +509,7 @@ const TeacherAcademicExcellencePage = () => {
       {aiPracticeModal && (
         <AEAIPracticeModal
           {...aiPracticeModal}
+          trackingMode={trackingMode}
           creating={aiPracticeCreating}
           onSuccess={handleAIPracticeSuccess}
           onClose={() => setAiPracticeModal(null)}

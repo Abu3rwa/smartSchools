@@ -88,7 +88,15 @@ const mapReportForTemplate = async (reportData, schoolBranding = {}) => {
     const classMeta = reportData.classMeta || {};
     const studentMeta = reportData.studentMeta || {};
     const period = reportData.period || {};
-    const levels = Array.isArray(reportData.scaleMeta?.levels) ? reportData.scaleMeta.levels : [];
+    let levels = Array.isArray(reportData.scaleMeta?.levels) ? reportData.scaleMeta.levels : [];
+    // Ensure level 0 exists in the legend
+    const hasLevel0 = levels.some((l) => l.value === 0);
+    if (!hasLevel0) {
+        levels = [
+            ...levels,
+            { value: 0, label: 'Not Demonstrated', labelAr: 'لم يتحقق', color: '#718096', minPercent: 0, maxPercent: 0 }
+        ];
+    }
     const specialCodes = Array.isArray(reportData.scaleMeta?.specialCodes) ? reportData.scaleMeta.specialCodes : [];
     const reportLanguage = String(schoolMeta.reportLanguage || '').toLowerCase();
     const isArabic = reportLanguage === 'arabic';

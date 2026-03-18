@@ -83,18 +83,16 @@ const AEStudentMonitorTab = ({
                       {/* Action buttons */}
                       <td>
                         <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
-                          {hasPermission(PERMISSIONS.ASSIGN_ACADEMIC_EXCELLENCE_TASKS) && (
-                            <button
-                              type="button"
-                              className="teacher-ae-btn-primary"
-                              style={{ fontSize: "0.78rem", padding: "0.25rem 0.5rem" }}
-                              onClick={() => onAssignTask(student)}
-                              disabled={disabled}
-                              title={disabled ? "AE is disabled for this student" : "Assign a task"}
-                            >
-                              Assign Task
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            className="teacher-ae-btn-primary"
+                            style={{ fontSize: "0.78rem", padding: "0.25rem 0.5rem" }}
+                            onClick={() => onAssignTask(student)}
+                            disabled={disabled}
+                            title={disabled ? "AE is disabled for this student" : "Assign a task"}
+                          >
+                            Assign Task
+                          </button>
                           {hasPermission(PERMISSIONS.DISABLE_ACADEMIC_EXCELLENCE_FOR_STUDENT) && (
                             <button
                               type="button"

@@ -41,6 +41,7 @@ const AEAIPracticeModal = ({
   classId,
   objectiveKey,
   objectiveName,
+  trackingMode = "objectives",
   subjectId,
   subjectName,
   creating,
@@ -49,6 +50,7 @@ const AEAIPracticeModal = ({
   onSuccess,
   onClose,
 }) => {
+  const entityLabel = trackingMode === "standards" ? "Standard" : "Objective";
   const [form, setForm] = useState({
     questionCount: 10,
     questionTypes: ["multiple_choice"],
@@ -129,12 +131,12 @@ const AEAIPracticeModal = ({
         ) : null}
 
         <div className="teacher-ae-form-group">
-          <label>Objective Key</label>
+          <label>{entityLabel} Key</label>
           <input className="teacher-ae-input" value={objectiveKey || ""} readOnly />
         </div>
 
         <div className="teacher-ae-form-group">
-          <label>Objective Name</label>
+          <label>{entityLabel} Name</label>
           <input className="teacher-ae-input" value={objectiveName || ""} readOnly />
         </div>
 

@@ -10,7 +10,8 @@ const TASK_TYPES = [
   { value: "custom", label: "Custom" },
 ];
 
-const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, subjectId, subjectName, onAssign, onClose }) => {
+const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, subjectId, subjectName, trackingMode = "objectives", onAssign, onClose }) => {
+  const entityLabel = trackingMode === "standards" ? "Standard" : "Objective";
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -71,7 +72,7 @@ const AEBulkAssignModal = ({ classId, objectiveKey, objectiveName, subjectId, su
   return (
     <div className="teacher-ae-modal-overlay" onClick={onClose}>
       <div className="teacher-ae-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Bulk Assign — {objectiveName || objectiveKey}</h2>
+        <h2>Bulk Assign {entityLabel} Task — {objectiveName || objectiveKey}</h2>
         <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary, #6b7280)" }}>
           This task will be assigned to all students in the selected class.
         </p>

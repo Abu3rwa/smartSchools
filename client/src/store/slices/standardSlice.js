@@ -163,6 +163,30 @@ export const fetchSBGradebook = createAsyncThunk(
     }
 );
 
+export const fetchSBGradebookMatrix = createAsyncThunk(
+    'standards/fetchSBGradebookMatrix',
+    async (params = {}, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/practice/sb-gradebook/matrix', { params });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to fetch gradebook matrix');
+        }
+    }
+);
+
+export const saveBulkManualScores = createAsyncThunk(
+    'standards/saveBulkManualScores',
+    async (payload, { rejectWithValue }) => {
+        try {
+            const response = await api.put('/practice/sb-gradebook/manual-scores/bulk', payload);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to save scores');
+        }
+    }
+);
+
 // ─── Slice ───
 
 const standardSlice = createSlice({
@@ -193,6 +217,20 @@ const standardSlice = createSlice({
         },
         sbGradebookLoading: false,
         sbGradebookError: null,
+        sbGradebookMatrix: {
+            standards: [],
+            students: [],
+            matrix: {},
+            classAverage: {},
+            pagination: null,
+            filterOptions: { classes: [], subjects: [], standards: [] },
+            academicYear: null,
+            semester: null,
+        },
+        sbGradebookMatrixLoading: false,
+        sbGradebookMatrixError: null,
+        bulkSaveLoading: false,
+        bulkSaveError: null,
         loading: false,
         error: null,
         importResult: null
@@ -224,6 +262,20 @@ const standardSlice = createSlice({
             };
             state.sbGradebookLoading = false;
             state.sbGradebookError = null;
+        },
+        clearSBGradebookMatrix: (state) => {
+            state.sbGradebookMatrix = {
+                standards: [],
+                students: [],
+                matrix: {},
+                classAverage: {},
+                pagination: null,
+                filterOptions: { classes: [], subjects: [], standards: [] },
+                academicYear: null,
+                semester: null,
+            };
+            state.sbGradebookMatrixLoading = false;
+            state.sbGradebookMatrixError = null;
         }
     },
     extraReducers: (builder) => {
@@ -351,6 +403,40 @@ const standardSlice = createSlice({
             .addCase(fetchSBGradebook.rejected, (state, action) => {
                 state.sbGradebookLoading = false;
                 state.sbGradebookError = action.payload;
+            })
+            // SB Gradebook Matrix
+            .addCase(fetchSBGradebookMatrix.pending, (state) => {
+                state.sbGradebookMatrixLoading = true;
+                state.sbGradebookMatrixError = null;
+            })
+            .addCase(fetchSBGradebookMatrix.fulfilled, (state, action) => {
+                state.sbGradebookMatrixLoading = false;
+                state.sbGradebookMatrix = {
+                    standards: action.payload?.standards || [],
+                    students: action.payload?.students || [],
+                    matrix: action.payload?.matrix || {},
+                    classAverage: action.payload?.classAverage || {},
+                    pagination: action.payload?.pagination || null,
+                    filterOptions: action.payload?.filterOptions || { classes: [], subjects: [], standards: [] },
+                    academicYear: action.payload?.academicYear ?? null,
+                    semester: action.payload?.semester ?? null,
+                };
+            })
+            .addCase(fetchSBGradebookMatrix.rejected, (state, action) => {
+                state.sbGradebookMatrixLoading = false;
+                state.sbGradebookMatrixError = action.payload;
+            })
+            // Bulk save manual scores
+            .addCase(saveBulkManualScores.pending, (state) => {
+                state.bulkSaveLoading = true;
+                state.bulkSaveError = null;
+            })
+            .addCase(saveBulkManualScores.fulfilled, (state) => {
+                state.bulkSaveLoading = false;
+            })
+            .addCase(saveBulkManualScores.rejected, (state, action) => {
+                state.bulkSaveLoading = false;
+                state.bulkSaveError = action.payload;
             });
     }
 });
@@ -361,7 +447,8 @@ export const {
     clearCurrentAssignment,
     clearAssignmentProgress,
     clearStudentProgress,
-    clearSBGradebook
+    clearSBGradebook,
+    clearSBGradebookMatrix
 } = standardSlice.actions;
 
 // Selectors
@@ -382,5 +469,16 @@ export const selectSBGradebookFilterOptions = (state) => state.standards?.sbGrad
 export const selectSBGradebookFilters = (state) => state.standards?.sbGradebook?.filters || {};
 export const selectSBGradebookLoading = (state) => state.standards?.sbGradebookLoading;
 export const selectSBGradebookError = (state) => state.standards?.sbGradebookError;
+
+// Matrix selectors
+export const selectSBGradebookMatrixStandards = (state) => state.standards?.sbGradebookMatrix?.standards || [];
+export const selectSBGradebookMatrixStudents = (state) => state.standards?.sbGradebookMatrix?.students || [];
+export const selectSBGradebookMatrixData = (state) => state.standards?.sbGradebookMatrix?.matrix || {};
+export const selectSBGradebookMatrixClassAverage = (state) => state.standards?.sbGradebookMatrix?.classAverage || {};
+export const selectSBGradebookMatrixPagination = (state) => state.standards?.sbGradebookMatrix?.pagination;
+export const selectSBGradebookMatrixFilterOptions = (state) => state.standards?.sbGradebookMatrix?.filterOptions;
+export const selectSBGradebookMatrixLoading = (state) => state.standards?.sbGradebookMatrixLoading;
+export const selectSBGradebookMatrixError = (state) => state.standards?.sbGradebookMatrixError;
+export const selectBulkSaveLoading = (state) => state.standards?.bulkSaveLoading;
 
 export default standardSlice.reducer;

@@ -12,7 +12,9 @@ const TASK_TYPES = [
   { value: "custom", label: "Custom" },
 ];
 
-const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjectId, subjectName, onAssign, onClose }) => {
+const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjectId, subjectName, trackingMode = "objectives", onAssign, onClose }) => {
+  const entityLabel = trackingMode === "standards" ? "Standard" : "Objective";
+  const entityLabelLower = trackingMode === "standards" ? "standard" : "objective";
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -88,13 +90,13 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjec
         <h2>Assign Task to {studentName || "Student"}</h2>
 
         <div className="teacher-ae-form-group">
-          <label>Objective</label>
+          <label>{entityLabel}</label>
           <select
             className="teacher-ae-select"
             value={form.objectiveKey}
             onChange={(e) => setForm((p) => ({ ...p, objectiveKey: e.target.value }))}
           >
-            <option value="">— Select an objective —</option>
+            <option value="">— Select a {entityLabelLower} —</option>
             {(objectives || []).map((obj) => (
               <option key={obj.objectiveKey} value={obj.objectiveKey}>
                 {obj.objectiveName || obj.objectiveKey}
@@ -103,7 +105,7 @@ const AEAssignTaskModal = ({ studentId, studentName, classId, objectives, subjec
           </select>
           {(!objectives || objectives.length === 0) && (
             <small style={{ color: "#b45309" }}>
-              No objectives loaded for this class yet. Try Refresh on the Academic Excellence page.
+              No {entityLabelLower}s loaded for this class yet. Try Refresh on the Academic Excellence page.
             </small>
           )}
         </div>

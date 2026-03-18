@@ -24,6 +24,8 @@ const DEFAULT_ACADEMIC_EXCELLENCE_BEHAVIOR = Object.freeze({
     maxTasksPerObjective: 5
 });
 
+const DEFAULT_ACADEMIC_EXCELLENCE_TRACKING_MODE = 'objectives';
+
 const toIdString = (value) => {
     if (!value) return '';
     if (typeof value === 'string') return value.trim();
@@ -108,11 +110,19 @@ const normalizeBehavior = (input = {}) => ({
     })
 });
 
+const normalizeTrackingMode = (value) => {
+    const mode = String(value || '').trim().toLowerCase();
+    if (mode === 'standards') return 'standards';
+    if (mode === 'objectives') return 'objectives';
+    return DEFAULT_ACADEMIC_EXCELLENCE_TRACKING_MODE;
+};
+
 export const normalizeAcademicExcellenceSettings = (input = {}) => ({
     enabled: input.enabled !== false,
     studentDashboardEnabled: input.studentDashboardEnabled !== false,
     practiceTasksEnabled: input.practiceTasksEnabled !== false,
     selfInitiatedPracticeEnabled: input.selfInitiatedPracticeEnabled !== false,
+    trackingMode: normalizeTrackingMode(input.trackingMode),
     thresholds: normalizeThresholds(input.thresholds || {}),
     overrides: Array.isArray(input.overrides)
         ? input.overrides
@@ -126,5 +136,6 @@ export const normalizeAcademicExcellenceSettings = (input = {}) => ({
 export {
     DEFAULT_ACADEMIC_EXCELLENCE_THRESHOLDS,
     DEFAULT_ACADEMIC_EXCELLENCE_NOTIFICATION_DEFAULTS,
-    DEFAULT_ACADEMIC_EXCELLENCE_BEHAVIOR
+    DEFAULT_ACADEMIC_EXCELLENCE_BEHAVIOR,
+    DEFAULT_ACADEMIC_EXCELLENCE_TRACKING_MODE
 };

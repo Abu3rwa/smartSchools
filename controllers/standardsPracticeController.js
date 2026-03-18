@@ -12,6 +12,7 @@ import { upsertInterventionCase } from "../services/interventionQueueService.js"
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { logAIUsage } from "../utils/aiUsageTracker.js";
 import logger from "../utils/logger.js";
+import { percentageToScaleLevel, isValidManualScore, computeEffectiveScore, SCALE_LEVELS } from "../utils/sbrScaleUtils.js";
 import {
   getClassIdsForAcademicYear,
   isClassInAcademicYear,
@@ -544,8 +545,8 @@ const buildAssessmentScore = ({ correctCount, totalAnswered, maxMarks }) => {
 };
 
 const percentageToScale4 = (percentageValue) => {
-  const pct = Math.max(0, Math.min(100, Number(percentageValue || 0)));
-  return Number((pct / 25).toFixed(2));
+  const mapped = percentageToScaleLevel(percentageValue);
+  return mapped.value ?? 0;
 };
 
 const getPublishedQuestionPool = async ({ schoolId, assignmentId }) => {
@@ -3733,6 +3734,496 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
       counts,
       recentEvents,
       academicYear: effectiveAcademicYear,
+    },
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────
+ *  Manual Score Entry — Single
+ * ───────────────────────────────────────────────────────────── */
+
+/**
+ * @desc    Upsert a manual score (0-4) for a student × standard
+ * @route   PUT /api/practice/sb-gradebook/manual-score
+ * @access  Private (Admin, Teacher)
+ */
+export const updateManualScore = asyncHandler(async (req, res) => {
+  const { studentId, standardId, classId, subjectId, score, semester, academicYear } = req.body || {};
+
+  if (!studentId || !standardId || !classId || !subjectId) {
+    return res.status(400).json({ success: false, message: "studentId, standardId, classId and subjectId are required." });
+  }
+  if (!isValidManualScore(score)) {
+    return res.status(400).json({ success: false, message: "score must be 0, 1, 2, 3, 4, or null to clear." });
+  }
+
+  const effectiveAcademicYear = academicYear || resolveAcademicYearForRequest(req);
+  const effectiveSemester = semester != null ? Number(semester) : resolveSemesterForRequest(req);
+
+  if (req.user?.role === "teacher") {
+    const authorized = await isTeacherAuthorizedForClassSubject(req, classId, subjectId);
+    if (!authorized) {
+      return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
+    }
+  }
+
+  const student = await Student.findOne({ _id: studentId, school: req.schoolId }).select("_id").lean();
+  if (!student) {
+    return res.status(404).json({ success: false, message: "Student not found." });
+  }
+
+  const filter = {
+    school: req.schoolId,
+    student: studentId,
+    standard: standardId,
+    class: classId,
+    subject: subjectId,
+    academicYear: effectiveAcademicYear,
+  };
+  if (effectiveSemester) filter.semester = effectiveSemester;
+
+  let entry = await StandardsGradebookEntry.findOne(filter);
+
+  if (score === null) {
+    // Clear manual score
+    if (entry) {
+      entry.manualScore = null;
+      entry.isManualEntry = false;
+      entry.manualEnteredBy = null;
+      entry.manualEnteredAt = null;
+      const mapped = percentageToScaleLevel(entry.percentage);
+      entry.effectiveScore = mapped.value;
+      await entry.save();
+    }
+    return res.json({ success: true, data: { entry: entry || null, cleared: true } });
+  }
+
+  if (!entry) {
+    // Create a new manual-only entry (no assignment linked)
+    // Find any assignment for this class/subject/standard to link to, or create without
+    let assignmentId = null;
+    const existingAssignment = await StandardAssignment.findOne({
+      school: req.schoolId,
+      class: classId,
+      subject: subjectId,
+      standard: standardId,
+      isActive: true,
+    }).select("_id").lean();
+    if (existingAssignment) assignmentId = existingAssignment._id;
+
+    if (!assignmentId) {
+      // Create a placeholder assignment for manual grades
+      const newAssignment = await StandardAssignment.create({
+        school: req.schoolId,
+        class: classId,
+        subject: subjectId,
+        standard: standardId,
+        title: "Manual Assessment",
+        createdBy: req.user?._id,
+        isActive: true,
+        academicYear: effectiveAcademicYear,
+        semester: effectiveSemester || null,
+        practiceConfig: { sessionType: "assessment" },
+      });
+      assignmentId = newAssignment._id;
+    }
+
+    entry = await StandardsGradebookEntry.create({
+      school: req.schoolId,
+      assignment: assignmentId,
+      student: studentId,
+      standard: standardId,
+      class: classId,
+      subject: subjectId,
+      academicYear: effectiveAcademicYear,
+      semester: effectiveSemester || null,
+      status: "released",
+      manualScore: score,
+      isManualEntry: true,
+      manualEnteredBy: req.user?._id,
+      manualEnteredAt: new Date(),
+      effectiveScore: score,
+    });
+  } else {
+    entry.manualScore = score;
+    entry.isManualEntry = true;
+    entry.manualEnteredBy = req.user?._id;
+    entry.manualEnteredAt = new Date();
+    entry.effectiveScore = score;
+    await entry.save();
+  }
+
+  return res.json({ success: true, data: { entry } });
+});
+
+/* ─────────────────────────────────────────────────────────────
+ *  Manual Score Entry — Bulk
+ * ───────────────────────────────────────────────────────────── */
+
+/**
+ * @desc    Bulk upsert manual scores for multiple students × standards
+ * @route   PUT /api/practice/sb-gradebook/manual-scores/bulk
+ * @access  Private (Admin, Teacher)
+ */
+export const updateBulkManualScores = asyncHandler(async (req, res) => {
+  const { classId, subjectId, semester, academicYear, scores } = req.body || {};
+
+  if (!classId || !subjectId || !Array.isArray(scores) || scores.length === 0) {
+    return res.status(400).json({ success: false, message: "classId, subjectId and scores[] are required." });
+  }
+  if (scores.length > 500) {
+    return res.status(400).json({ success: false, message: "Maximum 500 scores per batch." });
+  }
+
+  for (const item of scores) {
+    if (!item.studentId || !item.standardId) {
+      return res.status(400).json({ success: false, message: "Each score must have studentId and standardId." });
+    }
+    if (!isValidManualScore(item.score)) {
+      return res.status(400).json({ success: false, message: `Invalid score value: ${item.score}. Must be 0-4 or null.` });
+    }
+  }
+
+  if (req.user?.role === "teacher") {
+    const authorized = await isTeacherAuthorizedForClassSubject(req, classId, subjectId);
+    if (!authorized) {
+      return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
+    }
+  }
+
+  const effectiveAcademicYear = academicYear || resolveAcademicYearForRequest(req);
+  const effectiveSemester = semester != null ? Number(semester) : resolveSemesterForRequest(req);
+
+  const results = { updated: 0, created: 0, cleared: 0, errors: [] };
+
+  for (const { studentId, standardId, score } of scores) {
+    try {
+      const filter = {
+        school: req.schoolId,
+        student: studentId,
+        standard: standardId,
+        class: classId,
+        subject: subjectId,
+        academicYear: effectiveAcademicYear,
+      };
+      if (effectiveSemester) filter.semester = effectiveSemester;
+
+      let entry = await StandardsGradebookEntry.findOne(filter);
+
+      if (score === null) {
+        if (entry) {
+          entry.manualScore = null;
+          entry.isManualEntry = false;
+          entry.manualEnteredBy = null;
+          entry.manualEnteredAt = null;
+          const mapped = percentageToScaleLevel(entry.percentage);
+          entry.effectiveScore = mapped.value;
+          await entry.save();
+          results.cleared += 1;
+        }
+        continue;
+      }
+
+      if (!entry) {
+        let assignmentId = null;
+        const existing = await StandardAssignment.findOne({
+          school: req.schoolId, class: classId, subject: subjectId, standard: standardId, isActive: true,
+        }).select("_id").lean();
+
+        if (existing) {
+          assignmentId = existing._id;
+        } else {
+          const newAssignment = await StandardAssignment.create({
+            school: req.schoolId, class: classId, subject: subjectId, standard: standardId,
+            title: "Manual Assessment", createdBy: req.user?._id, isActive: true,
+            academicYear: effectiveAcademicYear, semester: effectiveSemester || null,
+            practiceConfig: { sessionType: "assessment" },
+          });
+          assignmentId = newAssignment._id;
+        }
+
+        await StandardsGradebookEntry.create({
+          school: req.schoolId, assignment: assignmentId, student: studentId, standard: standardId,
+          class: classId, subject: subjectId, academicYear: effectiveAcademicYear,
+          semester: effectiveSemester || null, status: "released",
+          manualScore: score, isManualEntry: true, manualEnteredBy: req.user?._id,
+          manualEnteredAt: new Date(), effectiveScore: score,
+        });
+        results.created += 1;
+      } else {
+        entry.manualScore = score;
+        entry.isManualEntry = true;
+        entry.manualEnteredBy = req.user?._id;
+        entry.manualEnteredAt = new Date();
+        entry.effectiveScore = score;
+        await entry.save();
+        results.updated += 1;
+      }
+    } catch (err) {
+      results.errors.push({ studentId, standardId, message: err.message });
+    }
+  }
+
+  return res.json({ success: true, data: results });
+});
+
+/* ─────────────────────────────────────────────────────────────
+ *  Standards-Based Gradebook — Matrix View
+ * ───────────────────────────────────────────────────────────── */
+
+/**
+ * @desc    Get SB gradebook in matrix format (students × standards)
+ * @route   GET /api/practice/sb-gradebook/matrix
+ * @access  Private (Admin, Teacher, Department Principal)
+ */
+export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
+  const { classId, subjectId, search } = req.query || {};
+  const page = parsePositiveInt(req.query?.page, 1);
+  const limit = Math.min(parsePositiveInt(req.query?.limit, 50), 200);
+
+  const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+  const effectiveSemester = resolveSemesterForRequest(req);
+
+  if (!classId || !subjectId) {
+    return res.json({
+      success: true,
+      data: {
+        standards: [], students: [], matrix: {}, classAverage: {},
+        pagination: { page, limit, total: 0, pages: 0 },
+        filterOptions: { classes: [], subjects: [], standards: [] },
+        academicYear: effectiveAcademicYear, semester: effectiveSemester,
+      },
+    });
+  }
+
+  const { classIds: yearClassIds } = await getYearScopedClassIds(req, [classId]);
+  let allowedClassIds = yearClassIds;
+  if (req.user?.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) return res.status(403).json({ success: false, message: "Not authorized" });
+    const teacherClassIds = await getTeacherClassIds(teacher._id);
+    const teacherClassSet = new Set(teacherClassIds.map((id) => id.toString()));
+    allowedClassIds = yearClassIds.filter((id) => teacherClassSet.has(String(id)));
+  }
+
+  if (!allowedClassIds.length) {
+    return res.json({
+      success: true,
+      data: {
+        standards: [], students: [], matrix: {}, classAverage: {},
+        pagination: { page, limit, total: 0, pages: 0 },
+        filterOptions: { classes: [], subjects: [], standards: [] },
+        academicYear: effectiveAcademicYear, semester: effectiveSemester,
+      },
+    });
+  }
+
+  // Fetch assignments for this class + subject
+  const semesterCondition = effectiveSemester
+    ? { $or: [{ semester: effectiveSemester }, { semester: null }, { semester: { $exists: false } }] }
+    : {};
+
+  const assignmentQuery = {
+    school: req.schoolId,
+    isActive: true,
+    class: { $in: allowedClassIds },
+    subject: subjectId,
+    ...semesterCondition,
+  };
+
+  const assignments = await StandardAssignment.find(assignmentQuery)
+    .select("_id class subject standard students practiceConfig")
+    .populate("standard", "code name description category masteryThreshold masteryMinQuestions")
+    .lean();
+
+  // Build unique standards list
+  const standardsMap = new Map();
+  assignments.forEach((a) => {
+    const std = a.standard;
+    if (!std?._id) return;
+    const key = String(std._id);
+    if (!standardsMap.has(key)) {
+      standardsMap.set(key, {
+        _id: std._id,
+        code: std.code || "",
+        name: std.name || "",
+        description: std.description || "",
+        category: std.category || "General",
+      });
+    }
+  });
+
+  const standards = [...standardsMap.values()].sort((a, b) =>
+    (a.code || a.name).localeCompare(b.code || b.name)
+  );
+
+  if (!standards.length) {
+    return res.json({
+      success: true,
+      data: {
+        standards: [], students: [], matrix: {}, classAverage: {},
+        pagination: { page, limit, total: 0, pages: 0 },
+        filterOptions: { classes: [], subjects: [], standards: [] },
+        academicYear: effectiveAcademicYear, semester: effectiveSemester,
+      },
+    });
+  }
+
+  // Fetch students
+  const studentQuery = {
+    school: req.schoolId,
+    currentClass: { $in: allowedClassIds },
+    status: "active",
+    academicYear: effectiveAcademicYear,
+  };
+
+  let students = await Student.find(studentQuery)
+    .select("_id firstName lastName middleName studentId currentClass")
+    .lean();
+
+  // Sort alphabetically
+  students.sort((a, b) => {
+    const na = `${a.firstName || ""} ${a.lastName || ""}`.trim().toLowerCase();
+    const nb = `${b.firstName || ""} ${b.lastName || ""}`.trim().toLowerCase();
+    return na.localeCompare(nb);
+  });
+
+  // Search filter
+  const searchTerm = String(search || "").trim().toLowerCase();
+  if (searchTerm) {
+    students = students.filter((s) => {
+      const hay = `${s.firstName || ""} ${s.middleName || ""} ${s.lastName || ""} ${s.studentId || ""}`.toLowerCase();
+      return hay.includes(searchTerm);
+    });
+  }
+
+  // Paginate students
+  const totalStudents = students.length;
+  const totalPages = totalStudents > 0 ? Math.ceil(totalStudents / limit) : 0;
+  const pagedStudents = students.slice((page - 1) * limit, (page - 1) * limit + limit);
+  const studentIds = pagedStudents.map((s) => s._id);
+
+  // Fetch gradebook entries for all students × standards in scope
+  const entryFilter = {
+    school: req.schoolId,
+    student: { $in: studentIds },
+    standard: { $in: standards.map((s) => s._id) },
+    class: { $in: allowedClassIds },
+    subject: subjectId,
+    academicYear: effectiveAcademicYear,
+  };
+  if (effectiveSemester) {
+    entryFilter.$or = [{ semester: effectiveSemester }, { semester: null }];
+  }
+
+  const entries = await StandardsGradebookEntry.find(entryFilter)
+    .select("student standard percentage manualScore isManualEntry effectiveScore status")
+    .lean();
+
+  // Build matrix
+  const matrix = {};
+  const scoreSumByStandard = {};
+  const scoreCountByStandard = {};
+
+  for (const student of pagedStudents) {
+    const sid = String(student._id);
+    matrix[sid] = {};
+    for (const std of standards) {
+      matrix[sid][String(std._id)] = { effectiveScore: null, isManual: false, percentage: null, hasAutoAssessment: false };
+    }
+  }
+
+  for (const entry of entries) {
+    const sid = String(entry.student);
+    const stdId = String(entry.standard);
+    if (!matrix[sid] || !matrix[sid][stdId]) continue;
+
+    const percentage = Number.isFinite(entry.percentage) ? entry.percentage : null;
+    const isManual = Boolean(entry.isManualEntry);
+    let effectiveScore = entry.effectiveScore;
+
+    // Compute effective if not stored yet
+    if (effectiveScore === null || effectiveScore === undefined) {
+      if (entry.manualScore !== null && entry.manualScore !== undefined) {
+        effectiveScore = entry.manualScore;
+      } else if (percentage !== null) {
+        effectiveScore = percentageToScaleLevel(percentage).value;
+      }
+    }
+
+    const existing = matrix[sid][stdId];
+    // Keep the best / most recent data
+    if (existing.effectiveScore === null || (effectiveScore !== null && effectiveScore > existing.effectiveScore)) {
+      matrix[sid][stdId] = {
+        effectiveScore: effectiveScore ?? null,
+        isManual,
+        percentage,
+        hasAutoAssessment: !isManual && percentage !== null,
+      };
+    }
+  }
+
+  // Compute class averages (across ALL students, not just paged)
+  const allStudentIds = students.map((s) => s._id);
+  const allEntries = await StandardsGradebookEntry.find({
+    ...entryFilter,
+    student: { $in: allStudentIds },
+  }).select("student standard percentage manualScore isManualEntry effectiveScore").lean();
+
+  for (const entry of allEntries) {
+    const stdId = String(entry.standard);
+    let score = entry.effectiveScore;
+    if (score === null || score === undefined) {
+      if (entry.manualScore !== null && entry.manualScore !== undefined) {
+        score = entry.manualScore;
+      } else if (Number.isFinite(entry.percentage)) {
+        score = percentageToScaleLevel(entry.percentage).value;
+      }
+    }
+    if (score !== null && score !== undefined) {
+      scoreSumByStandard[stdId] = (scoreSumByStandard[stdId] || 0) + score;
+      scoreCountByStandard[stdId] = (scoreCountByStandard[stdId] || 0) + 1;
+    }
+  }
+
+  const classAverage = {};
+  for (const std of standards) {
+    const key = String(std._id);
+    if (scoreCountByStandard[key] > 0) {
+      classAverage[key] = Number((scoreSumByStandard[key] / scoreCountByStandard[key]).toFixed(2));
+    }
+  }
+
+  // Filter options
+  const allClasses = await import("../models/Class.js").then((m) =>
+    m.default.find({ _id: { $in: allowedClassIds } }).select("_id name grade section").lean()
+  );
+  const allSubjects = await import("../models/Subject.js").then((m) =>
+    m.default.find({ school: req.schoolId }).select("_id name code").lean()
+  );
+
+  return res.json({
+    success: true,
+    data: {
+      standards,
+      students: pagedStudents.map((s) => ({
+        _id: s._id,
+        firstName: s.firstName || "",
+        middleName: s.middleName || "",
+        lastName: s.lastName || "",
+        fullName: [s.firstName, s.middleName, s.lastName].filter(Boolean).join(" "),
+        studentId: s.studentId || "",
+      })),
+      matrix,
+      classAverage,
+      pagination: { page, limit, total: totalStudents, pages: totalPages },
+      filterOptions: {
+        classes: allClasses,
+        subjects: allSubjects,
+        standards,
+      },
+      academicYear: effectiveAcademicYear,
+      semester: effectiveSemester,
     },
   });
 });

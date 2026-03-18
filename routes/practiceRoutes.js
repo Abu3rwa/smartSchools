@@ -11,6 +11,9 @@ import {
     getAssessmentGradebook,
     getStandardAverageGradebook,
     getSBGradebook,
+    getSBGradebookMatrix,
+    updateManualScore,
+    updateBulkManualScores,
     releaseAssessmentResults,
     logIntegrityEvent,
     getIntegrityByAssignment,
@@ -43,6 +46,9 @@ router.get('/assignment/:assignmentId/progress', authorize('admin', 'teacher'), 
 router.get('/assessment/:assignmentId/gradebook', authorize('admin', 'teacher'), getAssessmentGradebook);
 router.get('/assessment/standard-average', authorize('admin', 'teacher'), getStandardAverageGradebook);
 router.get('/sb-gradebook', authorize('admin', 'teacher', 'department_principal'), getSBGradebook);
+router.get('/sb-gradebook/matrix', authorize('admin', 'teacher', 'department_principal'), getSBGradebookMatrix);
+router.put('/sb-gradebook/manual-score', authorize('admin', 'teacher'), updateManualScore);
+router.put('/sb-gradebook/manual-scores/bulk', authorize('admin', 'teacher'), updateBulkManualScores);
 router.post('/assessment/:assignmentId/release', authorize('admin', 'teacher'), releaseAssessmentResults);
 router.get('/integrity/assignment/:assignmentId', authorize('admin', 'teacher'), getIntegrityByAssignment);
 router.get('/integrity/student/:studentId', authorize('admin', 'teacher'), getIntegrityByStudent);

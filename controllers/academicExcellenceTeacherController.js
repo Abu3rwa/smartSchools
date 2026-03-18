@@ -21,7 +21,8 @@ import {
 import {
     createExclusion,
     toggleExclusion,
-    getActiveExclusions
+    getActiveExclusions,
+    getSchoolAcademicExcellenceSettings
 } from '../services/academicExcellenceSettingsService.js';
 import { connectAi } from '../utils/connectAi.js';
 import { sanitizeObjectiveText, isObjectiveTextDegenerate } from '../utils/sanitizeObjectiveText.js';
@@ -336,6 +337,8 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
 
     const { subjectId, academicYear, semester } = req.query;
     const { page, limit } = parsePagination(req.query);
+    const schoolSettings = await getSchoolAcademicExcellenceSettings(req.schoolId);
+    const trackingMode = schoolSettings?.trackingMode === 'standards' ? 'standards' : 'objectives';
 
     const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId), deletedAt: null };
     if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) {
@@ -361,6 +364,17 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
 
     const filtered = await applyExclusions({ objectiveList: trackedObjectives, schoolId: req.schoolId, classId });
 
+    if (trackingMode === 'objectives') {
+        return res.json({
+            success: true,
+            data: {
+                trackingMode,
+                objectives: filtered,
+                pagination: { page, limit, total: trackedTotal, pages: Math.ceil(trackedTotal / limit) }
+            }
+        });
+    }
+
     // 2) Also pull available standards assigned to this class so the
     //    teacher sees objectives even if no grades have been recorded yet.
     const assignmentQuery = { school: req.schoolId, class: classId };
@@ -370,12 +384,10 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
         .populate('standard', 'code name description subject gradeLevel category')
         .lean();
 
-    const trackedKeys = new Set(filtered.map((o) => o.objectiveKey));
     const availableFromStandards = [];
     for (const sa of assignments) {
         const std = sa.standard;
-        if (!std || trackedKeys.has(std.code)) continue;
-        trackedKeys.add(std.code);
+        if (!std) continue;
         availableFromStandards.push({
             _id: `std_${std._id}`,
             objectiveKey: std.code,
@@ -389,13 +401,14 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
         });
     }
 
-    const combined = [...filtered, ...availableFromStandards];
+    const pagedStandards = availableFromStandards.slice((page - 1) * limit, page * limit);
 
     res.json({
         success: true,
         data: {
-            objectives: combined,
-            pagination: { page, limit, total: trackedTotal + availableFromStandards.length, pages: Math.ceil((trackedTotal + availableFromStandards.length) / limit) }
+            trackingMode,
+            objectives: pagedStandards,
+            pagination: { page, limit, total: availableFromStandards.length, pages: Math.ceil(availableFromStandards.length / limit) }
         }
     });
 });

@@ -8,11 +8,14 @@ const AEExclusionsTab = ({
   setExclusionsPage,
   newExclusion,
   setNewExclusion,
+  trackingMode = "objectives",
   hasPermission,
   onCreateExclusion,
   onToggleExclusion,
   onDeleteExclusion,
 }) => {
+  const entityLabel = trackingMode === "standards" ? "Standard" : "Objective";
+  const entityLabelLower = trackingMode === "standards" ? "standard" : "objective";
   const canManage =
     hasPermission(PERMISSIONS.EXCLUDE_ACADEMIC_EXCELLENCE_LESSON) ||
     hasPermission(PERMISSIONS.MANAGE_ACADEMIC_EXCELLENCE_EXCLUSIONS);
@@ -32,19 +35,19 @@ const AEExclusionsTab = ({
               value={newExclusion.scopeType}
               onChange={(e) => setNewExclusion((p) => ({ ...p, scopeType: e.target.value }))}
             >
-              <option value="objective">Objective</option>
+              <option value="objective">{entityLabel}</option>
               <option value="lesson">Lesson</option>
               <option value="subject">Subject</option>
             </select>
           </div>
 
           <div className="teacher-ae-form-group">
-            <label>Objective Key</label>
+            <label>{entityLabel} Key</label>
             <input
               className="teacher-ae-input"
               value={newExclusion.objectiveKey}
               onChange={(e) => setNewExclusion((p) => ({ ...p, objectiveKey: e.target.value }))}
-              placeholder="e.g. MATH-G5-FRACTIONS-ADD"
+              placeholder={entityLabelLower === "standard" ? "e.g. MATH.5.NF.1" : "e.g. MATH-G5-FRACTIONS-ADD"}
             />
           </div>
 
