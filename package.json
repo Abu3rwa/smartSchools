@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "npm install --prefix client && npm run build --prefix client",
+    "build": "node -e \"console.log('Backend API build step: no-op')\"",
     "seed": "node seeds/seedData.js",
     "seed:import-templates": "node seeds/seedImportTemplates.js",
     "test": "node --test tests",

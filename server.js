@@ -9,10 +9,6 @@ import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
 import compression from "compression";
 import { createServer } from "http";
-import { execSync } from "child_process";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
 import { validateEnvironment } from "./config/validateEnv.js";
 import errorHandler, { notFound } from "./middleware/errorHandler.js";
@@ -320,46 +316,10 @@ app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);
 
-const __dirnameServer = path.dirname(fileURLToPath(import.meta.url));
-
-// Serve static assets in production
-
-if (process.env.NODE_ENV === "production") {
-  const __dirname = __dirnameServer;
-  const clientDistPath = path.join(__dirname, "client", "dist");
-  const clientIndexPath = path.join(clientDistPath, "index.html");
-
-  if (!fs.existsSync(clientIndexPath)) {
-    try {
-      logger.warn("frontend_bundle_missing_building", { clientIndexPath });
-      execSync("npm install --prefix client && npm run build --prefix client", {
-        cwd: __dirname,
-        stdio: "inherit",
-      });
-    } catch (error) {
-      logger.error("frontend_bundle_build_failed", error?.message || error);
-    }
-  }
-
-  app.use(express.static(clientDistPath));
-
-  app.get("*", (req, res) => {
-    if (fs.existsSync(clientIndexPath)) {
-      res.sendFile(clientIndexPath);
-      return;
-    }
-
-    logger.warn("frontend_bundle_missing", { clientIndexPath });
-    res.status(503).json({
-      message: "Frontend bundle is not available in this deployment.",
-      expectedPath: clientIndexPath,
-    });
-  });
-} else {
-  app.get("/", (req, res) => {
-    res.send("API is running...");
-  });
-}
+// Backend-only deployment: do not build or serve frontend assets from this process.
+app.get("/", (req, res) => {
+  res.send("API is running...");
+});
 
 // Handle 404 errors
 app.use(notFound);

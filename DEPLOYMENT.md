@@ -1,6 +1,6 @@
-# How to Deploy to Render
+# How to Deploy Backend API to Render
 
-This application is deployed as one Node.js web service where the Express server also serves the built React frontend from `client/dist`.
+This deployment is backend-only. The Express app serves API routes, while the frontend is deployed separately (for example, Firebase Hosting).
 
 ## Prerequisites
 1. A GitHub repo connected to Render.
@@ -38,7 +38,7 @@ This application is deployed as one Node.js web service where the Express server
    - `NODE_ENV=production`
    - `MONGODB_URI=...`
    - `JWT_SECRET=...`
-   - `CLIENT_URL=https://your-render-domain.onrender.com`
+   - `CLIENT_URL=https://your-frontend-domain.web.app`
    - `GOOGLE_CLIENT_ID=...`
    - `GOOGLE_CLIENT_SECRET=...`
    - `GOOGLE_REDIRECT_URI=https://your-render-domain.onrender.com/api/auth/gmail/callback`
@@ -55,5 +55,5 @@ This application is deployed as one Node.js web service where the Express server
    - Check logs in Render -> your service -> Logs
 
 ## How It Works
-- `render-build` builds the React app in `client/`.
-- In production, `server.js` serves static files from `client/dist` and routes all SPA requests to `index.html`.
+- `render-build` is a backend no-op validation step.
+- `server.js` only serves API endpoints and health checks.
