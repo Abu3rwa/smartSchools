@@ -9,10 +9,14 @@ const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
   const isManual = cellData?.isManual || false;
   const isPending = cellData?.isPending || false;
   const hasValue = score !== null && score !== undefined;
+  const normalizedScore = hasValue ? Math.max(0, Math.min(4, Math.round(Number(score)))) : null;
+  const displayScore = hasValue
+    ? (Number.isInteger(Number(score)) ? Number(score) : Number(score).toFixed(1))
+    : '';
 
-  const bgColor = hasValue ? getScaleBgColor(score) : 'transparent';
-  const textColor = hasValue ? getScaleColor(score) : '#a0aec0';
-  const info = hasValue ? getScaleLevelInfo(score) : null;
+  const bgColor = hasValue ? getScaleBgColor(normalizedScore) : 'transparent';
+  const textColor = hasValue ? getScaleColor(normalizedScore) : 'var(--text-secondary, #a0aec0)';
+  const info = hasValue ? getScaleLevelInfo(normalizedScore) : null;
 
   const handleClick = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -62,7 +66,7 @@ const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
       onKeyDown={handleKeyDown}
     >
       <span className="gb-cell__value" style={{ color: textColor, fontWeight: hasValue ? 600 : 400 }}>
-        {hasValue ? score : ''}
+        {displayScore}
       </span>
       {isManual && hasValue && <span className="gb-cell__manual-icon">✎</span>}
 
@@ -72,7 +76,7 @@ const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
             <button
               key={opt}
               type="button"
-              className={`gb-cell__option${opt === score ? ' gb-cell__option--active' : ''}`}
+              className={`gb-cell__option${opt === normalizedScore ? ' gb-cell__option--active' : ''}`}
               style={{ backgroundColor: getScaleBgColor(opt), color: getScaleColor(opt) }}
               onClick={(e) => { e.stopPropagation(); handleSelect(opt); }}
             >

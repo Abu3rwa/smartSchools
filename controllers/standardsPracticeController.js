@@ -3984,27 +3984,36 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const effectiveSemester = resolveSemesterForRequest(req);
 
+  const { classIds: yearClassIds } = await getYearScopedClassIds(req);
+  let availableClassIds = yearClassIds;
+  if (req.user?.role === "teacher") {
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) return res.status(403).json({ success: false, message: "Not authorized" });
+    const teacherClassIds = await getTeacherClassIds(teacher._id);
+    const teacherClassSet = new Set(teacherClassIds.map((id) => id.toString()));
+    availableClassIds = yearClassIds.filter((id) => teacherClassSet.has(String(id)));
+  }
+
+  const allClasses = await import("../models/Class.js").then((m) =>
+    m.default.find({ _id: { $in: availableClassIds } }).select("_id name grade section").lean()
+  );
+  const allSubjects = await import("../models/Subject.js").then((m) =>
+    m.default.find({ school: req.schoolId }).select("_id name code").lean()
+  );
+
   if (!classId || !subjectId) {
     return res.json({
       success: true,
       data: {
         standards: [], students: [], matrix: {}, classAverage: {},
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: [], subjects: [], standards: [] },
+        filterOptions: { classes: allClasses, subjects: allSubjects, standards: [] },
         academicYear: effectiveAcademicYear, semester: effectiveSemester,
       },
     });
   }
 
-  const { classIds: yearClassIds } = await getYearScopedClassIds(req, [classId]);
-  let allowedClassIds = yearClassIds;
-  if (req.user?.role === "teacher") {
-    const teacher = await resolveTeacherProfile(req);
-    if (!teacher) return res.status(403).json({ success: false, message: "Not authorized" });
-    const teacherClassIds = await getTeacherClassIds(teacher._id);
-    const teacherClassSet = new Set(teacherClassIds.map((id) => id.toString()));
-    allowedClassIds = yearClassIds.filter((id) => teacherClassSet.has(String(id)));
-  }
+  const allowedClassIds = availableClassIds.filter((id) => String(id) === String(classId));
 
   if (!allowedClassIds.length) {
     return res.json({
@@ -4012,7 +4021,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       data: {
         standards: [], students: [], matrix: {}, classAverage: {},
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: [], subjects: [], standards: [] },
+        filterOptions: { classes: allClasses, subjects: allSubjects, standards: [] },
         academicYear: effectiveAcademicYear, semester: effectiveSemester,
       },
     });
@@ -4028,6 +4037,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     isActive: true,
     class: { $in: allowedClassIds },
     subject: subjectId,
+    "practiceConfig.sessionType": "assessment",
     ...semesterCondition,
   };
 
@@ -4036,22 +4046,55 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     .populate("standard", "code name description category masteryThreshold masteryMinQuestions")
     .lean();
 
-  // Build unique standards list
+  const assignmentIds = assignments.map((a) => a._id);
+
+  // Build unique standards list (dedupe by code to avoid duplicate columns)
   const standardsMap = new Map();
+  const standardIdToColumnId = new Map();
+  const normalizeStandardToken = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "")
+      .replace(/[^a-z0-9.\-_]/g, "");
+
   assignments.forEach((a) => {
     const std = a.standard;
     if (!std?._id) return;
-    const key = String(std._id);
-    if (!standardsMap.has(key)) {
-      standardsMap.set(key, {
+
+    const stdId = String(std._id);
+    const normalizedCode = normalizeStandardToken(std.code);
+    const normalizedName = normalizeStandardToken(std.name);
+    const dedupeKey = normalizedCode
+      ? `code:${normalizedCode}`
+      : normalizedName
+        ? `name:${normalizedName}`
+        : `id:${stdId}`;
+
+    if (!standardsMap.has(dedupeKey)) {
+      standardsMap.set(dedupeKey, {
         _id: std._id,
         code: std.code || "",
         name: std.name || "",
         description: std.description || "",
         category: std.category || "General",
       });
+    } else {
+      const existing = standardsMap.get(dedupeKey);
+      if (!existing.description && std.description) existing.description = std.description;
+      if (!existing.name && std.name) existing.name = std.name;
+      if (!existing.code && std.code) existing.code = std.code;
     }
+
+    const canonicalColumn = standardsMap.get(dedupeKey);
+    standardIdToColumnId.set(stdId, String(canonicalColumn._id));
   });
+
+  const assignmentStandardIds = [...new Set(assignments
+    .map((a) => a?.standard?._id)
+    .filter(Boolean)
+    .map((id) => String(id))
+  )];
 
   const standards = [...standardsMap.values()].sort((a, b) =>
     (a.code || a.name).localeCompare(b.code || b.name)
@@ -4063,7 +4106,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       data: {
         standards: [], students: [], matrix: {}, classAverage: {},
         pagination: { page, limit, total: 0, pages: 0 },
-        filterOptions: { classes: [], subjects: [], standards: [] },
+        filterOptions: { classes: allClasses, subjects: allSubjects, standards: [] },
         academicYear: effectiveAcademicYear, semester: effectiveSemester,
       },
     });
@@ -4107,10 +4150,12 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   const entryFilter = {
     school: req.schoolId,
     student: { $in: studentIds },
-    standard: { $in: standards.map((s) => s._id) },
+    assignment: { $in: assignmentIds },
+    standard: { $in: assignmentStandardIds },
     class: { $in: allowedClassIds },
     subject: subjectId,
     academicYear: effectiveAcademicYear,
+    status: "released",
   };
   if (effectiveSemester) {
     entryFilter.$or = [{ semester: effectiveSemester }, { semester: null }];
@@ -4133,12 +4178,14 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     }
   }
 
+  const studentStandardAgg = new Map();
   for (const entry of entries) {
     const sid = String(entry.student);
-    const stdId = String(entry.standard);
+    const rawStdId = String(entry.standard);
+    const stdId = standardIdToColumnId.get(rawStdId) || rawStdId;
     if (!matrix[sid] || !matrix[sid][stdId]) continue;
 
-    const percentage = Number.isFinite(entry.percentage) ? entry.percentage : null;
+    const percentage = Number.isFinite(entry.percentage) ? Number(entry.percentage) : null;
     const isManual = Boolean(entry.isManualEntry);
     let effectiveScore = entry.effectiveScore;
 
@@ -4151,16 +4198,40 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       }
     }
 
-    const existing = matrix[sid][stdId];
-    // Keep the best / most recent data
-    if (existing.effectiveScore === null || (effectiveScore !== null && effectiveScore > existing.effectiveScore)) {
-      matrix[sid][stdId] = {
-        effectiveScore: effectiveScore ?? null,
-        isManual,
-        percentage,
-        hasAutoAssessment: !isManual && percentage !== null,
-      };
+    if (effectiveScore === null || effectiveScore === undefined) continue;
+
+    const key = `${sid}|${stdId}`;
+    if (!studentStandardAgg.has(key)) {
+      studentStandardAgg.set(key, {
+        sid,
+        stdId,
+        scoreSum: 0,
+        scoreCount: 0,
+        percentageSum: 0,
+        percentageCount: 0,
+        manualCount: 0,
+      });
     }
+
+    const agg = studentStandardAgg.get(key);
+    agg.scoreSum += Number(effectiveScore);
+    agg.scoreCount += 1;
+    if (percentage !== null) {
+      agg.percentageSum += percentage;
+      agg.percentageCount += 1;
+    }
+    if (isManual) agg.manualCount += 1;
+  }
+
+  for (const agg of studentStandardAgg.values()) {
+    matrix[agg.sid][agg.stdId] = {
+      effectiveScore: Number((agg.scoreSum / agg.scoreCount).toFixed(2)),
+      isManual: agg.manualCount > 0,
+      percentage: agg.percentageCount > 0
+        ? Number((agg.percentageSum / agg.percentageCount).toFixed(2))
+        : null,
+      hasAutoAssessment: agg.percentageCount > 0,
+    };
   }
 
   // Compute class averages (across ALL students, not just paged)
@@ -4170,8 +4241,11 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     student: { $in: allStudentIds },
   }).select("student standard percentage manualScore isManualEntry effectiveScore").lean();
 
+  const allStudentStandardAgg = new Map();
   for (const entry of allEntries) {
-    const stdId = String(entry.standard);
+    const sid = String(entry.student);
+    const rawStdId = String(entry.standard);
+    const stdId = standardIdToColumnId.get(rawStdId) || rawStdId;
     let score = entry.effectiveScore;
     if (score === null || score === undefined) {
       if (entry.manualScore !== null && entry.manualScore !== undefined) {
@@ -4180,10 +4254,21 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
         score = percentageToScaleLevel(entry.percentage).value;
       }
     }
-    if (score !== null && score !== undefined) {
-      scoreSumByStandard[stdId] = (scoreSumByStandard[stdId] || 0) + score;
-      scoreCountByStandard[stdId] = (scoreCountByStandard[stdId] || 0) + 1;
+    if (score === null || score === undefined) continue;
+
+    const key = `${sid}|${stdId}`;
+    if (!allStudentStandardAgg.has(key)) {
+      allStudentStandardAgg.set(key, { stdId, scoreSum: 0, scoreCount: 0 });
     }
+    const agg = allStudentStandardAgg.get(key);
+    agg.scoreSum += Number(score);
+    agg.scoreCount += 1;
+  }
+
+  for (const agg of allStudentStandardAgg.values()) {
+    const perStudentStandardAvg = agg.scoreSum / agg.scoreCount;
+    scoreSumByStandard[agg.stdId] = (scoreSumByStandard[agg.stdId] || 0) + perStudentStandardAvg;
+    scoreCountByStandard[agg.stdId] = (scoreCountByStandard[agg.stdId] || 0) + 1;
   }
 
   const classAverage = {};
@@ -4193,14 +4278,6 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       classAverage[key] = Number((scoreSumByStandard[key] / scoreCountByStandard[key]).toFixed(2));
     }
   }
-
-  // Filter options
-  const allClasses = await import("../models/Class.js").then((m) =>
-    m.default.find({ _id: { $in: allowedClassIds } }).select("_id name grade section").lean()
-  );
-  const allSubjects = await import("../models/Subject.js").then((m) =>
-    m.default.find({ school: req.schoolId }).select("_id name code").lean()
-  );
 
   return res.json({
     success: true,

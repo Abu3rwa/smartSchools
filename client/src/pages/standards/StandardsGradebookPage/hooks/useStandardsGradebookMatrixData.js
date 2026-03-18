@@ -82,9 +82,7 @@ const useStandardsGradebookMatrixData = () => {
   const queryFingerprint = useMemo(() => JSON.stringify(queryParams), [queryParams]);
 
   useEffect(() => {
-    if (filters.classId && filters.subjectId) {
-      dispatch(fetchSBGradebookMatrix(queryParams));
-    }
+    dispatch(fetchSBGradebookMatrix(queryParams));
   }, [dispatch, queryFingerprint]);
 
   const onFilterChange = useCallback((key, value) => {
@@ -100,10 +98,8 @@ const useStandardsGradebookMatrixData = () => {
   }, []);
 
   const onRefresh = useCallback(() => {
-    if (filters.classId && filters.subjectId) {
-      dispatch(fetchSBGradebookMatrix(queryParams));
-    }
-  }, [dispatch, queryFingerprint, filters.classId, filters.subjectId]);
+    dispatch(fetchSBGradebookMatrix(queryParams));
+  }, [dispatch, queryFingerprint]);
 
   // Manual score editing
   const onCellChange = useCallback((studentId, standardId, score) => {

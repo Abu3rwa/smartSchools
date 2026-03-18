@@ -11,6 +11,10 @@ import './StandardAssignPage.css';
 const StandardAssignPage = () => {
     const {
         assignments,
+        filteredAssignments,
+        filters,
+        handleFilterChange,
+        filterOptions,
         loading,
         user,
         academicYear,
@@ -84,11 +88,15 @@ const StandardAssignPage = () => {
     return (
         <div className="assign-page">
             <StandardAssignPageHeader onCreate={openCreateModal} />
-            <StandardAssignFiltersBar />
+            <StandardAssignFiltersBar 
+                filters={filters} 
+                onFilterChange={handleFilterChange} 
+                options={filterOptions} 
+            />
 
             <StandardAssignList
                 loading={loading}
-                assignments={assignments}
+                assignments={filteredAssignments}
                 academicYear={academicYear}
                 selectedSemester={selectedSemester}
                 isAdmin={isAdmin}

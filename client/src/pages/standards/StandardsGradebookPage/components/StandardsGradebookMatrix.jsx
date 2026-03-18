@@ -39,12 +39,17 @@ const StandardsGradebookMatrix = ({
                 {t('standardsGradebook:table.student', 'STUDENT')}
               </th>
               {standards.map((std) => (
-                <th key={std._id} className="gb-matrix__std-header" title={std.name || std.code}>
+                <th
+                  key={std._id}
+                  className="gb-matrix__std-header"
+                  title={`${std.code || ''}${std.code && (std.description || std.name) ? ' - ' : ''}${std.description || std.name || ''}`}
+                >
                   <div className="gb-matrix__std-code">{std.code || std.name}</div>
-                  <div className="gb-matrix__std-desc">
-                    {(std.name || '').length > 50
-                      ? `${std.name.slice(0, 50)}…`
-                      : std.name}
+                  <div
+                    className="gb-matrix__std-desc"
+                    title={std.description || std.name || ''}
+                  >
+                    {std.description || std.name || ''}
                   </div>
                 </th>
               ))}

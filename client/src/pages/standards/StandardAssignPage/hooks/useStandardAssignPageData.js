@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -75,6 +75,49 @@ const useStandardAssignPageData = () => {
     const [formData, setFormData] = useState(createInitialFormData(selectedSemester));
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [poolActionLoadingId, setPoolActionLoadingId] = useState(null);
+
+    // Filters state
+    const [filters, setFilters] = useState({
+        classId: '',
+        subjectId: '',
+        semester: '',
+        academicYear: ''
+    });
+
+    const handleFilterChange = (key, value) => {
+        setFilters(prev => ({ ...prev, [key]: value }));
+    };
+
+    const filterOptions = useMemo(() => {
+        const classesMap = new Map();
+        const subjectsMap = new Map();
+        const semestersSet = new Set();
+        const yearsSet = new Set();
+
+        assignments.forEach(a => {
+            if (a.class?._id) classesMap.set(a.class._id, a.class.name);
+            if (a.subject?._id) subjectsMap.set(a.subject._id, a.subject.name);
+            if (a.semester) semestersSet.add(a.semester);
+            if (a.academicYear) yearsSet.add(a.academicYear);
+        });
+
+        return {
+            classes: Array.from(classesMap.entries()).map(([id, name]) => ({ id, name })),
+            subjects: Array.from(subjectsMap.entries()).map(([id, name]) => ({ id, name })),
+            semesters: Array.from(semestersSet).sort(),
+            academicYears: Array.from(yearsSet).sort()
+        };
+    }, [assignments]);
+
+    const filteredAssignments = useMemo(() => {
+        return assignments.filter(a => {
+            if (filters.classId && a.class?._id !== filters.classId) return false;
+            if (filters.subjectId && a.subject?._id !== filters.subjectId) return false;
+            if (filters.semester && String(a.semester) !== String(filters.semester)) return false;
+            if (filters.academicYear && a.academicYear !== filters.academicYear) return false;
+            return true;
+        });
+    }, [assignments, filters]);
 
     const isAdmin = user?.role === 'admin';
     const isTeacher = user?.role === 'teacher';
@@ -580,6 +623,10 @@ const useStandardAssignPageData = () => {
     return {
         standards,
         assignments,
+        filteredAssignments,
+        filters,
+        handleFilterChange,
+        filterOptions,
         assignmentProgress,
         assignmentProgressLoading,
         loading,
