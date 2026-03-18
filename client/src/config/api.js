@@ -2,9 +2,15 @@ import axios from 'axios';
 
 const PROD_FALLBACK_API_URL = 'https://schoolworkso.onrender.com/api';
 
+const isLocalLikeUrl = (value = '') => /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(String(value));
+
 const resolveApiUrl = () => {
     if (import.meta.env.PROD) {
-        return import.meta.env.VITE_API_URL || PROD_FALLBACK_API_URL;
+        const configuredApiUrl = import.meta.env.VITE_API_URL;
+        if (configuredApiUrl && !isLocalLikeUrl(configuredApiUrl)) {
+            return configuredApiUrl;
+        }
+        return PROD_FALLBACK_API_URL;
     }
     return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 };
