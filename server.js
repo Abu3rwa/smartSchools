@@ -100,15 +100,36 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
   "https://smile3-8c8c5.web.app",
- "https://schoolworkso.onrender.com"].filter(Boolean);
+  "https://smile3-8c8c5.firebaseapp.com",
+  "https://schoolworkso.onrender.com",
+]
+  .map((origin) => (typeof origin === "string" ? origin.trim() : origin))
+  .filter(Boolean);
+
+const isAllowedFirebaseOrigin = (origin) => {
+  if (!origin) return false;
+  return (
+    /^https:\/\/[a-z0-9-]+\.web\.app$/i.test(origin) ||
+    /^https:\/\/[a-z0-9-]+\.firebaseapp\.com$/i.test(origin)
+  );
+};
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  return allowedOrigins.includes(origin) || isAllowedFirebaseOrigin(origin);
+};
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        logger.warn("cors_origin_blocked", {
+          origin,
+          allowedOrigins,
+        });
+        callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
