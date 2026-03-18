@@ -18,6 +18,8 @@ import { getPlatformBranding } from '../services/platformBrandingService.js';
 
 const DEFAULT_CLIENT_URL = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
 
+const isLocalLikeUrl = (value = '') => /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(String(value));
+
 const getAllowedClientOrigins = () => (
     [
         process.env.FRONTEND_URL,
@@ -40,6 +42,23 @@ const resolveSafeClientUrl = (candidate) => {
     } catch {
         return DEFAULT_CLIENT_URL;
     }
+};
+
+const resolveGoogleLoginRedirectUri = (req) => {
+    const configuredRedirectUri = process.env.GOOGLE_LOGIN_REDIRECT_URI;
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (configuredRedirectUri && (!isProduction || !isLocalLikeUrl(configuredRedirectUri))) {
+        return configuredRedirectUri;
+    }
+
+    const host = req.get('host');
+    if (host) {
+        const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+        return `${protocol}://${host}/api/auth/google/callback`;
+    }
+
+    return 'http://localhost:5000/api/auth/google/callback';
 };
 
 /**
@@ -599,7 +618,7 @@ export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
     const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_LOGIN_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
+        resolveGoogleLoginRedirectUri(req)
     );
 
     // Step 2: Define what permissions (scopes) we need
@@ -663,7 +682,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
-            process.env.GOOGLE_LOGIN_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
+            resolveGoogleLoginRedirectUri(req)
         );
 
         // Step 2: Exchange the authorization code for tokens
