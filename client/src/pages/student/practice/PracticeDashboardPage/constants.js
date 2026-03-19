@@ -9,6 +9,6 @@ export const PRACTICE_TABLE_HEADERS = [
   "Subject",
   "Status",
   "Lifetime / Recent",
-  "Mastery Confidence",
+  "Progress / Confidence",
   "Actions",
 ];

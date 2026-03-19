@@ -51,6 +51,20 @@ const ensureTeacherOwnsAssignment = async (req, assignment) => {
     return assignment.teacher?.toString() === teacher._id.toString();
 };
 
+const getAssignmentScopedMasteryMinQuestions = (assignment) => {
+    const questionLimit = Number(assignment?.practiceConfig?.questionLimit);
+    if (Number.isFinite(questionLimit) && questionLimit > 0) {
+        return Math.max(1, Math.trunc(questionLimit));
+    }
+
+    const standardMinQuestions = Number(assignment?.standard?.masteryMinQuestions);
+    if (Number.isFinite(standardMinQuestions) && standardMinQuestions > 0) {
+        return Math.max(1, Math.trunc(standardMinQuestions));
+    }
+
+    return 5;
+};
+
 
 /**
  * @desc    Get assignments (teacher sees own, admin sees all)
@@ -207,7 +221,7 @@ export const getAssignment = asyncHandler(async (req, res) => {
                 student._id,
                 assignment.standard._id,
                 assignment.standard.masteryThreshold,
-                assignment.standard.masteryMinQuestions,
+                getAssignmentScopedMasteryMinQuestions(assignment),
                 3,
                 req.schoolId,
                 [assignment._id]

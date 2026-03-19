@@ -89,6 +89,7 @@
 .standard-cell {
     display: flex;
     flex-direction: column;
+    gap: 4px;
 }
 
 .standard-code {
@@ -101,6 +102,30 @@
 
 .standard-name {
     font-weight: 500;
+}
+
+.assignment-type-badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.assignment-type-badge--practice {
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--primary-600);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.assignment-type-badge--assessment {
+    background: rgba(245, 158, 11, 0.14);
+    color: var(--warning-700);
+    border: 1px solid rgba(245, 158, 11, 0.24);
 }
 
 .status-badge {
@@ -141,7 +166,7 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    min-width: 120px;
+    min-width: 150px;
 }
 
 .progress-bar-wrapper {
@@ -169,6 +194,20 @@
     color: var(--text-secondary);
 }
 
+.progress-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 56px;
+}
+
+.progress-subtext {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
 .actions-cell {
     display: flex;
     gap: var(--spacing-sm);
@@ -181,9 +220,6 @@
     gap: 6px;
 }
 
-.mastered-row {
-    background-color: var(--warning-50);
-}
 .mastered-row .standard-name {
     color: var(--text-secondary);
 }

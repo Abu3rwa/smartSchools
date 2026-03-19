@@ -122,6 +122,20 @@ const getAssignmentPracticeConfig = (assignment) => {
   };
 };
 
+const getAssignmentScopedMasteryMinQuestions = (assignment) => {
+  const questionLimit = Number(getAssignmentPracticeConfig(assignment)?.questionLimit);
+  if (Number.isFinite(questionLimit) && questionLimit > 0) {
+    return Math.max(1, Math.trunc(questionLimit));
+  }
+
+  const standardMinQuestions = Number(assignment?.standard?.masteryMinQuestions);
+  if (Number.isFinite(standardMinQuestions) && standardMinQuestions > 0) {
+    return Math.max(1, Math.trunc(standardMinQuestions));
+  }
+
+  return 5;
+};
+
 const isWithinAvailability = (availability) => {
   if (!availability) return true;
   const now = new Date();
@@ -1061,7 +1075,7 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
         student._id,
         a.standard._id,
         a.standard.masteryThreshold,
-        a.standard.masteryMinQuestions,
+        getAssignmentScopedMasteryMinQuestions(a),
         3,
         req.schoolId,
         [a._id]
@@ -1174,7 +1188,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     student._id,
     assignment.standard._id,
     assignment.standard.masteryThreshold,
-    assignment.standard.masteryMinQuestions,
+    getAssignmentScopedMasteryMinQuestions(assignment),
     3,
     req.schoolId,
     [assignment._id]
@@ -1481,7 +1495,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     )
     .populate({
       path: "assignment",
-      select: "subject class questionWorkflow",
+      select: "subject class questionWorkflow practiceConfig",
       populate: [
         {
           path: "subject",
@@ -1606,7 +1620,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     student._id,
     attempt.standard._id,
     attempt.standard.masteryThreshold,
-    attempt.standard.masteryMinQuestions,
+    getAssignmentScopedMasteryMinQuestions(attempt.assignment),
     3,
     req.schoolId,
     [attempt.assignment?._id || attempt.assignment]
@@ -1954,7 +1968,7 @@ export const getStudentProgress = asyncHandler(async (req, res) => {
         studentId,
         a.standard._id,
         a.standard.masteryThreshold,
-        a.standard.masteryMinQuestions,
+        getAssignmentScopedMasteryMinQuestions(a),
         3,
         req.schoolId,
         [a._id]
@@ -2064,7 +2078,7 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         student._id,
         assignment.standard._id,
         assignment.standard.masteryThreshold,
-        assignment.standard.masteryMinQuestions,
+        getAssignmentScopedMasteryMinQuestions(assignment),
         3,
         req.schoolId,
         [assignment._id]
@@ -4214,32 +4228,6 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   const allStudentIds = students.map((s) => String(s._id));
   const allStudentIdSet = new Set(allStudentIds);
 
-  // Expected denominator in average mode:
-  // count how many assessment assignments each student has for each canonical standard.
-  const expectedAssignmentCountByStudentStandard = new Map();
-  const incrementExpectedCount = (studentId, standardId) => {
-    const key = `${studentId}|${standardId}`;
-    expectedAssignmentCountByStudentStandard.set(
-      key,
-      (expectedAssignmentCountByStudentStandard.get(key) || 0) + 1
-    );
-  };
-
-  assignments.forEach((assignment) => {
-    const rawStdId = assignment?.standard?._id ? String(assignment.standard._id) : null;
-    if (!rawStdId) return;
-    const canonicalStdId = standardIdToColumnId.get(rawStdId) || rawStdId;
-
-    const assignedStudents = Array.isArray(assignment.students) && assignment.students.length > 0
-      ? assignment.students.map((id) => String(id))
-      : allStudentIds;
-
-    assignedStudents.forEach((sid) => {
-      if (!allStudentIdSet.has(sid)) return;
-      incrementExpectedCount(sid, canonicalStdId);
-    });
-  });
-
   // Paginate students
   const totalStudents = students.length;
   const totalPages = totalStudents > 0 ? Math.ceil(totalStudents / limit) : 0;
@@ -4342,9 +4330,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     } else if (scoringMode === 'highest') {
       finalScore = agg.maxScore !== -Infinity ? agg.maxScore : Number((agg.scoreSum / agg.scoreCount).toFixed(2));
     } else {
-      const expectedCount = expectedAssignmentCountByStudentStandard.get(`${agg.sid}|${agg.stdId}`) || 0;
-      const denominator = expectedCount > 0 ? expectedCount : agg.scoreCount;
-      finalScore = Number((agg.scoreSum / denominator).toFixed(2));
+      finalScore = Number((agg.scoreSum / agg.scoreCount).toFixed(2));
     }
     matrix[agg.sid][agg.stdId] = {
       effectiveScore: finalScore,
@@ -4410,9 +4396,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     } else if (scoringMode === 'highest') {
       perStudentScore = agg.maxScore !== -Infinity ? agg.maxScore : agg.scoreSum / agg.scoreCount;
     } else {
-      const expectedForKey = expectedAssignmentCountByStudentStandard.get(`${agg.sid}|${agg.stdId}`) || 0;
-      const denominator = expectedForKey > 0 ? expectedForKey : agg.scoreCount;
-      perStudentScore = agg.scoreSum / denominator;
+      perStudentScore = agg.scoreSum / agg.scoreCount;
     }
     scoreSumByStandard[agg.stdId] = (scoreSumByStandard[agg.stdId] || 0) + perStudentScore;
     scoreCountByStandard[agg.stdId] = (scoreCountByStandard[agg.stdId] || 0) + 1;

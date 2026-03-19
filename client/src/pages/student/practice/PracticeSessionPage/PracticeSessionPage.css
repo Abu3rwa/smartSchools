@@ -229,6 +229,7 @@
     line-height: 1.6;
     margin-bottom: var(--spacing-lg);
     color: var(--text-primary);
+    white-space: pre-line;
 }
 
 .remediation-tip {

@@ -595,10 +595,11 @@ Do not change JSON keys or structural fields.`;
           selectedStatement =
             resolvedAnswer === "True" ? trueStatement : falseStatement;
         }
-        let questionText = `${this._normalizeStudentName(studentFirstName)}, true or false: ${selectedStatement}`;
+        let questionText = `True or false: ${selectedStatement}`;
         questionText = this._sanitizeText(questionText, {
           maxLength: limits.questionMax,
           sentenceCase: true,
+          preserveLineBreaks: true,
         });
         questionText = this._ensureStudentNameInStem(questionText, studentFirstName);
 
@@ -743,7 +744,6 @@ ${retrySection}`;
     contextHints = {},
     retryNotes = [],
   }) {
-    const safeName = this._normalizeStudentName(studentFirstName);
     const typeInstructions = {
       multiple_choice: `Generate a multiple-choice question with exactly 4 options.
 Use labels A, B, C, D only in that order.
@@ -751,8 +751,13 @@ The "correctAnswer" must be one of: "A", "B", "C", "D".
 Exactly one option can be correct.
 Do not use "all of the above", "none of the above", or trick wording where multiple options are true.`,
       short_answer: `Generate a short-answer question.
-Set "options" to [].
-The "correctAnswer" should be concise (1-2 sentences max).`,
+    Set "options" to [].
+    The question must be fully self-contained.
+    If the student needs a sentence set, passage excerpt, example, chart, or data to answer, include it directly inside "questionText".
+    Never ask the student to identify, revise, compare, or explain a sentence that is not shown.
+    For sentence-editing or passage-analysis prompts, place each sentence on its own new line inside "questionText".
+    For sentence-based language questions, include a clear task such as "Task: Add the missing commas." or "Task: Rewrite the sentence correctly.".
+    The "correctAnswer" should be concise (1-2 sentences max).`,
       true_false: `Generate a true/false question.
 Set "options" to exactly:
 [{"label":"True","text":"True"},{"label":"False","text":"False"}]
@@ -799,7 +804,6 @@ Avoid ambiguous or opinion-based wording.`,
 
     return `You are an expert ${subjectName} teacher creating one standards-aligned practice question.
 
-STUDENT FIRST NAME: ${safeName}
 GRADE: ${standard?.gradeLevel ?? "unknown"}
 STANDARD CODE: ${standard?.code || "N/A"}
 STANDARD NAME: ${standard?.name || "N/A"}
@@ -824,8 +828,14 @@ REPEAT AVOIDANCE:
 ${avoidExamples || "none"}
 
 REQUIRED OUTPUT BEHAVIOR:
-- Include the student's first name naturally in the questionText exactly once.
-- Keep questionText concise, age-appropriate, and directly tied to the standard.
+- Do not include a student name in questionText.
+- Keep questionText age-appropriate, directly tied to the standard, and complete enough to answer without missing context.
+- If the task refers to sentences, evidence, or a passage, include that content inside questionText.
+- If questionText includes a sentence, passage, or example, also include a clear instruction telling the student exactly what to do.
+- Prefer structured wording for language questions, for example:
+  Instruction: Read the sentence.
+  Sentence: ...
+  Task: Add the missing commas.
 - Keep explanations clear and teacher-like.
 - Do not mention AI or model behavior.
 - Return STRICT JSON only. No markdown, no code fences, no extra text.
@@ -902,25 +912,35 @@ Rules:
 - Be fair on wording differences if concept is correct.
 - Personalize warmly for a student by first name.
 - Keep language age-appropriate and teacher-like.
+- Focus feedback on the target language skill in the standard and question.
+- Do not criticize story choices, realism, topic selection, or creativity unless the question explicitly asks about those.
+- For grammar, punctuation, capitalization, spelling, or sentence-structure questions, explain the language mistake directly and briefly.
+- If the answer is incorrect, say clearly what language rule was missed or misused.
+- Do not give strong praise for an incorrect answer.
+- Avoid vague phrases like "great effort" or "fantastic" when the answer is wrong.
+- If a likely typo matters, mention it briefly and plainly without turning it into the main feedback.
 - ${this._buildPromptLanguageRule(requestedLanguages)}
 - Keep "feedback" between ${wordRange.minWords} and ${wordRange.maxWords} words.
 - Put first name in feedbackParts.personalGreeting.
+- Keep feedbackParts.whatYouDidWell empty if there is no meaningful language success to highlight.
+- Keep feedbackParts.correctionOrConfirmation focused on the best answer and the language rule.
+- Keep feedbackParts.nextStep to one concrete language-focused action.
 - Do not mention AI/model behavior.
 - Return STRICT JSON only. No markdown/code fences/extra text.
 ${retrySection}
 Output JSON:
 {
   "isCorrect": true or false,
-  "feedback": "One concise encouraging paragraph for the student",
+  "feedback": "One concise clear paragraph for the student focused on the language rule",
   "feedbackParts": {
     "headline": "Short verdict headline",
     "personalGreeting": "Friendly line with student first name",
-    "whatYouDidWell": "One specific positive observation",
-    "correctionOrConfirmation": "Explain what is correct and why",
-    "nextStep": "One concrete next step",
+    "whatYouDidWell": "One specific positive language observation, or empty if none",
+    "correctionOrConfirmation": "Explain the best answer and the language rule in 1-2 short sentences",
+    "nextStep": "One concrete next step focused on the language skill",
     "encouragement": "Short motivational close",
     "displayAnswer": "Student-friendly answer display",
-    "explanation": "Quick concept explanation",
+    "explanation": "Quick language-rule explanation",
     "reviewTag": "Short topic to review",
     "confidenceLevel": "low or medium or high",
     "reasonSummary": "One short sentence describing why this was correct/incorrect",
@@ -1555,12 +1575,19 @@ Output JSON:
     const baseText = this._sanitizeText(questionText || "", {
       maxLength: 420,
       sentenceCase: true,
+      preserveLineBreaks: true,
     });
     const firstName = this._normalizeStudentName(studentFirstName);
-    const namePattern = new RegExp(`\\b${this._escapeRegex(firstName)}\\b`, "i");
-    if (namePattern.test(baseText)) return baseText;
-    if (!baseText) return `${firstName}, solve this standards-aligned question.`;
-    return `${firstName}, ${baseText.charAt(0).toLowerCase()}${baseText.slice(1)}`;
+    if (!baseText) return "Solve this standards-aligned question.";
+    if (!firstName || firstName === "Student") {
+      return baseText.replace(/^student\s*,\s*/i, "");
+    }
+
+    const leadingNamePattern = new RegExp(
+      `^${this._escapeRegex(firstName)}\\s*,\\s*`,
+      "i",
+    );
+    return baseText.replace(leadingNamePattern, "");
   }
 
   _truncateWords(text, maxWords) {
@@ -1589,12 +1616,22 @@ Output JSON:
     );
   }
 
-  _sanitizeText(value, { maxLength = 1000, sentenceCase = false } = {}) {
-    const noCodeFences = String(value || "")
+  _sanitizeText(
+    value,
+    { maxLength = 1000, sentenceCase = false, preserveLineBreaks = false } = {},
+  ) {
+    const stripped = String(value || "")
       .replace(/```[\s\S]*?```/g, " ")
-      .replace(/[`*_#~]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+      .replace(/[`*_#~]/g, " ");
+    const noCodeFences = preserveLineBreaks
+      ? stripped
+          .replace(/\r\n?/g, "\n")
+          .split("\n")
+          .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
+          .join("\n")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim()
+      : stripped.replace(/\s+/g, " ").trim();
     if (!noCodeFences) return "";
     const capped =
       noCodeFences.length > maxLength
@@ -1939,7 +1976,6 @@ Output JSON:
     const standardCode = this._normalizeSentence(standard?.code || "");
     const description = this._normalizeSentence(standard?.description || "");
     const subject = subjectName || "the subject";
-    const student = this._normalizeStudentName(studentFirstName);
     const keyIdea = description.split(/[.!?]/)[0]?.trim() || standardName;
     const sameCodeAndName =
       standardCode && standardName && standardCode.trim() === standardName.trim();
@@ -1964,8 +2000,8 @@ Output JSON:
     if (questionType === "true_false") {
       candidateQuestions.push({
         questionText: fallbackTrueAnswer
-          ? `${student}, true or false: ${referenceLabel} focuses on ${topicHint}.`
-          : `${student}, true or false: ${referenceLabel} means students should ignore evidence and rely only on guesses.`,
+          ? `True or false: ${referenceLabel} focuses on ${topicHint}.`
+          : `True or false: ${referenceLabel} means students should ignore evidence and rely only on guesses.`,
         questionType: "true_false",
         options: this._shuffleTrueFalseOptionsDeterministic(
           `${standardCode}|fallback|${topicHint}|${difficulty}`,
@@ -1980,7 +2016,7 @@ Output JSON:
 
     if (questionType === "short_answer") {
       candidateQuestions.push({
-        questionText: `${student}, in 1-2 sentences explain how ${referenceLabel} connects to ${topicHint}.`,
+        questionText: `In 1-2 sentences, explain how ${referenceLabel} connects to ${topicHint}.`,
         questionType: "short_answer",
         options: [],
         correctAnswer: `A strong answer explains how ${referenceLabel} connects to ${topicHint}.`,
@@ -1991,7 +2027,7 @@ Output JSON:
 
     if (questionType === "multiple_choice") {
       candidateQuestions.push({
-        questionText: `${student}, which option best matches the key idea in ${referenceLabel}?`,
+        questionText: `Which option best matches the key idea in ${referenceLabel}?`,
         questionType: "multiple_choice",
         options: [
           { label: "A", text: keyIdea },
@@ -2004,7 +2040,7 @@ Output JSON:
         difficulty: this._sanitizeDifficulty(difficulty),
       });
       candidateQuestions.push({
-        questionText: `${student}, choose the best evidence-based interpretation of ${referenceLabel}.`,
+        questionText: `Choose the best evidence-based interpretation of ${referenceLabel}.`,
         questionType: "multiple_choice",
         options: [
           { label: "A", text: "A detail that does not address the standard directly." },
@@ -2020,7 +2056,7 @@ Output JSON:
 
     if (candidateQuestions.length === 0) {
       candidateQuestions.push({
-        questionText: `${student}, which choice best matches ${referenceLabel}?`,
+        questionText: `Which choice best matches ${referenceLabel}?`,
         questionType: "multiple_choice",
         options: [
           { label: "A", text: keyIdea },
