@@ -176,6 +176,9 @@ export async function createRequest({
 
     const appBaseUrl = process.env.CLIENT_URL || process.env.API_BASE_URL || process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`;
     const normalizedAppBaseUrl = String(appBaseUrl).replace(/\/+$/, '');
+    const apiBaseUrl = process.env.API_BASE_URL || process.env.API_URL || `${normalizedAppBaseUrl}/api`;
+    const normalizedApiBaseUrl = String(apiBaseUrl).replace(/\/+$/, '');
+    const hasMobileBridge = Boolean(String(process.env.MOBILE_DEEP_LINK_BASE || '').trim());
     const tokenMap = {}; // substituteTeacherId -> { rawToken, confirmUrl, declineUrl }
 
     for (const a of request.assignments) {
@@ -188,8 +191,14 @@ export async function createRequest({
             expiresAt
         });
 
-        const confirmUrl = `${normalizedAppBaseUrl}/substitutions/respond?token=${encodeURIComponent(rawToken)}&intent=confirm`;
-        const declineUrl = `${normalizedAppBaseUrl}/substitutions/respond?token=${encodeURIComponent(rawToken)}&intent=decline`;
+        const confirmWebUrl = `${normalizedAppBaseUrl}/substitutions/respond?token=${encodeURIComponent(rawToken)}&intent=confirm`;
+        const declineWebUrl = `${normalizedAppBaseUrl}/substitutions/respond?token=${encodeURIComponent(rawToken)}&intent=decline`;
+        const confirmUrl = hasMobileBridge
+            ? `${normalizedApiBaseUrl}/substitutions/respond-bridge?token=${encodeURIComponent(rawToken)}&intent=confirm`
+            : confirmWebUrl;
+        const declineUrl = hasMobileBridge
+            ? `${normalizedApiBaseUrl}/substitutions/respond-bridge?token=${encodeURIComponent(rawToken)}&intent=decline`
+            : declineWebUrl;
 
         const subIdStr = a.substituteTeacherId.toString();
         if (!tokenMap[subIdStr]) {

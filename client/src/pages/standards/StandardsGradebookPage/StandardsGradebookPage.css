@@ -203,6 +203,7 @@
   color: var(--text-secondary, #475467);
   line-height: 1.2;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -270,7 +271,6 @@
   position: relative;
   width: 100%;
   min-height: 38px;
-  display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -304,6 +304,24 @@
   font-size: 0.6rem;
   opacity: 0.55;
   color: var(--text-secondary, #666);
+}
+
+.gb-cell__input {
+  width: calc(100% - 8px);
+  min-height: 30px;
+  border: 1px solid var(--primary-color, #1976d2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary, #0f172a);
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.2rem 0.25rem;
+}
+
+.gb-cell__input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.18);
 }
 
 /* Cell dropdown */

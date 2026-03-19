@@ -1,5 +1,13 @@
 import { Box, Button, Stack, TextField, Typography } from '@mui/material';
 
+const getPeriodLabel = (assignment) => {
+  const period = assignment?.periodId;
+  if (!period) return 'Assigned period';
+  const name = period?.name || 'Assigned period';
+  const hasTime = period?.startTime && period?.endTime;
+  return hasTime ? `${name} (${period.startTime}-${period.endTime})` : name;
+};
+
 const TeacherResponsePanel = ({
   isTeacher,
   isAbsentTeacher,
@@ -7,6 +15,8 @@ const TeacherResponsePanel = ({
   hasConfirmed,
   hasDeclined,
   status,
+  coverageType,
+  assignments,
   note,
   onNoteChange,
   onRespond,
@@ -64,24 +74,84 @@ const TeacherResponsePanel = ({
             disabled={respondLoading}
             sx={{ mb: 2 }}
           />
-          <Stack direction="row" spacing={1.5} flexWrap="wrap" justifyContent="flex-end">
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={() => onRespond('DECLINE')}
-              disabled={respondLoading || !note.trim()}
-            >
-              {respondLoading && activeAction === 'DECLINE' ? 'Submitting...' : 'Decline'}
-            </Button>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={() => onRespond('CONFIRM')}
-              disabled={respondLoading}
-            >
-              {respondLoading && activeAction === 'CONFIRM' ? 'Submitting...' : 'Confirm'}
-            </Button>
-          </Stack>
+          {coverageType === 'PER_PERIOD' ? (
+            <Stack spacing={1.25}>
+              {(assignments || []).map((assignment) => {
+                const assignmentStatus = assignment?.status || 'PENDING';
+                const assignmentId = assignment?._id;
+                const isPending = assignmentStatus === 'PENDING';
+                const isConfirmed = assignmentStatus === 'CONFIRMED';
+
+                return (
+                  <Box
+                    key={assignmentId}
+                    sx={{
+                      p: 1.25,
+                      border: (theme) => `1px solid ${theme.palette.divider}`,
+                      borderRadius: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1,
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {getPeriodLabel(assignment)}
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        onClick={() => onRespond('DECLINE', assignmentId)}
+                        disabled={respondLoading || !note.trim() || !isPending}
+                      >
+                        {respondLoading && activeAction === 'DECLINE' ? 'Submitting...' : 'Decline'}
+                      </Button>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        size="small"
+                        onClick={() => onRespond('CONFIRM', assignmentId)}
+                        disabled={respondLoading || !isPending}
+                      >
+                        {respondLoading && activeAction === 'CONFIRM' ? 'Submitting...' : 'Confirm'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        size="small"
+                        onClick={() => onRespond('WITHDRAW', assignmentId)}
+                        disabled={respondLoading || !note.trim() || !isConfirmed}
+                      >
+                        {respondLoading && activeAction === 'WITHDRAW' ? 'Withdrawing...' : 'Withdraw'}
+                      </Button>
+                    </Stack>
+                  </Box>
+                );
+              })}
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={1.5} flexWrap="wrap" justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={() => onRespond('DECLINE')}
+                disabled={respondLoading || !note.trim()}
+              >
+                {respondLoading && activeAction === 'DECLINE' ? 'Submitting...' : 'Decline'}
+              </Button>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => onRespond('CONFIRM')}
+                disabled={respondLoading}
+              >
+                {respondLoading && activeAction === 'CONFIRM' ? 'Submitting...' : 'Confirm'}
+              </Button>
+            </Stack>
+          )}
         </>
       )}
 
@@ -102,16 +172,51 @@ const TeacherResponsePanel = ({
             disabled={respondLoading}
             sx={{ mb: 2 }}
           />
-          <Stack direction="row" justifyContent="flex-end">
-            <Button
-              variant="outlined"
-              color="warning"
-              onClick={() => onRespond('WITHDRAW')}
-              disabled={respondLoading || !note.trim()}
-            >
-              {respondLoading && activeAction === 'WITHDRAW' ? 'Withdrawing...' : 'Withdraw confirmation'}
-            </Button>
-          </Stack>
+          {coverageType === 'PER_PERIOD' ? (
+            <Stack spacing={1.25}>
+              {(assignments || [])
+                .filter((assignment) => assignment?.status === 'CONFIRMED')
+                .map((assignment) => (
+                  <Box
+                    key={assignment?._id}
+                    sx={{
+                      p: 1.25,
+                      border: (theme) => `1px solid ${theme.palette.divider}`,
+                      borderRadius: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1,
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      {getPeriodLabel(assignment)}
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      size="small"
+                      onClick={() => onRespond('WITHDRAW', assignment?._id)}
+                      disabled={respondLoading || !note.trim()}
+                    >
+                      {respondLoading && activeAction === 'WITHDRAW' ? 'Withdrawing...' : 'Withdraw'}
+                    </Button>
+                  </Box>
+                ))}
+            </Stack>
+          ) : (
+            <Stack direction="row" justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                color="warning"
+                onClick={() => onRespond('WITHDRAW')}
+                disabled={respondLoading || !note.trim()}
+              >
+                {respondLoading && activeAction === 'WITHDRAW' ? 'Withdrawing...' : 'Withdraw confirmation'}
+              </Button>
+            </Stack>
+          )}
         </>
       )}
 

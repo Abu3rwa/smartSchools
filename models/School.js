@@ -470,6 +470,13 @@ const schoolSchema = new mongoose.Schema({
             type: mongoose.Schema.Types.Mixed,
             default: () => createDefaultAdmissionsPromotionSettings()
         },
+        standardsGradebook: {
+            scoringMode: {
+                type: String,
+                enum: ['average', 'latest', 'highest'],
+                default: 'average',
+            },
+        },
         features: {
             ...schoolFeatureSchemaDefinition
         }

@@ -9,6 +9,7 @@ import {
     createRequestHandler,
     createAbsenceHandler,
     listRequestsHandler,
+    getAnalyticsHandler,
     getRequestHandler,
     cancelRequestHandler,
     respondHandler,
@@ -19,6 +20,7 @@ import {
     createRequestRules,
     createAbsenceRules,
     listRequestsRules,
+    analyticsRules,
     respondRules,
     respondAuthRules,
     cancelRules,
@@ -44,6 +46,62 @@ router.post(
     validate,
     respondHandler
 );
+router.get(
+        '/respond-bridge',
+        respondLimiter,
+        (req, res) => {
+                const token = String(req.query.token || '').trim();
+                const intentRaw = String(req.query.intent || '').trim().toLowerCase();
+                const intent = intentRaw === 'decline' ? 'decline' : 'confirm';
+
+                if (!token) {
+                        return res.status(400).json({
+                                success: false,
+                                message: 'token query parameter is required'
+                        });
+                }
+
+                const clientBase = String(process.env.CLIENT_URL || '').trim()
+                        || `${req.protocol}://${req.get('host')}`;
+                const normalizedClientBase = clientBase.replace(/\/+$/, '');
+                const webUrl = `${normalizedClientBase}/substitutions/respond?token=${encodeURIComponent(token)}&intent=${encodeURIComponent(intent)}`;
+
+                const mobileDeepLinkBase = String(process.env.MOBILE_DEEP_LINK_BASE || '').trim().replace(/\/+$/, '');
+                if (!mobileDeepLinkBase) {
+                        return res.redirect(302, webUrl);
+                }
+
+                const delimiter = mobileDeepLinkBase.includes('?') ? '&' : '?';
+                const deepLinkUrl = `${mobileDeepLinkBase}${delimiter}token=${encodeURIComponent(token)}&intent=${encodeURIComponent(intent)}&fallback=${encodeURIComponent(webUrl)}`;
+
+                const html = `<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Opening substitution response</title>
+    </head>
+    <body style="font-family:sans-serif;max-width:560px;margin:2.5rem auto;padding:1rem;color:#1f2937;">
+        <h2 style="margin:0 0 10px;">Opening response...</h2>
+        <p style="margin:0 0 14px;">If the app does not open automatically, use the button below.</p>
+        <p style="margin:0;">
+            <a href="${webUrl}" style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">Continue in web portal</a>
+        </p>
+        <script>
+            const deepLink = ${JSON.stringify(deepLinkUrl)};
+            const fallback = ${JSON.stringify(webUrl)};
+            window.location.href = deepLink;
+            setTimeout(() => {
+                window.location.href = fallback;
+            }, 1200);
+        </script>
+    </body>
+</html>`;
+
+                return res.status(200).type('text/html').send(html);
+        }
+);
+
 router.get(
     '/respond',
     respondLimiter,
@@ -106,6 +164,14 @@ router.get(
 );
 
 // Get one: department_principal, admin, teacher
+router.get(
+    '/analytics',
+    authorize('department_principal', 'admin'),
+    analyticsRules,
+    validate,
+    getAnalyticsHandler
+);
+
 router.get(
     '/:id',
     authorize('department_principal', 'admin', 'teacher'),

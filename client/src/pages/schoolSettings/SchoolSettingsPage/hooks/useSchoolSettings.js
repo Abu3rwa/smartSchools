@@ -193,6 +193,11 @@ const useSchoolSettings = () => {
     saving: false,
     data: DEFAULT_ADMISSIONS_PROMOTION_SETTINGS
   });
+  const [standardsGradebookSettings, setStandardsGradebookSettings] = useState({
+    loading: false,
+    saving: false,
+    data: { scoringMode: 'average' }
+  });
   const [gradingScales, setGradingScales] = useState([]);
   const [gradingScalesLoading, setGradingScalesLoading] = useState(false);
   const [gradingScaleSubmitting, setGradingScaleSubmitting] = useState(false);
@@ -236,6 +241,7 @@ const useSchoolSettings = () => {
       canManageSchoolSettings ? 'branding' : null,
       canManageCommunicationSettings ? 'communication' : null,
       canManageSchoolSettings ? 'admissionspromotion' : null,
+      canManageSchoolSettings ? 'standardsgradebook' : null,
       canManageSchoolSettings ? 'schoolyear' : null
     ].filter(Boolean);
 
@@ -272,7 +278,17 @@ const useSchoolSettings = () => {
     try {
       const response = await api.get('/schools/me');
       if (response.data?.success) {
-        setSchoolInfo(response.data.data?.school || null);
+        const school = response.data.data?.school || null;
+        setSchoolInfo(school);
+        // Populate standardsGradebook settings from school profile
+        if (school?.settings?.standardsGradebook) {
+          setStandardsGradebookSettings((prev) => ({
+            ...prev,
+            data: {
+              scoringMode: school.settings.standardsGradebook.scoringMode || 'average',
+            },
+          }));
+        }
       }
     } catch (error) {
       toast.error(error.response?.data?.message || t('schoolSettings:toast.loadSchoolProfileFailed'));
@@ -406,6 +422,48 @@ const useSchoolSettings = () => {
       toast.error(error.response?.data?.message || t('schoolSettings:toast.admissionsPromotionSettingsUpdateFailed'));
     }
   }, [admissionsPromotionSettings.data, canManageSchoolSettings, t]);
+
+  const handleStandardsGradebookChange = useCallback((patch) => {
+    setStandardsGradebookSettings((previous) => ({
+      ...previous,
+      data: { ...previous.data, ...patch },
+    }));
+  }, []);
+
+  const handleSaveStandardsGradebookSettings = useCallback(async () => {
+    if (!canManageSchoolSettings) return;
+
+    setStandardsGradebookSettings((previous) => ({
+      ...previous,
+      saving: true,
+    }));
+
+    try {
+      const response = await api.patch('/schools/me/standards-gradebook-settings', standardsGradebookSettings.data);
+      if (response.data?.success) {
+        setStandardsGradebookSettings((previous) => ({
+          ...previous,
+          saving: false,
+          data: {
+            scoringMode: response.data.data?.scoringMode || previous.data.scoringMode,
+          },
+        }));
+        toast.success(t('schoolSettings:toast.standardsGradebookSettingsUpdated', 'Standards Gradebook settings updated'));
+      } else {
+        setStandardsGradebookSettings((previous) => ({
+          ...previous,
+          saving: false,
+        }));
+        toast.error(response.data?.message || t('schoolSettings:toast.standardsGradebookSettingsUpdateFailed', 'Failed to update settings'));
+      }
+    } catch (error) {
+      setStandardsGradebookSettings((previous) => ({
+        ...previous,
+        saving: false,
+      }));
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.standardsGradebookSettingsUpdateFailed', 'Failed to update settings'));
+    }
+  }, [standardsGradebookSettings.data, canManageSchoolSettings, t]);
 
   const fetchGradingScales = useCallback(async () => {
     if (!canManageGradeScaling) return;
@@ -1107,6 +1165,9 @@ const useSchoolSettings = () => {
     handleSaveAttendanceReminderSettings,
     handleAdmissionsPromotionSettingsChange,
     handleSaveAdmissionsPromotionSettings,
+    standardsGradebookSettings,
+    handleStandardsGradebookChange,
+    handleSaveStandardsGradebookSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,

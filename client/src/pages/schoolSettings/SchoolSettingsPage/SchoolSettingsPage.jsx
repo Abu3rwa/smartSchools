@@ -10,6 +10,7 @@ import BrandingTab from './components/BrandingTab';
 import GradingScalesTab from './components/GradingScalesTab';
 import CommunicationTab from './components/CommunicationTab';
 import AdmissionsPromotionTab from './components/AdmissionsPromotionTab';
+import StandardsGradebookTab from './components/StandardsGradebookTab';
 import { useTranslation } from 'react-i18next';
 import useSchoolSettings from './hooks/useSchoolSettings';
 import './SchoolSettingsPage.css';
@@ -74,6 +75,9 @@ const SchoolSettingsPage = () => {
     handleSaveAttendanceReminderSettings,
     handleAdmissionsPromotionSettingsChange,
     handleSaveAdmissionsPromotionSettings,
+    standardsGradebookSettings,
+    handleStandardsGradebookChange,
+    handleSaveStandardsGradebookSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,
@@ -218,6 +222,16 @@ const SchoolSettingsPage = () => {
               saving={admissionsPromotionSettings.saving}
               onChange={handleAdmissionsPromotionSettingsChange}
               onSave={handleSaveAdmissionsPromotionSettings}
+            />
+          )}
+
+          {activeTab === 'standardsgradebook' && canManageSchoolSettings && (
+            <StandardsGradebookTab
+              settings={standardsGradebookSettings.data}
+              loading={standardsGradebookSettings.loading}
+              saving={standardsGradebookSettings.saving}
+              onChange={handleStandardsGradebookChange}
+              onSave={handleSaveStandardsGradebookSettings}
             />
           )}
 

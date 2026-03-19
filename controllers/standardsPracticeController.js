@@ -1,4 +1,5 @@
 import PracticeAttempt from "../models/PracticeAttempt.js";
+import School from "../models/School.js";
 import StandardAssignment from "../models/StandardAssignment.js";
 import Student from "../models/Student.js";
 import PracticeSession from "../models/PracticeSession.js";
@@ -2797,6 +2798,10 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
   const fromTime = toTimeOrNull(fromDate);
   const toTime = toTimeOrNull(toDate);
 
+  // Read scoringMode for this school
+  const schoolDoc = await School.findById(req.schoolId).select('settings.standardsGradebook').lean();
+  const scoringMode = schoolDoc?.settings?.standardsGradebook?.scoringMode || 'average';
+
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const effectiveSemester = resolveSemesterForRequest(req);
 
@@ -3161,9 +3166,17 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
     if (entry.status === "released") row.releasedCount += 1;
 
     if (Number.isFinite(Number(entry.percentage))) {
-      const existing = percentageTotalsByRow.get(row.rowKey) || { total: 0, count: 0 };
+      const existing = percentageTotalsByRow.get(row.rowKey) || { total: 0, count: 0, latestTime: 0, latestPercentage: null, maxPercentage: -Infinity };
       existing.total += Number(entry.percentage);
       existing.count += 1;
+      const entryTime = toTimeOrNull(entry.releasedAt || entry.submittedAt || entry.updatedAt) || 0;
+      if (entryTime > (existing.latestTime || 0)) {
+        existing.latestTime = entryTime;
+        existing.latestPercentage = Number(entry.percentage);
+      }
+      if (Number(entry.percentage) > (existing.maxPercentage ?? -Infinity)) {
+        existing.maxPercentage = Number(entry.percentage);
+      }
       percentageTotalsByRow.set(row.rowKey, existing);
     }
 
@@ -3180,10 +3193,16 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
         : 0;
 
     const percentageStats = percentageTotalsByRow.get(row.rowKey);
-    const averagePercentage =
-      percentageStats && percentageStats.count > 0
-        ? Number((percentageStats.total / percentageStats.count).toFixed(2))
-        : null;
+    let averagePercentage = null;
+    if (percentageStats && percentageStats.count > 0) {
+      if (scoringMode === 'latest') {
+        averagePercentage = percentageStats.latestPercentage ?? Number((percentageStats.total / percentageStats.count).toFixed(2));
+      } else if (scoringMode === 'highest') {
+        averagePercentage = percentageStats.maxPercentage !== -Infinity ? percentageStats.maxPercentage : Number((percentageStats.total / percentageStats.count).toFixed(2));
+      } else {
+        averagePercentage = Number((percentageStats.total / percentageStats.count).toFixed(2));
+      }
+    }
 
     const statusValue = resolveSbRowStatus({
       totalAttempts: row.totalAttempts,
@@ -3298,6 +3317,7 @@ export const getSBGradebook = asyncHandler(async (req, res) => {
     success: true,
     data: {
       rows: pagedRows,
+      scoringMode,
       summary: {
         totalRows: summary.totalRows,
         totalStudents: summary.totalStudentsSet.size,
@@ -3747,7 +3767,7 @@ export const getIntegrityByStudent = asyncHandler(async (req, res) => {
  * ───────────────────────────────────────────────────────────── */
 
 /**
- * @desc    Upsert a manual score (0-4) for a student × standard
+ * @desc    Upsert a manual score (0-4, decimals allowed) for a student × standard
  * @route   PUT /api/practice/sb-gradebook/manual-score
  * @access  Private (Admin, Teacher)
  */
@@ -3758,7 +3778,7 @@ export const updateManualScore = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "studentId, standardId, classId and subjectId are required." });
   }
   if (!isValidManualScore(score)) {
-    return res.status(400).json({ success: false, message: "score must be 0, 1, 2, 3, 4, or null to clear." });
+    return res.status(400).json({ success: false, message: "score must be a number between 0 and 4, or null to clear." });
   }
 
   const effectiveAcademicYear = academicYear || resolveAcademicYearForRequest(req);
@@ -3884,7 +3904,7 @@ export const updateBulkManualScores = asyncHandler(async (req, res) => {
       return res.status(400).json({ success: false, message: "Each score must have studentId and standardId." });
     }
     if (!isValidManualScore(item.score)) {
-      return res.status(400).json({ success: false, message: `Invalid score value: ${item.score}. Must be 0-4 or null.` });
+      return res.status(400).json({ success: false, message: `Invalid score value: ${item.score}. Must be between 0 and 4 or null.` });
     }
   }
 
@@ -3984,6 +4004,10 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   const { classId, subjectId, search } = req.query || {};
   const page = parsePositiveInt(req.query?.page, 1);
   const limit = Math.min(parsePositiveInt(req.query?.limit, 50), 200);
+
+  // Read scoringMode from school settings
+  const schoolDoc = await School.findById(req.schoolId).select('settings.standardsGradebook').lean();
+  const scoringMode = schoolDoc?.settings?.standardsGradebook?.scoringMode || 'average';
 
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const effectiveSemester = resolveSemesterForRequest(req);
@@ -4109,11 +4133,14 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     const stdId = String(std._id);
     const normalizedCode = normalizeStandardToken(std.code);
     const normalizedName = normalizeStandardToken(std.name);
+    const normalizedDesc = normalizeStandardToken(std.description);
     const dedupeKey = normalizedCode
       ? `code:${normalizedCode}`
       : normalizedName
         ? `name:${normalizedName}`
-        : `id:${stdId}`;
+        : normalizedDesc
+          ? `desc:${normalizedDesc}`
+          : `id:${stdId}`;
 
     if (!standardsMap.has(dedupeKey)) {
       standardsMap.set(dedupeKey, {
@@ -4184,6 +4211,35 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
     });
   }
 
+  const allStudentIds = students.map((s) => String(s._id));
+  const allStudentIdSet = new Set(allStudentIds);
+
+  // Expected denominator in average mode:
+  // count how many assessment assignments each student has for each canonical standard.
+  const expectedAssignmentCountByStudentStandard = new Map();
+  const incrementExpectedCount = (studentId, standardId) => {
+    const key = `${studentId}|${standardId}`;
+    expectedAssignmentCountByStudentStandard.set(
+      key,
+      (expectedAssignmentCountByStudentStandard.get(key) || 0) + 1
+    );
+  };
+
+  assignments.forEach((assignment) => {
+    const rawStdId = assignment?.standard?._id ? String(assignment.standard._id) : null;
+    if (!rawStdId) return;
+    const canonicalStdId = standardIdToColumnId.get(rawStdId) || rawStdId;
+
+    const assignedStudents = Array.isArray(assignment.students) && assignment.students.length > 0
+      ? assignment.students.map((id) => String(id))
+      : allStudentIds;
+
+    assignedStudents.forEach((sid) => {
+      if (!allStudentIdSet.has(sid)) return;
+      incrementExpectedCount(sid, canonicalStdId);
+    });
+  });
+
   // Paginate students
   const totalStudents = students.length;
   const totalPages = totalStudents > 0 ? Math.ceil(totalStudents / limit) : 0;
@@ -4206,7 +4262,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   }
 
   const entries = await StandardsGradebookEntry.find(entryFilter)
-    .select("student standard percentage manualScore isManualEntry effectiveScore status")
+    .select("student standard percentage manualScore isManualEntry effectiveScore status updatedAt")
     .lean();
 
   // Build matrix
@@ -4254,6 +4310,9 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
         percentageSum: 0,
         percentageCount: 0,
         manualCount: 0,
+        latestTime: 0,
+        latestScore: null,
+        maxScore: -Infinity,
       });
     }
 
@@ -4265,11 +4324,30 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       agg.percentageCount += 1;
     }
     if (isManual) agg.manualCount += 1;
+    // Track for latest and highest
+    const entryTime = entry.updatedAt ? new Date(entry.updatedAt).getTime() : 0;
+    if (entryTime > (agg.latestTime || 0)) {
+      agg.latestScore = Number(effectiveScore);
+      agg.latestTime = entryTime;
+    }
+    if (Number(effectiveScore) > (agg.maxScore ?? -Infinity)) {
+      agg.maxScore = Number(effectiveScore);
+    }
   }
 
   for (const agg of studentStandardAgg.values()) {
+    let finalScore;
+    if (scoringMode === 'latest') {
+      finalScore = agg.latestScore ?? Number((agg.scoreSum / agg.scoreCount).toFixed(2));
+    } else if (scoringMode === 'highest') {
+      finalScore = agg.maxScore !== -Infinity ? agg.maxScore : Number((agg.scoreSum / agg.scoreCount).toFixed(2));
+    } else {
+      const expectedCount = expectedAssignmentCountByStudentStandard.get(`${agg.sid}|${agg.stdId}`) || 0;
+      const denominator = expectedCount > 0 ? expectedCount : agg.scoreCount;
+      finalScore = Number((agg.scoreSum / denominator).toFixed(2));
+    }
     matrix[agg.sid][agg.stdId] = {
-      effectiveScore: Number((agg.scoreSum / agg.scoreCount).toFixed(2)),
+      effectiveScore: finalScore,
       isManual: agg.manualCount > 0,
       percentage: agg.percentageCount > 0
         ? Number((agg.percentageSum / agg.percentageCount).toFixed(2))
@@ -4279,11 +4357,11 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
   }
 
   // Compute class averages (across ALL students, not just paged)
-  const allStudentIds = students.map((s) => s._id);
+  const allStudentObjectIds = students.map((s) => s._id);
   const allEntries = await StandardsGradebookEntry.find({
     ...entryFilter,
-    student: { $in: allStudentIds },
-  }).select("student standard percentage manualScore isManualEntry effectiveScore").lean();
+    student: { $in: allStudentObjectIds },
+  }).select("student standard percentage manualScore isManualEntry effectiveScore updatedAt").lean();
 
   const allStudentStandardAgg = new Map();
   for (const entry of allEntries) {
@@ -4302,16 +4380,41 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
 
     const key = `${sid}|${stdId}`;
     if (!allStudentStandardAgg.has(key)) {
-      allStudentStandardAgg.set(key, { stdId, scoreSum: 0, scoreCount: 0 });
+      allStudentStandardAgg.set(key, {
+        sid,
+        stdId,
+        scoreSum: 0,
+        scoreCount: 0,
+        latestTime: 0,
+        latestScore: null,
+        maxScore: -Infinity
+      });
     }
     const agg = allStudentStandardAgg.get(key);
     agg.scoreSum += Number(score);
     agg.scoreCount += 1;
+    const entryTime = entry.updatedAt ? new Date(entry.updatedAt).getTime() : 0;
+    if (entryTime > (agg.latestTime || 0)) {
+      agg.latestTime = entryTime;
+      agg.latestScore = Number(score);
+    }
+    if (Number(score) > (agg.maxScore ?? -Infinity)) {
+      agg.maxScore = Number(score);
+    }
   }
 
   for (const agg of allStudentStandardAgg.values()) {
-    const perStudentStandardAvg = agg.scoreSum / agg.scoreCount;
-    scoreSumByStandard[agg.stdId] = (scoreSumByStandard[agg.stdId] || 0) + perStudentStandardAvg;
+    let perStudentScore;
+    if (scoringMode === 'latest') {
+      perStudentScore = agg.latestScore ?? agg.scoreSum / agg.scoreCount;
+    } else if (scoringMode === 'highest') {
+      perStudentScore = agg.maxScore !== -Infinity ? agg.maxScore : agg.scoreSum / agg.scoreCount;
+    } else {
+      const expectedForKey = expectedAssignmentCountByStudentStandard.get(`${agg.sid}|${agg.stdId}`) || 0;
+      const denominator = expectedForKey > 0 ? expectedForKey : agg.scoreCount;
+      perStudentScore = agg.scoreSum / denominator;
+    }
+    scoreSumByStandard[agg.stdId] = (scoreSumByStandard[agg.stdId] || 0) + perStudentScore;
     scoreCountByStandard[agg.stdId] = (scoreCountByStandard[agg.stdId] || 0) + 1;
   }
 
@@ -4337,6 +4440,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       })),
       matrix,
       classAverage,
+      scoringMode,
       pagination: { page, limit, total: totalStudents, pages: totalPages },
       filterOptions: {
         classes: allClasses,

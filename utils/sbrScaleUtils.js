@@ -11,8 +11,6 @@ export const SCALE_LEVELS = [
   { value: 0, label: 'Not Demonstrated', labelAr: 'لم يُظهر أي أداء', minPercent: 0, maxPercent: 0, color: '#718096', description: 'Student has not demonstrated any proficiency.' },
 ];
 
-export const VALID_MANUAL_SCORES = [0, 1, 2, 3, 4];
-
 /**
  * Convert a percentage (0–100) to a discrete scale level (0–4).
  * @param {number|null} percentage
@@ -52,7 +50,7 @@ export const percentageToScaleLevel = (percentage, scaleLevels) => {
 export const isValidManualScore = (score) => {
   if (score === null) return true; // null = clear
   const num = Number(score);
-  return Number.isInteger(num) && VALID_MANUAL_SCORES.includes(num);
+  return Number.isFinite(num) && num >= 0 && num <= 4;
 };
 
 /**

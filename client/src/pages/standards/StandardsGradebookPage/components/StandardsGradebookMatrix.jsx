@@ -68,14 +68,14 @@ const StandardsGradebookMatrix = ({
                 return (
                   <td
                     key={std._id}
-                    className="gb-cell gb-cell--readonly"
+                    className="gb-cell gb-cell--readonly gb-matrix__student-cell"
                     style={{
                       backgroundColor: hasAvg ? getScaleBgColor(rounded) : 'transparent',
                       fontWeight: 600,
                       color: hasAvg ? getScaleColor(rounded) : '#a0aec0',
                     }}
                   >
-                    {hasAvg ? avg.toFixed(1) : ''}
+                    {hasAvg ? avg.toFixed(1) : 'NAN'}
                   </td>
                 );
               })}

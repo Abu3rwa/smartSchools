@@ -47,5 +47,52 @@
   },
   "common": {
     "unknown": "Unknown"
+  },
+  "analytics": {
+    "title": "Substitution Analytics",
+    "subtitle": "Track monthly demand, outcomes, and response speed.",
+    "loading": "Loading analytics...",
+    "filters": {
+      "coverageType": "Coverage Type",
+      "department": "Department",
+      "allDepartments": "All Departments"
+    },
+    "coverage": {
+      "all": "All Coverage Types",
+      "single": "Single Teacher",
+      "perPeriod": "Per-Period"
+    },
+    "kpis": {
+      "totalRequests": "Total Requests",
+      "confirmationRate": "Confirmation Rate",
+      "avgResponse": "Avg Response Time",
+      "mostRequestedMonth": "Most Requested Month"
+    },
+    "charts": {
+      "monthlyVolume": "Sub Requests by Month",
+      "monthlyOutcomes": "Request Outcomes by Month",
+      "monthlyResponseTime": "Avg Response Time by Month"
+    },
+    "legend": {
+      "requests": "Requests",
+      "confirmed": "Confirmed",
+      "declined": "Declined",
+      "expired": "Expired",
+      "cancelled": "Cancelled",
+      "avgHours": "Avg Hours"
+    },
+    "tables": {
+      "topAbsentTeachers": "Top Absent Teachers",
+      "topSubstituteTeachers": "Top Substitute Teachers",
+      "rank": "Rank",
+      "teacher": "Teacher",
+      "absences": "Absences",
+      "requests": "Requests",
+      "confirmed": "Confirmed",
+      "declined": "Declined",
+      "timesSubstituted": "Times Substituted",
+      "confirmationRate": "Confirmation Rate",
+      "avgResponseHours": "Avg Response (hrs)"
+    }
   }
 }

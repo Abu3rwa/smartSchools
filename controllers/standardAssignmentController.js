@@ -23,7 +23,6 @@ import {
 } from '../services/standardAssignmentService.js';
 
 const normalizeTitle = (value = '') => String(value || '').trim();
-const normalizeComparableTitle = (value = '') => normalizeTitle(value).toLowerCase();
 
 const resolveSemesterFromDate = (dateValue = new Date()) => {
     const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
@@ -390,25 +389,6 @@ export const createAssignment = asyncHandler(async (req, res) => {
     const assignmentSemester = requestedSemester
         || resolveSemesterFromDate(dueDate || new Date());
 
-    // Check for duplicate assignment title within same class/subject/standard/teacher
-    const existing = await StandardAssignment.find({
-        school: req.schoolId,
-        standard: standardId,
-        class: classId,
-        subject: subjectId,
-        teacher: teacherId,
-        isActive: true
-    }).select('title');
-    const hasDuplicateTitle = existing.some((item) =>
-        normalizeComparableTitle(item.title) === normalizeComparableTitle(resolvedTitle)
-    );
-    if (hasDuplicateTitle) {
-        return res.status(400).json({
-            success: false,
-            message: 'An active assignment with this name already exists for this class and standard'
-        });
-    }
-
     const { assignment, pool, generationError } = await createStandardAssignmentWithPool({
         schoolId: req.schoolId,
         actorUserId: req.user._id,
@@ -593,24 +573,6 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     }
 
     const resolvedTitle = normalizeTitle(req.body.title) || assignment.title;
-    const duplicateCandidates = await StandardAssignment.find({
-        school: req.schoolId,
-        standard: nextStandardId,
-        class: nextClassId,
-        subject: nextSubjectId,
-        teacher: nextTeacherId,
-        isActive: true,
-        _id: { $ne: assignment._id }
-    }).select('title');
-    const hasDuplicateTitle = duplicateCandidates.some((item) =>
-        normalizeComparableTitle(item.title) === normalizeComparableTitle(resolvedTitle)
-    );
-    if (hasDuplicateTitle) {
-        return res.status(400).json({
-            success: false,
-            message: 'An active assignment with this name already exists for this class and standard'
-        });
-    }
 
     const allowedFields = [
         'title',

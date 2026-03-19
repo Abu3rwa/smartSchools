@@ -76,6 +76,22 @@ export async function fetchSubPendingCount() {
 }
 
 /**
+ * Fetch substitution analytics for admin/department principal.
+ * @param {{ coverageType?: string, departmentId?: string }} filters
+ * @returns {Promise<Object>}
+ */
+export async function fetchSubRequestsAnalytics(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.coverageType) params.set('coverageType', filters.coverageType);
+  if (filters.departmentId) params.set('departmentId', filters.departmentId);
+
+  const query = params.toString();
+  const { data } = await api.get(query ? `${BASE}/analytics?${query}` : `${BASE}/analytics`);
+  if (!data.success) throw new Error(data.message || 'Failed to fetch analytics');
+  return data.data;
+}
+
+/**
  * Respond to a substitution request (confirm/decline) via token.
  * @param {{ token: string, action: 'CONFIRM'|'DECLINE', note?: string }} payload
  * @returns {Promise<Object>}
@@ -88,11 +104,11 @@ export async function respondToSubRequest({ token, action, note }) {
 
 /**
  * Respond to a substitution request in portal as the logged-in teacher.
- * @param {{ id: string, action: 'CONFIRM'|'DECLINE', note?: string }} payload
+ * @param {{ id: string, action: 'CONFIRM'|'DECLINE'|'WITHDRAW', note?: string, assignmentId?: string }} payload
  * @returns {Promise<Object>}
  */
-export async function respondToSubRequestAuth({ id, action, note }) {
-  const { data } = await api.post(`${BASE}/${id}/respond-auth`, { action, note });
+export async function respondToSubRequestAuth({ id, action, note, assignmentId }) {
+  const { data } = await api.post(`${BASE}/${id}/respond-auth`, { action, note, assignmentId });
   if (!data.success) throw new Error(data.message || 'Failed to respond');
   return data.data;
 }

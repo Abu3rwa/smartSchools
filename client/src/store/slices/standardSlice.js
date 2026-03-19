@@ -213,7 +213,8 @@ const standardSlice = createSlice({
             },
             academicYear: null,
             semester: null,
-            filters: {}
+            filters: {},
+            scoringMode: 'average',
         },
         sbGradebookLoading: false,
         sbGradebookError: null,
@@ -226,6 +227,7 @@ const standardSlice = createSlice({
             filterOptions: { classes: [], subjects: [], standards: [] },
             academicYear: null,
             semester: null,
+            scoringMode: 'average',
         },
         sbGradebookMatrixLoading: false,
         sbGradebookMatrixError: null,
@@ -258,7 +260,8 @@ const standardSlice = createSlice({
                 },
                 academicYear: null,
                 semester: null,
-                filters: {}
+                filters: {},
+                scoringMode: 'average',
             };
             state.sbGradebookLoading = false;
             state.sbGradebookError = null;
@@ -273,6 +276,7 @@ const standardSlice = createSlice({
                 filterOptions: { classes: [], subjects: [], standards: [] },
                 academicYear: null,
                 semester: null,
+                scoringMode: 'average',
             };
             state.sbGradebookMatrixLoading = false;
             state.sbGradebookMatrixError = null;
@@ -397,7 +401,8 @@ const standardSlice = createSlice({
                     },
                     academicYear: action.payload?.academicYear ?? null,
                     semester: action.payload?.semester ?? null,
-                    filters: action.payload?.filters || {}
+                    filters: action.payload?.filters || {},
+                    scoringMode: action.payload?.scoringMode || 'average',
                 };
             })
             .addCase(fetchSBGradebook.rejected, (state, action) => {
@@ -420,6 +425,7 @@ const standardSlice = createSlice({
                     filterOptions: action.payload?.filterOptions || { classes: [], subjects: [], standards: [] },
                     academicYear: action.payload?.academicYear ?? null,
                     semester: action.payload?.semester ?? null,
+                    scoringMode: action.payload?.scoringMode || 'average',
                 };
             })
             .addCase(fetchSBGradebookMatrix.rejected, (state, action) => {
@@ -469,6 +475,7 @@ export const selectSBGradebookFilterOptions = (state) => state.standards?.sbGrad
 export const selectSBGradebookFilters = (state) => state.standards?.sbGradebook?.filters || {};
 export const selectSBGradebookLoading = (state) => state.standards?.sbGradebookLoading;
 export const selectSBGradebookError = (state) => state.standards?.sbGradebookError;
+export const selectSBGradebookScoringMode = (state) => state.standards?.sbGradebook?.scoringMode || 'average';
 
 // Matrix selectors
 export const selectSBGradebookMatrixStandards = (state) => state.standards?.sbGradebookMatrix?.standards || [];
@@ -479,6 +486,7 @@ export const selectSBGradebookMatrixPagination = (state) => state.standards?.sbG
 export const selectSBGradebookMatrixFilterOptions = (state) => state.standards?.sbGradebookMatrix?.filterOptions;
 export const selectSBGradebookMatrixLoading = (state) => state.standards?.sbGradebookMatrixLoading;
 export const selectSBGradebookMatrixError = (state) => state.standards?.sbGradebookMatrixError;
+export const selectSBGradebookMatrixScoringMode = (state) => state.standards?.sbGradebookMatrix?.scoringMode || 'average';
 export const selectBulkSaveLoading = (state) => state.standards?.bulkSaveLoading;
 
 export default standardSlice.reducer;

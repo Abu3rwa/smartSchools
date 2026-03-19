@@ -8,6 +8,7 @@ import {
   respondToSubRequest,
   respondToSubRequestAuth,
   fetchSubPendingCount,
+  fetchSubRequestsAnalytics,
 } from '../../api/substitutionsApi';
 
 export const fetchSubCandidates = createAsyncThunk(
@@ -89,11 +90,22 @@ export const respondToSubRequestThunk = createAsyncThunk(
 
 export const respondToSubRequestAuthThunk = createAsyncThunk(
   'substitutions/respondToSubRequestAuth',
-  async ({ id, action, note }, { rejectWithValue }) => {
+  async ({ id, action, note, assignmentId }, { rejectWithValue }) => {
     try {
-      return await respondToSubRequestAuth({ id, action, note });
+      return await respondToSubRequestAuth({ id, action, note, assignmentId });
     } catch (err) {
       return rejectWithValue(err.message || 'Failed to respond');
+    }
+  }
+);
+
+export const fetchSubAnalyticsThunk = createAsyncThunk(
+  'substitutions/fetchSubAnalytics',
+  async (filters = {}, { rejectWithValue }) => {
+    try {
+      return await fetchSubRequestsAnalytics(filters);
+    } catch (err) {
+      return rejectWithValue(err.message || 'Failed to fetch analytics');
     }
   }
 );
@@ -106,6 +118,7 @@ const initialState = {
   respond: { loading: false, error: null, success: false, lastRequest: null },
   respondInPortal: { loading: false, error: null, success: false, lastRequest: null },
   pendingCount: { loading: false, count: 0 },
+  analytics: { loading: false, error: null, data: null },
 };
 
 const substitutionsSlice = createSlice({
@@ -223,6 +236,20 @@ const substitutionsSlice = createSlice({
       .addCase(fetchSubPendingCountThunk.rejected, (state) => {
         state.pendingCount.loading = false;
       })
+      // fetchSubAnalytics
+      .addCase(fetchSubAnalyticsThunk.pending, (state) => {
+        state.analytics.loading = true;
+        state.analytics.error = null;
+      })
+      .addCase(fetchSubAnalyticsThunk.fulfilled, (state, action) => {
+        state.analytics.loading = false;
+        state.analytics.data = action.payload;
+        state.analytics.error = null;
+      })
+      .addCase(fetchSubAnalyticsThunk.rejected, (state, action) => {
+        state.analytics.loading = false;
+        state.analytics.error = action.payload;
+      })
       // respondToSubRequestAuth (in-portal)
       .addCase(respondToSubRequestAuthThunk.pending, (state) => {
         state.respondInPortal.loading = true;
@@ -261,5 +288,6 @@ export const selectDetail = (state) => state.substitutions.detail;
 export const selectRespond = (state) => state.substitutions.respond;
 export const selectRespondInPortal = (state) => state.substitutions.respondInPortal;
 export const selectPendingCount = (state) => state.substitutions.pendingCount;
+export const selectSubAnalytics = (state) => state.substitutions.analytics;
 
 export default substitutionsSlice.reducer;

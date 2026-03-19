@@ -558,6 +558,58 @@ router.patch('/me/admissions-promotion-settings', requireSchoolContext, authoriz
 }));
 
 /**
+ * @desc    Get school standards gradebook settings
+ * @route   GET /api/schools/me/standards-gradebook-settings
+ * @access  Private (Admin)
+ */
+router.get('/me/standards-gradebook-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.standardsGradebook');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+    res.json({
+        success: true,
+        data: {
+            scoringMode: school.settings?.standardsGradebook?.scoringMode || 'average',
+        }
+    });
+}));
+
+/**
+ * @desc    Update school standards gradebook settings
+ * @route   PATCH /api/schools/me/standards-gradebook-settings
+ * @access  Private (Admin)
+ */
+router.patch('/me/standards-gradebook-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const { scoringMode } = req.body || {};
+    const allowedModes = ['average', 'latest', 'highest'];
+    if (!scoringMode || !allowedModes.includes(scoringMode)) {
+        return res.status(400).json({
+            success: false,
+            message: `scoringMode must be one of: ${allowedModes.join(', ')}`
+        });
+    }
+
+    const school = await School.findById(req.schoolId);
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    school.settings = school.settings || {};
+    school.settings.standardsGradebook = school.settings.standardsGradebook || {};
+    school.settings.standardsGradebook.scoringMode = scoringMode;
+    await school.save();
+
+    res.json({
+        success: true,
+        message: 'Standards gradebook settings updated',
+        data: {
+            scoringMode: school.settings.standardsGradebook.scoringMode,
+        }
+    });
+}));
+
+/**
  * @desc    Remove school logo
  * @route   DELETE /api/schools/me/logo
  * @access  Private (Admin)

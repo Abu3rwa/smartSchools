@@ -541,7 +541,6 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: var(--primary-100);
     padding: 4px;
     border-radius: 8px;
     cursor: pointer;

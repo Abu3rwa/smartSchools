@@ -6,7 +6,8 @@ import {
   HiOutlinePhotograph,
   HiOutlineColorSwatch,
   HiOutlineMail,
-  HiOutlineClipboardCheck
+  HiOutlineClipboardCheck,
+  HiOutlineAcademicCap
 } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 
@@ -89,6 +90,15 @@ const SchoolSettingsTabs = ({
           >
             <HiOutlineClipboardCheck size={18} />
             {t('schoolSettings:tabs.admissionsPromotion')}
+          </button>
+        )}
+        {canManageSchoolSettings && (
+          <button
+            className={`settings-nav-btn ${activeTab === 'standardsgradebook' ? 'active' : ''}`}
+            onClick={() => onTabChange('standardsgradebook')}
+          >
+            <HiOutlineAcademicCap size={18} />
+            Standards Gradebook
           </button>
         )}
         {canManageSchoolSettings && (

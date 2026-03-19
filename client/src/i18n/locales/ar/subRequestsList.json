@@ -47,5 +47,52 @@
   },
   "common": {
     "unknown": "غير معروف"
+  },
+  "analytics": {
+    "title": "تحليلات طلبات البديل",
+    "subtitle": "تابع الطلب الشهري والنتائج وسرعة الاستجابة.",
+    "loading": "جارٍ تحميل التحليلات...",
+    "filters": {
+      "coverageType": "نوع التغطية",
+      "department": "القسم",
+      "allDepartments": "كل الأقسام"
+    },
+    "coverage": {
+      "all": "كل أنواع التغطية",
+      "single": "معلم واحد",
+      "perPeriod": "حسب الحصة"
+    },
+    "kpis": {
+      "totalRequests": "إجمالي الطلبات",
+      "confirmationRate": "معدل التأكيد",
+      "avgResponse": "متوسط زمن الاستجابة",
+      "mostRequestedMonth": "أعلى شهر طلبًا"
+    },
+    "charts": {
+      "monthlyVolume": "طلبات البديل حسب الشهر",
+      "monthlyOutcomes": "نتائج الطلبات حسب الشهر",
+      "monthlyResponseTime": "متوسط زمن الاستجابة حسب الشهر"
+    },
+    "legend": {
+      "requests": "الطلبات",
+      "confirmed": "مؤكد",
+      "declined": "مرفوض",
+      "expired": "منتهي",
+      "cancelled": "ملغي",
+      "avgHours": "متوسط الساعات"
+    },
+    "tables": {
+      "topAbsentTeachers": "أكثر المعلمين غيابًا",
+      "topSubstituteTeachers": "أفضل المعلمين البدلاء",
+      "rank": "الترتيب",
+      "teacher": "المعلم",
+      "absences": "مرات الغياب",
+      "requests": "الطلبات",
+      "confirmed": "مؤكد",
+      "declined": "مرفوض",
+      "timesSubstituted": "مرات التبديل",
+      "confirmationRate": "معدل التأكيد",
+      "avgResponseHours": "متوسط الاستجابة (ساعة)"
+    }
   }
 }

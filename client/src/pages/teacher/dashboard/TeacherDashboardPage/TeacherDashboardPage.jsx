@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux';
-import { Box, Grid, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Alert, Box, Button, Grid, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { HiOutlineCalendar, HiOutlineClipboardList, HiOutlineClock } from 'react-icons/hi';
 import { selectUser } from '../../../../store/slices/authSlice';
 import { selectPendingCount } from '../../../../store/slices/substitutionsSlice';
@@ -18,6 +19,7 @@ import './TeacherDashboardPage.css';
 const TeacherDashboardPage = () => {
     const theme = useTheme();
     const isSm = useMediaQuery(theme.breakpoints.down('sm'));
+    const navigate = useNavigate();
     const { t, i18n } = useTranslation(['dashboard']);
 
     const user = useSelector(selectUser);
@@ -52,6 +54,20 @@ const TeacherDashboardPage = () => {
                     <SummaryStat icon={HiOutlineClipboardList} label={t('dashboard:teacherDashboard.summary.pendingSubRequests')} value={pendingSubsCount || '0'} />
                 </Grid>
             </Grid>
+
+            {pendingSubsCount > 0 && (
+                <Alert
+                    severity="warning"
+                    sx={{ mb: 2 }}
+                    action={(
+                        <Button color="inherit" size="small" onClick={() => navigate('/portal/substitutions')}>
+                            {t('dashboard:teacherDashboard.subRequests.bannerAction')}
+                        </Button>
+                    )}
+                >
+                    {t('dashboard:teacherDashboard.subRequests.bannerMessage', { count: pendingSubsCount })}
+                </Alert>
+            )}
 
             {timetableLoading ? (
                 <Box

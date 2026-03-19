@@ -8,7 +8,8 @@ import {
   cancelSubRequestThunk,
   selectDetail,
   respondToSubRequestAuthThunk,
-  selectRespondInPortal
+  selectRespondInPortal,
+  fetchSubPendingCountThunk
 } from '../../../../store/slices/substitutionsSlice';
 
 const useSubRequestDetail = () => {
@@ -80,23 +81,47 @@ const useSubRequestDetail = () => {
 
   const canCancel = item?.status === 'SUBMITTED' && (user?.role === 'admin' || user?.role === 'department_principal');
 
-  const handleTeacherRespond = useCallback((action) => {
+  const handleTeacherRespond = useCallback((action, assignmentId) => {
     if (!id) return;
-    if (action === 'CONFIRM' && !hasPendingForTeacher) return;
-    if (action === 'DECLINE' && !hasPendingForTeacher) return;
-    if (action === 'WITHDRAW' && !hasConfirmedForTeacher) return;
+    const targetAssignment = assignmentId
+      ? (displayAssignments || []).find((assignment) => assignment?._id?.toString() === assignmentId?.toString())
+      : null;
+
+    if (action === 'CONFIRM') {
+      if (targetAssignment && (targetAssignment?.status || 'PENDING') !== 'PENDING') return;
+      if (!targetAssignment && !hasPendingForTeacher) return;
+    }
+
+    if (action === 'DECLINE') {
+      if (targetAssignment && (targetAssignment?.status || 'PENDING') !== 'PENDING') return;
+      if (!targetAssignment && !hasPendingForTeacher) return;
+    }
+
+    if (action === 'WITHDRAW') {
+      if (targetAssignment && targetAssignment?.status !== 'CONFIRMED') return;
+      if (!targetAssignment && !hasConfirmedForTeacher) return;
+    }
+
     if ((action === 'DECLINE' || action === 'WITHDRAW') && !teacherNote.trim()) return;
     setTeacherAction(action);
     dispatch(
       respondToSubRequestAuthThunk({
         id,
         action,
-        note: teacherNote.trim() || undefined
+        note: teacherNote.trim() || undefined,
+        assignmentId: targetAssignment?._id || assignmentId || undefined
       })
     )
       .unwrap()
       .then(() => {
-        toast.success(action === 'CONFIRM' ? 'Substitution confirmed' : 'Substitution declined');
+        if (action === 'CONFIRM') {
+          toast.success('Substitution confirmed');
+        } else if (action === 'DECLINE') {
+          toast.success('Substitution declined');
+        } else {
+          toast.success('Assignment withdrawn');
+        }
+        dispatch(fetchSubPendingCountThunk());
       })
       .catch((err) => {
         toast.error(err || 'Failed to submit response');
@@ -104,7 +129,7 @@ const useSubRequestDetail = () => {
       .finally(() => {
         setTeacherAction(null);
       });
-  }, [dispatch, hasConfirmedForTeacher, hasPendingForTeacher, id, teacherNote]);
+  }, [dispatch, displayAssignments, hasConfirmedForTeacher, hasPendingForTeacher, id, teacherNote]);
 
   return {
     id,

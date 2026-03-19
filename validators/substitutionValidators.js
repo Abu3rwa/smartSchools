@@ -42,6 +42,11 @@ export const listRequestsRules = [
     query('limit').optional().isInt({ min: 1, max: 100 })
 ];
 
+export const analyticsRules = [
+    query('coverageType').optional().isIn(['SINGLE_TEACHER_ALL_PERIODS', 'PER_PERIOD']),
+    query('departmentId').optional().isMongoId()
+];
+
 export const respondRules = [
     body('token').notEmpty().trim().withMessage('Token is required'),
     body('action').isIn(['CONFIRM', 'DECLINE']).withMessage('action must be CONFIRM or DECLINE'),
@@ -49,7 +54,8 @@ export const respondRules = [
 ];
 
 export const respondAuthRules = [
-    body('action').isIn(['CONFIRM', 'DECLINE']).withMessage('action must be CONFIRM or DECLINE'),
+    body('action').isIn(['CONFIRM', 'DECLINE', 'WITHDRAW']).withMessage('action must be CONFIRM, DECLINE, or WITHDRAW'),
+    body('assignmentId').optional().isMongoId().withMessage('assignmentId must be a valid ID'),
     body('note').optional().trim().isString()
 ];
 

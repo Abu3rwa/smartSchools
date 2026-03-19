@@ -12,6 +12,10 @@ import {
   selectAppName,
 } from "../../store/slices/uiSlice";
 import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
+import {
+  fetchSubPendingCountThunk,
+  selectPendingCount,
+} from "../../store/slices/substitutionsSlice";
 import { PERMISSIONS } from "../../constants/permissions";
 import {
   HiOutlineHome,
@@ -53,6 +57,7 @@ const Sidebar = () => {
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
   const schoolFeatures = useSelector(selectSchoolFeatures);
+  const pendingSubCount = useSelector(selectPendingCount);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const isRtl = i18n.dir() === "rtl";
 
@@ -111,6 +116,19 @@ const Sidebar = () => {
       window.clearInterval(intervalId);
     };
   }, [canSeeMessages]);
+
+  useEffect(() => {
+    if (!isTeacher) return undefined;
+
+    dispatch(fetchSubPendingCountThunk());
+    const intervalId = window.setInterval(() => {
+      dispatch(fetchSubPendingCountThunk());
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [dispatch, isTeacher]);
 
   const SECTION_ORDER = [
     "overview",
@@ -402,6 +420,7 @@ const Sidebar = () => {
       labelKey: "subRequests",
       roles: ["admin", "department_principal", "teacher"],
       section: "operations",
+      badgeCount: isTeacher ? (pendingSubCount?.count || 0) : 0,
     },
     {
       path: "/portal/behavior",

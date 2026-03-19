@@ -8,6 +8,7 @@ import SubRequestsFilters from './components/SubRequestsFilters';
 import SubRequestsTable from './components/SubRequestsTable';
 import SubRequestsEmptyState from './components/SubRequestsEmptyState';
 import SubRequestsSkeleton from './components/SubRequestsSkeleton';
+import SubRequestsAnalyticsSection from './components/SubRequestsAnalyticsSection';
 import useSubRequestsList from './hooks/useSubRequestsList';
 
 const SubRequestsList = () => {
@@ -21,7 +22,12 @@ const SubRequestsList = () => {
     setFilters,
     applyFilters,
     teacherOptions,
-    canCreate
+    canCreate,
+    analytics,
+    analyticsFilters,
+    setAnalyticsFilters,
+    departments,
+    canChangeDepartment
   } = useSubRequestsList();
 
   const hasFilters = Boolean(
@@ -61,6 +67,24 @@ const SubRequestsList = () => {
           <SubRequestsEmptyState hasFilters={hasFilters} />
         ) : (
           <SubRequestsTable items={items} onView={(id) => navigate(`/portal/substitutions/${id}`)} />
+        )}
+
+        {canCreate && (
+          <SubRequestsAnalyticsSection
+            analytics={analytics.data}
+            loading={analytics.loading}
+            error={analytics.error}
+            coverageType={analyticsFilters.coverageType}
+            onCoverageTypeChange={(value) =>
+              setAnalyticsFilters((prev) => ({ ...prev, coverageType: value }))
+            }
+            departments={departments || []}
+            departmentId={analyticsFilters.departmentId}
+            onDepartmentChange={(value) =>
+              setAnalyticsFilters((prev) => ({ ...prev, departmentId: value }))
+            }
+            canChangeDepartment={canChangeDepartment}
+          />
         )}
       </Box>
     </PageContainer>

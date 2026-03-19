@@ -1,11 +1,128 @@
 import notificationService from './notificationService.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
+import { readFile } from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const SUB_REQUEST_TEMPLATE_PATH = path.resolve(__dirname, '../templates/subRequestNotification.html');
+let subRequestTemplateCache = null;
+
+async function loadSubRequestTemplate() {
+    if (subRequestTemplateCache) return subRequestTemplateCache;
+    try {
+        subRequestTemplateCache = await readFile(SUB_REQUEST_TEMPLATE_PATH, 'utf8');
+        return subRequestTemplateCache;
+    } catch (err) {
+        logger.warn('Could not load subRequestNotification template. Falling back to inline HTML.');
+        return null;
+    }
+}
+
+function renderTemplate(template, variables = {}) {
+    return Object.entries(variables).reduce((output, [key, value]) => {
+        const safeValue = value == null ? '' : String(value);
+        return output.replaceAll(`{{${key}}}`, safeValue);
+    }, template);
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatDate(value) {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return 'Unknown date';
+    return d.toLocaleString(undefined, {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function normalizeAction(action) {
+    if (action === 'CONFIRM') return 'confirmed';
+    if (action === 'DECLINE') return 'declined';
+    if (action === 'WITHDRAW') return 'withdrawn';
+    return 'updated';
+}
+
+async function createAndSendEmailNotification({
+    schoolId,
+    recipientId,
+    recipientEmail,
+    subject,
+    message,
+    htmlContent,
+    metadata,
+    createdBy
+}) {
+    if (!recipientEmail) return;
+    try {
+        const Notification = (await import('../models/Notification.js')).default;
+        const notification = new Notification({
+            school: schoolId,
+            recipient: recipientId || undefined,
+            recipientEmail,
+            type: 'custom',
+            subject,
+            message,
+            htmlContent,
+            channels: ['email'],
+            metadata,
+            createdBy
+        });
+        await notification.save();
+        if (typeof notificationService.sendEmail === 'function') {
+            await notificationService.sendEmail(notification, createdBy?.toString?.() || createdBy || null);
+        }
+    } catch (err) {
+        logger.error('Substitution email notification error:', err?.message || err);
+    }
+}
+
+async function getAdminPrincipalRecipients({ schoolId, departmentId }) {
+    const roleFilters = [{ role: 'admin' }];
+    if (departmentId) {
+        roleFilters.push({ role: 'department_principal', department: departmentId });
+        roleFilters.push({ role: 'department_principal', department: null });
+    } else {
+        roleFilters.push({ role: 'department_principal' });
+    }
+
+    const users = await User.find({
+        school: schoolId,
+        isActive: true,
+        email: { $exists: true, $ne: '' },
+        $or: roleFilters
+    })
+        .select('_id firstName lastName email role')
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+
+    const seen = new Set();
+    return users.filter((u) => {
+        const id = String(u._id || '');
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+    });
+}
 
 /**
  * Build rich HTML content for substitution notification email.
  */
-function buildEmailHtml({ requestDetails, confirmUrl, declineUrl }) {
+async function buildEmailHtml({ requestDetails, confirmUrl, declineUrl }) {
     const { date, absentTeacherName, periodDetails, principalNote, materialsLink } = requestDetails || {};
 
     const periodsRows = (periodDetails || []).map((p) => {
@@ -45,21 +162,34 @@ function buildEmailHtml({ requestDetails, confirmUrl, declineUrl }) {
         <a href="${materialsLink}" style="color:#3b82f6;text-decoration:underline;">${materialsLink}</a>
     </p>` : '';
 
-    return `
+        const template = await loadSubRequestTemplate();
+        if (!template) {
+                return `
 <div style="font-family:sans-serif;color:#374151;max-width:600px;">
-  <h2 style="margin:0 0 16px;font-size:20px;">Substitution Request</h2>
-  <p style="margin:0 0 8px;">You have been selected as a substitute for <strong>${absentTeacherName || 'a teacher'}</strong> on <strong>${date || 'the scheduled date'}</strong>.</p>
-  ${periodsTable}
-  ${principalSection}
-  ${materialsSection}
-  <h3 style="margin:20px 0 8px;">Please respond</h3>
-  <p style="margin:0 0 16px;">Click one of the buttons below to confirm or decline:</p>
-  <p style="margin:0 0 16px;">
-    <a href="${confirmUrl}" style="background:#22c55e;color:white;padding:10px 20px;text-decoration:none;border-radius:6px;margin-right:12px;display:inline-block;">Confirm</a>
-    <a href="${declineUrl}" style="background:#ef4444;color:white;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">Decline</a>
-  </p>
-  <p style="color:#6b7280;font-size:12px;margin:24px 0 0;">Links expire in 48 hours. Do not share this email.</p>
+    <h2 style="margin:0 0 16px;font-size:20px;">Substitution Request</h2>
+    <p style="margin:0 0 8px;">You have been selected as a substitute for <strong>${absentTeacherName || 'a teacher'}</strong> on <strong>${date || 'the scheduled date'}</strong>.</p>
+    ${periodsTable}
+    ${principalSection}
+    ${materialsSection}
+    <h3 style="margin:20px 0 8px;">Please respond</h3>
+    <p style="margin:0 0 16px;">Click one of the buttons below to confirm or decline:</p>
+    <p style="margin:0 0 16px;">
+        <a href="${confirmUrl}" style="background:#22c55e;color:white;padding:10px 20px;text-decoration:none;border-radius:6px;margin-right:12px;display:inline-block;">Confirm</a>
+        <a href="${declineUrl}" style="background:#ef4444;color:white;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">Decline</a>
+    </p>
+    <p style="color:#6b7280;font-size:12px;margin:24px 0 0;">Links expire in 48 hours. Do not share this email.</p>
 </div>`;
+        }
+
+        return renderTemplate(template, {
+                absentTeacherName: absentTeacherName || 'a teacher',
+                date: date || 'the scheduled date',
+                periodsTable,
+                principalSection,
+                materialsSection,
+                confirmUrl,
+                declineUrl
+        });
 }
 
 /**
@@ -109,37 +239,107 @@ export async function notifySubstituteTeacher({ teacherId, requestId, message, r
         }
 
         const subject = 'Substitution Request - Action Required';
-        const htmlContent = buildEmailHtml({
+        const htmlContent = await buildEmailHtml({
             requestDetails: requestDetails || { date: '', absentTeacherName: 'Teacher', principalNote: message || '' },
             confirmUrl,
             declineUrl
         });
         const plainMessage = requestDetails ? buildPlainMessage(requestDetails) : (message || 'Substitution request - please confirm or decline.');
 
-        if (typeof notificationService.sendEmail === 'function') {
-            const Notification = (await import('../models/Notification.js')).default;
-            const notification = new Notification({
-                school: schoolId,
-                recipient: teacherId,
-                recipientEmail: teacher.email,
-                type: 'custom',
-                subject,
-                message: plainMessage,
-                htmlContent,
-                channels: ['email'],
-                metadata: { substitutionRequestId: requestId },
-                createdBy
-            });
-            await notification.save();
-            await notificationService.sendEmail(notification, createdBy?.toString?.() || createdBy);
-        } else {
-            logger.info('Substitution notification (stub):', {
-                teacherId,
-                requestId,
-                requestDetails: !!requestDetails
-            });
-        }
+        await createAndSendEmailNotification({
+            schoolId,
+            recipientId: teacherId,
+            recipientEmail: teacher.email,
+            subject,
+            message: plainMessage,
+            htmlContent,
+            metadata: { substitutionRequestId: requestId, event: 'sub_request_created' },
+            createdBy
+        });
     } catch (err) {
         logger.error('Substitution notification error:', err?.message || err);
     }
+}
+
+export async function notifyTeacherPortalResponse({
+    schoolId,
+    teacherId,
+    requestId,
+    action,
+    date,
+    periodSummaries = [],
+    note,
+    createdBy
+}) {
+    const teacher = await User.findById(teacherId)
+        .select('email firstName lastName')
+        .setOptions({ skipTenantFilter: true })
+        .lean();
+
+    if (!teacher?.email) return;
+
+    const verb = normalizeAction(action);
+    const periodLines = periodSummaries.length
+        ? periodSummaries.map((line) => `- ${line}`).join('\n')
+        : '- Assignment details are available in the portal.';
+    const plainMessage = [
+        `Your substitution response was recorded successfully.`,
+        `Status: ${verb}`,
+        `Request date: ${formatDate(date)}`,
+        'Periods:',
+        periodLines,
+        note ? `Note: ${note}` : null
+    ].filter(Boolean).join('\n');
+
+    const htmlContent = `
+<div style="font-family:sans-serif;color:#1f2937;max-width:620px;">
+  <h2 style="margin:0 0 12px;">Substitution Response Recorded</h2>
+  <p style="margin:0 0 12px;">Your response has been recorded as <strong>${escapeHtml(verb)}</strong>.</p>
+  <p style="margin:0 0 16px;">Request date: <strong>${escapeHtml(formatDate(date))}</strong></p>
+  <h3 style="margin:0 0 8px;">Periods</h3>
+  <ul style="margin:0 0 16px;padding-left:18px;">
+    ${(periodSummaries.length ? periodSummaries : ['Assignment details are available in the portal.'])
+        .map((line) => `<li>${escapeHtml(line)}</li>`)
+        .join('')}
+  </ul>
+  ${note ? `<p style="margin:0 0 8px;"><strong>Your note:</strong> ${escapeHtml(note)}</p>` : ''}
+</div>`;
+
+    await createAndSendEmailNotification({
+        schoolId,
+        recipientId: teacherId,
+        recipientEmail: teacher.email,
+        subject: 'Substitution Response Confirmation',
+        message: plainMessage,
+        htmlContent,
+        metadata: { substitutionRequestId: requestId, event: 'teacher_portal_response', action },
+        createdBy
+    });
+}
+
+export async function notifySubRequestStakeholders({
+    schoolId,
+    departmentId,
+    createdBy,
+    requestId,
+    subject,
+    message,
+    htmlContent,
+    metadata = {}
+}) {
+    const recipients = await getAdminPrincipalRecipients({ schoolId, departmentId });
+    if (!recipients.length) return;
+
+    await Promise.all(
+        recipients.map((recipient) => createAndSendEmailNotification({
+            schoolId,
+            recipientId: recipient._id,
+            recipientEmail: recipient.email,
+            subject,
+            message,
+            htmlContent,
+            metadata: { substitutionRequestId: requestId, ...metadata },
+            createdBy
+        }))
+    );
 }

@@ -1,9 +1,11 @@
-import { useCallback, useRef, useState } from 'react';
-import { getScaleBgColor, getScaleColor, getScaleLevelInfo, SCALE_OPTIONS } from '../../../../utils/sbrScaleUtils';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { getScaleBgColor, getScaleColor, getScaleLevelInfo } from '../../../../utils/sbrScaleUtils';
 
 const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftValue, setDraftValue] = useState('');
   const cellRef = useRef(null);
+  const inputRef = useRef(null);
 
   const score = cellData?.effectiveScore;
   const isManual = cellData?.isManual || false;
@@ -12,47 +14,86 @@ const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
   const normalizedScore = hasValue ? Math.max(0, Math.min(4, Math.round(Number(score)))) : null;
   const displayScore = hasValue
     ? (Number.isInteger(Number(score)) ? Number(score) : Number(score).toFixed(1))
-    : '';
+    : 'NAN';
 
   const bgColor = hasValue ? getScaleBgColor(normalizedScore) : 'transparent';
   const textColor = hasValue ? getScaleColor(normalizedScore) : 'var(--text-secondary, #a0aec0)';
   const info = hasValue ? getScaleLevelInfo(normalizedScore) : null;
 
+  useEffect(() => {
+    if (!isEditing) {
+      setDraftValue(hasValue ? String(score) : '');
+    }
+  }, [hasValue, isEditing, score]);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
   const handleClick = useCallback(() => {
-    setIsOpen((prev) => !prev);
-  }, []);
+    setDraftValue(hasValue ? String(score) : '');
+    setIsEditing(true);
+  }, [hasValue, score]);
 
-  const handleSelect = useCallback((value) => {
-    onChange(studentId, standardId, value);
-    setIsOpen(false);
-  }, [studentId, standardId, onChange]);
+  const commitValue = useCallback(() => {
+    const trimmed = String(draftValue || '').trim();
+    if (!trimmed) {
+      onChange(studentId, standardId, null);
+      setIsEditing(false);
+      return;
+    }
 
-  const handleKeyDown = useCallback((e) => {
-    const num = Number(e.key);
-    if (Number.isInteger(num) && num >= 0 && num <= 4) {
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      setIsEditing(false);
+      return;
+    }
+
+    const nextValue = Math.max(0, Math.min(4, parsed));
+    onChange(studentId, standardId, Number(nextValue.toFixed(2)));
+    setIsEditing(false);
+  }, [draftValue, onChange, standardId, studentId]);
+
+  const cancelEditing = useCallback(() => {
+    setDraftValue(hasValue ? String(score) : '');
+    setIsEditing(false);
+  }, [hasValue, score]);
+
+  const handleInputKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') {
       e.preventDefault();
-      onChange(studentId, standardId, num);
-      setIsOpen(false);
+      commitValue();
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEditing();
+    }
+  }, [cancelEditing, commitValue]);
+
+  const handleBlur = useCallback(() => {
+    commitValue();
+  }, [commitValue]);
+
+  const handleCellKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setDraftValue(hasValue ? String(score) : '');
+      setIsEditing(true);
       return;
     }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       onChange(studentId, standardId, null);
-      setIsOpen(false);
-      return;
     }
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setIsOpen((prev) => !prev);
-    }
-    if (e.key === 'Escape') {
-      setIsOpen(false);
-    }
-  }, [studentId, standardId, onChange]);
+  }, [hasValue, onChange, score, standardId, studentId]);
 
   const tooltipText = info
     ? `${info.label}${cellData?.percentage != null ? ` (${cellData.percentage.toFixed(1)}%)` : ''}${isManual ? ' ✎ Manual' : ''}${isPending ? ' • Unsaved' : ''}`
-    : 'Click to enter grade (0–4)';
+    : 'Type a manual score';
 
   return (
     <td
@@ -63,35 +104,28 @@ const GradebookCell = ({ studentId, standardId, cellData, onChange }) => {
       role="gridcell"
       title={tooltipText}
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      onKeyDown={handleCellKeyDown}
     >
-      <span className="gb-cell__value" style={{ color: textColor, fontWeight: hasValue ? 600 : 400 }}>
-        {displayScore}
-      </span>
-      {isManual && hasValue && <span className="gb-cell__manual-icon">✎</span>}
-
-      {isOpen && (
-        <div className="gb-cell__dropdown">
-          {SCALE_OPTIONS.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              className={`gb-cell__option${opt === normalizedScore ? ' gb-cell__option--active' : ''}`}
-              style={{ backgroundColor: getScaleBgColor(opt), color: getScaleColor(opt) }}
-              onClick={(e) => { e.stopPropagation(); handleSelect(opt); }}
-            >
-              {opt}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="gb-cell__option gb-cell__option--clear"
-            onClick={(e) => { e.stopPropagation(); handleSelect(null); }}
-          >
-            ✕
-          </button>
-        </div>
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          type="number"
+          min="0"
+          max="4"
+          step="0.01"
+          className="gb-cell__input"
+          value={draftValue}
+          onChange={(e) => setDraftValue(e.target.value)}
+          onKeyDown={handleInputKeyDown}
+          onBlur={handleBlur}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className="gb-cell__value" style={{ color: textColor, fontWeight: hasValue ? 600 : 400 }}>
+          {displayScore}
+        </span>
       )}
+      {isManual && hasValue && <span className="gb-cell__manual-icon">✎</span>}
     </td>
   );
 };

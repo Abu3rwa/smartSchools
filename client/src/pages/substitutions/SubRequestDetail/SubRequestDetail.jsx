@@ -117,6 +117,8 @@ const SubRequestDetail = () => {
           hasConfirmed={hasConfirmedForTeacher}
           hasDeclined={hasDeclinedForTeacher}
           status={item.status}
+          coverageType={item.coverageType}
+          assignments={displayAssignments}
           note={teacherNote}
           onNoteChange={(event) => setTeacherNote(event.target.value)}
           onRespond={handleTeacherRespond}
