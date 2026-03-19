@@ -11,6 +11,9 @@ export const getMasteryColor = (confidenceOrPct) => {
 };
 
 export const getStatusBadge = (assignment) => {
+  if (assignment.assessmentProgress?.isComplete) {
+    return { label: "Completed", className: "status-mastered-gold" };
+  }
   if (assignment.mastery?.isMastered && !assignment.mastery?.needsReview) {
     return { label: "Mastered (Gold)", className: "status-mastered-gold" };
   }
@@ -27,7 +30,11 @@ export const getStatusBadge = (assignment) => {
 };
 
 export const buildPracticeBuckets = (assignments) => {
-  const mastered = assignments.filter((assignment) => assignment.mastery?.isMastered && !assignment.mastery?.needsReview);
+  const mastered = assignments.filter(
+    (assignment) =>
+      assignment.assessmentProgress?.isComplete ||
+      (assignment.mastery?.isMastered && !assignment.mastery?.needsReview),
+  );
   const needsReview = assignments.filter(
     (assignment) =>
       assignment.mastery?.masteryStatus === "needs_review" ||
@@ -35,15 +42,21 @@ export const buildPracticeBuckets = (assignments) => {
   );
   const inProgress = assignments.filter(
     (assignment) =>
-      assignment.mastery?.masteryStatus === "in_progress" ||
-      (!assignment.mastery?.isMastered &&
+      !assignment.assessmentProgress?.isComplete &&
+      (
+        assignment.mastery?.masteryStatus === "in_progress" ||
+        !assignment.mastery?.isMastered &&
         assignment.mastery?.totalAttempts > 0 &&
-        assignment.mastery?.masteryStatus !== "needs_review"),
+        assignment.mastery?.masteryStatus !== "needs_review"
+      ),
   );
   const notStarted = assignments.filter(
     (assignment) =>
-      assignment.mastery?.masteryStatus === "not_started" ||
-      (!assignment.mastery?.isMastered && assignment.mastery?.totalAttempts === 0),
+      !assignment.assessmentProgress?.isComplete &&
+      (
+        assignment.mastery?.masteryStatus === "not_started" ||
+        (!assignment.mastery?.isMastered && assignment.mastery?.totalAttempts === 0)
+      ),
   );
 
   return { mastered, needsReview, inProgress, notStarted };

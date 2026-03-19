@@ -646,6 +646,44 @@ const upsertAssessmentGradebookProgress = async ({
   );
 };
 
+const finalizeAssessmentSessionProgress = async ({
+  schoolId,
+  assignment,
+  studentId,
+  session,
+  closedAt = new Date(),
+}) => {
+  if (!assignment || !studentId || !session) return null;
+
+  const assessmentConfig = getAssessmentConfig(assignment);
+  const shouldReleaseNow = assessmentConfig.resultsVisibility === "immediate";
+  const targetStatus = shouldReleaseNow ? "released" : "submitted";
+
+  const existingEntry = await StandardsGradebookEntry.findOne({
+    school: schoolId,
+    assignment: assignment._id,
+    student: studentId,
+  })
+    .select("status submittedAt releasedAt")
+    .lean();
+
+  const submittedAt = existingEntry?.submittedAt || closedAt;
+  const releasedAt = shouldReleaseNow
+    ? existingEntry?.releasedAt || submittedAt
+    : null;
+
+  return upsertAssessmentGradebookProgress({
+    schoolId,
+    assignment,
+    studentId,
+    sessionId: session._id,
+    status: targetStatus,
+    submittedAt: existingEntry?.submittedAt ? null : submittedAt,
+    releasedAt:
+      shouldReleaseNow && !existingEntry?.releasedAt ? releasedAt : null,
+  });
+};
+
 const getYearScopedClassIds = async (req, candidateClassIds = null) => {
   const effectiveAcademicYear = resolveAcademicYearForRequest(req);
   const classIds = await getClassIdsForAcademicYear({
@@ -960,7 +998,7 @@ const resolveActiveSession = async ({
       existing.status = "expired";
       existing.endedAt = now;
       await existing.save();
-      return null;
+      return existing;
     }
 
     if (
@@ -970,7 +1008,7 @@ const resolveActiveSession = async ({
       existing.status = "completed";
       existing.endedAt = now;
       await existing.save();
-      return null;
+      return existing;
     }
 
     return existing;
@@ -1068,9 +1106,32 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
     .populate("class", "name grade section")
     .sort({ createdAt: -1 });
 
+  const assessmentAssignments = assignments.filter(
+    (assignment) =>
+      getAssignmentPracticeConfig(assignment).sessionType === "assessment"
+  );
+  const assessmentAssignmentIds = assessmentAssignments.map(
+    (assignment) => assignment._id
+  );
+  let assessmentEntriesByAssignment = new Map();
+  if (assessmentAssignmentIds.length > 0) {
+    const assessmentEntries = await StandardsGradebookEntry.find({
+      school: req.schoolId,
+      student: student._id,
+      assignment: { $in: assessmentAssignmentIds },
+    })
+      .select("assignment status totalAnswered submittedAt releasedAt")
+      .lean();
+
+    assessmentEntriesByAssignment = new Map(
+      assessmentEntries.map((entry) => [entry.assignment.toString(), entry])
+    );
+  }
+
   // Calculate mastery for each assignment
   const assignmentsWithProgress = await Promise.all(
     assignments.map(async (a) => {
+      const practiceConfig = getAssignmentPracticeConfig(a);
       const mastery = await PracticeAttempt.calculateMastery(
         student._id,
         a.standard._id,
@@ -1080,10 +1141,30 @@ export const getMyAssignments = asyncHandler(async (req, res) => {
         req.schoolId,
         [a._id]
       );
+
+      const assessmentEntry = assessmentEntriesByAssignment.get(
+        a._id.toString()
+      );
+      const isAssessment = practiceConfig.sessionType === "assessment";
+      const assessmentIsComplete =
+        isAssessment &&
+        ["submitted", "released"].includes(assessmentEntry?.status);
+
       return {
         ...a.toObject(),
         mastery,
-        progressStatus: resolveProgressStatus(mastery),
+        progressStatus: assessmentIsComplete
+          ? "mastered"
+          : resolveProgressStatus(mastery),
+        assessmentProgress: isAssessment
+          ? {
+              status: assessmentEntry?.status || "not_started",
+              totalAnswered: assessmentEntry?.totalAnswered || 0,
+              submittedAt: assessmentEntry?.submittedAt || null,
+              releasedAt: assessmentEntry?.releasedAt || null,
+              isComplete: assessmentIsComplete,
+            }
+          : null,
       };
     })
   );
@@ -1183,6 +1264,29 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     });
   }
 
+  if (isFormalAssessment) {
+    const assessmentEntry = await StandardsGradebookEntry.findOne({
+      school: req.schoolId,
+      assignment: assignment._id,
+      student: student._id,
+    })
+      .select("status score maxScore percentage")
+      .lean();
+
+    if (["submitted", "released"].includes(assessmentEntry?.status)) {
+      const payload = generateQuestionResponseSchema.parse({
+        status: "session_complete",
+        message:
+          "Assessment already completed and submitted. You cannot continue this assessment.",
+        studentFirstName: student.firstName || null,
+        assignmentInstructions: assignment.instructions || null,
+        question: null,
+        session: null,
+      });
+      return res.json({ success: true, data: payload });
+    }
+  }
+
   // Check if already mastered (use persisted + rolling logic)
   const mastery = await PracticeAttempt.calculateMastery(
     student._id,
@@ -1214,44 +1318,49 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     schoolId: req.schoolId,
   });
 
-  if (!session) {
-    const payload = generateQuestionResponseSchema.parse({
-      status: "session_complete",
-      message: "This practice session is complete. Please start again later.",
-      studentFirstName: student.firstName || null,
-      assignmentInstructions: assignment.instructions || null,
-      question: null,
-      session: null,
-    });
-    return res.json({ success: true, data: payload });
-  }
-
   const timeRemainingSeconds = calculateTimeRemaining(session);
-  if (session.timeLimitSeconds && timeRemainingSeconds === 0) {
-    session.status = "expired";
-    session.endedAt = new Date();
-    await session.save();
-    const payload = generateQuestionResponseSchema.parse({
-      status: "session_complete",
-      message: "This practice session has expired.",
-      studentFirstName: student.firstName || null,
-      assignmentInstructions: assignment.instructions || null,
-      question: null,
-      session: buildSessionInfo(session),
-    });
-    return res.json({ success: true, data: payload });
+  let sessionClosedReason = null;
+
+  if (session.status === "active") {
+    const now = new Date();
+    if (session.timeLimitSeconds && timeRemainingSeconds === 0) {
+      session.status = "expired";
+      session.endedAt = now;
+      sessionClosedReason = "expired";
+      await session.save();
+    } else if (
+      session.questionLimit &&
+      session.questionsAnswered >= session.questionLimit
+    ) {
+      session.status = "completed";
+      session.endedAt = now;
+      sessionClosedReason = "question_limit";
+      await session.save();
+    }
   }
 
-  if (
-    session.questionLimit &&
-    session.questionsAnswered >= session.questionLimit
-  ) {
-    session.status = "completed";
-    session.endedAt = new Date();
-    await session.save();
+  if (session.status !== "active") {
+    if (practiceConfig.sessionType === "assessment") {
+      await finalizeAssessmentSessionProgress({
+        schoolId: req.schoolId,
+        assignment,
+        studentId: student._id,
+        session,
+      });
+    }
+
+    const statusMessage =
+      practiceConfig.sessionType === "assessment"
+        ? session.status === "expired" || sessionClosedReason === "expired"
+          ? "Assessment time ended. Your assessment has been closed and submitted."
+          : "Assessment complete. You reached the question limit and the assessment has been closed."
+        : session.status === "expired" || sessionClosedReason === "expired"
+          ? "This practice session has expired."
+          : "You reached the question limit for this session.";
+
     const payload = generateQuestionResponseSchema.parse({
       status: "session_complete",
-      message: "You reached the question limit for this session.",
+      message: statusMessage,
       studentFirstName: student.firstName || null,
       assignmentInstructions: assignment.instructions || null,
       question: null,
@@ -1673,27 +1782,23 @@ export const submitAnswer = asyncHandler(async (req, res) => {
       attempt.assignment?._id || attempt.assignment
     ).select("assessmentConfig standard class subject academicYear semester");
     if (assessmentAssignment) {
-      const assessmentConfig = getAssessmentConfig(assessmentAssignment);
-      let assessmentStatus =
-        session && session.status !== "active" ? "submitted" : "in_progress";
-      const submittedAt = assessmentStatus === "submitted" ? new Date() : null;
-      let releasedAt = null;
-      if (
-        assessmentStatus === "submitted" &&
-        assessmentConfig.resultsVisibility === "immediate"
-      ) {
-        assessmentStatus = "released";
-        releasedAt = submittedAt || new Date();
+      if (session && session.status !== "active") {
+        await finalizeAssessmentSessionProgress({
+          schoolId: req.schoolId,
+          assignment: assessmentAssignment,
+          studentId: student._id,
+          session,
+          closedAt: session.endedAt || new Date(),
+        });
+      } else {
+        await upsertAssessmentGradebookProgress({
+          schoolId: req.schoolId,
+          assignment: assessmentAssignment,
+          studentId: student._id,
+          sessionId: attempt.session || session?._id || null,
+          status: "in_progress",
+        });
       }
-      await upsertAssessmentGradebookProgress({
-        schoolId: req.schoolId,
-        assignment: assessmentAssignment,
-        studentId: student._id,
-        sessionId: attempt.session || session?._id || null,
-        status: assessmentStatus,
-        submittedAt,
-        releasedAt,
-      });
     }
   }
 
@@ -2437,7 +2542,9 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
         ).toFixed(2)
       )
     : 0;
-  const averageScale4 = Number((averagePercentage / 25).toFixed(2));
+  const averageScale4 = gradedItems.length > 0
+    ? percentageToScale4(averagePercentage)
+    : 0;
 
   const standardAccumulator = new Map();
   for (const item of gradedItems) {
@@ -2622,7 +2729,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
       )
     : 0;
   const averageScale4 = gradedRows.length > 0
-    ? Number((averagePercentage / 25).toFixed(2))
+    ? percentageToScale4(averagePercentage)
     : 0;
 
   res.json({

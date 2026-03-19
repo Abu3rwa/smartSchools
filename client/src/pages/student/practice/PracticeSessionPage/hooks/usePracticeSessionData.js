@@ -170,6 +170,12 @@ const usePracticeSessionData = () => {
         const isMasteredResult = practiceStatus === 'mastered' || lastResult?.newlyMastered;
         const isSessionComplete = practiceStatus === 'session_complete' || lastResult?.sessionComplete;
         const isAssessmentSession = sessionInfo?.sessionType === 'assessment';
+        const normalizedStatusMessage = (statusMessage || '').toLowerCase();
+        const assessmentAutoClosed =
+            isAssessmentSession &&
+            isSessionComplete &&
+            normalizedStatusMessage.includes('assessment') &&
+            normalizedStatusMessage.includes('closed');
         const showQuestion = practiceStatus === 'question' && currentQuestion;
         const displayName = studentFirstName || user?.firstName || 'Student';
         
@@ -201,6 +207,7 @@ const usePracticeSessionData = () => {
             isMasteredResult,
             isSessionComplete,
             isAssessmentSession,
+            assessmentAutoClosed,
             showQuestion,
             displayName,
             combinedAsked,
@@ -215,7 +222,7 @@ const usePracticeSessionData = () => {
             currentSessionStep,
             activeQuestionGuidance
         };
-    }, [practiceStatus, lastResult, sessionInfo, currentQuestion, studentFirstName, user, sessionStats, sessionContext, questionType]);
+    }, [practiceStatus, lastResult, sessionInfo, statusMessage, currentQuestion, studentFirstName, user, sessionStats, sessionContext, questionType]);
 
     return {
         assignmentId,

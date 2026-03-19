@@ -19,6 +19,7 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
           const sessionType = assignment.practiceConfig?.sessionType === "assessment"
             ? "assessment"
             : "practice";
+          const assessmentComplete = Boolean(assignment.assessmentProgress?.isComplete);
           const sessionTypeLabel = sessionType === "assessment" ? "Assessment" : "Practice";
           const lifetimeTotal = assignment.mastery?.lifetimeStats?.totalAttempts ?? assignment.mastery?.totalAttempts ?? 0;
           const windowCorrect = assignment.mastery?.rollingWindowStats?.windowCorrect ?? assignment.mastery?.correctCount ?? 0;
@@ -34,16 +35,27 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
           const completionPercent = hasAssignmentLimit
             ? Math.min(100, Math.round((completedCount / assignmentQuestionLimit) * 100))
             : null;
-          const showCompletionProgress = hasAssignmentLimit && !isMastered && !isReview;
+          const showCompletionProgress = hasAssignmentLimit && !isMastered && !isReview && !assessmentComplete;
           const progressPercent = showCompletionProgress ? completionPercent : confidence;
-          const progressText = showCompletionProgress
+          const progressText = assessmentComplete
+            ? `${assignmentQuestionLimit}/${assignmentQuestionLimit}`
+            : showCompletionProgress
             ? `${completedCount}/${assignmentQuestionLimit}`
             : `${confidence}%`;
-          const progressTitle = showCompletionProgress
+          const progressTitle = assessmentComplete
+            ? `Assessment complete: ${assignmentQuestionLimit} of ${assignmentQuestionLimit} answered`
+            : showCompletionProgress
             ? `Assignment completion: ${completedCount} of ${assignmentQuestionLimit} answered`
             : `Mastery confidence: ${confidence}%`;
+          const progressSubtext = assessmentComplete
+            ? "Assessment submitted"
+            : showCompletionProgress
+              ? "Assignment progress"
+              : "Mastery confidence";
           const actionLabel = isReview
             ? "Review"
+            : assessmentComplete
+              ? `${sessionTypeLabel} Complete`
             : lifetimeTotal > 0
               ? `Continue ${sessionTypeLabel}`
               : `Start ${sessionTypeLabel}`;
@@ -90,14 +102,14 @@ const PracticeAssignmentsTable = ({ assignments, onOpenPractice, onOpenHistory }
                   <div className="progress-meta">
                     <span className="progress-text" title={progressTitle}>{progressText}</span>
                     <span className="progress-subtext">
-                      {showCompletionProgress ? "Assignment progress" : "Mastery confidence"}
+                      {progressSubtext}
                     </span>
                   </div>
                 </div>
               </td>
               <td>
                 <div className="actions-cell">
-                  {isMastered && !isReview ? (
+                  {assessmentComplete || (isMastered && !isReview) ? (
                     <button className="btn btn-secondary btn-sm" onClick={() => onOpenHistory(assignment._id)}>
                       <HiOutlineEye size={16} />
                       <span>History</span>

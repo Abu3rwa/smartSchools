@@ -40,6 +40,7 @@ const PracticeSessionPage = () => {
         isMasteredResult,
         isSessionComplete,
         isAssessmentSession,
+        assessmentAutoClosed,
         showQuestion,
         displayName,
         combinedAsked,
@@ -116,6 +117,7 @@ const PracticeSessionPage = () => {
                     onFinalizeAssessment={handleFinalizeAssessment}
                     finalizingAssessment={finalizingAssessment}
                     isAssessmentSession={isAssessmentSession}
+                    showFinalizeAction={!assessmentAutoClosed}
                 />
             )}
 
