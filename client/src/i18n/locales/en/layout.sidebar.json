@@ -1,7 +1,13 @@
 {
   "sections": {
     "overview": "Overview",
+    "communication": "Communication",
     "teaching": "Teaching",
+    "assessment": "Assessment",
+    "support": "Support",
+    "operations": "Operations",
+    "insights": "Insights",
+    "admin": "Administration",
     "scheduling": "Scheduling",
     "attendance": "Attendance",
     "school": "School",
@@ -18,6 +24,7 @@
     "myAttendance": "My Attendance",
     "classes": "Classes",
     "students": "Students",
+    "promotionCenter": "Promotion Center",
     "lessonPlans": "Lesson Plans",
     "assignments": "Assignments",
     "gradeEntry": "Grade Entry",

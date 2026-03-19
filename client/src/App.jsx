@@ -41,6 +41,7 @@ const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const ClassesPage = lazy(() => import("./pages/classes/ClassesPage"));
 const ClassDetailPage = lazy(() => import("./pages/classes/ClassDetailPage"));
 const StudentsPage = lazy(() => import("./pages/students/StudentsPage"));
+const PromotionCenterPage = lazy(() => import("./pages/students/PromotionCenterPage"));
 const StudentDetailPage = lazy(() => import("./pages/students/StudentDetailPage"));
 const GradeEntryPage = lazy(() => import("./pages/grades/GradeEntryPage"));
 const GradeReportPage = lazy(() => import("./pages/grades/GradeReportPage"));
@@ -397,6 +398,14 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal", "teacher"]}>
                   <StudentsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="students/promotion-center"
+              element={
+                <RoleRoute roles={["admin"]}>
+                  <PromotionCenterPage />
                 </RoleRoute>
               }
             />

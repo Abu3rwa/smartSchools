@@ -4,38 +4,64 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useTheme, useMediaQuery, Menu, MenuItem } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { selectUser, logout } from '../../store/slices/authSlice';
-import { selectTheme, setTheme, selectCurrentAcademicYear, toggleSidebar, selectLanguage, setLanguage } from '../../store/slices/uiSlice';
+import {
+    selectTheme,
+    setTheme,
+    selectCurrentAcademicYear,
+    toggleSidebar,
+    selectLanguage,
+    setLanguage,
+} from '../../store/slices/uiSlice';
+import { selectSchoolFeatures } from '../../store/slices/schoolFeaturesSlice';
 import {
     HiOutlineHome,
     HiOutlineMoon,
     HiOutlineSun,
     HiOutlineLogout,
-    HiOutlineSearch,
-    HiOutlineBell,
+     HiOutlineBell,
     HiOutlineMenu,
-    HiOutlineCog
+    HiOutlineCog,
+    HiOutlineStar,
+    HiOutlinePlus,
 } from 'react-icons/hi';
 import notificationService from '../../services/notificationService';
+import ShortcutsMenu from './header/ShortcutsMenu';
+import { useHeaderShortcuts } from './header/useHeaderShortcuts';
 import './Header.css';
 
 const Header = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const location = useLocation();
-    const { t, i18n } = useTranslation(['layout.header', 'common']);
+    const { t, i18n } = useTranslation(['layout.header', 'layout.sidebar', 'common']);
     const user = useSelector(selectUser);
+    const schoolFeatures = useSelector(selectSchoolFeatures);
     const theme = useSelector(selectTheme);
     const language = useSelector(selectLanguage);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const muiTheme = useTheme();
     const isDesktop = useMediaQuery(muiTheme.breakpoints.up('md'));
     const isRtl = i18n.dir(language) === 'rtl';
-    const showDirectorySearch = isDesktop && user?.role !== 'student';
-    const showStudentDashboardBack = user?.role === 'student' && location.pathname !== '/portal/dashboard';
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [notificationCount, setNotificationCount] = useState(0);
     const [userMenuAnchor, setUserMenuAnchor] = useState(null);
+    const [shortcutsMenuAnchor, setShortcutsMenuAnchor] = useState(null);
+
+    const {
+        maxShortcuts,
+        availableShortcuts,
+        selectedShortcutPaths,
+        selectedShortcuts,
+        currentShortcutPath,
+        canPinCurrentPage,
+        pinCurrentPage,
+        toggleShortcut,
+        reorderShortcuts,
+    } = useHeaderShortcuts({
+        user,
+        schoolFeatures,
+        locationPathname: location.pathname,
+    });
 
     useEffect(() => {
         let cancelled = false;
@@ -68,15 +94,7 @@ const Header = () => {
         dispatch(setLanguage(language === 'ar' ? 'en' : 'ar'));
     };
 
-    const handleSearch = (e) => {
-        e?.preventDefault?.();
-        const term = searchTerm.trim();
-        if (term) {
-            navigate(`/portal/students?search=${encodeURIComponent(term)}`);
-        } else {
-            navigate('/portal/students');
-        }
-    };
+   
 
     const handleNotificationClick = () => {
         navigate('/portal/notifications');
@@ -99,35 +117,56 @@ const Header = () => {
                     </button>
                 )}
 
-                <form className="search-box" style={{ display: showDirectorySearch ? 'block' : 'none' }} onSubmit={handleSearch}>
-                    <HiOutlineSearch className="search-icon" aria-hidden />
-                    <input
-                        type="text"
-                        placeholder={t('layout.header:search.placeholder')}
-                        className="search-input"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        aria-label={t('layout.header:search.ariaLabel')}
-                    />
-                </form>
+                
             </div>
 
             <div className="header-right">
+                {isDesktop && (
+                    <>
+                        <div className="header-shortcuts">
+                            {selectedShortcuts.length === 0 ? (
+                                <span className="header-shortcuts-empty">{t('layout.header:shortcuts.none')}</span>
+                            ) : selectedShortcuts.map((shortcut) => {
+                                const isActive = currentShortcutPath === shortcut.path;
+                                return (
+                                    <button
+                                        key={shortcut.path}
+                                        className={`header-shortcut-btn ${isActive ? 'active' : ''}`}
+                                        onClick={() => navigate(shortcut.path)}
+                                        title={t(`layout.sidebar:items.${shortcut.labelKey}`)}
+                                    >
+                                        {t(`layout.sidebar:items.${shortcut.labelKey}`)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <button
+                            className="header-btn"
+                            onClick={pinCurrentPage}
+                            disabled={!canPinCurrentPage}
+                            aria-label={t('layout.header:actions.pinCurrentPage')}
+                            title={t('layout.header:actions.pinCurrentPage')}
+                        >
+                            <HiOutlinePlus size={20} />
+                        </button>
+
+                        <button
+                            className="header-btn"
+                            onClick={(event) => setShortcutsMenuAnchor(event.currentTarget)}
+                            aria-label={t('layout.header:actions.manageShortcuts')}
+                            title={t('layout.header:actions.manageShortcuts')}
+                        >
+                            <HiOutlineStar size={20} />
+                        </button>
+                    </>
+                )}
+
                 <div className="academic-year">
                     <span className="badge badge-primary">{academicYear}</span>
                 </div>
 
-                {showStudentDashboardBack && (
-                    <button
-                        className="header-btn"
-                        onClick={() => navigate('/portal/dashboard')}
-                        aria-label={t('layout.header:actions.backToDashboard', { defaultValue: 'Back to Dashboard' })}
-                        title={t('layout.header:actions.backToDashboard', { defaultValue: 'Back to Dashboard' })}
-                    >
-                        <HiOutlineHome size={20} />
-                    </button>
-                )}
-
+                
                 <button
                     className="header-btn"
                     onClick={handleThemeToggle}
@@ -161,7 +200,7 @@ const Header = () => {
                 <div className="user-menu">
                     <button
                         className="header-btn user-avatar-btn"
-                        onClick={(e) => setUserMenuAnchor(e.currentTarget)}
+                        onClick={(event) => setUserMenuAnchor(event.currentTarget)}
                         aria-label={t('layout.header:actions.userMenu')}
                         aria-haspopup="true"
                         aria-expanded={!!userMenuAnchor}
@@ -170,6 +209,7 @@ const Header = () => {
                             {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
                         </div>
                     </button>
+
                     <Menu
                         anchorEl={userMenuAnchor}
                         open={!!userMenuAnchor}
@@ -185,6 +225,22 @@ const Header = () => {
                             <HiOutlineLogout size={18} style={{ marginInlineEnd: 8 }} /> {t('layout.header:menu.logout')}
                         </MenuItem>
                     </Menu>
+
+                    <ShortcutsMenu
+                        anchorEl={shortcutsMenuAnchor}
+                        open={!!shortcutsMenuAnchor}
+                        onClose={() => setShortcutsMenuAnchor(null)}
+                        isRtl={isRtl}
+                        t={t}
+                        maxShortcuts={maxShortcuts}
+                        availableShortcuts={availableShortcuts}
+                        selectedShortcutPaths={selectedShortcutPaths}
+                        currentShortcutPath={currentShortcutPath}
+                        canPinCurrentPage={canPinCurrentPage}
+                        onPinCurrentPage={pinCurrentPage}
+                        onToggleShortcut={toggleShortcut}
+                        onReorderShortcuts={reorderShortcuts}
+                    />
                 </div>
             </div>
         </header>

@@ -37,8 +37,7 @@ const academicExcellenceObjectiveSchema = new mongoose.Schema({
         index: true
     },
     academicYear: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'AcademicYear',
+        type: String,
         default: null,
         index: true
     },

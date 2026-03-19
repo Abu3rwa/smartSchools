@@ -28,6 +28,7 @@
     "sendingInvites": "جارٍ إرسال الدعوات...",
     "sendingParentInvite": "جارٍ إرسال دعوة ولي الأمر...",
     "sendingParentInvites": "جارٍ إرسال دعوات أولياء الأمور...",
+    "openPromotionCenter": "فتح مركز الترفيع",
     "importCsv": "استيراد CSV",
     "addStudent": "إضافة طالب",
     "updateStudent": "تحديث الطالب",
@@ -205,6 +206,87 @@
     "noValidData": "لا توجد بيانات صالحة للاستيراد",
     "rowsFailed": "فشل {{count}} صف",
     "importFailed": "فشل الاستيراد"
+  },
+  "promotionCenter": {
+    "title": "مركز الترفيع",
+    "subtitle": "مراجعة قرارات الترفيع وحالة إعادة التسجيل لكل طالب.",
+    "queueTitle": "قائمة الترفيع",
+    "actionsPanelTitle": "مساحة القرار",
+    "loading": "جار تحميل قائمة الترفيع...",
+    "loadingSettings": "جار تحميل رموز الأسباب...",
+    "empty": "لا يوجد طلاب يطابقون المرشح الحالي.",
+    "selectPrompt": "اختر طالبًا من القائمة للمتابعة.",
+    "filters": {
+      "search": "بحث",
+      "searchPlaceholder": "ابحث باسم الطالب أو رقمه",
+      "decisionStatus": "حالة القرار"
+    },
+    "table": {
+      "student": "الطالب",
+      "class": "الفصل",
+      "reEnrollment": "إعادة التسجيل",
+      "decisionStatus": "حالة القرار"
+    },
+    "common": {
+      "na": "غير متوفر"
+    },
+    "status": {
+      "allDecisionStatuses": "كل الحالات",
+      "undecided": "غير محسوم",
+      "approved": "معتمد",
+      "pending": "قيد الانتظار",
+      "rejected": "مرفوض",
+      "holdReview": "إيقاف للمراجعة"
+    },
+    "reEnrollment": {
+      "pendingContact": "بانتظار التواصل",
+      "documentsPending": "مستندات ناقصة",
+      "financialClearancePending": "بانتظار الإخلاء المالي",
+      "approvedForPlacement": "معتمد للتوزيع",
+      "pending_contact": "بانتظار التواصل",
+      "documents_pending": "مستندات ناقصة",
+      "financial_clearance_pending": "بانتظار الإخلاء المالي",
+      "approved_for_placement": "معتمد للتوزيع",
+      "enrolled": "مسجل",
+      "declined": "معتذر"
+    },
+    "decisionTypes": {
+      "promote": "ترفيع",
+      "promoteWithConditions": "ترفيع بشروط",
+      "repeatGrade": "إعادة الصف",
+      "holdReview": "إيقاف للمراجعة"
+    },
+    "fields": {
+      "reEnrollmentStatus": "حالة إعادة التسجيل",
+      "decisionType": "نوع القرار",
+      "approvalStatus": "حالة الاعتماد",
+      "reasonCode": "رمز السبب",
+      "targetClass": "الفصل المستهدف",
+      "selectTargetClass": "اختر الفصل المستهدف",
+      "conditions": "الشروط",
+      "conditionsPlaceholder": "شروط اختيارية لهذا القرار",
+      "note": "ملاحظة",
+      "notePlaceholder": "ملاحظة اختيارية لسجل التدقيق"
+    },
+    "reEnrollmentTitle": "تحديث إعادة التسجيل",
+    "decisionTitle": "قرار الترفيع",
+    "actions": {
+      "loadingQueue": "جار تحميل القائمة...",
+      "refreshQueue": "تحديث القائمة",
+      "saving": "جار الحفظ...",
+      "saveReEnrollment": "حفظ حالة إعادة التسجيل",
+      "saveDecision": "تسجيل قرار الترفيع"
+    },
+    "toast": {
+      "loadSettingsFailed": "فشل تحميل رموز أسباب القبول والترفيع",
+      "selectStudentFirst": "اختر طالبًا أولاً",
+      "reasonCodeRequired": "رمز السبب مطلوب",
+      "targetClassRequired": "الفصل المستهدف مطلوب لقرارات الترفيع",
+      "decisionSaved": "تم حفظ قرار الترفيع",
+      "decisionSaveFailed": "فشل حفظ قرار الترفيع",
+      "reEnrollmentUpdated": "تم تحديث حالة إعادة التسجيل",
+      "reEnrollmentUpdateFailed": "فشل تحديث حالة إعادة التسجيل"
+    }
   },
   "detail": {
     "common": {

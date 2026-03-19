@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import api from "../../../../config/api";
 import { fetchMyAssignments, selectPracticeStudentId } from "../../../../store/slices/practiceSlice";
-import { selectCurrentAcademicYear, selectSelectedSemester } from "../../../../store/slices/uiSlice";
+import { selectCurrentAcademicYear } from "../../../../store/slices/uiSlice";
 import AIPracticeSession from "../AIPracticeSession/AIPracticeSession";
 import "./StudentAcademicExcellencePage.css";
 const masteryOrder = ["mastered", "developing", "at_risk", "not_started"];
@@ -59,9 +59,10 @@ const StudentAcademicExcellencePage = () => {
   const dispatch = useDispatch();
   const practiceStudentId = useSelector(selectPracticeStudentId);
   const academicYear = useSelector(selectCurrentAcademicYear);
-  const selectedSemester = useSelector(selectSelectedSemester);
 
   const [loading, setLoading] = useState(false);
+  const [objectivesLoading, setObjectivesLoading] = useState(false);
+  const [tasksLoading, setTasksLoading] = useState(false);
   const [error, setError] = useState("");
   const [resolvedStudentId, setResolvedStudentId] = useState("");
   const [dashboard, setDashboard] = useState(null);
@@ -76,7 +77,7 @@ const StudentAcademicExcellencePage = () => {
     if (practiceStudentId) return practiceStudentId;
 
     const resultAction = await dispatch(
-      fetchMyAssignments({ academicYear, semester: selectedSemester }),
+      fetchMyAssignments({ academicYear }),
     );
 
     if (fetchMyAssignments.fulfilled.match(resultAction)) {
@@ -84,31 +85,54 @@ const StudentAcademicExcellencePage = () => {
     }
 
     return "";
-  }, [academicYear, dispatch, practiceStudentId, selectedSemester]);
+  }, [academicYear, dispatch, practiceStudentId]);
 
   const loadAcademicExcellenceData = useCallback(
     async (studentId) => {
       if (!studentId) return;
 
       setLoading(true);
+      setObjectivesLoading(true);
+      setTasksLoading(true);
       setError("");
 
       try {
-        const [dashboardResponse, objectivesResponse, tasksResponse] = await Promise.all([
+        const [dashboardResult, objectivesResult, tasksResult] = await Promise.allSettled([
           api.get(`/students/${studentId}/academic-excellence`, {
-            params: { academicYear, semester: selectedSemester },
+            params: { academicYear },
           }),
           api.get(`/students/${studentId}/academic-excellence/objectives`, {
-            params: { limit: 8, academicYear, semester: selectedSemester },
+            params: { limit: 8, academicYear },
           }),
           api.get(`/students/${studentId}/academic-excellence/tasks`, {
-            params: { limit: 8, academicYear, semester: selectedSemester },
+            params: { limit: 8, academicYear },
           }),
         ]);
 
-        setDashboard(dashboardResponse.data?.data || null);
-        setObjectives(objectivesResponse.data?.data?.objectives || []);
-        setTasks(tasksResponse.data?.data?.tasks || []);
+        if (dashboardResult.status === "fulfilled") {
+          setDashboard(dashboardResult.value.data?.data || null);
+        }
+
+        if (objectivesResult.status === "fulfilled") {
+          setObjectives(objectivesResult.value.data?.data?.objectives || []);
+        }
+
+        if (tasksResult.status === "fulfilled") {
+          setTasks(tasksResult.value.data?.data?.tasks || []);
+        }
+
+        if (
+          dashboardResult.status === "rejected" &&
+          objectivesResult.status === "rejected" &&
+          tasksResult.status === "rejected"
+        ) {
+          const fallbackMessage =
+            dashboardResult.reason?.response?.data?.message ||
+            objectivesResult.reason?.response?.data?.message ||
+            tasksResult.reason?.response?.data?.message ||
+            "Failed to load Academic Excellence data.";
+          setError(fallbackMessage);
+        }
       } catch (requestError) {
         setError(
           requestError.response?.data?.message ||
@@ -116,9 +140,11 @@ const StudentAcademicExcellencePage = () => {
         );
       } finally {
         setLoading(false);
+        setObjectivesLoading(false);
+        setTasksLoading(false);
       }
     },
-    [academicYear, selectedSemester],
+    [academicYear],
   );
 
   const refresh = useCallback(async () => {
@@ -228,8 +254,10 @@ const StudentAcademicExcellencePage = () => {
       </section>
 
       <section className="academic-excellence-panel">
-        <h2>Objective Mastery</h2>
-        {objectives.length === 0 ? (
+        <h2>Week Objectives</h2>
+        {objectivesLoading ? (
+          <div className="academic-excellence-loading">Loading week objectives...</div>
+        ) : objectives.length === 0 ? (
           <div className="academic-excellence-empty">No objectives available yet.</div>
         ) : (
           <div className="academic-excellence-list">
@@ -260,7 +288,9 @@ const StudentAcademicExcellencePage = () => {
 
       <section className="academic-excellence-panel">
         <h2>My Tasks</h2>
-        {tasks.length === 0 ? (
+        {tasksLoading ? (
+          <div className="academic-excellence-loading">Loading tasks...</div>
+        ) : tasks.length === 0 ? (
           <div className="academic-excellence-empty">No tasks assigned right now.</div>
         ) : (
           <div className="academic-excellence-list">

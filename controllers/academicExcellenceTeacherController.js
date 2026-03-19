@@ -172,6 +172,68 @@ const ensureClassAccess = async (req, classId) => {
     return classIds.some((id) => id.toString() === String(classId).trim());
 };
 
+const getTeacherClassScope = async (req, classId) => {
+    if (req.user.role !== 'teacher') {
+        return {
+            isTeacher: false,
+            hasClassAccess: true,
+            isClassTeacher: false,
+            allowedSubjectIds: []
+        };
+    }
+
+    const teacherProfile = await resolveTeacherProfile(req);
+    if (!teacherProfile) {
+        return {
+            isTeacher: true,
+            hasClassAccess: false,
+            isClassTeacher: false,
+            allowedSubjectIds: []
+        };
+    }
+
+    const [teacherAssignments, classDoc] = await Promise.all([
+        getTeacherAssignments(teacherProfile._id),
+        Class.findById(classId).select('_id classTeacher subjects.teacher subjects.subject').lean()
+    ]);
+
+    if (!classDoc) {
+        return {
+            isTeacher: true,
+            hasClassAccess: false,
+            isClassTeacher: false,
+            allowedSubjectIds: []
+        };
+    }
+
+    const classIdStr = String(classDoc._id);
+    const isClassTeacher = String(classDoc.classTeacher || '') === String(teacherProfile._id);
+
+    const subjectSet = new Set();
+    for (const assignment of teacherAssignments) {
+        if (String(assignment?.classId || '') === classIdStr) {
+            const subjectId = String(assignment?.subjectId || '').trim();
+            if (subjectId) subjectSet.add(subjectId);
+        }
+    }
+
+    for (const row of classDoc.subjects || []) {
+        if (String(row?.teacher || '') === String(teacherProfile._id)) {
+            const subjectId = String(row?.subject || '').trim();
+            if (subjectId) subjectSet.add(subjectId);
+        }
+    }
+
+    const allowedSubjectIds = Array.from(subjectSet);
+
+    return {
+        isTeacher: true,
+        hasClassAccess: isClassTeacher || allowedSubjectIds.length > 0,
+        isClassTeacher,
+        allowedSubjectIds
+    };
+};
+
 
 /* ─── Class-level endpoints (mounted on /classes/:id/academic-excellence) ── */
 
@@ -186,10 +248,42 @@ export const getClassAcademicExcellenceSummary = asyncHandler(async (req, res) =
     }
 
     const { subjectId, academicYear, semester } = req.query;
+    const teacherScope = await getTeacherClassScope(req, classId);
+    if (teacherScope.isTeacher && !teacherScope.hasClassAccess) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    if (
+        teacherScope.isTeacher &&
+        subjectId &&
+        !teacherScope.isClassTeacher &&
+        !teacherScope.allowedSubjectIds.includes(String(subjectId))
+    ) {
+        return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+    }
 
     const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId), deletedAt: null };
     if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) {
         match.subject = new mongoose.Types.ObjectId(subjectId);
+    } else if (teacherScope.isTeacher && !teacherScope.isClassTeacher) {
+        const scoped = teacherScope.allowedSubjectIds
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
+            .map((id) => new mongoose.Types.ObjectId(id));
+        if (scoped.length === 0) {
+            return res.json({
+                success: true,
+                data: {
+                    classId,
+                    totalStudents: 0,
+                    masteryDistribution: {},
+                    subjects: [],
+                    heatmap: null,
+                    studentBreakdown: {},
+                    summary: { totalStudents: 0, atRiskPercent: 0, masteredPercent: 0, developingPercent: 0 }
+                }
+            });
+        }
+        match.subject = { $in: scoped };
     }
     if (academicYear && mongoose.Types.ObjectId.isValid(academicYear)) {
         match.academicYear = new mongoose.Types.ObjectId(academicYear);
@@ -337,12 +431,41 @@ export const getClassAcademicExcellenceObjectives = asyncHandler(async (req, res
 
     const { subjectId, academicYear, semester } = req.query;
     const { page, limit } = parsePagination(req.query);
+    const teacherScope = await getTeacherClassScope(req, classId);
+    if (teacherScope.isTeacher && !teacherScope.hasClassAccess) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    if (
+        teacherScope.isTeacher &&
+        subjectId &&
+        !teacherScope.isClassTeacher &&
+        !teacherScope.allowedSubjectIds.includes(String(subjectId))
+    ) {
+        return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+    }
+
     const schoolSettings = await getSchoolAcademicExcellenceSettings(req.schoolId);
     const trackingMode = schoolSettings?.trackingMode === 'standards' ? 'standards' : 'objectives';
 
     const match = { school: new mongoose.Types.ObjectId(req.schoolId), class: new mongoose.Types.ObjectId(classId), deletedAt: null };
     if (subjectId && mongoose.Types.ObjectId.isValid(subjectId)) {
         match.subject = new mongoose.Types.ObjectId(subjectId);
+    } else if (teacherScope.isTeacher && !teacherScope.isClassTeacher) {
+        const scoped = teacherScope.allowedSubjectIds
+            .filter((id) => mongoose.Types.ObjectId.isValid(id))
+            .map((id) => new mongoose.Types.ObjectId(id));
+        if (scoped.length === 0) {
+            return res.json({
+                success: true,
+                data: {
+                    trackingMode,
+                    objectives: [],
+                    pagination: { page, limit, total: 0, pages: 0 }
+                }
+            });
+        }
+        match.subject = { $in: scoped };
     }
     if (academicYear && mongoose.Types.ObjectId.isValid(academicYear)) {
         match.academicYear = new mongoose.Types.ObjectId(academicYear);
@@ -443,6 +566,19 @@ export const createAcademicExcellenceTask = asyncHandler(async (req, res) => {
 
     const { studentId, objectiveKey, title, description, taskType, dueDate, estimatedMinutes, classId, subjectId } = req.body;
 
+    if (req.user.role === 'teacher') {
+        if (!classId || !subjectId) {
+            return res.status(400).json({ success: false, message: 'classId and subjectId are required' });
+        }
+        const scope = await getTeacherClassScope(req, classId);
+        if (!scope.hasClassAccess) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+        if (!scope.isClassTeacher && !scope.allowedSubjectIds.includes(String(subjectId))) {
+            return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+        }
+    }
+
     const task = await assignTask(teacherId, studentId, objectiveKey, {
         title,
         description,
@@ -465,6 +601,19 @@ export const bulkCreateAcademicExcellenceTasks = asyncHandler(async (req, res) =
     const teacherId = teacherProfile?._id || req.user._id;
 
     const { classId, objectiveKey, title, description, taskType, dueDate, estimatedMinutes, subjectId } = req.body;
+
+    if (req.user.role === 'teacher') {
+        if (!classId || !subjectId) {
+            return res.status(400).json({ success: false, message: 'classId and subjectId are required' });
+        }
+        const scope = await getTeacherClassScope(req, classId);
+        if (!scope.hasClassAccess) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+        if (!scope.isClassTeacher && !scope.allowedSubjectIds.includes(String(subjectId))) {
+            return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+        }
+    }
 
     const result = await bulkAssignTasks(teacherId, classId, objectiveKey, {
         title,
@@ -826,9 +975,26 @@ export const renameAcademicExcellenceObjective = asyncHandler(async (req, res) =
         return res.status(404).json({ success: false, message: 'Objective not found' });
     }
 
-    // Rename all records sharing the same objectiveKey within school
+    if (req.user.role === 'teacher') {
+        const scope = await getTeacherClassScope(req, objective.class);
+        if (!scope.hasClassAccess) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+        const objectiveSubjectId = String(objective.subject || '');
+        if (!scope.isClassTeacher && objectiveSubjectId && !scope.allowedSubjectIds.includes(objectiveSubjectId)) {
+            return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+        }
+    }
+
+    // Rename objective records in the same class+subject scope.
     const result = await AcademicExcellenceObjective.updateMany(
-        { school: req.schoolId, objectiveKey: objective.objectiveKey, deletedAt: null },
+        {
+            school: req.schoolId,
+            class: objective.class,
+            subject: objective.subject,
+            objectiveKey: objective.objectiveKey,
+            deletedAt: null
+        },
         { $set: { objectiveName: trimmedName, lastUpdatedAt: new Date() } }
     );
 
@@ -860,9 +1026,26 @@ export const softDeleteAcademicExcellenceObjective = asyncHandler(async (req, re
         return res.status(404).json({ success: false, message: 'Objective not found' });
     }
 
+    if (req.user.role === 'teacher') {
+        const scope = await getTeacherClassScope(req, objective.class);
+        if (!scope.hasClassAccess) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+        const objectiveSubjectId = String(objective.subject || '');
+        if (!scope.isClassTeacher && objectiveSubjectId && !scope.allowedSubjectIds.includes(objectiveSubjectId)) {
+            return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+        }
+    }
+
     const now = new Date();
     const result = await AcademicExcellenceObjective.updateMany(
-        { school: req.schoolId, objectiveKey: objective.objectiveKey, deletedAt: null },
+        {
+            school: req.schoolId,
+            class: objective.class,
+            subject: objective.subject,
+            objectiveKey: objective.objectiveKey,
+            deletedAt: null
+        },
         { $set: { deletedAt: now, lastUpdatedAt: now } }
     );
 

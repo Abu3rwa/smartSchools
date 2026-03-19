@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import Teacher from '../models/Teacher.js';
 import User from '../models/User.js';
 import Class from '../models/Class.js';
+import Student from '../models/Student.js';
+import Grade from '../models/Grade.js';
 import Department from '../models/Department.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -900,6 +902,171 @@ export const getMyClasses = asyncHandler(async (req, res) => {
         data: {
             classes: teacher.assignedClasses,
             count: teacher.assignedClasses.length
+        }
+    });
+});
+
+/**
+ * @desc    Get analytics snapshot for current teacher dashboard
+ * @route   GET /api/teachers/my-dashboard-analytics
+ * @access  Private (Teacher)
+ */
+export const getMyDashboardAnalytics = asyncHandler(async (req, res) => {
+    const schoolId = req.schoolId;
+    const teacherUserId = req.user._id;
+    const today = new Date();
+
+    const teacher = await Teacher.findOne({ school: schoolId, user: teacherUserId }).select('_id');
+
+    if (!teacher) {
+        return res.status(404).json({
+            success: false,
+            message: 'Teacher profile not found'
+        });
+    }
+
+    const academicYear = req.query.academicYear || req.school?.settings?.currentAcademicYear;
+
+    const assignmentMatch = {
+        school: schoolId,
+        teacher: teacherUserId,
+        isActive: true,
+        startDate: { $lte: today },
+        endDate: { $gte: today }
+    };
+
+    const [workloadRows, classPerformanceRows, atRiskRows] = await Promise.all([
+        TeacherPeriodAssignment.aggregate([
+            { $match: assignmentMatch },
+            { $unwind: '$daysOfWeek' },
+            { $group: { _id: '$daysOfWeek', count: { $sum: 1 } } },
+            { $sort: { _id: 1 } }
+        ]),
+        Grade.aggregate([
+            {
+                $match: {
+                    school: schoolId,
+                    teacher: teacherUserId,
+                    ...(academicYear ? { academicYear } : {})
+                }
+            },
+            {
+                $group: {
+                    _id: '$class',
+                    avgPercentage: {
+                        $avg: {
+                            $multiply: [{ $divide: ['$marks', '$maxMarks'] }, 100]
+                        }
+                    },
+                    students: { $addToSet: '$student' }
+                }
+            },
+            {
+                $project: {
+                    classId: '$_id',
+                    avgPercentage: { $round: ['$avgPercentage', 2] },
+                    studentCount: { $size: '$students' }
+                }
+            },
+            { $sort: { avgPercentage: -1 } }
+        ]),
+        Grade.aggregate([
+            {
+                $match: {
+                    school: schoolId,
+                    teacher: teacherUserId,
+                    ...(academicYear ? { academicYear } : {})
+                }
+            },
+            {
+                $group: {
+                    _id: '$student',
+                    classId: { $first: '$class' },
+                    avgPercentage: {
+                        $avg: {
+                            $multiply: [{ $divide: ['$marks', '$maxMarks'] }, 100]
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    studentId: '$_id',
+                    classId: 1,
+                    avgPercentage: { $round: ['$avgPercentage', 2] }
+                }
+            },
+            { $match: { avgPercentage: { $lt: 60 } } },
+            { $sort: { avgPercentage: 1 } },
+            { $limit: 8 }
+        ])
+    ]);
+
+    const classIds = [...new Set([
+        ...classPerformanceRows.map((row) => String(row.classId || '')),
+        ...atRiskRows.map((row) => String(row.classId || ''))
+    ].filter(Boolean))];
+
+    const studentIds = atRiskRows.map((row) => row.studentId).filter(Boolean);
+
+    const [classes, students] = await Promise.all([
+        classIds.length > 0
+            ? Class.find({ school: schoolId, _id: { $in: classIds } })
+                .select('name')
+                .lean()
+            : [],
+        studentIds.length > 0
+            ? Student.find({ school: schoolId, _id: { $in: studentIds } })
+                .select('firstName lastName')
+                .lean()
+            : []
+    ]);
+
+    const classNameMap = new Map(classes.map((item) => [String(item._id), item.name || 'Class']));
+    const studentNameMap = new Map(
+        students.map((item) => [
+            String(item._id),
+            `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'Student'
+        ])
+    );
+
+    const workloadCountMap = new Map(workloadRows.map((item) => [Number(item._id), item.count]));
+    const weekdayOrder = [0, 1, 2, 3, 4, 5, 6];
+    const workloadByWeekday = weekdayOrder.map((day) => ({
+        day,
+        count: workloadCountMap.get(day) || 0
+    }));
+
+    const classPerformance = classPerformanceRows.map((row) => ({
+        classId: row.classId,
+        className: classNameMap.get(String(row.classId)) || 'Class',
+        avgPercentage: row.avgPercentage,
+        studentCount: row.studentCount
+    }));
+
+    const atRiskStudents = atRiskRows.map((row) => ({
+        studentId: row.studentId,
+        studentName: studentNameMap.get(String(row.studentId)) || 'Student',
+        classId: row.classId,
+        className: classNameMap.get(String(row.classId)) || 'Class',
+        avgPercentage: row.avgPercentage
+    }));
+
+    const avgClassPerformance = classPerformance.length > 0
+        ? Number((classPerformance.reduce((acc, row) => acc + Number(row.avgPercentage || 0), 0) / classPerformance.length).toFixed(2))
+        : 0;
+
+    res.json({
+        success: true,
+        data: {
+            summary: {
+                activeClasses: classPerformance.length,
+                atRiskStudents: atRiskStudents.length,
+                avgClassPerformance
+            },
+            workloadByWeekday,
+            classPerformance,
+            atRiskStudents
         }
     });
 });

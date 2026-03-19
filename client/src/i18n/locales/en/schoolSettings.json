@@ -10,6 +10,7 @@
     "gradingScales": "Grading scales",
     "branding": "Branding",
     "communication": "Communication",
+    "admissionsPromotion": "Admissions & Promotion",
     "schoolYear": "School year"
   },
   "weekdays": {
@@ -121,6 +122,39 @@
     "delayMinutesLabel": "Reminder delay (minutes)",
     "delayMinutesHint": "Use a whole number between 1 and 1440 minutes.",
     "saveAttendanceReminderSettings": "Save attendance reminder settings"
+  },
+  "admissionsPromotion": {
+    "title": "Admissions and Promotion Policy",
+    "helpText": "Configure school-level rules for placement, promotion decisions, and decision reason taxonomy.",
+    "loading": "Loading admissions and promotion settings...",
+    "enabled": "Enable admissions and promotion workflow",
+    "promotionPolicyTitle": "Promotion policy",
+    "minimumAcademicThreshold": "Minimum academic threshold (%)",
+    "attendanceMinimumPercent": "Minimum attendance threshold (%)",
+    "sectionAssignmentStrategy": "Section assignment strategy",
+    "approvalDepth": "Approval depth",
+    "approvalRoles": "Approval roles",
+    "approvalRolesHint": "Comma-separated role names (example: class_teacher, principal).",
+    "clearanceFees": "Require finance clearance",
+    "clearanceLibrary": "Require library clearance",
+    "clearanceDevices": "Require device clearance",
+    "calendarTitle": "Admissions lock windows",
+    "newAdmissionsLockStart": "New admissions lock start",
+    "newAdmissionsLockEnd": "New admissions lock end",
+    "returningAdmissionsLockStart": "Returning admissions lock start",
+    "returningAdmissionsLockEnd": "Returning admissions lock end",
+    "permissionsTitle": "Permissions",
+    "allowPlacementOverride": "Allow admissions officer placement override",
+    "allowFinanceGate": "Enable finance gate",
+    "reasonCodesTitle": "Decision reason codes",
+    "reasonCodes": "Reason codes",
+    "reasonCodesHint": "Comma-separated values. Codes are normalized to uppercase.",
+    "save": "Save admissions and promotion settings",
+    "strategy": {
+      "manual": "Manual",
+      "capacityBased": "Capacity based",
+      "aiAssisted": "AI assisted"
+    }
   },
   "gradingScales": {
     "helpText": "Configure letter-grade thresholds and colors for charts and gradebook displays.",
@@ -242,6 +276,9 @@
     "attendanceReminderDelayInvalid": "Reminder delay must be an integer between 1 and 1440 minutes",
     "attendanceReminderSettingsUpdated": "Attendance reminder settings updated",
     "attendanceReminderSettingsUpdateFailed": "Failed to update attendance reminder settings",
+    "loadAdmissionsPromotionSettingsFailed": "Failed to load admissions and promotion settings",
+    "admissionsPromotionSettingsUpdated": "Admissions and promotion settings updated",
+    "admissionsPromotionSettingsUpdateFailed": "Failed to update admissions and promotion settings",
     "loadAcademicYearsFailed": "Failed to load academic years",
     "loadSchoolYearDatesFailed": "Failed to load school year dates",
     "loadSchoolWeekConfigFailed": "Failed to load teaching week settings",

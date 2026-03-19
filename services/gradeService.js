@@ -57,7 +57,7 @@ class GradeService {
         const grades = await Grade.find(query)
             .populate('subject', 'name code')
             .populate('class', 'name grade section')
-            .populate('teacher', 'user')
+            .populate('teacher', 'firstName lastName email')
             .populate({
                 path: 'lessonPlanIds',
                 select: 'date title topic teachingObjectives standardIds',
@@ -101,7 +101,7 @@ class GradeService {
         return await Grade.find(query)
             .populate('subject', 'name code')
             .populate('class', 'name grade section')
-            .populate('teacher', 'user')
+            .populate('teacher', 'firstName lastName email')
             .populate({
                 path: 'lessonPlanIds',
                 select: 'date title topic teachingObjectives standardIds',

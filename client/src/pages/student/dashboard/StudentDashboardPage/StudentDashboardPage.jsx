@@ -8,6 +8,7 @@ import StudentScheduleCard from './components/StudentScheduleCard';
 import RecentGradesCard from './components/RecentGradesCard';
 import PracticeProgressCard from './components/PracticeProgressCard';
 import UpcomingDueDatesCard from './components/UpcomingDueDatesCard';
+import MyTasksCard from './components/MyTasksCard';
 import { selectSchoolFeatures } from '../../../../store/slices/schoolFeaturesSlice';
 import useStudentDashboardData from './hooks/useStudentDashboardData';
 import { studentNavLinks } from './utils/studentNavLinks';
@@ -28,6 +29,8 @@ const StudentDashboardPage = () => {
         schedule,
         grades,
         classAssignments,
+        academicTasks,
+        tasksLoading,
         dataLoading
     } = useStudentDashboardData();
 
@@ -75,6 +78,9 @@ const StudentDashboardPage = () => {
                     <RecentGradesCard grades={grades} />
                     <PracticeProgressCard assignments={assignments} />
                     <UpcomingDueDatesCard upcomingAssignments={upcomingAssignments} todayStart={todayStart} />
+                    {schoolFeatures?.academicIntelligence !== false ? (
+                        <MyTasksCard tasks={academicTasks} loading={tasksLoading} />
+                    ) : null}
                 </div>
             )}
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import {
@@ -24,6 +24,7 @@ import {
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
 import {
+    HiOutlineClipboardCheck,
     HiOutlineMail,
     HiOutlinePlus,
     HiOutlineSearch,
@@ -60,6 +61,7 @@ const buildSelectedStudentsSummary = (studentNames, t) => {
 
 const StudentsPage = () => {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     const { t } = useTranslation(['students']);
     const [searchParams] = useSearchParams();
     const searchFromUrl = searchParams.get('search') || '';
@@ -622,6 +624,13 @@ const StudentsPage = () => {
                 </div>
                 {isAdmin && (
                     <div className="header-actions">
+                        <button
+                            className="btn btn-outline"
+                            onClick={() => navigate('/portal/students/promotion-center')}
+                        >
+                            <HiOutlineClipboardCheck size={20} />
+                            {t('students:actions.openPromotionCenter')}
+                        </button>
                         <button
                             className="btn btn-outline"
                             onClick={handleBulkSendStudentInvites}

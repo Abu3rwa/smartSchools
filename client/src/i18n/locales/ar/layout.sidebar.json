@@ -1,7 +1,13 @@
 {
   "sections": {
     "overview": "نظرة عامة",
+    "communication": "التواصل",
     "teaching": "التدريس",
+    "assessment": "التقييم",
+    "support": "الدعم",
+    "operations": "العمليات",
+    "insights": "التحليلات",
+    "admin": "الإدارة",
     "scheduling": "الجدولة",
     "attendance": "الحضور",
     "school": "المدرسة",
@@ -18,6 +24,7 @@
     "myAttendance": "حضوري",
     "classes": "الفصول",
     "students": "الطلاب",
+    "promotionCenter": "مركز الترفيع",
     "lessonPlans": "خطط الدروس",
     "assignments": "الواجبات",
     "gradeEntry": "إدخال الدرجات",

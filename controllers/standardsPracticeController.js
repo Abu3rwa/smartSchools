@@ -19,6 +19,7 @@ import {
   resolveAcademicYearForRequest,
 } from "../helpers/academicYearScope.js";
 import {
+  getTeacherAssignments,
   getTeacherClassIds,
   isTeacherAuthorizedForClassSubject,
   resolveTeacherProfile,
@@ -65,8 +66,11 @@ const normalizeSemester = (value) => {
 };
 
 const resolveSemesterForRequest = (req) => {
+  if (req?.query?.period === "full_year" || req?.body?.period === "full_year") return null;
   const fromQuery = normalizeSemester(req?.query?.semester);
   if (fromQuery) return fromQuery;
+  const fromBody = normalizeSemester(req?.body?.semester);
+  if (fromBody) return fromBody;
   const fromHeader = normalizeSemester(req?.headers?.["x-semester"]);
   if (fromHeader) return fromHeader;
   return resolveSemesterFromDate(new Date());
@@ -3761,7 +3765,7 @@ export const updateManualScore = asyncHandler(async (req, res) => {
   const effectiveSemester = semester != null ? Number(semester) : resolveSemesterForRequest(req);
 
   if (req.user?.role === "teacher") {
-    const authorized = await isTeacherAuthorizedForClassSubject(req, classId, subjectId);
+    const authorized = await ensureTeacherCanAccessClassSubject(req, classId, subjectId);
     if (!authorized) {
       return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
     }
@@ -3885,7 +3889,7 @@ export const updateBulkManualScores = asyncHandler(async (req, res) => {
   }
 
   if (req.user?.role === "teacher") {
-    const authorized = await isTeacherAuthorizedForClassSubject(req, classId, subjectId);
+    const authorized = await ensureTeacherCanAccessClassSubject(req, classId, subjectId);
     if (!authorized) {
       return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
     }
@@ -3986,20 +3990,60 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
 
   const { classIds: yearClassIds } = await getYearScopedClassIds(req);
   let availableClassIds = yearClassIds;
+  let teacherProfile = null;
+  let teacherScopedSubjectIds = null;
   if (req.user?.role === "teacher") {
-    const teacher = await resolveTeacherProfile(req);
-    if (!teacher) return res.status(403).json({ success: false, message: "Not authorized" });
-    const teacherClassIds = await getTeacherClassIds(teacher._id);
+    teacherProfile = await resolveTeacherProfile(req);
+    if (!teacherProfile) return res.status(403).json({ success: false, message: "Not authorized" });
+    const teacherClassIds = await getTeacherClassIds(teacherProfile._id);
     const teacherClassSet = new Set(teacherClassIds.map((id) => id.toString()));
     availableClassIds = yearClassIds.filter((id) => teacherClassSet.has(String(id)));
+
+    const [teacherAssignments, teacherClasses] = await Promise.all([
+      getTeacherAssignments(teacherProfile._id),
+      import("../models/Class.js").then((m) =>
+        m.default
+          .find({ _id: { $in: availableClassIds } })
+          .select("_id classTeacher subjects.teacher subjects.subject")
+          .lean()
+      ),
+    ]);
+
+    const scopedSubjectSet = new Set();
+    const allowedClassIdSet = new Set(availableClassIds.map((id) => String(id)));
+
+    teacherAssignments.forEach((assignment) => {
+      const classKey = String(assignment?.classId || "");
+      const subjectKey = String(assignment?.subjectId || "");
+      if (allowedClassIdSet.has(classKey) && subjectKey) {
+        scopedSubjectSet.add(subjectKey);
+      }
+    });
+
+    teacherClasses.forEach((classDoc) => {
+      const isClassTeacher = String(classDoc?.classTeacher || "") === String(teacherProfile._id);
+      (classDoc?.subjects || []).forEach((subjectRow) => {
+        const subjectKey = String(subjectRow?.subject || "");
+        if (!subjectKey) return;
+        if (isClassTeacher || String(subjectRow?.teacher || "") === String(teacherProfile._id)) {
+          scopedSubjectSet.add(subjectKey);
+        }
+      });
+    });
+
+    teacherScopedSubjectIds = Array.from(scopedSubjectSet);
   }
 
   const allClasses = await import("../models/Class.js").then((m) =>
     m.default.find({ _id: { $in: availableClassIds } }).select("_id name grade section").lean()
   );
-  const allSubjects = await import("../models/Subject.js").then((m) =>
-    m.default.find({ school: req.schoolId }).select("_id name code").lean()
-  );
+  const allSubjects = await import("../models/Subject.js").then((m) => {
+    const subjectQuery = { school: req.schoolId };
+    if (req.user?.role === "teacher") {
+      subjectQuery._id = { $in: teacherScopedSubjectIds || [] };
+    }
+    return m.default.find(subjectQuery).select("_id name code").lean();
+  });
 
   if (!classId || !subjectId) {
     return res.json({

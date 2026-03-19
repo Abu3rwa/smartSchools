@@ -1,0 +1,308 @@
+@keyframes aiPracticeFadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes aiPracticeSlideUp {
+	from {
+		opacity: 0;
+		transform: translateY(14px) scale(0.995);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes aiPracticePulse {
+	0% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 26%, transparent);
+	}
+	70% {
+		box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 0%, transparent);
+	}
+	100% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 0%, transparent);
+	}
+}
+
+@keyframes aiPracticeShimmer {
+	0% {
+		background-position: -180px 0;
+	}
+	100% {
+		background-position: 180px 0;
+	}
+}
+
+.ai-practice-trigger-row {
+	margin-top: 0.75rem;
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.ai-practice-modal-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 1200;
+	background: color-mix(in srgb, var(--overlay-bg) 88%, black 12%);
+	backdrop-filter: blur(3px);
+	display: flex;
+	align-items: stretch;
+	justify-content: stretch;
+	animation: aiPracticeFadeIn 220ms ease-out;
+}
+
+.ai-practice-modal {
+	background: var(--bg-card);
+	border-radius: var(--radius-lg);
+	border: 1px solid var(--border-color);
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	box-shadow: var(--shadow-lg);
+	animation: aiPracticeSlideUp 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ai-practice-modal-header {
+	padding: 1rem;
+	border-bottom: 1px solid var(--border-color);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.8rem;
+	background: var(--bg-card);
+}
+
+.ai-practice-modal-header h3 {
+	margin: 0;
+	font-size: 1.1rem;
+	color: var(--text-primary);
+}
+
+.ai-practice-modal-header p {
+	margin: 0.2rem 0 0;
+	color: var(--text-secondary);
+	font-size: 0.9rem;
+}
+
+.ai-practice-modal-content {
+	padding: 1rem;
+	overflow: auto;
+	flex: 1;
+	background: var(--bg-card);
+	color: var(--text-primary);
+	justify-content: center;
+	align-items: center;
+	height: 100vh;
+	display: flex;
+}
+
+.ai-practice-empty-state {
+	display: grid;
+	gap: 0.7rem;
+	max-width: 420px;
+}
+
+.ai-practice-action-row {
+	display: flex;
+	gap: 0.6rem;
+	flex-wrap: wrap;
+}
+
+.ai-practice-question-stage {
+	display: grid;
+	gap: 0.65rem;
+	width: min(900px, 100%);
+	animation: aiPracticeSlideUp 200ms ease-out;
+}
+
+.ai-practice-question-progress {
+	font-weight: 700;
+	color: var(--text-primary);
+}
+
+.ai-practice-question-text {
+	border: 1px solid var(--border-color);
+	background: var(--bg-tertiary);
+	border-radius: var(--radius-sm);
+	padding: 0.7rem 0.8rem;
+	color: var(--text-primary);
+}
+
+.ai-practice-options-list {
+	display: grid;
+	gap: 0.45rem;
+}
+
+.ai-practice-option {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+	border: 1px solid var(--border-color);
+	background: var(--bg-card);
+	border-radius: var(--radius-sm);
+	padding: 0.6rem 0.7rem;
+	color: var(--text-primary);
+	cursor: pointer;
+	transition:
+		border-color var(--transition-fast),
+		background var(--transition-fast),
+		box-shadow var(--transition-fast),
+		transform var(--transition-fast);
+}
+
+.ai-practice-option:hover {
+	border-color: var(--border-color-hover);
+	background: var(--bg-card-hover);
+	transform: translateY(-1px);
+}
+
+.ai-practice-option.selected {
+	border-color: var(--primary);
+	box-shadow: var(--shadow-sm);
+	background: color-mix(in srgb, var(--primary) 8%, var(--bg-card));
+	animation: aiPracticePulse 650ms ease-out 1;
+}
+
+.ai-practice-option input {
+	margin: 0;
+}
+
+.ai-practice-answer-textarea {
+	width: 100%;
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-sm);
+	background: var(--bg-card);
+	color: var(--text-primary);
+	padding: 0.65rem 0.75rem;
+	font: inherit;
+	resize: vertical;
+	min-height: 110px;
+}
+
+.ai-practice-answer-textarea:focus {
+	outline: none;
+	border-color: var(--primary);
+	box-shadow: var(--shadow-sm);
+}
+
+.ai-practice-feedback-card {
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-sm);
+	padding: 0.75rem 0.85rem;
+	display: grid;
+	gap: 0.4rem;
+	animation: aiPracticeSlideUp 220ms ease-out;
+}
+
+.ai-practice-feedback-card.correct {
+	background: color-mix(in srgb, var(--mastery-mastered-bg) 80%, white);
+	border-color: var(--mastery-mastered);
+}
+
+.ai-practice-feedback-card.incorrect {
+	background: color-mix(in srgb, var(--mastery-at-risk-bg) 80%, white);
+	border-color: var(--mastery-at-risk);
+}
+
+.ai-practice-feedback-title {
+	font-weight: 800;
+	color: var(--text-primary);
+}
+
+.ai-practice-feedback-line {
+ 	font-size: 0.9rem;
+    padding:5px;margin:5px;
+
+}
+
+.ai-practice-done-section {
+	display: grid;
+	gap: 0.6rem;
+	width: min(900px, 100%);
+	animation: aiPracticeSlideUp 220ms ease-out;
+}
+
+.ai-practice-done-title {
+	color: var(--text-primary);
+}
+
+.ai-practice-done-summary,
+.ai-practice-done-hint {
+	color: var(--text-secondary);
+}
+
+.ai-practice-answer-review-list {
+	display: grid;
+	gap: 0.45rem;
+}
+
+.ai-practice-answer-review-item {
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-sm);
+	padding: 0.55rem 0.65rem;
+	background: var(--bg-tertiary);
+	display: grid;
+	gap: 0.2rem;
+	animation: aiPracticeSlideUp 220ms ease-out;
+}
+
+.ai-practice-answer-review-question {
+	font-weight: 700;
+	color: var(--text-primary);
+}
+
+.ai-practice-answer-review-line {
+	color: var(--text-secondary);
+	font-size: 0.9rem;
+}
+
+.ai-practice-modal-content .academic-excellence-loading {
+	border-style: solid;
+	background:
+		linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 10%, transparent), transparent)
+		var(--bg-tertiary);
+	background-size: 180px 100%;
+	background-repeat: no-repeat;
+	animation: aiPracticeShimmer 1200ms linear infinite;
+}
+
+@media (max-width: 768px) {
+	.ai-practice-modal-header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.ai-practice-action-row {
+		width: 100%;
+	}
+
+	.ai-practice-action-row button {
+		flex: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ai-practice-modal-overlay,
+	.ai-practice-modal,
+	.ai-practice-question-stage,
+	.ai-practice-feedback-card,
+	.ai-practice-done-section,
+	.ai-practice-answer-review-item,
+	.ai-practice-option.selected,
+	.ai-practice-modal-content .academic-excellence-loading {
+		animation: none !important;
+	}
+
+	.ai-practice-option {
+		transition: none;
+	}
+}

@@ -69,6 +69,7 @@ const useStandardsGradebookMatrixData = () => {
       academicYear: derivedParams.academicYear,
     };
     if (derivedParams.semester) params.semester = derivedParams.semester;
+    if (filters.period === 'full_year') params.period = 'full_year';
 
     // Remove empty values
     Object.keys(params).forEach((key) => {
@@ -79,13 +80,14 @@ const useStandardsGradebookMatrixData = () => {
     return params;
   }, [filters, derivedParams]);
 
-  const queryFingerprint = useMemo(() => JSON.stringify(queryParams), [queryParams]);
-
   useEffect(() => {
     dispatch(fetchSBGradebookMatrix(queryParams));
-  }, [dispatch, queryFingerprint]);
+  }, [dispatch, queryParams]);
 
   const onFilterChange = useCallback((key, value) => {
+    if (['classId', 'subjectId', 'period', 'search'].includes(key)) {
+      setPendingScores({});
+    }
     setFilters((prev) => ({
       ...prev,
       [key]: value,
@@ -99,7 +101,7 @@ const useStandardsGradebookMatrixData = () => {
 
   const onRefresh = useCallback(() => {
     dispatch(fetchSBGradebookMatrix(queryParams));
-  }, [dispatch, queryFingerprint]);
+  }, [dispatch, queryParams]);
 
   // Manual score editing
   const onCellChange = useCallback((studentId, standardId, score) => {

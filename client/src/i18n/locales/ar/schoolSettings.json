@@ -10,6 +10,7 @@
     "gradingScales": "سلالم التقدير",
     "branding": "الهوية البصرية",
     "communication": "التواصل",
+    "admissionsPromotion": "القبول والترفيع",
     "schoolYear": "السنة الدراسية"
   },
   "weekdays": {
@@ -121,6 +122,39 @@
     "delayMinutesLabel": "تأخير التذكير (بالدقائق)",
     "delayMinutesHint": "استخدم رقمًا صحيحًا بين 1 و1440 دقيقة.",
     "saveAttendanceReminderSettings": "حفظ إعدادات تذكير الحضور"
+  },
+  "admissionsPromotion": {
+    "title": "سياسة القبول والترفيع",
+    "helpText": "اضبط قواعد المدرسة لتوزيع الطلاب، قرارات الترفيع، وتصنيف أسباب القرار.",
+    "loading": "جار تحميل إعدادات القبول والترفيع...",
+    "enabled": "تفعيل سير عمل القبول والترفيع",
+    "promotionPolicyTitle": "سياسة الترفيع",
+    "minimumAcademicThreshold": "الحد الأدنى للتحصيل الأكاديمي (%)",
+    "attendanceMinimumPercent": "الحد الأدنى لنسبة الحضور (%)",
+    "sectionAssignmentStrategy": "استراتيجية توزيع الشعب",
+    "approvalDepth": "مستوى الاعتماد",
+    "approvalRoles": "أدوار الاعتماد",
+    "approvalRolesHint": "أدخل الأدوار مفصولة بفواصل (مثال: class_teacher, principal).",
+    "clearanceFees": "اشتراط إخلاء طرف مالي",
+    "clearanceLibrary": "اشتراط إخلاء طرف من المكتبة",
+    "clearanceDevices": "اشتراط إخلاء طرف من الأجهزة",
+    "calendarTitle": "فترات إغلاق القبول",
+    "newAdmissionsLockStart": "بداية إغلاق القبول الجديد",
+    "newAdmissionsLockEnd": "نهاية إغلاق القبول الجديد",
+    "returningAdmissionsLockStart": "بداية إغلاق قبول العائدين",
+    "returningAdmissionsLockEnd": "نهاية إغلاق قبول العائدين",
+    "permissionsTitle": "الصلاحيات",
+    "allowPlacementOverride": "السماح بتجاوز توزيع الطالب من مسؤول القبول",
+    "allowFinanceGate": "تفعيل بوابة الاعتماد المالي",
+    "reasonCodesTitle": "أسباب القرار",
+    "reasonCodes": "رموز الأسباب",
+    "reasonCodesHint": "أدخل القيم مفصولة بفواصل. يتم تحويل الرموز إلى أحرف كبيرة.",
+    "save": "حفظ إعدادات القبول والترفيع",
+    "strategy": {
+      "manual": "يدوي",
+      "capacityBased": "حسب السعة",
+      "aiAssisted": "بمساعدة الذكاء الاصطناعي"
+    }
   },
   "gradingScales": {
     "helpText": "اضبط حدود الدرجات الحرفية والألوان لعرضها في الرسوم ودفتر الدرجات.",
@@ -242,6 +276,9 @@
     "attendanceReminderDelayInvalid": "يجب أن يكون تأخير التذكير رقمًا صحيحًا بين 1 و1440 دقيقة",
     "attendanceReminderSettingsUpdated": "تم تحديث إعدادات تذكير الحضور",
     "attendanceReminderSettingsUpdateFailed": "فشل تحديث إعدادات تذكير الحضور",
+    "loadAdmissionsPromotionSettingsFailed": "فشل تحميل إعدادات القبول والترفيع",
+    "admissionsPromotionSettingsUpdated": "تم تحديث إعدادات القبول والترفيع",
+    "admissionsPromotionSettingsUpdateFailed": "فشل تحديث إعدادات القبول والترفيع",
     "loadAcademicYearsFailed": "فشل تحميل السنوات الدراسية",
     "loadSchoolYearDatesFailed": "فشل تحميل تواريخ السنة الدراسية",
     "loadSchoolWeekConfigFailed": "فشل تحميل إعدادات أسبوع التدريس",

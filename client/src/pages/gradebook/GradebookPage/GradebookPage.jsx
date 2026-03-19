@@ -5,6 +5,7 @@ import {
     selectCurrentClass
 } from '../../../store/slices/classSlice';
 import { selectSubjects } from '../../../store/slices/subjectSlice';
+import { selectTeacherProfile, selectUser } from '../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectNotificationSending } from '../../../store/slices/notificationSlice';
 import GradebookHeader from './components/GradebookHeader';
@@ -30,6 +31,8 @@ const GradebookPage = () => {
     const currentClass = useSelector(selectCurrentClass);
     const students = useSelector(selectClassStudents);
     const subjects = useSelector(selectSubjects);
+    const user = useSelector(selectUser);
+    const teacherProfile = useSelector(selectTeacherProfile);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const notificationSending = useSelector(selectNotificationSending);
 
@@ -87,6 +90,8 @@ const GradebookPage = () => {
         classId,
         currentClass,
         subjects,
+        userRole: user?.role,
+        teacherProfile,
         students,
         grades,
         selectedSubject,

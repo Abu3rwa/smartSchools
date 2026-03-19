@@ -16,7 +16,6 @@ const SchoolYearTab = ({
   fromYear,
   toYear,
   setFromYear,
-  setToYear,
   rolloverLoading,
   classesCreated,
   deactivateCount,
@@ -129,7 +128,9 @@ const SchoolYearTab = ({
               <input
                 type="text"
                 value={toYear}
-                onChange={(event) => setToYear(event.target.value)}
+                readOnly
+                disabled
+                className="disabled-input"
                 placeholder={t('schoolSettings:schoolYear.step1.toYearPlaceholder')}
               />
             </div>

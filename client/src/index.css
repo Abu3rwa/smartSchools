@@ -506,9 +506,11 @@ input[type="checkbox"], input[type="radio"] {
     height: 16px !important;
 }
 .btn-primary {
-  background: var(--accent-gradient);
-  color: white;
-  box-shadow: var(--shadow-md);
+  background: var(--accent-gradient) !important;
+  background-clip: padding-box !important;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md) ;
+
 }
 
 .btn-primary:hover {

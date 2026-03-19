@@ -12,6 +12,10 @@ import {
     MAX_ATTENDANCE_REMINDER_DELAY_MINUTES,
     MIN_ATTENDANCE_REMINDER_DELAY_MINUTES
 } from '../utils/attendanceReminderSettings.js';
+import {
+    createDefaultAdmissionsPromotionSettings,
+    normalizeAdmissionsPromotionSettings
+} from '../utils/admissionsPromotionSettings.js';
 import { normalizeAcademicIntelligenceSettings } from '../utils/academicIntelligenceSettings.js';
 import { normalizeAcademicExcellenceSettings } from '../utils/academicExcellenceSettings.js';
 
@@ -462,6 +466,10 @@ const schoolSchema = new mongoose.Schema({
                 default: 5
             }
         },
+        admissionsPromotion: {
+            type: mongoose.Schema.Types.Mixed,
+            default: () => createDefaultAdmissionsPromotionSettings()
+        },
         features: {
             ...schoolFeatureSchemaDefinition
         }
@@ -544,6 +552,9 @@ schoolSchema.pre('save', function(next) {
     this.settings.curriculum = normalizeCurriculumSettings(this.settings.curriculum || createDefaultCurriculumSettings());
     this.settings.academicIntelligence = normalizeAcademicIntelligenceSettings(this.settings.academicIntelligence || {});
     this.settings.academicExcellence = normalizeAcademicExcellenceSettings(this.settings.academicExcellence || {});
+    this.settings.admissionsPromotion = normalizeAdmissionsPromotionSettings(
+        this.settings.admissionsPromotion || createDefaultAdmissionsPromotionSettings()
+    );
     if (!this.settings.curriculum.activeTemplateKey) {
         this.settings.curriculum.activeTemplateKey = this.settings.curriculum.templates[0]?.key || DEFAULT_CURRICULUM_TEMPLATE_KEY;
     }

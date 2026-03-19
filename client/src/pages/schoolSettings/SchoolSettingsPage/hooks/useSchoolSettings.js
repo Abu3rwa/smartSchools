@@ -24,6 +24,85 @@ import { isConsecutiveAcademicYear, normalizePermissions } from '../utils/school
 
 const DEFAULT_WEEK_WORKING_DAYS = [1, 2, 3, 4, 5];
 const ALL_WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const DEFAULT_ADMISSIONS_PROMOTION_SETTINGS = {
+  enabled: true,
+  promotionPolicy: {
+    minimumAcademicThreshold: 50,
+    attendanceMinimumPercent: 75,
+    requiredClearanceChecks: {
+      fees: false,
+      library: false,
+      devices: false
+    },
+    autoEligibilityTagsEnabled: false
+  },
+  approvalWorkflow: {
+    enabled: true,
+    depth: 1,
+    roles: ['class_teacher', 'principal']
+  },
+  sectionAssignmentStrategy: 'manual',
+  calendar: {
+    newAdmissionsLockWindow: {
+      startDate: null,
+      endDate: null
+    },
+    returningAdmissionsLockWindow: {
+      startDate: null,
+      endDate: null
+    }
+  },
+  permissions: {
+    allowAdmissionsOfficerPlacementOverride: true,
+    allowFinanceGate: false
+  },
+  reasonCodes: [
+    'ACADEMIC_PROGRESS',
+    'ATTENDANCE_CONCERN',
+    'BEHAVIOR_CONCERN',
+    'CLEARANCE_PENDING',
+    'PARENT_REQUEST',
+    'ADMIN_OVERRIDE',
+    'TRANSFER_IN',
+    'TRANSFER_OUT'
+  ]
+};
+
+const mergeAdmissionsPromotionSettings = (current, patch) => {
+  const next = patch || {};
+  return {
+    ...current,
+    ...next,
+    promotionPolicy: {
+      ...(current?.promotionPolicy || {}),
+      ...(next?.promotionPolicy || {}),
+      requiredClearanceChecks: {
+        ...(current?.promotionPolicy?.requiredClearanceChecks || {}),
+        ...(next?.promotionPolicy?.requiredClearanceChecks || {})
+      }
+    },
+    approvalWorkflow: {
+      ...(current?.approvalWorkflow || {}),
+      ...(next?.approvalWorkflow || {})
+    },
+    calendar: {
+      ...(current?.calendar || {}),
+      ...(next?.calendar || {}),
+      newAdmissionsLockWindow: {
+        ...(current?.calendar?.newAdmissionsLockWindow || {}),
+        ...(next?.calendar?.newAdmissionsLockWindow || {})
+      },
+      returningAdmissionsLockWindow: {
+        ...(current?.calendar?.returningAdmissionsLockWindow || {}),
+        ...(next?.calendar?.returningAdmissionsLockWindow || {})
+      }
+    },
+    permissions: {
+      ...(current?.permissions || {}),
+      ...(next?.permissions || {})
+    }
+  };
+};
 
 const normalizeWeekWorkingDays = (candidate) => {
   if (!Array.isArray(candidate)) return [...DEFAULT_WEEK_WORKING_DAYS];
@@ -78,7 +157,17 @@ const useSchoolSettings = () => {
 
   const [academicYears, setAcademicYears] = useState([]);
   const [fromYear, setFromYear] = useState('');
-  const [toYear, setToYear] = useState('');
+  const toYear = useMemo(() => {
+    if (!fromYear) return '';
+    const parts = fromYear.split('-');
+    if (parts.length === 2) {
+      const end = parseInt(parts[1], 10);
+      if (!isNaN(end)) {
+        return `${end}-${end + 1}`;
+      }
+    }
+    return '';
+  }, [fromYear]);
   const [rolloverLoading, setRolloverLoading] = useState(false);
   const [classesCreated, setClassesCreated] = useState(null);
   const [deactivateCount, setDeactivateCount] = useState(null);
@@ -98,6 +187,11 @@ const useSchoolSettings = () => {
     aiEmailDraftEnabled: true,
     attendanceRemindersEnabled: true,
     attendanceReminderDelayMinutes: 60
+  });
+  const [admissionsPromotionSettings, setAdmissionsPromotionSettings] = useState({
+    loading: false,
+    saving: false,
+    data: DEFAULT_ADMISSIONS_PROMOTION_SETTINGS
   });
   const [gradingScales, setGradingScales] = useState([]);
   const [gradingScalesLoading, setGradingScalesLoading] = useState(false);
@@ -141,6 +235,7 @@ const useSchoolSettings = () => {
       canManageGradeScaling ? 'gradingscales' : null,
       canManageSchoolSettings ? 'branding' : null,
       canManageCommunicationSettings ? 'communication' : null,
+      canManageSchoolSettings ? 'admissionspromotion' : null,
       canManageSchoolSettings ? 'schoolyear' : null
     ].filter(Boolean);
 
@@ -227,6 +322,90 @@ const useSchoolSettings = () => {
       fetchCommunicationSettings();
     }
   }, [activeTab, canManageCommunicationSettings, fetchCommunicationSettings]);
+
+  const fetchAdmissionsPromotionSettings = useCallback(async () => {
+    if (!canManageSchoolSettings) return;
+
+    setAdmissionsPromotionSettings((previous) => ({
+      ...previous,
+      loading: true
+    }));
+
+    try {
+      const response = await api.get('/schools/me/admissions-promotion-settings');
+      if (response.data?.success) {
+        setAdmissionsPromotionSettings({
+          loading: false,
+          saving: false,
+          data: mergeAdmissionsPromotionSettings(
+            DEFAULT_ADMISSIONS_PROMOTION_SETTINGS,
+            response.data.data || {}
+          )
+        });
+      } else {
+        setAdmissionsPromotionSettings((previous) => ({
+          ...previous,
+          loading: false
+        }));
+        toast.error(response.data?.message || t('schoolSettings:toast.loadAdmissionsPromotionSettingsFailed'));
+      }
+    } catch (error) {
+      setAdmissionsPromotionSettings((previous) => ({
+        ...previous,
+        loading: false
+      }));
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.loadAdmissionsPromotionSettingsFailed'));
+    }
+  }, [canManageSchoolSettings, t]);
+
+  useEffect(() => {
+    if (activeTab === 'admissionspromotion' && canManageSchoolSettings) {
+      fetchAdmissionsPromotionSettings();
+    }
+  }, [activeTab, canManageSchoolSettings, fetchAdmissionsPromotionSettings]);
+
+  const handleAdmissionsPromotionSettingsChange = useCallback((patch) => {
+    setAdmissionsPromotionSettings((previous) => ({
+      ...previous,
+      data: mergeAdmissionsPromotionSettings(previous.data, patch)
+    }));
+  }, []);
+
+  const handleSaveAdmissionsPromotionSettings = useCallback(async () => {
+    if (!canManageSchoolSettings) return;
+
+    setAdmissionsPromotionSettings((previous) => ({
+      ...previous,
+      saving: true
+    }));
+
+    try {
+      const response = await api.patch('/schools/me/admissions-promotion-settings', admissionsPromotionSettings.data);
+      if (response.data?.success) {
+        setAdmissionsPromotionSettings((previous) => ({
+          ...previous,
+          saving: false,
+          data: mergeAdmissionsPromotionSettings(
+            DEFAULT_ADMISSIONS_PROMOTION_SETTINGS,
+            response.data.data || previous.data
+          )
+        }));
+        toast.success(t('schoolSettings:toast.admissionsPromotionSettingsUpdated'));
+      } else {
+        setAdmissionsPromotionSettings((previous) => ({
+          ...previous,
+          saving: false
+        }));
+        toast.error(response.data?.message || t('schoolSettings:toast.admissionsPromotionSettingsUpdateFailed'));
+      }
+    } catch (error) {
+      setAdmissionsPromotionSettings((previous) => ({
+        ...previous,
+        saving: false
+      }));
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.admissionsPromotionSettingsUpdateFailed'));
+    }
+  }, [admissionsPromotionSettings.data, canManageSchoolSettings, t]);
 
   const fetchGradingScales = useCallback(async () => {
     if (!canManageGradeScaling) return;
@@ -381,13 +560,6 @@ const useSchoolSettings = () => {
         const years = res.data.data.academicYears;
         setAcademicYears(years);
         if (!fromYear && years.length) setFromYear(years[years.length - 1]);
-        if (!toYear) {
-          const last = years[years.length - 1];
-          if (last) {
-            const [, e] = last.split('-').map(Number);
-            setToYear(`${e}-${e + 1}`);
-          }
-        }
       }
     } catch {
       toast.error(t('schoolSettings:toast.loadAcademicYearsFailed'));
@@ -404,7 +576,7 @@ const useSchoolSettings = () => {
     } catch {
       toast.error(t('schoolSettings:toast.loadSchoolYearDatesFailed'));
     }
-  }, [fromYear, t, toYear]);
+  }, [fromYear, t]);
 
   useEffect(() => {
     if (canManageSchoolSettings && activeTab === 'schoolyear') {
@@ -911,7 +1083,6 @@ const useSchoolSettings = () => {
     fromYear,
     setFromYear,
     toYear,
-    setToYear,
     rolloverLoading,
     classesCreated,
     deactivateCount,
@@ -928,11 +1099,14 @@ const useSchoolSettings = () => {
     schoolInfo,
     brandingLoading,
     communicationSettings,
+    admissionsPromotionSettings,
     handleUploadSchoolLogo,
     handleRemoveSchoolLogo,
     handleToggleAiEmailDraft,
     handleAttendanceReminderSettingsChange,
     handleSaveAttendanceReminderSettings,
+    handleAdmissionsPromotionSettingsChange,
+    handleSaveAdmissionsPromotionSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,

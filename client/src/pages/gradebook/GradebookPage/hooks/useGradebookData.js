@@ -12,6 +12,8 @@ const useGradebookData = ({
     classId,
     currentClass,
     subjects,
+    userRole,
+    teacherProfile,
     students,
     grades,
     selectedSubject,
@@ -66,8 +68,8 @@ const useGradebookData = ({
     }, [fetchGrades]);
 
     const availableSubjects = useMemo(() => {
-        return getAvailableSubjects({ currentClass, subjects });
-    }, [currentClass, subjects]);
+        return getAvailableSubjects({ currentClass, subjects, userRole, teacherProfile });
+    }, [currentClass, subjects, teacherProfile, userRole]);
 
     const { categories: dynamicCategories, data: processedData } = useMemo(() => {
         return processGradebookData({ students, grades, selectedCategoryFilter });

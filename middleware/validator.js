@@ -134,5 +134,80 @@ export const validationRules = {
             .trim()
             .isLength({ max: 500 })
             .withMessage('reason must be at most 500 characters')
+    ],
+
+    promotionDecision: [
+        body('decisionType')
+            .isIn(['promote', 'retain', 'promote_with_conditions', 'hold_review'])
+            .withMessage('decisionType must be one of promote, retain, promote_with_conditions, hold_review'),
+        body('approvalStatus')
+            .optional()
+            .isIn(['pending', 'approved', 'rejected'])
+            .withMessage('approvalStatus must be one of pending, approved, rejected'),
+        body('reasonCode')
+            .notEmpty()
+            .trim()
+            .withMessage('reasonCode is required'),
+        body('targetClassId')
+            .optional({ nullable: true, checkFalsy: true })
+            .isMongoId()
+            .withMessage('targetClassId must be a valid class ID when provided'),
+        body('targetAcademicYear')
+            .optional({ nullable: true })
+            .isString()
+            .trim()
+            .isLength({ min: 3, max: 20 })
+            .withMessage('targetAcademicYear must be a valid string when provided'),
+        body('note')
+            .optional({ nullable: true })
+            .isString()
+            .trim()
+            .isLength({ max: 2000 })
+            .withMessage('note must be at most 2000 characters'),
+        body('conditions')
+            .optional({ nullable: true })
+            .isString()
+            .trim()
+            .isLength({ max: 2000 })
+            .withMessage('conditions must be at most 2000 characters')
+    ],
+
+    updateReEnrollmentStatus: [
+        body('reEnrollmentStatus')
+            .optional()
+            .isIn([
+                'pending_contact',
+                'documents_pending',
+                'financial_clearance_pending',
+                'approved_for_placement',
+                'enrolled'
+            ])
+            .withMessage('Invalid reEnrollmentStatus'),
+        body('seatFreezeUntil')
+            .optional({ nullable: true })
+            .isISO8601()
+            .withMessage('seatFreezeUntil must be a valid ISO date when provided'),
+        body('placementRecommendation.grade')
+            .optional()
+            .isInt({ min: 1, max: 12 })
+            .withMessage('placementRecommendation.grade must be between 1 and 12'),
+        body('placementRecommendation.section')
+            .optional({ nullable: true })
+            .isString()
+            .trim()
+            .isLength({ max: 10 })
+            .withMessage('placementRecommendation.section must be a short string'),
+        body('placementRecommendation.note')
+            .optional({ nullable: true })
+            .isString()
+            .trim()
+            .isLength({ max: 1000 })
+            .withMessage('placementRecommendation.note must be at most 1000 characters'),
+        body('note')
+            .optional({ nullable: true })
+            .isString()
+            .trim()
+            .isLength({ max: 1000 })
+            .withMessage('note must be at most 1000 characters')
     ]
 };

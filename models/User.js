@@ -1,6 +1,5 @@
 ﻿import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 import { decryptSecret, encryptSecret } from '../utils/secretCrypto.js';
 
 const userSchema = new mongoose.Schema({
@@ -263,6 +262,12 @@ const userSchema = new mongoose.Schema({
         isActive: {
             type: Boolean,
             default: false
+        }
+    },
+    uiPreferences: {
+        headerShortcuts: {
+            type: [String],
+            default: []
         }
     }
 }, {

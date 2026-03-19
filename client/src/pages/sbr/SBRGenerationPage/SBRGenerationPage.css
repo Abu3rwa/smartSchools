@@ -98,7 +98,7 @@
   height: 100%;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #fff;
+  background: var(--bg-secondary);
 }
 
 .sbr-preview-actions {

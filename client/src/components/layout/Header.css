@@ -32,6 +32,45 @@
     gap: var(--spacing-md);
 }
 
+.header-shortcuts {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    
+}
+
+.header-shortcut-btn {
+    height: 32px;
+    padding: 0 var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.header-shortcut-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-card-hover);
+    border-color: var(--border-color-hover);
+}
+
+.header-shortcut-btn.active {
+    background: color-mix(in srgb, var(--primary-500) 16%, var(--bg-tertiary));
+    border-color: color-mix(in srgb, var(--primary-500) 45%, var(--border-color));
+    color: var(--primary-600);
+}
+
+.header-shortcuts-empty {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
 /* Search */
 .search-box {
     position: relative;
@@ -76,6 +115,25 @@
     background: var(--bg-card-hover);
     color: var(--text-primary);
     border-color: var(--border-color-hover);
+}
+
+.header-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.header-shortcut-order-item {
+    cursor: grab;
+}
+
+.header-shortcut-order-item:active {
+    cursor: grabbing;
+}
+
+.header-shortcut-drag-handle {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    letter-spacing: 1px;
 }
 
 .notification-btn {
@@ -155,6 +213,10 @@
     }
 
     .search-box {
+        display: none;
+    }
+
+    .header-shortcuts {
         display: none;
     }
 }

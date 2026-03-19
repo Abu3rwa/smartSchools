@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import api from "../../../../../config/api";
-import { selectCurrentAcademicYear, selectSelectedSemester } from "../../../../../store/slices/uiSlice";
+import { selectCurrentAcademicYear } from "../../../../../store/slices/uiSlice";
 
 const labelFromMastery = (value) =>
   String(value || "")
@@ -9,9 +9,8 @@ const labelFromMastery = (value) =>
     .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : ""))
     .join(" ");
 
-const AEStudentProgressDrawer = ({ student, classId, onClose }) => {
+const AEStudentProgressDrawer = ({ student, onClose }) => {
   const academicYear = useSelector(selectCurrentAcademicYear);
-  const selectedSemester = useSelector(selectSelectedSemester);
 
   const [loading, setLoading] = useState(false);
   const [objectives, setObjectives] = useState([]);
@@ -21,7 +20,7 @@ const AEStudentProgressDrawer = ({ student, classId, onClose }) => {
     if (!student?._id) return;
     setLoading(true);
     try {
-      const params = { academicYear, semester: selectedSemester, limit: 30 };
+      const params = { academicYear, limit: 30 };
       const [objRes, taskRes] = await Promise.all([
         api.get(`/students/${student._id}/academic-excellence/objectives`, { params }),
         api.get(`/students/${student._id}/academic-excellence/tasks`, { params }),
@@ -33,7 +32,7 @@ const AEStudentProgressDrawer = ({ student, classId, onClose }) => {
     } finally {
       setLoading(false);
     }
-  }, [student, academicYear, selectedSemester]);
+  }, [student, academicYear]);
 
   useEffect(() => {
     loadStudentData();

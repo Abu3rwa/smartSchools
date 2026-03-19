@@ -98,6 +98,72 @@
     "11": "November",
     "12": "December"
   },
+  "sbrConfig": {
+    "header": {
+      "title": "SBR Scale Configuration",
+      "subtitle": "Set up standards-based grading scales used by report card generation."
+    },
+    "create": {
+      "title": "Create New Scale"
+    },
+    "fields": {
+      "name": "Name",
+      "description": "Description"
+    },
+    "sections": {
+      "levels": "Levels",
+      "specialCodes": "Special Codes"
+    },
+    "actions": {
+      "addLevel": "Add Level",
+      "addCode": "Add Code",
+      "remove": "Remove",
+      "creating": "Creating...",
+      "createScale": "Create Scale",
+      "saveChanges": "Save Changes",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "setDefault": "Set Default",
+      "delete": "Delete"
+    },
+    "list": {
+      "title": "Configured Scales ({{count}})",
+      "loading": "Loading scales...",
+      "empty": "No scales found.",
+      "editingScale": "Editing Scale",
+      "defaultBadge": "Default"
+    },
+    "placeholders": {
+      "name": "Example: 4-Level Mastery",
+      "optional": "Optional",
+      "value": "Value",
+      "label": "Label",
+      "minPercent": "Min %",
+      "maxPercent": "Max %",
+      "code": "Code",
+      "labelAr": "Arabic label (optional)"
+    },
+    "defaults": {
+      "newLevelLabel": "New Level",
+      "notAssessed": "Not Assessed"
+    },
+    "note": "Define levels and special codes directly here. Changes are validated on save.",
+    "confirm": {
+      "delete": "Delete this scale? This cannot be undone."
+    },
+    "toast": {
+      "loadFailed": "Failed to load SBR scales",
+      "nameRequired": "Scale name is required",
+      "created": "Scale created",
+      "createFailed": "Unable to create scale",
+      "updated": "Scale updated",
+      "updateFailed": "Unable to update scale",
+      "defaultUpdated": "Default scale updated",
+      "defaultUpdateFailed": "Unable to set default scale",
+      "deleted": "Scale deleted",
+      "deleteFailed": "Unable to delete scale"
+    }
+  },
   "toasts": {
     "enterAtLeastOne": "Please enter at least one grade",
     "addedSuccessfully": "{{count}} grades added successfully!",

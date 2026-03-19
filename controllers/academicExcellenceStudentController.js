@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Student from '../models/Student.js';
 import AcademicExcellenceObjective from '../models/AcademicExcellenceObjective.js';
 import AcademicExcellenceTask from '../models/AcademicExcellenceTask.js';
+import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherAssignments } from '../helpers/teacherScoping.js';
 import {
@@ -182,16 +183,75 @@ const enforceStudentResourceAccess = async (req, student) => {
             return { allowed: false, status: 403, message: 'Teacher profile not found' };
         }
 
-        const assignments = await getTeacherAssignments(teacherProfile._id);
         const classId = toIdString(student.currentClass?._id || student.currentClass);
-        const hasClassAccess = assignments.some((item) => toIdString(item.classId) === classId);
+        const [assignments, classDoc] = await Promise.all([
+            getTeacherAssignments(teacherProfile._id),
+            Class.findById(classId).select('_id classTeacher subjects.teacher subjects.subject').lean()
+        ]);
+
+        const isClassTeacher = toIdString(classDoc?.classTeacher) === toIdString(teacherProfile._id);
+        const scopedSubjectSet = new Set();
+
+        assignments.forEach((item) => {
+            if (toIdString(item.classId) === classId && toIdString(item.subjectId)) {
+                scopedSubjectSet.add(toIdString(item.subjectId));
+            }
+        });
+
+        (classDoc?.subjects || []).forEach((row) => {
+            if (toIdString(row?.teacher) === toIdString(teacherProfile._id) && toIdString(row?.subject)) {
+                scopedSubjectSet.add(toIdString(row?.subject));
+            }
+        });
+
+        const allowedSubjectIds = Array.from(scopedSubjectSet);
+        const hasClassAccess = isClassTeacher || allowedSubjectIds.length > 0;
 
         if (!hasClassAccess) {
             return { allowed: false, status: 403, message: 'Access denied' };
         }
+
+        return {
+            allowed: true,
+            teacherScope: {
+                classId,
+                isClassTeacher,
+                allowedSubjectIds
+            }
+        };
     }
 
     return { allowed: true };
+};
+
+const resolveTeacherSubjectScope = (access, requestedSubjectId) => {
+    const teacherScope = access?.teacherScope;
+    if (!teacherScope) {
+        return { denied: false, subjectId: requestedSubjectId || null, subjectIds: null };
+    }
+
+    const requested = toIdString(requestedSubjectId);
+    if (teacherScope.isClassTeacher) {
+        return { denied: false, subjectId: requested || null, subjectIds: null };
+    }
+
+    if (requested && !teacherScope.allowedSubjectIds.includes(requested)) {
+        return { denied: true, subjectId: null, subjectIds: null };
+    }
+
+    if (requested) {
+        return { denied: false, subjectId: requested, subjectIds: [requested] };
+    }
+
+    if (!teacherScope.allowedSubjectIds.length) {
+        return { denied: true, subjectId: null, subjectIds: null };
+    }
+
+    return {
+        denied: false,
+        subjectId: teacherScope.allowedSubjectIds[0],
+        subjectIds: teacherScope.allowedSubjectIds
+    };
 };
 
 export const getStudentAcademicExcellenceDashboard = asyncHandler(async (req, res) => {
@@ -201,10 +261,15 @@ export const getStudentAcademicExcellenceDashboard = asyncHandler(async (req, re
         return res.status(access.status).json({ success: false, message: access.message });
     }
 
+    const teacherSubjectScope = resolveTeacherSubjectScope(access, req.query.subjectId || null);
+    if (teacherSubjectScope.denied) {
+        return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+    }
+
     const data = await getStudentExcellenceDashboardData({
         school: req.school,
         studentId: student._id,
-        subjectId: req.query.subjectId || null,
+        subjectId: teacherSubjectScope.subjectId,
         academicYear: req.academicYear
     });
 
@@ -220,7 +285,11 @@ export const getStudentObjectivesList = asyncHandler(async (req, res) => {
 
     const { page, limit } = parsePagination(req.query || {});
     const masteryLevel = String(req.query.masteryLevel || '').trim().toLowerCase();
-    const subjectId = req.query.subjectId || null;
+    const teacherSubjectScope = resolveTeacherSubjectScope(access, req.query.subjectId || null);
+    if (teacherSubjectScope.denied) {
+        return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+    }
+    const subjectId = teacherSubjectScope.subjectId;
 
     await syncStudentObjectiveMastery({
         school: req.school,
@@ -235,7 +304,11 @@ export const getStudentObjectivesList = asyncHandler(async (req, res) => {
         deletedAt: null
     };
 
-    if (subjectId) query.subject = subjectId;
+    if (subjectId) {
+        query.subject = subjectId;
+    } else if (Array.isArray(teacherSubjectScope.subjectIds) && teacherSubjectScope.subjectIds.length > 0) {
+        query.subject = { $in: teacherSubjectScope.subjectIds };
+    }
     if (masteryLevel && ['not_started', 'at_risk', 'developing', 'mastered'].includes(masteryLevel)) {
         query.masteryLevel = masteryLevel;
     }
@@ -277,7 +350,11 @@ export const getStudentTasks = asyncHandler(async (req, res) => {
     }
 
     const { page, limit } = parsePagination(req.query || {});
-    const subjectId = req.query.subjectId || null;
+    const teacherSubjectScope = resolveTeacherSubjectScope(access, req.query.subjectId || null);
+    if (teacherSubjectScope.denied) {
+        return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+    }
+    const subjectId = teacherSubjectScope.subjectId;
     const objectiveKey = String(req.query.objectiveKey || '').trim();
     const statusFilter = parseStatusFilter(req.query.status);
 
@@ -286,7 +363,11 @@ export const getStudentTasks = asyncHandler(async (req, res) => {
         student: student._id
     };
 
-    if (subjectId) query.subject = subjectId;
+    if (subjectId) {
+        query.subject = subjectId;
+    } else if (Array.isArray(teacherSubjectScope.subjectIds) && teacherSubjectScope.subjectIds.length > 0) {
+        query.subject = { $in: teacherSubjectScope.subjectIds };
+    }
     if (objectiveKey) query.objectiveKey = objectiveKey;
     if (statusFilter) {
         query.status = statusFilter;

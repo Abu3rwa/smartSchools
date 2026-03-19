@@ -25,7 +25,7 @@ const gradeSchema = new mongoose.Schema({
     },
     teacher: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Teacher',
+        ref: 'User',
         required: [true, 'Teacher is required']
     },
     academicYear: {

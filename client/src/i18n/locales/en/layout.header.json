@@ -7,6 +7,9 @@
     "openMenu": "Open menu",
     "toggleTheme": "Toggle theme",
     "toggleLanguage": "Switch language",
+    "pinCurrentPage": "Pin this page",
+    "manageShortcuts": "Manage shortcuts",
+    "backToDashboard": "Back to Dashboard",
     "notifications": "Notifications",
     "notificationsAria_zero": "Notifications",
     "notificationsAria_one": "Notifications ({{count}} pending)",
@@ -15,6 +18,15 @@
     "notificationsAria_many": "Notifications ({{count}} pending)",
     "notificationsAria_other": "Notifications ({{count}} pending)",
     "userMenu": "User menu"
+  },
+  "shortcuts": {
+    "title": "Header shortcuts",
+    "hint": "Choose up to {{max}} links.",
+    "pinCurrentPage": "Pin current page",
+    "pinCurrentPageDisabled": "Open a pinnable page first",
+    "orderTitle": "Shortcut order",
+    "orderHint": "Drag items to reorder.",
+    "none": "No shortcuts selected"
   },
   "menu": {
     "settings": "Settings",

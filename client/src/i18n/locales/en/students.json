@@ -28,6 +28,7 @@
     "sendingInvites": "Sending invites...",
     "sendingParentInvite": "Sending parent invite...",
     "sendingParentInvites": "Sending parent invites...",
+    "openPromotionCenter": "Open Promotion Center",
     "importCsv": "Import CSV",
     "addStudent": "Add Student",
     "updateStudent": "Update Student",
@@ -205,6 +206,87 @@
     "noValidData": "No valid data to import",
     "rowsFailed": "{{count}} rows failed",
     "importFailed": "Import failed"
+  },
+  "promotionCenter": {
+    "title": "Promotion Center",
+    "subtitle": "Review student-by-student promotion decisions and re-enrollment status.",
+    "queueTitle": "Promotion Queue",
+    "actionsPanelTitle": "Decision Workspace",
+    "loading": "Loading promotion queue...",
+    "loadingSettings": "Loading reason codes...",
+    "empty": "No students match the current filter.",
+    "selectPrompt": "Select a student from the queue to continue.",
+    "filters": {
+      "search": "Search",
+      "searchPlaceholder": "Search by student name or ID",
+      "decisionStatus": "Decision status"
+    },
+    "table": {
+      "student": "Student",
+      "class": "Class",
+      "reEnrollment": "Re-enrollment",
+      "decisionStatus": "Decision status"
+    },
+    "common": {
+      "na": "N/A"
+    },
+    "status": {
+      "allDecisionStatuses": "All statuses",
+      "undecided": "Undecided",
+      "approved": "Approved",
+      "pending": "Pending",
+      "rejected": "Rejected",
+      "holdReview": "Hold for review"
+    },
+    "reEnrollment": {
+      "pendingContact": "Pending contact",
+      "documentsPending": "Documents pending",
+      "financialClearancePending": "Financial clearance pending",
+      "approvedForPlacement": "Approved for placement",
+      "pending_contact": "Pending contact",
+      "documents_pending": "Documents pending",
+      "financial_clearance_pending": "Financial clearance pending",
+      "approved_for_placement": "Approved for placement",
+      "enrolled": "Enrolled",
+      "declined": "Declined"
+    },
+    "decisionTypes": {
+      "promote": "Promote",
+      "promoteWithConditions": "Promote with conditions",
+      "repeatGrade": "Repeat grade",
+      "holdReview": "Hold for review"
+    },
+    "fields": {
+      "reEnrollmentStatus": "Re-enrollment status",
+      "decisionType": "Decision type",
+      "approvalStatus": "Approval status",
+      "reasonCode": "Reason code",
+      "targetClass": "Target class",
+      "selectTargetClass": "Select target class",
+      "conditions": "Conditions",
+      "conditionsPlaceholder": "Optional conditions for this decision",
+      "note": "Note",
+      "notePlaceholder": "Optional note for audit history"
+    },
+    "reEnrollmentTitle": "Re-enrollment Update",
+    "decisionTitle": "Promotion Decision",
+    "actions": {
+      "loadingQueue": "Loading queue...",
+      "refreshQueue": "Refresh queue",
+      "saving": "Saving...",
+      "saveReEnrollment": "Save re-enrollment status",
+      "saveDecision": "Record promotion decision"
+    },
+    "toast": {
+      "loadSettingsFailed": "Failed to load admissions and promotion reason codes",
+      "selectStudentFirst": "Select a student first",
+      "reasonCodeRequired": "Reason code is required",
+      "targetClassRequired": "Target class is required for promotion decisions",
+      "decisionSaved": "Promotion decision saved",
+      "decisionSaveFailed": "Failed to save promotion decision",
+      "reEnrollmentUpdated": "Re-enrollment status updated",
+      "reEnrollmentUpdateFailed": "Failed to update re-enrollment status"
+    }
   },
   "detail": {
     "common": {

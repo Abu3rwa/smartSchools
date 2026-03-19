@@ -212,6 +212,42 @@ export const removeStudentPhoto = createAsyncThunk(
     }
 );
 
+export const fetchPromotionQueue = createAsyncThunk(
+    'students/fetchPromotionQueue',
+    async (params = {}, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/students/promotion/queue', { params });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to fetch promotion queue');
+        }
+    }
+);
+
+export const submitStudentPromotionDecision = createAsyncThunk(
+    'students/submitPromotionDecision',
+    async ({ studentId, decisionData }, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/students/${studentId}/promotion-decisions`, decisionData);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to submit promotion decision');
+        }
+    }
+);
+
+export const updateStudentReEnrollment = createAsyncThunk(
+    'students/updateStudentReEnrollment',
+    async ({ studentId, updates }, { rejectWithValue }) => {
+        try {
+            const response = await api.patch(`/students/${studentId}/re-enrollment`, updates);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to update re-enrollment status');
+        }
+    }
+);
+
 const syncStudentAcrossCollections = (state, updatedStudent) => {
     const updateInList = (list) => {
         const index = list.findIndex((student) => student._id === updatedStudent._id);
@@ -227,14 +263,43 @@ const syncStudentAcrossCollections = (state, updatedStudent) => {
     }
 };
 
+const syncStudentInPromotionQueue = (state, updatedStudent, latestDecision = undefined) => {
+    state.promotionQueue = state.promotionQueue.map((item) => {
+        if (item?.student?._id !== updatedStudent._id) {
+            return item;
+        }
+
+        let decisionStatus = item.decisionStatus;
+        if (latestDecision) {
+            if (latestDecision.decisionType === 'hold_review' && latestDecision.approvalStatus === 'approved') {
+                decisionStatus = 'hold_review';
+            } else {
+                decisionStatus = latestDecision.approvalStatus;
+            }
+        }
+
+        return {
+            ...item,
+            student: updatedStudent,
+            latestDecision: latestDecision === undefined ? item.latestDecision : latestDecision,
+            decisionStatus
+        };
+    });
+};
+
 const studentSlice = createSlice({
     name: 'students',
     initialState: {
         students: [],
         currentStudent: null,
         classStudents: [],
+        promotionQueue: [],
+        promotionQueuePagination: null,
+        promotionQueueAcademicYear: null,
         pagination: null,
         loading: false,
+        promotionQueueLoading: false,
+        promotionActionLoading: false,
         error: null
     },
     reducers: {
@@ -294,6 +359,53 @@ const studentSlice = createSlice({
             // Delete student
             .addCase(deleteStudent.fulfilled, (state, action) => {
                 state.students = state.students.filter(s => s._id !== action.payload);
+            })
+            // Promotion queue
+            .addCase(fetchPromotionQueue.pending, (state) => {
+                state.promotionQueueLoading = true;
+                state.error = null;
+            })
+            .addCase(fetchPromotionQueue.fulfilled, (state, action) => {
+                state.promotionQueueLoading = false;
+                state.promotionQueue = action.payload.queue || [];
+                state.promotionQueuePagination = action.payload.pagination || null;
+                state.promotionQueueAcademicYear = action.payload.academicYear || null;
+            })
+            .addCase(fetchPromotionQueue.rejected, (state, action) => {
+                state.promotionQueueLoading = false;
+                state.error = action.payload;
+            })
+            .addCase(submitStudentPromotionDecision.pending, (state) => {
+                state.promotionActionLoading = true;
+                state.error = null;
+            })
+            .addCase(submitStudentPromotionDecision.fulfilled, (state, action) => {
+                state.promotionActionLoading = false;
+                const updatedStudent = action.payload.student;
+                if (updatedStudent) {
+                    syncStudentAcrossCollections(state, updatedStudent);
+                    syncStudentInPromotionQueue(state, updatedStudent, action.payload.decision || null);
+                }
+            })
+            .addCase(submitStudentPromotionDecision.rejected, (state, action) => {
+                state.promotionActionLoading = false;
+                state.error = action.payload;
+            })
+            .addCase(updateStudentReEnrollment.pending, (state) => {
+                state.promotionActionLoading = true;
+                state.error = null;
+            })
+            .addCase(updateStudentReEnrollment.fulfilled, (state, action) => {
+                state.promotionActionLoading = false;
+                const updatedStudent = action.payload.student;
+                if (updatedStudent) {
+                    syncStudentAcrossCollections(state, updatedStudent);
+                    syncStudentInPromotionQueue(state, updatedStudent);
+                }
+            })
+            .addCase(updateStudentReEnrollment.rejected, (state, action) => {
+                state.promotionActionLoading = false;
+                state.error = action.payload;
             });
     }
 });
@@ -305,5 +417,10 @@ export const selectStudents = (state) => state.students.students;
 export const selectCurrentStudent = (state) => state.students.currentStudent;
 export const selectClassStudents = (state) => state.students.classStudents;
 export const selectStudentsLoading = (state) => state.students.loading;
+export const selectPromotionQueue = (state) => state.students.promotionQueue;
+export const selectPromotionQueuePagination = (state) => state.students.promotionQueuePagination;
+export const selectPromotionQueueAcademicYear = (state) => state.students.promotionQueueAcademicYear;
+export const selectPromotionQueueLoading = (state) => state.students.promotionQueueLoading;
+export const selectPromotionActionLoading = (state) => state.students.promotionActionLoading;
 
 export default studentSlice.reducer;

@@ -1,6 +1,8 @@
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 import User from '../models/User.js';
+import School from '../models/School.js';
+import StudentPromotionDecision from '../models/StudentPromotionDecision.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherClassIds } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope } from '../helpers/departmentScope.js';
@@ -15,6 +17,15 @@ import {
 
 const generateTempPassword = generateInvitePassword;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+const RE_ENROLLMENT_STATUSES = new Set([
+    'pending_contact',
+    'documents_pending',
+    'financial_clearance_pending',
+    'approved_for_placement',
+    'enrolled'
+]);
+const PROMOTION_DECISION_TYPES = new Set(['promote', 'retain', 'promote_with_conditions', 'hold_review']);
+const PROMOTION_APPROVAL_STATUSES = new Set(['pending', 'approved', 'rejected']);
 
 const normalizeEmail = (value) => {
     if (typeof value !== 'string') return null;
@@ -51,6 +62,64 @@ const getStudentCapacityContext = async (schoolId) => {
 const buildStudentLimitReachedMessage = ({ maxStudents, currentStudents }) => (
     `Student limit reached for your plan. You can have up to ${maxStudents} active students and currently have ${currentStudents}. Please request an upgrade to add more students.`
 );
+
+const appendClassHistoryEntry = (student, leftAt = new Date()) => {
+    if (!student?.currentClass) return null;
+    return {
+        academicYear: student.academicYear,
+        class: student.currentClass,
+        leftAt
+    };
+};
+
+const parseDateOrNull = (value) => {
+    if (value === null) return null;
+    if (value === undefined) return undefined;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const ensureClassCapacity = async ({ schoolId, classDoc, excludedStudentId = null }) => {
+    const limit = Number(classDoc?.capacity ?? 0);
+    if (!Number.isFinite(limit) || limit <= 0) {
+        return { isLimited: false, limit: null, enrolled: null };
+    }
+
+    const enrollmentQuery = {
+        school: schoolId,
+        currentClass: classDoc._id,
+        status: 'active'
+    };
+
+    if (excludedStudentId) {
+        enrollmentQuery._id = { $ne: excludedStudentId };
+    }
+
+    const enrolled = await Student.countDocuments(enrollmentQuery);
+    if (enrolled >= limit) {
+        const className = classDoc.name || `Grade ${classDoc.grade}${classDoc.section ? `-${classDoc.section}` : ''}`;
+        throw new Error(`Target class ${className} is full (${enrolled}/${limit})`);
+    }
+
+    return { isLimited: true, limit, enrolled };
+};
+
+const getSchoolPromotionReasonCodeSet = async (schoolId) => {
+    const school = await School.findById(schoolId)
+        .select('settings.admissionsPromotion.reasonCodes')
+        .lean();
+
+    const configured = school?.settings?.admissionsPromotion?.reasonCodes;
+    if (!Array.isArray(configured) || configured.length === 0) {
+        return null;
+    }
+
+    return new Set(
+        configured
+            .map((code) => String(code || '').trim().toUpperCase())
+            .filter(Boolean)
+    );
+};
 
 const splitContactName = (fullName = '', fallbackLastName = 'Parent') => {
     const normalized = String(fullName || '').trim().replace(/\s+/g, ' ');
@@ -629,15 +698,33 @@ export const enrollStudent = asyncHandler(async (req, res) => {
         });
     }
 
-    const updates = { currentClass: newClass._id, academicYear };
-    if (student.currentClass) {
+    try {
+        await ensureClassCapacity({
+            schoolId: req.schoolId,
+            classDoc: newClass,
+            excludedStudentId: student._id
+        });
+    } catch (error) {
+        return res.status(409).json({
+            success: false,
+            message: error.message
+        });
+    }
+
+    const updates = {
+        currentClass: newClass._id,
+        academicYear,
+        department: newClass.department || student.department || null,
+        'admissions.reEnrollmentStatus': 'enrolled',
+        'admissions.lastStatusUpdatedAt': new Date(),
+        'admissions.lastStatusUpdatedBy': req.user?._id || null
+    };
+
+    const historyEntry = appendClassHistoryEntry(student);
+    if (historyEntry) {
         updates.$push = {
             classEnrollmentHistory: {
-                $each: [{
-                    academicYear: student.academicYear,
-                    class: student.currentClass,
-                    leftAt: new Date()
-                }],
+                $each: [historyEntry],
                 $position: 0
             }
         };
@@ -651,6 +738,351 @@ export const enrollStudent = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         message: 'Student enrolled successfully',
+        data: { student: updated }
+    });
+});
+
+/**
+ * @desc    Student-by-student promotion queue with latest decision status
+ * @route   GET /api/students/promotion/queue
+ * @access  Private (Admin)
+ */
+export const getPromotionQueue = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 20, search, academicYear, decisionStatus } = req.query;
+    const effectiveAcademicYear = academicYear || req.academicYear;
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 200);
+
+    if (!effectiveAcademicYear) {
+        return res.status(400).json({
+            success: false,
+            message: 'academicYear is required'
+        });
+    }
+
+    const query = {
+        school: req.schoolId,
+        status: 'active',
+        academicYear: effectiveAcademicYear,
+        currentClass: { $exists: true, $ne: null }
+    };
+
+    if (search) {
+        query.$or = [
+            { firstName: { $regex: search, $options: 'i' } },
+            { lastName: { $regex: search, $options: 'i' } },
+            { studentId: { $regex: search, $options: 'i' } }
+        ];
+    }
+
+    const students = await Student.find(query)
+        .populate('currentClass', 'name grade section academicYear')
+        .sort({ firstName: 1, lastName: 1 })
+        .skip((parsedPage - 1) * parsedLimit)
+        .limit(parsedLimit);
+
+    const total = await Student.countDocuments(query);
+    const studentIds = students.map((student) => student._id);
+
+    const decisionRows = studentIds.length > 0
+        ? await StudentPromotionDecision.find({
+            school: req.schoolId,
+            student: { $in: studentIds }
+        })
+            .sort({ createdAt: -1 })
+            .lean()
+        : [];
+
+    const latestDecisionByStudent = new Map();
+    for (const row of decisionRows) {
+        const key = row.student?.toString();
+        if (!key || latestDecisionByStudent.has(key)) continue;
+        latestDecisionByStudent.set(key, row);
+    }
+
+    let queue = students.map((student) => {
+        const latest = latestDecisionByStudent.get(student._id.toString()) || null;
+        const computedStatus = latest
+            ? (latest.decisionType === 'hold_review' && latest.approvalStatus === 'approved'
+                ? 'hold_review'
+                : latest.approvalStatus)
+            : 'undecided';
+
+        return {
+            student,
+            decisionStatus: computedStatus,
+            latestDecision: latest
+        };
+    });
+
+    if (decisionStatus) {
+        queue = queue.filter((item) => item.decisionStatus === decisionStatus);
+    }
+
+    res.json({
+        success: true,
+        data: {
+            academicYear: effectiveAcademicYear,
+            queue,
+            pagination: {
+                page: parsedPage,
+                limit: parsedLimit,
+                total,
+                pages: Math.max(Math.ceil(total / parsedLimit), 1)
+            }
+        }
+    });
+});
+
+/**
+ * @desc    Record and optionally apply a promotion decision for a single student
+ * @route   POST /api/students/:id/promotion-decisions
+ * @access  Private (Admin)
+ */
+export const decideStudentPromotion = asyncHandler(async (req, res) => {
+    const {
+        decisionType,
+        reasonCode,
+        note,
+        conditions,
+        targetClassId,
+        targetAcademicYear,
+        approvalStatus = 'approved',
+        policySnapshot = null
+    } = req.body;
+
+    if (!PROMOTION_DECISION_TYPES.has(decisionType)) {
+        return res.status(400).json({ success: false, message: 'Invalid decisionType' });
+    }
+    if (!PROMOTION_APPROVAL_STATUSES.has(approvalStatus)) {
+        return res.status(400).json({ success: false, message: 'Invalid approvalStatus' });
+    }
+    if (!reasonCode || typeof reasonCode !== 'string' || !reasonCode.trim()) {
+        return res.status(400).json({ success: false, message: 'reasonCode is required' });
+    }
+
+    const normalizedReasonCode = reasonCode.trim().toUpperCase();
+    const reasonCodeSet = await getSchoolPromotionReasonCodeSet(req.schoolId);
+    if (reasonCodeSet && !reasonCodeSet.has(normalizedReasonCode)) {
+        return res.status(400).json({
+            success: false,
+            message: 'reasonCode is not allowed by school admissions/promotion settings'
+        });
+    }
+
+    const student = await Student.findOne({ _id: req.params.id, school: req.schoolId })
+        .populate('currentClass', 'grade section academicYear department capacity name');
+    if (!student) {
+        return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    if ((decisionType === 'promote' || decisionType === 'promote_with_conditions') && (!targetClassId || !targetAcademicYear)) {
+        return res.status(400).json({
+            success: false,
+            message: 'targetClassId and targetAcademicYear are required for promotion decisions'
+        });
+    }
+
+    let targetClass = null;
+    let effectiveTargetYear = targetAcademicYear || null;
+
+    if (targetClassId) {
+        targetClass = await Class.findOne({ _id: targetClassId, school: req.schoolId });
+        if (!targetClass) {
+            return res.status(400).json({ success: false, message: 'Target class not found' });
+        }
+
+        if (effectiveTargetYear && targetClass.academicYear !== effectiveTargetYear) {
+            return res.status(400).json({
+                success: false,
+                message: 'targetClass academicYear does not match targetAcademicYear'
+            });
+        }
+
+        effectiveTargetYear = effectiveTargetYear || targetClass.academicYear;
+    }
+
+    const sourceClass = student.currentClass;
+    const sourceAcademicYear = student.academicYear;
+
+    if ((decisionType === 'promote' || decisionType === 'promote_with_conditions') && sourceClass && targetClass) {
+        if (targetClass.grade < sourceClass.grade) {
+            return res.status(400).json({
+                success: false,
+                message: 'Promoted class grade cannot be lower than current grade'
+            });
+        }
+    }
+
+    let updatedStudent = student;
+    if (approvalStatus === 'approved' && decisionType !== 'hold_review') {
+        const destinationClass = targetClass || sourceClass;
+        const destinationYear = effectiveTargetYear || destinationClass?.academicYear || sourceAcademicYear;
+
+        if (!destinationClass) {
+            return res.status(400).json({
+                success: false,
+                message: 'Target class is required to apply this decision'
+            });
+        }
+
+        const isChangingClass = !student.currentClass || destinationClass._id.toString() !== student.currentClass._id.toString();
+        const isChangingYear = (destinationYear || '') !== (student.academicYear || '');
+
+        if (isChangingClass) {
+            try {
+                await ensureClassCapacity({
+                    schoolId: req.schoolId,
+                    classDoc: destinationClass,
+                    excludedStudentId: student._id
+                });
+            } catch (error) {
+                return res.status(409).json({ success: false, message: error.message });
+            }
+        }
+
+        const updates = {
+            currentClass: destinationClass._id,
+            academicYear: destinationYear,
+            department: destinationClass.department || student.department || null,
+            'admissions.reEnrollmentStatus': 'enrolled',
+            'admissions.lastStatusUpdatedAt': new Date(),
+            'admissions.lastStatusUpdatedBy': req.user?._id || null
+        };
+
+        if (isChangingClass || isChangingYear) {
+            const historyEntry = appendClassHistoryEntry(student);
+            if (historyEntry) {
+                updates.$push = {
+                    classEnrollmentHistory: {
+                        $each: [historyEntry],
+                        $position: 0
+                    }
+                };
+            }
+        }
+
+        const decisionNote = String(note || '').trim();
+        if (decisionNote) {
+            const currentNotes = String(student.notes || '').trim();
+            updates.notes = currentNotes
+                ? `${currentNotes}\nPromotion decision: ${decisionNote}`
+                : `Promotion decision: ${decisionNote}`;
+        }
+
+        updatedStudent = await Student.findByIdAndUpdate(student._id, updates, { new: true, runValidators: true })
+            .populate('currentClass', 'name grade section academicYear');
+    }
+
+    const decision = await StudentPromotionDecision.create({
+        school: req.schoolId,
+        student: student._id,
+        sourceAcademicYear,
+        targetAcademicYear: effectiveTargetYear,
+        sourceClass: sourceClass?._id || null,
+        targetClass: targetClass?._id || null,
+        decisionType,
+        reasonCode: normalizedReasonCode,
+        note: String(note || '').trim(),
+        conditions: String(conditions || '').trim(),
+        approvalStatus,
+        requestedBy: req.user?._id,
+        approvedBy: approvalStatus === 'approved' ? req.user?._id : null,
+        policySnapshot
+    });
+
+    res.status(201).json({
+        success: true,
+        message: 'Promotion decision recorded successfully',
+        data: {
+            decision,
+            student: updatedStudent
+        }
+    });
+});
+
+/**
+ * @desc    Update returning student re-enrollment pipeline state
+ * @route   PATCH /api/students/:id/re-enrollment
+ * @access  Private (Admin)
+ */
+export const updateStudentReEnrollmentStatus = asyncHandler(async (req, res) => {
+    const { reEnrollmentStatus, seatFreezeUntil, placementRecommendation, note } = req.body;
+
+    if (reEnrollmentStatus && !RE_ENROLLMENT_STATUSES.has(reEnrollmentStatus)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid reEnrollmentStatus'
+        });
+    }
+
+    const updates = {};
+    if (reEnrollmentStatus) updates['admissions.reEnrollmentStatus'] = reEnrollmentStatus;
+
+    const parsedSeatFreezeUntil = parseDateOrNull(seatFreezeUntil);
+    if (seatFreezeUntil !== undefined && parsedSeatFreezeUntil === undefined) {
+        return res.status(400).json({
+            success: false,
+            message: 'seatFreezeUntil must be a valid date or null'
+        });
+    }
+    if (parsedSeatFreezeUntil !== undefined) {
+        updates['admissions.seatFreezeUntil'] = parsedSeatFreezeUntil;
+    }
+
+    if (placementRecommendation && typeof placementRecommendation === 'object') {
+        if (placementRecommendation.grade !== undefined) {
+            const gradeValue = Number(placementRecommendation.grade);
+            if (!Number.isInteger(gradeValue) || gradeValue < 1 || gradeValue > 12) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'placementRecommendation.grade must be an integer between 1 and 12'
+                });
+            }
+            updates['admissions.placementRecommendation.grade'] = gradeValue;
+        }
+        if (placementRecommendation.section !== undefined) {
+            updates['admissions.placementRecommendation.section'] = String(placementRecommendation.section || '').trim().toUpperCase() || null;
+        }
+        if (placementRecommendation.note !== undefined) {
+            updates['admissions.placementRecommendation.note'] = String(placementRecommendation.note || '').trim();
+        }
+    }
+
+    if (Object.keys(updates).length === 0 && !note) {
+        return res.status(400).json({
+            success: false,
+            message: 'No valid re-enrollment updates were provided'
+        });
+    }
+
+    updates['admissions.lastStatusUpdatedAt'] = new Date();
+    updates['admissions.lastStatusUpdatedBy'] = req.user?._id || null;
+
+    const student = await Student.findOne({ _id: req.params.id, school: req.schoolId });
+    if (!student) {
+        return res.status(404).json({
+            success: false,
+            message: 'Student not found'
+        });
+    }
+
+    if (note && String(note).trim()) {
+        const trimmed = String(note).trim();
+        const existingNotes = String(student.notes || '').trim();
+        updates.notes = existingNotes
+            ? `${existingNotes}\nRe-enrollment update: ${trimmed}`
+            : `Re-enrollment update: ${trimmed}`;
+    }
+
+    const updated = await Student.findByIdAndUpdate(student._id, updates, {
+        new: true,
+        runValidators: true
+    }).populate('currentClass', 'name grade section academicYear');
+
+    res.json({
+        success: true,
+        message: 'Re-enrollment status updated successfully',
         data: { student: updated }
     });
 });
@@ -1285,7 +1717,7 @@ export const bulkSendParentLoginInvites = asyncHandler(async (req, res) => {
  */
 export const transferStudent = asyncHandler(async (req, res) => {
     const { newClassId, reason } = req.body;
-    const student = await Student.findById(req.params.id);
+    const student = await Student.findOne({ _id: req.params.id, school: req.schoolId });
     if (!student) {
         return res.status(404).json({
             success: false,
@@ -1293,10 +1725,52 @@ export const transferStudent = asyncHandler(async (req, res) => {
         });
     }
 
+    const targetClass = await Class.findOne({ _id: newClassId, school: req.schoolId });
+    if (!targetClass) {
+        return res.status(400).json({
+            success: false,
+            message: 'Target class not found'
+        });
+    }
+
+    const currentClassId = student.currentClass?.toString();
+    if (currentClassId && currentClassId === targetClass._id.toString()) {
+        return res.status(400).json({
+            success: false,
+            message: 'Student is already assigned to this class'
+        });
+    }
+
+    try {
+        await ensureClassCapacity({
+            schoolId: req.schoolId,
+            classDoc: targetClass,
+            excludedStudentId: student._id
+        });
+    } catch (error) {
+        return res.status(409).json({
+            success: false,
+            message: error.message
+        });
+    }
+
     const transferNote = `Transferred on ${new Date().toLocaleDateString()}. Reason: ${reason || 'N/A'}`;
     const existingNotes = String(student.notes || '').trim();
-    student.currentClass = newClassId;
+    const historyEntry = appendClassHistoryEntry(student);
+
+    student.currentClass = targetClass._id;
+    student.academicYear = targetClass.academicYear || student.academicYear;
+    student.department = targetClass.department || student.department || null;
+    student.admissions = student.admissions || {};
+    student.admissions.reEnrollmentStatus = 'enrolled';
+    student.admissions.lastStatusUpdatedAt = new Date();
+    student.admissions.lastStatusUpdatedBy = req.user?._id || null;
     student.notes = existingNotes ? `${existingNotes}\n${transferNote}` : transferNote;
+
+    if (historyEntry) {
+        student.classEnrollmentHistory.unshift(historyEntry);
+    }
+
     await student.save();
 
     await student.populate('currentClass', 'name grade section');

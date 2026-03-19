@@ -42,7 +42,7 @@ function getFieldInstruction(field) {
   const instructions = {
     title: "Suggest a clearer, more structured lesson title.",
     summary:
-      "Expand into a concise 2–3 sentence summary suitable for parents.",
+      "Expand into a concise 2-3 sentence lesson summary focused on learning goals and activities.",
     description:
       "Expand into a detailed lesson description with key activities.",
     teachingObjectives:
@@ -60,6 +60,33 @@ function getFieldInstruction(field) {
       "Expand into step-by-step procedure instructions.",
   };
   return instructions[field] || "Improve or expand the content.";
+}
+
+function normalizeAiStageText(value) {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item : String(item ?? "")))
+      .join(" ")
+      .trim();
+  }
+  if (value && typeof value === "object") {
+    const preferred = ["text", "value", "content", "description", "steps"];
+    for (const key of preferred) {
+      if (typeof value[key] === "string" && value[key].trim()) {
+        return value[key].trim();
+      }
+      if (Array.isArray(value[key]) && value[key].length > 0) {
+        return value[key]
+          .map((item) => (typeof item === "string" ? item : String(item ?? "")))
+          .join(" ")
+          .trim();
+      }
+    }
+    return "";
+  }
+  return "";
 }
 
 /**
@@ -374,7 +401,7 @@ For stages, include realistic timing (e.g. "5 min", "10 min", "15 min") so the t
 Output ONLY valid JSON. No markdown, no code fences, no extra text:
 
 {
-  "summary": "2-3 sentence summary suitable for parents",
+  "summary": "2-3 sentence lesson summary focused on student learning",
   "description": "Detailed lesson description with key activities",
   "teachingObjectives": "3-5 SMART learning objectives",
   "vocabulary": "5-8 key terms, comma-separated",
@@ -425,10 +452,10 @@ Output ONLY valid JSON. No markdown, no code fences, no extra text:
   // Parse stages with procedure, materials, timing
   if (Array.isArray(parsed.stages) && parsed.stages.length > 0) {
     generated.stages = parsed.stages.slice(0, 10).map((s, i) => ({
-      name: (s.name || DEFAULT_STAGE_NAMES[i] || `Stage ${i + 1}`).trim(),
-      procedure: (s.procedure || "").trim(),
-      materials: (s.materials || "").trim(),
-      timing: (s.timing || "").trim(),
+      name: normalizeAiStageText(s?.name) || DEFAULT_STAGE_NAMES[i] || `Stage ${i + 1}`,
+      procedure: normalizeAiStageText(s?.procedure),
+      materials: normalizeAiStageText(s?.materials),
+      timing: normalizeAiStageText(s?.timing),
     }));
   }
 

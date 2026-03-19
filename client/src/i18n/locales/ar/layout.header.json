@@ -7,6 +7,9 @@
     "openMenu": "فتح القائمة",
     "toggleTheme": "تبديل النمط",
     "toggleLanguage": "تغيير اللغة",
+    "pinCurrentPage": "تثبيت هذه الصفحة",
+    "manageShortcuts": "إدارة الاختصارات",
+    "backToDashboard": "العودة إلى لوحة التحكم",
     "notifications": "الإشعارات",
     "notificationsAria_zero": "الإشعارات",
     "notificationsAria_one": "الإشعارات ({{count}} قيد الانتظار)",
@@ -15,6 +18,15 @@
     "notificationsAria_many": "الإشعارات ({{count}} قيد الانتظار)",
     "notificationsAria_other": "الإشعارات ({{count}} قيد الانتظار)",
     "userMenu": "قائمة المستخدم"
+  },
+  "shortcuts": {
+    "title": "اختصارات الشريط العلوي",
+    "hint": "اختر حتى {{max}} روابط.",
+    "pinCurrentPage": "تثبيت الصفحة الحالية",
+    "pinCurrentPageDisabled": "افتح صفحة قابلة للتثبيت أولاً",
+    "orderTitle": "ترتيب الاختصارات",
+    "orderHint": "اسحب العناصر لإعادة الترتيب.",
+    "none": "لا توجد اختصارات محددة"
   },
   "menu": {
     "settings": "الإعدادات",

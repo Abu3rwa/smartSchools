@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import api from "../../../../../config/api";
-import { selectCurrentAcademicYear, selectSelectedSemester } from "../../../../../store/slices/uiSlice";
+import { selectCurrentAcademicYear } from "../../../../../store/slices/uiSlice";
 
 const getEntityId = (value) => {
   if (!value) return "";
@@ -36,7 +36,6 @@ const mapObjectivePerformanceToAEObjective = (item, index) => {
 
 const useTeacherAcademicExcellence = () => {
   const academicYear = useSelector(selectCurrentAcademicYear);
-  const selectedSemester = useSelector(selectSelectedSemester);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -87,7 +86,7 @@ const useTeacherAcademicExcellence = () => {
       console.error("[AE] loadClasses error:", msg);
       setError(msg);
     }
-  }, [academicYear, selectedSemester, selectedClassId]);
+  }, [selectedClassId]);
 
 
   useEffect(() => {
@@ -105,7 +104,7 @@ const useTeacherAcademicExcellence = () => {
     setLoading(true);
     setError("");
     try {
-      const params = { academicYear, semester: selectedSemester };
+      const params = { academicYear };
       if (selectedSubjectId) params.subjectId = selectedSubjectId;
 
       const [summaryResult, objectivesResult, studentsResult, objectivePerformanceResult] = await Promise.allSettled([
@@ -152,7 +151,7 @@ const useTeacherAcademicExcellence = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedClassId, selectedSubjectId, academicYear, selectedSemester]);
+  }, [selectedClassId, selectedSubjectId, academicYear]);
 
   useEffect(() => {
     loadClassSummary();
@@ -161,14 +160,14 @@ const useTeacherAcademicExcellence = () => {
   // Load task queue
   const loadTaskQueue = useCallback(async () => {
     try {
-      const params = { academicYear, semester: selectedSemester, limit: 50 };
+      const params = { academicYear, limit: 50 };
       if (selectedClassId) params.classId = selectedClassId;
       const res = await api.get("/academic-excellence/tasks/queue", { params });
       setTaskQueue(res.data?.data?.tasks || []);
     } catch {
       /* non-critical */
     }
-  }, [selectedClassId, academicYear, selectedSemester]);
+  }, [selectedClassId, academicYear]);
 
   useEffect(() => {
     loadTaskQueue();

@@ -12,6 +12,9 @@ import {
     enrollStudent,
     importStudents,
     transferStudent,
+    getPromotionQueue,
+    decideStudentPromotion,
+    updateStudentReEnrollmentStatus,
     createStudentLogin,
     sendStudentLoginInvite,
     bulkSendStudentLoginInvites,
@@ -58,6 +61,7 @@ router.post('/import', authorize('admin'), importStudents);
 router.post('/bulk-create-login', authorize('admin'), bulkCreateStudentLogin);
 router.post('/bulk-send-login-invites', authorize('admin'), bulkSendStudentLoginInvites);
 router.post('/bulk-send-parent-login-invites', authorize('admin'), bulkSendParentLoginInvites);
+router.get('/promotion/queue', authorize('admin'), getPromotionQueue);
 router.get('/class/:classId', authorize('admin', 'department_principal', 'teacher'), getStudentsByClass);
 router.get('/:id/learning-trace', authorize('admin', 'department_principal', 'teacher', 'student'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentLearningTraceController);
 router.get('/:id/parent-learning-summary', authorize('admin', 'department_principal', 'teacher'), requireFeature('academicIntelligence'), validationRules.mongoId, validate, getStudentParentLearningSummaryController);
@@ -82,6 +86,8 @@ router.post('/:id/reset-password', authorize('admin'), validationRules.mongoId, 
 router.post('/:id/send-parent-credentials', authorize('admin'), validationRules.mongoId, validate, sendParentCredentials);
 router.post('/:id/send-parent-login-invite', authorize('admin'), validationRules.mongoId, validate, sendParentLoginInvite);
 router.put('/:id/transfer', authorize('admin'), validationRules.mongoId, validationRules.transferStudent, validate, transferStudent);
+router.patch('/:id/re-enrollment', authorize('admin'), validationRules.mongoId, validationRules.updateReEnrollmentStatus, validate, updateStudentReEnrollmentStatus);
+router.post('/:id/promotion-decisions', authorize('admin'), validationRules.mongoId, validationRules.promotionDecision, validate, decideStudentPromotion);
 router.put('/:id/enroll', authorize('admin'), validationRules.mongoId, validate, enrollStudent);
 
 export default router;

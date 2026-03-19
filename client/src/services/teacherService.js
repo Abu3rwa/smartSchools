@@ -51,6 +51,12 @@ const teacherService = {
         return response.data;
     },
 
+    // Get dashboard analytics for logged-in teacher
+    getMyDashboardAnalytics: async (params = {}) => {
+        const response = await api.get('/teachers/my-dashboard-analytics', { params });
+        return response.data;
+    },
+
     importTeachers: async (teachers, options = {}) => {
         const response = await api.post('/teachers/import', {
             teachers,

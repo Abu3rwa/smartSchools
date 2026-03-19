@@ -94,6 +94,31 @@
       "myTimetable": "My Timetable",
       "myAttendance": "My Attendance",
       "newsletters": "Newsletters"
+    },
+    "analytics": {
+      "title": "Teaching Analytics",
+      "subtitle": "Performance and workload insights from your assigned classes.",
+      "loadError": "Could not load analytics.",
+      "noData": "No analytics data available yet.",
+      "workloadByWeekday": "Weekly Teaching Load",
+      "classPerformance": "Class Performance",
+      "averageScore": "Average score",
+      "atRiskStudents": "Students Needing Support",
+      "atRiskEmpty": "No at-risk students detected from current data.",
+      "summary": {
+        "activeClasses": "Active classes",
+        "atRiskStudents": "At-risk students",
+        "avgClassPerformance": "Avg class performance"
+      },
+      "weekdays": {
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat"
+      }
     }
   }
 }

@@ -9,7 +9,6 @@ import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { generateToken } from '../middleware/auth.js';
 import { FEATURE_KEYS, getPlanName, isRecognizedPlan, normalizePlan, toSchoolPlan } from '../constants/features.js';
 import { buildFeatureMetadata, resolveSchoolFeatureContext, requireFeature } from '../middleware/featureGate.js';
 import {
@@ -27,6 +26,11 @@ import {
     normalizeAcademicYear,
     resolveSchoolAcademicYear
 } from '../utils/academicYear.js';
+import {
+    createDefaultAdmissionsPromotionSettings,
+    normalizeAdmissionsPromotionSettings,
+    validateAdmissionsPromotionSettingsPayload
+} from '../utils/admissionsPromotionSettings.js';
 import upload from '../middleware/upload.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import {
@@ -465,6 +469,91 @@ router.patch('/me/attendance-reminder-settings', requireSchoolContext, authorize
         success: true,
         message: 'Attendance reminder settings updated',
         data: getAttendanceReminderSettingsFromSchool(school)
+    });
+}));
+
+/**
+ * @desc    Get school admissions and promotion settings
+ * @route   GET /api/schools/me/admissions-promotion-settings
+ * @access  Private (Admin)
+ */
+router.get('/me/admissions-promotion-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.admissionsPromotion');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const settings = normalizeAdmissionsPromotionSettings(
+        school.settings?.admissionsPromotion || createDefaultAdmissionsPromotionSettings()
+    );
+
+    res.json({
+        success: true,
+        data: settings
+    });
+}));
+
+/**
+ * @desc    Update school admissions and promotion settings
+ * @route   PATCH /api/schools/me/admissions-promotion-settings
+ * @access  Private (Admin)
+ */
+router.patch('/me/admissions-promotion-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const validation = validateAdmissionsPromotionSettingsPayload(req.body);
+    if (!validation.valid) {
+        return res.status(400).json({
+            success: false,
+            message: validation.message
+        });
+    }
+
+    const school = await School.findById(req.schoolId);
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const currentSettings = school.settings?.admissionsPromotion || createDefaultAdmissionsPromotionSettings();
+    const mergedSettings = {
+        ...currentSettings,
+        ...req.body,
+        promotionPolicy: {
+            ...(currentSettings.promotionPolicy || {}),
+            ...(req.body?.promotionPolicy || {}),
+            requiredClearanceChecks: {
+                ...(currentSettings.promotionPolicy?.requiredClearanceChecks || {}),
+                ...(req.body?.promotionPolicy?.requiredClearanceChecks || {})
+            }
+        },
+        approvalWorkflow: {
+            ...(currentSettings.approvalWorkflow || {}),
+            ...(req.body?.approvalWorkflow || {})
+        },
+        calendar: {
+            ...(currentSettings.calendar || {}),
+            ...(req.body?.calendar || {}),
+            newAdmissionsLockWindow: {
+                ...(currentSettings.calendar?.newAdmissionsLockWindow || {}),
+                ...(req.body?.calendar?.newAdmissionsLockWindow || {})
+            },
+            returningAdmissionsLockWindow: {
+                ...(currentSettings.calendar?.returningAdmissionsLockWindow || {}),
+                ...(req.body?.calendar?.returningAdmissionsLockWindow || {})
+            }
+        },
+        permissions: {
+            ...(currentSettings.permissions || {}),
+            ...(req.body?.permissions || {})
+        }
+    };
+
+    school.settings = school.settings || {};
+    school.settings.admissionsPromotion = normalizeAdmissionsPromotionSettings(mergedSettings);
+    await school.save();
+
+    res.json({
+        success: true,
+        message: 'Admissions and promotion settings updated',
+        data: school.settings.admissionsPromotion
     });
 }));
 

@@ -10,7 +10,8 @@ import {
     bulkSendTeacherLoginInvites,
     assignMultipleClasses,
     removeClassAssignment,
-    getMyClasses
+    getMyClasses,
+    getMyDashboardAnalytics
 } from '../controllers/teacherController.js';
 import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
@@ -27,6 +28,7 @@ router.use(parseQueryFilter);
 
 // Teacher's own classes
 router.get('/my-classes', authorize('teacher'), getMyClasses);
+router.get('/my-dashboard-analytics', authorize('teacher'), getMyDashboardAnalytics);
 
 // CRUD: admin sees all; department_principal sees only their department
 router.route('/')

@@ -159,7 +159,43 @@ const studentSchema = new mongoose.Schema({
         type: String,
         default: null
     },
-    notes: String
+    notes: String,
+    admissions: {
+        studentType: {
+            type: String,
+            enum: ['returning', 'new', 'transfer'],
+            default: 'returning'
+        },
+        reEnrollmentStatus: {
+            type: String,
+            enum: [
+                'pending_contact',
+                'documents_pending',
+                'financial_clearance_pending',
+                'approved_for_placement',
+                'enrolled'
+            ],
+            default: 'pending_contact'
+        },
+        seatFreezeUntil: {
+            type: Date,
+            default: null
+        },
+        placementRecommendation: {
+            grade: { type: Number, min: 1, max: 12, default: null },
+            section: { type: String, trim: true, uppercase: true, default: null },
+            note: { type: String, trim: true, default: '' }
+        },
+        lastStatusUpdatedAt: {
+            type: Date,
+            default: null
+        },
+        lastStatusUpdatedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null
+        }
+    }
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

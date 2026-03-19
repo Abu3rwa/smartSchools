@@ -76,6 +76,7 @@ const CommunicationTab = ({
             {t('schoolSettings:communication.delayMinutesLabel')}
           </label>
           <input
+          className="attendance-reminder-delay-minutes"
             id="attendance-reminder-delay-minutes"
             type="number"
             min={1}

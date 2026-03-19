@@ -1,9 +1,35 @@
-export const getAvailableSubjects = ({ currentClass, subjects }) => {
-    if (currentClass?.subjects) {
-        return currentClass.subjects.map((item) => item.subject).filter(Boolean);
+export const getAvailableSubjects = ({ currentClass, subjects, userRole, teacherProfile }) => {
+    const classSubjects = currentClass?.subjects
+        ? currentClass.subjects.map((item) => item.subject).filter(Boolean)
+        : (subjects || []);
+
+    if (userRole !== 'teacher' || !teacherProfile || !currentClass?._id) {
+        return classSubjects;
     }
 
-    return subjects || [];
+    const classId = String(currentClass._id);
+    const assignments = Array.isArray(teacherProfile.assignedClasses)
+        ? teacherProfile.assignedClasses
+        : [];
+
+    const classAssignments = assignments.filter((assignment) => String(assignment?.class?._id || assignment?.class || '') === classId);
+    if (classAssignments.length === 0) {
+        return [];
+    }
+
+    // If teacher is explicitly assigned as class teacher, preserve all class subjects.
+    const isClassTeacher = classAssignments.some((assignment) => assignment?.isClassTeacher === true);
+    if (isClassTeacher) {
+        return classSubjects;
+    }
+
+    const allowedSubjectIds = new Set(
+        classAssignments
+            .map((assignment) => String(assignment?.subject?._id || assignment?.subject || ''))
+            .filter(Boolean)
+    );
+
+    return classSubjects.filter((subject) => allowedSubjectIds.has(String(subject?._id || '')));
 };
 
 const DEFAULT_GRADING_SCALE = [

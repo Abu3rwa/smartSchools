@@ -86,7 +86,8 @@
     grid-template-areas:
       "schedule grades"
       "schedule practice"
-      "schedule due";
+      "schedule due"
+      "schedule tasks";
     gap: var(--spacing-lg, 1.5rem);
   }
 
@@ -101,6 +102,9 @@
   }
   .due-card {
     grid-area: due;
+  }
+  .tasks-card {
+    grid-area: tasks;
   }
 }
 
@@ -384,4 +388,72 @@
 
 .due-item .link-sm {
   margin-left: auto;
+}
+
+/* Academic excellence tasks */
+.tasks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tasks-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tasks-item:last-child {
+  border-bottom: none;
+}
+
+.tasks-item-main {
+  min-width: 0;
+}
+
+.tasks-title {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-meta {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.tasks-status {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  text-transform: capitalize;
+}
+
+.tasks-status.status-completed {
+  background: var(--success-50, #e6f8ef);
+  color: var(--success-700, #1f7a4d);
+  border-color: var(--success-300, #7cd0a7);
+}
+
+.tasks-status.status-overdue {
+  background: var(--danger-50, #fdecec);
+  color: var(--danger-700, #a4282e);
+  border-color: var(--danger-300, #e88d91);
+}
+
+.tasks-status.status-in_progress,
+.tasks-status.status-assigned {
+  background: var(--warning-50, #fff6e6);
+  color: var(--warning-700, #8c6110);
+  border-color: var(--warning-300, #e8c47a);
 }

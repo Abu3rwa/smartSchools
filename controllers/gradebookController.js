@@ -8,13 +8,76 @@ import HomeworkSubmission from '../models/HomeworkSubmission.js';
 import gradeService from '../services/gradeService.js';
 import notificationService from '../services/notificationService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject } from '../helpers/teacherScoping.js';
+import {
+    resolveTeacherProfile,
+    isTeacherAuthorizedForClassSubject,
+    getTeacherClassIds,
+    getTeacherAssignments
+} from '../helpers/teacherScoping.js';
 import { validateGradeLessonPlanLinks } from '../helpers/gradeLessonPlanLinks.js';
 import { generateAssessmentGroupId } from '../helpers/assessmentGrouping.js';
 import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { decorateGradesWithScale, getActiveGradingScale } from '../services/gradingScaleEngine.js';
 import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
+
+const getTeacherGradeScope = async (req, classId = null) => {
+    if (req.user.role !== 'teacher') {
+        return {
+            isTeacher: false,
+            teacherProfile: null,
+            classIds: [],
+            classIdSet: new Set(),
+            classSubjectMap: new Map()
+        };
+    }
+
+    const teacherProfile = await resolveTeacherProfile(req);
+    if (!teacherProfile) {
+        return {
+            isTeacher: true,
+            teacherProfile: null,
+            classIds: [],
+            classIdSet: new Set(),
+            classSubjectMap: new Map()
+        };
+    }
+
+    const [classIds, assignments] = await Promise.all([
+        getTeacherClassIds(teacherProfile._id),
+        getTeacherAssignments(teacherProfile._id)
+    ]);
+
+    const classIdSet = new Set(classIds.map((id) => String(id)));
+    const classSubjectMap = new Map();
+    assignments.forEach((item) => {
+        const classKey = String(item?.classId || '');
+        const subjectKey = String(item?.subjectId || '');
+        if (!classKey || !subjectKey) return;
+        if (!classSubjectMap.has(classKey)) classSubjectMap.set(classKey, new Set());
+        classSubjectMap.get(classKey).add(subjectKey);
+    });
+
+    if (classId && !classIdSet.has(String(classId))) {
+        return {
+            isTeacher: true,
+            teacherProfile,
+            classIds,
+            classIdSet,
+            classSubjectMap,
+            denied: true
+        };
+    }
+
+    return {
+        isTeacher: true,
+        teacherProfile,
+        classIds,
+        classIdSet,
+        classSubjectMap,
+        denied: false
+    };
+};
 
 /**
  * @desc    Add daily classwork grade
@@ -71,7 +134,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         student,
         subject,
         class: resolvedClassId,
-        teacher: teacherProfile?._id || req.user._id,
+        teacher: req.user._id,
         academicYear,
         gradeType: 'daily',
         date: date || new Date(),
@@ -172,7 +235,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         student: g.student,
         subject,
         class: classId,
-        teacher: teacherProfile?._id || req.user._id,
+        teacher: req.user._id,
         academicYear,
         gradeType: effectiveGradeType,
         category: (category || effectiveGradeType).toLowerCase(),
@@ -547,7 +610,7 @@ export const addExamGrade = asyncHandler(async (req, res) => {
         student,
         subject,
         class: classId,
-        teacher: req.teacherId || teacherProfile?._id || req.user._id,
+        teacher: req.user._id,
         academicYear,
         gradeType: gradeType || 'monthly_test',
         date: date || new Date(),
@@ -675,6 +738,35 @@ export const getStudentGrades = asyncHandler(async (req, res) => {
         schoolId: req.schoolId
     };
 
+    if (req.user.role === 'teacher') {
+        const studentDoc = await Student.findById(studentId).select('_id currentClass').lean();
+        if (!studentDoc) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const scope = await getTeacherGradeScope(req, studentDoc.currentClass);
+        if (!scope.teacherProfile || scope.denied) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+
+        const classKey = String(studentDoc.currentClass || '');
+        const requestedSubject = String(filters.subject || '').trim();
+        const allowedSubjects = Array.from(scope.classSubjectMap.get(classKey) || []);
+
+        if (requestedSubject) {
+            const authorized = await isTeacherAuthorizedForClassSubject(
+                scope.teacherProfile._id,
+                studentDoc.currentClass,
+                requestedSubject
+            );
+            if (!authorized) {
+                return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+            }
+        } else if (allowedSubjects.length > 0) {
+            filters.subject = { $in: allowedSubjects };
+        }
+    }
+
     const grades = await gradeService.getStudentGrades(studentId, filters);
     const gradingScale = await getActiveGradingScale(req.schoolId);
     const availableAcademicYears = await Grade.distinct('academicYear', { student: studentId, school: req.schoolId });
@@ -700,6 +792,18 @@ export const getStudentGrades = asyncHandler(async (req, res) => {
 export const getStudentGradeReport = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const academicYear = resolveRequestedAcademicYear(req.query.academicYear, req.school);
+
+    if (req.user.role === 'teacher') {
+        const studentDoc = await Student.findById(studentId).select('_id currentClass').lean();
+        if (!studentDoc) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const scope = await getTeacherGradeScope(req, studentDoc.currentClass);
+        if (!scope.teacherProfile || scope.denied) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+    }
 
     const report = await gradeService.getStudentGradeReport(studentId, academicYear);
 
@@ -737,6 +841,23 @@ export const getMonthlyAverage = asyncHandler(async (req, res) => {
         });
     }
 
+    if (req.user.role === 'teacher') {
+        const studentDoc = await Student.findById(studentId).select('_id currentClass').lean();
+        if (!studentDoc) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const scope = await getTeacherGradeScope(req, studentDoc.currentClass);
+        if (!scope.teacherProfile || scope.denied) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+
+        const authorized = await isTeacherAuthorizedForClassSubject(scope.teacherProfile._id, studentDoc.currentClass, subject);
+        if (!authorized) {
+            return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+        }
+    }
+
     const effectiveAcademicYear = resolveRequestedAcademicYear(academicYear, req.school);
     const average = await gradeService.getMonthlyAverage(
         studentId,
@@ -767,6 +888,23 @@ export const getSemesterAverage = asyncHandler(async (req, res) => {
         });
     }
 
+    if (req.user.role === 'teacher') {
+        const studentDoc = await Student.findById(studentId).select('_id currentClass').lean();
+        if (!studentDoc) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const scope = await getTeacherGradeScope(req, studentDoc.currentClass);
+        if (!scope.teacherProfile || scope.denied) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+
+        const authorized = await isTeacherAuthorizedForClassSubject(scope.teacherProfile._id, studentDoc.currentClass, subject);
+        if (!authorized) {
+            return res.status(403).json({ success: false, message: 'Access denied for this subject' });
+        }
+    }
+
     const effectiveAcademicYear = resolveRequestedAcademicYear(academicYear, req.school);
     const average = await gradeService.getSemesterAverage(
         studentId,
@@ -789,6 +927,18 @@ export const getSemesterAverage = asyncHandler(async (req, res) => {
 export const getOverallAverage = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const academicYear = resolveRequestedAcademicYear(req.query.academicYear, req.school);
+
+    if (req.user.role === 'teacher') {
+        const studentDoc = await Student.findById(studentId).select('_id currentClass').lean();
+        if (!studentDoc) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const scope = await getTeacherGradeScope(req, studentDoc.currentClass);
+        if (!scope.teacherProfile || scope.denied) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+    }
 
     const average = await gradeService.getOverallAverage(studentId, academicYear);
 
@@ -1045,6 +1195,18 @@ export const getClassStatistics = asyncHandler(async (req, res) => {
 
     const effectiveAcademicYear = resolveRequestedAcademicYear(academicYear, req.school);
 
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        if (!teacher) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+
+        const authorized = await isTeacherAuthorizedForClassSubject(teacher._id, classId, subject);
+        if (!authorized) {
+            return res.status(403).json({ success: false, message: 'Access denied for this class and subject' });
+        }
+    }
+
     // Get grade statistics for the class and subject
     const stats = await Grade.aggregate([
         {
@@ -1097,21 +1259,42 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     const academicYear = resolveRequestedAcademicYear(req.query.academicYear, req.school);
     const academicYearRange = resolveAcademicYearDateRange(academicYear, req.school);
 
-    // Get total students count for this school
-    const totalStudents = await Student.countDocuments({ school: req.schoolId, status: 'active' });
+    const scope = await getTeacherGradeScope(req);
+    const classConstraint = scope.isTeacher
+        ? { currentClass: { $in: scope.classIds } }
+        : {};
+    const gradeClassConstraint = scope.isTeacher
+        ? { class: { $in: scope.classIds } }
+        : {};
 
-    // Get total classes count for this school
-    const totalClasses = await Class.countDocuments({ school: req.schoolId, isActive: true });
+    // Get total students count for this school / teacher scope
+    const totalStudents = await Student.countDocuments({
+        school: req.schoolId,
+        status: 'active',
+        ...classConstraint
+    });
 
-    // Get total grades entered for this school
-    const totalGrades = await Grade.countDocuments({ school: req.schoolId, academicYear });
+    // Get total classes count for this school / teacher scope
+    const totalClasses = await Class.countDocuments({
+        school: req.schoolId,
+        isActive: true,
+        ...(scope.isTeacher ? { _id: { $in: scope.classIds } } : {})
+    });
+
+    // Get total grades entered for this school / teacher scope
+    const totalGrades = await Grade.countDocuments({
+        school: req.schoolId,
+        academicYear,
+        ...gradeClassConstraint
+    });
 
     // Calculate average performance
     const gradeStats = await Grade.aggregate([
         {
             $match: {
                 school: req.schoolId,
-                academicYear: academicYear
+                academicYear: academicYear,
+                ...gradeClassConstraint
             }
         },
         {
@@ -1151,11 +1334,13 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         Student.countDocuments({
             school: req.schoolId,
             status: 'active',
+            ...classConstraint,
             createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
         }),
         Student.countDocuments({
             school: req.schoolId,
             status: 'active',
+            ...classConstraint,
             createdAt: { $gte: previousMonthStart, $lte: previousMonthEnd }
         })
     ]);
@@ -1164,11 +1349,13 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         Class.countDocuments({
             school: req.schoolId,
             isActive: true,
+            ...(scope.isTeacher ? { _id: { $in: scope.classIds } } : {}),
             createdAt: { $gte: currentMonthStart, $lte: currentMonthEnd }
         }),
         Class.countDocuments({
             school: req.schoolId,
             isActive: true,
+            ...(scope.isTeacher ? { _id: { $in: scope.classIds } } : {}),
             createdAt: { $gte: previousMonthStart, $lte: previousMonthEnd }
         })
     ]);
@@ -1177,11 +1364,13 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         Grade.countDocuments({
             school: req.schoolId,
             academicYear: academicYear,
+            ...gradeClassConstraint,
             date: { $gte: currentMonthStart, $lte: currentMonthEnd }
         }),
         Grade.countDocuments({
             school: req.schoolId,
             academicYear: academicYear,
+            ...gradeClassConstraint,
             date: { $gte: previousMonthStart, $lte: previousMonthEnd }
         })
     ]);

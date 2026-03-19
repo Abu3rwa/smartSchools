@@ -94,6 +94,31 @@
       "myTimetable": "جدولي",
       "myAttendance": "حضوري",
       "newsletters": "النشرات"
+    },
+    "analytics": {
+      "title": "تحليلات التدريس",
+      "subtitle": "رؤى الأداء وعبء الحصص من فصولك المعيّنة.",
+      "loadError": "تعذر تحميل التحليلات.",
+      "noData": "لا توجد بيانات تحليلية حالياً.",
+      "workloadByWeekday": "عبء التدريس الأسبوعي",
+      "classPerformance": "أداء الفصول",
+      "averageScore": "متوسط الدرجة",
+      "atRiskStudents": "طلاب يحتاجون دعماً",
+      "atRiskEmpty": "لا يوجد طلاب في نطاق الخطر حسب البيانات الحالية.",
+      "summary": {
+        "activeClasses": "الفصول النشطة",
+        "atRiskStudents": "الطلاب في الخطر",
+        "avgClassPerformance": "متوسط أداء الفصول"
+      },
+      "weekdays": {
+        "sun": "الأحد",
+        "mon": "الإثنين",
+        "tue": "الثلاثاء",
+        "wed": "الأربعاء",
+        "thu": "الخميس",
+        "fri": "الجمعة",
+        "sat": "السبت"
+      }
     }
   }
 }

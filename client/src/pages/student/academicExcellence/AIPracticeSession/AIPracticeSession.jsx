@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../../../../config/api";
+import "./AIPracticeSession.css";
 
 const toDisplayAnswer = (value) => String(value || "").trim() || "-";
 
@@ -133,7 +134,7 @@ const AIPracticeSession = ({ task, studentId, onComplete }) => {
 
   return (
     <>
-      <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+      <div className="ai-practice-trigger-row">
         <button type="button" className="academic-excellence-complete-btn" onClick={openSession}>
           Open Practice Session
         </button>
@@ -171,21 +172,21 @@ const AIPracticeSession = ({ task, studentId, onComplete }) => {
               ) : null}
 
               {status === "done" ? (
-                <div style={{ display: "grid", gap: "0.6rem" }}>
-                  <strong>Practice Complete!</strong>
+                <div className="ai-practice-done-section">
+                  <strong className="ai-practice-done-title">Practice Complete!</strong>
                   {doneSummary ? (
-                    <div>
+                    <div className="ai-practice-done-summary">
                       Score: {doneSummary.score}% ({doneSummary.correct} / {doneSummary.total} correct)
                     </div>
                   ) : null}
-                  {doneSummary?.masteryHint ? <div>{doneSummary.masteryHint}</div> : null}
+                  {doneSummary?.masteryHint ? <div className="ai-practice-done-hint">{doneSummary.masteryHint}</div> : null}
 
-                  <div style={{ display: "grid", gap: "0.45rem" }}>
+                  <div className="ai-practice-answer-review-list">
                     {answers.map((item) => (
-                      <div key={item.questionId} style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "0.55rem" }}>
-                        <div style={{ fontWeight: 600 }}>{item.questionText}</div>
-                        <div>Your answer: {toDisplayAnswer(item.studentAnswer)}</div>
-                        <div>Correct answer: {toDisplayAnswer(item.correctAnswer)}</div>
+                      <div key={item.questionId} className="ai-practice-answer-review-item">
+                        <div className="ai-practice-answer-review-question">{item.questionText}</div>
+                        <div className="ai-practice-answer-review-line">Your answer: {toDisplayAnswer(item.studentAnswer)}</div>
+                        <div className="ai-practice-answer-review-line">Correct answer: {toDisplayAnswer(item.correctAnswer)}</div>
                       </div>
                     ))}
                   </div>
@@ -209,27 +210,30 @@ const AIPracticeSession = ({ task, studentId, onComplete }) => {
               ) : null}
 
               {status !== "idle" && status !== "starting" && status !== "done" && currentQuestion ? (
-                <div style={{ display: "grid", gap: "0.65rem" }}>
-                  <div style={{ fontWeight: 600 }}>
+                <div className="ai-practice-question-stage">
+                  <div className="ai-practice-question-progress">
                     Question {currentIndex + 1} of {questions.length}
                   </div>
-                  <div>{currentQuestion.questionText}</div>
+                  <div className="ai-practice-question-text">{currentQuestion.questionText}</div>
 
                   {status === "feedback" && feedback ? (
-                    <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "0.6rem", background: feedback.isCorrect ? "#ecfdf5" : "#fef2f2" }}>
-                      <div style={{ fontWeight: 700 }}>{feedback.isCorrect ? "Correct" : "Incorrect"}</div>
-                      <div>Correct answer: {toDisplayAnswer(feedback.correctAnswer)}</div>
-                      {feedback.explanation ? <div>Explanation: {feedback.explanation}</div> : null}
-                      {feedback.aiFeedback ? <div>Feedback: {feedback.aiFeedback}</div> : null}
+                    <div className={`ai-practice-feedback-card ${feedback.isCorrect ? "correct" : "incorrect"}`}>
+                      <div className="ai-practice-feedback-title">{feedback.isCorrect ? "Correct" : "Incorrect"}</div>
+                      <div className="ai-practice-feedback-line">Correct answer: {toDisplayAnswer(feedback.correctAnswer)}</div>
+                      {feedback.explanation ? <div className="ai-practice-feedback-line">Explanation: {feedback.explanation}</div> : null}
+                      {feedback.aiFeedback ? <div className="ai-practice-feedback-line">Feedback: {feedback.aiFeedback}</div> : null}
                     </div>
                   ) : null}
 
                   {status !== "feedback" ? (
                     <>
                       {currentQuestion.questionType === "multiple_choice" ? (
-                        <div style={{ display: "grid", gap: "0.35rem" }}>
+                        <div className="ai-practice-options-list">
                           {(currentQuestion.options || []).map((option, index) => (
-                            <label key={`${currentQuestion.questionId}_${index}`} style={{ display: "flex", gap: "0.45rem", alignItems: "center" }}>
+                            <label
+                              key={`${currentQuestion.questionId}_${index}`}
+                              className={`ai-practice-option ${selectedAnswer === option ? "selected" : ""}`}
+                            >
                               <input
                                 type="radio"
                                 name={`question_${currentQuestion.questionId}`}
@@ -237,13 +241,13 @@ const AIPracticeSession = ({ task, studentId, onComplete }) => {
                                 checked={selectedAnswer === option}
                                 onChange={(event) => setSelectedAnswer(event.target.value)}
                               />
-                              {option}
+                              <span>{option}</span>
                             </label>
                           ))}
                         </div>
                       ) : (
                         <textarea
-                          className="teacher-ae-textarea"
+                          className="ai-practice-answer-textarea"
                           rows={4}
                           value={selectedAnswer}
                           onChange={(event) => setSelectedAnswer(event.target.value)}

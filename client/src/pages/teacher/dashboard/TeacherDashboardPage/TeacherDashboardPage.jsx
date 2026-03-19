@@ -9,6 +9,7 @@ import SummaryStat from './components/SummaryStat';
 import TodayScheduleCard from './components/TodayScheduleCard';
 import SubRequestsCard from './components/SubRequestsCard';
 import QuickActionsCard from './components/QuickActionsCard';
+import TeacherAnalyticsSection from './components/TeacherAnalyticsSection';
 import useTeacherDashboardData from './hooks/useTeacherDashboardData';
 import { QUICK_ACTIONS } from './constants';
 import { getTodayLabel } from './utils/teacherDashboardPresentation';
@@ -25,7 +26,10 @@ const TeacherDashboardPage = () => {
     const {
         timetableLoading,
         timetableError,
-        todaySchedule
+        todaySchedule,
+        analyticsData,
+        analyticsLoading,
+        analyticsError
     } = useTeacherDashboardData();
 
     const firstName = user?.firstName ?? t('dashboard:teacherDashboard.fallbacks.teacherName');
@@ -77,6 +81,19 @@ const TeacherDashboardPage = () => {
 
                     <Grid item xs={12}>
                         <QuickActionsCard actions={QUICK_ACTIONS} />
+                    </Grid>
+
+                    <Grid item xs={12}>
+                        {analyticsLoading ? (
+                            <div className="teacher-card analytics-card">
+                                <div className="card-header">
+                                    <h3 className="card-title">{t('dashboard:teacherDashboard.analytics.title')}</h3>
+                                </div>
+                                <p className="empty-text">{t('dashboard:teacherDashboard.loading.message')}</p>
+                            </div>
+                        ) : (
+                            <TeacherAnalyticsSection analyticsData={analyticsData} analyticsError={analyticsError} />
+                        )}
                     </Grid>
                 </Grid>
             )}

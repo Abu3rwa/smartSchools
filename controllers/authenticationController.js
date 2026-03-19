@@ -61,6 +61,24 @@ const resolveGoogleLoginRedirectUri = (req) => {
     return 'http://localhost:5000/api/auth/google/callback';
 };
 
+const MAX_HEADER_SHORTCUTS = 10;
+
+const normalizeHeaderShortcuts = (raw) => {
+    if (!Array.isArray(raw)) return [];
+
+    const seen = new Set();
+    const normalized = [];
+    for (const value of raw) {
+        const path = String(value || '').trim();
+        if (!path || !path.startsWith('/portal/')) continue;
+        if (seen.has(path)) continue;
+        seen.add(path);
+        normalized.push(path);
+        if (normalized.length >= MAX_HEADER_SHORTCUTS) break;
+    }
+    return normalized;
+};
+
 /**
  * @desc    Register a new user
  * @route   POST /api/auth/register
@@ -196,7 +214,10 @@ export const login = asyncHandler(async (req, res) => {
                 lastLogin: user.lastLogin,
                 permissions: user.permissions || [],
                 mustChangePassword: user.mustChangePassword,
-                permissionScopes: user.permissionScopes || {}
+                permissionScopes: user.permissionScopes || {},
+                uiPreferences: {
+                    headerShortcuts: normalizeHeaderShortcuts(user.uiPreferences?.headerShortcuts)
+                }
             },
             teacherProfile,
             token,
@@ -241,7 +262,10 @@ export const getMe = asyncHandler(async (req, res) => {
                 lastLogin: user.lastLogin,
                 mustChangePassword: user.mustChangePassword,
                 permissions: user.permissions || [],
-                permissionScopes: user.permissionScopes || {}
+                permissionScopes: user.permissionScopes || {},
+                uiPreferences: {
+                    headerShortcuts: normalizeHeaderShortcuts(user.uiPreferences?.headerShortcuts)
+                }
             },
             profile
         }
@@ -260,6 +284,11 @@ export const updateProfile = asyncHandler(async (req, res) => {
     allowedFields.forEach(field => {
         if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
+
+    const submittedHeaderShortcuts = req.body?.uiPreferences?.headerShortcuts;
+    if (submittedHeaderShortcuts !== undefined) {
+        updates['uiPreferences.headerShortcuts'] = normalizeHeaderShortcuts(submittedHeaderShortcuts);
+    }
 
     const userToUpdate = await User.findById(req.user._id);
 
