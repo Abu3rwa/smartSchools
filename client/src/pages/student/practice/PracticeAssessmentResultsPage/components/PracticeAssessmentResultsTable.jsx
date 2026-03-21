@@ -1,5 +1,10 @@
 import { formatStandardLabel } from "../../../../../utils/standardLabel";
 
+const formatStatus = (status) =>
+  String(status || "not_started")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 export default function PracticeAssessmentResultsTable({ items }) {
   return (
     <div className="table-container">
@@ -11,7 +16,7 @@ export default function PracticeAssessmentResultsTable({ items }) {
             <th>Status</th>
             <th>Score</th>
             <th>Percent</th>
-            <th>Scale 0-4</th>
+            <th>Scale 1-4</th>
           </tr>
         </thead>
         <tbody>
@@ -24,7 +29,7 @@ export default function PracticeAssessmentResultsTable({ items }) {
               <tr key={item.assignmentId}>
                 <td>{item.title}</td>
                 <td>{formatStandardLabel(item.standard) || "N/A"}</td>
-                <td>{(item.status || "not_started").replace(/_/g, " ")}</td>
+                <td>{formatStatus(item.status)}</td>
                 <td>
                   {item.score !== null && item.score !== undefined
                     ? `${item.score}/${item.maxScore}`

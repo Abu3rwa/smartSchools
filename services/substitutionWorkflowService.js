@@ -176,35 +176,7 @@ export async function createRequest({
 
     const appBaseUrl = process.env.CLIENT_URL || process.env.API_BASE_URL || process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`;
     const normalizedAppBaseUrl = String(appBaseUrl).replace(/\/+$/, '');
-    const apiBaseUrl = process.env.API_BASE_URL || process.env.API_URL || `${normalizedAppBaseUrl}/api`;
-    const normalizedApiBaseUrl = String(apiBaseUrl).replace(/\/+$/, '');
-    const hasMobileBridge = Boolean(String(process.env.MOBILE_DEEP_LINK_BASE || '').trim());
-    const tokenMap = {}; // substituteTeacherId -> { rawToken, confirmUrl, declineUrl }
-
-    for (const a of request.assignments) {
-        const { rawToken } = await createToken({
-            schoolId,
-            requestId: request._id,
-            assignmentId: a._id,
-            periodId: a.periodId,
-            substituteTeacherId: a.substituteTeacherId,
-            expiresAt
-        });
-
-        const confirmWebUrl = `${normalizedAppBaseUrl}/substitutions/respond?token=${encodeURIComponent(rawToken)}&intent=confirm`;
-        const declineWebUrl = `${normalizedAppBaseUrl}/substitutions/respond?token=${encodeURIComponent(rawToken)}&intent=decline`;
-        const confirmUrl = hasMobileBridge
-            ? `${normalizedApiBaseUrl}/substitutions/respond-bridge?token=${encodeURIComponent(rawToken)}&intent=confirm`
-            : confirmWebUrl;
-        const declineUrl = hasMobileBridge
-            ? `${normalizedApiBaseUrl}/substitutions/respond-bridge?token=${encodeURIComponent(rawToken)}&intent=decline`
-            : declineWebUrl;
-
-        const subIdStr = a.substituteTeacherId.toString();
-        if (!tokenMap[subIdStr]) {
-            tokenMap[subIdStr] = { rawToken, confirmUrl, declineUrl };
-        }
-    }
+    const portalUrl = `${normalizedAppBaseUrl}/portal/substitutions/${request._id}`;
 
     const absentTeacher = await User.findById(absentTeacherId)
         .select('firstName lastName')
@@ -241,12 +213,10 @@ export async function createRequest({
         const subIdStr = a.substituteTeacherId.toString();
         if (notified.has(subIdStr)) continue;
         notified.add(subIdStr);
-        const { confirmUrl, declineUrl } = tokenMap[subIdStr] || {};
         await notifySubstituteTeacher({
             teacherId: a.substituteTeacherId,
             requestId: request._id,
-            confirmUrl,
-            declineUrl,
+            portalUrl,
             schoolId,
             createdBy,
             requestDetails: {
@@ -334,12 +304,6 @@ export async function processResponse({ token, action, note, meta = {} }) {
     });
 
     await request.save();
-
-    // Burn any other tokens for this request (e.g. same teacher, multiple periods)
-    await SubRequestToken.updateMany(
-        { requestId, usedAt: null },
-        { $set: { usedAt: new Date() } }
-    ).setOptions({ skipTenantFilter: true });
 
     return request;
 }

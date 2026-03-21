@@ -14,6 +14,7 @@ const StandardAssignProgressModal = ({
     getMasteryColor
 }) => {
     const { t } = useTranslation(['standardAssign']);
+    const isAssessmentMode = assignmentProgress?.assignment?.practiceConfig?.sessionType === 'assessment';
 
     if (!show) return null;
 
@@ -76,6 +77,25 @@ const StandardAssignProgressModal = ({
                             </div>
                             <div className="progress-list">
                                 {assignmentProgress.studentsProgress?.map((studentProgress) => {
+                                    const assessmentProgress = studentProgress.assessmentProgress || null;
+                                    const mastery = studentProgress.mastery || {};
+
+                                    const answeredCount = Number(
+                                        isAssessmentMode
+                                            ? (assessmentProgress?.totalAnswered ?? mastery.totalAttempts ?? studentProgress.totalAttempts ?? 0)
+                                            : (mastery.totalAttempts ?? studentProgress.totalAttempts ?? 0)
+                                    );
+                                    const correctCount = Number(
+                                        isAssessmentMode
+                                            ? (assessmentProgress?.correctCount ?? mastery.correctCount ?? 0)
+                                            : (mastery.correctCount ?? 0)
+                                    );
+                                    const computedPercentage = answeredCount > 0
+                                        ? Math.round((correctCount / answeredCount) * 100)
+                                        : 0;
+                                    const displayPercentage = Number.isFinite(computedPercentage)
+                                        ? Math.max(0, Math.min(100, computedPercentage))
+                                        : 0;
                                     const status = getProgressStatusDisplay(
                                         studentProgress.progressStatus
                                     );
@@ -93,21 +113,22 @@ const StandardAssignProgressModal = ({
                                                     {status.label}
                                                 </span>
                                                 <span>
-                                                    {studentProgress.mastery.correctCount}/
-                                                    {studentProgress.mastery.totalAttempts} {t('standardAssign:progress.correct')}
+                                                    {correctCount}/{answeredCount} {t('standardAssign:progress.correct')}
                                                 </span>
                                                 <div className="progress-bar-mini">
                                                     <div
                                                         className={`fill ${getMasteryColor(
-                                                            studentProgress.mastery.percentage
+                                                            displayPercentage
                                                         )}`}
                                                         style={{
-                                                            width: `${studentProgress.mastery.percentage}%`
+                                                            width: `${displayPercentage}%`
                                                         }}
                                                     ></div>
                                                 </div>
-                                                <span>{studentProgress.mastery.percentage}%</span>
-                                                {studentProgress.mastery.isMastered && (
+                                                <span>{displayPercentage}%</span>
+                                                {(isAssessmentMode
+                                                    ? assessmentProgress?.isComplete
+                                                    : mastery.isMastered) && (
                                                     <span className="mastery-badge mastered">
                                                         {t('standardAssign:progress.masteredBadge')}
                                                     </span>

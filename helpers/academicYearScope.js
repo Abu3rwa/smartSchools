@@ -21,13 +21,17 @@ export const resolveAcademicYearForRequest = (
 export const getClassIdsForAcademicYear = async ({
     schoolId,
     academicYear,
-    candidateClassIds = null
+    candidateClassIds = null,
+    departmentId = null
 }) => {
     if (!schoolId || !academicYear) return [];
 
     const query = { school: schoolId, academicYear };
     if (Array.isArray(candidateClassIds) && candidateClassIds.length > 0) {
         query._id = { $in: candidateClassIds };
+    }
+    if (departmentId) {
+        query.department = departmentId;
     }
 
     const rows = await Class.find(query).select('_id').lean();

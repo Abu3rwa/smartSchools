@@ -11,7 +11,7 @@ import {
     approveAssignmentQuestionPool,
     publishAssignmentQuestionPool
 } from '../controllers/standardAssignmentController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, resolveDepartmentScope } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
@@ -21,11 +21,12 @@ const router = express.Router();
 // All routes require authentication
 router.use(protect);
 router.use(requireSchoolContext);
+router.use(resolveDepartmentScope);
 router.use(requireFeature('standardsPractice'));
 
 // CRUD
 router.route('/')
-    .get(authorize('admin', 'teacher'), getAssignments)
+    .get(authorize('admin', 'teacher', 'department_principal'), getAssignments)
     .post(authorize('admin', 'teacher'), createAssignment);
 
 router.route('/:id')

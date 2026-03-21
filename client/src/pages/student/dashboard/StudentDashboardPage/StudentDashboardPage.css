@@ -236,6 +236,59 @@
   white-space: nowrap;
 }
 
+@media (max-width: 767px) {
+  .schedule-table thead {
+    display: none;
+  }
+
+  .schedule-table,
+  .schedule-table tbody,
+  .schedule-table tr,
+  .schedule-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .schedule-table tr {
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+    background: var(--bg-secondary);
+  }
+
+  .schedule-table td {
+    text-align: right;
+    padding: 0.75rem 1rem;
+    padding-left: 45%;
+    position: relative;
+    border-bottom: 1px solid var(--border-color-light, rgba(0,0,0,0.05));
+  }
+
+  .schedule-table td:last-child {
+    border-bottom: none;
+  }
+
+  .schedule-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 1rem;
+    width: 40%;
+    padding-right: 10px;
+    white-space: nowrap;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .schedule-table td.schedule-period {
+    background: var(--bg-tertiary);
+    font-size: 0.9375rem;
+  }
+}
+
 /* Grades */
 .grades-card {
   position: relative;
@@ -251,27 +304,45 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 0;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
   border-bottom: 1px solid var(--border-color);
-  font-size: 0.875rem;
 }
 
 .grades-item:last-child {
   border-bottom: none;
 }
 
-.grade-subject {
-  font-weight: 500;
-  color: var(--text-primary);
+.grade-item-main {
+  min-width: 0;
+  flex: 1;
 }
 
-.grade-marks {
-  color: var(--text-secondary);
+.grade-subject {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .grade-date {
+  display: block;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+.grade-marks-container {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.grade-marks {
+  font-weight: 700;
+  color: var(--primary-600);
+  font-size: 0.9375rem;
 }
 
 /* Practice */
@@ -286,38 +357,43 @@
 }
 
 .practice-item {
-  display: grid;
-    /* grid-template-columns: 60px 1fr 60px 40px auto; */
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0;
-    /* border-bottom: 1px solid var(--primary-900); */
-    font-size: 0.875rem;
-    margin-bottom: 8px;
-    box-shadow: rgba(0, 0, 0, 0.15) 1.95px 1.95px 2.6px;
-    border-radius: 6px;
-    padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .practice-item:last-child {
   border-bottom: none;
 }
 
-.practice-code {
-  font-weight: 600;
-  color: var(--text-primary);
+.practice-item-main {
+  min-width: 0;
+  flex: 1;
 }
 
-.practice-name {
-  color: var(--text-secondary);
-  font-size: 0.8125rem;
-  white-space: nowrap;
+.practice-code {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.875rem;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.125rem;
 }
 
 .practice-progress-bar {
-  width: 60px;
+  flex: 1;
+  max-width: 100px;
   height: 6px;
   background: var(--bg-tertiary);
   border-radius: 3px;
@@ -332,27 +408,43 @@
 }
 
 .practice-pct {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
+  font-weight: 500;
+}
+
+.practice-item-action {
+  flex-shrink: 0;
 }
 
 .badge-mastered {
     font-size: 0.6875rem;
     font-weight: 600;
-    background: var(--primary-600);
-    color: var(--success-50);
-    padding: 2px 6px;
+    background: var(--success-100, #d1fae5);
+    color: var(--success-700, #047857);
+    padding: 2px 8px;
     border-radius: 4px;
-    width: fit-content;
-     box-shadow: rgba(0, 0, 0, 0.15) 1.95px 1.95px 2.6px;
+    box-shadow: var(--shadow-xs);
 }
 
 .practice-item .btn-sm {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   font-size: 0.75rem;
+  text-decoration: none;
+  background: var(--primary-50);
+  color: var(--primary-700);
+  border-radius: 6px;
+  font-weight: 600;
+  border: 1px solid var(--primary-200);
+  transition: all 0.15s ease;
+}
+
+.practice-item .btn-sm:hover {
+  background: var(--primary-100);
+  border-color: var(--primary-300);
 }
 
 /* Due dates */
@@ -365,29 +457,50 @@
 .due-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
   border-bottom: 1px solid var(--border-color);
-  font-size: 0.875rem;
 }
 
 .due-item:last-child {
   border-bottom: none;
 }
 
+.due-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
 .due-code {
+  display: block;
   font-weight: 600;
   color: var(--text-primary);
-  min-width: 60px;
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .due-date {
-  color: var(--text-secondary);
+  display: block;
   font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
-.due-item .link-sm {
-  margin-left: auto;
+.due-item-action {
+  flex-shrink: 0;
+  max-width: 40%;
+  text-align: right;
+}
+
+.due-title {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Academic excellence tasks */
@@ -412,31 +525,38 @@
 
 .tasks-item-main {
   min-width: 0;
+  flex: 1;
 }
 
 .tasks-title {
   display: block;
   font-weight: 600;
   color: var(--text-primary);
+  font-size: 0.875rem;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.4;
+  margin-bottom: 2px;
 }
 
 .tasks-meta {
   display: block;
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .tasks-status {
   flex-shrink: 0;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 700;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: 6px;
   border: 1px solid var(--border-color);
-  text-transform: capitalize;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .tasks-status.status-completed {

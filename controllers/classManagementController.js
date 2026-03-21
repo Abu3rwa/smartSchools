@@ -77,7 +77,7 @@ export const getClasses = asyncHandler(async (req, res) => {
         .populate('subjects.subject', 'name code')
         .populate({
             path: 'subjects.teacher',
-            populate: { path: 'user', select: 'firstName lastName' }
+            populate: { path: 'user', select: 'firstName lastName email _id' }
         })
         .sort({ grade: 1, section: 1 })
         .skip((page - 1) * limit)
@@ -129,7 +129,7 @@ export const getClass = asyncHandler(async (req, res) => {
         .populate('subjects.subject', 'name code maxMarks passingMarks')
         .populate({
             path: 'subjects.teacher',
-            populate: { path: 'user', select: 'firstName lastName' }
+            populate: { path: 'user', select: 'firstName lastName email _id' }
         });
 
     if (!classData) {
@@ -338,7 +338,7 @@ export const updateClass = asyncHandler(async (req, res) => {
         .populate('subjects.subject', 'name code')
         .populate({
             path: 'subjects.teacher',
-            populate: { path: 'user', select: 'firstName lastName' }
+            populate: { path: 'user', select: 'firstName lastName email _id' }
         });
 
     res.json({
@@ -508,7 +508,7 @@ export const addSubjectToClass = asyncHandler(async (req, res) => {
         .populate('subjects.subject', 'name code')
         .populate({
             path: 'subjects.teacher',
-            populate: { path: 'user', select: 'firstName lastName' }
+            populate: { path: 'user', select: 'firstName lastName email _id' }
         });
 
     res.json({
@@ -576,7 +576,7 @@ export const removeSubjectFromClass = asyncHandler(async (req, res) => {
         .populate('subjects.subject', 'name code')
         .populate({
             path: 'subjects.teacher',
-            populate: { path: 'user', select: 'firstName lastName' }
+            populate: { path: 'user', select: 'firstName lastName email _id' }
         });
 
     res.json({

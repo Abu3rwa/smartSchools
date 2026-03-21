@@ -193,7 +193,7 @@ const StandardsGradebookPage = () => {
 
       <section className="gb-teacher-help" aria-label={t('standardsGradebook:teacherHelp.title', 'Teacher Instructions')}>
         <h3>{t('standardsGradebook:teacherHelp.title', 'Teacher Instructions')}</h3>
-        <p>{t('standardsGradebook:teacherHelp.steps', '1) Select class and subject. 2) Use + Assign Standard to add missing standards. 3) Enter 0-4 scores in cells. 4) Press Save (Ctrl+S) to store changes.')}</p>
+        <p>{t('standardsGradebook:teacherHelp.steps', '1) Select class and subject. 2) Use + Assign Standard to add missing standards. 3) Enter 1-4 scores in cells. 4) Press Save (Ctrl+S) to store changes.')}</p>
       </section>
 
       <StandardsGradebookFilters

@@ -120,13 +120,60 @@ const ClassesPage = () => {
     };
 
     const handleDeleteClass = async (cls) => {
-        if (!window.confirm(t('classes:confirm.delete', { className: cls.name }))) {
+        const deleteChoice = window.prompt(
+            t('classes:confirm.deleteModePrompt', {
+                defaultValue:
+                    'Choose delete option for {{className}}:\n1 = Delete class only (keep students and historical data)\n2 = Delete class with students detached and related class data removed\n\nType 1 or 2.',
+                className: cls.name
+            }),
+            '1'
+        );
+
+        if (deleteChoice === null) {
             return;
         }
 
-        const result = await dispatch(deleteClass(cls._id));
+        const normalizedChoice = String(deleteChoice).trim();
+        if (normalizedChoice !== '1' && normalizedChoice !== '2') {
+            toast.error(
+                t('classes:toast.deleteChoiceInvalid', {
+                    defaultValue: 'Invalid choice. Please type 1 or 2.'
+                })
+            );
+            return;
+        }
+
+        const deleteMode = normalizedChoice === '2' ? 'with_related_data' : 'class_only';
+        const confirmationKey =
+            deleteMode === 'with_related_data'
+                ? 'classes:confirm.deleteWithData'
+                : 'classes:confirm.deleteClassOnly';
+
+        if (!window.confirm(t(confirmationKey, {
+            defaultValue:
+                deleteMode === 'with_related_data'
+                    ? 'Delete {{className}} with related class data and detach enrolled students? This cannot be undone.'
+                    : 'Delete {{className}} only? Students and historical data will be kept.',
+            className: cls.name
+        }))) {
+            return;
+        }
+
+        const result = await dispatch(deleteClass({ id: cls._id, deleteMode }));
         if (deleteClass.fulfilled.match(result)) {
-            toast.success(t('classes:toast.deleted'));
+            toast.success(
+                t(
+                    deleteMode === 'with_related_data'
+                        ? 'classes:toast.deletedWithData'
+                        : 'classes:toast.deletedClassOnly',
+                    {
+                        defaultValue:
+                            deleteMode === 'with_related_data'
+                                ? 'Class deleted with related data cleanup'
+                                : 'Class deleted (class only)'
+                    }
+                )
+            );
         } else {
             toast.error(result.payload || t('classes:toast.deleteFailed'));
         }

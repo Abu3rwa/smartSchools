@@ -17,18 +17,13 @@ export const studentNavLinks = [
     labelKey: "dashboard",
     section: "overview",
   },
-  {
-    path: "/portal/notifications",
-    icon: HiOutlineBell,
-    labelKey: "notifications",
-    section: "overview",
-  },
-  {
-    path: "/portal/attendance-requests",
-    icon: HiOutlineClipboardList,
-    labelKey: "attendanceRequests",
-    section: "attendance",
-  },
+  
+  // {
+  //   path: "/portal/attendance-requests",
+  //   icon: HiOutlineClipboardList,
+  //   labelKey: "attendanceRequests",
+  //   section: "attendance",
+  // },
   {
     path: "/portal/my-grades",
     icon: HiOutlineClipboardList,
@@ -60,17 +55,17 @@ export const studentNavLinks = [
     feature: "academicIntelligence",
     section: "learning",
   },
-  {
-    path: "/portal/reading",
-    icon: HiOutlineBookOpen,
-    labelKey: "reading",
-    feature: "readingAssistant",
-    section: "learning",
-  },
-  {
-    path: "/portal/settings",
-    icon: HiOutlineCog,
-    labelKey: "settings",
-    section: "account",
-  },
+  // {
+  //   path: "/portal/reading",
+  //   icon: HiOutlineBookOpen,
+  //   labelKey: "reading",
+  //   feature: "readingAssistant",
+  //   section: "learning",
+  // },
+  // {
+  //   path: "/portal/settings",
+  //   icon: HiOutlineCog,
+  //   labelKey: "settings",
+  //   section: "account",
+  // },
 ];

@@ -13,21 +13,25 @@ const UpcomingDueDatesCard = ({ upcomingAssignments, todayStart }) => {
                 <ul className="due-list">
                     {upcomingAssignments.map((assignment) => (
                         <li key={`${assignment.source}-${assignment.id || assignment._id}`} className="due-item">
-                            <span className="due-code">
-                                {assignment.source === 'practice'
-                                    ? formatStandardLabel(assignment.standard) || assignment.standard?.code
-                                    : assignment.assignmentType?.name || 'Assignment'}
-                            </span>
-                            <span className="due-date">{formatDueDate(assignment.due, todayStart)}</span>
-                            {assignment.source === 'practice' ? (
-                                <Link to={`/portal/practice/${assignment._id}`} className="link-sm">
-                                    Practice
-                                </Link>
-                            ) : (
-                                <span className="link-sm" style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
-                                    {assignment.title || 'Class assignment'}
+                            <div className="due-item-main">
+                                <span className="due-code">
+                                    {assignment.source === 'practice'
+                                        ? formatStandardLabel(assignment.standard) || assignment.standard?.code
+                                        : assignment.assignmentType?.name || 'Assignment'}
                                 </span>
-                            )}
+                                <span className="due-date">{formatDueDate(assignment.due, todayStart)}</span>
+                            </div>
+                            <div className="due-item-action">
+                                {assignment.source === 'practice' ? (
+                                    <Link to={`/portal/practice/${assignment._id}`} className="link-sm">
+                                        Practice
+                                    </Link>
+                                ) : (
+                                    <span className="due-title">
+                                        {assignment.title || 'Class assignment'}
+                                    </span>
+                                )}
+                            </div>
                         </li>
                     ))}
                 </ul>

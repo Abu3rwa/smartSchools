@@ -5,10 +5,9 @@ export const PRACTICE_DASHBOARD_SUBTITLE =
   "Personalized questions, adaptive difficulty, and clear next steps.";
 
 export const PRACTICE_TABLE_HEADERS = [
-  "Standard",
+  "Assignment",
   "Subject",
-  "Status",
-  "Lifetime / Recent",
-  "Progress / Confidence",
-  "Actions",
+  "Your Status",
+  "Your Progress",
+  "Next Step",
 ];

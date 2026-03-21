@@ -16,8 +16,7 @@
     padding: 0.75rem 1rem;
     border-radius: var(--radius-md);
     border: 1px solid var(--success-200);
-    background: var(--success-50);
-    color: var(--success-800);
+     color: var(--success-800);
     font-size: 0.9rem;
 }
 

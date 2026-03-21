@@ -16,23 +16,29 @@ const PracticeProgressCard = ({ assignments }) => {
                 <ul className="practice-list">
                     {assignments.slice(0, MAX_ASSIGNMENTS_DISPLAY).map((assignment) => (
                         <li key={assignment._id} className="practice-item">
-                            <span className="practice-code">
-                                {formatStandardLabel(assignment.standard) || assignment.standard?.code}
-                            </span>
-                            <div className="practice-progress-bar">
-                                <div
-                                    className="practice-progress-fill"
-                                    style={{ width: `${assignment.mastery?.percentage || 0}%` }}
-                                />
+                            <div className="practice-item-main">
+                                <span className="practice-code">
+                                    {formatStandardLabel(assignment.standard) || assignment.standard?.code}
+                                </span>
+                                <div className="practice-progress-container">
+                                    <div className="practice-progress-bar">
+                                        <div
+                                            className="practice-progress-fill"
+                                            style={{ width: `${assignment.mastery?.percentage || 0}%` }}
+                                        />
+                                    </div>
+                                    <span className="practice-pct">{assignment.mastery?.percentage ?? 0}%</span>
+                                </div>
                             </div>
-                            <span className="practice-pct">{assignment.mastery?.percentage ?? 0}%</span>
-                            {assignment.mastery?.isMastered ? (
-                                <span className="badge-mastered">Mastered</span>
-                            ) : (
-                                <Link to={`/portal/practice/${assignment._id}`} className="btn-sm btn-primary">
-                                    <HiOutlinePlay size={14} /> Practice
-                                </Link>
-                            )}
+                            <div className="practice-item-action">
+                                {assignment.mastery?.isMastered ? (
+                                    <span className="badge-mastered">Mastered</span>
+                                ) : (
+                                    <Link to={`/portal/practice/${assignment._id}`} className="btn-sm btn-primary">
+                                        <HiOutlinePlay size={14} /> Practice
+                                    </Link>
+                                )}
+                            </div>
                         </li>
                     ))}
                 </ul>

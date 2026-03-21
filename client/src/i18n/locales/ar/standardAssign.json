@@ -48,7 +48,7 @@
       "inProgress": "قيد التنفيذ:",
       "notStarted": "لم يبدأ:",
       "avgPercentage": "متوسط %:",
-      "avgScale": "متوسط 0-4:"
+      "avgScale": "متوسط 1-4:"
     },
     "table": {
       "student": "الطالب",
@@ -64,7 +64,7 @@
       "attempts": "المحاولات",
       "graded": "المصحح",
       "averagePercentage": "متوسط %",
-      "averageScale": "متوسط 0-4"
+      "averageScale": "متوسط 1-4"
     },
     "noRepeatedData": "لا توجد بيانات للمحاولات المكررة.",
     "releaseDisabledImmediate": "النتائج متاحة فورًا بالفعل.",

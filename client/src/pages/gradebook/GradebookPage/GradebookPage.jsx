@@ -13,9 +13,8 @@ import GradebookFilters from './components/GradebookFilters';
 import GradebookTable from './components/GradebookTable';
 import AddGradesModal from './components/AddGradesModal';
 import AIReportModal from './components/AIReportModal';
-import AcademicInsightsPanel from './components/AcademicInsightsPanel';
 import ReteachTaskModal from './components/ReteachTaskModal';
-import ReteachTasksPanel from './components/ReteachTasksPanel';
+// import ReteachTasksPanel from './components/ReteachTasksPanel';
 import StudentLearningTraceModal from './components/StudentLearningTraceModal';
 import useGradebookPageState from './hooks/useGradebookPageState';
 import useGradebookData from './hooks/useGradebookData';
@@ -51,8 +50,6 @@ const GradebookPage = () => {
         setShowAddModal,
         selectedCategoryFilter,
         setSelectedCategoryFilter,
-        showAcademicInsights,
-        setShowAcademicInsights,
         showAIModal,
         setShowAIModal,
         selectedStudentForAI,
@@ -105,10 +102,6 @@ const GradebookPage = () => {
     });
 
     const {
-        classInsights,
-        classInsightsLoading,
-        classInsightsError,
-        refreshClassInsights,
         studentTrace,
         studentTraceLoading,
         studentTraceError,
@@ -205,8 +198,6 @@ const GradebookPage = () => {
         handleCloseReteachTask();
     };
 
-    const selectedSubjectName = availableSubjects.find((subject) => subject?._id === selectedSubject)?.name || '';
-
     return (
         <div className="gradebook-page">
             <GradebookHeader
@@ -230,26 +221,14 @@ const GradebookPage = () => {
                 months={MONTHS}
             />
 
-            <AcademicInsightsPanel
-                loading={classInsightsLoading}
-                error={classInsightsError}
-                data={classInsights}
-                onRefresh={refreshClassInsights}
-                selectedSubjectName={selectedSubjectName}
-                onCreateTask={handleOpenReteachTask}
-                categoryFilter={selectedCategoryFilter}
-                visible={showAcademicInsights}
-                onToggleVisibility={() => setShowAcademicInsights((prev) => !prev)}
-            />
-
-            <ReteachTasksPanel
+            {/* <ReteachTasksPanel
                 tasks={reteachTasks}
                 loading={reteachTasksLoading}
                 error={reteachTasksError}
                 saving={reteachTasksSaving}
                 onRefresh={refreshTasks}
                 onStatusChange={updateTaskStatus}
-            />
+            /> */}
 
             <div className="grades-content">
                 <GradebookTable

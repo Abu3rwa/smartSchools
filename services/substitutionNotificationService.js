@@ -122,7 +122,7 @@ async function getAdminPrincipalRecipients({ schoolId, departmentId }) {
 /**
  * Build rich HTML content for substitution notification email.
  */
-async function buildEmailHtml({ requestDetails, confirmUrl, declineUrl }) {
+async function buildEmailHtml({ requestDetails, portalUrl }) {
     const { date, absentTeacherName, periodDetails, principalNote, materialsLink } = requestDetails || {};
 
     const periodsRows = (periodDetails || []).map((p) => {
@@ -171,13 +171,12 @@ async function buildEmailHtml({ requestDetails, confirmUrl, declineUrl }) {
     ${periodsTable}
     ${principalSection}
     ${materialsSection}
-    <h3 style="margin:20px 0 8px;">Please respond</h3>
-    <p style="margin:0 0 16px;">Click one of the buttons below to confirm or decline:</p>
+    <h3 style="margin:20px 0 8px;">Action Required</h3>
+    <p style="margin:0 0 16px;">Please review the request and respond via the portal:</p>
     <p style="margin:0 0 16px;">
-        <a href="${confirmUrl}" style="background:#22c55e;color:white;padding:10px 20px;text-decoration:none;border-radius:6px;margin-right:12px;display:inline-block;">Confirm</a>
-        <a href="${declineUrl}" style="background:#ef4444;color:white;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">Decline</a>
+        <a href="${portalUrl}" style="background:#3b82f6;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;">View & Respond in Portal</a>
     </p>
-    <p style="color:#6b7280;font-size:12px;margin:24px 0 0;">Links expire in 48 hours. Do not share this email.</p>
+    <p style="color:#6b7280;font-size:12px;margin:24px 0 0;">Do not share this email. Access is restricted to your account.</p>
 </div>`;
         }
 
@@ -187,15 +186,14 @@ async function buildEmailHtml({ requestDetails, confirmUrl, declineUrl }) {
                 periodsTable,
                 principalSection,
                 materialsSection,
-                confirmUrl,
-                declineUrl
+                portalUrl
         });
 }
 
 /**
  * Build plain-text fallback message.
  */
-function buildPlainMessage(requestDetails) {
+function buildPlainMessage(requestDetails, portalUrl) {
     const { date, absentTeacherName, periodDetails, principalNote, materialsLink } = requestDetails || {};
     let msg = `You have been selected as a substitute for ${absentTeacherName || 'a teacher'} on ${date || 'the scheduled date'}.\n\n`;
     if (periodDetails?.length) {
@@ -208,7 +206,7 @@ function buildPlainMessage(requestDetails) {
     }
     if (principalNote) msg += `Principal note: ${principalNote}\n\n`;
     if (materialsLink) msg += `Materials: ${materialsLink}\n\n`;
-    msg += 'Please confirm or decline using the links in the email.';
+    msg += `Please review and respond in the portal: ${portalUrl}`;
     return msg;
 }
 
@@ -221,12 +219,11 @@ function buildPlainMessage(requestDetails) {
  * @param {ObjectId} params.requestId
  * @param {string} [params.message] - Legacy plain message (used if requestDetails absent)
  * @param {Object} [params.requestDetails] - { date, absentTeacherName, periodDetails, principalNote, materialsLink }
- * @param {string} params.confirmUrl
- * @param {string} params.declineUrl
+ * @param {string} params.portalUrl
  * @param {ObjectId} params.schoolId
  * @param {ObjectId} params.createdBy
  */
-export async function notifySubstituteTeacher({ teacherId, requestId, message, requestDetails, confirmUrl, declineUrl, schoolId, createdBy }) {
+export async function notifySubstituteTeacher({ teacherId, requestId, message, requestDetails, portalUrl, schoolId, createdBy }) {
     try {
         const teacher = await User.findById(teacherId)
             .select('email firstName lastName')
@@ -241,10 +238,9 @@ export async function notifySubstituteTeacher({ teacherId, requestId, message, r
         const subject = 'Substitution Request - Action Required';
         const htmlContent = await buildEmailHtml({
             requestDetails: requestDetails || { date: '', absentTeacherName: 'Teacher', principalNote: message || '' },
-            confirmUrl,
-            declineUrl
+            portalUrl
         });
-        const plainMessage = requestDetails ? buildPlainMessage(requestDetails) : (message || 'Substitution request - please confirm or decline.');
+        const plainMessage = buildPlainMessage(requestDetails, portalUrl);
 
         await createAndSendEmailNotification({
             schoolId,

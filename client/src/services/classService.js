@@ -26,8 +26,10 @@ const classService = {
     },
 
     // Delete class
-    deleteClass: async (id) => {
-        const response = await api.delete(`/classes/${id}`);
+    deleteClass: async (id, deleteMode) => {
+        const response = await api.delete(`/classes/${id}`, {
+            params: deleteMode ? { deleteMode } : undefined
+        });
         return response.data;
     },
 

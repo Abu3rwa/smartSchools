@@ -14,11 +14,15 @@ const RecentGradesCard = ({ grades }) => {
                 <ul className="grades-list">
                     {grades.map((grade) => (
                         <li key={grade._id} className="grades-item">
-                            <span className="grade-subject">{grade.subject?.name}</span>
-                            <span className="grade-marks">{grade.marks}/{grade.maxMarks}</span>
-                            <span className="grade-date">
-                                {grade.date ? new Date(grade.date).toLocaleDateString() : '—'}
-                            </span>
+                            <div className="grade-item-main">
+                                <span className="grade-subject">{grade.subject?.name || 'Subject'}</span>
+                                <span className="grade-date">
+                                    {grade.date ? new Date(grade.date).toLocaleDateString() : '—'}
+                                </span>
+                            </div>
+                            <div className="grade-marks-container">
+                                <span className="grade-marks">{grade.marks}/{grade.maxMarks}</span>
+                            </div>
                         </li>
                     ))}
                 </ul>

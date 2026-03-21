@@ -564,8 +564,14 @@ const buildAssessmentScore = ({ correctCount, totalAnswered, maxMarks }) => {
 };
 
 const percentageToScale4 = (percentageValue) => {
-  const mapped = percentageToScaleLevel(percentageValue);
-  return mapped.value ?? 0;
+  const pct = Number(percentageValue);
+  if (!Number.isFinite(pct)) return 0;
+
+  const clamped = Math.max(0, Math.min(100, pct));
+
+  // Precise conversion for assessment views:
+  // map 0-100% directly to 0-4 with two-decimal precision.
+  return Number(((clamped / 100) * 4).toFixed(2));
 };
 
 const getPublishedQuestionPool = async ({ schoolId, assignmentId }) => {
@@ -2177,6 +2183,25 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
     }).select("firstName lastName studentId");
   }
 
+  const practiceConfig = getAssignmentPracticeConfig(assignment);
+  const isAssessmentAssignment = practiceConfig.sessionType === "assessment";
+  let assessmentEntryByStudent = new Map();
+  if (isAssessmentAssignment && students.length > 0) {
+    const assessmentEntries = await StandardsGradebookEntry.find({
+      school: req.schoolId,
+      assignment: assignment._id,
+      student: { $in: students.map((student) => student._id) },
+    })
+      .select(
+        "student status totalAnswered correctCount percentage score maxScore submittedAt releasedAt"
+      )
+      .lean();
+
+    assessmentEntryByStudent = new Map(
+      assessmentEntries.map((entry) => [entry.student.toString(), entry])
+    );
+  }
+
   const studentsProgress = await Promise.all(
     students.map(async (student) => {
       const mastery = await PracticeAttempt.calculateMastery(
@@ -2193,12 +2218,90 @@ export const getAssignmentProgress = asyncHandler(async (req, res) => {
         assignment: assignment._id,
         status: "answered",
       });
-      const progressStatus = resolveProgressStatus(mastery);
+
+      let effectiveMastery = mastery;
+      let effectiveTotalAttempts = totalAttempts;
+      let progressStatus = resolveProgressStatus(mastery);
+      let assessmentProgress = null;
+
+      if (isAssessmentAssignment) {
+        const assessmentEntry = assessmentEntryByStudent.get(
+          student._id.toString()
+        );
+
+        if (assessmentEntry) {
+          const answered = Number(assessmentEntry.totalAnswered || 0);
+          const correct = Number(assessmentEntry.correctCount || 0);
+          const percentage = Number.isFinite(assessmentEntry.percentage)
+            ? Number(assessmentEntry.percentage)
+            : answered > 0
+              ? Number(((correct / answered) * 100).toFixed(2))
+              : 0;
+          const isComplete = ["submitted", "released"].includes(
+            assessmentEntry.status
+          );
+
+          effectiveMastery = {
+            ...mastery,
+            totalAttempts: answered,
+            correctCount: correct,
+            percentage,
+            isMastered: isComplete || mastery?.isMastered,
+            needsReview: false,
+            masteryStatus: isComplete
+              ? "mastered"
+              : answered > 0
+                ? "in_progress"
+                : "not_started",
+          };
+          effectiveTotalAttempts = answered;
+          progressStatus = isComplete
+            ? "mastered"
+            : answered > 0
+              ? "in_progress"
+              : "not_started";
+
+          assessmentProgress = {
+            status: assessmentEntry.status || "not_started",
+            totalAnswered: answered,
+            correctCount: correct,
+            percentage,
+            score: Number.isFinite(assessmentEntry.score)
+              ? assessmentEntry.score
+              : null,
+            maxScore: Number.isFinite(assessmentEntry.maxScore)
+              ? assessmentEntry.maxScore
+              : null,
+            submittedAt: assessmentEntry.submittedAt || null,
+            releasedAt: assessmentEntry.releasedAt || null,
+            isComplete,
+          };
+        } else {
+          const fallbackAnswered = Number(effectiveTotalAttempts || 0);
+          const fallbackCorrect = Number(mastery?.correctCount || 0);
+          const fallbackPercentage =
+            fallbackAnswered > 0
+              ? Number(((fallbackCorrect / fallbackAnswered) * 100).toFixed(2))
+              : 0;
+
+          progressStatus =
+            fallbackAnswered > 0 ? "in_progress" : "not_started";
+          effectiveMastery = {
+            ...mastery,
+            totalAttempts: fallbackAnswered,
+            correctCount: fallbackCorrect,
+            percentage: fallbackPercentage,
+            masteryStatus: progressStatus,
+          };
+        }
+      }
+
       return {
         student: student.toObject(),
-        mastery,
+        mastery: effectiveMastery,
         progressStatus,
-        totalAttempts,
+        totalAttempts: effectiveTotalAttempts,
+        assessmentProgress,
       };
     })
   );
@@ -2556,11 +2659,15 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
         standardName: item.standard?.name || "Standard",
         totalAssessments: 0,
         totalPercentage: 0,
+        totalScale4: 0,
       });
     }
     const aggregate = standardAccumulator.get(standardId);
     aggregate.totalAssessments += 1;
     aggregate.totalPercentage += Number(item.percentage || 0);
+    aggregate.totalScale4 += Number.isFinite(item.scale4)
+      ? Number(item.scale4)
+      : percentageToScale4(Number(item.percentage || 0));
   }
 
   const standardAverages = Array.from(standardAccumulator.values()).map((item) => {
@@ -2574,7 +2681,10 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
       standardName: item.standardName,
       totalAssessments: item.totalAssessments,
       averagePercentage: averagePct,
-      averageScale4: percentageToScale4(averagePct),
+      averageScale4:
+        item.totalAssessments > 0
+          ? Number((item.totalScale4 / item.totalAssessments).toFixed(2))
+          : 0,
     };
   });
 
@@ -3936,8 +4046,7 @@ export const updateManualScore = asyncHandler(async (req, res) => {
       entry.isManualEntry = false;
       entry.manualEnteredBy = null;
       entry.manualEnteredAt = null;
-      const mapped = percentageToScaleLevel(entry.percentage);
-      entry.effectiveScore = mapped.value;
+      entry.effectiveScore = percentageToScale4(entry.percentage);
       await entry.save();
     }
     return res.json({ success: true, data: { entry: entry || null, cleared: true } });
@@ -4061,8 +4170,7 @@ export const updateBulkManualScores = asyncHandler(async (req, res) => {
           entry.isManualEntry = false;
           entry.manualEnteredBy = null;
           entry.manualEnteredAt = null;
-          const mapped = percentageToScaleLevel(entry.percentage);
-          entry.effectiveScore = mapped.value;
+          entry.effectiveScore = percentageToScale4(entry.percentage);
           await entry.save();
           results.cleared += 1;
         }
@@ -4389,7 +4497,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       if (entry.manualScore !== null && entry.manualScore !== undefined) {
         effectiveScore = entry.manualScore;
       } else if (percentage !== null) {
-        effectiveScore = percentageToScaleLevel(percentage).value;
+        effectiveScore = percentageToScale4(percentage);
       }
     }
 
@@ -4466,7 +4574,7 @@ export const getSBGradebookMatrix = asyncHandler(async (req, res) => {
       if (entry.manualScore !== null && entry.manualScore !== undefined) {
         score = entry.manualScore;
       } else if (Number.isFinite(entry.percentage)) {
-        score = percentageToScaleLevel(entry.percentage).value;
+        score = percentageToScale4(entry.percentage);
       }
     }
     if (score === null || score === undefined) continue;

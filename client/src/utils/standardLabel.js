@@ -13,6 +13,12 @@ export const formatStandardLabel = (standardOrCode, name, description) => {
     desc = description ?? name ?? null;
   }
 
+  const normalizedCode = typeof code === 'string' ? code.trim().toLowerCase() : '';
+  const normalizedDesc = typeof desc === 'string' ? desc.trim().toLowerCase() : '';
+  if (normalizedCode && normalizedDesc && normalizedCode === normalizedDesc) {
+    desc = null;
+  }
+
   if (code && desc) {
     return `${code} : ${desc}`;
   }

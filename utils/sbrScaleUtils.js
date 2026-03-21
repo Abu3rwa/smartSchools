@@ -7,7 +7,7 @@ export const SCALE_LEVELS = [
   { value: 4, label: 'Exceeds Standard', labelAr: 'يتجاوز المعيار', minPercent: 90, maxPercent: 100, color: '#1a7a1a', description: 'Student consistently demonstrates advanced proficiency.' },
   { value: 3, label: 'Meets Standard', labelAr: 'يلبّي المعيار', minPercent: 75, maxPercent: 89, color: '#2f855a', description: 'Student demonstrates expected proficiency.' },
   { value: 2, label: 'Approaching Standard', labelAr: 'يقترب من المعيار', minPercent: 60, maxPercent: 74, color: '#b7791f', description: 'Student is developing proficiency.' },
-  { value: 1, label: 'Below Standard', labelAr: 'دون المعيار', minPercent: 1, maxPercent: 59, color: '#c53030', description: 'Student needs additional support.' },
+  { value: 1, label: 'Below Standard', labelAr: 'دون المعيار', minPercent: 0, maxPercent: 59, color: '#c53030', description: 'Student needs additional support.' },
   { value: 0, label: 'Not Demonstrated', labelAr: 'لم يُظهر أي أداء', minPercent: 0, maxPercent: 0, color: '#718096', description: 'Student has not demonstrated any proficiency.' },
 ];
 

@@ -514,7 +514,7 @@ const StandardAssignForm = ({
                                         : t('standardAssign:form.hints.classConfiguredSubjects')}
                                 </small>
                             )}
-                            {selectedClass && isTeacher && classSubjects.length === 0 && (
+                            {selectedClass && isTeacher && classSubjects.length === 0 && subjectOptions.length === 0 && (
                                 <small className="text-danger">
                                     {t('standardAssign:form.hints.noSubjectsMapped')}
                                 </small>

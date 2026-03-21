@@ -32,6 +32,8 @@ const SubRequestDetail = () => {
     cancelling,
     teacherNote,
     setTeacherNote,
+    responseNotesByAssignment,
+    setResponseNoteForAssignment,
     teacherAction,
     handleCancel,
     handleTeacherRespond,
@@ -105,7 +107,18 @@ const SubRequestDetail = () => {
         </DetailSection>
 
         <DetailSection title="Requested Periods">
-          <PeriodsTable periods={item.periods} />
+          <PeriodsTable
+            periods={item.periods}
+            assignments={displayAssignments}
+            isTeacher={isTeacher && !isAbsentTeacher}
+            requestStatus={item.status}
+            note={teacherNote}
+            responseNotesByAssignment={responseNotesByAssignment}
+            onResponseNoteChange={setResponseNoteForAssignment}
+            onRespond={handleTeacherRespond}
+            respondLoading={respondInPortal.loading}
+            activeAction={teacherAction}
+          />
         </DetailSection>
 
         <AssignmentsSection assignments={displayAssignments} isTeacher={isTeacher} />

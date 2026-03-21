@@ -8,15 +8,35 @@ export const buildInitialGrades = (students = []) => {
 
 export const getAvailableClasses = ({ isTeacher, myClasses = [], classes = [] }) => {
     if (isTeacher && myClasses.length > 0) {
-        return myClasses.map((item) => item.class).filter(Boolean);
+        const classMap = new Map();
+        myClasses.forEach((item) => {
+            if (item.class?._id) {
+                classMap.set(item.class._id.toString(), item.class);
+            } else if (item.class && typeof item.class === 'string') {
+                // Handle case where it might just be an ID (though unlikely with current population)
+                const fullClass = classes.find(c => c._id === item.class);
+                if (fullClass) classMap.set(fullClass._id.toString(), fullClass);
+            }
+        });
+        return Array.from(classMap.values());
     }
 
     return classes;
 };
 
-export const getAvailableSubjects = ({ selectedClass, classes = [], subjects = [] }) => {
+export const getAvailableSubjects = ({ selectedClass, classes = [], subjects = [], isTeacher, myClasses = [] }) => {
     if (!selectedClass) {
         return subjects;
+    }
+
+    if (isTeacher && myClasses.length > 0) {
+        return myClasses
+            .filter((item) => {
+                const classId = item.class?._id || item.class;
+                return classId?.toString() === selectedClass.toString();
+            })
+            .map((item) => item.subject)
+            .filter(Boolean);
     }
 
     const selectedClassData = classes.find((item) => item._id === selectedClass);

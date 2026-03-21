@@ -28,14 +28,14 @@ const StudentScheduleCard = ({ schedule }) => {
 
                                 return (
                                     <tr key={index}>
-                                        <td className="schedule-period">{item.period?.name || `Period ${index + 1}`}</td>
-                                        <td className="schedule-subject">{item.subject?.name || '—'}</td>
-                                        <td className="schedule-teacher">
+                                        <td className="schedule-period" data-label="Period">{item.period?.name || `Period ${index + 1}`}</td>
+                                        <td className="schedule-subject" data-label="Subject">{item.subject?.name || '—'}</td>
+                                        <td className="schedule-teacher" data-label="Teacher">
                                             {item.teacher
                                                 ? `${item.teacher.firstName || ''} ${item.teacher.lastName || ''}`.trim() || '—'
                                                 : '—'}
                                         </td>
-                                        <td className="schedule-time">{timeText}</td>
+                                        <td className="schedule-time" data-label="Time">{timeText}</td>
                                     </tr>
                                 );
                             })}

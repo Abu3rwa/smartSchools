@@ -87,8 +87,8 @@ const GradeEntryPage = () => {
     }, [classes, isTeacher, myClasses]);
 
     const availableSubjects = useMemo(() => {
-        return getAvailableSubjects({ selectedClass, classes, subjects });
-    }, [classes, selectedClass, subjects]);
+        return getAvailableSubjects({ selectedClass, classes, subjects, isTeacher, myClasses });
+    }, [classes, selectedClass, subjects, isTeacher, myClasses]);
 
     const enteredCount = useMemo(() => {
         return countEnteredGrades(grades);

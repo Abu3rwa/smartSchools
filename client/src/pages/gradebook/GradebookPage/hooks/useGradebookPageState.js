@@ -12,7 +12,6 @@ const useGradebookPageState = (students = []) => {
     const [loading, setLoading] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
-    const [showAcademicInsights, setShowAcademicInsights] = useState(true);
 
     const [showAIModal, setShowAIModal] = useState(false);
     const [selectedStudentForAI, setSelectedStudentForAI] = useState(null);
@@ -55,8 +54,6 @@ const useGradebookPageState = (students = []) => {
         setShowAddModal,
         selectedCategoryFilter,
         setSelectedCategoryFilter,
-        showAcademicInsights,
-        setShowAcademicInsights,
         showAIModal,
         setShowAIModal,
         selectedStudentForAI,

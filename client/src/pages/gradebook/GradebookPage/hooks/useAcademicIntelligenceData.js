@@ -39,15 +39,10 @@ const buildMonthDateRange = ({ academicYear, selectedMonth }) => {
 };
 
 const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academicYear, categoryFilter = 'All' }) => {
-    const [classInsights, setClassInsights] = useState(null);
-    const [classInsightsLoading, setClassInsightsLoading] = useState(false);
-    const [classInsightsError, setClassInsightsError] = useState('');
     const [studentTrace, setStudentTrace] = useState([]);
     const [studentTraceLoading, setStudentTraceLoading] = useState(false);
     const [studentTraceError, setStudentTraceError] = useState('');
-    const classInsightsRequestIdRef = useRef(0);
     const studentTraceRequestIdRef = useRef(0);
-    const classInsightsAbortControllerRef = useRef(null);
     const studentTraceAbortControllerRef = useRef(null);
 
     const dateRange = useMemo(
@@ -59,75 +54,12 @@ const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academ
         return value && value !== 'All' ? value : null;
     }, [categoryFilter]);
 
-    const abortClassInsightsRequest = useCallback(() => {
-        if (classInsightsAbortControllerRef.current) {
-            classInsightsAbortControllerRef.current.abort();
-            classInsightsAbortControllerRef.current = null;
-        }
-    }, []);
-
     const abortStudentTraceRequest = useCallback(() => {
         if (studentTraceAbortControllerRef.current) {
             studentTraceAbortControllerRef.current.abort();
             studentTraceAbortControllerRef.current = null;
         }
     }, []);
-
-    const fetchClassInsights = useCallback(async () => {
-        if (!classId || !subjectId) {
-            abortClassInsightsRequest();
-            setClassInsights(null);
-            setClassInsightsLoading(false);
-            setClassInsightsError('');
-            return;
-        }
-
-        abortClassInsightsRequest();
-        const requestId = classInsightsRequestIdRef.current + 1;
-        classInsightsRequestIdRef.current = requestId;
-        const controller = new AbortController();
-        classInsightsAbortControllerRef.current = controller;
-
-        setClassInsightsLoading(true);
-        setClassInsightsError('');
-        try {
-            const response = await api.get(`/classes/${classId}/objective-performance`, {
-                params: {
-                    subjectId,
-                    ...(normalizedCategoryFilter ? { category: normalizedCategoryFilter } : {}),
-                    ...dateRange
-                },
-                timeout: ACADEMIC_INTELLIGENCE_TIMEOUT_MS,
-                signal: controller.signal
-            });
-            if (classInsightsRequestIdRef.current === requestId) {
-                setClassInsights(response.data?.data || null);
-            }
-        } catch (error) {
-            const isCanceled = error?.code === 'ERR_CANCELED';
-            if (isCanceled) {
-                return;
-            }
-
-            if (classInsightsRequestIdRef.current === requestId) {
-                setClassInsights(null);
-                setClassInsightsError(
-                    error?.code === 'ECONNABORTED'
-                        ? 'Loading objective performance timed out. Please retry.'
-                        : (error.response?.data?.message || 'Failed to load objective performance.')
-                );
-            }
-        } finally {
-            if (classInsightsRequestIdRef.current === requestId) {
-                setClassInsightsLoading(false);
-                classInsightsAbortControllerRef.current = null;
-            }
-        }
-    }, [abortClassInsightsRequest, classId, dateRange, normalizedCategoryFilter, subjectId]);
-
-    useEffect(() => {
-        fetchClassInsights();
-    }, [fetchClassInsights]);
 
     const fetchStudentTrace = useCallback(async (studentId) => {
         if (!studentId) {
@@ -190,16 +122,11 @@ const useAcademicIntelligenceData = ({ classId, subjectId, selectedMonth, academ
 
     useEffect(() => {
         return () => {
-            abortClassInsightsRequest();
             abortStudentTraceRequest();
         };
-    }, [abortClassInsightsRequest, abortStudentTraceRequest]);
+    }, [abortStudentTraceRequest]);
 
     return {
-        classInsights,
-        classInsightsLoading,
-        classInsightsError,
-        refreshClassInsights: fetchClassInsights,
         studentTrace,
         studentTraceLoading,
         studentTraceError,

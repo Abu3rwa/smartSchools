@@ -80,7 +80,8 @@ export const getAssignments = asyncHandler(async (req, res) => {
     const schoolScopedClassIds = await getClassIdsForAcademicYear({
         schoolId: req.schoolId,
         academicYear: effectiveAcademicYear,
-        candidateClassIds: classId ? [classId] : null
+        candidateClassIds: classId ? [classId] : null,
+        departmentId: req.departmentId
     });
 
     if (schoolScopedClassIds.length === 0) {
@@ -98,12 +99,16 @@ export const getAssignments = asyncHandler(async (req, res) => {
         });
     }
 
-    // Teacher scoping: see own assignments + admin-assigned ones for their classes
+    // Teacher scoping: see own assignments
     if (req.user.role === 'teacher') {
         const teacher = await resolveTeacherProfile(req);
         if (!teacher) {
             return res.status(403).json({ success: false, message: 'Teacher profile not found' });
         }
+        
+        // Fix: Restrict to THEIR assignments
+        query.teacher = teacher._id;
+
         const teacherClassIds = await getTeacherClassIds(teacher._id);
         const teacherClassIdSet = new Set(teacherClassIds.map((id) => id.toString()));
         const allowedClassIds = schoolScopedClassIds.filter((id) => teacherClassIdSet.has(id));

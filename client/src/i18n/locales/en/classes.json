@@ -53,7 +53,10 @@
   },
   "confirm": {
     "toggleActive": "Are you sure you want to {{action}} {{className}}?",
-    "delete": "Delete {{className}}? This will deactivate the class and hide it from active workflows."
+    "delete": "Delete {{className}}? This will deactivate the class and hide it from active workflows.",
+    "deleteModePrompt": "Choose delete option for {{className}}:\n1 = Delete class only (keep students and historical data)\n2 = Delete class with students detached and related class data removed\n\nType 1 or 2.",
+    "deleteClassOnly": "Delete {{className}} only? Students and historical data will be kept.",
+    "deleteWithData": "Delete {{className}} with related class data and detach enrolled students? This cannot be undone."
   },
   "toast": {
     "created": "Class created successfully!",
@@ -61,6 +64,9 @@
     "toggled": "Class {{state}} successfully",
     "toggleFailed": "Failed to update class status",
     "deleted": "Class deleted successfully",
+    "deletedClassOnly": "Class deleted (class only)",
+    "deletedWithData": "Class deleted with related data cleanup",
+    "deleteChoiceInvalid": "Invalid choice. Please type 1 or 2.",
     "deleteFailed": "Failed to delete class",
     "selectCsv": "Please select a CSV file",
     "noValidRows": "No valid rows found in CSV",

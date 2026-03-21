@@ -48,7 +48,7 @@
       "inProgress": "In progress:",
       "notStarted": "Not started:",
       "avgPercentage": "Avg %:",
-      "avgScale": "Avg 0-4:"
+      "avgScale": "Avg 1-4:"
     },
     "table": {
       "student": "Student",
@@ -64,7 +64,7 @@
       "attempts": "Attempts",
       "graded": "Graded",
       "averagePercentage": "Avg %",
-      "averageScale": "Avg 0-4"
+      "averageScale": "Avg 1-4"
     },
     "noRepeatedData": "No repeated attempts data available.",
     "releaseDisabledImmediate": "Results are already visible immediately.",

@@ -339,11 +339,33 @@ export const getStudents = asyncHandler(async (req, res) => {
         ];
     }
 
-    if (classId) query.currentClass = classId;
-    if (status) query.status = status;
-    if (effectiveAcademicYear) query.academicYear = effectiveAcademicYear;
+    if (classId) {
+        query.currentClass = classId;
 
-    applyDepartmentScope(query, req.departmentId);
+        // Verify class access for department principals
+        if (req.departmentId && req.user.role === 'department_principal') {
+            const targetClass = await Class.findById(classId).select('department');
+            if (targetClass) {
+                const classDeptId = targetClass.department?._id || targetClass.department;
+                if (!classDeptId || classDeptId.toString() !== req.departmentId.toString()) {
+                    return res.status(403).json({ success: false, message: 'Not authorized for this class department' });
+                }
+            }
+        }
+    } else if (effectiveAcademicYear) {
+        query.academicYear = effectiveAcademicYear;
+    }
+
+    if (status) query.status = status;
+
+    // Only apply department scope to the student query if NOT filtering by a specific class.
+    // This ensures that if a student is correctly enrolled in a class, they are visible 
+    // even if their individual 'department' field is missing or out of sync, as long as
+    // the user has access to that class.
+    if (!classId) {
+        applyDepartmentScope(query, req.departmentId);
+    }
+    
     if (req.queryFilter?.departmentId) query.department = req.queryFilter.departmentId;
 
     // Access Control: Teachers see only students in their assigned classes

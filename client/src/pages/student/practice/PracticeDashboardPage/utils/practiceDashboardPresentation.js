@@ -15,7 +15,7 @@ export const getStatusBadge = (assignment) => {
     return { label: "Completed", className: "status-mastered-gold" };
   }
   if (assignment.mastery?.isMastered && !assignment.mastery?.needsReview) {
-    return { label: "Mastered (Gold)", className: "status-mastered-gold" };
+    return { label: "Completed", className: "status-mastered-gold" };
   }
   if (
     assignment.mastery?.masteryStatus === "needs_review" ||
@@ -24,9 +24,9 @@ export const getStatusBadge = (assignment) => {
     return { label: "Needs Review", className: "status-needs-review" };
   }
   if (assignment.mastery?.totalAttempts > 0) {
-    return { label: "In Progress", className: "status-in-progress" };
+    return { label: "Keep Going", className: "status-in-progress" };
   }
-  return { label: "Not Started", className: "status-not-started" };
+  return { label: "Ready to Start", className: "status-not-started" };
 };
 
 export const buildPracticeBuckets = (assignments) => {

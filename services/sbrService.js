@@ -44,7 +44,7 @@ const DEFAULT_SBR_LEVELS = [
         label: 'Below Standard',
         labelAr: 'دون المعيار',
         description: 'Student needs additional support.',
-        minPercent: 1,
+        minPercent: 0,
         maxPercent: 59,
         color: '#c53030'
     },
@@ -151,21 +151,9 @@ const mapRawPercentageToLevel = (rawPercentage, scale) => {
         return { score: null, isNA: true };
     }
 
-    const levels = scale?.levels?.length > 0 ? scale.levels : DEFAULT_SBR_LEVELS;
-    const sortedLevels = [...levels].sort((a, b) => Number(b.value) - Number(a.value));
-    if (sortedLevels.length === 0) {
-        return { score: null, isNA: true };
-    }
-
-    const matching = sortedLevels.find((level) => {
-        const minPercent = Number(level.minPercent);
-        const maxPercent = Number(level.maxPercent);
-        return rawPercentage >= minPercent && rawPercentage <= maxPercent;
-    });
-
-    const fallback = sortedLevels[sortedLevels.length - 1];
+    const clamped = Math.max(0, Math.min(100, Number(rawPercentage)));
     return {
-        score: Number((matching || fallback).value),
+        score: Number(((clamped / 100) * 4).toFixed(2)),
         isNA: false
     };
 };
@@ -473,7 +461,7 @@ export const aggregateStudentSBRScores = async ({
         let mapped;
         if (directEffective.length > 0) {
             const avgEffective = mean(directEffective);
-            const score = avgEffective !== null ? Math.round(avgEffective) : null;
+            const score = avgEffective !== null ? round2(avgEffective) : null;
             mapped = score !== null
                 ? { score, isNA: false }
                 : { score: null, isNA: true };

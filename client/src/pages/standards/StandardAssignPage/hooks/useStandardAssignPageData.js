@@ -119,25 +119,33 @@ const useStandardAssignPageData = () => {
         });
     }, [assignments, filters]);
 
+
     const isAdmin = user?.role === 'admin';
     const isTeacher = user?.role === 'teacher';
     const isDepartmentPrincipal = user?.role === 'department_principal';
+    const hasAllSubjectAccess =
+        isAdmin ||
+        isDepartmentPrincipal ||
+        (Array.isArray(user?.permissions) && user.permissions.includes('assign_any_class_subject'));
+
+    // Define canApproveQuestionPool: allow admins, department principals, or users with explicit permission
     const canApproveQuestionPool =
         isAdmin ||
         isDepartmentPrincipal ||
-        (Array.isArray(user?.permissions) && user.permissions.includes('review_standards_questions'));
+        (Array.isArray(user?.permissions) && user.permissions.includes('approve_question_pool'));
 
     const selectedClass = classes.find((schoolClass) => schoolClass._id === formData.classId);
-    const classSubjects = getScopedClassSubjects(selectedClass, isTeacher, user?._id);
+    // Only allow teachers to see their own class+subjects unless they have higher privileges
+    const classSubjects = getScopedClassSubjects(selectedClass, !hasAllSubjectAccess && isTeacher, user?._id || user?.id);
     const subjectOptions = selectedClass
         ? classSubjects.length > 0
             ? classSubjects
-            : isTeacher
-              ? []
-              : subjects
-        : isTeacher
-          ? []
-          : subjects;
+            : hasAllSubjectAccess
+                ? subjects
+                : []
+        : hasAllSubjectAccess
+            ? subjects
+            : [];
 
     const availableStandards = standards.filter((standard) => {
         if (selectedClass?.grade && Number(standard.gradeLevel) !== Number(selectedClass.grade)) {
@@ -185,7 +193,7 @@ const useStandardAssignPageData = () => {
             return;
         }
         try {
-            const response = await api.get('/students', { params: { classId, academicYear } });
+            const response = await api.get('/students', { params: { classId, academicYear, status: 'active' } });
             setStudents(response.data.data?.students || []);
         } catch (error) {
             console.error('Failed to load students', error);
@@ -212,7 +220,8 @@ const useStandardAssignPageData = () => {
     const handleClassChange = (classId) => {
         const schoolClass = classes.find((item) => item._id === classId);
         const scopedSubjects = getScopedClassSubjects(schoolClass, isTeacher, user?._id);
-        const autoSubjectId = scopedSubjects.length === 1 ? getEntityId(scopedSubjects[0]) : '';
+        const fallbackSubjects = scopedSubjects.length > 0 ? scopedSubjects : subjects;
+        const autoSubjectId = fallbackSubjects.length === 1 ? getEntityId(fallbackSubjects[0]) : '';
 
         setFormData({
             ...formData,

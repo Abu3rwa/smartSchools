@@ -148,11 +148,14 @@ const Sidebar = () => {
       icon: HiOutlineHome,
       labelKey: "dashboard",
       section: "overview",
+      
     },
     {
       path: "/portal/notifications",
       icon: HiOutlineBell,
       labelKey: "notifications",
+            roles: ["admin", "teacher", "department_principal", "staff"],
+
       section: "overview",
     },
     {

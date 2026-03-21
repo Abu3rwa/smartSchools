@@ -253,38 +253,7 @@ const StudentAcademicExcellencePage = () => {
         </article>
       </section>
 
-      <section className="academic-excellence-panel">
-        <h2>Week Objectives</h2>
-        {objectivesLoading ? (
-          <div className="academic-excellence-loading">Loading week objectives...</div>
-        ) : objectives.length === 0 ? (
-          <div className="academic-excellence-empty">No objectives available yet.</div>
-        ) : (
-          <div className="academic-excellence-list">
-            {objectives
-              .slice((objectivesPage - 1) * PAGE_SIZE, objectivesPage * PAGE_SIZE)
-              .map((objective) => (
-              <article key={objective._id} className="academic-excellence-list-item">
-                <div className="academic-excellence-list-item-header">
-                  <strong>{formatObjectiveLabel(objective)}</strong>
-                  <span className={`academic-excellence-badge ${objective.masteryLevel || "not_started"}`}>
-                    {labelFromMastery(objective.masteryLevel || "not_started")}
-                  </span>
-                </div>
-                <div>Score: {objective.masteryScore || 0}%</div>
-              </article>
-            ))}
-          </div>
-        )}
-        {objectives.length > 0 && (
-          <PaginationBar
-            page={objectivesPage}
-            total={objectives.length}
-            pageSize={PAGE_SIZE}
-            onPage={setObjectivesPage}
-          />
-        )}
-      </section>
+      
 
       <section className="academic-excellence-panel">
         <h2>My Tasks</h2>
@@ -344,15 +313,7 @@ const StudentAcademicExcellencePage = () => {
         )}
       </section>
 
-      <section className="academic-excellence-grid">
-        {masteryOrder.map((level) => (
-          <article key={level} className="academic-excellence-card">
-            <h3>{labelFromMastery(level)}</h3>
-            <strong>{masteryCounts[level]}</strong>
-          </article>
-        ))}
-      </section>
-    </div>
+       </div>
   );
 };
 

@@ -24,7 +24,22 @@ const useSubRequestDetail = () => {
   const [cancelNote, setCancelNote] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [teacherNote, setTeacherNote] = useState('');
+  const [responseNotesByAssignment, setResponseNotesByAssignment] = useState({});
   const [teacherAction, setTeacherAction] = useState(null);
+
+  const extractId = useCallback((value) => {
+    if (!value) return null;
+    if (typeof value === 'string' || typeof value === 'number') return value.toString();
+    if (typeof value === 'object') {
+      if (value._id) return value._id.toString();
+      if (value.id) return value.id.toString();
+      if (value.user?._id) return value.user._id.toString();
+      if (value.user?.id) return value.user.id.toString();
+    }
+    return null;
+  }, []);
+
+  const currentUserId = extractId(user);
 
   useEffect(() => {
     if (id) dispatch(fetchSubRequestByIdThunk(id));
@@ -52,11 +67,11 @@ const useSubRequestDetail = () => {
     if (!isTeacher) return item?.assignments;
     return item?.assignments
       ? item.assignments.filter((assignment) => {
-          const subId = assignment.substituteTeacherId?._id || assignment.substituteTeacherId;
-          return subId?.toString() === user?._id?.toString();
+          const subId = extractId(assignment.substituteTeacherId);
+          return !!subId && !!currentUserId && subId === currentUserId;
         })
-      : item?.assignments;
-  }, [isTeacher, item?.assignments, user?._id]);
+      : [];
+  }, [currentUserId, extractId, isTeacher, item?.assignments]);
 
   const assignmentCounts = useMemo(() => {
     return (displayAssignments || []).reduce(
@@ -76,16 +91,27 @@ const useSubRequestDetail = () => {
   const hasDeclinedForTeacher = isTeacher && (displayAssignments || []).some((assignment) => assignment?.status === 'DECLINED');
 
   const isAbsentTeacher = isTeacher &&
-    (item?.absentTeacherId?._id?.toString() === user?._id?.toString() ||
-      item?.absentTeacherId?.toString() === user?._id?.toString());
+    (() => {
+      const absentId = extractId(item?.absentTeacherId);
+      return !!absentId && !!currentUserId && absentId === currentUserId;
+    })();
 
   const canCancel = item?.status === 'SUBMITTED' && (user?.role === 'admin' || user?.role === 'department_principal');
 
-  const handleTeacherRespond = useCallback((action, assignmentId) => {
+  const setResponseNoteForAssignment = useCallback((assignmentId, value) => {
+    if (!assignmentId) return;
+    setResponseNotesByAssignment((prev) => ({
+      ...prev,
+      [assignmentId]: value
+    }));
+  }, []);
+
+  const handleTeacherRespond = useCallback((action, assignmentId, inlineNote) => {
     if (!id) return;
     const targetAssignment = assignmentId
       ? (displayAssignments || []).find((assignment) => assignment?._id?.toString() === assignmentId?.toString())
       : null;
+    const noteValue = (inlineNote ?? teacherNote).trim();
 
     if (action === 'CONFIRM') {
       if (targetAssignment && (targetAssignment?.status || 'PENDING') !== 'PENDING') return;
@@ -102,13 +128,17 @@ const useSubRequestDetail = () => {
       if (!targetAssignment && !hasConfirmedForTeacher) return;
     }
 
-    if ((action === 'DECLINE' || action === 'WITHDRAW') && !teacherNote.trim()) return;
+    if ((action === 'DECLINE' || action === 'WITHDRAW') && !noteValue) {
+        toast.error('Please provide a reason (note) for this action.');
+        return;
+    }
+
     setTeacherAction(action);
     dispatch(
       respondToSubRequestAuthThunk({
         id,
         action,
-        note: teacherNote.trim() || undefined,
+        note: noteValue || undefined,
         assignmentId: targetAssignment?._id || assignmentId || undefined
       })
     )
@@ -120,6 +150,13 @@ const useSubRequestDetail = () => {
           toast.success('Substitution declined');
         } else {
           toast.success('Assignment withdrawn');
+        }
+        setTeacherNote('');
+        if (assignmentId) {
+          setResponseNotesByAssignment((prev) => ({
+            ...prev,
+            [assignmentId]: ''
+          }));
         }
         dispatch(fetchSubPendingCountThunk());
       })
@@ -145,6 +182,8 @@ const useSubRequestDetail = () => {
     cancelling,
     teacherNote,
     setTeacherNote,
+    responseNotesByAssignment,
+    setResponseNoteForAssignment,
     teacherAction,
     handleCancel,
     handleTeacherRespond,

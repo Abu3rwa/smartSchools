@@ -4,21 +4,33 @@ import { formatStandardLabel } from '../../../../utils/standardLabel';
 const translate = (t, key, defaultValue, options = {}) =>
     typeof t === 'function' ? t(key, { defaultValue, ...options }) : defaultValue;
 
-export const getEntityId = (entity) => (entity?._id || entity || '').toString();
+export const getEntityId = (entity) => (entity?._id || entity?.id || entity || '').toString();
 
 export const getTeacherUserId = (subjectEntry) =>
     (
         subjectEntry?.teacher?.user?._id ||
+        subjectEntry?.teacher?.user?.id ||
         subjectEntry?.teacher?.user ||
+        subjectEntry?.teacher?._id ||
+        subjectEntry?.teacher?.id ||
         subjectEntry?.teacher ||
         ''
     ).toString();
 
 export const getScopedClassSubjects = (schoolClass, isTeacher, userId) => {
     const classSubjectsRaw = Array.isArray(schoolClass?.subjects) ? schoolClass.subjects : [];
+    
+    // Determine if the current user is the class teacher
+    const classTeacherId = getEntityId(schoolClass?.classTeacher?.user || schoolClass?.classTeacher);
+    const isClassTeacher = classTeacherId && classTeacherId === getEntityId(userId);
+
     const scopedEntries = classSubjectsRaw.filter((entry) => {
         if (!entry?.subject) return false;
-        if (!isTeacher) return true;
+        
+        // Admins and Class Teachers can see all subjects in the class
+        if (!isTeacher || isClassTeacher) return true;
+        
+        // Subject teachers see only their assigned subjects
         return getTeacherUserId(entry) === getEntityId(userId);
     });
 

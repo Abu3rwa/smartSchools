@@ -1,12 +1,4 @@
-import { Box, Button, Stack, TextField, Typography } from '@mui/material';
-
-const getPeriodLabel = (assignment) => {
-  const period = assignment?.periodId;
-  if (!period) return 'Assigned period';
-  const name = period?.name || 'Assigned period';
-  const hasTime = period?.startTime && period?.endTime;
-  return hasTime ? `${name} (${period.startTime}-${period.endTime})` : name;
-};
+import { Box, TextField, Typography } from '@mui/material';
 
 const TeacherResponsePanel = ({
   isTeacher,
@@ -15,15 +7,16 @@ const TeacherResponsePanel = ({
   hasConfirmed,
   hasDeclined,
   status,
-  coverageType,
-  assignments,
   note,
   onNoteChange,
-  onRespond,
-  respondLoading,
-  activeAction
+  respondLoading
 }) => {
   if (!isTeacher) return null;
+
+  const canRespondByPeriod =
+    !isAbsentTeacher &&
+    status === 'SUBMITTED' &&
+    (hasPending || hasConfirmed);
 
   return (
     <Box
@@ -57,167 +50,34 @@ const TeacherResponsePanel = ({
         </Typography>
       )}
 
-      {hasPending && status === 'SUBMITTED' && (
+      {canRespondByPeriod && (
         <>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Confirm if you can cover these periods, or decline with a short note.
+            Respond to each period using the buttons in the Requested Periods table above.
+            A note is required for Decline and Withdraw.
           </Typography>
           <TextField
             fullWidth
             multiline
             minRows={2}
             maxRows={4}
-            label="Your note (required to decline)"
+            label="Your note"
             placeholder="Add any context for the principal..."
             value={note}
             onChange={onNoteChange}
             disabled={respondLoading}
-            sx={{ mb: 2 }}
+            sx={{ mb: 1 }}
           />
-          {coverageType === 'PER_PERIOD' ? (
-            <Stack spacing={1.25}>
-              {(assignments || []).map((assignment) => {
-                const assignmentStatus = assignment?.status || 'PENDING';
-                const assignmentId = assignment?._id;
-                const isPending = assignmentStatus === 'PENDING';
-                const isConfirmed = assignmentStatus === 'CONFIRMED';
-
-                return (
-                  <Box
-                    key={assignmentId}
-                    sx={{
-                      p: 1.25,
-                      border: (theme) => `1px solid ${theme.palette.divider}`,
-                      borderRadius: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 1,
-                      flexWrap: 'wrap'
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {getPeriodLabel(assignment)}
-                    </Typography>
-                    <Stack direction="row" spacing={1}>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        onClick={() => onRespond('DECLINE', assignmentId)}
-                        disabled={respondLoading || !note.trim() || !isPending}
-                      >
-                        {respondLoading && activeAction === 'DECLINE' ? 'Submitting...' : 'Decline'}
-                      </Button>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        onClick={() => onRespond('CONFIRM', assignmentId)}
-                        disabled={respondLoading || !isPending}
-                      >
-                        {respondLoading && activeAction === 'CONFIRM' ? 'Submitting...' : 'Confirm'}
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="warning"
-                        size="small"
-                        onClick={() => onRespond('WITHDRAW', assignmentId)}
-                        disabled={respondLoading || !note.trim() || !isConfirmed}
-                      >
-                        {respondLoading && activeAction === 'WITHDRAW' ? 'Withdrawing...' : 'Withdraw'}
-                      </Button>
-                    </Stack>
-                  </Box>
-                );
-              })}
-            </Stack>
-          ) : (
-            <Stack direction="row" spacing={1.5} flexWrap="wrap" justifyContent="flex-end">
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => onRespond('DECLINE')}
-                disabled={respondLoading || !note.trim()}
-              >
-                {respondLoading && activeAction === 'DECLINE' ? 'Submitting...' : 'Decline'}
-              </Button>
-              <Button
-                variant="contained"
-                color="success"
-                onClick={() => onRespond('CONFIRM')}
-                disabled={respondLoading}
-              >
-                {respondLoading && activeAction === 'CONFIRM' ? 'Submitting...' : 'Confirm'}
-              </Button>
-            </Stack>
-          )}
+          <Typography variant="caption" color="text.secondary">
+            Tip: keep this note short and specific. It will be sent with your response when required.
+          </Typography>
         </>
       )}
 
       {hasConfirmed && !hasPending && (
-        <>
-          <Typography variant="body2" color="success.main" sx={{ mb: 1.5, fontWeight: 500 }}>
-            ✓ You have confirmed this substitution.
-          </Typography>
-          <TextField
-            fullWidth
-            multiline
-            minRows={2}
-            maxRows={4}
-            label="Reason for withdrawal (required)"
-            placeholder="Briefly explain why you need to withdraw..."
-            value={note}
-            onChange={onNoteChange}
-            disabled={respondLoading}
-            sx={{ mb: 2 }}
-          />
-          {coverageType === 'PER_PERIOD' ? (
-            <Stack spacing={1.25}>
-              {(assignments || [])
-                .filter((assignment) => assignment?.status === 'CONFIRMED')
-                .map((assignment) => (
-                  <Box
-                    key={assignment?._id}
-                    sx={{
-                      p: 1.25,
-                      border: (theme) => `1px solid ${theme.palette.divider}`,
-                      borderRadius: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 1,
-                      flexWrap: 'wrap'
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {getPeriodLabel(assignment)}
-                    </Typography>
-                    <Button
-                      variant="outlined"
-                      color="warning"
-                      size="small"
-                      onClick={() => onRespond('WITHDRAW', assignment?._id)}
-                      disabled={respondLoading || !note.trim()}
-                    >
-                      {respondLoading && activeAction === 'WITHDRAW' ? 'Withdrawing...' : 'Withdraw'}
-                    </Button>
-                  </Box>
-                ))}
-            </Stack>
-          ) : (
-            <Stack direction="row" justifyContent="flex-end">
-              <Button
-                variant="outlined"
-                color="warning"
-                onClick={() => onRespond('WITHDRAW')}
-                disabled={respondLoading || !note.trim()}
-              >
-                {respondLoading && activeAction === 'WITHDRAW' ? 'Withdrawing...' : 'Withdraw confirmation'}
-              </Button>
-            </Stack>
-          )}
-        </>
+        <Typography variant="body2" color="success.main" sx={{ mt: 1, fontWeight: 500 }}>
+          You have confirmed substitution assignments. Use Requested Periods to withdraw any specific period.
+        </Typography>
       )}
 
       {hasPending && status !== 'SUBMITTED' && (
