@@ -36,7 +36,7 @@
     "quality:maintainability:curriculum": "npm run lint:maintainability:curriculum && npm run dup:maintainability:curriculum && npm run coverage:maintainability:curriculum:check",
     "quality:maintainability:all": "npm run quality:maintainability && npm run quality:maintainability:messaging && npm run quality:maintainability:curriculum",
     "deploy": "git add . ; git commit -m \"Deployment\" ; git push origin main",
-    "render-build": "npm run build"
+    "render-build": "npm install && cd client && npm install && npm run build"
   },
   "keywords": [
     "mern",

@@ -5,14 +5,26 @@ const PROD_FALLBACK_API_URL = 'https://schoolworkso.onrender.com/api';
 const isLocalLikeUrl = (value = '') => /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(String(value));
 
 const resolveApiUrl = () => {
+    const envApiUrl = import.meta.env.VITE_API_URL;
+    
     if (import.meta.env.PROD) {
-        const configuredApiUrl = import.meta.env.VITE_API_URL;
-        if (configuredApiUrl && !isLocalLikeUrl(configuredApiUrl)) {
-            return configuredApiUrl;
+        if (envApiUrl && !isLocalLikeUrl(envApiUrl)) {
+            // Ensure absolute URLs have /api if they don't already
+            if (envApiUrl.startsWith('http') && !envApiUrl.endsWith('/api') && !envApiUrl.includes('/api/')) {
+                return `${envApiUrl.replace(/\/+$/, '')}/api`;
+            }
+            return envApiUrl;
         }
         return PROD_FALLBACK_API_URL;
     }
-    return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+    if (envApiUrl) return envApiUrl;
+    
+    // Default to /api for same-origin or localhost:5000/api
+    if (typeof window !== 'undefined' && isLocalLikeUrl(window.location.hostname)) {
+        return 'http://localhost:5000/api';
+    }
+    return '/api';
 };
 
 const API_URL = resolveApiUrl();
