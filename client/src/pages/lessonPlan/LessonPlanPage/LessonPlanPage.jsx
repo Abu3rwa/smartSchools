@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { HiOutlinePlus } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { format } from 'date-fns';
 import {
   createLesson,
   updateLesson,
@@ -24,6 +25,7 @@ import { getInitialFormData, lessonToFormData } from './constants.js';
 import useLessonPlanPermissions from './hooks/useLessonPlanPermissions.js';
 import useLessonPlanFilters from './hooks/useLessonPlanFilters.js';
 import useLessonPlanData from './hooks/useLessonPlanData.js';
+import useLessonPlanPersistence from './hooks/useLessonPlanPersistence.js';
 import LessonPlanToolbar from './components/LessonPlanToolbar.jsx';
 import LessonPlanTable from './components/LessonPlanTable.jsx';
 import AdminNoteModal from './components/AdminNoteModal.jsx';
@@ -91,17 +93,58 @@ const LessonPlanPage = () => {
     finalStatus: 'approved',
   });
 
+  const { getAvailableDraft, clear: clearDraft } = useLessonPlanPersistence(editingId, formData);
+
+  const checkAndPromptDraft = (lesson = null) => {
+    const draft = getAvailableDraft(lesson?.updatedAt);
+    if (draft) {
+      const timeStr = format(draft.timestamp, 'MMM d, HH:mm');
+      toast((t_toast) => (
+        <div className="draft-prompt">
+          <p style={{ margin: '0 0 8px 0', fontSize: '14px' }}>
+            {t('lessonPlan:toasts.draftAvailable', { time: timeStr })}
+          </p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              className="btn btn-sm btn-primary"
+              onClick={() => {
+                setFormData(prev => ({ ...prev, ...draft.data }));
+                toast.success(t('lessonPlan:toasts.draftRestored'));
+                toast.dismiss(t_toast.id);
+              }}
+            >
+              Restore
+            </button>
+            <button 
+              className="btn btn-sm btn-secondary"
+              onClick={() => {
+                clearDraft();
+                toast.dismiss(t_toast.id);
+              }}
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      ), { duration: 6000, position: 'top-center' });
+    }
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setFormData(getInitialFormData());
     setGeneratedStandards([]);
     setShowModal(true);
+    // Use setTimeout to allow state update to settle before checking draft
+    setTimeout(() => checkAndPromptDraft(), 100);
   };
 
   const openEdit = (lesson) => {
     setEditingId(lesson._id);
     setFormData(lessonToFormData(lesson));
     setShowModal(true);
+    // Check if there's a newer local draft than the server version
+    setTimeout(() => checkAndPromptDraft(lesson), 100);
   };
 
   const closeModal = () => {
@@ -127,6 +170,8 @@ const LessonPlanPage = () => {
         title: formDataArg.title.trim(),
         subjectId: formDataArg.subjectId,
         classId: formDataArg.classId,
+        contextText: formDataArg.contextText ?? '',
+        lessonPlanId: editingId ?? null,
         requestedLanguages: normalizedRequestedLanguages,
         primaryLanguage: formDataArg.aiPrimaryLanguage || 'en',
         secondaryLanguage: formDataArg.aiSecondaryLanguage || '',
@@ -171,6 +216,7 @@ const LessonPlanPage = () => {
       const result = await dispatch(updateLesson({ id: editingId, lessonData: payload }));
       if (updateLesson.fulfilled.match(result)) {
         toast.success(t('lessonPlan:toasts.updated'));
+        clearDraft(); // Clear persistence on success
         closeModal();
       } else {
         toast.error(result.payload || t('lessonPlan:toasts.updateFailed'));
@@ -179,6 +225,7 @@ const LessonPlanPage = () => {
       const result = await dispatch(createLesson(payload));
       if (createLesson.fulfilled.match(result)) {
         toast.success(t('lessonPlan:toasts.saved'));
+        clearDraft(); // Clear persistence on success
         closeModal();
       } else {
         toast.error(result.payload || t('lessonPlan:toasts.saveFailed'));

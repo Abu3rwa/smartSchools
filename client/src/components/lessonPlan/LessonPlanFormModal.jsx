@@ -2,6 +2,7 @@
  * Shared create/edit lesson plan modal.
  * Used by both Admin and Teacher lesson plan pages.
  */
+import { HiOutlineDocumentText, HiOutlineCheckCircle, HiOutlineCloudUpload } from 'react-icons/hi';
 import AISuggestButton from './AISuggestButton.jsx';
 import StandardsSuggester from './StandardsSuggester.jsx';
 import { buildLessonPayload } from './lessonPlanConstants.js';
@@ -35,6 +36,30 @@ const LessonPlanFormModal = ({
     e.preventDefault();
     onSubmit(buildLessonPayload(formData));
   };
+
+  const getExtractionStatus = () => {
+    if (formData.materialFile) {
+      return {
+        label: t('lessonPlan:teacherForm.aiContext.statusPending'),
+        icon: <HiOutlineCloudUpload size={16} />,
+        className: 'status-pending'
+      };
+    }
+    if (formData.extractedMaterialText) {
+      return {
+        label: t('lessonPlan:teacherForm.aiContext.statusExtracted'),
+        icon: <HiOutlineCheckCircle size={16} color="#10b981" />,
+        className: 'status-success'
+      };
+    }
+    return {
+      label: t('lessonPlan:teacherForm.aiContext.statusNone'),
+      icon: <HiOutlineDocumentText size={16} color="#94a3b8" />,
+      className: 'status-none'
+    };
+  };
+
+  const extractionStatus = getExtractionStatus();
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -91,6 +116,55 @@ const LessonPlanFormModal = ({
                 </select>
               </div>
             </div>
+            
+            <div className="ai-context-section" style={{ padding: '16px', background: '#f5f7fb', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#1e293b' }}>{t('lessonPlan:teacherForm.aiContext.title')}</h4>
+                  <p style={{ margin: '0', fontSize: '12px', color: '#64748b' }}>{t('lessonPlan:teacherForm.aiContext.description')}</p>
+                </div>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  padding: '4px 10px', 
+                  borderRadius: '20px', 
+                  fontSize: '11px', 
+                  fontWeight: '500',
+                  background: formData.extractedMaterialText ? '#ecfdf5' : '#f1f5f9',
+                  color: formData.extractedMaterialText ? '#059669' : '#64748b',
+                  border: formData.extractedMaterialText ? '1px solid #10b981' : '1px solid #e2e8f0'
+                }}>
+                  {extractionStatus.icon}
+                  {extractionStatus.label}
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label>{t('lessonPlan:teacherForm.aiContext.extraNotes')}</label>
+                <textarea
+                  rows={2}
+                  value={formData.contextText || ''}
+                  onChange={(e) => setFormData({ ...formData, contextText: e.target.value })}
+                  placeholder={t('lessonPlan:teacherForm.aiContext.extraNotesPlaceholder')}
+                />
+              </div>
+              <div className="form-group">
+                <label>{t('lessonPlan:teacherForm.aiContext.uploadPdf')}</label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      setFormData({ ...formData, materialFile: e.target.files[0] });
+                    } else {
+                      setFormData({ ...formData, materialFile: null });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label>{t('lessonPlan:teacherForm.fields.primaryAiLanguage')}</label>
@@ -145,6 +219,8 @@ const LessonPlanFormModal = ({
                 classId={formData.classId}
                 aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, title: s })}
               />
             </div>
@@ -186,6 +262,8 @@ const LessonPlanFormModal = ({
                 aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, summary: s })}
               />
             </div>
@@ -207,6 +285,8 @@ const LessonPlanFormModal = ({
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 summary={formData.summary}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, description: s })}
               />
             </div>
@@ -228,6 +308,8 @@ const LessonPlanFormModal = ({
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 summary={formData.summary}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, homework: s })}
               />
             </div>
@@ -249,6 +331,8 @@ const LessonPlanFormModal = ({
                 aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, previousKnowledge: s })
                 }
@@ -273,6 +357,8 @@ const LessonPlanFormModal = ({
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 summary={formData.summary}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, teachingObjectives: s })
                 }
@@ -286,6 +372,8 @@ const LessonPlanFormModal = ({
               aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
               lessonText={`${formData.title || ''}\n${formData.summary || ''}\n${formData.description || ''}\n${formData.teachingObjectives || ''}`}
               selectedStandardIds={formData.standardIds}
+              contextText={formData.contextText}
+              lessonPlanId={editingId}
               onSelectionChange={(ids) => setFormData({ ...formData, standardIds: ids })}
               initialSuggestions={generatedStandards}
             />
@@ -306,6 +394,8 @@ const LessonPlanFormModal = ({
                 aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, vocabulary: s })}
               />
             </div>
@@ -327,6 +417,8 @@ const LessonPlanFormModal = ({
                 aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, characterTraitLinks: s })
                 }
@@ -350,6 +442,8 @@ const LessonPlanFormModal = ({
                 aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
+                contextText={formData.contextText}
+                lessonPlanId={editingId}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, techIntegration: s })
                 }
@@ -384,6 +478,8 @@ const LessonPlanFormModal = ({
                       aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                       title={formData.title}
                       summary={formData.summary}
+                      contextText={formData.contextText}
+                      lessonPlanId={editingId}
                       onSuggestion={(s) => handleStageChange(index, 'procedure', s)}
                     />
                   </div>

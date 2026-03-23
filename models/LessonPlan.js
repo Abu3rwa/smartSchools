@@ -140,6 +140,16 @@ const lessonPlanSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
+    // Additional context for AI
+    contextText: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    extractedMaterialText: {
+      type: String,
+      default: ''
+    },
     // Status tracking
     status: {
       type: String,

@@ -20,6 +20,35 @@ const VALID_SUGGEST_FIELDS = [
 ];
 
 /**
+ * Extract text from PDF buffer
+ */
+async function extractTextFromPdf(buffer) {
+    if (!buffer) return '';
+    try {
+        const pdf = await import('pdf-parse');
+        const parse = pdf.default || pdf;
+        const data = await parse(buffer);
+        return (data.text || '').trim();
+    } catch (error) {
+        console.error('PDF extraction error:', error);
+        return '';
+    }
+}
+
+const parseJsonArrayIfString = (val) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string' && val.trim().startsWith('[')) {
+        try {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (e) {
+            return [];
+        }
+    }
+    return [];
+};
+
+/**
  * @desc    Get lesson plans (list with filters)
  * @route   GET /api/lessons
  * @access  Private (Teacher sees own; Admin sees school)
@@ -167,6 +196,15 @@ export const createLessonPlan = asyncHandler(async (req, res) => {
         });
     }
 
+    let extractedMaterialText = '';
+    if (req.file) {
+        extractedMaterialText = await extractTextFromPdf(req.file.buffer);
+    }
+
+    const objectivesArray = parseJsonArrayIfString(body.objectives);
+    const standardIdsArray = parseJsonArrayIfString(body.standardIds);
+    const stagesArray = parseJsonArrayIfString(body.stages);
+
     const doc = {
         school: req.schoolId,
         teacher: req.user._id,
@@ -179,17 +217,19 @@ export const createLessonPlan = asyncHandler(async (req, res) => {
         homework: body.homework ?? '',
         previousKnowledge: body.previousKnowledge ?? '',
         teachingObjectives: body.teachingObjectives ?? '',
-        objectives: Array.isArray(body.objectives) ? body.objectives : [],
+        objectives: objectivesArray,
         vocabulary: body.vocabulary ?? '',
         characterTraitLinks: body.characterTraitLinks ?? '',
         techIntegration: body.techIntegration ?? '',
-        standardIds: Array.isArray(body.standardIds) ? body.standardIds : [],
-        stages: Array.isArray(body.stages) ? body.stages.map(s => ({
+        standardIds: standardIdsArray,
+        stages: stagesArray.map(s => ({
             name: s.name ?? '',
             procedure: s.procedure ?? '',
             materials: s.materials ?? '',
             timing: s.timing ?? ''
-        })) : []
+        })),
+        contextText: body.contextText ?? '',
+        extractedMaterialText: extractedMaterialText || (body.extractedMaterialText ?? '')
     };
 
     const lesson = await LessonPlan.create(doc);
@@ -223,20 +263,28 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
     const body = req.body;
     const allowed = [
         'class', 'subject', 'date', 'title', 'summary', 'description', 'homework',
-        'previousKnowledge', 'teachingObjectives', 'objectives', 'vocabulary', 'characterTraitLinks', 'techIntegration', 'standardIds', 'stages'
+        'previousKnowledge', 'teachingObjectives', 'objectives', 'vocabulary', 
+        'characterTraitLinks', 'techIntegration', 'standardIds', 'stages',
+        'contextText', 'extractedMaterialText'
     ];
+
+    if (req.file) {
+        existing.extractedMaterialText = await extractTextFromPdf(req.file.buffer);
+    }
+
     for (const key of allowed) {
         if (body[key] === undefined) continue;
         if (key === 'date') existing.date = new Date(body.date);
         else if (key === 'class') existing.class = body.class || body.classId;
         else if (key === 'subject') existing.subject = body.subject || body.subjectId;
         else if (key === 'title') existing.title = (body.title || '').trim();
-        else if (key === 'standardIds' && Array.isArray(body.standardIds)) {
-            existing.standardIds = body.standardIds;
-        } else if (key === 'objectives' && Array.isArray(body.objectives)) {
-            existing.objectives = body.objectives;
-        } else if (key === 'stages' && Array.isArray(body.stages)) {
-            existing.stages = body.stages.map(s => ({
+        else if (key === 'standardIds') {
+            existing.standardIds = parseJsonArrayIfString(body.standardIds);
+        } else if (key === 'objectives') {
+            existing.objectives = parseJsonArrayIfString(body.objectives);
+        } else if (key === 'stages') {
+            const stagesArray = parseJsonArrayIfString(body.stages);
+            existing.stages = stagesArray.map(s => ({
                 name: s.name ?? '',
                 procedure: s.procedure ?? '',
                 materials: s.materials ?? '',
@@ -258,6 +306,7 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
     res.json({ success: true, data: { lesson } });
 });
 
+
 /**
  * @desc    AI suggest content for a lesson plan field
  * @route   POST /api/lessons/ai/suggest
@@ -276,7 +325,10 @@ export const suggestField = asyncHandler(async (req, res) => {
         requestedLanguages,
         primaryLanguage,
         secondaryLanguage,
-        language
+        language,
+        lessonPlanId,
+        contextText,
+        extractedMaterialText
     } = req.body;
     const schoolId = req.schoolId;
     const userId = req.user?._id;
@@ -293,6 +345,17 @@ export const suggestField = asyncHandler(async (req, res) => {
     if (!cls || !subj) {
         return res.status(404).json({ success: false, message: 'Class or Subject not found' });
     }
+
+    let additionalContext = '';
+    if (lessonPlanId) {
+        const lp = await LessonPlan.findById(lessonPlanId).select('contextText extractedMaterialText').lean();
+        if (lp) {
+            additionalContext = [lp.contextText, lp.extractedMaterialText].filter(Boolean).join('\n\n');
+        }
+    } else {
+        additionalContext = [contextText, extractedMaterialText].filter(Boolean).join('\n\n');
+    }
+
     const normalizedRequestedLanguages = resolveRequestedLanguages({
         requestedLanguages,
         primaryLanguage,
@@ -313,7 +376,8 @@ export const suggestField = asyncHandler(async (req, res) => {
             gradeLevel: cls.grade ?? '',
             title: title || '',
             summary: summary || '',
-            stageIndex
+            stageIndex,
+            additionalContext
         }
     });
 
@@ -357,7 +421,10 @@ export const detectStandards = asyncHandler(async (req, res) => {
         requestedLanguages,
         primaryLanguage,
         secondaryLanguage,
-        language
+        language,
+        lessonPlanId,
+        contextText,
+        extractedMaterialText
     } = req.body;
     const schoolId = req.schoolId;
     const userId = req.user?._id;
@@ -371,6 +438,17 @@ export const detectStandards = asyncHandler(async (req, res) => {
     if (!cls || !subj) {
         return res.status(404).json({ success: false, message: 'Class or Subject not found' });
     }
+
+    let additionalContext = '';
+    if (lessonPlanId) {
+        const lp = await LessonPlan.findById(lessonPlanId).select('contextText extractedMaterialText').lean();
+        if (lp) {
+            additionalContext = [lp.contextText, lp.extractedMaterialText].filter(Boolean).join('\n\n');
+        }
+    } else {
+        additionalContext = [contextText, extractedMaterialText].filter(Boolean).join('\n\n');
+    }
+
     const normalizedRequestedLanguages = resolveRequestedLanguages({
         requestedLanguages,
         primaryLanguage,
@@ -400,7 +478,8 @@ export const detectStandards = asyncHandler(async (req, res) => {
             subjectName: subj.name || '',
             gradeLevel,
             lessonText: lessonText || '',
-            requestedLanguages: normalizedRequestedLanguages
+            requestedLanguages: normalizedRequestedLanguages,
+            additionalContext
         });
         if (schoolId && userId && (inferResult.tokenUsage?.total || 0) > 0) {
             await AITokenUsage.create({
@@ -436,7 +515,8 @@ export const detectStandards = asyncHandler(async (req, res) => {
         lessonText: lessonText || '',
         standards,
         suggestedPool: false,
-        requestedLanguages: normalizedRequestedLanguages
+        requestedLanguages: normalizedRequestedLanguages,
+        additionalContext
     });
 
     if (schoolId && userId && result.tokenUsage.total > 0) {
@@ -481,7 +561,10 @@ export const generateSection = asyncHandler(async (req, res) => {
         requestedLanguages,
         primaryLanguage,
         secondaryLanguage,
-        language
+        language,
+        lessonPlanId,
+        contextText,
+        extractedMaterialText
     } = req.body;
     const schoolId = req.schoolId;
     const userId = req.user?._id;
@@ -495,6 +578,17 @@ export const generateSection = asyncHandler(async (req, res) => {
     if (!cls || !subj) {
         return res.status(404).json({ success: false, message: 'Class or Subject not found' });
     }
+
+    let additionalContext = '';
+    if (lessonPlanId) {
+        const lp = await LessonPlan.findById(lessonPlanId).select('contextText extractedMaterialText').lean();
+        if (lp) {
+            additionalContext = [lp.contextText, lp.extractedMaterialText].filter(Boolean).join('\n\n');
+        }
+    } else {
+        additionalContext = [contextText, extractedMaterialText].filter(Boolean).join('\n\n');
+    }
+
     const normalizedRequestedLanguages = resolveRequestedLanguages({
         requestedLanguages,
         primaryLanguage,
@@ -506,7 +600,7 @@ export const generateSection = asyncHandler(async (req, res) => {
 
     const result = await lessonPlanAIService.generateSection({
         title: title || '',
-        context: { subjectName: subj.name || '', gradeLevel: cls.grade ?? '' },
+        context: { subjectName: subj.name || '', gradeLevel: cls.grade ?? '', additionalContext },
         requestedLanguages: normalizedRequestedLanguages,
         sourceFields: Array.isArray(sourceFields) ? sourceFields : undefined
     });
@@ -538,7 +632,8 @@ export const generateSection = asyncHandler(async (req, res) => {
                 gradeLevel,
                 lessonText,
                 standards: standardsList,
-                requestedLanguages: normalizedRequestedLanguages
+                requestedLanguages: normalizedRequestedLanguages,
+                additionalContext
             });
             standards = detectResult.standards || [];
             if (detectResult.tokenUsage?.total > 0 && schoolId && userId) {
@@ -561,7 +656,8 @@ export const generateSection = asyncHandler(async (req, res) => {
                 subjectName: subj.name || '',
                 gradeLevel,
                 lessonText,
-                requestedLanguages: normalizedRequestedLanguages
+                requestedLanguages: normalizedRequestedLanguages,
+                additionalContext
             });
             standards = inferResult.standards || [];
             if (inferResult.tokenUsage?.total > 0 && schoolId && userId) {

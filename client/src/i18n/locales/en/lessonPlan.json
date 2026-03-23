@@ -140,6 +140,16 @@
       "materials": "Materials / Resources",
       "timing": "Timing",
       "timingPlaceholder": "e.g. 10 min"
+    },
+    "aiContext": {
+      "title": "AI Context & Materials (Optional)",
+      "description": "Provide extra context or upload a PDF. The AI will use this to generate more accurate lesson plans and suggest better fields.",
+      "extraNotes": "Extra Notes/Context",
+      "extraNotesPlaceholder": "e.g. Focus on group work, include visual aids, standard is NGSS Math...",
+      "uploadPdf": "Upload Lesson Material (PDF only, max 10MB)",
+      "statusExtracted": "Content extracted and ready for AI",
+      "statusNone": "No extra material uploaded",
+      "statusPending": "New file selected (will be extracted on save)"
     }
   },
   "form": {
@@ -218,6 +228,10 @@
     "noteSaved": "Note saved. The teacher can see it on the lesson plan.",
     "noteSaveFailed": "Failed to save note",
     "markedAs": "Lesson plan marked as {{status}}",
-    "statusUpdateFailed": "Failed to update lesson status"
+    "statusUpdateFailed": "Failed to update lesson status",
+    "draftAvailable": "You have unsaved changes from {{time}}. Restore them?",
+    "draftRestored": "Draft restored",
+    "draftDiscarded": "Draft discarded"
   }
+
 }

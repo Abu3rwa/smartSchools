@@ -326,10 +326,16 @@ export const updateClass = asyncHandler(async (req, res) => {
         return res.status(403).json({ success: false, message: enforce.message });
     }
 
-    classData = await Class.findByIdAndUpdate(req.params.id, updates, {
-        new: true,
-        runValidators: true
-    })
+    // Apply updates manually to the document
+    Object.keys(updates).forEach((key) => {
+        classData[key] = updates[key];
+    });
+
+    // Save the document to trigger pre-save hooks (important for automatic name generation)
+    await classData.save();
+
+    // Populate the updated document for response
+    const updatedClass = await Class.findById(req.params.id)
         .populate('department', 'name type')
         .populate({
             path: 'classTeacher',

@@ -1,541 +1,290 @@
 export const getApiDocumentation = async (req, res) => {
     try {
         const documentation = {
-            version: '1.0.0',
-            title: 'Platform API Documentation',
-            description: 'Complete API reference for the school management system',
+            version: '2.0.0',
+            title: 'School Management Platform API Reference',
+            description: 'Comprehensive API documentation for the Grade Book and School Management System.',
             baseUrl: process.env.NODE_ENV === 'production' 
-                ? process.env.API_URL || 'https://your-app.herokuapp.com'
+                ? process.env.API_URL || 'https://schoolworkso.onrender.com'
                 : 'http://localhost:5000',
             categories: [
                 {
-                    name: 'Authentication',
-                    description: 'User authentication and authorization endpoints',
+                    name: 'Authentication & Profile',
+                    description: 'User registration, login, session management, and profile updates.',
                     endpoints: [
                         {
                             method: 'POST',
-                            path: '/api/auth/register',
-                            description: 'Register a new user account',
+                            path: '/api/auth/login',
+                            description: 'Login with email and password to receive a JWT token.',
                             auth: 'None',
                             body: {
                                 email: 'string (required)',
-                                password: 'string (required)',
-                                firstName: 'string (required)',
-                                lastName: 'string (required)',
-                                role: 'string (required): admin, teacher, parent, student'
+                                password: 'string (required)'
                             },
-                            response: { success: true, token: 'JWT token', user: 'User object' }
-                        },
-                        {
-                            method: 'POST',
-                            path: '/api/auth/login',
-                            description: 'Login with email and password',
-                            auth: 'None',
-                            body: { email: 'string', password: 'string' },
-                            response: { success: true, token: 'JWT token', user: 'User object' }
+                            response: { success: true, data: { token: 'JWT', refreshToken: 'string', user: 'object' } }
                         },
                         {
                             method: 'GET',
                             path: '/api/auth/me',
-                            description: 'Get current authenticated user',
+                            description: 'Retrieve current authenticated user profile and permissions.',
                             auth: 'Bearer Token',
-                            response: { success: true, data: { user: 'User object' } }
+                            response: { success: true, data: { user: 'object' } }
                         },
                         {
                             method: 'PUT',
                             path: '/api/auth/profile',
-                            description: 'Update user profile',
+                            description: 'Update user personal information (First Name, Last Name, Email).',
                             auth: 'Bearer Token',
                             body: { firstName: 'string', lastName: 'string', email: 'string' },
-                            response: { success: true, data: { user: 'Updated user' } }
+                            response: { success: true, data: { user: 'object' } }
                         },
                         {
                             method: 'POST',
-                            path: '/api/auth/forgot-password',
-                            description: 'Request password reset email',
+                            path: '/api/auth/google/url',
+                            description: 'Generate Google OAuth2 authorization URL for SSO.',
                             auth: 'None',
-                            body: { email: 'string' },
-                            response: { success: true, message: 'Reset email sent' }
-                        },
-                        {
-                            method: 'POST',
-                            path: '/api/auth/reset-password/:token',
-                            description: 'Reset password with token',
-                            auth: 'None',
-                            body: { password: 'string' },
-                            response: { success: true, message: 'Password reset successful' }
+                            query: { schoolSlug: 'optional string' },
+                            response: { success: true, authUrl: 'string' }
                         }
                     ]
                 },
                 {
-                    name: 'Schools',
-                    description: 'School management endpoints',
+                    name: 'Schools & Academic Context',
+                    description: 'Global school settings, academic years, and tenant isolation.',
                     endpoints: [
                         {
                             method: 'GET',
                             path: '/api/schools/me',
-                            description: 'Get current user\'s school information',
-                            auth: 'Bearer Token',
-                            response: { success: true, data: { school: 'School object' } }
-                        },
-                        {
-                            method: 'PUT',
-                            path: '/api/schools/me',
-                            description: 'Update school information',
-                            auth: 'Bearer Token (Admin only)',
-                            body: { name: 'string', address: 'string', phone: 'string' },
-                            response: { success: true, data: { school: 'Updated school' } }
+                            description: 'Get current school profile, branding, and statistics.',
+                            auth: 'Bearer Token (Admin/Staff)',
+                            response: { success: true, data: { school: 'object', studentCount: 'number' } }
                         },
                         {
                             method: 'GET',
                             path: '/api/schools/me/academic-years',
-                            description: 'Get all academic years for school',
-                            auth: 'Bearer Token (Admin only)',
-                            response: { success: true, data: { academicYears: ['2023-2024', '2024-2025'] } }
+                            description: 'List all academic years defined for the school.',
+                            auth: 'Bearer Token',
+                            response: { success: true, data: { academicYears: ['2024-2025', '...'] } }
+                        },
+                        {
+                            method: 'POST',
+                            path: '/api/schools/me/rollover',
+                            description: 'Perform academic year rollover (promoting students, copying classes).',
+                            auth: 'Bearer Token (Admin)',
+                            body: { fromYear: 'string', toYear: 'string', copyClasses: 'boolean' },
+                            response: { success: true, message: 'Rollover initiated' }
                         }
                     ]
                 },
                 {
-                    name: 'Students',
-                    description: 'Student management endpoints',
+                    name: 'Students & Guardians',
+                    description: 'Student enrollment, profile management, and parent-student links.',
                     endpoints: [
                         {
                             method: 'GET',
                             path: '/api/students',
-                            description: 'Get all students (with filters)',
+                            description: 'List students with advanced filtering and pagination.',
                             auth: 'Bearer Token',
-                            query: { class: 'classId', grade: 'number', search: 'string', page: 'number', limit: 'number' },
-                            response: { success: true, data: { students: [], pagination: {} } }
+                            query: { 
+                                class: 'ObjectId', 
+                                grade: 'number', 
+                                status: 'active/inactive', 
+                                search: 'name/email string',
+                                page: 'number',
+                                limit: 'number'
+                            },
+                            response: { success: true, data: { students: [], pagination: 'object' } }
                         },
                         {
                             method: 'POST',
                             path: '/api/students',
-                            description: 'Create a new student',
-                            auth: 'Bearer Token (Admin/Teacher)',
-                            body: { firstName: 'string', lastName: 'string', email: 'string', dateOfBirth: 'date', class: 'classId' },
-                            response: { success: true, data: { student: 'Student object' } }
-                        },
-                        {
-                            method: 'GET',
-                            path: '/api/students/:id',
-                            description: 'Get student by ID',
-                            auth: 'Bearer Token',
-                            response: { success: true, data: { student: 'Student object' } }
-                        },
-                        {
-                            method: 'PUT',
-                            path: '/api/students/:id',
-                            description: 'Update student information',
-                            auth: 'Bearer Token (Admin/Teacher)',
-                            body: { firstName: 'string', lastName: 'string', class: 'classId' },
-                            response: { success: true, data: { student: 'Updated student' } }
-                        },
-                        {
-                            method: 'DELETE',
-                            path: '/api/students/:id',
-                            description: 'Delete student',
-                            auth: 'Bearer Token (Admin only)',
-                            response: { success: true, message: 'Student deleted' }
+                            description: 'Enroll a new student.',
+                            auth: 'Bearer Token (Admin/Registrar)',
+                            body: { 
+                                firstName: 'string', 
+                                lastName: 'string', 
+                                email: 'string', 
+                                gender: 'male/female',
+                                currentClass: 'ObjectId' 
+                            },
+                            response: { success: true, data: { student: 'object' } }
                         }
                     ]
                 },
                 {
-                    name: 'Teachers',
-                    description: 'Teacher management endpoints',
-                    endpoints: [
-                        {
-                            method: 'GET',
-                            path: '/api/teachers',
-                            description: 'Get all teachers',
-                            auth: 'Bearer Token',
-                            response: { success: true, data: { teachers: [] } }
-                        },
-                        {
-                            method: 'GET',
-                            path: '/api/teachers/my-classes',
-                            description: 'Get current teacher\'s assigned classes',
-                            auth: 'Bearer Token (Teacher)',
-                            response: { success: true, data: { classes: [] } }
-                        }
-                    ]
-                },
-                {
-                    name: 'Classes',
-                    description: 'Class management endpoints',
+                    name: 'Classes & Departments',
+                    description: 'Academic departments and classroom/section management.',
                     endpoints: [
                         {
                             method: 'GET',
                             path: '/api/classes',
-                            description: 'Get all classes',
+                            description: 'Get all classes, optionally filtered by academic year or department.',
                             auth: 'Bearer Token',
-                            query: { academicYear: 'string', department: 'departmentId', isActive: 'boolean' },
+                            query: { academicYear: 'string', department: 'ObjectId', isActive: 'boolean' },
                             response: { success: true, data: { classes: [] } }
                         },
                         {
                             method: 'POST',
                             path: '/api/classes',
-                            description: 'Create a new class',
+                            description: 'Create a new class section.',
                             auth: 'Bearer Token (Admin)',
-                            body: { name: 'string', grade: 'number', section: 'string', academicYear: 'string' },
-                            response: { success: true, data: { class: 'Class object' } }
-                        },
-                        {
-                            method: 'GET',
-                            path: '/api/classes/:id',
-                            description: 'Get class by ID with students',
-                            auth: 'Bearer Token',
-                            response: { success: true, data: { class: 'Class object with students' } }
-                        },
-                        {
-                            method: 'PUT',
-                            path: '/api/classes/:id',
-                            description: 'Update class information',
-                            auth: 'Bearer Token (Admin)',
-                            body: { name: 'string', teacher: 'teacherId', isActive: 'boolean' },
-                            response: { success: true, data: { class: 'Updated class' } }
-                        }
-                    ]
-                },
-                {
-                    name: 'Subjects',
-                    description: 'Subject management endpoints',
-                    endpoints: [
-                        {
-                            method: 'GET',
-                            path: '/api/subjects',
-                            description: 'Get all subjects',
-                            auth: 'Bearer Token',
-                            response: { success: true, data: { subjects: [] } }
+                            body: { grade: 'number', section: 'string', academicYear: 'string', room: 'string' },
+                            response: { success: true, data: { class: 'object' } }
                         },
                         {
                             method: 'POST',
-                            path: '/api/subjects',
-                            description: 'Create a new subject',
+                            path: '/api/classes/:id/subjects',
+                            description: 'Assign a subject and teacher to a class.',
                             auth: 'Bearer Token (Admin)',
-                            body: { name: 'string', code: 'string', description: 'string' },
-                            response: { success: true, data: { subject: 'Subject object' } }
+                            body: { subjectId: 'ObjectId', teacherId: 'ObjectId' },
+                            response: { success: true, data: { class: 'object' } }
                         }
                     ]
                 },
                 {
                     name: 'Attendance',
-                    description: 'Attendance tracking endpoints',
+                    description: 'Daily and period-based attendance tracking.',
                     endpoints: [
-                        {
-                            method: 'GET',
-                            path: '/api/attendance',
-                            description: 'Get attendance records',
-                            auth: 'Bearer Token',
-                            query: { class: 'classId', date: 'YYYY-MM-DD', student: 'studentId' },
-                            response: { success: true, data: { attendance: [] } }
-                        },
                         {
                             method: 'POST',
                             path: '/api/attendance',
-                            description: 'Mark attendance for students',
+                            description: 'Mark attendance for a class on a specific date.',
                             auth: 'Bearer Token (Teacher/Admin)',
-                            body: { class: 'classId', date: 'date', records: [{ student: 'studentId', status: 'present/absent/late' }] },
+                            body: { 
+                                class: 'ObjectId', 
+                                date: 'YYYY-MM-DD', 
+                                records: [{ student: 'ObjectId', status: 'present/absent/late/excused', remarks: 'string' }]
+                            },
                             response: { success: true, data: { attendance: [] } }
                         },
                         {
                             method: 'GET',
                             path: '/api/attendance/stats',
-                            description: 'Get attendance statistics',
+                            description: 'Retrieve attendance percentage and trends for a class or student.',
                             auth: 'Bearer Token',
-                            query: { class: 'classId', startDate: 'date', endDate: 'date' },
-                            response: { success: true, data: { stats: {} } }
+                            query: { classId: 'ObjectId', studentId: 'ObjectId', range: 'week/month/term' },
+                            response: { success: true, data: { stats: 'object' } }
                         }
                     ]
                 },
                 {
-                    name: 'Lesson Plans',
-                    description: 'Lesson plan management and AI evaluation endpoints',
+                    name: 'Assignments & Homework',
+                    description: 'Creation, publishing, and grading of schoolwork.',
                     endpoints: [
                         {
                             method: 'GET',
-                            path: '/api/lessons',
-                            description: 'Get lesson plans (filtered)',
+                            path: '/api/assignments',
+                            description: 'List all generic assignments (tests, quizzes, projects).',
                             auth: 'Bearer Token',
-                            query: { class: 'classId', subject: 'subjectId', startDate: 'date', endDate: 'date', page: 'number' },
-                            response: { success: true, data: { lessons: [], pagination: {} } }
+                            query: { class: 'ObjectId', subject: 'ObjectId' },
+                            response: { success: true, data: { assignments: [] } }
                         },
                         {
                             method: 'POST',
-                            path: '/api/lessons',
-                            description: 'Create a new lesson plan',
+                            path: '/api/assignments/:id/grades',
+                            description: 'Submit grades for an entire class for a specific assignment.',
                             auth: 'Bearer Token (Teacher/Admin)',
-                            body: { class: 'classId', subject: 'subjectId', date: 'date', title: 'string', learningObjectives: 'string', activities: 'string' },
-                            response: { success: true, data: { lesson: 'Lesson plan object' } }
+                            body: { grades: [{ student: 'ObjectId', score: 'number', feedback: 'string' }] },
+                            response: { success: true, message: 'Grades recorded' }
+                        },
+                        {
+                            method: 'POST',
+                            path: '/api/homework',
+                            description: 'Create a homework task with optional attachments.',
+                            auth: 'Bearer Token (Teacher)',
+                            body: { title: 'string', subject: 'ObjectId', class: 'ObjectId', dueDate: 'date' },
+                            response: { success: true, data: { homework: 'object' } }
+                        }
+                    ]
+                },
+                {
+                    name: 'Lesson Planning (AI-Powered)',
+                    description: 'Teacher lesson plans with AI evaluation against school standards.',
+                    endpoints: [
+                        {
+                            method: 'POST',
+                            path: '/api/lessons',
+                            description: 'Draft or publish a lesson plan.',
+                            auth: 'Bearer Token (Teacher)',
+                            body: { title: 'string', objectives: 'string', activities: 'string', materials: 'string' },
+                            response: { success: true, data: { lesson: 'object' } }
                         },
                         {
                             method: 'POST',
                             path: '/api/lessons/:id/submit',
-                            description: 'Submit lesson plan for AI evaluation',
+                            description: 'Submit lesson plan for AI-driven scoring and feedback.',
                             auth: 'Bearer Token (Teacher)',
-                            response: { success: true, data: { lesson: 'Evaluated lesson', evaluation: {} } }
-                        },
-                        {
-                            method: 'GET',
-                            path: '/api/lessons/admin/review',
-                            description: 'Get lesson plans for admin review',
-                            auth: 'Bearer Token (Admin/Department Principal)',
-                            query: { status: 'submitted/approved/needs_revision', teacher: 'teacherId', meetsRequirements: 'boolean' },
-                            response: { success: true, data: { lessons: [], stats: {} } }
-                        },
-                        {
-                            method: 'POST',
-                            path: '/api/lessons/:id/review',
-                            description: 'Manual admin review of lesson plan',
-                            auth: 'Bearer Token (Admin/Department Principal)',
-                            body: { comments: 'string', finalStatus: 'approved/needs_revision/rejected' },
-                            response: { success: true, data: { lesson: 'Reviewed lesson' } }
-                        },
-                        {
-                            method: 'GET',
-                            path: '/api/lessons/stats',
-                            description: 'Get lesson plan statistics',
-                            auth: 'Bearer Token (Admin/Department Principal)',
-                            response: { success: true, data: { statusBreakdown: {}, averageScores: {}, topTeachers: [] } }
+                            response: { success: true, data: { evaluation: 'object', score: 'number' } }
                         }
                     ]
                 },
                 {
-                    name: 'Lesson Plan Criteria',
-                    description: 'Manage school-defined lesson plan evaluation criteria',
+                    name: 'Academic Excellence (AI Diagnostics)',
+                    description: 'Advanced AI tools for student performance prediction and interventions.',
                     endpoints: [
                         {
                             method: 'GET',
-                            path: '/api/lesson-plan-criteria',
-                            description: 'Get all evaluation criteria',
-                            auth: 'Bearer Token (Admin)',
-                            response: { success: true, data: [] }
+                            path: '/api/academic-excellence/tasks/queue',
+                            description: 'Get AI-generated diagnostic tasks for "At Risk" or "Excellence" students.',
+                            auth: 'Bearer Token (Teacher/Admin)',
+                            response: { success: true, data: { queue: [] } }
                         },
                         {
                             method: 'POST',
-                            path: '/api/lesson-plan-criteria',
-                            description: 'Create new evaluation criterion',
-                            auth: 'Bearer Token (Admin)',
-                            body: { name: 'string', description: 'string', weight: 'number (1-5)', minScore: 'number (0-100)', isRequired: 'boolean', evaluationPrompt: 'string' },
-                            response: { success: true, data: 'Criterion object' }
+                            path: '/api/academic-excellence/ai-practice',
+                            description: 'Create personalized AI practice assignments for specific students.',
+                            auth: 'Bearer Token (Teacher)',
+                            body: { studentIds: ['ObjectId'], topic: 'string', difficulty: 'string' },
+                            response: { success: true, data: { assignment: 'object' } }
                         },
-                        {
-                            method: 'POST',
-                            path: '/api/lesson-plan-criteria/initialize-defaults',
-                            description: 'Initialize 6 default criteria',
-                            auth: 'Bearer Token (Admin)',
-                            response: { success: true, message: 'Default criteria initialized', count: 6 }
-                        },
-                        {
-                            method: 'PATCH',
-                            path: '/api/lesson-plan-criteria/reorder',
-                            description: 'Reorder criteria',
-                            auth: 'Bearer Token (Admin)',
-                            body: { criteriaIds: ['id1', 'id2', 'id3'] },
-                            response: { success: true, message: 'Criteria reordered' }
-                        },
-                        {
-                            method: 'PUT',
-                            path: '/api/lesson-plan-criteria/:id',
-                            description: 'Update criterion',
-                            auth: 'Bearer Token (Admin)',
-                            body: { name: 'string', weight: 'number', minScore: 'number' },
-                            response: { success: true, data: 'Updated criterion' }
-                        },
-                        {
-                            method: 'DELETE',
-                            path: '/api/lesson-plan-criteria/:id',
-                            description: 'Delete (deactivate) criterion',
-                            auth: 'Bearer Token (Admin)',
-                            response: { success: true, message: 'Criterion deactivated' }
-                        }
-                    ]
-                },
-                {
-                    name: 'Departments',
-                    description: 'Department management endpoints',
-                    endpoints: [
                         {
                             method: 'GET',
-                            path: '/api/departments',
-                            description: 'Get all departments',
-                            auth: 'Bearer Token',
-                            response: { success: true, data: { departments: [] } }
-                        },
-                        {
-                            method: 'POST',
-                            path: '/api/departments',
-                            description: 'Create department',
+                            path: '/api/academic-excellence/settings',
+                            description: 'Configure school-wide AI diagnostic thresholds.',
                             auth: 'Bearer Token (Admin)',
-                            body: { name: 'string', type: 'academic/administrative', description: 'string' },
-                            response: { success: true, data: { department: 'Department object' } }
-                        },
-                        {
-                            method: 'PUT',
-                            path: '/api/departments/:id',
-                            description: 'Update department',
-                            auth: 'Bearer Token (Admin)',
-                            body: { name: 'string', description: 'string' },
-                            response: { success: true, data: { department: 'Updated department' } }
-                        },
-                        {
-                            method: 'DELETE',
-                            path: '/api/departments/:id',
-                            description: 'Delete department',
-                            auth: 'Bearer Token (Admin)',
-                            response: { success: true, message: 'Department deleted' }
+                            response: { success: true, data: { settings: 'object' } }
                         }
                     ]
                 },
                 {
-                    name: 'Notifications',
-                    description: 'Notification and messaging endpoints',
-                    endpoints: [
-                        {
-                            method: 'GET',
-                            path: '/api/notifications',
-                            description: 'Get user notifications',
-                            auth: 'Bearer Token',
-                            query: { page: 'number', limit: 'number', unreadOnly: 'boolean' },
-                            response: { success: true, data: { notifications: [], pagination: {} } }
-                        },
-                        {
-                            method: 'PATCH',
-                            path: '/api/notifications/:id/read',
-                            description: 'Mark notification as read',
-                            auth: 'Bearer Token',
-                            response: { success: true, data: { notification: 'Updated notification' } }
-                        },
-                        {
-                            method: 'PATCH',
-                            path: '/api/notifications/mark-all-read',
-                            description: 'Mark all notifications as read',
-                            auth: 'Bearer Token',
-                            response: { success: true, message: 'All notifications marked as read' }
-                        }
-                    ]
-                },
-                {
-                    name: 'Reports',
-                    description: 'AI-powered reporting endpoints',
+                    name: 'Reports & Analytics',
+                    description: 'Generation of gradebooks, report cards, and AI summaries.',
                     endpoints: [
                         {
                             method: 'POST',
                             path: '/api/reports/generate-advanced',
-                            description: 'Generate AI-powered student report',
+                            description: 'Generate a comprehensive AI student report in multiple languages.',
                             auth: 'Bearer Token (Teacher/Admin)',
-                            body: { studentId: 'string', reportType: 'weekly/monthly/custom', requestedLanguages: ['en', 'ar'], language: 'legacy optional', recipients: {} },
-                            response: { success: true, data: { report: 'Generated report', emailStatus: {} } }
+                            body: { studentId: 'ObjectId', type: 'term/annual', languages: ['en', 'ar', 'fr'] },
+                            response: { success: true, data: { reportUrl: 'string' } }
                         },
                         {
                             method: 'GET',
-                            path: '/api/reports/history',
-                            description: 'Get report generation history',
+                            path: '/api/sbr/reports',
+                            description: 'List generated Standards-Based Reports (SBR).',
                             auth: 'Bearer Token',
                             response: { success: true, data: { reports: [] } }
                         }
                     ]
                 },
                 {
-                    name: 'Behavior',
-                    description: 'Student behavior tracking endpoints',
+                    name: 'Communication & Notifications',
+                    description: 'Email broadcasts, real-time alerts, and system messages.',
                     endpoints: [
                         {
                             method: 'GET',
-                            path: '/api/student-behavior',
-                            description: 'Get behavior records',
+                            path: '/api/notifications',
+                            description: 'Fetch user-specific notifications (unread first).',
                             auth: 'Bearer Token',
-                            query: { student: 'studentId', class: 'classId', startDate: 'date', endDate: 'date' },
-                            response: { success: true, data: { records: [] } }
+                            response: { success: true, data: { notifications: [] } }
                         },
                         {
                             method: 'POST',
-                            path: '/api/student-behavior',
-                            description: 'Create behavior record',
-                            auth: 'Bearer Token (Teacher/Admin)',
-                            body: { student: 'studentId', type: 'positive/negative', category: 'string', description: 'string', points: 'number' },
-                            response: { success: true, data: { record: 'Behavior record' } }
-                        }
-                    ]
-                },
-                {
-                    name: 'Timetable',
-                    description: 'Class timetable and scheduling endpoints',
-                    endpoints: [
-                        {
-                            method: 'GET',
-                            path: '/api/timetable',
-                            description: 'Get timetable assignments',
-                            auth: 'Bearer Token',
-                            query: { class: 'classId', teacher: 'teacherId', day: 'Monday-Friday' },
-                            response: { success: true, data: { assignments: [] } }
-                        },
-                        {
-                            method: 'POST',
-                            path: '/api/timetable',
-                            description: 'Create timetable assignment',
+                            path: '/api/communication-email/send',
+                            description: 'Broadcast email to specific roles or classes.',
                             auth: 'Bearer Token (Admin)',
-                            body: { class: 'classId', subject: 'subjectId', teacher: 'teacherId', day: 'string', period: 'number', room: 'string' },
-                            response: { success: true, data: { assignment: 'Timetable assignment' } }
-                        }
-                    ]
-                },
-                {
-                    name: 'Substitutions',
-                    description: 'Teacher substitution management',
-                    endpoints: [
-                        {
-                            method: 'GET',
-                            path: '/api/substitutions',
-                            description: 'Get substitution requests',
-                            auth: 'Bearer Token',
-                            query: { status: 'pending/approved/rejected', date: 'date' },
-                            response: { success: true, data: { substitutions: [] } }
-                        },
-                        {
-                            method: 'POST',
-                            path: '/api/substitutions',
-                            description: 'Create substitution request',
-                            auth: 'Bearer Token (Teacher)',
-                            body: { date: 'date', period: 'number', reason: 'string', class: 'classId' },
-                            response: { success: true, data: { substitution: 'Substitution request' } }
-                        },
-                        {
-                            method: 'PATCH',
-                            path: '/api/substitutions/:id/assign',
-                            description: 'Assign substitute teacher',
-                            auth: 'Bearer Token (Admin)',
-                            body: { substituteTeacher: 'teacherId' },
-                            response: { success: true, data: { substitution: 'Updated substitution' } }
-                        }
-                    ]
-                },
-                {
-                    name: 'Attendance Requests',
-                    description: 'Student attendance request management',
-                    endpoints: [
-                        {
-                            method: 'GET',
-                            path: '/api/attendance-requests',
-                            description: 'Get attendance requests',
-                            auth: 'Bearer Token',
-                            query: { status: 'pending/approved/rejected', student: 'studentId' },
-                            response: { success: true, data: { requests: [] } }
-                        },
-                        {
-                            method: 'POST',
-                            path: '/api/attendance-requests',
-                            description: 'Create attendance request',
-                            auth: 'Bearer Token (Parent/Student)',
-                            body: { student: 'studentId', date: 'date', reason: 'string', type: 'typeId' },
-                            response: { success: true, data: { request: 'Attendance request' } }
-                        },
-                        {
-                            method: 'PATCH',
-                            path: '/api/attendance-requests/:id/review',
-                            description: 'Review attendance request',
-                            auth: 'Bearer Token (Admin/Teacher)',
-                            body: { status: 'approved/rejected', comments: 'string' },
-                            response: { success: true, data: { request: 'Updated request' } }
+                            body: { subject: 'string', content: 'string', recipients: { roles: ['parent'], classes: [] } },
+                            response: { success: true, message: 'Emails queued' }
                         }
                     ]
                 }

@@ -22,6 +22,8 @@ const StandardsSuggester = ({
     initialSuggestions = [],
     aiPrimaryLanguage = 'en',
     aiSecondaryLanguage = '',
+    contextText,
+    lessonPlanId,
 }) => {
     const { t } = useTranslation(['lessonPlan']);
     const dispatch = useDispatch();
@@ -50,6 +52,8 @@ const StandardsSuggester = ({
             subjectId,
             classId,
             lessonText,
+            contextText: contextText ?? '',
+            lessonPlanId: lessonPlanId ?? null,
             requestedLanguages: requestedLanguages.length > 0 ? requestedLanguages : ['en'],
             primaryLanguage: aiPrimaryLanguage || 'en',
             secondaryLanguage: aiSecondaryLanguage || ''
@@ -149,7 +153,7 @@ const StandardsSuggester = ({
                                     onChange={() => toggleStandard(idFor(s))}
                                 />
                                 <div className="standard-content">
-                                    <span className="standard-code">
+                                    <span className="standardcode">
                                         {formatStandardLabel(s)}
                                     </span>
                                     {s.explanation && (

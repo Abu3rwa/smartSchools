@@ -140,6 +140,16 @@
       "materials": "المواد / الموارد",
       "timing": "التوقيت",
       "timingPlaceholder": "مثال: 10 دقائق"
+    },
+    "aiContext": {
+      "title": "سياق الذكاء الاصطناعي والمواد (اختياري)",
+      "description": "قدم سياقًا إضافيًا أو ارفع ملف PDF. سيستخدم الذكاء الاصطناعي هذا لإنشاء خطط دروس أكثر دقة واقتراح حقول أفضل.",
+      "extraNotes": "ملاحظات إضافية / سياق",
+      "extraNotesPlaceholder": "مثال: التركيز على العمل الجماعي، تضمين الوسائل البصرية، المعيار هو NGSS Math...",
+      "uploadPdf": "رفع مادة الدرس (PDF فقط، بحد أقصى 10 ميجابايت)",
+      "statusExtracted": "تم استخراج المحتوى وهو جاهز للذكاء الاصطناعي",
+      "statusNone": "لم يتم رفع مواد إضافية",
+      "statusPending": "تم اختيار ملف جديد (سيتم استخراجه عند الحفظ)"
     }
   },
   "form": {
@@ -216,8 +226,11 @@
     "evaluated": "تم تقييم خطة الدرس بنجاح",
     "evaluateFailed": "فشل تقييم خطة الدرس",
     "noteSaved": "تم حفظ الملاحظة. يمكن للمعلم رؤيتها في خطة الدرس.",
-    "noteSaveFailed": "فشل حفظ الملاحظة",
+    "noteSaveFailed": "Failed to save note",
     "markedAs": "تم وضع حالة خطة الدرس إلى {{status}}",
-    "statusUpdateFailed": "فشل تحديث حالة خطة الدرس"
+    "statusUpdateFailed": "Failed to update lesson status",
+    "draftAvailable": "لديك تغييرات غير محفوظة من {{time}}. هل تريد استعادتها؟",
+    "draftRestored": "تم استعادة المسودة",
+    "draftDiscarded": "تم تجاهل المسودة"
   }
 }

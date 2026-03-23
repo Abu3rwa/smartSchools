@@ -94,7 +94,7 @@ function normalizeAiStageText(value) {
  * @param {Object} options
  * @param {string} options.field - Field name (title, summary, description, etc.)
  * @param {string} options.currentValue - Current value in the field
- * @param {Object} options.context - { subjectName, gradeLevel, title, summary, stageIndex }
+ * @param {Object} options.context - { subjectName, gradeLevel, title, summary, stageIndex, additionalContext }
  */
 export async function suggestFieldContent({
   field,
@@ -106,8 +106,14 @@ export async function suggestFieldContent({
     throw new Error(`Invalid field: ${field}`);
   }
 
-  const { subjectName = "", gradeLevel = "", title = "", summary = "" } =
-    context;
+  const { 
+    subjectName = "", 
+    gradeLevel = "", 
+    title = "", 
+    summary = "", 
+    stageIndex,
+    additionalContext = ""
+  } = context;
   const instruction = getFieldInstruction(field);
   const languageRule = buildLessonPromptLanguageRule(requestedLanguages);
 
@@ -121,6 +127,12 @@ CONTEXT:
 - Grade: ${gradeLevel}
 - Lesson title: ${title}
 - Current value: ${currentValue || "(empty)"}
+
+${additionalContext ? `ADDITIONAL RESEARCH & MATERIALS PROVIDED BY TEACHER:
+"""
+${additionalContext}
+"""
+(Prioritize the specific details and terminology from these materials while keeping the output aligned with the subject and grade level.)` : ""}
 
 TASK: ${instruction}
 
@@ -180,14 +192,16 @@ function parseJsonArray(text) {
  * @param {string} options.subjectName - Subject name (e.g. Mathematics, ELA)
  * @param {number} options.gradeLevel - Grade level (1-12)
  * @param {string} options.lessonText - Combined lesson content
+ * @param {string} [options.additionalContext] - Extracted context from materials
  */
 export async function inferStandardsFromContent({
   subjectName,
   gradeLevel,
   lessonText,
   requestedLanguages = ["en"],
+  additionalContext = ""
 }) {
-  if (!lessonText || !(lessonText.trim())) {
+  if ((!lessonText || !(lessonText.trim())) && !additionalContext) {
     return {
       standards: [],
       tokenUsage: { input: 0, output: 0, total: 0 },
@@ -195,10 +209,10 @@ export async function inferStandardsFromContent({
   }
 
   const languageRule = buildLessonPromptLanguageRule(requestedLanguages);
-  const prompt = `You are an expert curriculum analyst. There are NO pre-defined standards for this subject and grade. Your task is to INFER or EXTRACT the learning standards or skills that this lesson clearly addresses, based ONLY on the lesson content below.
+  const prompt = `You are an expert curriculum analyst. There are NO pre-defined standards for this subject and grade. Your task is to INFER or EXTRACT the learning standards or skills that this lesson clearly addresses, based on the lesson content and materials below.
 
 RULES:
-- Infer standards/skills ONLY from the lesson content. Do not use standards from other subjects.
+- Infer standards/skills ONLY from the provided content. Do not use standards from other subjects.
 - Every inferred standard/skill MUST align with the subject "${subjectName}" and grade level ${gradeLevel}.
 - Use clear, concise codes (e.g. "1.1", "2.A", "NS.3") and short names. Description should state what the student will know or be able to do.
 - Return between 2 and 8 inferred standards/skills. No duplicates.
@@ -207,8 +221,12 @@ RULES:
 SUBJECT: ${subjectName}
 GRADE LEVEL: ${gradeLevel}
 
-LESSON CONTENT:
+${lessonText ? `LESSON CONTENT:
 ${lessonText.trim()}
+` : ""}
+${additionalContext ? `ADDITIONAL MATERIALS CONTEXT:
+${additionalContext.trim()}
+` : ""}
 
 Output ONLY a valid JSON array. No markdown, no code fences, no extra text. Each item must have: code, name, description.
 [
@@ -260,6 +278,7 @@ Output ONLY a valid JSON array. No markdown, no code fences, no extra text. Each
  * @param {string} options.lessonText - Combined lesson content (title, summary, description, objectives)
  * @param {Object[]} options.standards - Standards to choose from (subject's or same-grade pool)
  * @param {boolean} [options.suggestedPool] - When true, standards are from other subjects (suggested pool)
+ * @param {string} [options.additionalContext] - Additional context from materials
  */
 export async function detectStandardsFromContent({
   schoolId,
@@ -269,6 +288,7 @@ export async function detectStandardsFromContent({
   standards,
   suggestedPool = false,
   requestedLanguages = ["en"],
+  additionalContext = ""
 }) {
   if (!Array.isArray(standards) || standards.length === 0) {
     return {
@@ -290,10 +310,14 @@ export async function detectStandardsFromContent({
     : "These are the actual standards for this subject and grade - use their exact _id, code, and description. Do NOT invent, modify, or create any standard.";
 
   const languageRule = buildLessonPromptLanguageRule(requestedLanguages);
-  const prompt = `You are an expert curriculum analyst. You must select standards ONLY from the AVAILABLE STANDARDS list below. ${poolNote}
+  const prompt = `You are an expert curriculum analyst. You must select standards ONLY from the AVAILABLE STANDARDS list below based on the provided lesson content and materials. ${poolNote}
 
 LESSON CONTENT:
 ${lessonText || "(No content provided)"}
+
+${additionalContext ? `ADDITIONAL MATERIALS CONTEXT:
+${additionalContext.trim()}
+` : ""}
 
 AVAILABLE STANDARDS (grade ${gradeLevel}) - select ONLY from this list:
 ${JSON.stringify(standardsList, null, 0)}
@@ -365,7 +389,7 @@ const DEFAULT_STAGE_NAMES = [
  * Includes all text fields, stages (procedure, materials, timing), and optionally standards.
  * @param {Object} options
  * @param {string} options.title - Lesson title
- * @param {Object} options.context - { subjectName, gradeLevel }
+ * @param {Object} options.context - { subjectName, gradeLevel, additionalContext }
  * @param {string[]} options.sourceFields - Fields to generate (expanded list)
  */
 export async function generateSection({
@@ -383,15 +407,21 @@ export async function generateSection({
     "techIntegration",
   ],
 }) {
-  const { subjectName = "", gradeLevel = "" } = context;
+  const { subjectName = "", gradeLevel = "", additionalContext = "" } = context;
   const languageRule = buildLessonPromptLanguageRule(requestedLanguages);
 
-  const prompt = `You are an experienced teacher. Generate a complete lesson plan from the minimal input below.
+  const prompt = `You are an experienced teacher. Generate a complete lesson plan from the minimal input and materials provided below.
 
 INPUT:
 - Subject: ${subjectName}
 - Grade: ${gradeLevel}
 - Title: ${title || "Untitled lesson"}
+
+${additionalContext ? `ADDITIONAL RESEARCH & MATERIALS PROVIDED BY TEACHER:
+"""
+${additionalContext}
+"""
+(Prioritize the specific details and terminology from these materials while keeping the output aligned with the subject and grade level.)` : ""}
 
 LANGUAGE REQUIREMENT:
 ${languageRule}

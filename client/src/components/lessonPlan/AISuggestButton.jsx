@@ -20,6 +20,8 @@ const AISuggestButton = ({
     stageProcedure,
     aiPrimaryLanguage = 'en',
     aiSecondaryLanguage = '',
+    contextText,
+    lessonPlanId,
     onSuggestion,
     disabled = false,
     size = 'sm',
@@ -42,6 +44,8 @@ const AISuggestButton = ({
             classId,
             title: title ?? '',
             summary: summary ?? '',
+            contextText: contextText ?? '',
+            lessonPlanId: lessonPlanId ?? null,
         };
         const requestedLanguages = buildRequestedLanguages(aiPrimaryLanguage, aiSecondaryLanguage);
         payload.requestedLanguages = requestedLanguages.length > 0 ? requestedLanguages : ['en'];

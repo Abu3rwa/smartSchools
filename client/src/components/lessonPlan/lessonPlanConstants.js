@@ -37,6 +37,8 @@ export function getInitialFormData() {
     aiSecondaryLanguage: '',
     standardIds: [],
     stages: DEFAULT_STAGES.map((s) => ({ ...s })),
+    contextText: '',
+    materialFile: null,
   };
 }
 
@@ -70,6 +72,9 @@ export function lessonToFormData(lesson) {
             timing: s.timing ?? '',
           }))
         : DEFAULT_STAGES.map((s) => ({ ...s })),
+    contextText: lesson.contextText || '',
+    extractedMaterialText: lesson.extractedMaterialText || '',
+    materialFile: null,
   };
 }
 
@@ -79,7 +84,8 @@ export function buildLessonPayload(formData) {
     const s = String(id);
     return /^[a-fA-F0-9]{24}$/.test(s);
   });
-  return {
+  
+  const payload = {
     class: formData.classId,
     subject: formData.subjectId,
     date: formData.date,
@@ -92,7 +98,23 @@ export function buildLessonPayload(formData) {
     vocabulary: formData.vocabulary,
     characterTraitLinks: formData.characterTraitLinks,
     techIntegration: formData.techIntegration,
+    contextText: formData.contextText || '',
     standardIds,
     stages: formData.stages,
   };
+
+  if (formData.materialFile) {
+    const data = new FormData();
+    Object.keys(payload).forEach(key => {
+      if (Array.isArray(payload[key]) || typeof payload[key] === 'object') {
+        data.append(key, JSON.stringify(payload[key]));
+      } else {
+        data.append(key, payload[key] == null ? '' : payload[key]);
+      }
+    });
+    data.append('materialFile', formData.materialFile);
+    return data;
+  }
+
+  return payload;
 }

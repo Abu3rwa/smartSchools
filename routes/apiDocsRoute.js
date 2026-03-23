@@ -12,61 +12,49 @@ export function registerApiDocsRoute(app) {
   app.get("/api", (req, res) => {
     res.json({
       success: true,
-      message: "Platform API v1.0",
-      endpoints: {
+      message: "School Platform API v2.0",
+      categories: {
         auth: {
-          "POST /api/auth/register": "Register a new user",
-          "POST /api/auth/login": "Login user",
-          "GET /api/auth/me": "Get current user",
+          "POST /api/auth/login": "Login user and get JWT",
+          "GET /api/auth/me": "Get current authenticated user",
           "PUT /api/auth/profile": "Update profile",
-          "PUT /api/auth/password": "Change password",
+          "POST /api/auth/google/url": "Get Google SSO URL",
         },
         students: {
-          "GET /api/students": "Get all students",
+          "GET /api/students": "List students (filtered)",
           "POST /api/students": "Create student",
           "GET /api/students/:id": "Get student by ID",
           "PUT /api/students/:id": "Update student",
-          "DELETE /api/students/:id": "Delete student",
-          "GET /api/students/class/:classId": "Get students by class",
         },
-        teachers: {
-          "GET /api/teachers": "Get all teachers",
-          "POST /api/teachers": "Create teacher",
-          "GET /api/teachers/:id": "Get teacher by ID",
-          "PUT /api/teachers/:id": "Update teacher",
-          "POST /api/teachers/:id/assign-class": "Assign class to teacher",
-          "GET /api/teachers/my-classes": "Get teacher's assigned classes",
-        },
-        classes: {
+        classes_and_depts: {
           "GET /api/classes": "Get all classes",
           "POST /api/classes": "Create class",
-          "GET /api/classes/:id": "Get class by ID",
-          "POST /api/classes/:id/subjects": "Add subject to class",
-          "GET /api/classes/:id/stats": "Get class statistics",
+          "GET /api/departments": "Get all departments",
+          "POST /api/classes/:id/subjects": "Assign subject to class",
         },
-        subjects: {
+        academics: {
           "GET /api/subjects": "Get all subjects",
-          "POST /api/subjects": "Create subject",
-          "GET /api/subjects/grade/:grade": "Get subjects by grade",
-        },
-        grades: {
-          "POST /api/grades/daily": "Add daily grade",
+          "POST /api/assignments": "Create assignment",
+          "POST /api/homework": "Create homework",
           "POST /api/grades/bulk": "Bulk add grades",
-          "POST /api/grades/exam": "Add exam grade",
-          "GET /api/grades/student/:studentId": "Get student grades",
-          "GET /api/grades/report/:studentId": "Get student grade report",
-          "GET /api/grades/average/monthly/:studentId": "Get monthly average",
-          "GET /api/grades/average/semester/:studentId": "Get semester average",
-          "GET /api/grades/average/overall/:studentId": "Get overall average",
         },
-        notifications: {
-          "POST /api/notifications/grade-update":
-            "Send grade update notification",
-          "POST /api/notifications/daily-report/:studentId": "Send daily report",
-          "POST /api/notifications/monthly-report/:studentId":
-            "Send monthly report",
-          "POST /api/notifications/class/:classId": "Send class notifications",
+        ai_and_diagnostics: {
+          "POST /api/lessons/:id/submit": "AI lesson plan evaluation",
+          "GET /api/academic-excellence/tasks/queue": "AI diagnostic task queue",
+          "POST /api/academic-excellence/ai-practice": "Generate AI student practice",
+        },
+        attendance: {
+          "POST /api/attendance": "Mark daily attendance",
+          "GET /api/attendance/stats": "Get attendance statistics",
+          "GET /api/attendance-requests": "Get student leave requests",
+        },
+        reports: {
+          "POST /api/reports/generate-advanced": "Generate AI student report",
+          "GET /api/sbr/reports": "Get standards-based reports",
+        },
+        communication: {
           "GET /api/notifications": "Get notification history",
+          "POST /api/communication-email/send": "Broadcast class/role email",
         },
       },
     });

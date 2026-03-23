@@ -3,6 +3,7 @@ import { protect, authorize, authorizeWithPermission, resolveDepartmentScope } f
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { PERMISSIONS } from '../config/permissions.js';
+import { uploadLessonPlanContext } from '../middleware/uploadLessonPlanContext.js';
 import {
     getLessonPlans,
     getLessonPlanById,
@@ -57,8 +58,8 @@ router.get('/:id', authorizeWithPermission(
 ), getLessonPlanById);
 
 // Edit routes - only teachers and admins
-router.post('/', authorize('teacher', 'admin'), createLessonPlan);
-router.put('/:id', authorize('teacher', 'admin'), updateLessonPlan);
+router.post('/', authorize('teacher', 'admin'), uploadLessonPlanContext, createLessonPlan);
+router.put('/:id', authorize('teacher', 'admin'), uploadLessonPlanContext, updateLessonPlan);
 router.delete('/:id', authorize('teacher', 'admin'), deleteLessonPlan);
 
 // Submission and review routes
