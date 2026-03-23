@@ -1,11 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { selectUser } from '../../../../../store/slices/authSlice.js';
+import { selectUser } from '../../../../store/slices/authSlice.js';
 import { 
   saveLessonPlanDraft, 
   getLessonPlanDraft, 
   clearLessonPlanDraft 
-} from '../../../../../utils/lessonPlanPersistence.js';
+} from '../utils/lessonPlanPersistence.js';
 
 /**
  * Custom hook to manage lesson plan form persistence in LocalStorage.

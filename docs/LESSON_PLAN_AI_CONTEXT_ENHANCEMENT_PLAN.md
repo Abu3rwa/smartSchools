@@ -9,6 +9,7 @@ This plan outlines enhancements to the AI lesson planning feature to provide mor
 Add two new string fields to store the additional context:
 - `contextText`: String (optional), manual notes/context provided by the teacher.
 - `extractedMaterialText`: String (optional), the text extracted from an uploaded PDF. 
+22222112222222233
 
 *Note: No `attachments` array or file metadata will be stored.*
 
