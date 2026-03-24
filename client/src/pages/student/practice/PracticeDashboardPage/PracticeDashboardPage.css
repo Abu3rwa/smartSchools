@@ -281,7 +281,7 @@
     color: var(--text-primary);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .practice-dashboard .page-header {
         flex-direction: column;
         align-items: stretch;

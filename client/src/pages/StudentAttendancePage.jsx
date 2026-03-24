@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import api from '../config/api';
 import { HiOutlineClipboardCheck } from 'react-icons/hi';
@@ -30,6 +30,8 @@ const StudentAttendancePage = () => {
     const [summary, setSummary] = useState({ total: 0, present: 0, late: 0, absent: 0, percentage: 0 });
     const [loading, setLoading] = useState(true);
     const [month, setMonth] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
 
     const fetchAttendance = () => {
         setLoading(true);
@@ -55,6 +57,12 @@ const StudentAttendancePage = () => {
     const formatDate = (d) =>
         d ? new Date(d).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
+    const totalPages = Math.ceil(records.length / itemsPerPage);
+    const paginatedRecords = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return records.slice(start, start + itemsPerPage);
+    }, [records, currentPage]);
+
     return (
         <div className="student-attendance-page">
             <header className="page-header">
@@ -70,7 +78,10 @@ const StudentAttendancePage = () => {
                     <span className="filter-label">Month</span>
                     <select
                         value={month}
-                        onChange={(e) => setMonth(e.target.value)}
+                        onChange={(e) => {
+                            setMonth(e.target.value);
+                            setCurrentPage(1);
+                        }}
                         className="filter-select"
                     >
                         {MONTHS.map((m) => (
@@ -115,17 +126,40 @@ const StudentAttendancePage = () => {
                         {records.length === 0 ? (
                             <p className="empty-state">No attendance records found for the selected period.</p>
                         ) : (
-                            <ul className="records-list">
-                                {records.map((r, i) => (
-                                    <li key={i} className={`record-item status-${r.status}`}>
-                                        <span className="record-date">{formatDate(r.date)}</span>
-                                        <span className="record-subject">{r.subject?.name || '—'}</span>
-                                        <span className="record-period">{r.period?.name || '—'}</span>
-                                        <span className="record-status">{statusLabel(r.status)}</span>
-                                        {r.remarks && <span className="record-remarks">{r.remarks}</span>}
-                                    </li>
-                                ))}
-                            </ul>
+                            <>
+                                <ul className="records-list">
+                                    {paginatedRecords.map((r, i) => (
+                                        <li key={i} className={`record-item status-${r.status}`}>
+                                            <span className="record-date">{formatDate(r.date)}</span>
+                                            <span className="record-subject">{r.subject?.name || '—'}</span>
+                                            <span className="record-period">{r.period?.name || '—'}</span>
+                                            <span className="record-status">{statusLabel(r.status)}</span>
+                                            {r.remarks && <span className="record-remarks">{r.remarks}</span>}
+                                        </li>
+                                    ))}
+                                </ul>
+                                {totalPages > 1 && (
+                                    <div className="attendance-pagination">
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            disabled={currentPage === 1}
+                                        >
+                                            Previous
+                                        </button>
+                                        <span className="attendance-pagination-text">
+                                            Page {currentPage} of {totalPages}
+                                        </span>
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            disabled={currentPage === totalPages}
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </section>
                 </>

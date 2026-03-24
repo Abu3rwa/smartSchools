@@ -189,6 +189,34 @@
   /* Surface / subtle background for sections */
   --surface-bg: #1e293b;
   --surface-muted: rgba(255, 255, 255, 0.04);
+
+  /* Status badge tokens (dark theme) */
+  --badge-draft-bg:       rgba(148, 163, 184, 0.15);
+  --badge-draft-text:     var(--text-secondary);
+  --badge-review-bg:      rgba(249, 115, 22, 0.15);
+  --badge-review-text:    #fb923c;
+  --badge-revision-bg:    rgba(245, 158, 11, 0.15);
+  --badge-revision-text:  var(--accent-amber);
+  --badge-approved-bg:    var(--status-success-bg);
+  --badge-approved-text:  var(--status-success);
+  --badge-rejected-bg:    var(--status-error-bg);
+  --badge-rejected-text:  var(--status-error);
+  --badge-published-bg:   var(--status-info-bg);
+  --badge-published-text: var(--status-info);
+  --badge-active-bg:      var(--status-success-bg);
+  --badge-active-text:    var(--status-success);
+  --badge-expired-bg:     var(--status-error-bg);
+  --badge-expired-text:   var(--status-error);
+  --badge-trial-bg:       var(--status-success-bg);
+  --badge-trial-text:     var(--status-success);
+
+  /* Danger interactive tokens */
+  --danger-btn-bg:        var(--error-600);
+  --danger-btn-hover-bg:  var(--error-700);
+  --danger-hover-surface: rgba(239, 68, 68, 0.1);
+
+  /* Error text token */
+  --error-text:           var(--status-error);
 }
 
 /* Light Theme Override */
@@ -335,6 +363,34 @@
   /* Surface / subtle background for sections */
   --surface-bg: #f8fafc;
   --surface-muted: rgba(0, 0, 0, 0.03);
+
+  /* Status badge tokens (light theme) */
+  --badge-draft-bg:       #f3f4f6;
+  --badge-draft-text:     #374151;
+  --badge-review-bg:      #ffedd5;
+  --badge-review-text:    #9a3412;
+  --badge-revision-bg:    #fef3c7;
+  --badge-revision-text:  #92400e;
+  --badge-approved-bg:    #dcfce7;
+  --badge-approved-text:  #166534;
+  --badge-rejected-bg:    #fee2e2;
+  --badge-rejected-text:  #991b1b;
+  --badge-published-bg:   #dbeafe;
+  --badge-published-text: #1d4ed8;
+  --badge-active-bg:      #dcfce7;
+  --badge-active-text:    #166534;
+  --badge-expired-bg:     #fee2e2;
+  --badge-expired-text:   #991b1b;
+  --badge-trial-bg:       #dcfce7;
+  --badge-trial-text:     #166534;
+
+  /* Danger interactive tokens */
+  --danger-btn-bg:        var(--error-600);
+  --danger-btn-hover-bg:  var(--error-700);
+  --danger-hover-surface: #fee2e2;
+
+  /* Error text token */
+  --error-text:           var(--error-700);
 }
 
 /* ==========================================

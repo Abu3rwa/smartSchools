@@ -606,7 +606,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .behavior-analytics-page {
         padding: var(--spacing-lg);
     }

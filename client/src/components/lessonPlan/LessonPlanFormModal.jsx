@@ -117,11 +117,11 @@ const LessonPlanFormModal = ({
               </div>
             </div>
             
-            <div className="ai-context-section" style={{ padding: '16px', background: '#f5f7fb', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+            <div className="ai-context-section" style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '16px', border: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#1e293b' }}>{t('lessonPlan:teacherForm.aiContext.title')}</h4>
-                  <p style={{ margin: '0', fontSize: '12px', color: '#64748b' }}>{t('lessonPlan:teacherForm.aiContext.description')}</p>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--text-primary)' }}>{t('lessonPlan:teacherForm.aiContext.title')}</h4>
+                  <p style={{ margin: '0', fontSize: '12px', color: 'var(--text-muted)' }}>{t('lessonPlan:teacherForm.aiContext.description')}</p>
                 </div>
                 <div style={{ 
                   display: 'flex', 
@@ -131,9 +131,9 @@ const LessonPlanFormModal = ({
                   borderRadius: '20px', 
                   fontSize: '11px', 
                   fontWeight: '500',
-                  background: formData.extractedMaterialText ? '#ecfdf5' : '#f1f5f9',
-                  color: formData.extractedMaterialText ? '#059669' : '#64748b',
-                  border: formData.extractedMaterialText ? '1px solid #10b981' : '1px solid #e2e8f0'
+                  background: formData.extractedMaterialText ? 'var(--badge-approved-bg)' : 'var(--bg-tertiary)',
+                  color: formData.extractedMaterialText ? 'var(--badge-approved-text)' : 'var(--text-muted)',
+                  border: formData.extractedMaterialText ? '1px solid var(--status-success)' : '1px solid var(--border-color)'
                 }}>
                   {extractionStatus.icon}
                   {extractionStatus.label}

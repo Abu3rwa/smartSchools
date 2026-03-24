@@ -339,7 +339,7 @@
     margin-top: var(--spacing-lg);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .lesson-plan-criteria {
         padding: var(--spacing-md);
     }

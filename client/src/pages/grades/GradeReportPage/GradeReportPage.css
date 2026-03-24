@@ -187,7 +187,7 @@
     color: var(--text-muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .report-header {
         flex-direction: column;
         align-items: flex-start;

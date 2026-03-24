@@ -15,49 +15,26 @@ const PracticeSessionStats = ({
     combinedCorrect
 }) => {
     return (
-        <div className="session-overview">
-            <div className="session-overview-item">
-                <div className="overview-label">
-                    <HiOutlineChartBar size={16} />
-                    Session Progress
-                </div>
-                <div className="overview-value">
+        <div className="practice-header-compact">
+            <div className="compact-stat">
+                <HiOutlineChartBar size={18} />
+                <span>
                     {currentQuestion && currentSessionStep != null && questionLimit > 0
-                        ? `Question ${currentSessionStep} of ${questionLimit}`
+                        ? `Q.${currentSessionStep} of ${questionLimit}`
                         : questionLimit > 0
                         ? `${questionsAnswered || 0}/${questionLimit}`
                         : `${combinedAsked} answered`}
-                </div>
-                {questionLimit > 0 && (
-                    <div className="overview-progress">
-                        <div
-                            className="overview-progress-fill"
-                            style={{ width: `${sessionProgressPercent || 0}%` }}
-                        />
-                    </div>
-                )}
+                </span>
             </div>
-            <div className="session-overview-item">
-                <div className="overview-label">
-                    <HiOutlineFire size={16} />
-                    {streakLabel}
-                </div>
-                <div className="overview-value">{streakValue || 0}</div>
-                <div className="overview-subtext">
-                    {confidenceHint || 'Keep a steady pace and focus on clear reasoning.'}
-                </div>
+            
+            <div className="compact-stat" title={confidenceHint || 'Maintain a steady pace'}>
+                <HiOutlineFire size={18} />
+                <span>{streakLabel}: {streakValue || 0}</span>
             </div>
-            <div className="session-overview-item">
-                <div className="overview-label">
-                    <HiOutlineLightBulb size={16} />
-                    Confidence
-                </div>
-                <div className="overview-value">{sessionAccuracy}%</div>
-                <div className="overview-subtext">
-                    {combinedAsked > 0
-                        ? `${combinedCorrect} correct out of ${combinedAsked}`
-                        : 'Start with one question to build momentum.'}
-                </div>
+            
+            <div className="compact-stat" title={combinedAsked > 0 ? `${combinedCorrect} correct overall` : 'Start building your confidence'}>
+                <HiOutlineLightBulb size={18} />
+                <span>{sessionAccuracy}% Accuracy</span>
             </div>
         </div>
     );

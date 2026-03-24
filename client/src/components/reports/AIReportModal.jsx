@@ -274,8 +274,8 @@ const AIReportModal = ({
 
                             {/* Email Template Preview */}
                             <div style={{
-                                background: '#ffffff',
-                                border: '1px solid #e5e7eb',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
                                 borderRadius: '8px',
                                 maxHeight: '400px',
                                 overflowY: 'auto',
@@ -295,10 +295,10 @@ const AIReportModal = ({
                                 {/* Email Body */}
                                 <div style={{
                                     padding: '30px',
-                                    background: '#ffffff',
+                                    background: 'var(--bg-secondary)',
                                     fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
                                     lineHeight: '1.6',
-                                    color: '#333'
+                                    color: 'var(--text-primary)'
                                 }}>
                                     <div
                                         contentEditable={isEditingReport}
@@ -309,12 +309,12 @@ const AIReportModal = ({
                                             }
                                         }}
                                         style={{
-                                            outline: isEditingReport ? '2px solid #667eea' : 'none',
+                                            outline: isEditingReport ? '2px solid var(--primary)' : 'none',
                                             padding: isEditingReport ? '15px' : '0',
                                             borderRadius: isEditingReport ? '8px' : '0',
                                             minHeight: '200px',
                                             cursor: isEditingReport ? 'text' : 'default',
-                                            background: isEditingReport ? '#fffbeb' : 'transparent'
+                                            background: isEditingReport ? 'var(--bg-tertiary)' : 'transparent'
                                         }}
                                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(editedReportContent || reportContent) }}
                                     />
@@ -326,11 +326,11 @@ const AIReportModal = ({
                                 <div style={{
                                     marginTop: '15px',
                                     padding: '12px 16px',
-                                    background: '#eff6ff',
-                                    border: '1px solid #3b82f6',
+                                    background: 'var(--status-info-bg)',
+                                    border: '1px solid var(--status-info)',
                                     borderRadius: '8px',
                                     fontSize: '13px',
-                                    color: '#1e40af'
+                                    color: 'var(--status-info)'
                                 }}>
                                     <strong>✏️ Edit Mode Active:</strong> Click directly in the text above to edit. 
                                     Click "Save Edits" when done to preview your changes.
@@ -395,17 +395,17 @@ const AIReportModal = ({
                                     <div className="insight-label">Performance Trend</div>
                                     <div className="insight-value">
                                         {aiAnalysis.trend === 'up' ? (
-                                            <span style={{ color: '#10b981' }}>
+                                            <span style={{ color: 'var(--status-success)' }}>
                                                 <HiOutlineTrendingUp style={{ marginRight: '4px' }} />
                                                 Improving
                                             </span>
                                         ) : aiAnalysis.trend === 'down' ? (
-                                            <span style={{ color: '#ef4444' }}>
+                                            <span style={{ color: 'var(--status-error)' }}>
                                                 <HiOutlineTrendingDown style={{ marginRight: '4px' }} />
                                                 Declining
                                             </span>
                                         ) : (
-                                            <span style={{ color: '#f59e0b' }}>
+                                            <span style={{ color: 'var(--status-warning)' }}>
                                                 <HiOutlineChartBar style={{ marginRight: '4px' }} />
                                                 Stable
                                             </span>

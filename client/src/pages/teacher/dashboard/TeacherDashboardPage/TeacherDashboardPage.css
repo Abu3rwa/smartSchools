@@ -100,7 +100,7 @@
     font-size: 0.875rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .teacher-schedule-item {
         grid-template-columns: 1fr 1fr;
         gap: var(--spacing-xs);

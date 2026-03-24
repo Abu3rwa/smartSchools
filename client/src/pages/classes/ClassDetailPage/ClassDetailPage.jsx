@@ -275,6 +275,9 @@ const ClassDetailPage = () => {
                                                 <Link to={`/portal/grades/report/${student._id}`} className="btn btn-ghost btn-sm">
                                                     View Report
                                                 </Link>
+                                                <Link to={`/portal/students/${student._id}`} className="btn btn-ghost btn-sm">
+                                                    Details
+                                                </Link>
                                             </td>
                                         </tr>
                                     ))}
@@ -303,27 +306,27 @@ const ClassDetailPage = () => {
 
                                 return (
                                     <div key={item._id || item.subject?._id || index} className="subject-item">
-                                    <div className="subject-info">
-                                        <span className="subject-name">{item.subject?.name || 'Unknown'}</span>
-                                        <span className="subject-code">{item.subject?.code}</span>
+                                        <div className="subject-info">
+                                            <span className="subject-name">{item.subject?.name || 'Unknown'}</span>
+                                            <span className="subject-code">{item.subject?.code}</span>
+                                        </div>
+                                        <div className="teacher-info">
+                                            <span className="teacher-name">
+                                                {item.teacher?.user?.firstName || item.teacher?.user?.lastName
+                                                    ? `${item.teacher?.user?.firstName || ''} ${item.teacher?.user?.lastName || ''}`.trim()
+                                                    : 'Unassigned'}
+                                            </span>
+                                            {isAdmin && removableSubjectId && (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-sm btn-danger"
+                                                    onClick={() => handleRemoveSubject(removableSubjectId)}
+                                                >
+                                                    Remove
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="teacher-info">
-                                        <span className="teacher-name">
-                                            {item.teacher?.user?.firstName || item.teacher?.user?.lastName
-                                                ? `${item.teacher?.user?.firstName || ''} ${item.teacher?.user?.lastName || ''}`.trim()
-                                                : 'Unassigned'}
-                                        </span>
-                                        {isAdmin && removableSubjectId && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-sm btn-danger"
-                                                onClick={() => handleRemoveSubject(removableSubjectId)}
-                                            >
-                                                Remove
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
                                 );
                             })
                         ) : (

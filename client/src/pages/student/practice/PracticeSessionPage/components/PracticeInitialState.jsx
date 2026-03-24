@@ -21,42 +21,8 @@ const PracticeInitialState = ({
         <div className="question-card">
             <h3 style={{ marginBottom: 'var(--spacing-sm)' }}>Ready for Practice, {displayName}?</h3>
             <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
-                Pick a challenge level and question type. The next question will adapt to your current session progress.
+                Click the button below to start. The AI tutor will automatically adapt the difficulty and question types to match your learning progress.
             </p>
-
-            <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Difficulty</label>
-                <div className="difficulty-selector">
-                    {['easy', 'medium', 'hard'].map(d => (
-                        <button
-                            key={d}
-                            className={`diff-btn ${difficulty === d ? 'active' : ''}`}
-                            onClick={() => onDifficultyChange(d)}
-                        >
-                            {d.charAt(0).toUpperCase() + d.slice(1)}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-                <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Question Type</label>
-                <div className="difficulty-selector">
-                    {[
-                        { value: 'multiple_choice', label: 'Multiple Choice' },
-                        { value: 'short_answer', label: 'Short Answer' },
-                        { value: 'true_false', label: 'True/False' }
-                    ].map(type => (
-                        <button
-                            key={type.value}
-                            className={`diff-btn ${questionType === type.value ? 'active' : ''}`}
-                            onClick={() => onQuestionTypeChange(type.value)}
-                        >
-                            {type.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
 
             {sessionInfo && (
                 <div style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>

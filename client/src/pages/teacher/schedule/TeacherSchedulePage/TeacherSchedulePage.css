@@ -729,7 +729,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .teacher-schedule-page {
         padding: var(--spacing-md);
     }

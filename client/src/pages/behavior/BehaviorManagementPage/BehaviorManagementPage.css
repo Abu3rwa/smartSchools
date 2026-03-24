@@ -99,28 +99,28 @@
 }
 
 .badge-success {
-    background: #d4edda;
-    color: #155724;
+    background: var(--badge-approved-bg);
+    color: var(--badge-approved-text);
 }
 
 .badge-warning {
-    background: #fff3cd;
-    color: #856404;
+    background: var(--badge-revision-bg);
+    color: var(--badge-revision-text);
 }
 
 .badge-danger {
-    background: #f8d7da;
-    color: #721c24;
+    background: var(--badge-rejected-bg);
+    color: var(--badge-rejected-text);
 }
 
 .badge-critical {
-    background: #dc3545;
-    color: white;
+    background: var(--danger-btn-bg);
+    color: var(--on-accent);
 }
 
 .badge-secondary {
-    background: #e2e3e5;
-    color: #383d41;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
 }
 
 .incident-body {
@@ -289,18 +289,18 @@
 }
 
 .text-success {
-    color: #28a745;
+    color: var(--status-success);
 }
 
 .text-warning {
-    color: #ffc107;
+    color: var(--status-warning);
 }
 
 .text-danger {
-    color: #dc3545;
+    color: var(--status-error);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .behavior-management-page {
         padding: var(--spacing-md);
     }

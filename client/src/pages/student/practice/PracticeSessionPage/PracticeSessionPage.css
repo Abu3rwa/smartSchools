@@ -1,8 +1,32 @@
 .practice-session {
-    animation: fadeIn 0.4s ease;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-primary); /* Adapts perfectly to light/dark themes */
+    color: var(--text-primary);
+    z-index: 9999;
+    overflow-y: auto;
+    padding: var(--spacing-xl) var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.practice-session > * {
+    width: 100%;
     max-width: 800px;
-    margin: 0 auto;
-    padding-bottom: var(--spacing-xl);
+    flex-shrink: 0;
+}
+
+/* This securely centers the entire content block vertically while preserving the scrollbar if it gets taller than the screen */
+.practice-session > :first-child {
+    margin-top: auto;
+}
+.practice-session > :last-child {
+    margin-bottom: auto;
 }
 
 .practice-session .back-link {
@@ -23,42 +47,30 @@
     color: var(--primary-400);
 }
 
-.session-overview {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
-}
-
-.session-overview-item {
+.practice-header-compact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     padding: var(--spacing-sm) var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
-.overview-label {
-    display: inline-flex;
+.compact-stat {
+    display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-bottom: 6px;
-}
-
-.overview-value {
-    font-size: 1.15rem;
-    font-weight: 700;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
     color: var(--text-primary);
 }
 
-.overview-subtext {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin-top: 4px;
-    line-height: 1.35;
+.compact-stat svg {
+    color: var(--text-muted);
 }
 
 .overview-progress {
@@ -545,8 +557,10 @@
 }
 
 @media (max-width: 900px) {
-    .session-overview {
-        grid-template-columns: 1fr;
+    .practice-header-compact {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
     }
 }
 

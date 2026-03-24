@@ -387,7 +387,7 @@
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .admin-school-details {
         padding: var(--spacing-lg);
     }

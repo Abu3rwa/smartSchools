@@ -22,7 +22,7 @@ const TokenUsageChart = ({ data, loading }) => {
   if (loading) {
     return (
       <div className="token-usage-chart">
-        <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
           Loading chart data...
         </div>
       </div>
@@ -32,7 +32,7 @@ const TokenUsageChart = ({ data, loading }) => {
   if (!data || !data.summary) {
     return (
       <div className="token-usage-chart">
-        <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
           No usage data available
         </div>
       </div>
@@ -69,11 +69,11 @@ const TokenUsageChart = ({ data, loading }) => {
             <div key={index} className="usage-bar-item" style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                 <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>{item._id || 'Unknown'}</span>
-                <span style={{ fontSize: '13px', color: '#64748b' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                   {formatNumber(item.totalTokens)} tokens ({calculatePercentage(item.totalTokens, totalTokens)}%)
                 </span>
               </div>
-              <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div
                   style={{
                     height: '100%',
@@ -84,7 +84,7 @@ const TokenUsageChart = ({ data, loading }) => {
                   }}
                 ></div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '12px', color: '#64748b' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
                 <span>{item.totalReports || 0} reports</span>
                 <span>{formatCurrency(item.totalCost)}</span>
               </div>
@@ -92,7 +92,7 @@ const TokenUsageChart = ({ data, loading }) => {
           ))}
         </div>
       ) : (
-        <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
+        <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
           No usage data for this period
         </div>
       )}

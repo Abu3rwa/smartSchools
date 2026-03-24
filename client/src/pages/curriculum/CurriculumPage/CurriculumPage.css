@@ -159,33 +159,33 @@
 }
 
 .status-draft {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--badge-draft-bg);
+  color: var(--badge-draft-text);
 }
 
 .status-review {
-  background: #ffedd5;
-  color: #9a3412;
+  background: var(--badge-review-bg);
+  color: var(--badge-review-text);
 }
 
 .status-revision {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--badge-revision-bg);
+  color: var(--badge-revision-text);
 }
 
 .status-approved {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--badge-approved-bg);
+  color: var(--badge-approved-text);
 }
 
 .status-rejected {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--badge-rejected-bg);
+  color: var(--badge-rejected-text);
 }
 
 .status-published {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--badge-published-bg);
+  color: var(--badge-published-text);
 }
 
 .form-grid {
@@ -439,13 +439,13 @@
 }
 
 .curriculum-page button.danger-button {
-  border-color: #ef4444;
-  color: #991b1b;
+  border-color: var(--status-error);
+  color: var(--error-text);
 }
 
 .curriculum-page button.danger-button:hover {
-  border-color: #dc2626;
-  background: #fef2f2;
+  border-color: var(--danger-btn-bg);
+  background: var(--danger-hover-surface);
 }
 
 .empty-hint {
@@ -493,7 +493,7 @@
 }
 
 .error-text {
-  color: #b42318;
+  color: var(--error-text);
 }
 
 @media (max-width: 1080px) {

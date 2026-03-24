@@ -417,7 +417,7 @@
     100% { transform: rotate(360deg); }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .docs-header {
         padding: 30px 16px;
     }

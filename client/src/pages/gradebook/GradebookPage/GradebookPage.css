@@ -367,7 +367,7 @@
     gap: 0.75rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .academic-insights-panel__header,
     .academic-insights-item__title-row,
     .academic-trace-item__header,
@@ -400,6 +400,8 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.75rem;
     margin-bottom: 1.5rem;
     background: var(--surface);
     padding: 1.5rem;
@@ -461,7 +463,8 @@
 }
 
 .gradebook-filters .form-group {
-    min-width: 200px;
+    flex: 1 1 180px;
+    min-width: 0;
 }
 
 .gradebook-filters label {
@@ -854,7 +857,7 @@ overflow-y: auto;
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .gradebook-header {
         flex-direction: column;
         gap: 1rem;
@@ -865,7 +868,8 @@ overflow-y: auto;
     }
 
     .gradebook-filters .form-group {
-        min-width: 100%;
+        flex: 1 1 100%;
+        min-width: 0;
     }
 
     .assessment-tabs {

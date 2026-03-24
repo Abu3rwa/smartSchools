@@ -409,7 +409,7 @@
     box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .item-body {
         grid-template-columns: 1fr;
         gap: var(--spacing-md);

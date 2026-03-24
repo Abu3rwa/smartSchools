@@ -49,7 +49,7 @@
 .assignments-page .assignment-table th,
 .assignments-page .assignment-table td {
     padding: 10px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    border-bottom: 1px solid var(--border-color);
     text-align: left;
 }
 
@@ -59,9 +59,9 @@
 }
 
 .assignments-page .btn.btn-danger {
-    background: #b91c1c;
-    color: #fff;
-    border-color: #b91c1c;
+    background: var(--danger-btn-bg);
+    color: var(--on-accent);
+    border-color: var(--danger-btn-bg);
 }
 
 .assignments-page .status-badge {
@@ -71,33 +71,33 @@
     border-radius: 999px;
     font-size: 12px;
     text-transform: capitalize;
-    background: rgba(0, 0, 0, 0.08);
+    background: var(--bg-tertiary);
 }
 
 .assignments-page .status-badge.published {
-    background: rgba(5, 150, 105, 0.12);
-    color: #065f46;
+    background: var(--badge-approved-bg);
+    color: var(--badge-approved-text);
 }
 
 .assignments-page .status-badge.draft {
-    background: rgba(99, 102, 241, 0.12);
-    color: #3730a3;
+    background: var(--badge-published-bg);
+    color: var(--badge-published-text);
 }
 
 .assignments-page .status-badge.closed,
 .assignments-page .status-badge.archived {
-    background: rgba(107, 114, 128, 0.15);
-    color: #374151;
+    background: var(--badge-draft-bg);
+    color: var(--badge-draft-text);
 }
 
 .assignments-page .loading-state,
 .assignments-page .empty-state {
     padding: 16px;
-    color: rgba(0, 0, 0, 0.6);
+    color: var(--text-secondary);
 }
 
 .assignments-page .grade-panel .status-icon.success {
-    color: #059669;
+    color: var(--status-success);
 }
 
 @media (max-width: 980px) {

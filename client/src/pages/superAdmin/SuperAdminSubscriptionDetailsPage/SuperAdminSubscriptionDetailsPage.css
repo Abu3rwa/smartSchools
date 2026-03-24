@@ -854,7 +854,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .admin-subscription-details-page {
         padding: var(--spacing-lg);
     }

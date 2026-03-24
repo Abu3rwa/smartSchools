@@ -207,7 +207,7 @@
   }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 599px) {
   .academic-excellence-grid {
     grid-template-columns: 1fr;
   }

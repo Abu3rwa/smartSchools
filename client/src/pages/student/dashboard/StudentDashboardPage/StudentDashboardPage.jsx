@@ -16,6 +16,7 @@ import {
     getTodayStart,
     getUpcomingAssignments
 } from './utils/studentDashboardPresentation';
+import { HiOutlineDocumentReport } from 'react-icons/hi';
 import './StudentDashboardPage.css';
 
 const StudentDashboardPage = () => {
@@ -49,6 +50,14 @@ const StudentDashboardPage = () => {
         return getUpcomingAssignments(assignments, classAssignments, todayStart);
     }, [assignments, classAssignments, todayStart]);
 
+    const practiceAssignments = useMemo(() => 
+        assignments.filter(a => a.practiceConfig?.sessionType !== 'assessment'),
+    [assignments]);
+
+    const assessmentAssignments = useMemo(() => 
+        assignments.filter(a => a.practiceConfig?.sessionType === 'assessment'),
+    [assignments]);
+
     return (
         <div className="student-dashboard">
             <StudentDashboardHeader firstName={firstName} />
@@ -76,7 +85,22 @@ const StudentDashboardPage = () => {
                 <div className="student-dashboard-grid">
                     <StudentScheduleCard schedule={schedule} />
                     <RecentGradesCard grades={grades} />
-                    <PracticeProgressCard assignments={assignments} />
+                    
+                    <PracticeProgressCard 
+                        assignments={practiceAssignments} 
+                        title="Practice Progress"
+                        emptyText="No practice standards assigned yet."
+                    />
+                    
+                    {assessmentAssignments.length > 0 && (
+                        <PracticeProgressCard 
+                            assignments={assessmentAssignments} 
+                            title="Graded Assessments"
+                            emptyText="No graded assessments available."
+                            icon={HiOutlineDocumentReport}
+                        />
+                    )}
+
                     <UpcomingDueDatesCard upcomingAssignments={upcomingAssignments} todayStart={todayStart} />
                     {schoolFeatures?.academicIntelligence !== false ? (
                         <MyTasksCard tasks={academicTasks} loading={tasksLoading} />

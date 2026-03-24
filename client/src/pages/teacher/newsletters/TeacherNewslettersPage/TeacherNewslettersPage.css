@@ -177,7 +177,7 @@
   font-size: 13px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
   .teacher-newsletters-page {
     padding: 12px;
   }

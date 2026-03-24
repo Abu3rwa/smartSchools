@@ -813,7 +813,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .admin-schedule-page {
         padding: var(--spacing-md);
     }
@@ -1092,7 +1092,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .quick-schedule-section {
         padding: var(--spacing-lg);
     }

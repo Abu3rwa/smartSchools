@@ -15,17 +15,17 @@
     font-size: 1.5rem;
     font-weight: 700;
     margin: 0 0 0.25rem 0;
-    color: var(--text-primary, #111);
+    color: var(--text-primary);
 }
 
 .student-attendance-page .header-icon {
-    color: var(--primary, #4f46e5);
+    color: var(--primary);
 }
 
 .student-attendance-page .page-subtitle {
     margin: 0;
     font-size: 0.9375rem;
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
 }
 
 .student-attendance-page .filters-bar {
@@ -44,16 +44,17 @@
 .student-attendance-page .filter-label {
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
 }
 
 .student-attendance-page .filter-select {
     padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border-color, #ddd);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md, 6px);
     font-size: 0.875rem;
     min-width: 140px;
-    background: var(--bg-primary, #fff);
+    background: var(--bg-primary);
+    color: var(--text-primary);
 }
 
 .student-attendance-page .loading-state {
@@ -63,7 +64,7 @@
     justify-content: center;
     min-height: 200px;
     gap: var(--spacing-md, 1rem);
-    color: var(--text-muted, #666);
+    color: var(--text-muted);
 }
 
 .student-attendance-page .summary-cards {
@@ -74,47 +75,47 @@
 }
 
 .student-attendance-page .stat-card {
-    background: var(--bg-secondary, #f9fafb);
-    border: 1px solid var(--border-color, #eee);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md, 8px);
     padding: var(--spacing-md, 1rem);
     text-align: center;
 }
 
 .student-attendance-page .stat-card.present {
-    background: var(--success-50, #ecfdf5);
-    border-color: var(--success-200, #a7f3d0);
+    background: var(--status-success-bg);
+    border-color: var(--status-success);
 }
 
 .student-attendance-page .stat-card.late {
-    background: var(--warning-50, #fffbeb);
-    border-color: var(--warning-200, #fde68a);
+    background: var(--status-warning-bg);
+    border-color: var(--status-warning);
 }
 
 .student-attendance-page .stat-card.absent {
-    background: var(--error-50, #fef2f2);
-    border-color: var(--error-200, #fecaca);
+    background: var(--status-error-bg);
+    border-color: var(--status-error);
 }
 
 .student-attendance-page .stat-card.percentage {
-    background: var(--primary-50, #eef2ff);
-    border-color: var(--primary-200, #c7d2fe);
+    background: var(--status-info-bg);
+    border-color: var(--status-info);
 }
 
 .student-attendance-page .stat-value {
     display: block;
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--text-primary, #111);
+    color: var(--text-primary);
 }
 
 .student-attendance-page .stat-card.percentage .stat-value {
-    color: var(--primary, #4f46e5);
+    color: var(--status-info);
 }
 
 .student-attendance-page .stat-label {
     font-size: 0.75rem;
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
 }
 
 .student-attendance-page .section-title {
@@ -135,7 +136,7 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    border: 1px solid var(--border-color, #eee);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md, 8px);
     overflow: hidden;
 }
@@ -146,7 +147,7 @@
     gap: 1rem;
     align-items: center;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border-color, #eee);
+    border-bottom: 1px solid var(--border-color);
     font-size: 0.875rem;
 }
 
@@ -155,31 +156,31 @@
 }
 
 .record-item.status-present {
-    background: var(--success-50, #ecfdf5);
+    background: var(--status-success-bg);
 }
 
 .record-item.status-absent,
 .record-item.status-absent_excused {
-    background: var(--error-50, #fef2f2);
+    background: var(--status-error-bg);
 }
 
 .record-item.status-tardy,
 .record-item.status-tardy_excused {
-    background: var(--warning-50, #fffbeb);
+    background: var(--status-warning-bg);
 }
 
 .record-date {
     font-weight: 500;
-    color: var(--text-primary, #111);
+    color: var(--text-primary);
 }
 
 .record-subject {
-    color: var(--text-primary, #111);
+    color: var(--text-primary);
 }
 
 .record-period {
     font-size: 0.8125rem;
-    color: var(--text-secondary, #555);
+    color: var(--text-secondary);
 }
 
 .record-status {
@@ -190,5 +191,20 @@
 .record-remarks {
     grid-column: 1 / -1;
     font-size: 0.8125rem;
-    color: var(--text-muted, #666);
+    color: var(--text-muted);
+}
+
+.attendance-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-md, 1rem);
+    margin-top: var(--spacing-lg, 1.5rem);
+    padding: var(--spacing-md, 1rem) 0;
+}
+
+.attendance-pagination-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary, #555);
+    font-weight: 500;
 }

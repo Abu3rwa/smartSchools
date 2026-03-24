@@ -85,7 +85,7 @@ const useStudentDashboardData = () => {
         setDataLoading(true);
 
         Promise.all([
-            api.get('/timetable/my-schedule'),
+            api.get('/timetable/my-schedule').catch(() => ({ data: { data: { schedule: [] } } })),
             api.get('/grades/my-grades').catch(() => ({ data: { data: { grades: [] } } })),
             api.get('/assignments/my').catch(() => ({ data: { data: { items: [] } } }))
         ])

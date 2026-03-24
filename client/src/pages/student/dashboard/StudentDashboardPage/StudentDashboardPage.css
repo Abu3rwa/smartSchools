@@ -1,7 +1,14 @@
 .student-dashboard {
-  padding: var(--spacing-lg, 1.5rem);
+  padding: var(--spacing-md, 1rem);
   max-width: 1200px;
   margin: 0 auto;
+  overflow-x: hidden;
+}
+
+@media (min-width: 768px) {
+  .student-dashboard {
+    padding: var(--spacing-lg, 1.5rem);
+  }
 }
 
 .student-dashboard-header {
@@ -23,7 +30,7 @@
 
 .student-dashboard-nav {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: var(--spacing-md, 1rem);
   margin-bottom: var(--spacing-xl, 2rem);
 }
@@ -53,6 +60,12 @@
   border-color: var(--primary-400);
 }
 
+.student-dashboard-nav-btn:active {
+  transform: scale(0.97);
+  box-shadow: var(--shadow-sm);
+  background: var(--bg-tertiary);
+}
+
 .student-dashboard-nav-btn:focus-visible {
   outline: 2px solid var(--primary-500);
   outline-offset: 2px;
@@ -79,7 +92,7 @@
   grid-auto-rows: auto;
 }
 
-/* Desktop: large schedule on the left, other cards stacked on the right */
+/* Desktop ≥1024px: schedule spans full height on the left */
 @media (min-width: 1024px) {
   .student-dashboard-grid {
     grid-template-columns: 2fr 1fr;
@@ -91,25 +104,32 @@
     gap: var(--spacing-lg, 1.5rem);
   }
 
-  .schedule-card {
-    grid-area: schedule;
-  }
-  .grades-card {
-    grid-area: grades;
-  }
-  .practice-card {
-    grid-area: practice;
-  }
-  .due-card {
-    grid-area: due;
-  }
-  .tasks-card {
-    grid-area: tasks;
-  }
+  .schedule-card  { grid-area: schedule; }
+  .grades-card    { grid-area: grades; }
+  .practice-card  { grid-area: practice; }
+  .due-card       { grid-area: due; }
+  .tasks-card     { grid-area: tasks; }
 }
 
-/* Larger tablets / small desktops: two columns equal width */
-@media (min-width: 768px) and (max-width: 1023px) {
+/* Chromebook / large tablet 900–1023px: schedule on top full-width, rest 2-col */
+@media (min-width: 900px) and (max-width: 1023px) {
+  .student-dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-areas:
+      "schedule schedule"
+      "grades   practice"
+      "due      tasks";
+  }
+
+  .schedule-card  { grid-area: schedule; }
+  .grades-card    { grid-area: grades; }
+  .practice-card  { grid-area: practice; }
+  .due-card       { grid-area: due; }
+  .tasks-card     { grid-area: tasks; }
+}
+
+/* Tablet 600–899px: two equal columns */
+@media (min-width: 600px) and (max-width: 899px) {
   .student-dashboard-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -118,20 +138,29 @@
 .student-card {
   background: var(--bg-secondary);
   border-radius: var(--radius-md);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md, 1rem);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border-color);
   position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .student-card {
+    padding: var(--spacing-lg, 1.5rem);
+  }
 }
 
 .student-card h2 {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
   font-size: 1rem;
   font-weight: 600;
-  margin: 0 0 var(--spacing-md) 0;
+  margin: 0 0 var(--spacing-md, 1rem) 0;
   color: var(--text-primary);
+  padding-right: 4rem;
+  line-height: 1.3;
 }
 
 .student-card .card-icon {
@@ -141,8 +170,15 @@
 
 .student-card .card-action {
   position: absolute;
-  top: var(--spacing-lg, 1.5rem);
-  right: var(--spacing-lg, 1.5rem);
+  top: var(--spacing-md, 1rem);
+  right: var(--spacing-md, 1rem);
+}
+
+@media (min-width: 768px) {
+  .student-card .card-action {
+    top: var(--spacing-lg, 1.5rem);
+    right: var(--spacing-lg, 1.5rem);
+  }
 }
 
 .student-card .link-sm {
@@ -257,10 +293,11 @@
 
   .schedule-table td {
     text-align: right;
-    padding: 0.75rem 1rem;
-    padding-left: 45%;
+    padding: 0.5rem 1rem 0.5rem 45%;
     position: relative;
     border-bottom: 1px solid var(--border-color-light, rgba(0,0,0,0.05));
+    word-break: break-word;
+    min-height: 2.5rem;
   }
 
   .schedule-table td:last-child {
@@ -272,15 +309,16 @@
     position: absolute;
     left: 1rem;
     width: 40%;
-    padding-right: 10px;
+    padding-right: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
     text-align: left;
     font-weight: 700;
     font-size: 0.75rem;
     text-transform: uppercase;
     color: var(--text-muted);
-    top: 50%;
-    transform: translateY(-50%);
+    top: 0.5rem;
   }
 
   .schedule-table td.schedule-period {
@@ -323,9 +361,13 @@
   font-weight: 600;
   color: var(--text-primary);
   font-size: 0.875rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
+  margin-bottom: 2px;
+  word-break: break-word;
 }
 
 .grade-date {
@@ -379,9 +421,13 @@
   font-weight: 600;
   color: var(--text-primary);
   font-size: 0.875rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
+  margin-bottom: 2px;
+  word-break: break-word;
 }
 
 .practice-progress-container {
@@ -393,7 +439,7 @@
 
 .practice-progress-bar {
   flex: 1;
-  max-width: 100px;
+  max-width: 80px;
   height: 6px;
   background: var(--bg-tertiary);
   border-radius: 3px;
@@ -477,9 +523,13 @@
   font-weight: 600;
   color: var(--text-primary);
   font-size: 0.875rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
+  margin-bottom: 2px;
+  word-break: break-word;
 }
 
 .due-date {
@@ -499,8 +549,10 @@
   font-size: 0.75rem;
   color: var(--text-muted);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 
 /* Academic excellence tasks */
@@ -540,6 +592,7 @@
   -webkit-box-orient: vertical;
   line-height: 1.4;
   margin-bottom: 2px;
+  word-break: break-word;
 }
 
 .tasks-meta {

@@ -116,7 +116,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .report-header {
         flex-direction: column;
         gap: var(--spacing-md);

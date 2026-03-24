@@ -42,7 +42,7 @@ const ReportHistoryTable = ({ reports, retrying, onRetry, formatDate, getStatusB
               })()}
               <div
                 className="email-status-detail"
-                style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}
+                style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}
               >
                 {getEmailStatusDetail(report.emailStatus)}
               </div>

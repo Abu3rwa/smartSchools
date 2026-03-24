@@ -95,13 +95,13 @@
 
 .ai-practice-modal-content {
 	padding: 1rem;
-	overflow: auto;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
 	flex: 1;
 	background: var(--bg-card);
 	color: var(--text-primary);
 	justify-content: center;
 	align-items: center;
-	height: 100vh;
 	display: flex;
 }
 
@@ -219,9 +219,9 @@
 }
 
 .ai-practice-feedback-line {
- 	font-size: 0.9rem;
-    padding:5px;margin:5px;
-
+	font-size: 0.9rem;
+	padding: var(--spacing-xs) 0;
+	margin: 0;
 }
 
 .ai-practice-done-section {
@@ -275,7 +275,7 @@
 	animation: aiPracticeShimmer 1200ms linear infinite;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
 	.ai-practice-modal-header {
 		align-items: flex-start;
 		flex-direction: column;
@@ -287,6 +287,23 @@
 
 	.ai-practice-action-row button {
 		flex: 1;
+	}
+}
+
+@media (max-width: 599px) {
+	.ai-practice-answer-textarea {
+		max-height: 35vh;
+		resize: none;
+	}
+
+	.ai-practice-modal-content {
+		align-items: flex-start;
+		padding: 0.75rem;
+	}
+
+	.ai-practice-question-stage,
+	.ai-practice-done-section {
+		width: 100%;
 	}
 }
 

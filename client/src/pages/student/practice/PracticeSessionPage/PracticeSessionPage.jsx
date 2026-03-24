@@ -60,7 +60,7 @@ const PracticeSessionPage = () => {
         <div className="practice-session">
             <PracticeSessionHeader onBack={() => navigate('/portal/practice')} />
 
-            <PracticeSessionStats 
+            <PracticeSessionStats
                 currentQuestion={currentQuestion}
                 currentSessionStep={currentSessionStep}
                 questionLimit={questionLimit}
@@ -74,21 +74,21 @@ const PracticeSessionPage = () => {
                 combinedCorrect={combinedCorrect}
             />
 
-            <StudentGuidanceCard 
+            {/* <StudentGuidanceCard 
                 activeQuestionGuidance={activeQuestionGuidance}
                 assignmentInstructions={assignmentInstructions}
-            />
-
+            /> */}
+            <h2>{assignmentInstructions}</h2>
             {practiceError && !generating && (
-                <PracticeErrorState 
-                    error={practiceError} 
-                    onRetry={handleGenerate} 
-                    showRetry={!currentQuestion} 
+                <PracticeErrorState
+                    error={practiceError}
+                    onRetry={handleGenerate}
+                    showRetry={!currentQuestion}
                 />
             )}
 
             {!currentQuestion && !lastResult && !isSessionComplete && !isMasteredResult && (
-                <PracticeInitialState 
+                <PracticeInitialState
                     displayName={displayName}
                     difficulty={difficulty}
                     onDifficultyChange={setDifficulty}
@@ -109,7 +109,7 @@ const PracticeSessionPage = () => {
             {generating && <PracticeLoadingState />}
 
             {(isMasteredResult || isSessionComplete) && !lastResult && !generating && (
-                <PracticeSessionComplete 
+                <PracticeSessionComplete
                     isMastered={isMasteredResult}
                     statusMessage={statusMessage}
                     sessionInfo={sessionInfo}
@@ -134,7 +134,7 @@ const PracticeSessionPage = () => {
                     usableTopics={usableTopics}
                     recentMistakes={sessionContext?.recentMistakes}
                 >
-                    <PracticeAnswerForm 
+                    <PracticeAnswerForm
                         questionType={currentQuestion.questionType}
                         options={currentQuestion.options}
                         selectedAnswer={selectedAnswer}
@@ -148,7 +148,7 @@ const PracticeSessionPage = () => {
             )}
 
             {lastResult && (
-                <PracticeResultFeedback 
+                <PracticeResultFeedback
                     lastResult={lastResult}
                     displayName={displayName}
                     onNextQuestion={handleGenerate}

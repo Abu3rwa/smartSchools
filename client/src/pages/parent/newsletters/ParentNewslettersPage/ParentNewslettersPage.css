@@ -131,7 +131,7 @@
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
   .parent-newsletters-page {
     padding: 12px;
   }

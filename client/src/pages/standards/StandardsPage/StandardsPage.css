@@ -236,7 +236,7 @@
     color: var(--text-muted);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .standards-page .filters-bar {
         flex-direction: column;
     }

@@ -466,7 +466,7 @@
     margin-top: var(--spacing-md, 16px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .filters-bar {
         flex-direction: column;
     }

@@ -92,7 +92,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .selection-grid {
         grid-template-columns: 1fr;
     }

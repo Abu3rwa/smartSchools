@@ -307,7 +307,7 @@
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .send-controls {
         flex-direction: column;
         align-items: stretch;
