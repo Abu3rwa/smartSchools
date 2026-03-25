@@ -1,17 +1,17 @@
 import React from 'react';
 import { HiOutlineLightningBolt } from 'react-icons/hi';
 
-const PracticeInitialState = ({ 
-    displayName, 
-    difficulty, 
-    onDifficultyChange, 
-    questionType, 
-    onQuestionTypeChange, 
-    sessionInfo, 
-    combinedAsked, 
-    combinedCorrect, 
-    sessionAccuracy, 
-    onGenerate, 
+const PracticeInitialState = ({
+    displayName,
+    difficulty,
+    onDifficultyChange,
+    questionType,
+    onQuestionTypeChange,
+    sessionInfo,
+    combinedAsked,
+    combinedCorrect,
+    sessionAccuracy,
+    onGenerate,
     isGenerating,
     isAssessmentSession,
     onFinalizeAssessment,
@@ -50,8 +50,8 @@ const PracticeInitialState = ({
                 <HiOutlineLightningBolt size={18} style={{ marginRight: 6 }} />
                 {isGenerating ? 'Loading...' : 'Start Question'}
             </button>
-            
-            {isAssessmentSession && combinedAsked > 0 && (
+
+            {/* {isAssessmentSession && combinedAsked > 0 && (
                 <button
                     className="btn btn-secondary"
                     onClick={onFinalizeAssessment}
@@ -60,7 +60,7 @@ const PracticeInitialState = ({
                 >
                     {isFinalizingAssessment ? 'Submitting Assessment...' : 'Submit Final Assessment'}
                 </button>
-            )}
+            )} */}
         </div>
     );
 };
