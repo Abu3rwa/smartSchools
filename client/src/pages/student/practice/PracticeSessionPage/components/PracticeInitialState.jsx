@@ -21,7 +21,7 @@ const PracticeInitialState = ({
         <div className="question-card">
             <h3 style={{ marginBottom: 'var(--spacing-sm)' }}>Ready for Practice, {displayName}?</h3>
             <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginBottom: 'var(--spacing-md)' }}>
-                Click the button below to start. The AI tutor will automatically adapt the difficulty and question types to match your learning progress.
+                Click the button below to start. The difficulty and question types are automatically adapted to match your learning progress.
             </p>
 
             {sessionInfo && (
