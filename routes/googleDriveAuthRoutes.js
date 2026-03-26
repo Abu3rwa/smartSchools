@@ -3,6 +3,7 @@ import express from 'express';
 import { protect } from '../middleware/auth.js';
 import googleDriveOAuthService from '../services/googleDriveOAuthService.js';
 import logger from '../utils/logger.js';
+import { getClientUrl } from '../helpers/portalUrl.js';
 
 const router = express.Router();
 
@@ -64,7 +65,7 @@ router.get('/url', protect, async (req, res) => {
 });
 
 router.get('/callback', async (req, res) => {
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const clientUrl = getClientUrl();
     try {
         const { code, state, error } = req.query;
         if (error) return res.redirect(`${clientUrl}/curriculum?drive_error=${encodeURIComponent(error)}`);

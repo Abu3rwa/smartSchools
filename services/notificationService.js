@@ -8,7 +8,7 @@ import gradeService from "./gradeService.js";
 import gmailOAuthService from "./gmailOAuthService.js";
 import { sendPushToUsers } from "./pushNotificationService.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
-import { buildPortalLink } from "../helpers/portalUrl.js";
+import { buildPortalLink, getClientUrl } from "../helpers/portalUrl.js";
 import logger from "../utils/logger.js";
 
 /**
@@ -1773,7 +1773,7 @@ Best regards,
       maxMarks: gradeData.maxMarks,
       percentage,
       remarksSection,
-      clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+      clientUrl: getClientUrl(),
       year: new Date().getFullYear(),
     });
   }

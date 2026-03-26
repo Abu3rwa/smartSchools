@@ -9,6 +9,38 @@
     flex-wrap: wrap;
 }
 
+/* Table cell base layouts */
+.teacher-name-cell {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.teacher-name-cell span {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.contact-cell {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--text-secondary);
+}
+
+.subjects-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.actions-cell {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+}
+
 .teachers-capacity-banner {
     display: flex;
     align-items: center;
@@ -164,7 +196,7 @@
 }
 
 .btn-icon-danger:hover {
-    background: rgba(239, 68, 68, 0.1);
+    background: var(--danger-hover-surface);
     color: var(--danger-500);
 }
 
@@ -473,7 +505,7 @@
 .assignment-flag {
     padding: 0.15rem 0.45rem;
     border-radius: var(--radius-full);
-    background: rgba(34, 197, 94, 0.12);
+    background: var(--status-success-bg);
     color: var(--success-600);
     font-size: 0.75rem;
     font-weight: 700;

@@ -1,4 +1,5 @@
 import { sendTransactionalEmail } from './transactionalEmailService.js';
+import { getClientUrl } from '../helpers/portalUrl.js';
 
 const eventSubjectByType = {
     trial_ending: 'Your trial ends in 3 days',
@@ -89,7 +90,7 @@ export const sendSubscriptionEventEmail = async ({
     if (!recipientEmail) return null;
 
     const normalizedInterval = String(billingInterval || 'monthly').toLowerCase();
-    const portalBaseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const portalBaseUrl = getClientUrl();
 
     const subject = getSubject({
         eventType,

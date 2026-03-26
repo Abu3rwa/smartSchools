@@ -15,8 +15,9 @@ import {
 } from '../services/authTokenService.js';
 import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
 import { getPlatformBranding } from '../services/platformBrandingService.js';
+import { getClientUrl } from '../helpers/portalUrl.js';
 
-const DEFAULT_CLIENT_URL = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+const DEFAULT_CLIENT_URL = getClientUrl();
 
 const isLocalLikeUrl = (value = '') => /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(String(value));
 
@@ -402,7 +403,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     await user.save({ validateBeforeSave: false });
 
     // Create reset URL
-    const frontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+    const frontendUrl = getClientUrl();
     const resetUrl = `${frontendUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
     try {
