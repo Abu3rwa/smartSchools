@@ -149,7 +149,14 @@
       "uploadPdf": "رفع مادة الدرس (PDF فقط، بحد أقصى 10 ميجابايت)",
       "statusExtracted": "تم استخراج المحتوى وهو جاهز للذكاء الاصطناعي",
       "statusNone": "لم يتم رفع مواد إضافية",
-      "statusPending": "تم اختيار ملف جديد (سيتم استخراجه عند الحفظ)"
+      "statusPending": "تم اختيار ملف جديد (سيتم استخراجه عند الحفظ)",
+      "statusExtracting": "جارٍ الاستخراج...",
+      "extractBtn": "استخراج الملف",
+      "extracting": "جارٍ الاستخراج...",
+      "extractingHint": "جارٍ قراءة واستخراج النص من ملف PDF...",
+      "extractedReady": "تم استخراج المحتوى وهو جاهز",
+      "suggestTitleFromFile": "اقتراح العنوان من الملف",
+      "suggestingTitle": "جارٍ الاقتراح..."
     }
   },
   "form": {
@@ -169,7 +176,11 @@
       "suggestedOtherSubjects": "معايير مقترحة (مواد أخرى - أضفها إلى مادتك في الإعدادات لاستخدامها هنا)",
       "inferredHint": "أضف هذه المعايير إلى المادة في الإعدادات لحفظها مع خطة الدرس.",
       "selectedTitle": "المعايير المحددة (اضغط × للإزالة)",
-      "remove": "إزالة المعيار"
+      "remove": "إزالة المعيار",
+      "manualTitle": "إضافة معيار يدوي",
+      "manualCodePlaceholder": "الرمز (مثل: 1.OA.3)",
+      "manualNamePlaceholder": "اسم المعيار أو الوصف",
+      "manualAdd": "إضافة"
     }
   },
   "evaluation": {

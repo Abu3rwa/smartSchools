@@ -58,6 +58,14 @@ const standardAssignmentSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    notifyParents: {
+        type: Boolean,
+        default: true
+    },
+    notifyStudents: {
+        type: Boolean,
+        default: true
+    },
     practiceConfig: {
         sessionType: {
             type: String,

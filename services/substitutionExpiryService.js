@@ -64,13 +64,13 @@ export async function expireStaleSubstitutionRequests() {
         ].filter(Boolean).join('\n');
 
         const htmlContent = `
-<div style="font-family:sans-serif;color:#1f2937;max-width:620px;">
+<div style="font-family:sans-serif;color:#0f172a;max-width:620px;">
   <h2 style="margin:0 0 12px;">Substitution Request Expired</h2>
   <p style="margin:0 0 8px;">A substitution request expired without full coverage confirmation.</p>
   <p style="margin:0 0 8px;"><strong>Absent teacher:</strong> ${absentTeacherName}</p>
   <p style="margin:0 0 8px;"><strong>Date:</strong> ${new Date(request.date).toLocaleDateString()}</p>
   <h3 style="margin:12px 0 8px;">Uncovered periods</h3>
-  <pre style="margin:0 0 12px;padding:10px;background:#f9fafb;border-radius:6px;white-space:pre-wrap;">${pendingPeriodLines}</pre>
+  <pre style="margin:0 0 12px;padding:10px;background:#f8fafc;border-radius:6px;white-space:pre-wrap;">${pendingPeriodLines}</pre>
   ${detailUrl ? `<p style="margin:0 0 8px;"><a href="${detailUrl}">Open request details</a></p>` : ''}
   ${recreateUrl ? `<p style="margin:0;"><a href="${recreateUrl}">Create replacement request</a></p>` : ''}
 </div>`;

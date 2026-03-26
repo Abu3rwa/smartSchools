@@ -105,6 +105,14 @@ const lessonPlanSchema = new mongoose.Schema(
         ref: "Standard",
       },
     ],
+    // Teacher-typed custom standards (not from the Standard collection)
+    manualStandards: [
+      {
+        code: { type: String, trim: true, default: '' },
+        name: { type: String, trim: true, default: '' },
+        description: { type: String, trim: true, default: '' },
+      },
+    ],
     // Additional fields for AI evaluation
     weekNumber: {
       type: Number,

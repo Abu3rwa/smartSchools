@@ -13,6 +13,7 @@ import {
     suggestField,
     detectStandards,
     generateSection,
+    extractPdf,
     submitLessonPlan,
     getLessonPlansForReview,
     reviewLessonPlan,
@@ -34,6 +35,7 @@ router.use(resolveDepartmentScope);
 router.post('/ai/suggest', authorize('teacher', 'admin'), suggestField);
 router.post('/ai/detect-standards', authorize('teacher', 'admin'), detectStandards);
 router.post('/ai/generate-section', authorize('teacher', 'admin'), generateSection);
+router.post('/ai/extract-pdf', authorize('teacher', 'admin'), uploadLessonPlanContext, extractPdf);
 
 // Admin review routes (must be before /:id)
 router.get('/admin/review', authorizeWithPermission(

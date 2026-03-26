@@ -21,6 +21,8 @@ import {
     resolvePreGeneratedQuestionCount,
     DEFAULT_PREGENERATED_QUESTION_COUNT
 } from '../services/standardAssignmentService.js';
+import notificationService from '../services/notificationService.js';
+import logger from '../utils/logger.js';
 
 const normalizeTitle = (value = '') => String(value || '').trim();
 
@@ -263,7 +265,9 @@ export const createAssignment = asyncHandler(async (req, res) => {
         practiceConfig,
         assessmentConfig,
         preGeneratedQuestionCount,
-        aiLanguages
+        aiLanguages,
+        notifyParents = true,
+        notifyStudents = true
     } = req.body;
     const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const requestedSemester = normalizeSemester(req.body?.semester);
@@ -430,6 +434,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
             parsedConfig?.questionLimit || practiceConfig?.questionLimit
         ),
         aiLanguages: generationLanguages,
+        notifyParents,
+        notifyStudents,
         questionWorkflow: {
             requireApprovalBeforeStudentAccess: requiresReviewedPoolBeforeAccess,
             status: 'draft',
@@ -442,6 +448,39 @@ export const createAssignment = asyncHandler(async (req, res) => {
         .populate('class', 'name grade section')
         .populate('subject', 'name code')
         .populate('students', 'firstName lastName studentId');
+
+    // Send notifications (fire-and-forget)
+    if (notifyParents || notifyStudents) {
+        const targetStudentIds = studentIds.length > 0
+            ? studentIds
+            : (await Student.find({ currentClass: classId, status: 'active', academicYear: classDoc.academicYear }).select('_id').lean()).map(s => s._id);
+
+        const notifAssignment = {
+            _id: assignment._id,
+            title: populated.title || resolvedTitle,
+            assignmentTypeName: resolvedSessionType === 'assessment' ? 'Assessment' : 'Standards Practice',
+            assignmentTypeKey: 'standard_assignment',
+            dueDate: assignment.dueDate,
+            instructions: assignment.instructions,
+        };
+
+        for (const sid of targetStudentIds) {
+            if (notifyParents) {
+                notificationService.sendAssignmentPostedNotification({
+                    studentId: sid,
+                    assignment: notifAssignment,
+                    createdBy: req.user._id?.toString(),
+                }).catch(err => logger.error('standard_assignment_parent_notif_failed', { studentId: String(sid), error: err?.message }));
+            }
+            if (notifyStudents) {
+                notificationService.sendStudentAssignmentPostedNotification({
+                    studentId: sid,
+                    assignment: notifAssignment,
+                    createdBy: req.user._id?.toString(),
+                }).catch(err => logger.error('standard_assignment_student_notif_failed', { studentId: String(sid), error: err?.message }));
+            }
+        }
+    }
 
     res.status(201).json({
         success: true,
@@ -992,20 +1031,21 @@ export const publishAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (!assignment || !assignment.isActive) {
         return res.status(404).json({ success: false, message: 'Assignment not found' });
     }
-    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
-        return res.status(400).json({
-            success: false,
-            message: 'Question pool publishing is not enabled for this assignment'
-        });
-    }
 
     const pool = await StandardQuestionPool.findOne({
         school: req.schoolId,
         assignment: assignment._id,
         isActive: true,
     });
-    if (!pool || (pool.status !== 'approved' && pool.status !== 'published')) {
-        return res.status(400).json({ success: false, message: 'Question pool must be approved before publish' });
+    if (!pool) {
+        return res.status(400).json({ success: false, message: 'Question pool not found' });
+    }
+    if (pool.status === 'published') {
+        return res.json({
+            success: true,
+            message: 'Question pool is already published',
+            data: { questionPool: pool, questionWorkflow: assignment.questionWorkflow },
+        });
     }
 
     const now = new Date();
@@ -1023,6 +1063,41 @@ export const publishAssignmentQuestionPool = asyncHandler(async (req, res) => {
         requireApprovalBeforeStudentAccess: true,
     };
     await assignment.save();
+
+    // Send notifications on publish (fire-and-forget)
+    if (assignment.notifyParents !== false || assignment.notifyStudents !== false) {
+        const classDoc = await Class.findById(assignment.class).select('academicYear').lean();
+        const studentIds = Array.isArray(assignment.students) && assignment.students.length > 0
+            ? assignment.students
+            : (await Student.find({ currentClass: assignment.class, status: 'active', academicYear: classDoc?.academicYear }).select('_id').lean()).map(s => s._id);
+
+        const sessionType = assignment.practiceConfig?.sessionType || 'practice';
+        const notifAssignment = {
+            _id: assignment._id,
+            title: assignment.title,
+            assignmentTypeName: sessionType === 'assessment' ? 'Assessment' : 'Standards Practice',
+            assignmentTypeKey: 'standard_assignment',
+            dueDate: assignment.dueDate,
+            instructions: assignment.instructions,
+        };
+
+        for (const sid of studentIds) {
+            if (assignment.notifyParents !== false) {
+                notificationService.sendAssignmentPostedNotification({
+                    studentId: sid,
+                    assignment: notifAssignment,
+                    createdBy: req.user._id?.toString(),
+                }).catch(err => logger.error('publish_parent_notif_failed', { studentId: String(sid), error: err?.message }));
+            }
+            if (assignment.notifyStudents !== false) {
+                notificationService.sendStudentAssignmentPostedNotification({
+                    studentId: sid,
+                    assignment: notifAssignment,
+                    createdBy: req.user._id?.toString(),
+                }).catch(err => logger.error('publish_student_notif_failed', { studentId: String(sid), error: err?.message }));
+            }
+        }
+    }
 
     res.json({
         success: true,

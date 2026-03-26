@@ -282,7 +282,6 @@ const StandardAssignList = ({
                                                         </button>
                                                     )}
                                                     {canApproveQuestionPool &&
-                                                        isAssessment &&
                                                         ['draft', 'reviewed', 'approved'].includes(workflowStatus) && (
                                                         <button
                                                             className="assign-row-menu__btn"

@@ -27,7 +27,6 @@ export default function RevisionPlanViewPage() {
   const theme = useTheme();
   const {
     plan,
-    planId,
     loading,
     isStudent,
     updating,

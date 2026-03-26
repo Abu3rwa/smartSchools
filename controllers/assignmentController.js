@@ -184,23 +184,38 @@ const resolveAssignmentType = async ({ schoolId, assignmentTypeId, assignmentTyp
 const sendAssignPostedNotifications = async ({ assignment, students, createdBy }) => {
     if (!Array.isArray(students) || students.length === 0) return;
     await Promise.allSettled(
-        students.map((student) => notificationService.sendAssignmentPostedNotification({
-            studentId: student._id,
-            assignment,
-            createdBy
-        }))
+        students.flatMap((student) => [
+            notificationService.sendAssignmentPostedNotification({
+                studentId: student._id,
+                assignment,
+                createdBy
+            }),
+            notificationService.sendStudentAssignmentPostedNotification({
+                studentId: student._id,
+                assignment,
+                createdBy
+            }),
+        ])
     );
 };
 
 const sendAssignGradedNotifications = async ({ assignment, gradedRows, createdBy }) => {
     if (!Array.isArray(gradedRows) || gradedRows.length === 0) return;
     await Promise.allSettled(
-        gradedRows.map((row) => notificationService.sendAssignmentGradedNotification({
-            studentId: row.studentId,
-            assignment,
-            grade: row.grade,
-            createdBy
-        }))
+        gradedRows.flatMap((row) => [
+            notificationService.sendAssignmentGradedNotification({
+                studentId: row.studentId,
+                assignment,
+                grade: row.grade,
+                createdBy
+            }),
+            notificationService.sendStudentAssignmentGradedNotification({
+                studentId: row.studentId,
+                assignment,
+                grade: row.grade,
+                createdBy
+            }),
+        ])
     );
 };
 

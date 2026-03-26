@@ -128,6 +128,8 @@ export async function createStandardAssignmentWithPool(opts = {}) {
         questionWorkflow,
         generationContext,
         failOnGenerationError = false,
+        notifyParents = true,
+        notifyStudents = true,
     } = opts;
 
     const resolvedPracticeConfig = practiceConfig || {};
@@ -152,6 +154,8 @@ export async function createStandardAssignmentWithPool(opts = {}) {
         students,
         dueDate,
         instructions,
+        notifyParents,
+        notifyStudents,
         practiceConfig: resolvedPracticeConfig,
         assessmentConfig,
         questionWorkflow: {

@@ -36,6 +36,7 @@ export function getInitialFormData() {
     aiPrimaryLanguage: 'en',
     aiSecondaryLanguage: '',
     standardIds: [],
+    manualStandards: [],
     stages: DEFAULT_STAGES.map((s) => ({ ...s })),
     contextText: '',
     materialFile: null,
@@ -63,6 +64,7 @@ export function lessonToFormData(lesson) {
     aiPrimaryLanguage: 'en',
     aiSecondaryLanguage: '',
     standardIds: stdIds,
+    manualStandards: Array.isArray(lesson.manualStandards) ? lesson.manualStandards : [],
     stages:
       Array.isArray(lesson.stages) && lesson.stages.length
         ? lesson.stages.map((s) => ({
@@ -84,6 +86,9 @@ export function buildLessonPayload(formData) {
     const s = String(id);
     return /^[a-fA-F0-9]{24}$/.test(s);
   });
+
+  const manualStandards = (formData.manualStandards || [])
+    .filter((s) => s && (s.code || s.name || s.description));
   
   const payload = {
     class: formData.classId,
@@ -100,6 +105,7 @@ export function buildLessonPayload(formData) {
     techIntegration: formData.techIntegration,
     contextText: formData.contextText || '',
     standardIds,
+    manualStandards,
     stages: formData.stages,
   };
 

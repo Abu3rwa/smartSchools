@@ -11,6 +11,7 @@ const requiredEnvVars = [
 const optionalEnvVars = [
   'PORT',
   'NODE_ENV',
+  'PORTAL_URL',
   'CLIENT_URL',
   'JWT_EXPIRE',
   'GOOGLE_REDIRECT_URI',

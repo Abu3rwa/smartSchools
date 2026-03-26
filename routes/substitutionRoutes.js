@@ -81,11 +81,11 @@ router.get(
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Opening substitution response</title>
     </head>
-    <body style="font-family:sans-serif;max-width:560px;margin:2.5rem auto;padding:1rem;color:#1f2937;">
+    <body style="font-family:sans-serif;max-width:560px;margin:2.5rem auto;padding:1rem;color:#0f172a;">
         <h2 style="margin:0 0 10px;">Opening response...</h2>
         <p style="margin:0 0 14px;">If the app does not open automatically, use the button below.</p>
         <p style="margin:0;">
-            <a href="${webUrl}" style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">Continue in web portal</a>
+            <a href="${webUrl}" style="background:#0d9488;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">Continue in web portal</a>
         </p>
         <script>
             const deepLink = ${JSON.stringify(deepLinkUrl)};

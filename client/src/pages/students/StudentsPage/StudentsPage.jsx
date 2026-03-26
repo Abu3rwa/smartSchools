@@ -43,6 +43,7 @@ import {
     ParentCredentialsModal,
     EmailPromptModal
 } from './components/StudentLoginModals';
+import { parseCsvText } from '../../../utils/csvImport';
 import TablePagination from '../../../components/common/TablePagination';
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -471,13 +472,12 @@ const StudentsPage = () => {
     };
 
     const parseCSV = (text) => {
-        const lines = text.split(/\r?\n/).filter((line) => line.trim());
-        if (lines.length < 2) {
+        const { headers, rows, errors } = parseCsvText(text);
+        if (headers.length === 0 && rows.length === 0) {
             setCsvErrors([t('students:import.csvMustHaveHeader')]);
             return;
         }
 
-        const headers = lines[0].split(',').map((header) => header.trim());
         const requiredHeaders = ['firstName', 'lastName', 'dateOfBirth', 'gender'];
         const missing = requiredHeaders.filter((header) => !headers.includes(header));
         if (missing.length > 0) {
@@ -485,29 +485,8 @@ const StudentsPage = () => {
             return;
         }
 
-        const rows = [];
-        const parseErrors = [];
-
-        for (let index = 1; index < lines.length; index += 1) {
-            const values = lines[index].split(',').map((value) => value.trim());
-            if (values.length !== headers.length) {
-                parseErrors.push(t('students:import.invalidColumnCount', {
-                    row: index,
-                    expected: headers.length,
-                    actual: values.length
-                }));
-                continue;
-            }
-
-            const row = {};
-            headers.forEach((header, headerIndex) => {
-                row[header] = values[headerIndex];
-            });
-            rows.push(row);
-        }
-
         setCsvData(rows);
-        setCsvErrors(parseErrors);
+        setCsvErrors(errors);
     };
 
     const handleFileSelect = (event) => {

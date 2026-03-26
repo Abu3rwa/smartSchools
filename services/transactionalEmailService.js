@@ -10,10 +10,10 @@ const normalizeRecipientList = (value) => {
 };
 
 const createSmtpTransport = async () => {
-    const smtpHost = process.env.EMAIL_HOST;
-    const smtpPort = Number(process.env.EMAIL_PORT || 587);
-    const smtpUser = process.env.EMAIL_USER;
-    const smtpPass = process.env.EMAIL_PASS;
+    const smtpHost = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+    const smtpPort = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || 587);
+    const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+    const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
 
     if (!smtpHost || !smtpUser || !smtpPass) {
         return null;
@@ -52,29 +52,24 @@ export const sendTransactionalEmail = async ({
         html
     };
 
-    const smtpTransport = await createSmtpTransport();
-    if (smtpTransport) {
-        const smtpUser = process.env.EMAIL_USER;
-        const branding = await getPlatformBranding();
-        await smtpTransport.sendMail({
-            ...mailOptions,
-            from: process.env.EMAIL_FROM || `"${branding.appName}" <${smtpUser}>`
-        });
-        return { channel: 'smtp' };
-    }
-
+    // 1. Gmail OAuth — primary transport (preferred user)
     if (preferredUserId) {
         const senderId = preferredUserId.toString();
-        if (await gmailOAuthService.hasValidTokens(senderId)) {
-            const result = await gmailOAuthService.sendEmail(senderId, mailOptions);
-            return {
-                channel: 'gmail_oauth',
-                messageId: result.messageId,
-                threadId: result.threadId
-            };
+        try {
+            if (await gmailOAuthService.hasValidTokens(senderId)) {
+                const result = await gmailOAuthService.sendEmail(senderId, mailOptions);
+                return {
+                    channel: 'gmail_oauth',
+                    messageId: result.messageId,
+                    threadId: result.threadId
+                };
+            }
+        } catch {
+            // Fall through to admin Gmail
         }
     }
 
+    // 2. Gmail OAuth — admin fallback
     if (schoolId) {
         const adminsWithGmail = await User.find({
             school: schoolId,
@@ -101,6 +96,18 @@ export const sendTransactionalEmail = async ({
                 // Try next admin sender.
             }
         }
+    }
+
+    // 3. SMTP — last-resort fallback
+    const smtpTransport = await createSmtpTransport();
+    if (smtpTransport) {
+        const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+        const branding = await getPlatformBranding();
+        await smtpTransport.sendMail({
+            ...mailOptions,
+            from: process.env.EMAIL_FROM || `"${branding.appName}" <${smtpUser}>`
+        });
+        return { channel: 'smtp_fallback' };
     }
 
     throw new Error('No configured email transport available');

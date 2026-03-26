@@ -141,7 +141,7 @@ async function buildEmailHtml({ requestDetails, portalUrl }) {
     <h3 style="margin:16px 0 8px;">Coverage Details</h3>
     <table style="border-collapse:collapse;width:100%;max-width:560px;font-size:14px;">
         <thead>
-            <tr style="background:#f3f4f6;">
+            <tr style="background:#f8fafc;">
                 <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Period</th>
                 <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Time</th>
                 <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Class</th>
@@ -154,18 +154,18 @@ async function buildEmailHtml({ requestDetails, portalUrl }) {
 
     const principalSection = principalNote ? `
     <h3 style="margin:16px 0 8px;">Principal Note</h3>
-    <p style="margin:0 0 16px;padding:12px;background:#f9fafb;border-radius:6px;white-space:pre-wrap;">${principalNote.replace(/</g, '&lt;')}</p>` : '';
+    <p style="margin:0 0 16px;padding:12px;background:#f8fafc;border-radius:6px;white-space:pre-wrap;">${principalNote.replace(/</g, '&lt;')}</p>` : '';
 
     const materialsSection = materialsLink ? `
     <h3 style="margin:16px 0 8px;">Subbing Materials</h3>
     <p style="margin:0 0 16px;">
-        <a href="${materialsLink}" style="color:#3b82f6;text-decoration:underline;">${materialsLink}</a>
+        <a href="${materialsLink}" style="color:#0d9488;text-decoration:underline;">${materialsLink}</a>
     </p>` : '';
 
         const template = await loadSubRequestTemplate();
         if (!template) {
                 return `
-<div style="font-family:sans-serif;color:#374151;max-width:600px;">
+<div style="font-family:sans-serif;color:#0f172a;max-width:600px;">
     <h2 style="margin:0 0 16px;font-size:20px;">Substitution Request</h2>
     <p style="margin:0 0 8px;">You have been selected as a substitute for <strong>${absentTeacherName || 'a teacher'}</strong> on <strong>${date || 'the scheduled date'}</strong>.</p>
     ${periodsTable}
@@ -174,9 +174,9 @@ async function buildEmailHtml({ requestDetails, portalUrl }) {
     <h3 style="margin:20px 0 8px;">Action Required</h3>
     <p style="margin:0 0 16px;">Please review the request and respond via the portal:</p>
     <p style="margin:0 0 16px;">
-        <a href="${portalUrl}" style="background:#3b82f6;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;">View & Respond in Portal</a>
+        <a href="${portalUrl}" style="background:#0d9488;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;">View & Respond in Portal</a>
     </p>
-    <p style="color:#6b7280;font-size:12px;margin:24px 0 0;">Do not share this email. Access is restricted to your account.</p>
+    <p style="color:#334155;font-size:12px;margin:24px 0 0;">Do not share this email. Access is restricted to your account.</p>
 </div>`;
         }
 
@@ -288,7 +288,7 @@ export async function notifyTeacherPortalResponse({
     ].filter(Boolean).join('\n');
 
     const htmlContent = `
-<div style="font-family:sans-serif;color:#1f2937;max-width:620px;">
+<div style="font-family:sans-serif;color:#0f172a;max-width:620px;">
   <h2 style="margin:0 0 12px;">Substitution Response Recorded</h2>
   <p style="margin:0 0 12px;">Your response has been recorded as <strong>${escapeHtml(verb)}</strong>.</p>
   <p style="margin:0 0 16px;">Request date: <strong>${escapeHtml(formatDate(date))}</strong></p>

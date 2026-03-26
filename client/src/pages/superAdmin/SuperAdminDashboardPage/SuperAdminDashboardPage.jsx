@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { selectUser } from '../../../store/slices/authSlice';
+// authSlice import removed — user not currently used
 import api from '../../../config/api';
 import {
     HiOutlineOfficeBuilding,
@@ -47,7 +47,6 @@ const AdminStatCard = ({ icon: Icon, variant, value, label }) => (
 const SuperAdminDashboardPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const user = useSelector(selectUser);
     const { t, i18n } = useTranslation(['superAdminDashboard']);
     const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : 'en-US';
     const subscriptionAnalytics = useSelector(selectSubscriptionAnalytics);
@@ -274,7 +273,6 @@ const SuperAdminDashboardPage = () => {
                                         >
                                             {planDistributionData.map((entry, index) => (
                                                 <Cell
-                                                    // eslint-disable-next-line react/no-array-index-key
                                                     key={`cell-${index}`}
                                                     fill={planColors[index % planColors.length]}
                                                 />

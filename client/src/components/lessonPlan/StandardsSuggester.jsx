@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { HiOutlineAcademicCap, HiOutlineSearch, HiOutlineX } from 'react-icons/hi';
+import { HiOutlineAcademicCap, HiOutlineSearch, HiOutlineX, HiOutlinePlus } from 'react-icons/hi';
 import { detectStandards } from '../../store/slices/lessonSlice';
 import toast from 'react-hot-toast';
 import { formatStandardLabel } from '../../utils/standardLabel';
@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
  * UI for detecting and selecting curriculum standards aligned with lesson content.
  * Uses subject-added standards when present; when none exist, infers from lesson (subject+grade aligned).
  * Selected standards can be edited (add/remove). Inferred suggestions are display-only for saving (add to subject in Settings to persist).
+ * Teachers can also manually type custom standards.
  */
 const StandardsSuggester = ({
     subjectId,
@@ -18,11 +19,14 @@ const StandardsSuggester = ({
     lessonText,
     selectedStandardIds = [],
     onSelectionChange,
+    manualStandards = [],
+    onManualStandardsChange,
     disabled = false,
     initialSuggestions = [],
     aiPrimaryLanguage = 'en',
     aiSecondaryLanguage = '',
     contextText,
+    extractedMaterialText,
     lessonPlanId,
 }) => {
     const { t } = useTranslation(['lessonPlan']);
@@ -53,6 +57,7 @@ const StandardsSuggester = ({
             classId,
             lessonText,
             contextText: contextText ?? '',
+            extractedMaterialText: extractedMaterialText ?? '',
             lessonPlanId: lessonPlanId ?? null,
             requestedLanguages: requestedLanguages.length > 0 ? requestedLanguages : ['en'],
             primaryLanguage: aiPrimaryLanguage || 'en',
@@ -186,8 +191,103 @@ const StandardsSuggester = ({
                     </ul>
                 </div>
             )}
+
+            <ManualStandardsInput
+                manualStandards={manualStandards}
+                onManualStandardsChange={onManualStandardsChange}
+                t={t}
+            />
         </div>
     );
 };
+
+/**
+ * Inline sub-component for manually typing custom standards.
+ */
+function ManualStandardsInput({ manualStandards = [], onManualStandardsChange, t }) {
+    const [code, setCode] = useState('');
+    const [name, setName] = useState('');
+
+    const handleAdd = () => {
+        const trimmedCode = code.trim();
+        const trimmedName = name.trim();
+        if (!trimmedCode && !trimmedName) return;
+        onManualStandardsChange([
+            ...manualStandards,
+            { code: trimmedCode, name: trimmedName, description: '' },
+        ]);
+        setCode('');
+        setName('');
+    };
+
+    const handleRemove = (index) => {
+        onManualStandardsChange(manualStandards.filter((_, i) => i !== index));
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAdd();
+        }
+    };
+
+    return (
+        <div className="manual-standards-section" style={{ marginTop: '12px' }}>
+            <h5 style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0 0 8px 0', fontSize: '13px' }}>
+                <HiOutlinePlus size={16} />
+                {t('lessonPlan:form.standards.manualTitle')}
+            </h5>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                <input
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={t('lessonPlan:form.standards.manualCodePlaceholder')}
+                    style={{ flex: '0 0 120px', padding: '6px 10px', fontSize: '13px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                />
+                <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={t('lessonPlan:form.standards.manualNamePlaceholder')}
+                    style={{ flex: '1', minWidth: '180px', padding: '6px 10px', fontSize: '13px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                />
+                <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleAdd}
+                    disabled={!code.trim() && !name.trim()}
+                    style={{ padding: '6px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                    <HiOutlinePlus size={16} />
+                    {t('lessonPlan:form.standards.manualAdd')}
+                </button>
+            </div>
+            {manualStandards.length > 0 && (
+                <ul className="standards-selected-list">
+                    {manualStandards.map((s, i) => (
+                        <li key={i} className="standard-selected-chip">
+                            <span>
+                                {s.code && <strong>{s.code}</strong>}
+                                {s.code && s.name && ' — '}
+                                {s.name}
+                            </span>
+                            <button
+                                type="button"
+                                className="standard-remove-btn"
+                                onClick={() => handleRemove(i)}
+                                aria-label={t('lessonPlan:form.standards.remove')}
+                            >
+                                <HiOutlineX size={16} />
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
 
 export default StandardsSuggester;

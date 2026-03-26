@@ -178,11 +178,11 @@ router.post('/test', protect, async (req, res) => {
             text: `This is a test email from ${appName} to verify your Gmail connection is working.`,
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #2c3e50;">✅ Gmail Connected Successfully!</h2>
+                    <h2 style="color: #0f172a;">✅ Gmail Connected Successfully!</h2>
                     <p>This is a test email from ${appName} to verify your Gmail connection is working.</p>
                     <p>You can now send grade notifications and reports to parents using your Gmail account.</p>
                     <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #6c757d; font-size: 12px;">This is an automated test message from ${appName}.</p>
+                    <p style="color: #334155; font-size: 12px;">This is an automated test message from ${appName}.</p>
                 </div>
             `
         };

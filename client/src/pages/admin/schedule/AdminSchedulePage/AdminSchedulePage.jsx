@@ -35,7 +35,7 @@ const AdminSchedulePage = () => {
     const teachers = useSelector((state) => state.teachers.teachers) || [];
     const classes = useSelector((state) => state.classes.classes) || [];
     const subjects = useSelector((state) => state.subjects.subjects) || [];
-    const loadingData = useSelector((state) => state.teachers.loading || state.classes.loading || state.subjects.loading);
+    const _loadingData = useSelector((state) => state.teachers.loading || state.classes.loading || state.subjects.loading);
 
     // Local state
     const [schedules, setSchedules] = useState([]);
@@ -49,7 +49,7 @@ const AdminSchedulePage = () => {
     const [currentView, setCurrentView] = useState('list'); // 'list', 'calendar', 'week'
     const [currentDate, setCurrentDate] = useState(new Date());
     const [rooms, setRooms] = useState([]);
-    const [roomsLoading, setRoomsLoading] = useState(false);
+    const [_roomsLoading, setRoomsLoading] = useState(false);
     const [roomAvailability, setRoomAvailability] = useState(null);
     const [roomAvailabilityLoading, setRoomAvailabilityLoading] = useState(false);
 

@@ -35,7 +35,7 @@ const TeacherAttendancePage = () => {
   const [studentAttendance, setStudentAttendance] = useState({});
 
   // ── Fetch ──
-  useEffect(() => { fetchAttendanceData(); /* eslint-disable-next-line */ }, [currentDate, viewMode]);
+   useEffect(() => { fetchAttendanceData(); }, [currentDate, viewMode]); // fetchAttendanceData is stable within render
 
   const fetchAttendanceData = async () => {
     try {

@@ -2,7 +2,7 @@ import api from '../config/api';
 
 const getFilenameFromDisposition = (disposition, fallback = 'sample.csv') => {
     const header = String(disposition || '');
-    const match = header.match(/filename=\"?([^\";]+)\"?/i);
+    const match = header.match(/filename="?([^";]+)"?/i);
     return (match && match[1]) ? match[1] : fallback;
 };
 

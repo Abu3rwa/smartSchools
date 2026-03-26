@@ -38,8 +38,8 @@ const getStatusColor = (status) => {
 export default function RevisionPlansListPage() {
   const { t } = useTranslation(["revisionPlans"]);
   const theme = useTheme();
-  const isSm = useMediaQuery(theme.breakpoints.down("sm"));
-  const isMd = useMediaQuery(theme.breakpoints.down("md"));
+  const _isSm = useMediaQuery(theme.breakpoints.down("sm"));
+  const _isMd = useMediaQuery(theme.breakpoints.down("md"));
   const {
     list,
     loading,

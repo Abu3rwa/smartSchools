@@ -10,6 +10,7 @@ import StandardQuestionPool from "../models/StandardQuestionPool.js";
 import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
 import { scheduleFromAttempt } from "../services/reviewSchedulerService.js";
 import { upsertInterventionCase } from "../services/interventionQueueService.js";
+import notificationService from "../services/notificationService.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { logAIUsage } from "../utils/aiUsageTracker.js";
 import logger from "../utils/logger.js";
@@ -636,6 +637,9 @@ const upsertAssessmentGradebookProgress = async ({
       passMarks: assessmentConfig.passMarks,
       resultsVisibility: assessmentConfig.resultsVisibility,
       resultsReleaseAt: assessmentConfig.resultsReleaseAt || null,
+      tabSwitchCount: await PracticeSession.findOne(
+        { school: schoolId, student: studentId, assignment: assignment._id, ...(sessionId ? { _id: sessionId } : {}) }
+      ).sort({ createdAt: -1 }).select("tabSwitchCount").lean().then((s) => s?.tabSwitchCount || 0),
     },
   };
   if (submittedAt) {
@@ -2438,6 +2442,16 @@ export const finalizeAssessment = asyncHandler(async (req, res) => {
   const canViewResult =
     assessmentConfig.resultsVisibility === "immediate" || isReleaseDateReached;
 
+  // Notify parents of completion (fire-and-forget)
+  if (assignment.notifyParents !== false) {
+    notificationService.sendStandardAssignmentCompletedNotification({
+      studentId: student._id,
+      assignment,
+      score: entry.score ?? null,
+      maxScore: entry.maxScore ?? null,
+    }).catch(err => logger.error("finalize_assessment_notif_failed", { error: err?.message }));
+  }
+
   res.json({
     success: true,
     data: {
@@ -2767,7 +2781,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
     assignment: assignment._id,
   })
     .select(
-      "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester"
+      "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester metadata"
     )
     .lean();
   const entryByStudent = new Map(
@@ -2791,6 +2805,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
           releasedAt: existing.releasedAt || null,
           academicYear: existing.academicYear || assignment.academicYear || null,
           semester: existing.semester || assignment.semester || null,
+          tabSwitchCount: existing.metadata?.tabSwitchCount || 0,
         };
       }
 
@@ -2814,6 +2829,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
         releasedAt: null,
         academicYear: assignment.academicYear || null,
         semester: assignment.semester || null,
+        tabSwitchCount: 0,
       };
     })
   );
@@ -3746,6 +3762,16 @@ export const logIntegrityEvent = asyncHandler(async (req, res) => {
     status: "active",
   }).sort({ createdAt: -1 });
 
+  // Increment tab switch count on session for tab_hidden events
+  let tabSwitchCount = 0;
+  if (session && parsed.data.eventType === "tab_hidden") {
+    session.tabSwitchCount = (session.tabSwitchCount || 0) + 1;
+    await session.save();
+    tabSwitchCount = session.tabSwitchCount;
+  } else if (session) {
+    tabSwitchCount = session.tabSwitchCount || 0;
+  }
+
   const event = await PracticeIntegrityEvent.create({
     school: req.schoolId,
     student: student._id,
@@ -3759,7 +3785,7 @@ export const logIntegrityEvent = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: { eventId: event._id },
+    data: { eventId: event._id, tabSwitchCount },
   });
 });
 

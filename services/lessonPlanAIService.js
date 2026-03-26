@@ -474,8 +474,11 @@ Output ONLY valid JSON. No markdown, no code fences, no extra text:
 
   const generated = {};
   for (const key of sourceFields) {
-    if (typeof parsed[key] === "string") {
-      generated[key] = parsed[key].trim();
+    const val = parsed[key];
+    if (typeof val === "string") {
+      generated[key] = val.trim();
+    } else if (Array.isArray(val)) {
+      generated[key] = val.filter(v => typeof v === "string").join("\n").trim();
     }
   }
 

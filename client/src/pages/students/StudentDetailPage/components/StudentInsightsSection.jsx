@@ -52,7 +52,7 @@ const getPerformanceTone = (value) => {
     return 'risk';
 };
 
-const getToneColor = (tone) => {
+const _getToneColor = (tone) => {
     return PERFORMANCE_COLORS[tone] || PERFORMANCE_COLORS.neutral;
 };
 

@@ -6,7 +6,7 @@ import { googleLogin, selectAuth } from '../store/slices/authSlice';
 import { selectAppName } from '../store/slices/uiSlice';
 import { useTranslation } from 'react-i18next';
 import { HiOutlineAcademicCap, HiOutlineArrowLeft, HiOutlineExclamationCircle } from 'react-icons/hi';
-import toast from 'react-hot-toast';
+// toast removed (unused import)
 import './SchoolLoginPage.css';
 
 const GoogleIcon = () => (

@@ -145,6 +145,7 @@ const AssessmentGradebookModal = ({
                                             <th>{t('standardAssign:assessmentGradebook.table.score')}</th>
                                             <th>{t('standardAssign:assessmentGradebook.table.percentage')}</th>
                                             <th>0-4</th>
+                                            <th title="Tab switches detected during assessment">⚠ Tab</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -172,6 +173,9 @@ const AssessmentGradebookModal = ({
                                                     {row.scale4 !== null && row.scale4 !== undefined
                                                         ? row.scale4
                                                         : t('standardAssign:common.na')}
+                                                </td>
+                                                <td style={row.tabSwitchCount > 0 ? { color: 'var(--error)', fontWeight: 600 } : undefined}>
+                                                    {row.tabSwitchCount || 0}
                                                 </td>
                                             </tr>
                                         ))}

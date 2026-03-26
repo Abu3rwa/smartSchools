@@ -24,7 +24,7 @@ const STATUS_OPTIONS = [
 ];
 
 const TeacherAttendanceNewPage = () => {
-    const user = useSelector(selectUser);
+    const _user = useSelector(selectUser);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);

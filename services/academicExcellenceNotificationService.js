@@ -1,7 +1,10 @@
 import Notification from '../models/Notification.js';
 import AcademicExcellenceNotificationPreference from '../models/AcademicExcellenceNotificationPreference.js';
-import Student from '../models/Student.js';
+import School from '../models/School.js';
+import User from '../models/User.js';
 import { sendPushToUsers } from './pushNotificationService.js';
+import { sendTransactionalEmail } from './transactionalEmailService.js';
+import { buildPortalLink } from '../helpers/portalUrl.js';
 import logger from '../utils/logger.js';
 import { NOTIFICATION_TYPES } from '../constants/notificationTypes.js';
 
@@ -70,7 +73,14 @@ const sendMasteryChangeNotification = async ({ schoolId, student, objectiveKey, 
         if (student.user) parentUserIds.push(student.user);
 
         if (parentUserIds.length > 0) {
-            await sendPushToUsers(parentUserIds, { title: subject, body: message }).catch((err) =>
+            await sendPushToUsers({
+                schoolId,
+                userIds: parentUserIds,
+                title: subject,
+                body: message,
+                data: { type: 'update', notificationType: NOTIFICATION_TYPES.ACADEMIC_EXCELLENCE_MASTERY_CHANGE },
+                collapseKey: 'ae_mastery',
+            }).catch((err) =>
                 logger.warn('ae_push_failed', { error: err?.message })
             );
         }
@@ -103,7 +113,14 @@ const sendAtRiskNotification = async ({ schoolId, student, notMetCount, threshol
         await notification.save();
 
         if (teacherUserId) {
-            await sendPushToUsers([teacherUserId], { title: subject, body: message }).catch((err) =>
+            await sendPushToUsers({
+                schoolId,
+                userIds: [teacherUserId],
+                title: subject,
+                body: message,
+                data: { type: 'update', notificationType: NOTIFICATION_TYPES.ACADEMIC_EXCELLENCE_AT_RISK },
+                collapseKey: 'ae_at_risk',
+            }).catch((err) =>
                 logger.warn('ae_at_risk_push_failed', { error: err?.message })
             );
         }
@@ -116,29 +133,140 @@ const sendAtRiskNotification = async ({ schoolId, student, notMetCount, threshol
 };
 
 /**
- * Send task assignment notification to a student.
+ * Send task assignment notification to a student (push + email) and optionally to parents.
+ * Respects school-level settings.notifications.studentNotifications.onTaskAssigned
+ * and settings.notifications.parentNotifications.onTaskAssigned.
  */
-const sendTaskAssignedNotification = async ({ schoolId, student, taskTitle }) => {
+const sendTaskAssignedNotification = async ({ schoolId, student, taskTitle, taskId }) => {
     try {
+        // Load school notification settings
+        const school = await School.findById(schoolId).select('settings.notifications').lean();
+        const notifSettings = school?.settings?.notifications || {};
+
+        const taskUrl = taskId ? buildPortalLink(`/academic-excellence/tasks/${taskId}`) : '';
         const subject = `New Practice Task Assigned`;
-        const message = `You have a new academic excellence task: "${taskTitle}".`;
+        const message = taskUrl
+            ? `You have a new academic excellence task: "${taskTitle}". View: ${taskUrl}`
+            : `You have a new academic excellence task: "${taskTitle}".`;
+        const htmlContent = [
+            `<p>You have a new academic excellence task: <strong>${taskTitle}</strong>.</p>`,
+            taskUrl
+                ? `<p><a href="${taskUrl}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Task</a></p>`
+                : '',
+        ].filter(Boolean).join('');
 
-        const notification = new Notification({
-            school: schoolId,
-            student: student._id,
-            type: NOTIFICATION_TYPES.ACADEMIC_EXCELLENCE_TASK_ASSIGNED,
-            subject,
-            message,
-            channels: ['push']
-        });
+        // ── Student notification ──
+        if (notifSettings?.studentNotifications?.onTaskAssigned !== false && student.user) {
+            const studentUserId = String(student.user?._id || student.user);
+            const studentUser = await User.findById(studentUserId).select('email').lean();
+            const studentEmail = studentUser?.email || '';
 
-        await notification.save();
+            const studentNotif = new Notification({
+                school: schoolId,
+                recipient: studentUserId,
+                recipientEmail: studentEmail,
+                student: student._id,
+                type: NOTIFICATION_TYPES.ACADEMIC_EXCELLENCE_TASK_ASSIGNED,
+                subject,
+                message,
+                htmlContent,
+                channels: ['push', ...(studentEmail ? ['email'] : [])],
+                metadata: { taskId: taskId || '', taskTitle }
+            });
+            await studentNotif.save();
 
-        if (student.user) {
-            await sendPushToUsers([student.user], { title: subject, body: message }).catch(() => {});
+            await sendPushToUsers({
+                schoolId,
+                userIds: [studentUserId],
+                title: subject,
+                body: message,
+                data: { type: 'update', notificationType: NOTIFICATION_TYPES.ACADEMIC_EXCELLENCE_TASK_ASSIGNED, studentId: String(student._id) },
+                collapseKey: 'ae_task_assigned',
+            }).catch(() => {});
+
+            if (studentEmail) {
+                try {
+                    await sendTransactionalEmail({
+                        to: studentEmail,
+                        subject,
+                        text: message,
+                        html: htmlContent,
+                        schoolId,
+                    });
+                } catch (err) {
+                    logger.warn('ae_task_student_email_failed', { error: err?.message });
+                }
+            }
         }
 
-        return notification;
+        // ── Parent notification ──
+        if (notifSettings?.parentNotifications?.onTaskAssigned !== false) {
+            const parentEmails = typeof student.getAllContactEmails === 'function'
+                ? student.getAllContactEmails()
+                : [];
+            if (parentEmails.length > 0) {
+                const parentSubject = `Practice Task Assigned – ${student.fullName || student.firstName}`;
+                const parentMessage = taskUrl
+                    ? `A new practice task "${taskTitle}" has been assigned to ${student.fullName || student.firstName}. View: ${taskUrl}`
+                    : `A new practice task "${taskTitle}" has been assigned to ${student.fullName || student.firstName}.`;
+                const parentHtml = [
+                    `<p>A new practice task <strong>${taskTitle}</strong> has been assigned to <strong>${student.fullName || student.firstName}</strong>.</p>`,
+                    taskUrl
+                        ? `<p><a href="${taskUrl}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Task</a></p>`
+                        : '',
+                ].filter(Boolean).join('');
+
+                const parentNotif = new Notification({
+                    school: schoolId,
+                    recipientEmail: parentEmails.join(','),
+                    student: student._id,
+                    type: NOTIFICATION_TYPES.ACADEMIC_EXCELLENCE_TASK_ASSIGNED,
+                    subject: parentSubject,
+                    message: parentMessage,
+                    htmlContent: parentHtml,
+                    channels: ['push', 'email'],
+                    metadata: { taskId: taskId || '', taskTitle }
+                });
+                await parentNotif.save();
+
+                // Push to parent user accounts
+                const parentUsers = await User.find({
+                    school: schoolId,
+                    role: 'parent',
+                    isActive: true,
+                    email: { $in: parentEmails.map(e => e.toLowerCase()) },
+                }).select('_id').lean();
+                const parentUserIds = parentUsers.map(u => String(u._id));
+
+                if (parentUserIds.length > 0) {
+                    await sendPushToUsers({
+                        schoolId,
+                        userIds: parentUserIds,
+                        title: parentSubject,
+                        body: parentMessage,
+                        data: { type: 'update', notificationType: NOTIFICATION_TYPES.ACADEMIC_EXCELLENCE_TASK_ASSIGNED, studentId: String(student._id) },
+                        collapseKey: 'ae_task_assigned_parent',
+                    }).catch(() => {});
+                }
+
+                // Email parents
+                for (const email of parentEmails) {
+                    try {
+                        await sendTransactionalEmail({
+                            to: email,
+                            subject: parentSubject,
+                            text: parentMessage,
+                            html: parentHtml,
+                            schoolId,
+                        });
+                    } catch (err) {
+                        logger.warn('ae_task_parent_email_failed', { error: err?.message, email });
+                    }
+                }
+            }
+        }
+
+        return true;
     } catch (err) {
         logger.error('ae_task_assigned_notification_error', { error: err?.message });
         return null;

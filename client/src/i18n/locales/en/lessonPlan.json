@@ -149,7 +149,14 @@
       "uploadPdf": "Upload Lesson Material (PDF only, max 10MB)",
       "statusExtracted": "Content extracted and ready for AI",
       "statusNone": "No extra material uploaded",
-      "statusPending": "New file selected (will be extracted on save)"
+      "statusPending": "New file selected (will be extracted on save)",
+      "statusExtracting": "Extracting...",
+      "extractBtn": "Extract File",
+      "extracting": "Extracting...",
+      "extractingHint": "Reading and extracting text from the PDF...",
+      "extractedReady": "Content extracted and ready",
+      "suggestTitleFromFile": "Suggest Title from File",
+      "suggestingTitle": "Suggesting..."
     }
   },
   "form": {
@@ -169,7 +176,11 @@
       "suggestedOtherSubjects": "Suggested Standards (other subjects - add to your subject in Settings to use here)",
       "inferredHint": "Add these to your subject in Settings to save them with the lesson.",
       "selectedTitle": "Selected standards (click x to remove)",
-      "remove": "Remove standard"
+      "remove": "Remove standard",
+      "manualTitle": "Add Custom Standard",
+      "manualCodePlaceholder": "Code (e.g. 1.OA.3)",
+      "manualNamePlaceholder": "Standard name or description",
+      "manualAdd": "Add"
     }
   },
   "evaluation": {

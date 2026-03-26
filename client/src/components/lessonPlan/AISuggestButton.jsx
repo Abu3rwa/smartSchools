@@ -21,6 +21,7 @@ const AISuggestButton = ({
     aiPrimaryLanguage = 'en',
     aiSecondaryLanguage = '',
     contextText,
+    extractedMaterialText,
     lessonPlanId,
     onSuggestion,
     disabled = false,
@@ -45,6 +46,7 @@ const AISuggestButton = ({
             title: title ?? '',
             summary: summary ?? '',
             contextText: contextText ?? '',
+            extractedMaterialText: extractedMaterialText ?? '',
             lessonPlanId: lessonPlanId ?? null,
         };
         const requestedLanguages = buildRequestedLanguages(aiPrimaryLanguage, aiSecondaryLanguage);

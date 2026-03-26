@@ -37,7 +37,7 @@ const useLessonPlanPersistence = (lessonId, formData) => {
     
     timerRef.current = setTimeout(() => {
       // Don't save binary files to LocalStorage
-      const { materialFile, ...persistableData } = formData;
+      const { materialFile: _materialFile, ...persistableData } = formData;
       
       // Only save if there's actual content (e.g. title or some fields filled)
       const hasContent = persistableData.title || 

@@ -2,12 +2,16 @@
  * Shared create/edit lesson plan modal.
  * Used by both Admin and Teacher lesson plan pages.
  */
-import { HiOutlineDocumentText, HiOutlineCheckCircle, HiOutlineCloudUpload } from 'react-icons/hi';
+import { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { HiOutlineDocumentText, HiOutlineCheckCircle, HiOutlineCloudUpload, HiOutlineLightningBolt } from 'react-icons/hi';
 import AISuggestButton from './AISuggestButton.jsx';
 import StandardsSuggester from './StandardsSuggester.jsx';
 import { buildLessonPayload } from './lessonPlanConstants.js';
 import { AI_LANGUAGE_OPTIONS } from '../../constants/aiLanguages';
+import { buildRequestedLanguages } from '../../constants/aiLanguages';
 import { useTranslation } from 'react-i18next';
+import { extractPdf, suggestField } from '../../store/slices/lessonSlice';
 
 const LessonPlanFormModal = ({
   open,
@@ -23,6 +27,11 @@ const LessonPlanFormModal = ({
   generatedStandards = [],
 }) => {
   const { t } = useTranslation(['lessonPlan']);
+  const dispatch = useDispatch();
+  const [extracting, setExtracting] = useState(false);
+  const [extractProgress, setExtractProgress] = useState(0);
+  const [suggestingTitle, setSuggestingTitle] = useState(false);
+
   if (!open) return null;
 
   const handleStageChange = (index, field, value) => {
@@ -37,8 +46,65 @@ const LessonPlanFormModal = ({
     onSubmit(buildLessonPayload(formData));
   };
 
+  const handleExtractPdf = async () => {
+    if (!formData.materialFile) return;
+    setExtracting(true);
+    setExtractProgress(10);
+    const progressTimer = setInterval(() => {
+      setExtractProgress((prev) => (prev < 85 ? prev + Math.random() * 15 : prev));
+    }, 400);
+    try {
+      const result = await dispatch(extractPdf(formData.materialFile)).unwrap();
+      clearInterval(progressTimer);
+      setExtractProgress(100);
+      setFormData({
+        ...formData,
+        extractedMaterialText: result.extractedText || '',
+        materialFile: null,
+      });
+    } catch (_err) {
+      clearInterval(progressTimer);
+    } finally {
+      setTimeout(() => {
+        setExtracting(false);
+        setExtractProgress(0);
+      }, 600);
+    }
+  };
+
+  const handleSuggestTitleFromFile = async () => {
+    if (!formData.extractedMaterialText || !formData.subjectId || !formData.classId) return;
+    setSuggestingTitle(true);
+    try {
+      const langs = buildRequestedLanguages(formData.aiPrimaryLanguage || 'en', formData.aiSecondaryLanguage || '');
+      const result = await dispatch(suggestField({
+        field: 'title',
+        currentValue: '',
+        subjectId: formData.subjectId,
+        classId: formData.classId,
+        contextText: formData.contextText ?? '',
+        extractedMaterialText: formData.extractedMaterialText,
+        requestedLanguages: langs.length > 0 ? langs : ['en'],
+      })).unwrap();
+      if (result.suggestion) {
+        setFormData({ ...formData, title: result.suggestion });
+      }
+    } catch (_err) {
+      // handled by Redux
+    } finally {
+      setSuggestingTitle(false);
+    }
+  };
+
   const getExtractionStatus = () => {
-    if (formData.materialFile) {
+    if (extracting) {
+      return {
+        label: t('lessonPlan:teacherForm.aiContext.statusExtracting'),
+        icon: <HiOutlineLightningBolt size={16} className="spin-pulse" />,
+        className: 'status-extracting'
+      };
+    }
+    if (formData.materialFile && !formData.extractedMaterialText) {
       return {
         label: t('lessonPlan:teacherForm.aiContext.statusPending'),
         icon: <HiOutlineCloudUpload size={16} />,
@@ -131,9 +197,9 @@ const LessonPlanFormModal = ({
                   borderRadius: '20px', 
                   fontSize: '11px', 
                   fontWeight: '500',
-                  background: formData.extractedMaterialText ? 'var(--badge-approved-bg)' : 'var(--bg-tertiary)',
-                  color: formData.extractedMaterialText ? 'var(--badge-approved-text)' : 'var(--text-muted)',
-                  border: formData.extractedMaterialText ? '1px solid var(--status-success)' : '1px solid var(--border-color)'
+                  background: extracting ? 'var(--bg-tertiary)' : formData.extractedMaterialText ? 'var(--badge-approved-bg)' : 'var(--bg-tertiary)',
+                  color: extracting ? 'var(--text-primary)' : formData.extractedMaterialText ? 'var(--badge-approved-text)' : 'var(--text-muted)',
+                  border: extracting ? '1px solid var(--primary)' : formData.extractedMaterialText ? '1px solid var(--status-success)' : '1px solid var(--border-color)'
                 }}>
                   {extractionStatus.icon}
                   {extractionStatus.label}
@@ -151,17 +217,91 @@ const LessonPlanFormModal = ({
               </div>
               <div className="form-group">
                 <label>{t('lessonPlan:teacherForm.aiContext.uploadPdf')}</label>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      setFormData({ ...formData, materialFile: e.target.files[0] });
-                    } else {
-                      setFormData({ ...formData, materialFile: null });
-                    }
-                  }}
-                />
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    style={{ flex: 1 }}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setFormData({ ...formData, materialFile: e.target.files[0], extractedMaterialText: '' });
+                      } else {
+                        setFormData({ ...formData, materialFile: null });
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={!formData.materialFile || extracting}
+                    onClick={handleExtractPdf}
+                    style={{ whiteSpace: 'nowrap', minWidth: '120px', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}
+                  >
+                    {extracting ? (
+                      <>
+                        <span className="spinner-small" />
+                        {t('lessonPlan:teacherForm.aiContext.extracting')}
+                      </>
+                    ) : (
+                      <>
+                        <HiOutlineLightningBolt size={16} />
+                        {t('lessonPlan:teacherForm.aiContext.extractBtn')}
+                      </>
+                    )}
+                  </button>
+                </div>
+                {/* Progress bar */}
+                {extracting && (
+                  <div style={{ marginTop: '8px' }}>
+                    <div style={{
+                      height: '6px',
+                      borderRadius: '3px',
+                      background: 'var(--bg-tertiary)',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${extractProgress}%`,
+                        background: 'linear-gradient(90deg, var(--primary), var(--primary-hover, var(--primary)))',
+                        borderRadius: '3px',
+                        transition: 'width 0.3s ease',
+                      }} />
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {t('lessonPlan:teacherForm.aiContext.extractingHint')}
+                    </p>
+                  </div>
+                )}
+                {/* Extracted success + suggest title */}
+                {formData.extractedMaterialText && !extracting && (
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--status-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <HiOutlineCheckCircle size={14} />
+                      {t('lessonPlan:teacherForm.aiContext.extractedReady')}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={suggestingTitle || !formData.subjectId || !formData.classId}
+                      onClick={handleSuggestTitleFromFile}
+                      style={{ fontSize: '12px', padding: '3px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      {suggestingTitle ? (
+                        <>
+                          <span className="spinner-small" />
+                          {t('lessonPlan:teacherForm.aiContext.suggestingTitle')}
+                        </>
+                      ) : (
+                        t('lessonPlan:teacherForm.aiContext.suggestTitleFromFile')
+                      )}
+                    </button>
+                    {(!formData.subjectId || !formData.classId) && (
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        {t('lessonPlan:form.toasts.selectClassSubjectFirst')}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -220,6 +360,7 @@ const LessonPlanFormModal = ({
                 aiPrimaryLanguage={formData.aiPrimaryLanguage || 'en'}
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, title: s })}
               />
@@ -263,6 +404,7 @@ const LessonPlanFormModal = ({
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, summary: s })}
               />
@@ -286,6 +428,7 @@ const LessonPlanFormModal = ({
                 title={formData.title}
                 summary={formData.summary}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, description: s })}
               />
@@ -309,6 +452,7 @@ const LessonPlanFormModal = ({
                 title={formData.title}
                 summary={formData.summary}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, homework: s })}
               />
@@ -332,6 +476,7 @@ const LessonPlanFormModal = ({
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, previousKnowledge: s })
@@ -358,6 +503,7 @@ const LessonPlanFormModal = ({
                 title={formData.title}
                 summary={formData.summary}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, teachingObjectives: s })
@@ -372,7 +518,10 @@ const LessonPlanFormModal = ({
               aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
               lessonText={`${formData.title || ''}\n${formData.summary || ''}\n${formData.description || ''}\n${formData.teachingObjectives || ''}`}
               selectedStandardIds={formData.standardIds}
+              manualStandards={formData.manualStandards}
+              onManualStandardsChange={(ms) => setFormData({ ...formData, manualStandards: ms })}
               contextText={formData.contextText}
+              extractedMaterialText={formData.extractedMaterialText}
               lessonPlanId={editingId}
               onSelectionChange={(ids) => setFormData({ ...formData, standardIds: ids })}
               initialSuggestions={generatedStandards}
@@ -395,6 +544,7 @@ const LessonPlanFormModal = ({
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) => setFormData({ ...formData, vocabulary: s })}
               />
@@ -418,6 +568,7 @@ const LessonPlanFormModal = ({
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, characterTraitLinks: s })
@@ -443,6 +594,7 @@ const LessonPlanFormModal = ({
                 aiSecondaryLanguage={formData.aiSecondaryLanguage || ''}
                 title={formData.title}
                 contextText={formData.contextText}
+                extractedMaterialText={formData.extractedMaterialText}
                 lessonPlanId={editingId}
                 onSuggestion={(s) =>
                   setFormData({ ...formData, techIntegration: s })
@@ -479,6 +631,7 @@ const LessonPlanFormModal = ({
                       title={formData.title}
                       summary={formData.summary}
                       contextText={formData.contextText}
+                      extractedMaterialText={formData.extractedMaterialText}
                       lessonPlanId={editingId}
                       onSuggestion={(s) => handleStageChange(index, 'procedure', s)}
                     />

@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import Notification from "../models/Notification.js";
 import ParentSetting from "../models/ParentSetting.js";
 import School from "../models/School.js";
@@ -7,6 +8,7 @@ import gradeService from "./gradeService.js";
 import gmailOAuthService from "./gmailOAuthService.js";
 import { sendPushToUsers } from "./pushNotificationService.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
+import { buildPortalLink } from "../helpers/portalUrl.js";
 import logger from "../utils/logger.js";
 
 /**
@@ -79,7 +81,7 @@ const addSchoolNameToMailContent = (mailOptions, schoolName) => {
 
   const htmlBody = String(nextMailOptions.html || "");
   if (!htmlBody.toLowerCase().includes(lowerSchoolName)) {
-    const footer = `<p style="margin-top:16px;font-size:12px;color:#6b7280;">School: ${escapeHtml(normalizedSchoolName)}</p>`;
+    const footer = `<p style="margin-top:16px;font-size:12px;color:#334155;">School: ${escapeHtml(normalizedSchoolName)}</p>`;
     if (/<\/body>/i.test(htmlBody)) {
       nextMailOptions.html = htmlBody.replace(/<\/body>/i, `${footer}</body>`);
     } else {
@@ -92,7 +94,25 @@ const addSchoolNameToMailContent = (mailOptions, schoolName) => {
 
 class NotificationService {
   constructor() {
-    // Gmail OAuth is the sole email transport – no SMTP configuration needed.
+    this._smtpTransport = null;
+    this._initSmtp();
+  }
+
+  _initSmtp() {
+    const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+    const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+    const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+    if (!host || !user || !pass) return;
+    const port = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || 587);
+    this._smtpTransport = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+    });
+    this._smtpFrom = process.env.FROM_EMAIL || user;
+    this._smtpFromName = process.env.FROM_NAME || 'Schoolworkso';
+    logger.info('SMTP transport configured', { host, user });
   }
 
   /** Resolve teacher first name from userId (shared helper). */
@@ -216,6 +236,53 @@ class NotificationService {
         type: notification?.type || "",
         error: error?.message || String(error),
       });
+    }
+  }
+
+  /**
+   * Send push notification directly to a student's user account.
+   */
+  async _dispatchStudentPush({ notification, student }) {
+    try {
+      const studentUserId = student?.user
+        ? String(student.user?._id || student.user)
+        : null;
+      if (!studentUserId || !notification?._id || !notification?.school) return;
+
+      await sendPushToUsers({
+        schoolId: notification.school,
+        userIds: [studentUserId],
+        title: String(notification.subject || "School update").trim() || "School update",
+        body: this._resolvePushBodyText(notification.message),
+        data: {
+          type: "update",
+          updateId: String(notification._id),
+          notificationType: String(notification.type || ""),
+          studentId: String(student._id || ""),
+        },
+        collapseKey: `update_${String(notification._id)}`,
+      });
+    } catch (error) {
+      logger.error("student_push_dispatch_failed", {
+        notificationId: notification?._id ? String(notification._id) : "",
+        type: notification?.type || "",
+        error: error?.message || String(error),
+      });
+    }
+  }
+
+  /**
+   * Load school-level notification toggles (cached per call).
+   */
+  async _getSchoolNotificationSettings(schoolId) {
+    if (!schoolId) return {};
+    try {
+      const school = await School.findById(schoolId)
+        .select("settings.notifications")
+        .lean();
+      return school?.settings?.notifications || {};
+    } catch {
+      return {};
     }
   }
 
@@ -377,6 +444,9 @@ class NotificationService {
     const instructions = String(assignment?.instructions || "").trim();
     const trimmedInstructions =
       instructions.length > 450 ? `${instructions.slice(0, 447)}...` : instructions;
+    const assignmentUrl = assignment?._id
+      ? buildPortalLink(`/assignments/${assignment._id}`)
+      : "";
 
     const subject = `${typeName} posted: ${title}`;
     const messageLines = [
@@ -384,7 +454,7 @@ class NotificationService {
       `Title: ${title}`,
       dueDate ? `Due date: ${dueDate}` : "",
       trimmedInstructions ? `Instructions: ${trimmedInstructions}` : "",
-      "Please review it in the app.",
+      assignmentUrl ? `View: ${assignmentUrl}` : "Please review it in the app.",
     ].filter(Boolean);
 
     const htmlParts = [
@@ -394,7 +464,9 @@ class NotificationService {
       trimmedInstructions
         ? `<p><strong>Instructions:</strong><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
         : "",
-      "<p>Please review it in the app.</p>",
+      assignmentUrl
+        ? `<p><a href="${escapeHtml(assignmentUrl)}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Assignment</a></p>`
+        : "<p>Please review it in the app.</p>",
     ].filter(Boolean);
 
     return {
@@ -411,6 +483,9 @@ class NotificationService {
     const marks = Number(grade?.marks ?? 0);
     const maxMarks = Number(grade?.maxMarks ?? assignment?.maxMarks ?? 0);
     const remarks = String(grade?.remarks || "").trim();
+    const assignmentUrl = assignment?._id
+      ? buildPortalLink(`/assignments/${assignment._id}`)
+      : "";
 
     const subject = `${typeName} graded: ${title}`;
     const messageLines = [
@@ -420,7 +495,7 @@ class NotificationService {
         ? `Score: ${marks}/${maxMarks}`
         : "",
       remarks ? `Remarks: ${remarks}` : "",
-      "Open the app to review details.",
+      assignmentUrl ? `View: ${assignmentUrl}` : "Open the app to review details.",
     ].filter(Boolean);
 
     const htmlParts = [
@@ -430,7 +505,9 @@ class NotificationService {
         ? `<p><strong>Score:</strong> ${escapeHtml(`${marks}/${maxMarks}`)}</p>`
         : "",
       remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "",
-      "<p>Open the app to review details.</p>",
+      assignmentUrl
+        ? `<p><a href="${escapeHtml(assignmentUrl)}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Grade</a></p>`
+        : "<p>Open the app to review details.</p>",
     ].filter(Boolean);
 
     return {
@@ -836,6 +913,74 @@ class NotificationService {
     return createdNotifications;
   }
 
+  /**
+   * Notify the student directly when an assignment is posted.
+   * Respects school-level settings.notifications.studentNotifications.onAssignmentPosted.
+   */
+  async sendStudentAssignmentPostedNotification({
+    studentId,
+    assignment,
+    createdBy = null,
+  }) {
+    if (!studentId || !assignment?._id) return null;
+
+    const student = await Student.findById(studentId);
+    if (!student?.user || !student?.school) return null;
+
+    const schoolSettings = await this._getSchoolNotificationSettings(student.school);
+    if (schoolSettings?.studentNotifications?.onAssignmentPosted === false) return null;
+
+    const content = this._buildAssignmentPostedContent({ student, assignment });
+    const metadata = {
+      assignmentId: String(assignment._id),
+      assignmentTypeKey: String(assignment?.assignmentTypeKey || ""),
+      dueDate: assignment?.dueDate || null,
+    };
+
+    const studentUserId = String(student.user?._id || student.user);
+    const studentUser = await User.findById(studentUserId).select("email").lean();
+    const studentEmail = studentUser?.email || "";
+
+    const notification = new Notification({
+      school: student.school,
+      recipient: studentUserId,
+      recipientEmail: studentEmail,
+      student: student._id,
+      type: "assignment_posted",
+      subject: content.subject,
+      message: content.message,
+      htmlContent: content.htmlContent,
+      channels: ["push", ...(studentEmail ? ["email"] : [])],
+      metadata,
+      createdBy,
+    });
+    await notification.save();
+
+    try {
+      await this._dispatchStudentPush({ notification, student });
+    } catch (error) {
+      logger.error("student_assignment_posted_push_failed", {
+        notificationId: String(notification._id || ""),
+        studentId: String(student._id),
+        error: error?.message || String(error),
+      });
+    }
+
+    if (studentEmail) {
+      try {
+        await this.sendEmail(notification, createdBy);
+      } catch (error) {
+        logger.error("student_assignment_posted_email_failed", {
+          notificationId: String(notification._id || ""),
+          studentEmail,
+          error: error?.message || String(error),
+        });
+      }
+    }
+
+    return notification;
+  }
+
   async sendAssignmentGradedNotification({
     studentId,
     assignment,
@@ -943,6 +1088,208 @@ class NotificationService {
     }
 
     return createdNotifications;
+  }
+
+  /**
+   * Notify parents when a student completes a standard assignment (assessment/practice).
+   */
+  async sendStandardAssignmentCompletedNotification({
+    studentId,
+    assignment,
+    score = null,
+    maxScore = null,
+  }) {
+    if (!studentId || !assignment?._id) return [];
+
+    const student = await Student.findById(studentId);
+    if (!student) return [];
+
+    const audience = await this._resolveAssignmentAudience(student);
+    if (audience.parentRecipients.length === 0 && audience.fallbackEmails.length === 0) {
+      return [];
+    }
+
+    const studentName = student?.fullName || "Student";
+    const title = String(assignment?.title || "Standards Practice").trim();
+    const sessionType = assignment?.practiceConfig?.sessionType || "practice";
+    const typeName = sessionType === "assessment" ? "Assessment" : "Standards Practice";
+    const scoreText = Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0
+      ? `Score: ${score}/${maxScore}`
+      : "";
+
+    const subject = `${typeName} completed: ${title}`;
+    const messageLines = [
+      `${studentName} has completed a ${typeName.toLowerCase()}.`,
+      `Title: ${title}`,
+      scoreText,
+      "Open the app to review details.",
+    ].filter(Boolean);
+
+    const htmlParts = [
+      `<p><strong>${escapeHtml(studentName)}</strong> has completed a ${escapeHtml(typeName.toLowerCase())}.</p>`,
+      `<p><strong>Title:</strong> ${escapeHtml(title)}</p>`,
+      scoreText ? `<p><strong>${escapeHtml(scoreText)}</strong></p>` : "",
+      "<p>Open the app to review details.</p>",
+    ].filter(Boolean);
+
+    const content = {
+      subject,
+      message: messageLines.join("\n"),
+      htmlContent: htmlParts.join(""),
+    };
+
+    const metadata = {
+      assignmentId: String(assignment._id),
+      assignmentTypeKey: "standard_assignment",
+      event: "completed",
+    };
+
+    const createdNotifications = [];
+
+    for (const recipient of audience.parentRecipients) {
+      const channels = [];
+      if (recipient.pushEnabled) channels.push("push");
+      if (recipient.emailEnabled) channels.push("email");
+
+      const notification = new Notification({
+        school: student.school,
+        recipient: recipient.userId,
+        recipientEmail: recipient.email,
+        student: student._id,
+        type: "assignment_completed",
+        subject: content.subject,
+        message: content.message,
+        htmlContent: content.htmlContent,
+        channels,
+        metadata,
+      });
+      await notification.save();
+      createdNotifications.push(notification);
+
+      if (recipient.pushEnabled) {
+        try {
+          await this._dispatchParentUpdatePush({
+            notification,
+            student,
+            recipientEmails: [recipient.email],
+            preferredUserIds: [recipient.userId],
+          });
+        } catch (error) {
+          logger.error("assignment_completed_push_failed", {
+            notificationId: String(notification._id || ""),
+            error: error?.message || String(error),
+          });
+        }
+      }
+
+      if (recipient.emailEnabled) {
+        try {
+          await this.sendEmail(notification);
+        } catch (error) {
+          logger.error("assignment_completed_email_failed", {
+            notificationId: String(notification._id || ""),
+            error: error?.message || String(error),
+          });
+        }
+      }
+    }
+
+    for (const email of audience.fallbackEmails) {
+      const notification = new Notification({
+        school: student.school,
+        recipientEmail: email,
+        student: student._id,
+        type: "assignment_completed",
+        subject: content.subject,
+        message: content.message,
+        htmlContent: content.htmlContent,
+        channels: ["email"],
+        metadata,
+      });
+      await notification.save();
+      createdNotifications.push(notification);
+      try {
+        await this.sendEmail(notification);
+      } catch (error) {
+        logger.error("assignment_completed_email_fallback_failed", {
+          notificationId: String(notification._id || ""),
+          error: error?.message || String(error),
+        });
+      }
+    }
+
+    return createdNotifications;
+  }
+
+  /**
+   * Notify the student directly when an assignment is graded.
+   * Respects school-level settings.notifications.studentNotifications.onAssignmentGraded.
+   */
+  async sendStudentAssignmentGradedNotification({
+    studentId,
+    assignment,
+    grade,
+    createdBy = null,
+  }) {
+    if (!studentId || !assignment?._id || !grade?._id) return null;
+
+    const student = await Student.findById(studentId);
+    if (!student?.user || !student?.school) return null;
+
+    const schoolSettings = await this._getSchoolNotificationSettings(student.school);
+    if (schoolSettings?.studentNotifications?.onAssignmentGraded === false) return null;
+
+    const content = this._buildAssignmentGradedContent({ student, assignment, grade });
+    const metadata = {
+      assignmentId: String(assignment._id),
+      assignmentTypeKey: String(assignment?.assignmentTypeKey || ""),
+      gradeId: String(grade._id),
+      marks: Number(grade?.marks ?? 0),
+      maxMarks: Number(grade?.maxMarks ?? assignment?.maxMarks ?? 0),
+    };
+
+    const studentUserId = String(student.user?._id || student.user);
+    const studentUser = await User.findById(studentUserId).select("email").lean();
+    const studentEmail = studentUser?.email || "";
+
+    const notification = new Notification({
+      school: student.school,
+      recipient: studentUserId,
+      recipientEmail: studentEmail,
+      student: student._id,
+      type: "assignment_graded",
+      subject: content.subject,
+      message: content.message,
+      htmlContent: content.htmlContent,
+      channels: ["push", ...(studentEmail ? ["email"] : [])],
+      metadata,
+      createdBy,
+    });
+    await notification.save();
+
+    try {
+      await this._dispatchStudentPush({ notification, student });
+    } catch (error) {
+      logger.error("student_assignment_graded_push_failed", {
+        notificationId: String(notification._id || ""),
+        studentId: String(student._id),
+        error: error?.message || String(error),
+      });
+    }
+
+    if (studentEmail) {
+      try {
+        await this.sendEmail(notification, createdBy);
+      } catch (error) {
+        logger.error("student_assignment_graded_email_failed", {
+          notificationId: String(notification._id || ""),
+          studentEmail,
+          error: error?.message || String(error),
+        });
+      }
+    }
+
+    return notification;
   }
 
   /**
@@ -1297,7 +1644,7 @@ class NotificationService {
     const schoolName = await this._resolveSchoolName(notification.school);
     const mailOptions = addSchoolNameToMailContent(baseMailOptions, schoolName);
 
-    // 1. Try the provided userId first
+    // 1. Try the provided userId (Gmail OAuth — primary transport)
     if (userId) {
       try {
         const hasGmail = await gmailOAuthService.hasValidTokens(userId);
@@ -1355,9 +1702,30 @@ class NotificationService {
       }
     }
 
-    // 3. No Gmail sender available
+    // 3. SMTP fallback (last resort)
+    if (this._smtpTransport) {
+      try {
+        const info = await this._smtpTransport.sendMail({
+          from: `"${this._smtpFromName}" <${this._smtpFrom}>`,
+          ...mailOptions,
+        });
+        await notification.markAsSent("email");
+        logger.info("Email sent via SMTP fallback", {
+          to: notification.recipientEmail,
+          messageId: info.messageId,
+        });
+        return;
+      } catch (smtpErr) {
+        logger.warn("SMTP fallback also failed", {
+          to: notification.recipientEmail,
+          error: smtpErr?.message,
+        });
+      }
+    }
+
+    // 4. No sender available
     const errorMsg =
-      "No Gmail account available to send email. An admin must connect their Gmail in Settings > Gmail Integration.";
+      "No email transport available. Connect Gmail in Settings > Gmail Integration, or configure SMTP_HOST/SMTP_USER/SMTP_PASS in .env as fallback.";
     logger.error(errorMsg);
     notification.status = "failed";
     notification.lastError = errorMsg;

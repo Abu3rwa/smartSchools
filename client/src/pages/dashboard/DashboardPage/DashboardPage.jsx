@@ -41,6 +41,10 @@ const DashboardPage = () => {
 
     const { retryDashboardStats } = useDashboardData({ academicYear });
 
+    const stats = useMemo(() => {
+        return buildDashboardStats({ dashboardStats, classes, students });
+    }, [classes, dashboardStats, students]);
+
     if (user?.role === 'student') {
         return <StudentDashboardPage />;
     }
@@ -53,10 +57,6 @@ const DashboardPage = () => {
     if (user?.role === 'admin' || user?.role === 'department_principal') {
         return <SchoolAdminDashboard />;
     }
-
-    const stats = useMemo(() => {
-        return buildDashboardStats({ dashboardStats, classes, students });
-    }, [classes, dashboardStats, students]);
 
     if (loading) {
         return <DashboardLoadingState />;

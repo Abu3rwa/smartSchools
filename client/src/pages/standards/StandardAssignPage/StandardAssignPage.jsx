@@ -10,7 +10,7 @@ import './StandardAssignPage.css';
 
 const StandardAssignPage = () => {
     const {
-        assignments,
+        assignments: _assignments,
         filteredAssignments,
         filters,
         handleFilterChange,

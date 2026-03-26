@@ -24,7 +24,7 @@ import { useRevisionPlanCreateData } from "./hooks/useRevisionPlanCreateData.js"
 export default function RevisionPlanCreatePage() {
   const { t } = useTranslation(["revisionPlans"]);
   const theme = useTheme();
-  const isSm = useMediaQuery(theme.breakpoints.down("sm"));
+  const _isSm = useMediaQuery(theme.breakpoints.down("sm"));
   const {
     isTeacher,
     academicYear,

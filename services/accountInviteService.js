@@ -4,6 +4,7 @@ import School from '../models/School.js';
 import User from '../models/User.js';
 import { clearRefreshToken } from './authTokenService.js';
 import { sendTransactionalEmail } from './transactionalEmailService.js';
+import { getPortalUrl } from '../helpers/portalUrl.js';
 
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 
@@ -57,7 +58,7 @@ const buildInviteEmailContent = ({
     role,
     linkedStudents = []
 }) => {
-    const frontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+    const frontendUrl = getPortalUrl();
     const displayName = recipientName || getRoleDisplayName(role);
     const roleLabel = getRoleDisplayName(role);
     const linkedChildrenLine = linkedStudents.length > 0

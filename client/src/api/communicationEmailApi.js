@@ -72,7 +72,7 @@ const readFilenameFromDisposition = (disposition = '', fallback = 'attachment') 
             return fallback;
         }
     }
-    const asciiMatch = header.match(/filename=\"?([^\";]+)\"?/i);
+    const asciiMatch = header.match(/filename="?([^";]+)"?/i);
     if (asciiMatch?.[1]) return asciiMatch[1];
     return fallback;
 };

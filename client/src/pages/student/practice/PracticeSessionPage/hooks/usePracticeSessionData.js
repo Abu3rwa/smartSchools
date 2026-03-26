@@ -45,6 +45,7 @@ const usePracticeSessionData = () => {
 
     const lastIntegrityLogRef = useRef(0);
     const wasHiddenRef = useRef(false);
+    const tabSwitchCountRef = useRef(0);
 
     useEffect(() => {
         return () => {
@@ -63,12 +64,15 @@ const usePracticeSessionData = () => {
             if (now - lastIntegrityLogRef.current < 3000) return;
             lastIntegrityLogRef.current = now;
             try {
-                await api.post('/practice/integrity-event', {
+                const resp = await api.post('/practice/integrity-event', {
                     assignmentId,
                     attemptId: currentQuestion?.attemptId || null,
                     eventType,
                     metadata: { path: window.location.pathname }
                 });
+                if (resp?.data?.data?.tabSwitchCount != null) {
+                    tabSwitchCountRef.current = resp.data.data.tabSwitchCount;
+                }
             } catch (error) {
                 // Ignore telemetry failures
             }
@@ -80,7 +84,12 @@ const usePracticeSessionData = () => {
                 logIntegrityEvent('tab_hidden');
             } else if (wasHiddenRef.current) {
                 wasHiddenRef.current = false;
-                toast.error('Tab change detected. Your teacher will be notified.');
+                const count = tabSwitchCountRef.current;
+                const suffix = count === 1 ? 'st' : count === 2 ? 'nd' : count === 3 ? 'rd' : 'th';
+                toast.error(
+                    `Tab switch detected (${count}${suffix} time). This is recorded in your assessment progress.`,
+                    { duration: 4000 }
+                );
             }
         };
 

@@ -2,6 +2,8 @@ import Student from '../models/Student.js';
 import AcademicExcellenceTask from '../models/AcademicExcellenceTask.js';
 import AcademicExcellenceObjective from '../models/AcademicExcellenceObjective.js';
 import User from '../models/User.js';
+import academicExcellenceNotificationService from './academicExcellenceNotificationService.js';
+import logger from '../utils/logger.js';
 
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
 
@@ -69,6 +71,17 @@ export const assignTask = async (teacherId, studentId, objectiveKey, taskData = 
     if (objectiveDoc) {
         objectiveDoc.practiceTasksAssigned = Number(objectiveDoc.practiceTasksAssigned || 0) + 1;
         await objectiveDoc.save();
+    }
+
+    // Fire task-assigned notification (student + parent, non-blocking)
+    const fullStudent = await Student.findById(studentId);
+    if (fullStudent) {
+        academicExcellenceNotificationService.sendTaskAssignedNotification({
+            schoolId,
+            student: fullStudent,
+            taskTitle: createdTask.title,
+            taskId: String(createdTask._id),
+        }).catch((err) => logger.warn('ae_task_notify_failed', { error: err?.message }));
     }
 
     return createdTask;

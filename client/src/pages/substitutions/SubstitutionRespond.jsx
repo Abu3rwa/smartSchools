@@ -13,7 +13,6 @@ import {
 import {
   respondToSubRequestThunk,
   selectRespond,
-  clearRespondState,
 } from '../../store/slices/substitutionsSlice';
 
 const SubstitutionRespond = () => {

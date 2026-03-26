@@ -104,6 +104,16 @@ const schoolSchema = new mongoose.Schema({
                 default: true
             }
         },
+        notifications: {
+            studentNotifications: {
+                onAssignmentPosted: { type: Boolean, default: true },
+                onAssignmentGraded: { type: Boolean, default: true },
+                onTaskAssigned: { type: Boolean, default: true },
+            },
+            parentNotifications: {
+                onTaskAssigned: { type: Boolean, default: true },
+            }
+        },
         curriculum: {
             enabled: {
                 type: Boolean,

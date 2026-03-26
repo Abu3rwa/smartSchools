@@ -5,7 +5,7 @@ import { fetchMyAssignments, selectPracticeStudentId } from "../../../../store/s
 import { selectCurrentAcademicYear } from "../../../../store/slices/uiSlice";
 import AIPracticeSession from "../AIPracticeSession/AIPracticeSession";
 import "./StudentAcademicExcellencePage.css";
-const masteryOrder = ["mastered", "developing", "at_risk", "not_started"];
+const _masteryOrder = ["mastered", "developing", "at_risk", "not_started"];
 
 const PAGE_SIZE = 10;
 
@@ -61,7 +61,7 @@ const StudentAcademicExcellencePage = () => {
   const academicYear = useSelector(selectCurrentAcademicYear);
 
   const [loading, setLoading] = useState(false);
-  const [objectivesLoading, setObjectivesLoading] = useState(false);
+  const [_objectivesLoading, setObjectivesLoading] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [error, setError] = useState("");
   const [resolvedStudentId, setResolvedStudentId] = useState("");
@@ -70,7 +70,7 @@ const StudentAcademicExcellencePage = () => {
   const [tasks, setTasks] = useState([]);
   const [completingTaskId, setCompletingTaskId] = useState("");
 
-  const [objectivesPage, setObjectivesPage] = useState(1);
+  const [_objectivesPage, setObjectivesPage] = useState(1);
   const [tasksPage, setTasksPage] = useState(1);
 
   const resolveStudentId = useCallback(async () => {

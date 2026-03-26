@@ -42,8 +42,8 @@ export function buildCombinedNewsletterHtml({
   branding = {},
 }) {
   const logoUrl = (branding?.logoUrl || "").toString().trim();
-  const primaryColor = (branding?.primaryColor || "#3b82f6").toString().trim();
-  const secondaryColor = (branding?.secondaryColor || "#1e40af").toString().trim();
+  const primaryColor = (branding?.primaryColor || "#0d9488").toString().trim();
+  const secondaryColor = (branding?.secondaryColor || "#0f766e").toString().trim();
 
   const sectionsHtml = (sections || [])
     .map((s) => {
@@ -51,8 +51,8 @@ export function buildCombinedNewsletterHtml({
       const content = escapeHtml(s.content || "").replace(/\n/g, "<br/>");
       return `
         <div style="margin: 16px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;">
-          <div style="font-weight: 700; color: #111827; margin-bottom: 6px;">${subjectName}</div>
-          <div style="color: #374151; line-height: 1.5; font-size: 14px;">${content}</div>
+          <div style="font-weight: 700; color: #0f172a; margin-bottom: 6px;">${subjectName}</div>
+          <div style="color: #334155; line-height: 1.5; font-size: 14px;">${content}</div>
         </div>
       `.trim();
     })
@@ -65,16 +65,16 @@ export function buildCombinedNewsletterHtml({
           <div style="font-size: 18px; font-weight: 800; color: #ffffff;">Weekly Newsletter</div>
           ${logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(schoolName)} logo" style="height: 36px; max-width: 120px; object-fit: contain; background: #ffffff; padding: 4px; border-radius: 6px;" />` : ""}
         </div>
-        <div style="margin-top: 4px; color: #374151; font-size: 13px;">
+        <div style="margin-top: 4px; color: #334155; font-size: 13px;">
           <div><strong>School:</strong> ${escapeHtml(schoolName)}</div>
           <div><strong>Class:</strong> ${escapeHtml(classLabel)}</div>
           <div><strong>Week:</strong> ${escapeHtml(weekLabel)}</div>
         </div>
       </div>
 
-      ${sectionsHtml || `<div style="margin-top: 16px; color: #6b7280;">No sections available.</div>`}
+      ${sectionsHtml || `<div style="margin-top: 16px; color: #334155;">No sections available.</div>`}
 
-      <div style="margin-top: 18px; padding-top: 12px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
+      <div style="margin-top: 18px; padding-top: 12px; border-top: 1px solid #e5e7eb; color: #334155; font-size: 12px;">
         This email was sent by the school. If you have questions, please contact the school office.
       </div>
     </div>

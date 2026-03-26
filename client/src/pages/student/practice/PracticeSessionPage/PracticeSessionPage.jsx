@@ -53,7 +53,7 @@ const PracticeSessionPage = () => {
         showContextHints,
         questionLimit,
         currentSessionStep,
-        activeQuestionGuidance
+        // activeQuestionGuidance — commented out with StudentGuidanceCard
     } = usePracticeSessionData();
 
     return (

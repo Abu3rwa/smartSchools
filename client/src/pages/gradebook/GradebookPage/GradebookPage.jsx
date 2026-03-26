@@ -116,13 +116,13 @@ const GradebookPage = () => {
     });
 
     const {
-        tasks: reteachTasks,
-        loading: reteachTasksLoading,
-        error: reteachTasksError,
+        tasks: _reteachTasks,
+        loading: _reteachTasksLoading,
+        error: _reteachTasksError,
         saving: reteachTasksSaving,
-        refreshTasks,
+        refreshTasks: _refreshTasks,
         createTask,
-        updateTaskStatus
+        updateTaskStatus: _updateTaskStatus
     } = useReteachTasks({
         classId,
         subjectId: selectedSubject
@@ -183,7 +183,7 @@ const GradebookPage = () => {
         resetStudentTrace();
     };
 
-    const handleOpenReteachTask = (objective) => {
+    const _handleOpenReteachTask = (objective) => {
         setSelectedObjectiveForTask(objective);
         setShowReteachTaskModal(true);
     };

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addMonths, format, isSameDay, startOfMonth } from 'date-fns';
+import { addMonths, format, startOfMonth } from 'date-fns';
 import { alpha } from '@mui/material/styles';
 import {
     buildCalendarMonthCacheKey,

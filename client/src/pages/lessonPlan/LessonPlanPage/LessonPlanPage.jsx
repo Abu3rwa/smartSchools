@@ -171,6 +171,7 @@ const LessonPlanPage = () => {
         subjectId: formDataArg.subjectId,
         classId: formDataArg.classId,
         contextText: formDataArg.contextText ?? '',
+        extractedMaterialText: formDataArg.extractedMaterialText ?? '',
         lessonPlanId: editingId ?? null,
         requestedLanguages: normalizedRequestedLanguages,
         primaryLanguage: formDataArg.aiPrimaryLanguage || 'en',

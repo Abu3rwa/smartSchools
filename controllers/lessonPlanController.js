@@ -222,6 +222,14 @@ export const createLessonPlan = asyncHandler(async (req, res) => {
         characterTraitLinks: body.characterTraitLinks ?? '',
         techIntegration: body.techIntegration ?? '',
         standardIds: standardIdsArray,
+        manualStandards: parseJsonArrayIfString(body.manualStandards)
+            .filter(s => s && (s.code || s.name || s.description))
+            .slice(0, 20)
+            .map(s => ({
+                code: String(s.code || '').trim().slice(0, 50),
+                name: String(s.name || '').trim().slice(0, 200),
+                description: String(s.description || '').trim().slice(0, 500),
+            })),
         stages: stagesArray.map(s => ({
             name: s.name ?? '',
             procedure: s.procedure ?? '',
@@ -264,7 +272,7 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
     const allowed = [
         'class', 'subject', 'date', 'title', 'summary', 'description', 'homework',
         'previousKnowledge', 'teachingObjectives', 'objectives', 'vocabulary', 
-        'characterTraitLinks', 'techIntegration', 'standardIds', 'stages',
+        'characterTraitLinks', 'techIntegration', 'standardIds', 'manualStandards', 'stages',
         'contextText', 'extractedMaterialText'
     ];
 
@@ -282,6 +290,15 @@ export const updateLessonPlan = asyncHandler(async (req, res) => {
             existing.standardIds = parseJsonArrayIfString(body.standardIds);
         } else if (key === 'objectives') {
             existing.objectives = parseJsonArrayIfString(body.objectives);
+        } else if (key === 'manualStandards') {
+            existing.manualStandards = parseJsonArrayIfString(body.manualStandards)
+                .filter(s => s && (s.code || s.name || s.description))
+                .slice(0, 20)
+                .map(s => ({
+                    code: String(s.code || '').trim().slice(0, 50),
+                    name: String(s.name || '').trim().slice(0, 200),
+                    description: String(s.description || '').trim().slice(0, 500),
+                }));
         } else if (key === 'stages') {
             const stagesArray = parseJsonArrayIfString(body.stages);
             existing.stages = stagesArray.map(s => ({
@@ -709,6 +726,19 @@ export const generateSection = asyncHandler(async (req, res) => {
             requestedLanguages: normalizedRequestedLanguages
         }
     });
+});
+
+/**
+ * @desc    Extract text from uploaded PDF (before save)
+ * @route   POST /api/lessons/ai/extract-pdf
+ * @access  Private (Teacher, Admin)
+ */
+export const extractPdf = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No PDF file provided' });
+    }
+    const text = await extractTextFromPdf(req.file.buffer);
+    res.json({ success: true, data: { extractedText: text } });
 });
 
 /**

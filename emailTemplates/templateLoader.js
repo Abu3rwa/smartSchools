@@ -28,32 +28,32 @@ const FINAL_REPORT_TEMPLATE_NAMES = new Set([
 
 const INLINE_REPORT_STYLE_MAP = {
   "report-scope":
-    "margin:0;padding:12px;background-color:#f6f7fb;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#111827;font-size:14px;line-height:1.5;",
+    "margin:0;padding:12px;background-color:#f8fafc;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#0f172a;font-size:14px;line-height:1.5;",
   "report-page":
-    "margin:0;padding:12px;background-color:#f6f7fb;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#111827;font-size:14px;line-height:1.5;",
+    "margin:0;padding:12px;background-color:#f8fafc;font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;color:#0f172a;font-size:14px;line-height:1.5;",
   "report-card":
-    "max-width:640px;margin:0 auto;background-color:#ffffff;border:1px solid #dbe6ff;border-radius:12px;padding:16px;",
+    "max-width:640px;margin:0 auto;background-color:#ffffff;border:1px solid #cce8e6;border-radius:12px;padding:16px;",
   "card-header":
     "margin-bottom:12px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;",
-  "card-title": "margin:0;font-size:20px;line-height:1.25;font-weight:700;color:#111827;",
-  "card-meta": "margin:6px 0 0 0;font-size:12px;color:#6b7280;",
+  "card-title": "margin:0;font-size:20px;line-height:1.25;font-weight:700;color:#0f172a;",
+  "card-meta": "margin:6px 0 0 0;font-size:12px;color:#334155;",
   section: "margin-top:14px;",
-  "subject-title": "margin:16px 0 4px 0;font-size:18px;line-height:1.3;font-weight:700;color:#111827;",
-  "subject-meta": "margin:0 0 12px 0;font-size:12px;color:#6b7280;",
-  "section-title": "margin:16px 0 8px 0;font-size:14px;font-weight:700;color:#111827;",
-  "section-subtitle": "margin:0 0 12px 0;font-size:12px;color:#6b7280;",
-  "row-list": "border:1px solid #dbe6ff;border-radius:10px;overflow:hidden;background-color:#ffffff;",
+  "subject-title": "margin:16px 0 4px 0;font-size:18px;line-height:1.3;font-weight:700;color:#0f172a;",
+  "subject-meta": "margin:0 0 12px 0;font-size:12px;color:#334155;",
+  "section-title": "margin:16px 0 8px 0;font-size:14px;font-weight:700;color:#0f172a;",
+  "section-subtitle": "margin:0 0 12px 0;font-size:12px;color:#334155;",
+  "row-list": "border:1px solid #cce8e6;border-radius:10px;overflow:hidden;background-color:#ffffff;",
   "row-item": "padding:12px;border-bottom:1px solid #e5e7eb;",
   "row-top": "display:table;width:100%;",
-  "row-date": "display:table-cell;vertical-align:middle;font-weight:600;color:#111827;",
-  "row-bottom": "margin-top:6px;font-size:12px;color:#6b7280;",
-  "row-notes": "margin-top:4px;font-size:12px;color:#6b7280;font-style:italic;",
-  "row-left": "display:table-cell;vertical-align:top;color:#111827;",
+  "row-date": "display:table-cell;vertical-align:middle;font-weight:600;color:#0f172a;",
+  "row-bottom": "margin-top:6px;font-size:12px;color:#334155;",
+  "row-notes": "margin-top:4px;font-size:12px;color:#334155;font-style:italic;",
+  "row-left": "display:table-cell;vertical-align:top;color:#0f172a;",
   "row-right":
-    "display:table-cell;vertical-align:top;text-align:right;white-space:nowrap;font-weight:700;color:#111827;",
+    "display:table-cell;vertical-align:top;text-align:right;white-space:nowrap;font-weight:700;color:#0f172a;",
   badge:
-    "display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #dbe6ff;background-color:#f9fafb;color:#111827;font-size:12px;font-weight:700;",
-  tag: "display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #dbe6ff;background-color:#f9fafb;color:#6b7280;font-size:12px;font-weight:700;",
+    "display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #cce8e6;background-color:#f8fafc;color:#0f172a;font-size:12px;font-weight:700;",
+  tag: "display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #cce8e6;background-color:#f8fafc;color:#334155;font-size:12px;font-weight:700;",
   "score--good":
     "background-color:#ecfdf5;color:#047857;border:1px solid rgba(4,120,87,0.25);",
   "score--mid":
@@ -61,9 +61,9 @@ const INLINE_REPORT_STYLE_MAP = {
   "score--low":
     "background-color:#fef2f2;color:#b91c1c;border:1px solid rgba(185,28,28,0.25);",
   "summary-bar":
-    "margin-top:10px;padding:12px;border-radius:10px;background-color:#f3f4f6;font-weight:700;",
-  muted: "color:#6b7280;",
-  "meta-line": "margin-top:8px;font-size:12px;color:#6b7280;",
+    "margin-top:10px;padding:12px;border-radius:10px;background-color:#f8fafc;font-weight:700;",
+  muted: "color:#334155;",
+  "meta-line": "margin-top:8px;font-size:12px;color:#334155;",
 };
 
 function inlineEmailStyles(html) {

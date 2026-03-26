@@ -491,7 +491,7 @@ const sendPasswordResetEmail = async (user, resetUrl) => {
             <h2>Password Reset Request</h2>
             <p>You requested to reset your password. Click the link below to reset it:</p>
             <p style="margin: 24px 0;">
-                <a href="${resetUrl}" style="background-color: #007bff; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                <a href="${resetUrl}" style="background-color: #0d9488; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
                     Reset Password
                 </a>
             </p>
@@ -859,10 +859,10 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
             text: message || `This is a test email sent using your Gmail account through ${appName}.`,
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #2c3e50;">✅ Test Email Successful!</h2>
+                    <h2 style="color: #0f172a;">✅ Test Email Successful!</h2>
                     <p>${message || `This is a test email sent using your Gmail account through ${appName}.`}</p>
                     <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #6c757d; font-size: 12px;">
+                    <p style="color: #334155; font-size: 12px;">
                         Sent from: ${user.gmailTokens.email}<br>
                         Sent via: ${appName} App
                     </p>

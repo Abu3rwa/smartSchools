@@ -66,6 +66,11 @@ const practiceSessionSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    tabSwitchCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
     lastActivityAt: {
         type: Date,
         default: Date.now

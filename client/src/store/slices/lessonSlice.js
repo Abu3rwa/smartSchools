@@ -2,6 +2,23 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../config/api';
 import lessonService from '../../services/lessonService';
 
+export const extractPdf = createAsyncThunk(
+    'lessons/extractPdf',
+    async (file, { rejectWithValue }) => {
+        try {
+            const form = new FormData();
+            form.append('materialFile', file);
+            const res = await api.post('/lessons/ai/extract-pdf', form, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            if (!res.data.success) throw new Error(res.data.message);
+            return res.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'PDF extraction failed');
+        }
+    }
+);
+
 // Async thunks
 export const fetchLessons = createAsyncThunk(
     'lessons/fetchLessons',
