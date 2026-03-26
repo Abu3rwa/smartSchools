@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import api from '../../../config/api';
-import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
+import { selectClasses } from '../../../store/slices/classSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import {
   fetchPromotionQueue,
@@ -100,7 +100,6 @@ const PromotionCenterPage = () => {
   }, [t]);
 
   useEffect(() => {
-    dispatch(fetchClasses());
     loadQueue();
     loadSettings();
   }, [dispatch, loadQueue, loadSettings]);

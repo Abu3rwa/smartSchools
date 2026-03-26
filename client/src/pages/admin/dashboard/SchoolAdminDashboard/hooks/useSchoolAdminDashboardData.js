@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { selectUser } from "../../../../../store/slices/authSlice";
 import {
-  fetchClasses,
   selectClasses,
 } from "../../../../../store/slices/classSlice";
 import {
@@ -116,7 +115,6 @@ export function useSchoolAdminDashboardData() {
   };
 
   useEffect(() => {
-    dispatch(fetchClasses({ academicYear }));
     dispatch(fetchStudents({ limit: 10 }));
     dispatch(fetchDashboardStats(academicYear));
     fetchAdditionalData();

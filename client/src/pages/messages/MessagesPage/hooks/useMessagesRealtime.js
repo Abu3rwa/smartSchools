@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import { buildMessagesRealtimeUrl } from '../../../../api/messagesApi';
 import { MessagesRealtimeService } from '../../../../services/messagesRealtimeService';
+import { fetchThreads, fetchThreadDetail } from '../../../../store/slices/messagesSlice';
 
-const useMessagesRealtime = ({ selectedThreadId, loadThreads, refreshThreadDetail }) => {
+const useMessagesRealtime = ({ selectedThreadId }) => {
+    const dispatch = useDispatch();
     const realtimeServiceRef = useRef(null);
     const realtimeSyncTimerRef = useRef(null);
     const realtimeSyncThreadIdsRef = useRef(new Set());
     const selectedThreadIdRef = useRef(null);
-    const loadThreadsRef = useRef(null);
-    const refreshThreadDetailRef = useRef(null);
     const backgroundListSyncRef = useRef(false);
     const backgroundDetailSyncRef = useRef(false);
     const [realtimeConnected, setRealtimeConnected] = useState(false);
@@ -16,14 +17,6 @@ const useMessagesRealtime = ({ selectedThreadId, loadThreads, refreshThreadDetai
     useEffect(() => {
         selectedThreadIdRef.current = selectedThreadId;
     }, [selectedThreadId]);
-
-    useEffect(() => {
-        loadThreadsRef.current = loadThreads;
-    }, [loadThreads]);
-
-    useEffect(() => {
-        refreshThreadDetailRef.current = refreshThreadDetail;
-    }, [refreshThreadDetail]);
 
     const scheduleRealtimeSync = useCallback((threadId = '') => {
         const normalizedThreadId = String(threadId || '').trim();
@@ -40,19 +33,15 @@ const useMessagesRealtime = ({ selectedThreadId, loadThreads, refreshThreadDetai
             const pendingThreadIds = new Set(realtimeSyncThreadIdsRef.current);
             realtimeSyncThreadIdsRef.current.clear();
 
-            if (typeof loadThreadsRef.current === 'function') {
-                await loadThreadsRef.current({ page: 1, append: false, silent: true });
-            }
+            dispatch(fetchThreads({ page: 1 }));
 
             const activeThreadId = selectedThreadIdRef.current;
             if (!activeThreadId) return;
             if (pendingThreadIds.size > 0 && !pendingThreadIds.has(activeThreadId)) return;
 
-            if (typeof refreshThreadDetailRef.current === 'function') {
-                await refreshThreadDetailRef.current(activeThreadId);
-            }
+            dispatch(fetchThreadDetail(activeThreadId));
         }, 350);
-    }, []);
+    }, [dispatch]);
 
     useEffect(() => {
         const realtimeService = new MessagesRealtimeService({
@@ -87,18 +76,16 @@ const useMessagesRealtime = ({ selectedThreadId, loadThreads, refreshThreadDetai
             if (realtimeUrl && realtimeServiceRef.current) {
                 realtimeServiceRef.current.connect(realtimeUrl);
             }
-            if (typeof loadThreadsRef.current === 'function') {
-                loadThreadsRef.current({ page: 1, append: false, silent: true });
-            }
+            dispatch(fetchThreads({ page: 1 }));
             const activeThreadId = selectedThreadIdRef.current;
-            if (activeThreadId && typeof refreshThreadDetailRef.current === 'function') {
-                refreshThreadDetailRef.current(activeThreadId);
+            if (activeThreadId) {
+                dispatch(fetchThreadDetail(activeThreadId));
             }
         };
 
         window.addEventListener('focus', handleFocus);
         return () => window.removeEventListener('focus', handleFocus);
-    }, []);
+    }, [dispatch]);
 
     useEffect(() => {
         let cancelled = false;
@@ -106,22 +93,25 @@ const useMessagesRealtime = ({ selectedThreadId, loadThreads, refreshThreadDetai
         const tick = async () => {
             if (cancelled || document.visibilityState !== 'visible') return;
 
-            if (!backgroundListSyncRef.current && typeof loadThreadsRef.current === 'function') {
+            if (!backgroundListSyncRef.current) {
                 backgroundListSyncRef.current = true;
                 try {
-                    await loadThreadsRef.current({ page: 1, append: false, silent: true });
+                    await dispatch(fetchThreads({ page: 1 })).unwrap();
+                } catch {
+                    // silent
                 } finally {
                     backgroundListSyncRef.current = false;
                 }
             }
 
             const activeThreadId = selectedThreadIdRef.current;
-            if (!activeThreadId) return;
-            if (backgroundDetailSyncRef.current || typeof refreshThreadDetailRef.current !== 'function') return;
+            if (!activeThreadId || backgroundDetailSyncRef.current) return;
 
             backgroundDetailSyncRef.current = true;
             try {
-                await refreshThreadDetailRef.current(activeThreadId);
+                await dispatch(fetchThreadDetail(activeThreadId)).unwrap();
+            } catch {
+                // silent
             } finally {
                 backgroundDetailSyncRef.current = false;
             }
@@ -137,7 +127,7 @@ const useMessagesRealtime = ({ selectedThreadId, loadThreads, refreshThreadDetai
             cancelled = true;
             window.clearInterval(intervalId);
         };
-    }, [realtimeConnected]);
+    }, [dispatch, realtimeConnected]);
 
     return { realtimeConnected };
 };

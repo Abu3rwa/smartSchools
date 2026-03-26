@@ -30,7 +30,20 @@ const PracticeQuestionCard = ({
                 <span className="badge">Confidence: {sessionAccuracy}%</span>
             </div>
 
+            {currentQuestion.instruction && (
+                <div className="question-instruction">{currentQuestion.instruction}</div>
+            )}
+
             <div className="question-text">{currentQuestion.questionText}</div>
+
+            {currentQuestion.skill && (
+                <div className="question-skill-tag">
+                    <span className="badge badge-skill">{currentQuestion.skill}</span>
+                    {currentQuestion.subskill && (
+                        <span className="badge badge-subskill">{currentQuestion.subskill}</span>
+                    )}
+                </div>
+            )}
             
             {suggestRemediation && (
                 <div className="remediation-tip">

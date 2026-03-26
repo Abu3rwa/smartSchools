@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useSelector } from 'react-redux';
 import { selectUser } from '../../../../store/slices/authSlice';
-import { fetchClasses } from '../../../../store/slices/classSlice';
 import { fetchStudents } from '../../../../store/slices/studentSlice';
 import { fetchDashboardStats } from '../../../../store/slices/dashboardSlice';
 
@@ -18,7 +17,6 @@ const useDashboardData = ({ academicYear }) => {
         if (!role) return;
 
         if (canAccessSchoolLists) {
-            dispatch(fetchClasses({ academicYear }));
             dispatch(fetchStudents({ limit: 5 }));
         }
 

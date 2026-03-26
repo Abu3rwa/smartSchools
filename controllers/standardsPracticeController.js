@@ -47,7 +47,7 @@ const DEFAULT_PRACTICE_CONFIG = {
 
 const DEFAULT_ASSESSMENT_CONFIG = {
   maxMarks: 100,
-  passMarks: 40,
+  passMarks: 50,
   resultsVisibility: "immediate",
   resultsReleaseAt: null,
 };
@@ -1449,12 +1449,15 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       });
     }
     question = {
+      instruction: poolQuestion.instruction || "",
       questionText: poolQuestion.questionText,
       questionType: poolQuestion.questionType,
       options: poolQuestion.options || [],
       correctAnswer: poolQuestion.correctAnswer,
       explanation: poolQuestion.explanation || "",
       difficulty: poolQuestion.difficulty || effectiveDifficulty,
+      skill: poolQuestion.skill || "",
+      subskill: poolQuestion.subskill || "",
       tokenUsage: null,
     };
     question = sanitizeServedMultipleChoiceQuestion(question, {
@@ -1543,18 +1546,37 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     seed: `${assignment._id}|${attemptCount + 1}|runtime`,
   });
 
+  // Pedagogical validation gate: ensure instruction, skill, subskill are present
+  const preGateInstruction = question.instruction;
+  question = standardsPracticeAIService.ensureInstructionalCompleteness(question, {
+    standard: assignment.standard,
+    questionType: question.questionType,
+  });
+  if (!preGateInstruction || !preGateInstruction.trim()) {
+    logger.warn("question_instruction_synthesized", {
+      schoolId: req.schoolId,
+      assignmentId: assignment._id?.toString(),
+      studentId: student._id?.toString(),
+      questionType: question.questionType,
+      difficulty: question.difficulty,
+    });
+  }
+
   // Save the attempt (pending answer)
   const attempt = await PracticeAttempt.create({
     school: req.schoolId,
     student: student._id,
     standard: assignment.standard._id,
     assignment: assignment._id,
+    instruction: question.instruction || null,
     questionText: question.questionText,
     questionType: question.questionType,
     options: question.options,
     correctAnswer: question.correctAnswer,
     explanation: question.explanation,
     difficulty: question.difficulty,
+    skill: question.skill || null,
+    subskill: question.subskill || null,
     attemptNumber: attemptCount + 1,
     status: "pending",
     session: session._id,
@@ -1579,10 +1601,13 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     },
     question: {
       attemptId: attempt._id.toString(),
+      instruction: attempt.instruction || null,
       questionText: attempt.questionText,
       questionType: attempt.questionType,
       options: attempt.options,
       difficulty: attempt.difficulty,
+      skill: attempt.skill || null,
+      subskill: attempt.subskill || null,
       attemptNumber: attempt.attemptNumber,
     },
     session: buildSessionInfo(session),

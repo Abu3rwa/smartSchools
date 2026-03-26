@@ -637,6 +637,8 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         'students',
         'dueDate',
         'instructions',
+        'notifyParents',
+        'notifyStudents',
         'isActive',
         'practiceConfig',
         'assessmentConfig',

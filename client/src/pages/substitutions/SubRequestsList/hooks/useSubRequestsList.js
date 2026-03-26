@@ -6,7 +6,7 @@ import {
   selectList,
   selectSubAnalytics
 } from '../../../../store/slices/substitutionsSlice';
-import { fetchTeachers, selectTeachers, selectTeachersLoading } from '../../../../store/slices/teacherSlice';
+import { selectTeachers, selectTeachersLoading } from '../../../../store/slices/teacherSlice';
 import { fetchDepartments, selectDepartments } from '../../../../store/slices/departmentSlice';
 import { selectUser } from '../../../../store/slices/authSlice';
 import { DEFAULT_FILTERS } from '../constants';
@@ -30,7 +30,6 @@ const useSubRequestsList = () => {
 
   useEffect(() => {
     if (canCreate) {
-      dispatch(fetchTeachers());
       if (user?.role === 'admin') dispatch(fetchDepartments());
     }
   }, [dispatch, canCreate, user?.role]);

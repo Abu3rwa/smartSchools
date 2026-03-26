@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  fetchTeachers,
   selectTeachers,
   selectTeachersLoading
 } from '../../../../store/slices/teacherSlice';
@@ -33,10 +32,6 @@ const useCreateSubRequest = () => {
   const [principalNote, setPrincipalNote] = useState('');
   const [materialsLink, setMaterialsLink] = useState('');
   const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    dispatch(fetchTeachers());
-  }, [dispatch]);
 
   useEffect(() => {
     if (success && requestId) {

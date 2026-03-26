@@ -12,7 +12,7 @@ import {
     selectStandardsLoading,
     updateStandard
 } from '../../../../store/slices/standardSlice';
-import { fetchSubjects, selectSubjects } from '../../../../store/slices/subjectSlice';
+import { selectSubjects } from '../../../../store/slices/subjectSlice';
 import { selectUser } from '../../../../store/slices/authSlice';
 import { STANDARDS_PAGE_TABS } from '../constants';
 import {
@@ -48,7 +48,6 @@ const useStandardsPageData = () => {
 
     useEffect(() => {
         dispatch(fetchStandards());
-        dispatch(fetchSubjects());
     }, [dispatch]);
 
     useEffect(() => {

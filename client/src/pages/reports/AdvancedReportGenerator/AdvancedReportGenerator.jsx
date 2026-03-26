@@ -1,4 +1,3 @@
-import { useSelector } from 'react-redux';
 import {
   LANGUAGE_OPTIONS,
   REPORT_TYPE_OPTIONS
@@ -16,7 +15,6 @@ import useAdvancedReportGenerator from './hooks/useAdvancedReportGenerator';
 import './AdvancedReportGenerator.css';
 
 const AdvancedReportGenerator = () => {
-  const { token } = useSelector((state) => state.auth);
   const {
     students,
     formData,
@@ -29,7 +27,7 @@ const AdvancedReportGenerator = () => {
     handleGeneratePreview,
     handleGenerateAndSend,
     sanitizedReportHtml
-  } = useAdvancedReportGenerator({ token });
+  } = useAdvancedReportGenerator();
 
   return (
     <div className="report-generator-container">

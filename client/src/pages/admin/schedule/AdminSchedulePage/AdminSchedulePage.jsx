@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import {
     HiOutlineCalendar,
@@ -21,9 +21,6 @@ import {
     HiOutlineChevronRight,
     HiOutlineRefresh
 } from 'react-icons/hi';
-import { fetchTeachers } from '../../../../store/slices/teacherSlice';
-import { fetchClasses } from '../../../../store/slices/classSlice';
-import { fetchSubjects } from '../../../../store/slices/subjectSlice';
 import scheduleService from '../../../../services/scheduleService';
 import roomService from '../../../../services/roomService';
 import './AdminSchedulePage.css';
@@ -31,7 +28,6 @@ import './AdminSchedulePage.css';
 const AdminSchedulePage = () => {
     const { t, i18n } = useTranslation(['schedule']);
     const locale = i18n.language?.toLowerCase().startsWith('ar') ? 'ar-EG' : 'en-US';
-    const dispatch = useDispatch();
     const teachers = useSelector((state) => state.teachers.teachers) || [];
     const classes = useSelector((state) => state.classes.classes) || [];
     const subjects = useSelector((state) => state.subjects.subjects) || [];
@@ -89,9 +85,7 @@ const AdminSchedulePage = () => {
 
     // Fetch dropdown data on mount
     useEffect(() => {
-        dispatch(fetchTeachers());
-        dispatch(fetchClasses());
-        dispatch(fetchSubjects());
+
         const loadRooms = async () => {
             setRoomsLoading(true);
             try {
@@ -104,7 +98,7 @@ const AdminSchedulePage = () => {
             }
         };
         loadRooms();
-    }, [dispatch]);
+    }, []);
 
     const fetchSchedules = useCallback(async () => {
         try {

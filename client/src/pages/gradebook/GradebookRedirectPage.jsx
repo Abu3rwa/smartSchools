@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { fetchClasses, selectClasses } from '../../store/slices/classSlice';
+import { selectClasses } from '../../store/slices/classSlice';
 import { fetchMyClasses, selectMyClasses } from '../../store/slices/teacherSlice';
 import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import { selectUser } from '../../store/slices/authSlice';
@@ -18,7 +18,6 @@ const GradebookRedirectPage = () => {
     const [selectedClassId, setSelectedClassId] = useState('');
 
     useEffect(() => {
-        dispatch(fetchClasses({ academicYear }));
         if (user?.role === 'teacher') {
             dispatch(fetchMyClasses());
         }

@@ -93,6 +93,7 @@ const PracticeHistoryPage = lazy(() => import("./pages/student/practice/Practice
 const PracticeAssessmentResultsPage = lazy(() => import("./pages/student/practice/PracticeAssessmentResultsPage"));
 const StudentAcademicExcellencePage = lazy(() => import("./pages/student/academicExcellence/StudentAcademicExcellencePage"));
 const TeacherAcademicExcellencePage = lazy(() => import("./pages/teacher/academicExcellence/TeacherAcademicExcellencePage"));
+const TeacherStudentGroupingPage = lazy(() => import("./pages/teacher/studentGrouping/TeacherStudentGroupingPage"));
 const AdminAcademicExcellenceDashboard = lazy(() => import("./pages/admin/academicExcellence/AdminAcademicExcellenceDashboard"));
 const InterventionQueuePage = lazy(() => import("./pages/interventions/InterventionQueuePage"));
 const StudentGradesPage = lazy(() => import("./pages/student/academics/StudentGradesPage"));
@@ -917,6 +918,18 @@ function App() {
                 >
                   <FeatureGate feature="academicIntelligence" showUpgradePrompt>
                     <TeacherAcademicExcellencePage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="student-grouping"
+              element={
+                <RoleRoute
+                  roles={["admin", "department_principal", "teacher"]}
+                >
+                  <FeatureGate feature="academicIntelligence" showUpgradePrompt>
+                    <TeacherStudentGroupingPage />
                   </FeatureGate>
                 </RoleRoute>
               }

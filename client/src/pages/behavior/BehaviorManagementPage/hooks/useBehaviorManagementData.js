@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { selectUser } from '../../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
+import { selectClasses } from '../../../../store/slices/classSlice';
 import api from '../../../../config/api';
 import toast from 'react-hot-toast';
 import { getStudentClassId } from '../utils/behaviorPresentation.jsx';
@@ -10,6 +11,7 @@ import { getStudentClassId } from '../utils/behaviorPresentation.jsx';
 const useBehaviorManagementData = () => {
     const user = useSelector(selectUser);
     const academicYear = useSelector(selectCurrentAcademicYear);
+    const classes = useSelector(selectClasses);
     const { t } = useTranslation(['behaviorManagement']);
     const [incidents, setIncidents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -25,7 +27,6 @@ const useBehaviorManagementData = () => {
         endDate: ''
     });
     const [students, setStudents] = useState([]);
-    const [classes, setClasses] = useState([]);
     const [formData, setFormData] = useState({
         student: '',
         class: '',
@@ -50,7 +51,6 @@ const useBehaviorManagementData = () => {
     useEffect(() => {
         fetchIncidents();
         fetchStudents();
-        fetchClasses();
     }, [filters, academicYear]);
 
     const fetchIncidents = async () => {
@@ -89,21 +89,6 @@ const useBehaviorManagementData = () => {
             }
         } catch (error) {
             console.error('Failed to load students');
-        }
-    };
-
-    const fetchClasses = async () => {
-        try {
-            const response = await api.get('/classes', {
-                params: {
-                    academicYear
-                }
-            });
-            if (response.data.success) {
-                setClasses(response.data.data.classes);
-            }
-        } catch (error) {
-            console.error('Failed to load classes');
         }
     };
 

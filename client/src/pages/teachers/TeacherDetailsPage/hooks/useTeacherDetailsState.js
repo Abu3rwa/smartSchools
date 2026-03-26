@@ -6,8 +6,6 @@ import {
     fetchTeacher,
     selectCurrentTeacher
 } from '../../../../store/slices/teacherSlice';
-import { fetchClasses } from '../../../../store/slices/classSlice';
-import { fetchSubjects } from '../../../../store/slices/subjectSlice';
 import toast from 'react-hot-toast';
 import { TEACHER_DETAILS_MESSAGES } from '../constants';
 
@@ -29,11 +27,6 @@ const useTeacherDetailsState = (teacherId) => {
                 if (teacherId) {
                     await dispatch(fetchTeacher(teacherId)).unwrap();
                 }
-
-                await Promise.all([
-                    dispatch(fetchClasses()).unwrap(),
-                    dispatch(fetchSubjects()).unwrap()
-                ]);
             } catch (error) {
                 toast.error(TEACHER_DETAILS_MESSAGES.LOAD_ERROR);
             } finally {

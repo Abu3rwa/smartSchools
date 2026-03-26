@@ -11,7 +11,7 @@ import useReportAnalytics from './hooks/useReportAnalytics';
 import './ReportAnalytics.css';
 
 const ReportAnalytics = () => {
-  const { token, user } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state.auth);
   const {
     period,
     setPeriod,
@@ -25,7 +25,7 @@ const ReportAnalytics = () => {
     calculatePercentage,
     formatNumber,
     formatCurrency
-  } = useReportAnalytics({ token, user });
+  } = useReportAnalytics({ user });
 
   return (
     <div className="analytics-container">

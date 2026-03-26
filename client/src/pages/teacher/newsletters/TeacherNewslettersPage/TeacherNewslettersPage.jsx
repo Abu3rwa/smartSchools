@@ -4,8 +4,8 @@ import { format, startOfWeek, endOfWeek } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { fetchClasses, selectClasses } from '../../../../store/slices/classSlice';
-import { fetchSubjects, selectSubjects } from '../../../../store/slices/subjectSlice';
+import { selectClasses } from '../../../../store/slices/classSlice';
+import { selectSubjects } from '../../../../store/slices/subjectSlice';
 import { fetchLessons, selectLessons, selectLessonsLoading } from '../../../../store/slices/lessonSlice';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
 
@@ -45,11 +45,6 @@ const TeacherNewslettersPage = () => {
 
   const weekStartStr = useMemo(() => format(weekStart, 'yyyy-MM-dd'), [weekStart]);
   const weekEndStr = useMemo(() => format(weekEnd, 'yyyy-MM-dd'), [weekEnd]);
-
-  useEffect(() => {
-    dispatch(fetchClasses({ academicYear }));
-    dispatch(fetchSubjects());
-  }, [dispatch, academicYear]);
 
   useEffect(() => {
     if (!classId) return;

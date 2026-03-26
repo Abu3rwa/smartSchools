@@ -108,7 +108,7 @@ const standardAssignmentSchema = new mongoose.Schema({
         passMarks: {
             type: Number,
             min: 0,
-            default: 40
+            default: 50
         },
         resultsVisibility: {
             type: String,

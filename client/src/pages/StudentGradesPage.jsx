@@ -6,7 +6,7 @@ import api from '../config/api';
 import { HiOutlineClipboardList } from 'react-icons/hi';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
 import { selectUser } from '../store/slices/authSlice';
-import { fetchClasses, selectClasses } from '../store/slices/classSlice';
+import { selectClasses } from '../store/slices/classSlice';
 import { fetchStudentsByClass, selectClassStudents as selectStudentsBySelectedClass } from '../store/slices/studentSlice';
 import { fetchMyClasses, selectMyClasses } from '../store/slices/teacherSlice';
 import LessonPlanLinkSelector from '../components/grades/LessonPlanLinkSelector';
@@ -114,7 +114,6 @@ const StudentGradesPage = () => {
             return;
         }
 
-        dispatch(fetchClasses({ academicYear }));
         if (user?.role === 'teacher') {
             dispatch(fetchMyClasses());
         }

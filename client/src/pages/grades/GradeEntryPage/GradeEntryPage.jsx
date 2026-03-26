@@ -3,8 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
-import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
+import { selectClasses } from '../../../store/slices/classSlice';
+import { selectSubjects } from '../../../store/slices/subjectSlice';
 import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices/studentSlice';
 import { bulkAddGrades, selectGradesSubmitting } from '../../../store/slices/gradeSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
@@ -60,8 +60,6 @@ const GradeEntryPage = () => {
     } = useGradeEntryPageState({ initialClassId: searchParams.get('class') || '' });
 
     useEffect(() => {
-        dispatch(fetchClasses({ academicYear }));
-        dispatch(fetchSubjects());
         if (isTeacher) {
             dispatch(fetchMyClasses());
         }

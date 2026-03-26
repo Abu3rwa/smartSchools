@@ -14,8 +14,8 @@ import {
     sendTeacherLoginInvite,
     updateTeacher
 } from '../../../store/slices/teacherSlice';
-import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
-import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
+import { selectSubjects } from '../../../store/slices/subjectSlice';
+import { selectClasses } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import {
     fetchSchoolFeatures,
@@ -95,8 +95,6 @@ const TeachersPage = () => {
 
     useEffect(() => {
         dispatch(fetchTeachers({ limit: 0 }));
-        dispatch(fetchSubjects());
-        dispatch(fetchClasses());
         dispatch(fetchDepartments());
         dispatch(fetchSchoolFeatures());
     }, [dispatch]);

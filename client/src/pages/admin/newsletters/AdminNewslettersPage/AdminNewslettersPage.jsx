@@ -4,7 +4,7 @@ import { format, startOfWeek } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-import { fetchClasses, selectClasses } from '../../../../store/slices/classSlice';
+import { selectClasses } from '../../../../store/slices/classSlice';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
 import {
   fetchAdminIssues,
@@ -42,10 +42,6 @@ const AdminNewslettersPage = () => {
   const [activeTab, setActiveTab] = useState('review');
 
   const weekStartStr = useMemo(() => format(startOfWeek(new Date(weekDate), { weekStartsOn: 1 }), 'yyyy-MM-dd'), [weekDate]);
-
-  useEffect(() => {
-    dispatch(fetchClasses({ academicYear }));
-  }, [dispatch, academicYear]);
 
   useEffect(() => {
     if (activeTab === 'review') {

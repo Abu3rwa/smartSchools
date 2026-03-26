@@ -67,12 +67,15 @@ const buildQuestionPool = async ({
                 attemptNumber: i + 1,
             });
             questions.push({
+                instruction: generated.instruction || '',
                 questionText: generated.questionText,
                 questionType: generated.questionType,
                 options: generated.options || [],
                 correctAnswer: generated.correctAnswer,
                 explanation: generated.explanation || '',
                 difficulty: generated.difficulty || difficulty,
+                skill: generated.skill || '',
+                subskill: generated.subskill || '',
             });
         } catch (error) {
             logger.warn('Question generation failed for pool item; using deterministic fallback', {
@@ -86,12 +89,15 @@ const buildQuestionPool = async ({
 
             const standardName = standard?.name || 'this standard';
             questions.push({
+                instruction: 'Explain the key idea in your own words.',
                 questionText: `In 1-2 sentences, explain the key idea of ${standardName}.`,
                 questionType: 'short_answer',
                 options: [],
                 correctAnswer: `A strong response explains the key idea of ${standardName} using evidence from the lesson.`,
                 explanation: 'Focus on the main concept and explain it clearly.',
                 difficulty,
+                skill: '',
+                subskill: '',
             });
         }
     }

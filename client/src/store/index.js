@@ -19,6 +19,12 @@ import readingReducer from './slices/readingSlice';
 import departmentReducer from './slices/departmentSlice';
 import substitutionsReducer from './slices/substitutionsSlice';
 import calendarReducer from './slices/calendarSlice';
+import studentPromotionReducer from './slices/studentPromotionSlice';
+import standardAssignmentReducer from './slices/standardAssignmentSlice';
+import sbGradebookReducer from './slices/sbGradebookSlice';
+import practiceHistoryReducer from './slices/practiceHistorySlice';
+import messagesReducer from './slices/messagesSlice';
+import studentGroupingReducer from './slices/studentGroupingSlice';
 import uiReducer, {
     fetchSchoolAcademicYear,
     updateSchoolAcademicYear
@@ -39,6 +45,10 @@ const YEAR_SCOPED_SLICE_KEYS = [
     'revision',
     'reading',
     'substitutions',
+    'studentPromotion',
+    'standardAssignments',
+    'sbGradebook',
+    'practiceHistory',
 ];
 
 const appReducer = combineReducers({
@@ -63,7 +73,13 @@ const appReducer = combineReducers({
     revision: revisionReducer,
     reading: readingReducer,
     substitutions: substitutionsReducer,
-    calendar: calendarReducer
+    calendar: calendarReducer,
+    studentPromotion: studentPromotionReducer,
+    standardAssignments: standardAssignmentReducer,
+    sbGradebook: sbGradebookReducer,
+    practiceHistory: practiceHistoryReducer,
+    messages: messagesReducer,
+    studentGrouping: studentGroupingReducer
 });
 
 const hasAcademicYearChanged = (state, action) => {

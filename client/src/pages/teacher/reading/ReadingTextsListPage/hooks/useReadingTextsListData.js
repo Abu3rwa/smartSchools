@@ -10,7 +10,7 @@ import {
   selectReadingLoading,
   selectReadingError,
 } from "../../../../../store/slices/readingSlice.js";
-import { fetchClasses, selectClasses } from "../../../../../store/slices/classSlice.js";
+import { selectClasses } from "../../../../../store/slices/classSlice.js";
 import { selectCurrentAcademicYear } from "../../../../../store/slices/uiSlice.js";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -35,7 +35,6 @@ export function useReadingTextsListData() {
   useEffect(() => {
     dispatch(fetchTexts());
     dispatch(fetchTeacherAssignments({ academicYear }));
-    dispatch(fetchClasses());
   }, [dispatch, academicYear]);
 
   useEffect(() => {

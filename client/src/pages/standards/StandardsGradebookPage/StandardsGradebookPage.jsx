@@ -37,6 +37,8 @@ const StandardsGradebookPage = () => {
     standardId: '',
     title: '',
     instructions: '',
+    notifyParents: true,
+    notifyStudents: true,
   });
 
   const selectedClass = useMemo(
@@ -77,7 +79,13 @@ const StandardsGradebookPage = () => {
     }
     setAssignError('');
     setAssignSuccess('');
-    setAssignForm({ standardId: '', title: '', instructions: '' });
+    setAssignForm({
+      standardId: '',
+      title: '',
+      instructions: '',
+      notifyParents: true,
+      notifyStudents: true,
+    });
     setShowAssignModal(true);
   }, [canAssignStandard, t]);
 
@@ -111,6 +119,8 @@ const StandardsGradebookPage = () => {
         subjectId: filters.subjectId,
         title: String(assignForm.title || '').trim() || defaultTitle,
         instructions: String(assignForm.instructions || '').trim(),
+        notifyParents: assignForm.notifyParents !== false,
+        notifyStudents: assignForm.notifyStudents !== false,
         practiceConfig: { sessionType: 'assessment' },
       };
       if (semester) payload.semester = semester;
@@ -129,6 +139,8 @@ const StandardsGradebookPage = () => {
     assignForm.standardId,
     assignForm.title,
     assignForm.instructions,
+    assignForm.notifyParents,
+    assignForm.notifyStudents,
     availableStandards,
     filters.classId,
     filters.subjectId,
@@ -267,6 +279,31 @@ const StandardsGradebookPage = () => {
                 placeholder={t('standardsGradebook:assignStandard.instructionsPlaceholder', 'Optional instructions for students')}
                 disabled={assignSubmitting}
               />
+
+              <div className="gb-assign-modal__checks">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={assignForm.notifyParents !== false}
+                    onChange={(e) =>
+                      setAssignForm((prev) => ({ ...prev, notifyParents: e.target.checked }))
+                    }
+                    disabled={assignSubmitting}
+                  />
+                  {t('standardsGradebook:assignStandard.notifyParents', 'Notify parents')}
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={assignForm.notifyStudents !== false}
+                    onChange={(e) =>
+                      setAssignForm((prev) => ({ ...prev, notifyStudents: e.target.checked }))
+                    }
+                    disabled={assignSubmitting}
+                  />
+                  {t('standardsGradebook:assignStandard.notifyStudents', 'Notify students')}
+                </label>
+              </div>
 
               <div className="gb-assign-modal__footer">
                 <button type="button" className="gb-btn--secondary" onClick={closeAssignModal} disabled={assignSubmitting}>

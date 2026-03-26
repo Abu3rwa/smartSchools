@@ -1,4 +1,3 @@
-import { useSelector } from 'react-redux';
 import { REPORT_TYPE_OPTIONS } from './constants';
 import ReportHistoryHeader from './components/ReportHistoryHeader';
 import ReportHistoryFilters from './components/ReportHistoryFilters';
@@ -9,7 +8,6 @@ import useReportHistory from './hooks/useReportHistory';
 import './ReportHistory.css';
 
 const ReportHistory = () => {
-  const { token } = useSelector((state) => state.auth);
   const {
     reports,
     loading,
@@ -20,7 +18,7 @@ const ReportHistory = () => {
     formatDate,
     getStatusBadge,
     getEmailStatusDetail
-  } = useReportHistory({ token });
+  } = useReportHistory();
 
   return (
     <div className="report-history-container">

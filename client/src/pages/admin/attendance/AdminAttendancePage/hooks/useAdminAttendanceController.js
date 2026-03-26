@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { fetchTeachers } from '../../../../../store/slices/teacherSlice';
-import { fetchClasses } from '../../../../../store/slices/classSlice';
-import { fetchSubjects } from '../../../../../store/slices/subjectSlice';
 import attendanceService from '../../../../../services/attendanceService';
 import { ATTENDANCE_STATUS_COLORS, DEFAULT_FILTERS, VIEW_MODES } from '../constants';
 import {
@@ -42,12 +39,6 @@ export default function useAdminAttendanceController() {
         pendingToday: 0,
         pendingOverall: 0
     });
-
-    useEffect(() => {
-        dispatch(fetchTeachers());
-        dispatch(fetchClasses());
-        dispatch(fetchSubjects());
-    }, [dispatch]);
 
     const fetchAttendanceData = useCallback(async () => {
         try {

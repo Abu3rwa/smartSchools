@@ -500,6 +500,28 @@
   gap: 0.5rem;
 }
 
+.gb-assign-modal__checks {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.gb-assign-modal__checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--text-secondary, #475467);
+}
+
+.gb-assign-modal__checks input[type='checkbox'] {
+  width: auto;
+  min-width: 16px;
+  height: 16px;
+  padding: 0;
+}
+
 .gb-btn--secondary,
 .gb-btn--primary {
   border-radius: 8px;

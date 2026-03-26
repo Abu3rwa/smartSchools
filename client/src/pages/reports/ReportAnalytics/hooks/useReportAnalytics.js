@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import api from '../../../../config/api';
 
-const useReportAnalytics = ({ token, user }) => {
+const useReportAnalytics = ({ user }) => {
   const [period, setPeriod] = useState('monthly');
   const [year, setYear] = useState(new Date().getFullYear());
   const [userUsage, setUserUsage] = useState(null);
@@ -8,26 +9,21 @@ const useReportAnalytics = ({ token, user }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchAnalytics = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     try {
-      const userResponse = await fetch(
-        `/api/reports/token-usage?period=${period}&year=${year}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const userData = await userResponse.json();
-      if (userData.success) {
-        setUserUsage(userData.data);
+      const userResponse = await api.get('/reports/token-usage', {
+        params: { period, year }
+      });
+      if (userResponse.data.success) {
+        setUserUsage(userResponse.data.data);
       }
 
       if (user?.role === 'admin') {
-        const schoolResponse = await fetch(
-          `/api/reports/token-usage/school/${user.school}?period=${period}&year=${year}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const schoolData = await schoolResponse.json();
-        if (schoolData.success) {
-          setSchoolUsage(schoolData.data);
+        const schoolResponse = await api.get(`/reports/token-usage/school/${user.school}`, {
+          params: { period, year }
+        });
+        if (schoolResponse.data.success) {
+          setSchoolUsage(schoolResponse.data.data);
         }
       } else {
         setSchoolUsage(null);
@@ -37,7 +33,7 @@ const useReportAnalytics = ({ token, user }) => {
     } finally {
       setLoading(false);
     }
-  }, [period, token, user?.role, user?.school, year]);
+  }, [period, user?.role, user?.school, year]);
 
   useEffect(() => {
     fetchAnalytics();

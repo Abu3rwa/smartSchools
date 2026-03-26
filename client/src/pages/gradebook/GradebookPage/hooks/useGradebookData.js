@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import { fetchClass } from '../../../../store/slices/classSlice';
-import { fetchSubjects } from '../../../../store/slices/subjectSlice';
 import api from '../../../../config/api';
 import {
     getAvailableSubjects,
@@ -29,7 +28,6 @@ const useGradebookData = ({
 
     useEffect(() => {
         dispatch(fetchClass(classId));
-        dispatch(fetchSubjects());
     }, [classId, dispatch]);
 
     useEffect(() => {

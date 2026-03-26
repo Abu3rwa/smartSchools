@@ -9,9 +9,8 @@ import {
   clearCurrentPlan,
 } from "../../../../store/slices/revisionSlice.js";
 import { selectUser } from "../../../../store/slices/authSlice.js";
-import { fetchSubjects } from "../../../../store/slices/subjectSlice.js";
-import { fetchStudents } from "../../../../store/slices/studentSlice.js";
 import { selectSubjects } from "../../../../store/slices/subjectSlice.js";
+import { fetchStudents } from "../../../../store/slices/studentSlice.js";
 import { selectStudents } from "../../../../store/slices/studentSlice.js";
 import { selectCurrentAcademicYear } from "../../../../store/slices/uiSlice.js";
 import toast from "react-hot-toast";
@@ -37,7 +36,6 @@ export function useRevisionPlanCreateData() {
 
   useEffect(() => {
     dispatch(clearCurrentPlan());
-    dispatch(fetchSubjects());
     if (isTeacher) dispatch(fetchStudents());
   }, [dispatch, isTeacher]);
 

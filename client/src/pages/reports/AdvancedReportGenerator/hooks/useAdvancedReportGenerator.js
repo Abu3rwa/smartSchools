@@ -3,10 +3,11 @@ import DOMPurify from 'dompurify';
 import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchStudents, selectStudents } from '@/store/slices/studentSlice';
+import api from '../../../../config/api';
 import { createDefaultFormData } from '../constants';
 import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../../constants/aiLanguages';
 
-const useAdvancedReportGenerator = ({ token }) => {
+const useAdvancedReportGenerator = () => {
   const dispatch = useDispatch();
   const students = useSelector(selectStudents);
 
@@ -71,28 +72,19 @@ const useAdvancedReportGenerator = ({ token }) => {
         formData.primaryLanguage,
         formData.secondaryLanguage
       );
-      const response = await fetch('/api/reports/generate-advanced', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          ...formData,
-          language: toLegacyLanguageValue(requestedLanguages),
-          requestedLanguages,
-          sendEmail: false
-        })
+      const response = await api.post('/reports/generate-advanced', {
+        ...formData,
+        language: toLegacyLanguageValue(requestedLanguages),
+        requestedLanguages,
+        sendEmail: false
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setReport(data.data);
+      if (response.data.success) {
+        setReport(response.data.data);
         toast.success('Report generated successfully!');
       } else {
-        setError(data.message || 'Failed to generate report');
-        toast.error(data.message || 'Failed to generate report');
+        setError(response.data.message || 'Failed to generate report');
+        toast.error(response.data.message || 'Failed to generate report');
       }
     } catch {
       setError('Failed to connect to server');
@@ -100,7 +92,7 @@ const useAdvancedReportGenerator = ({ token }) => {
     } finally {
       setGenerating(false);
     }
-  }, [formData, token]);
+  }, [formData]);
 
   const handleGenerateAndSend = useCallback(async () => {
     setSending(true);
@@ -112,24 +104,15 @@ const useAdvancedReportGenerator = ({ token }) => {
         formData.primaryLanguage,
         formData.secondaryLanguage
       );
-      const response = await fetch('/api/reports/generate-advanced', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          ...formData,
-          language: toLegacyLanguageValue(requestedLanguages),
-          requestedLanguages,
-          sendEmail: true
-        })
+      const response = await api.post('/reports/generate-advanced', {
+        ...formData,
+        language: toLegacyLanguageValue(requestedLanguages),
+        requestedLanguages,
+        sendEmail: true
       });
 
-      const data = await response.json();
-
-      if (data.success && data.data.emailResults) {
-        const { primaryRecipients, ccRecipients } = data.data.emailResults;
+      if (response.data.success && response.data.data.emailResults) {
+        const { primaryRecipients, ccRecipients } = response.data.data.emailResults;
 
         toast.success(
           `Report sent! ${primaryRecipients} student contact(s), ${ccRecipients} teacher CC`,
@@ -138,19 +121,19 @@ const useAdvancedReportGenerator = ({ token }) => {
 
         setSuccess({
           message: 'Report generated and sent successfully!',
-          details: data.data.emailResults
+          details: response.data.data.emailResults
         });
-        setReport(data.data);
+        setReport(response.data.data);
       } else {
-        setError(data.message || 'Failed to generate and send report');
-        toast.error(data.message || 'Failed to send report');
+        setError(response.data.message || 'Failed to generate and send report');
+        toast.error(response.data.message || 'Failed to send report');
       }
     } catch {
       setError('Failed to connect to server');
     } finally {
       setSending(false);
     }
-  }, [formData, token]);
+  }, [formData]);
 
   const sanitizedReportHtml = useMemo(() => {
     if (!report?.report) return '';

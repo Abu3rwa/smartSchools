@@ -114,6 +114,8 @@ export const buildAssignmentEditForm = (assignment, selectedSemester) => {
         standardId: assignment?.standard?._id || assignment?.standard || '',
         classId: assignment?.class?._id || assignment?.class || '',
         subjectId: assignment?.subject?._id || assignment?.subject || '',
+        notifyParents: assignment?.notifyParents !== false,
+        notifyStudents: assignment?.notifyStudents !== false,
         preGeneratedQuestionCount: String(
             assignment?.questionWorkflow?.preGeneratedQuestionCount || 10
         ),
@@ -144,7 +146,7 @@ export const buildAssignmentEditForm = (assignment, selectedSemester) => {
         },
         assessmentConfig: {
             maxMarks: String(assignment?.assessmentConfig?.maxMarks || 100),
-            passMarks: String(assignment?.assessmentConfig?.passMarks || 40),
+            passMarks: String(assignment?.assessmentConfig?.passMarks || 50),
             resultsVisibility: assignment?.assessmentConfig?.resultsVisibility || 'immediate',
             resultsReleaseAt: toDateTimeLocalInput(assignment?.assessmentConfig?.resultsReleaseAt)
         }

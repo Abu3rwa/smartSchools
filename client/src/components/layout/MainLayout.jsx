@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { selectSidebarOpen, setSidebarOpen } from '../../store/slices/uiSlice';
 import { selectIsImpersonating, stopImpersonation, selectUser } from '../../store/slices/authSlice';
 import { selectSubscriptionStatus } from '../../store/slices/schoolFeaturesSlice';
+import useAppData from '../../hooks/useAppData';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import SubscriptionExpiredWall from '../SubscriptionExpiredWall';
@@ -76,6 +77,9 @@ const MainLayout = () => {
     const dispatch = useDispatch();
     const location = useLocation();
     const { i18n, t } = useTranslation(['common']);
+
+    useAppData();
+
     const sidebarOpen = useSelector(selectSidebarOpen);
     const isImpersonating = useSelector(selectIsImpersonating);
     const user = useSelector(selectUser);

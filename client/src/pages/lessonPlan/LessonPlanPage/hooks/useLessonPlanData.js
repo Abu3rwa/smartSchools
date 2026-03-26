@@ -1,8 +1,5 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchClasses } from '../../../../store/slices/classSlice.js';
-import { fetchSubjects } from '../../../../store/slices/subjectSlice.js';
-import { fetchTeachers } from '../../../../store/slices/teacherSlice.js';
 import {
   fetchLessons,
   selectLessons,
@@ -25,14 +22,6 @@ export default function useLessonPlanData({
   const academicYear = useSelector(selectCurrentAcademicYear);
   const lessons = useSelector(selectLessons);
   const loading = useSelector(selectLessonsLoading);
-
-  useEffect(() => {
-    dispatch(fetchClasses({ academicYear }));
-    dispatch(fetchSubjects());
-    if (canFilterAsAdmin) {
-      dispatch(fetchTeachers());
-    }
-  }, [dispatch, academicYear, canFilterAsAdmin]);
 
   useEffect(() => {
     const params = { academicYear };

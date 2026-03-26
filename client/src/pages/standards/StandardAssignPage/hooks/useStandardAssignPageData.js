@@ -18,7 +18,7 @@ import {
     selectStandardsLoading,
     updateAssignment
 } from '../../../../store/slices/standardSlice';
-import { fetchSubjects, selectSubjects } from '../../../../store/slices/subjectSlice';
+import { selectSubjects } from '../../../../store/slices/subjectSlice';
 import { selectUser } from '../../../../store/slices/authSlice';
 import {
     selectCurrentAcademicYear,
@@ -175,7 +175,6 @@ const useStandardAssignPageData = () => {
     useEffect(() => {
         dispatch(fetchStandards({ limit: 2000, isActive: true }));
         dispatch(fetchAssignments({ academicYear, semester: selectedSemester }));
-        dispatch(fetchSubjects());
         loadClasses();
     }, [dispatch, academicYear, selectedSemester]);
 
@@ -288,7 +287,7 @@ const useStandardAssignPageData = () => {
         }
 
         const maxMarks = parseNullablePositiveInt(formData.assessmentConfig.maxMarks) || 100;
-        const passMarks = parseNullablePositiveInt(formData.assessmentConfig.passMarks) || 40;
+        const passMarks = parseNullablePositiveInt(formData.assessmentConfig.passMarks) || 50;
         if (passMarks > maxMarks) {
             toast.error(t('standardAssign:toasts.passMarksGreaterThanMax'));
             setSubmitting(false);

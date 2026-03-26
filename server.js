@@ -75,6 +75,7 @@ import curriculumSettingsRoutes from "./routes/curriculumSettingsRoutes.js";
 import academicExcellenceRoutes from "./routes/academicExcellenceRoutes.js";
 import sbrRoutes from "./routes/sbrRoutes.js";
 import reteachTaskRoutes from "./routes/reteachTaskRoutes.js";
+import studentGroupingRoutes from "./routes/studentGroupingRoutes.js";
 import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
@@ -307,6 +308,7 @@ app.use("/api/communication-email", communicationEmailRoutes);
 app.use("/api/curriculum-maps", curriculumMapRoutes);
 app.use("/api/curriculum-settings", curriculumSettingsRoutes);
 app.use("/api/academic-excellence", academicExcellenceRoutes);
+app.use("/api/student-grouping", studentGroupingRoutes);
 app.use("/api/sbr", sbrRoutes);
 app.use("/api/docs", apiDocsRoutes);
 

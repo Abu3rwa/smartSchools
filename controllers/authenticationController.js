@@ -25,8 +25,8 @@ const getAllowedClientOrigins = () => (
     [
         process.env.FRONTEND_URL,
         process.env.CLIENT_URL,
-        'http://localhost:5173',
         'https://smile3-8c8c5.web.app',
+        'http://localhost:5173',
         'https://schoolworkso.onrender.com'
     ]
         .filter(Boolean)

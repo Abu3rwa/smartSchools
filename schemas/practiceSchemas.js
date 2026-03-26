@@ -109,6 +109,7 @@ export const generateQuestionResponseSchema = z.object({
     sessionContext: sessionContextSchema,
     question: z.object({
         attemptId: z.string(),
+        instruction: z.string().nullable().optional(),
         questionText: z.string(),
         questionType: z.enum(QUESTION_TYPES),
         options: z.array(z.object({
@@ -116,6 +117,8 @@ export const generateQuestionResponseSchema = z.object({
             text: z.string()
         })).optional(),
         difficulty: z.enum(DIFFICULTIES),
+        skill: z.string().nullable().optional(),
+        subskill: z.string().nullable().optional(),
         attemptNumber: z.number()
     }).nullable(),
     session: sessionSchema.nullable().optional()

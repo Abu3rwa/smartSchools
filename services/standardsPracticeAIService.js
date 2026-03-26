@@ -125,12 +125,15 @@ const optionSchema = z.object({
 
 const practiceQuestionSchema = z
   .object({
+    instruction: z.string().default(""),
     questionText: z.string().min(1, "questionText is required"),
     questionType: z.enum(QUESTION_TYPES).optional(),
     options: z.array(optionSchema).default([]),
     correctAnswer: z.string().min(1, "correctAnswer is required"),
     explanation: z.string().default(""),
     difficulty: z.string().optional(),
+    skill: z.string().default(""),
+    subskill: z.string().default(""),
   })
   .strict();
 
@@ -625,6 +628,7 @@ Do not change JSON keys or structural fields.`;
         );
 
         return {
+          instruction: "Determine whether the following statement is true or false.",
           questionText,
           questionType: "true_false",
           options: this._shuffleTrueFalseOptionsDeterministic(
@@ -633,6 +637,8 @@ Do not change JSON keys or structural fields.`;
           correctAnswer: resolvedAnswer,
           explanation,
           difficulty: this._sanitizeDifficulty(parsed.difficulty || difficulty),
+          skill: "",
+          subskill: "",
           tokenUsage: usage,
         };
       } catch (error) {
@@ -836,18 +842,24 @@ REQUIRED OUTPUT BEHAVIOR:
   Instruction: Read the sentence.
   Sentence: ...
   Task: Add the missing commas.
+- The "instruction" field must be a short, explicit direction telling the student exactly what to do (e.g., "Choose the correct verb form to complete the sentence." or "Select the option that best matches the main idea."). It must never be empty.
+- The "skill" field should identify the broad skill being tested (e.g., "grammar", "reading comprehension", "vocabulary", "math operations").
+- The "subskill" field should narrow it further (e.g., "verb tense", "main idea", "context clues", "fractions").
 - Keep explanations clear and teacher-like.
 - Do not mention AI or model behavior.
 - Return STRICT JSON only. No markdown, no code fences, no extra text.
 ${retrySection}
 OUTPUT JSON SHAPE:
 {
+  "instruction": "Short explicit direction for the student",
   "questionText": "...",
   "questionType": "${questionType}",
   "options": ${outputOptionsShape},
   "correctAnswer": "...",
   "explanation": "...",
-  "difficulty": "${difficulty}"
+  "difficulty": "${difficulty}",
+  "skill": "broad skill name",
+  "subskill": "specific subskill name"
 }`;
   }
 
@@ -910,6 +922,7 @@ STUDENT'S ANSWER: ${studentAnswer}
 
 Rules:
 - Be fair on wording differences if concept is correct.
+- CRITICAL: Only mark "isCorrect": false when the student's answer fails the SPECIFIC skill being tested (the STANDARD). If the question tests verb tense, grammar, or sentence structure, do NOT mark wrong for unrelated spelling mistakes, typos, or capitalization errors. Only count spelling errors as wrong when the standard or question explicitly tests spelling. Judge the targeted skill, not peripheral errors.
 - Personalize warmly for a student by first name.
 - Keep language age-appropriate and teacher-like.
 - Focus feedback on the target language skill in the standard and question.
@@ -918,6 +931,7 @@ Rules:
 - If the answer is incorrect, say clearly what language rule was missed or misused.
 - Do not give strong praise for an incorrect answer.
 - Avoid vague phrases like "great effort" or "fantastic" when the answer is wrong.
+- If the student has a minor spelling typo unrelated to the tested skill, you may mention it gently but still mark "isCorrect": true if the targeted skill is demonstrated correctly.
 - If a likely typo matters, mention it briefly and plainly without turning it into the main feedback.
 - ${this._buildPromptLanguageRule(requestedLanguages)}
 - Keep "feedback" between ${wordRange.minWords} and ${wordRange.maxWords} words.
@@ -985,6 +999,12 @@ Output JSON:
     }
 
     const limits = this._getTextLimitsByGrade(gradeLevel);
+
+    const instruction = this._sanitizeText(parsed.instruction || "", {
+      maxLength: limits.questionMax,
+      sentenceCase: true,
+    });
+
     let questionText = this._sanitizeText(parsed.questionText, {
       maxLength: limits.questionMax,
       sentenceCase: true,
@@ -1044,12 +1064,15 @@ Output JSON:
     }
 
     return {
+      instruction,
       questionText,
       questionType: resolvedType,
       options: normalizedOptions,
       correctAnswer: normalizedCorrectAnswer,
       explanation,
       difficulty: this._sanitizeDifficulty(parsed.difficulty || requestedDifficulty),
+      skill: this._sanitizeText(parsed.skill || "", { maxLength: 60, sentenceCase: false }),
+      subskill: this._sanitizeText(parsed.subskill || "", { maxLength: 60, sentenceCase: false }),
     };
   }
 
@@ -1999,6 +2022,7 @@ Output JSON:
 
     if (questionType === "true_false") {
       candidateQuestions.push({
+        instruction: "Determine whether the following statement is true or false.",
         questionText: fallbackTrueAnswer
           ? `True or false: ${referenceLabel} focuses on ${topicHint}.`
           : `True or false: ${referenceLabel} means students should ignore evidence and rely only on guesses.`,
@@ -2011,22 +2035,28 @@ Output JSON:
           ? `This is true because ${referenceLabel} centers on ${topicHint}.`
           : `This is false because ${referenceLabel} expects evidence-based thinking, not guessing.`,
         difficulty: this._sanitizeDifficulty(difficulty),
+        skill: "",
+        subskill: "",
       });
     }
 
     if (questionType === "short_answer") {
       candidateQuestions.push({
+        instruction: `Explain the connection between the standard and the topic.`,
         questionText: `In 1-2 sentences, explain how ${referenceLabel} connects to ${topicHint}.`,
         questionType: "short_answer",
         options: [],
         correctAnswer: `A strong answer explains how ${referenceLabel} connects to ${topicHint}.`,
         explanation: "Focus on the key concept and one clear reason from the standard.",
         difficulty: this._sanitizeDifficulty(difficulty),
+        skill: "",
+        subskill: "",
       });
     }
 
     if (questionType === "multiple_choice") {
       candidateQuestions.push({
+        instruction: `Select the option that best matches the standard.`,
         questionText: `Which option best matches the key idea in ${referenceLabel}?`,
         questionType: "multiple_choice",
         options: [
@@ -2038,8 +2068,11 @@ Output JSON:
         correctAnswer: "A",
         explanation: `Option A is best because it directly matches the focus of ${referenceLabel}.`,
         difficulty: this._sanitizeDifficulty(difficulty),
+        skill: "",
+        subskill: "",
       });
       candidateQuestions.push({
+        instruction: `Choose the best interpretation of the standard.`,
         questionText: `Choose the best evidence-based interpretation of ${referenceLabel}.`,
         questionType: "multiple_choice",
         options: [
@@ -2051,11 +2084,14 @@ Output JSON:
         correctAnswer: "B",
         explanation: `Option B is the only option that clearly aligns with ${referenceLabel}.`,
         difficulty: this._sanitizeDifficulty(difficulty),
+        skill: "",
+        subskill: "",
       });
     }
 
     if (candidateQuestions.length === 0) {
       candidateQuestions.push({
+        instruction: `Select the best match for the standard.`,
         questionText: `Which choice best matches ${referenceLabel}?`,
         questionType: "multiple_choice",
         options: [
@@ -2067,6 +2103,8 @@ Output JSON:
         correctAnswer: "A",
         explanation: `Option A is the best match for ${referenceLabel}.`,
         difficulty: this._sanitizeDifficulty(difficulty),
+        skill: "",
+        subskill: "",
       });
     }
 
@@ -2157,6 +2195,37 @@ Output JSON:
       console.error("Failed to parse JSON response:", text.substring(0, 200));
       return null;
     }
+  }
+
+  /**
+   * Pedagogical validation gate: ensures a generated question meets
+   * minimum instructional quality. Returns the question with any
+   * auto-repairs applied (e.g. synthesized instruction if missing).
+   */
+  ensureInstructionalCompleteness(question, { standard, questionType } = {}) {
+    if (!question) return question;
+    const q = { ...question };
+
+    // Guarantee instruction field exists and is non-empty
+    if (!q.instruction || !q.instruction.trim()) {
+      if (questionType === "true_false" || q.questionType === "true_false") {
+        q.instruction = "Determine whether the following statement is true or false.";
+      } else if (questionType === "short_answer" || q.questionType === "short_answer") {
+        q.instruction = "Read carefully and write your answer.";
+      } else {
+        q.instruction = "Read the question and select the best answer.";
+      }
+    }
+
+    // Guarantee skill/subskill have at least a fallback from the standard
+    if (!q.skill) {
+      q.skill = standard?.category || standard?.name || "";
+    }
+    if (!q.subskill) {
+      q.subskill = "";
+    }
+
+    return q;
   }
 }
 

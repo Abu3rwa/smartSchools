@@ -17,8 +17,8 @@ import {
     selectClassInsightsLoading,
     clearClassAnalyticsData
 } from '../../../store/slices/classSlice';
-import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
-import { fetchTeachers, selectTeachers } from '../../../store/slices/teacherSlice';
+import { selectSubjects } from '../../../store/slices/subjectSlice';
+import { selectTeachers } from '../../../store/slices/teacherSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectIsAdmin, selectCanEditClass } from '../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
@@ -57,8 +57,6 @@ const ClassDetailPage = () => {
 
     useEffect(() => {
         dispatch(fetchClass(id));
-        dispatch(fetchSubjects());
-        dispatch(fetchTeachers());
         dispatch(fetchDepartments());
         dispatch(clearClassAnalyticsData());
     }, [dispatch, id]);

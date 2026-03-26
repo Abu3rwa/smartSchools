@@ -20,7 +20,7 @@ export const DEFAULT_PRACTICE_CONFIG = {
 
 export const DEFAULT_ASSESSMENT_CONFIG = {
     maxMarks: '100',
-    passMarks: '40',
+    passMarks: '50',
     resultsVisibility: 'immediate',
     resultsReleaseAt: ''
 };
@@ -30,6 +30,8 @@ export const createInitialFormData = (semester = 1) => ({
     standardId: '',
     classId: '',
     subjectId: '',
+    notifyParents: true,
+    notifyStudents: true,
     preGeneratedQuestionCount: '10',
     semester: semester || 1,
     students: [],

@@ -330,6 +330,18 @@ const StandardAssignForm = ({
             <strong>
                 {selectedAiLanguages.map((code) => getAiLanguageLabel(code)).join(' + ')}
             </strong>
+            <span>{t('standardAssign:form.summary.notifyParents', { defaultValue: 'Notify Parents' })}</span>
+            <strong>
+                {formData.notifyParents !== false
+                    ? t('standardAssign:common.yes', { defaultValue: 'Yes' })
+                    : t('standardAssign:common.no', { defaultValue: 'No' })}
+            </strong>
+            <span>{t('standardAssign:form.summary.notifyStudents', { defaultValue: 'Notify Students' })}</span>
+            <strong>
+                {formData.notifyStudents !== false
+                    ? t('standardAssign:common.yes', { defaultValue: 'Yes' })
+                    : t('standardAssign:common.no', { defaultValue: 'No' })}
+            </strong>
         </div>
     );
 
@@ -644,6 +656,38 @@ const StandardAssignForm = ({
                             rows={3}
                             placeholder={t('standardAssign:form.placeholders.instructions')}
                         />
+                    </div>
+
+                    <div className="form-group">
+                        <label>{t('standardAssign:form.labels.notifications', { defaultValue: 'Notifications' })}</label>
+                        <div className="checkbox-group assign-inline-checkboxes">
+                            <label className="assign-checkbox-option">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.notifyParents !== false}
+                                    onChange={(event) =>
+                                        setFormData({
+                                            ...formData,
+                                            notifyParents: event.target.checked
+                                        })
+                                    }
+                                />
+                                {t('standardAssign:form.labels.notifyParents', { defaultValue: 'Notify parents' })}
+                            </label>
+                            <label className="assign-checkbox-option">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.notifyStudents !== false}
+                                    onChange={(event) =>
+                                        setFormData({
+                                            ...formData,
+                                            notifyStudents: event.target.checked
+                                        })
+                                    }
+                                />
+                                {t('standardAssign:form.labels.notifyStudents', { defaultValue: 'Notify students' })}
+                            </label>
+                        </div>
                     </div>
                 </section>
             )}

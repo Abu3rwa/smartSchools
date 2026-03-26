@@ -1,36 +1,33 @@
 import { useCallback, useEffect, useState } from 'react';
+import api from '../../../../config/api';
 import { DEFAULT_HISTORY_FILTERS } from '../constants';
 
-const useReportHistory = ({ token }) => {
+const useReportHistory = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(DEFAULT_HISTORY_FILTERS);
   const [retrying, setRetrying] = useState(null);
 
   const fetchReportHistory = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filters.studentId) params.append('studentId', filters.studentId);
-      if (filters.reportType) params.append('type', filters.reportType);
-      if (filters.startDate) params.append('startDate', filters.startDate);
-      if (filters.endDate) params.append('endDate', filters.endDate);
+      const params = {};
+      if (filters.studentId) params.studentId = filters.studentId;
+      if (filters.reportType) params.type = filters.reportType;
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
 
-      const response = await fetch(`/api/reports/history?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.get('/reports/history', { params });
 
-      if (data.success) {
-        setReports(data.data);
+      if (response.data.success) {
+        setReports(response.data.data);
       }
     } catch (err) {
       console.error('Error fetching report history:', err);
     } finally {
       setLoading(false);
     }
-  }, [filters.endDate, filters.reportType, filters.startDate, filters.studentId, token]);
+  }, [filters.endDate, filters.reportType, filters.startDate, filters.studentId]);
 
   useEffect(() => {
     fetchReportHistory();
@@ -39,24 +36,20 @@ const useReportHistory = ({ token }) => {
   const handleRetryEmails = useCallback(async (reportId) => {
     setRetrying(reportId);
     try {
-      const response = await fetch(`/api/reports/retry-emails/${reportId}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const response = await api.post(`/reports/retry-emails/${reportId}`);
 
-      if (data.success) {
+      if (response.data.success) {
         alert('Retry initiated successfully!');
         fetchReportHistory();
       } else {
-        alert(data.message || 'Failed to retry emails');
+        alert(response.data.message || 'Failed to retry emails');
       }
     } catch (err) {
       alert('Failed to retry emails');
     } finally {
       setRetrying(null);
     }
-  }, [fetchReportHistory, token]);
+  }, [fetchReportHistory]);
 
   const formatDate = useCallback((dateString) => {
     const date = new Date(dateString);

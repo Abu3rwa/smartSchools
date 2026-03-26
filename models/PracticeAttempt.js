@@ -29,6 +29,10 @@ const practiceAttemptSchema = new mongoose.Schema(
       default: null,
     },
     // Question details (AI-generated)
+    instruction: {
+      type: String,
+      default: null,
+    },
     questionText: {
       type: String,
       required: true,
@@ -94,6 +98,14 @@ const practiceAttemptSchema = new mongoose.Schema(
       type: String,
       enum: ["easy", "medium", "hard"],
       default: "medium",
+    },
+    skill: {
+      type: String,
+      default: null,
+    },
+    subskill: {
+      type: String,
+      default: null,
     },
     hintsUsed: {
       type: Number,

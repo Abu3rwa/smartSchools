@@ -14,7 +14,7 @@ import {
     sendStudentLoginInvite,
     updateStudent
 } from '../../../store/slices/studentSlice';
-import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
+import { selectClasses } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import {
     fetchSchoolFeatures,
@@ -140,7 +140,6 @@ const StudentsPage = () => {
 
     useEffect(() => {
         dispatch(fetchStudents({ search: searchFromUrl || undefined, limit: 'all' }));
-        dispatch(fetchClasses());
         dispatch(fetchDepartments());
         dispatch(fetchSchoolFeatures());
     }, [dispatch, searchFromUrl]);

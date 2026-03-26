@@ -11,6 +11,7 @@ const optionSchema = new mongoose.Schema(
 
 const questionSchema = new mongoose.Schema(
   {
+    instruction: { type: String, trim: true, default: '' },
     questionText: { type: String, required: true, trim: true },
     questionType: {
       type: String,
@@ -25,6 +26,8 @@ const questionSchema = new mongoose.Schema(
       enum: ['easy', 'medium', 'hard'],
       default: 'medium',
     },
+    skill: { type: String, trim: true, default: '' },
+    subskill: { type: String, trim: true, default: '' },
   },
   { _id: true }
 );

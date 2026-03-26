@@ -339,6 +339,14 @@ const Sidebar = () => {
       section: "insights",
     },
     {
+      path: "/portal/student-grouping",
+      icon: HiOutlineRectangleStack,
+      labelKey: "studentGrouping",
+      roles: ["admin", "teacher", "department_principal"],
+      feature: "academicIntelligence",
+      section: "insights",
+    },
+    {
       path: "/portal/admin-academic-excellence",
       icon: HiOutlineArrowTrendingUp,
       labelKey: "academicExcellenceAnalytics",

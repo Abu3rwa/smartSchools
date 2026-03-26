@@ -1,137 +1,102 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import {
-    fetchMessageThreads,
-    fetchMessageThreadById,
-    markMessageThreadRead,
-    replyToMessageThread
-} from '../../../../api/messagesApi';
+    fetchThreads,
+    fetchThreadDetail,
+    markThreadRead,
+    sendReply,
+    setSelectedThread,
+    selectThreads,
+    selectMessagesPagination,
+    selectUnreadCount,
+    selectSelectedThreadId,
+    selectThreadDetail,
+    selectMessagesLoading,
+    selectDetailLoading,
+    selectSendingReply
+} from '../../../../store/slices/messagesSlice';
 
 const useMessagesData = ({ pageLimit }) => {
     const { t } = useTranslation(['messages']);
-    const [threads, setThreads] = useState([]);
-    const [pagination, setPagination] = useState({
-        page: 1,
-        limit: pageLimit,
-        total: 0,
-        totalPages: 1
-    });
-    const [unreadCount, setUnreadCount] = useState(0);
+    const dispatch = useDispatch();
+
+    const threads = useSelector(selectThreads);
+    const pagination = useSelector(selectMessagesPagination);
+    const unreadCount = useSelector(selectUnreadCount);
+    const selectedThreadId = useSelector(selectSelectedThreadId);
+    const threadDetail = useSelector(selectThreadDetail);
+    const loadingThreads = useSelector(selectMessagesLoading);
+    const loadingDetail = useSelector(selectDetailLoading);
+    const sendingReply = useSelector(selectSendingReply);
+
     const [unreadOnly, setUnreadOnly] = useState(false);
-    const [loadingThreads, setLoadingThreads] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
-    const [selectedThreadId, setSelectedThreadId] = useState(null);
-    const [threadDetail, setThreadDetail] = useState(null);
-    const [loadingDetail, setLoadingDetail] = useState(false);
     const [replyBody, setReplyBody] = useState('');
-    const [sendingReply, setSendingReply] = useState(false);
     const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
     const hasMore = useMemo(() => pagination.page < pagination.totalPages, [pagination.page, pagination.totalPages]);
 
     const loadThreads = useCallback(async ({ page = 1, append = false, silent = false } = {}) => {
-        if (append) {
-            setLoadingMore(true);
-        } else if (!silent) {
-            setLoadingThreads(true);
-        }
+        if (append) setLoadingMore(true);
 
         try {
-            const data = await fetchMessageThreads({ page, limit: pagination.limit, unreadOnly });
-            setPagination(data.pagination || { page, limit: pagination.limit, total: 0, totalPages: 1 });
-            setUnreadCount(data.unreadCount || 0);
-            setThreads((prev) => (append ? [...prev, ...(data.items || [])] : (data.items || [])));
+            const result = await dispatch(fetchThreads({ page, limit: pageLimit, unreadOnly })).unwrap();
             setLastUpdatedAt(new Date());
-            return data;
+            return result;
         } catch (error) {
             if (!silent) {
-                toast.error(error.message || t('messages:toasts.loadMessagesFailed'));
+                toast.error(error || t('messages:toasts.loadMessagesFailed'));
             }
             return null;
         } finally {
-            if (!silent) {
-                setLoadingThreads(false);
-            }
             setLoadingMore(false);
         }
-    }, [pagination.limit, unreadOnly, t]);
+    }, [dispatch, pageLimit, unreadOnly, t]);
 
     const refreshThreadDetail = useCallback(async (threadId) => {
         if (!threadId) return;
         try {
-            const detail = await fetchMessageThreadById(threadId);
-            setThreadDetail(detail);
-        } catch (error) {
+            await dispatch(fetchThreadDetail(threadId)).unwrap();
+        } catch {
             // Keep silent during background refresh
         }
-    }, [t]);
+    }, [dispatch]);
 
     const handleSelectThread = useCallback(async (thread) => {
-        setSelectedThreadId(thread.id);
-        setLoadingDetail(true);
+        dispatch(setSelectedThread(thread.id));
+        setReplyBody('');
+
         try {
-            const detail = await fetchMessageThreadById(thread.id);
-            setThreadDetail(detail);
-            setReplyBody('');
+            await dispatch(fetchThreadDetail(thread.id)).unwrap();
 
             if ((thread.unreadCount || 0) > 0) {
-                await markMessageThreadRead(thread.id);
-                setThreads((prev) => prev.map((item) => (
-                    item.id === thread.id ? { ...item, unreadCount: 0, isRead: true } : item
-                )));
-                setUnreadCount((prev) => Math.max(prev - (thread.unreadCount || 0), 0));
+                await dispatch(markThreadRead(thread.id)).unwrap();
             }
         } catch (error) {
-            toast.error(error.message || t('messages:toasts.loadThreadFailed'));
-        } finally {
-            setLoadingDetail(false);
+            toast.error(error || t('messages:toasts.loadThreadFailed'));
         }
-    }, []);
+    }, [dispatch, t]);
 
     const handleSendReply = useCallback(async () => {
-        if (!selectedThreadId || !replyBody.trim()) {
-            return;
-        }
-        setSendingReply(true);
+        if (!selectedThreadId || !replyBody.trim()) return;
+
         try {
-            const result = await replyToMessageThread({
+            await dispatch(sendReply({
                 threadId: selectedThreadId,
                 body: replyBody.trim()
-            });
-
-            const newMessage = result.message;
-            setThreadDetail((prev) => {
-                if (!prev) return prev;
-                return {
-                    ...prev,
-                    messages: [...(prev.messages || []), newMessage]
-                };
-            });
-
-            setThreads((prev) => prev.map((item) => (
-                item.id === selectedThreadId
-                    ? {
-                        ...item,
-                        preview: newMessage?.body || item.preview,
-                        lastMessageAt: newMessage?.createdAt || item.lastMessageAt
-                    }
-                    : item
-            )));
-
+            })).unwrap();
             setReplyBody('');
         } catch (error) {
-            toast.error(error.message || t('messages:toasts.replyFailed'));
-        } finally {
-            setSendingReply(false);
+            toast.error(error || t('messages:toasts.replyFailed'));
         }
-    }, [replyBody, selectedThreadId, t]);
+    }, [dispatch, replyBody, selectedThreadId, t]);
 
     useEffect(() => {
-        setSelectedThreadId(null);
-        setThreadDetail(null);
+        dispatch(setSelectedThread(null));
         loadThreads({ page: 1, append: false });
-    }, [unreadOnly, loadThreads]);
+    }, [unreadOnly, loadThreads, dispatch]);
 
     return {
         threads,
@@ -142,9 +107,9 @@ const useMessagesData = ({ pageLimit }) => {
         loadingThreads,
         loadingMore,
         selectedThreadId,
-        setSelectedThreadId,
+        setSelectedThreadId: (id) => dispatch(setSelectedThread(id)),
         threadDetail,
-        setThreadDetail,
+        setThreadDetail: () => {},
         loadingDetail,
         replyBody,
         setReplyBody,

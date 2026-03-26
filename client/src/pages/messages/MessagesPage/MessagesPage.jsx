@@ -93,9 +93,7 @@ const MessagesPage = () => {
     }, []);
 
     const { realtimeConnected } = useMessagesRealtime({
-        selectedThreadId,
-        loadThreads,
-        refreshThreadDetail
+        selectedThreadId
     });
 
     useEffect(() => {

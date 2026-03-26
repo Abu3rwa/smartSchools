@@ -6,7 +6,7 @@ import {
   selectReadingUploading,
   selectReadingError,
 } from "../../../../../store/slices/readingSlice.js";
-import { fetchClasses, selectClasses } from "../../../../../store/slices/classSlice.js";
+import { selectClasses } from "../../../../../store/slices/classSlice.js";
 import { buildRequestedLanguages } from "../../../../../constants/aiLanguages.js";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -28,10 +28,6 @@ export function useReadingUploadData() {
   const [generateVersions, setGenerateVersions] = useState(true);
   const [aiPrimaryLanguage, setAiPrimaryLanguage] = useState("en");
   const [aiSecondaryLanguage, setAiSecondaryLanguage] = useState("");
-
-  useEffect(() => {
-    dispatch(fetchClasses());
-  }, [dispatch]);
 
   useEffect(() => {
     if (error) toast.error(error);
