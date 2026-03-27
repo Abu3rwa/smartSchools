@@ -31,6 +31,10 @@ import {
     normalizeAdmissionsPromotionSettings,
     validateAdmissionsPromotionSettingsPayload
 } from '../utils/admissionsPromotionSettings.js';
+import {
+    normalizeStudentGroupingReportSettings,
+    STUDENT_GROUPING_REPORT_SETTING_KEYS
+} from '../utils/studentGroupingReportSettings.js';
 import upload from '../middleware/upload.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import {
@@ -606,6 +610,73 @@ router.patch('/me/standards-gradebook-settings', requireSchoolContext, authorize
         data: {
             scoringMode: school.settings.standardsGradebook.scoringMode,
         }
+    });
+}));
+
+/**
+ * @desc    Get school student grouping report settings
+ * @route   GET /api/schools/me/student-grouping-report-settings
+ * @access  Private (Admin)
+ */
+router.get('/me/student-grouping-report-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.studentGroupingReports');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        data: normalizeStudentGroupingReportSettings(school.settings?.studentGroupingReports)
+    });
+}));
+
+/**
+ * @desc    Update school student grouping report settings
+ * @route   PATCH /api/schools/me/student-grouping-report-settings
+ * @access  Private (Admin)
+ */
+router.patch('/me/student-grouping-report-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const payload = req.body && typeof req.body === 'object' ? req.body : {};
+    const patch = {};
+
+    for (const key of STUDENT_GROUPING_REPORT_SETTING_KEYS) {
+        if (!Object.prototype.hasOwnProperty.call(payload, key)) {
+            continue;
+        }
+
+        if (typeof payload[key] !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: `${key} must be a boolean`
+            });
+        }
+
+        patch[key] = payload[key];
+    }
+
+    if (Object.keys(patch).length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: `Provide at least one setting key: ${STUDENT_GROUPING_REPORT_SETTING_KEYS.join(', ')}`
+        });
+    }
+
+    const school = await School.findById(req.schoolId);
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    school.settings = school.settings || {};
+    school.settings.studentGroupingReports = {
+        ...normalizeStudentGroupingReportSettings(school.settings.studentGroupingReports),
+        ...patch
+    };
+    await school.save();
+
+    res.json({
+        success: true,
+        message: 'Student grouping report settings updated',
+        data: normalizeStudentGroupingReportSettings(school.settings.studentGroupingReports)
     });
 }));
 

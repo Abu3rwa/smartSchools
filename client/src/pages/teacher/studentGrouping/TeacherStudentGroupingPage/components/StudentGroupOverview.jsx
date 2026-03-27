@@ -14,6 +14,9 @@ import {
 import { LEVELS_ORDERED, getLevelColor, getLevelLabel } from '../utils/groupingHelpers';
 
 const StudentGroupOverview = ({ overview, overviewLoading, onStandardClick }) => {
+    const overviewLevelLabels = overview?.[0]?.levelLabels || {};
+    const getDisplayLevelLabel = (level) => overviewLevelLabels[level] || getLevelLabel(level);
+
     if (overviewLoading) {
         return (
             <Box sx={{ mt: 2 }}>
@@ -43,7 +46,7 @@ const StudentGroupOverview = ({ overview, overviewLoading, onStandardClick }) =>
                         {LEVELS_ORDERED.map((level) => (
                             <TableCell key={level} align="center" sx={{ fontWeight: 600 }}>
                                 <Chip
-                                    label={getLevelLabel(level)}
+                                    label={getDisplayLevelLabel(level)}
                                     color={getLevelColor(level)}
                                     size="small"
                                     variant="outlined"

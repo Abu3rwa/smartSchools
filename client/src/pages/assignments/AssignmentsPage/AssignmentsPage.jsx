@@ -97,8 +97,6 @@ const AssignmentsPage = () => {
     };
 
     useEffect(() => {
-        dispatch(fetchClasses({ academicYear }));
-        dispatch(fetchSubjects());
         if (user?.role === 'teacher') dispatch(fetchMyClasses());
         fetchAssignmentTypes();
         // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import MasteryRecord from '../models/MasteryRecord.js';
 import PracticeAttempt from '../models/PracticeAttempt.js';
 import StudentGroupingOverride from '../models/StudentGroupingOverride.js';
@@ -6,6 +7,7 @@ import Standard from '../models/Standard.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
 import StandardAssignment from '../models/StandardAssignment.js';
+import { getActiveSBRScale } from './sbrService.js';
 import { connectAi } from '../utils/connectAi.js';
 import { logAIUsage } from '../utils/aiUsageTracker.js';
 import logger from '../utils/logger.js';
@@ -30,7 +32,63 @@ const LEVELS_ORDERED = ['below', 'approaching', 'proficient', 'advanced'];
 
 const ACTIVITY_CACHE_TTL_DAYS = 7;
 
+const LEVEL_VALUE_MAP = {
+    advanced: 4,
+    proficient: 3,
+    approaching: 2,
+    below: 1
+};
+
 /* ─── Helpers ────────────────────────────────────────────────────────── */
+
+async function getGroupingConfig(schoolId) {
+    const fallback = {
+        thresholds: DEFAULT_THRESHOLDS,
+        levelLabels: LEVEL_LABELS
+    };
+
+    try {
+        const scale = await getActiveSBRScale(schoolId);
+        if (!scale || !Array.isArray(scale.levels) || scale.levels.length === 0) {
+            return fallback;
+        }
+
+        const levelsByValue = new Map();
+        for (const level of scale.levels) {
+            if (!Number.isFinite(level?.value)) continue;
+            levelsByValue.set(Number(level.value), level);
+        }
+
+        const resolvedThresholds = { ...DEFAULT_THRESHOLDS };
+        const resolvedLabels = { ...LEVEL_LABELS };
+
+        for (const [levelKey, value] of Object.entries(LEVEL_VALUE_MAP)) {
+            const scaleLevel = levelsByValue.get(value);
+            if (!scaleLevel) continue;
+
+            const minPercent = Number(scaleLevel.minPercent);
+            if (Number.isFinite(minPercent)) {
+                resolvedThresholds[levelKey] = minPercent;
+            }
+
+            const customLabel = String(scaleLevel.label || '').trim();
+            if (customLabel) {
+                resolvedLabels[levelKey] = customLabel;
+            }
+        }
+
+        return {
+            thresholds: resolvedThresholds,
+            levelLabels: resolvedLabels
+        };
+    } catch (error) {
+        logger.warn('Failed to load active SBR scale for grouping config, using defaults', {
+            schoolId,
+            error: error?.message
+        });
+        return fallback;
+    }
+}
 
 function classifyStudent(masteryPercentage, thresholds = DEFAULT_THRESHOLDS) {
     if (masteryPercentage >= thresholds.advanced) return 'advanced';
@@ -39,42 +97,92 @@ function classifyStudent(masteryPercentage, thresholds = DEFAULT_THRESHOLDS) {
     return 'below';
 }
 
-async function computeTrend(studentId, standardId, schoolId) {
-    const recentAttempts = await PracticeAttempt.find({
-        school: schoolId,
-        student: studentId,
-        standard: standardId
-    })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select('isCorrect')
-        .lean();
+async function computeTrendsByStudent({ studentIds, standardId, schoolId, masteryMap }) {
+    if (!Array.isArray(studentIds) || studentIds.length === 0) return new Map();
 
-    if (recentAttempts.length < 3) return 'stable';
+    const toObjectId = (value) => {
+        if (!value) return null;
+        if (value instanceof mongoose.Types.ObjectId) return value;
+        return mongoose.Types.ObjectId.isValid(String(value))
+            ? new mongoose.Types.ObjectId(String(value))
+            : null;
+    };
 
-    const recentCorrect = recentAttempts.filter((a) => a.isCorrect).length;
-    const recentAccuracy = (recentCorrect / recentAttempts.length) * 100;
+    const schoolObjectId = toObjectId(schoolId);
+    const standardObjectId = toObjectId(standardId);
+    const studentObjectIds = studentIds.map(toObjectId).filter(Boolean);
 
-    // Compare with overall from MasteryRecord
-    const mastery = await MasteryRecord.findOne({
-        school: schoolId,
-        student: studentId,
-        standard: standardId
-    }).select('totalCorrectAllTime totalAttemptsAllTime').lean();
+    if (!schoolObjectId || !standardObjectId || studentObjectIds.length === 0) {
+        return new Map();
+    }
 
-    if (!mastery || mastery.totalAttemptsAllTime === 0) return 'stable';
+    const groupedAttempts = await PracticeAttempt.aggregate([
+        {
+            $match: {
+                school: schoolObjectId,
+                standard: standardObjectId,
+                student: { $in: studentObjectIds }
+            }
+        },
+        {
+            $sort: {
+                student: 1,
+                createdAt: -1
+            }
+        },
+        {
+            $group: {
+                _id: '$student',
+                attempts: { $push: '$isCorrect' }
+            }
+        },
+        {
+            $project: {
+                attempts: { $slice: ['$attempts', 5] }
+            }
+        }
+    ]);
 
-    const overallAccuracy = (mastery.totalCorrectAllTime / mastery.totalAttemptsAllTime) * 100;
-    const diff = recentAccuracy - overallAccuracy;
+    const trendMap = new Map();
 
-    if (diff >= 10) return 'improving';
-    if (diff <= -10) return 'declining';
-    return 'stable';
+    for (const row of groupedAttempts) {
+        const sid = String(row?._id || '');
+        const attempts = Array.isArray(row?.attempts) ? row.attempts : [];
+
+        if (!sid || attempts.length < 3) {
+            if (sid) trendMap.set(sid, 'stable');
+            continue;
+        }
+
+        const recentCorrect = attempts.filter(Boolean).length;
+        const recentAccuracy = (recentCorrect / attempts.length) * 100;
+
+        const mastery = masteryMap.get(sid);
+        if (!mastery || mastery.totalAttemptsAllTime === 0) {
+            trendMap.set(sid, 'stable');
+            continue;
+        }
+
+        const overallAccuracy = (mastery.totalCorrectAllTime / mastery.totalAttemptsAllTime) * 100;
+        const diff = recentAccuracy - overallAccuracy;
+
+        if (diff >= 10) {
+            trendMap.set(sid, 'improving');
+        } else if (diff <= -10) {
+            trendMap.set(sid, 'declining');
+        } else {
+            trendMap.set(sid, 'stable');
+        }
+    }
+
+    return trendMap;
 }
 
 /* ─── Core grouping computation ──────────────────────────────────────── */
 
 async function computeGroups({ classId, standardId, academicYear, schoolId }) {
+    const { thresholds, levelLabels } = await getGroupingConfig(schoolId);
+
     // Fetch class to ensure it exists
     const classDoc = await Class.findById(classId)
         .select('_id')
@@ -113,6 +221,13 @@ async function computeGroups({ classId, standardId, academicYear, schoolId }) {
     for (const record of masteryRecords) {
         masteryMap.set(record.student.toString(), record);
     }
+
+    const trendByStudent = await computeTrendsByStudent({
+        studentIds,
+        standardId,
+        schoolId,
+        masteryMap
+    });
 
     // Fetch overrides
     const overridesQuery = {
@@ -157,7 +272,7 @@ async function computeGroups({ classId, standardId, academicYear, schoolId }) {
             (mastery.totalCorrectAllTime / mastery.totalAttemptsAllTime) * 100
         );
 
-        const algorithmLevel = classifyStudent(masteryPercentage);
+        const algorithmLevel = classifyStudent(masteryPercentage, thresholds);
         const override = overrideMap.get(sid);
 
         // Determine if override is stale
@@ -176,7 +291,7 @@ async function computeGroups({ classId, standardId, academicYear, schoolId }) {
             }
         }
 
-        const trend = await computeTrend(student._id, standardId, schoolId);
+        const trend = trendByStudent.get(sid) || 'stable';
 
         const studentData = {
             studentId: student._id,
@@ -192,7 +307,7 @@ async function computeGroups({ classId, standardId, academicYear, schoolId }) {
         groups[effectiveLevel].push(studentData);
     }
 
-    return { groups, notStarted };
+    return { groups, notStarted, levelLabels };
 }
 
 function buildEmptyGroups() {
@@ -227,7 +342,8 @@ async function getActivitiesForLevel({ standardId, level, schoolId, userId, forc
 
     const standardLabel = standard.code || standard.name || '';
     const standardText = `${standardLabel}: ${standard.description || ''}`.trim();
-    const levelLabel = LEVEL_LABELS[level];
+    const { levelLabels } = await getGroupingConfig(schoolId);
+    const levelLabel = levelLabels?.[level] || LEVEL_LABELS[level];
 
     const prompt = `You are an expert K-12 instructional designer helping teachers differentiate instruction.
 
@@ -302,6 +418,8 @@ Respond ONLY with a JSON array of exactly 3 objects. No other text, no markdown,
 /* ─── Overview computation ───────────────────────────────────────────── */
 
 async function computeOverview({ classId, academicYear, subjectId, schoolId }) {
+    const { thresholds, levelLabels } = await getGroupingConfig(schoolId);
+
     const classDoc = await Class.findById(classId)
         .select('subjects')
         .lean();
@@ -385,7 +503,7 @@ async function computeOverview({ classId, academicYear, subjectId, schoolId }) {
                 continue;
             }
             const pct = Math.round((record.totalCorrectAllTime / record.totalAttemptsAllTime) * 100);
-            const level = classifyStudent(pct);
+            const level = classifyStudent(pct, thresholds);
             counts[level]++;
         }
 
@@ -398,6 +516,7 @@ async function computeOverview({ classId, academicYear, subjectId, schoolId }) {
             description: standard.description,
             subject: standard.subject,
             counts,
+            levelLabels,
             totalStudents: studentIds.length
         };
     });

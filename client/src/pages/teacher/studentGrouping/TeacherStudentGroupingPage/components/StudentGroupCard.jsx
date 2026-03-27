@@ -10,11 +10,20 @@ import {
     Skeleton,
     TextField,
     Button,
-    Typography
+    Typography,
+    Pagination
 } from '@mui/material';
 import { getLevelColor, getLevelLabel, LEVELS_ORDERED } from '../utils/groupingHelpers';
 import StudentDragChip from './StudentDragChip';
 import ActivitySuggestionList from './ActivitySuggestionList';
+
+const STUDENTS_PER_PAGE = 12;
+const NOT_STARTED_PER_PAGE = 24;
+
+const buildInitialPages = () => LEVELS_ORDERED.reduce((acc, level) => {
+    acc[level] = 1;
+    return acc;
+}, {});
 
 const StudentGroupCard = ({
     groups,
@@ -27,6 +36,13 @@ const StudentGroupCard = ({
 }) => {
     const [overrideDialog, setOverrideDialog] = useState(null);
     const [reason, setReason] = useState('');
+    const [pageByLevel, setPageByLevel] = useState(buildInitialPages);
+    const [notStartedPage, setNotStartedPage] = useState(1);
+
+    const getDisplayLevelLabel = useCallback((level) => {
+        const group = groups.find((item) => item.level === level);
+        return group?.label || getLevelLabel(level);
+    }, [groups]);
 
     const handleDrop = useCallback((level) => (e) => {
         e.preventDefault();
@@ -55,6 +71,13 @@ const StudentGroupCard = ({
         setReason('');
     }, [overrideDialog, reason, onOverride]);
 
+    const handleLevelPageChange = useCallback((level, page) => {
+        setPageByLevel((prev) => ({
+            ...prev,
+            [level]: page
+        }));
+    }, []);
+
     if (loading) {
         return (
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mt: 2 }}>
@@ -77,6 +100,10 @@ const StudentGroupCard = ({
                     const group = groups.find((g) => g.level === level);
                     const students = group?.students || [];
                     const activities = group?.suggestedActivities || [];
+                    const totalPages = Math.max(1, Math.ceil(students.length / STUDENTS_PER_PAGE));
+                    const activePage = Math.min(pageByLevel[level] || 1, totalPages);
+                    const offset = (activePage - 1) * STUDENTS_PER_PAGE;
+                    const visibleStudents = students.slice(offset, offset + STUDENTS_PER_PAGE);
 
                     return (
                         <Paper
@@ -95,7 +122,7 @@ const StudentGroupCard = ({
                         >
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                                 <Chip
-                                    label={getLevelLabel(level)}
+                                    label={getDisplayLevelLabel(level)}
                                     color={getLevelColor(level)}
                                     size="small"
                                 />
@@ -110,7 +137,7 @@ const StudentGroupCard = ({
                                         No students at this level
                                     </Typography>
                                 ) : (
-                                    students.map((student) => (
+                                    visibleStudents.map((student) => (
                                         <StudentDragChip
                                             key={student.studentId}
                                             student={student}
@@ -118,6 +145,17 @@ const StudentGroupCard = ({
                                     ))
                                 )}
                             </Box>
+
+                            {students.length > STUDENTS_PER_PAGE && (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
+                                    <Pagination
+                                        size="small"
+                                        count={totalPages}
+                                        page={activePage}
+                                        onChange={(_, page) => handleLevelPageChange(level, page)}
+                                    />
+                                </Box>
+                            )}
 
                             <ActivitySuggestionList
                                 activities={activities}
@@ -136,8 +174,16 @@ const StudentGroupCard = ({
                     <Typography variant="subtitle2" gutterBottom>
                         Not Started ({notStarted.length})
                     </Typography>
+                    {(() => {
+                        const totalNotStartedPages = Math.max(1, Math.ceil(notStarted.length / NOT_STARTED_PER_PAGE));
+                        const activeNotStartedPage = Math.min(notStartedPage, totalNotStartedPages);
+                        const offset = (activeNotStartedPage - 1) * NOT_STARTED_PER_PAGE;
+                        const visibleNotStarted = notStarted.slice(offset, offset + NOT_STARTED_PER_PAGE);
+
+                        return (
+                            <>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {notStarted.map((student) => (
+                        {visibleNotStarted.map((student) => (
                             <Chip
                                 key={student.studentId}
                                 label={student.name}
@@ -146,6 +192,20 @@ const StudentGroupCard = ({
                             />
                         ))}
                     </Box>
+
+                                {notStarted.length > NOT_STARTED_PER_PAGE && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2 }}>
+                                        <Pagination
+                                            size="small"
+                                            count={totalNotStartedPages}
+                                            page={activeNotStartedPage}
+                                            onChange={(_, page) => setNotStartedPage(page)}
+                                        />
+                                    </Box>
+                                )}
+                            </>
+                        );
+                    })()}
                 </Paper>
             )}
 
@@ -161,7 +221,7 @@ const StudentGroupCard = ({
                     <Typography variant="body2" sx={{ mb: 2 }}>
                         Move <strong>{overrideDialog?.name}</strong> to{' '}
                         <Chip
-                            label={getLevelLabel(overrideDialog?.newLevel || '')}
+                            label={getDisplayLevelLabel(overrideDialog?.newLevel || '')}
                             color={getLevelColor(overrideDialog?.newLevel || '')}
                             size="small"
                         />

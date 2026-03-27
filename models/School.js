@@ -16,6 +16,7 @@ import {
     createDefaultAdmissionsPromotionSettings,
     normalizeAdmissionsPromotionSettings
 } from '../utils/admissionsPromotionSettings.js';
+import { DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS } from '../utils/studentGroupingReportSettings.js';
 import { normalizeAcademicIntelligenceSettings } from '../utils/academicIntelligenceSettings.js';
 import { normalizeAcademicExcellenceSettings } from '../utils/academicExcellenceSettings.js';
 
@@ -486,6 +487,48 @@ const schoolSchema = new mongoose.Schema({
                 enum: ['average', 'latest', 'highest'],
                 default: 'average',
             },
+        },
+        studentGroupingReports: {
+            showSummaryMetrics: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showSummaryMetrics
+            },
+            showHeatmapTable: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showHeatmapTable
+            },
+            showTopNeedIntervention: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showTopNeedIntervention
+            },
+            showTopStrongStandards: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showTopStrongStandards
+            },
+            showStudentTable: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showStudentTable
+            },
+            showSuggestedActivities: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showSuggestedActivities
+            },
+            showNotStartedStudents: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showNotStartedStudents
+            },
+            showTrendColumn: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showTrendColumn
+            },
+            showAttemptsColumn: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showAttemptsColumn
+            },
+            showOverrideColumn: {
+                type: Boolean,
+                default: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS.showOverrideColumn
+            }
         },
         features: {
             ...schoolFeatureSchemaDefinition

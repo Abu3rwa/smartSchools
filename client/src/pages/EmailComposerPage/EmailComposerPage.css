@@ -459,6 +459,68 @@
     max-width: 760px;
 }
 
+.email-composer-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 2000;
+}
+
+.email-composer-modal {
+    width: min(760px, 100%);
+    max-height: min(90vh, 900px);
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+}
+
+.email-composer-modal .modal-header,
+.email-composer-modal .modal-body,
+.email-composer-modal .modal-footer {
+    padding: 14px 16px;
+}
+
+.email-composer-modal .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.email-composer-modal .modal-header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.email-composer-modal .modal-body {
+    overflow-y: auto;
+}
+
+.email-composer-modal .modal-footer {
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.email-composer-modal .modal-close {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
 .ai-draft-modal .form-group {
     display: flex;
     flex-direction: column;

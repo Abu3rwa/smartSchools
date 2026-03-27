@@ -11,6 +11,7 @@
     "branding": "Branding",
     "communication": "Communication",
     "admissionsPromotion": "Admissions & Promotion",
+    "studentGroupingReports": "Student Grouping Reports",
     "schoolYear": "School year"
   },
   "weekdays": {
@@ -156,6 +157,38 @@
       "aiAssisted": "AI assisted"
     }
   },
+  "studentGroupingReports": {
+    "title": "Student Grouping Reports",
+    "helpText": "Control which sections appear in Student Grouping PDF exports for teachers.",
+    "loading": "Loading settings...",
+    "overviewTitle": "Class Overview PDF",
+    "standardTitle": "Per-Standard PDF",
+    "save": "Save Settings",
+    "fields": {
+      "showSummaryMetrics": "Show summary metrics",
+      "showHeatmapTable": "Show standards heatmap table",
+      "showTopNeedIntervention": "Show top standards needing intervention",
+      "showTopStrongStandards": "Show top strong standards",
+      "showStudentTable": "Show student rows",
+      "showTrendColumn": "Show trend column",
+      "showAttemptsColumn": "Show attempts column",
+      "showOverrideColumn": "Show override status column",
+      "showSuggestedActivities": "Show suggested activities",
+      "showNotStartedStudents": "Show not-started students list"
+    },
+    "hints": {
+      "showSummaryMetrics": "Include total standards, students, mastery, and not-started counts on overview reports.",
+      "showHeatmapTable": "Include the standards-level distribution matrix in class overview reports.",
+      "showTopNeedIntervention": "Include the list of standards with the highest below-level/not-started counts.",
+      "showTopStrongStandards": "Include the list of highest-performing standards in class overview reports.",
+      "showStudentTable": "Include student-level rows for each group in per-standard reports.",
+      "showTrendColumn": "Display the trend indicator column in student tables.",
+      "showAttemptsColumn": "Display total attempts in student tables.",
+      "showOverrideColumn": "Display teacher override status in student tables.",
+      "showSuggestedActivities": "Include the suggested activities block under each student group.",
+      "showNotStartedStudents": "Include the list of students who have not started the selected standard."
+    }
+  },
   "gradingScales": {
     "helpText": "Configure letter-grade thresholds and colors for charts and gradebook displays.",
     "noDescription": "No description",
@@ -279,6 +312,9 @@
     "loadAdmissionsPromotionSettingsFailed": "Failed to load admissions and promotion settings",
     "admissionsPromotionSettingsUpdated": "Admissions and promotion settings updated",
     "admissionsPromotionSettingsUpdateFailed": "Failed to update admissions and promotion settings",
+    "loadStudentGroupingReportSettingsFailed": "Failed to load student grouping report settings",
+    "studentGroupingReportSettingsUpdated": "Student grouping report settings updated",
+    "studentGroupingReportSettingsUpdateFailed": "Failed to update student grouping report settings",
     "loadAcademicYearsFailed": "Failed to load academic years",
     "loadSchoolYearDatesFailed": "Failed to load school year dates",
     "loadSchoolWeekConfigFailed": "Failed to load teaching week settings",

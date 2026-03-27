@@ -6,7 +6,11 @@ import {
     getStudentGroups,
     saveGroupingOverride,
     getGroupingOverview,
-    refreshGroupActivities
+    refreshGroupActivities,
+    exportStudentGroupingPdf,
+    exportGroupingOverviewPdf,
+    getGroupingReports,
+    downloadGroupingReport
 } from '../controllers/studentGroupingController.js';
 
 const router = express.Router();
@@ -25,9 +29,33 @@ router.get(
 );
 
 router.get(
+    '/:classId/export-overview-pdf',
+    authorize('admin', 'department_principal', 'teacher'),
+    exportGroupingOverviewPdf
+);
+
+router.get(
+    '/:classId/reports',
+    authorize('admin', 'department_principal', 'teacher'),
+    getGroupingReports
+);
+
+router.get(
+    '/reports/:reportId/download',
+    authorize('admin', 'department_principal', 'teacher'),
+    downloadGroupingReport
+);
+
+router.get(
     '/:classId/:standardId',
     authorize('admin', 'department_principal', 'teacher'),
     getStudentGroups
+);
+
+router.get(
+    '/:classId/:standardId/export-pdf',
+    authorize('admin', 'department_principal', 'teacher'),
+    exportStudentGroupingPdf
 );
 
 router.put(

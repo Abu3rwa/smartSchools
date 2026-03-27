@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { HiOutlineClock, HiOutlineSparkles } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
@@ -209,6 +210,11 @@ const RichTextEditor = ({ value, onChange, disabled, t }) => {
             </Editor>
         </div>
     );
+};
+
+const renderComposerModal = (node) => {
+    if (typeof document === 'undefined') return null;
+    return createPortal(node, document.body);
 };
 
 const EmailComposerPage = () => {
@@ -984,10 +990,10 @@ const EmailComposerPage = () => {
                 )}
             </div>
 
-            {showAiDraftModal && (
-                <div className="modal-overlay" onClick={() => setShowAiDraftModal(false)}>
+            {showAiDraftModal && renderComposerModal(
+                <div className="email-composer-modal-overlay" onClick={() => setShowAiDraftModal(false)}>
                     <div
-                        className="modal preview-modal ai-draft-modal"
+                        className="email-composer-modal preview-modal ai-draft-modal"
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="email-composer-ai-draft-title"
@@ -1092,10 +1098,10 @@ const EmailComposerPage = () => {
                 </div>
             )}
 
-            {previewModal && (
-                <div className="modal-overlay" onClick={() => setPreviewModal(null)}>
+            {previewModal && renderComposerModal(
+                <div className="email-composer-modal-overlay" onClick={() => setPreviewModal(null)}>
                     <div
-                        className="modal preview-modal"
+                        className="email-composer-modal preview-modal"
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="email-composer-preview-title"

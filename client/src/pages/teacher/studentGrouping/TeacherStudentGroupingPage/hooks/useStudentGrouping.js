@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import toast from 'react-hot-toast';
 import { selectClasses } from '../../../../../store/slices/classSlice';
 import { selectSubjects } from '../../../../../store/slices/subjectSlice';
 import { selectCurrentAcademicYear } from '../../../../../store/slices/uiSlice';
@@ -18,6 +19,7 @@ import {
     selectActivitiesRefreshing,
     selectGroupingError
 } from '../../../../../store/slices/studentGroupingSlice';
+import studentGroupingService from '../../../../../services/studentGroupingService';
 
 const useStudentGrouping = () => {
     const dispatch = useDispatch();
@@ -37,6 +39,19 @@ const useStudentGrouping = () => {
     const [selectedSubjectId, setSelectedSubjectId] = useState('');
     const [selectedStandardId, setSelectedStandardId] = useState('');
     const [view, setView] = useState('overview'); // 'overview' | 'detail'
+    const [exportingPdf, setExportingPdf] = useState(false);
+    const [exportingOverviewPdf, setExportingOverviewPdf] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyItems, setHistoryItems] = useState([]);
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyReportType, setHistoryReportType] = useState('');
+    const [historyPagination, setHistoryPagination] = useState({
+        page: 1,
+        limit: 10,
+        total: 0,
+        pages: 0
+    });
+    const [downloadingReportId, setDownloadingReportId] = useState('');
 
     const selectedClass = useMemo(
         () => classes.find((item) => item._id === selectedClassId) || null,
@@ -86,11 +101,70 @@ const useStudentGrouping = () => {
         }
     }, [selectedClassId, selectedStandardId, academicYear, dispatch]);
 
+    const loadHistory = useCallback(async ({
+        classId,
+        page = historyPage,
+        reportType = historyReportType
+    } = {}) => {
+        if (!classId || !academicYear) {
+            setHistoryItems([]);
+            setHistoryPagination({
+                page: 1,
+                limit: 10,
+                total: 0,
+                pages: 0
+            });
+            return;
+        }
+
+        setHistoryLoading(true);
+        try {
+            const result = await studentGroupingService.getReportHistory({
+                classId,
+                page,
+                limit: 10,
+                academicYear,
+                reportType: reportType || undefined,
+                subjectId: selectedSubjectId || undefined
+            });
+
+            setHistoryItems(result.items || []);
+            setHistoryPagination(result.pagination || {
+                page,
+                limit: 10,
+                total: 0,
+                pages: 0
+            });
+        } catch (historyError) {
+            setHistoryItems([]);
+            setHistoryPagination({
+                page,
+                limit: 10,
+                total: 0,
+                pages: 0
+            });
+            toast.error(historyError?.response?.data?.message || 'Failed to load report history.');
+        } finally {
+            setHistoryLoading(false);
+        }
+    }, [academicYear, historyPage, historyReportType, selectedSubjectId]);
+
+    useEffect(() => {
+        if (!selectedClassId || !academicYear) return;
+        loadHistory({
+            classId: selectedClassId,
+            page: historyPage,
+            reportType: historyReportType
+        });
+    }, [selectedClassId, academicYear, historyPage, historyReportType, selectedSubjectId, loadHistory]);
+
     const handleClassChange = useCallback((classId) => {
         setSelectedClassId(classId);
         setSelectedSubjectId('');
         setSelectedStandardId('');
         setView('overview');
+        setHistoryPage(1);
+        setHistoryReportType('');
         dispatch(clearGroupingData());
     }, [dispatch]);
 
@@ -98,6 +172,7 @@ const useStudentGrouping = () => {
         setSelectedSubjectId(subjectId);
         setSelectedStandardId('');
         setView('overview');
+        setHistoryPage(1);
         dispatch(clearGroupingData());
     }, [dispatch]);
 
@@ -140,6 +215,90 @@ const useStudentGrouping = () => {
         })).unwrap();
     }, [selectedClassId, selectedStandardId, dispatch]);
 
+    const handleExportPdf = useCallback(async () => {
+        if (!selectedClassId || !selectedStandardId || !academicYear) return;
+
+        setExportingPdf(true);
+        try {
+            await studentGroupingService.exportStandardPdf({
+                classId: selectedClassId,
+                standardId: selectedStandardId,
+                academicYear
+            });
+        } catch (error) {
+            const message =
+                error?.response?.data?.message ||
+                error?.message ||
+                'Failed to export PDF.';
+            toast.error(message);
+        } finally {
+            setExportingPdf(false);
+        }
+    }, [selectedClassId, selectedStandardId, academicYear]);
+
+    const handleExportOverviewPdf = useCallback(async () => {
+        if (!selectedClassId || !academicYear) return;
+
+        setExportingOverviewPdf(true);
+        try {
+            await studentGroupingService.exportOverviewPdf({
+                classId: selectedClassId,
+                academicYear,
+                subjectId: selectedSubjectId || undefined
+            });
+
+            await loadHistory({
+                classId: selectedClassId,
+                page: 1,
+                reportType: historyReportType
+            });
+            setHistoryPage(1);
+        } catch (exportError) {
+            const message =
+                exportError?.response?.data?.message ||
+                exportError?.message ||
+                'Failed to export class overview PDF.';
+            toast.error(message);
+        } finally {
+            setExportingOverviewPdf(false);
+        }
+    }, [selectedClassId, academicYear, selectedSubjectId, loadHistory, historyReportType]);
+
+    const handleHistoryPageChange = useCallback((page) => {
+        setHistoryPage(page);
+    }, []);
+
+    const handleHistoryReportTypeChange = useCallback((reportType) => {
+        setHistoryReportType(reportType);
+        setHistoryPage(1);
+    }, []);
+
+    const handleDownloadReport = useCallback(async (reportId) => {
+        if (!reportId) return;
+
+        setDownloadingReportId(reportId);
+        try {
+            await studentGroupingService.downloadArchivedReport({ reportId });
+        } catch (downloadError) {
+            const message =
+                downloadError?.response?.data?.message ||
+                downloadError?.message ||
+                'Failed to download report.';
+            toast.error(message);
+        } finally {
+            setDownloadingReportId('');
+        }
+    }, []);
+
+    const handleRefreshHistory = useCallback(() => {
+        if (!selectedClassId) return;
+        loadHistory({
+            classId: selectedClassId,
+            page: historyPage,
+            reportType: historyReportType
+        });
+    }, [selectedClassId, historyPage, historyReportType, loadHistory]);
+
     return {
         classes,
         subjectOptions,
@@ -156,12 +315,26 @@ const useStudentGrouping = () => {
         selectedSubjectId,
         selectedStandardId,
         view,
+        exportingPdf,
+        exportingOverviewPdf,
+        historyLoading,
+        historyItems,
+        historyPagination,
+        historyPage,
+        historyReportType,
+        downloadingReportId,
         handleClassChange,
         handleSubjectChange,
         handleStandardClick,
         handleBackToOverview,
         handleOverride,
-        handleRefreshActivities
+        handleRefreshActivities,
+        handleExportPdf,
+        handleExportOverviewPdf,
+        handleHistoryPageChange,
+        handleHistoryReportTypeChange,
+        handleDownloadReport,
+        handleRefreshHistory
     };
 };
 

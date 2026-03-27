@@ -11,6 +11,7 @@ import GradingScalesTab from './components/GradingScalesTab';
 import CommunicationTab from './components/CommunicationTab';
 import AdmissionsPromotionTab from './components/AdmissionsPromotionTab';
 import StandardsGradebookTab from './components/StandardsGradebookTab';
+import StudentGroupingReportsTab from './components/StudentGroupingReportsTab';
 import { useTranslation } from 'react-i18next';
 import useSchoolSettings from './hooks/useSchoolSettings';
 import './SchoolSettingsPage.css';
@@ -78,6 +79,9 @@ const SchoolSettingsPage = () => {
     standardsGradebookSettings,
     handleStandardsGradebookChange,
     handleSaveStandardsGradebookSettings,
+    studentGroupingReportSettings,
+    handleStudentGroupingReportSettingsChange,
+    handleSaveStudentGroupingReportSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,
@@ -232,6 +236,16 @@ const SchoolSettingsPage = () => {
               saving={standardsGradebookSettings.saving}
               onChange={handleStandardsGradebookChange}
               onSave={handleSaveStandardsGradebookSettings}
+            />
+          )}
+
+          {activeTab === 'studentgroupingreports' && canManageSchoolSettings && (
+            <StudentGroupingReportsTab
+              settings={studentGroupingReportSettings.data}
+              loading={studentGroupingReportSettings.loading}
+              saving={studentGroupingReportSettings.saving}
+              onChange={handleStudentGroupingReportSettingsChange}
+              onSave={handleSaveStudentGroupingReportSettings}
             />
           )}
 

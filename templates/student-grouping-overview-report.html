@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="{{languageCode}}" dir="{{direction}}">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{labels.reportTitle}}</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            color: #1f2937;
+            background: #ffffff;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        body.ar-font { font-family: 'Tahoma', 'Arial', sans-serif; }
+
+        .page { width: 100%; padding: 20px 16px; }
+
+        .header {
+            border: 1px solid #d1d5db;
+            border-top: 5px solid var(--primary-color, #1f3c88);
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .school-block {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .school-logo {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            object-fit: contain;
+            background: #fff;
+            padding: 4px;
+        }
+
+        .school-name {
+            margin: 0;
+            font-size: 18px;
+            color: var(--primary-color, #1f3c88);
+            font-weight: 700;
+        }
+
+        .school-meta {
+            margin: 2px 0 0;
+            color: #4b5563;
+            font-size: 11px;
+        }
+
+        .title-block { text-align: right; min-width: 0; }
+        [dir='rtl'] .title-block { text-align: left; }
+
+        .report-title {
+            margin: 0;
+            font-size: 18px;
+            color: var(--secondary-color, #37517e);
+            font-weight: 700;
+        }
+
+        .report-subtitle {
+            margin: 4px 0 0;
+            color: #4b5563;
+            font-size: 11px;
+        }
+
+        .meta-grid {
+            margin-top: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px 14px;
+        }
+
+        .meta-item { display: flex; gap: 6px; align-items: baseline; }
+        .meta-label { color: #6b7280; font-size: 11px; white-space: nowrap; }
+        .meta-value { color: #111827; font-weight: 600; min-width: 0; word-break: break-word; }
+
+        .summary {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .metric {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            background: #f8fafc;
+        }
+
+        .metric-title {
+            margin: 0;
+            color: #6b7280;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .metric-value {
+            margin: 4px 0 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        .section-title {
+            margin: 16px 0 8px;
+            font-size: 14px;
+            color: var(--primary-color, #1f3c88);
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+
+        th, td {
+            border: 1px solid #e5e7eb;
+            padding: 6px;
+            text-align: left;
+            vertical-align: top;
+            font-size: 11px;
+        }
+
+        [dir='rtl'] th,
+        [dir='rtl'] td { text-align: right; }
+
+        th {
+            background: #f3f4f6;
+            color: #374151;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+        }
+
+        .footer {
+            margin-top: 14px;
+            color: #9ca3af;
+            font-size: 10px;
+            text-align: center;
+        }
+
+        @media print {
+            .page { padding: 10px; }
+        }
+    </style>
+</head>
+<body class="{{#if isArabic}}ar-font{{/if}}" style="--primary-color: {{primaryColor}}; --secondary-color: {{secondaryColor}};">
+<div class="page">
+    <header class="header">
+        <div class="school-block">
+            {{#if schoolLogo}}
+                <img class="school-logo" src="{{schoolLogo}}" alt="School logo" />
+            {{/if}}
+            <div>
+                <h1 class="school-name">{{schoolName}}</h1>
+                <p class="school-meta">{{#if schoolPhone}}{{schoolPhone}} | {{/if}}{{labels.teacherLabel}}: {{teacherName}}</p>
+            </div>
+        </div>
+        <div class="title-block">
+            <h2 class="report-title">{{labels.reportTitle}}</h2>
+            <p class="report-subtitle">{{labels.reportSubtitle}}</p>
+        </div>
+    </header>
+
+    <section class="meta-grid">
+        <div class="meta-item"><span class="meta-label">{{labels.generatedAt}}:</span><span class="meta-value">{{generatedAt}}</span></div>
+        <div class="meta-item"><span class="meta-label">{{labels.academicYear}}:</span><span class="meta-value">{{academicYear}}</span></div>
+        <div class="meta-item"><span class="meta-label">{{labels.classLabel}}:</span><span class="meta-value">{{className}}</span></div>
+        <div class="meta-item"><span class="meta-label">{{labels.gradeLevelLabel}}:</span><span class="meta-value">{{gradeLevel}}</span></div>
+        <div class="meta-item"><span class="meta-label">{{labels.subjectLabel}}:</span><span class="meta-value">{{subjectName}}</span></div>
+    </section>
+
+    {{#if showSummaryMetrics}}
+        <section class="summary">
+            <div class="metric">
+                <p class="metric-title">{{labels.totalStandards}}</p>
+                <p class="metric-value">{{totalStandards}}</p>
+            </div>
+            <div class="metric">
+                <p class="metric-title">{{labels.totalStudents}}</p>
+                <p class="metric-value">{{totalStudents}}</p>
+            </div>
+            <div class="metric">
+                <p class="metric-title">{{labels.averageMastery}}</p>
+                <p class="metric-value">{{averageMastery}}%</p>
+            </div>
+            <div class="metric">
+                <p class="metric-title">{{labels.notStarted}}</p>
+                <p class="metric-value">{{totalNotStarted}}</p>
+            </div>
+        </section>
+    {{/if}}
+
+    {{#if showHeatmapTable}}
+        <h3 class="section-title">{{labels.heatmapTitle}}</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>{{labels.standardLabel}}</th>
+                    <th>{{levelDisplayLabels.below}}</th>
+                    <th>{{levelDisplayLabels.approaching}}</th>
+                    <th>{{levelDisplayLabels.proficient}}</th>
+                    <th>{{levelDisplayLabels.advanced}}</th>
+                    <th>{{labels.notStarted}}</th>
+                    <th>{{labels.totalStudents}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each overviewRows}}
+                    <tr>
+                        <td>{{identifier}}{{#if description}} - {{description}}{{/if}}</td>
+                        <td>{{counts.below}}</td>
+                        <td>{{counts.approaching}}</td>
+                        <td>{{counts.proficient}}</td>
+                        <td>{{counts.advanced}}</td>
+                        <td>{{counts.notStarted}}</td>
+                        <td>{{totalStudents}}</td>
+                    </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    {{/if}}
+
+    {{#if showTopNeedIntervention}}
+        <h3 class="section-title">{{labels.topNeedIntervention}}</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>{{labels.standardLabel}}</th>
+                    <th>{{levelDisplayLabels.below}}</th>
+                    <th>{{labels.notStarted}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each topIntervention}}
+                    <tr>
+                        <td>{{identifier}}</td>
+                        <td>{{counts.below}}</td>
+                        <td>{{counts.notStarted}}</td>
+                    </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    {{/if}}
+
+    {{#if showTopStrongStandards}}
+        <h3 class="section-title">{{labels.topStrongStandards}}</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>{{labels.standardLabel}}</th>
+                    <th>{{levelDisplayLabels.proficient}}</th>
+                    <th>{{levelDisplayLabels.advanced}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each topStrong}}
+                    <tr>
+                        <td>{{identifier}}</td>
+                        <td>{{counts.proficient}}</td>
+                        <td>{{counts.advanced}}</td>
+                    </tr>
+                {{/each}}
+            </tbody>
+        </table>
+    {{/if}}
+
+    <p class="footer">{{labels.reportTitle}} • {{academicYear}}</p>
+</div>
+</body>
+</html>

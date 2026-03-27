@@ -72,7 +72,7 @@ const GradeEntryTable = ({
                                             onChange={(event) => onGradeChange(student._id, 'marks', event.target.value)}
                                             min={0}
                                             max={maxMarks}
-                                            step={0.5}
+                                            step={0.01}
                                             placeholder="-"
                                         />
                                     </td>

@@ -103,6 +103,15 @@ const SchoolSettingsTabs = ({
         )}
         {canManageSchoolSettings && (
           <button
+            className={`settings-nav-btn ${activeTab === 'studentgroupingreports' ? 'active' : ''}`}
+            onClick={() => onTabChange('studentgroupingreports')}
+          >
+            <HiOutlineDocumentText size={18} />
+            {t('schoolSettings:tabs.studentGroupingReports', 'Student Grouping Reports')}
+          </button>
+        )}
+        {canManageSchoolSettings && (
+          <button
             className={`settings-nav-btn ${activeTab === 'schoolyear' ? 'active' : ''}`}
             onClick={() => onTabChange('schoolyear')}
           >

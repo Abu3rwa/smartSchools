@@ -11,6 +11,7 @@
     "branding": "الهوية البصرية",
     "communication": "التواصل",
     "admissionsPromotion": "القبول والترفيع",
+    "studentGroupingReports": "تقارير تجميع الطلاب",
     "schoolYear": "السنة الدراسية"
   },
   "weekdays": {
@@ -156,6 +157,38 @@
       "aiAssisted": "بمساعدة الذكاء الاصطناعي"
     }
   },
+  "studentGroupingReports": {
+    "title": "تقارير تجميع الطلاب",
+    "helpText": "تحكم في الأقسام التي تظهر داخل ملفات PDF الخاصة بتجميع الطلاب للمعلمين.",
+    "loading": "جارٍ تحميل الإعدادات...",
+    "overviewTitle": "PDF نظرة عامة للصف",
+    "standardTitle": "PDF لكل معيار",
+    "save": "حفظ الإعدادات",
+    "fields": {
+      "showSummaryMetrics": "إظهار مؤشرات الملخص",
+      "showHeatmapTable": "إظهار جدول توزيع المعايير",
+      "showTopNeedIntervention": "إظهار أعلى المعايير المحتاجة للتدخل",
+      "showTopStrongStandards": "إظهار أقوى المعايير",
+      "showStudentTable": "إظهار صفوف الطلاب",
+      "showTrendColumn": "إظهار عمود الاتجاه",
+      "showAttemptsColumn": "إظهار عمود المحاولات",
+      "showOverrideColumn": "إظهار عمود حالة التعديل",
+      "showSuggestedActivities": "إظهار الأنشطة المقترحة",
+      "showNotStartedStudents": "إظهار قائمة الطلاب الذين لم يبدأوا"
+    },
+    "hints": {
+      "showSummaryMetrics": "يتضمن إجمالي المعايير والطلاب ومتوسط الإتقان وحالات لم يبدأ في تقرير النظرة العامة.",
+      "showHeatmapTable": "يتضمن مصفوفة توزيع الأداء حسب كل معيار في تقرير النظرة العامة.",
+      "showTopNeedIntervention": "يتضمن قائمة المعايير ذات أعلى عدد في أقل من المتوقع أو لم يبدأ.",
+      "showTopStrongStandards": "يتضمن قائمة أعلى المعايير أداءً في تقرير النظرة العامة.",
+      "showStudentTable": "يتضمن صفوف الطلاب داخل كل مجموعة في تقرير كل معيار.",
+      "showTrendColumn": "يعرض عمود الاتجاه داخل جداول الطلاب.",
+      "showAttemptsColumn": "يعرض إجمالي المحاولات داخل جداول الطلاب.",
+      "showOverrideColumn": "يعرض حالة تعديل المعلم داخل جداول الطلاب.",
+      "showSuggestedActivities": "يتضمن قسم الأنشطة المقترحة أسفل كل مجموعة.",
+      "showNotStartedStudents": "يتضمن قائمة الطلاب الذين لم يبدأوا في المعيار المحدد."
+    }
+  },
   "gradingScales": {
     "helpText": "اضبط حدود الدرجات الحرفية والألوان لعرضها في الرسوم ودفتر الدرجات.",
     "noDescription": "لا يوجد وصف",
@@ -279,6 +312,9 @@
     "loadAdmissionsPromotionSettingsFailed": "فشل تحميل إعدادات القبول والترفيع",
     "admissionsPromotionSettingsUpdated": "تم تحديث إعدادات القبول والترفيع",
     "admissionsPromotionSettingsUpdateFailed": "فشل تحديث إعدادات القبول والترفيع",
+    "loadStudentGroupingReportSettingsFailed": "فشل تحميل إعدادات تقارير تجميع الطلاب",
+    "studentGroupingReportSettingsUpdated": "تم تحديث إعدادات تقارير تجميع الطلاب",
+    "studentGroupingReportSettingsUpdateFailed": "فشل تحديث إعدادات تقارير تجميع الطلاب",
     "loadAcademicYearsFailed": "فشل تحميل السنوات الدراسية",
     "loadSchoolYearDatesFailed": "فشل تحميل تواريخ السنة الدراسية",
     "loadSchoolWeekConfigFailed": "فشل تحميل إعدادات أسبوع التدريس",

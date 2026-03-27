@@ -68,6 +68,30 @@ const DEFAULT_ADMISSIONS_PROMOTION_SETTINGS = {
   ]
 };
 
+const DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS = {
+  showSummaryMetrics: true,
+  showHeatmapTable: true,
+  showTopNeedIntervention: true,
+  showTopStrongStandards: true,
+  showStudentTable: true,
+  showSuggestedActivities: true,
+  showNotStartedStudents: true,
+  showTrendColumn: true,
+  showAttemptsColumn: true,
+  showOverrideColumn: true
+};
+
+const normalizeStudentGroupingReportSettings = (candidate) => {
+  const source = candidate && typeof candidate === 'object' ? candidate : {};
+
+  return Object.keys(DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS).reduce((acc, key) => {
+    acc[key] = typeof source[key] === 'boolean'
+      ? source[key]
+      : DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS[key];
+    return acc;
+  }, {});
+};
+
 const mergeAdmissionsPromotionSettings = (current, patch) => {
   const next = patch || {};
   return {
@@ -198,6 +222,11 @@ const useSchoolSettings = () => {
     saving: false,
     data: { scoringMode: 'average' }
   });
+  const [studentGroupingReportSettings, setStudentGroupingReportSettings] = useState({
+    loading: false,
+    saving: false,
+    data: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS
+  });
   const [gradingScales, setGradingScales] = useState([]);
   const [gradingScalesLoading, setGradingScalesLoading] = useState(false);
   const [gradingScaleSubmitting, setGradingScaleSubmitting] = useState(false);
@@ -242,6 +271,7 @@ const useSchoolSettings = () => {
       canManageCommunicationSettings ? 'communication' : null,
       canManageSchoolSettings ? 'admissionspromotion' : null,
       canManageSchoolSettings ? 'standardsgradebook' : null,
+      canManageSchoolSettings ? 'studentgroupingreports' : null,
       canManageSchoolSettings ? 'schoolyear' : null
     ].filter(Boolean);
 
@@ -287,6 +317,12 @@ const useSchoolSettings = () => {
             data: {
               scoringMode: school.settings.standardsGradebook.scoringMode || 'average',
             },
+          }));
+        }
+        if (school?.settings?.studentGroupingReports) {
+          setStudentGroupingReportSettings((prev) => ({
+            ...prev,
+            data: normalizeStudentGroupingReportSettings(school.settings.studentGroupingReports)
           }));
         }
       }
@@ -380,6 +416,50 @@ const useSchoolSettings = () => {
     }
   }, [activeTab, canManageSchoolSettings, fetchAdmissionsPromotionSettings]);
 
+  const fetchStudentGroupingReportSettings = useCallback(async () => {
+    if (!canManageSchoolSettings) return;
+
+    setStudentGroupingReportSettings((previous) => ({
+      ...previous,
+      loading: true
+    }));
+
+    try {
+      const response = await api.get('/schools/me/student-grouping-report-settings');
+      if (response.data?.success) {
+        setStudentGroupingReportSettings((previous) => ({
+          ...previous,
+          loading: false,
+          data: normalizeStudentGroupingReportSettings(response.data.data)
+        }));
+      } else {
+        setStudentGroupingReportSettings((previous) => ({
+          ...previous,
+          loading: false
+        }));
+        toast.error(
+          response.data?.message ||
+          t('schoolSettings:toast.loadStudentGroupingReportSettingsFailed', 'Failed to load student grouping report settings')
+        );
+      }
+    } catch (error) {
+      setStudentGroupingReportSettings((previous) => ({
+        ...previous,
+        loading: false
+      }));
+      toast.error(
+        error.response?.data?.message ||
+        t('schoolSettings:toast.loadStudentGroupingReportSettingsFailed', 'Failed to load student grouping report settings')
+      );
+    }
+  }, [canManageSchoolSettings, t]);
+
+  useEffect(() => {
+    if (activeTab === 'studentgroupingreports' && canManageSchoolSettings) {
+      fetchStudentGroupingReportSettings();
+    }
+  }, [activeTab, canManageSchoolSettings, fetchStudentGroupingReportSettings]);
+
   const handleAdmissionsPromotionSettingsChange = useCallback((patch) => {
     setAdmissionsPromotionSettings((previous) => ({
       ...previous,
@@ -464,6 +544,60 @@ const useSchoolSettings = () => {
       toast.error(error.response?.data?.message || t('schoolSettings:toast.standardsGradebookSettingsUpdateFailed', 'Failed to update settings'));
     }
   }, [standardsGradebookSettings.data, canManageSchoolSettings, t]);
+
+  const handleStudentGroupingReportSettingsChange = useCallback((patch) => {
+    setStudentGroupingReportSettings((previous) => ({
+      ...previous,
+      data: normalizeStudentGroupingReportSettings({
+        ...previous.data,
+        ...(patch || {})
+      })
+    }));
+  }, []);
+
+  const handleSaveStudentGroupingReportSettings = useCallback(async () => {
+    if (!canManageSchoolSettings) return;
+
+    setStudentGroupingReportSettings((previous) => ({
+      ...previous,
+      saving: true
+    }));
+
+    try {
+      const response = await api.patch(
+        '/schools/me/student-grouping-report-settings',
+        studentGroupingReportSettings.data
+      );
+      if (response.data?.success) {
+        setStudentGroupingReportSettings((previous) => ({
+          ...previous,
+          saving: false,
+          data: normalizeStudentGroupingReportSettings(response.data.data)
+        }));
+        toast.success(
+          t('schoolSettings:toast.studentGroupingReportSettingsUpdated', 'Student grouping report settings updated')
+        );
+      } else {
+        setStudentGroupingReportSettings((previous) => ({
+          ...previous,
+          saving: false
+        }));
+        toast.error(
+          response.data?.message ||
+          t('schoolSettings:toast.studentGroupingReportSettingsUpdateFailed', 'Failed to update student grouping report settings')
+        );
+      }
+    } catch (error) {
+      setStudentGroupingReportSettings((previous) => ({
+        ...previous,
+        saving: false
+      }));
+      toast.error(
+        error.response?.data?.message ||
+        t('schoolSettings:toast.studentGroupingReportSettingsUpdateFailed', 'Failed to update student grouping report settings')
+      );
+    }
+  }, [canManageSchoolSettings, studentGroupingReportSettings.data, t]);
 
   const fetchGradingScales = useCallback(async () => {
     if (!canManageGradeScaling) return;
@@ -1168,6 +1302,9 @@ const useSchoolSettings = () => {
     standardsGradebookSettings,
     handleStandardsGradebookChange,
     handleSaveStandardsGradebookSettings,
+    studentGroupingReportSettings,
+    handleStudentGroupingReportSettingsChange,
+    handleSaveStudentGroupingReportSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,

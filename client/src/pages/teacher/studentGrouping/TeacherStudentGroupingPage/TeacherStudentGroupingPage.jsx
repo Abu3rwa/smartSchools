@@ -1,8 +1,10 @@
 import { Box, Button, Paper, Typography } from '@mui/material';
 import { HiOutlineArrowLeft } from 'react-icons/hi2';
+import { HiOutlineDownload } from 'react-icons/hi';
 import GroupingFilters from './components/GroupingFilters';
 import StudentGroupOverview from './components/StudentGroupOverview';
 import StudentGroupCard from './components/StudentGroupCard';
+import GroupingReportHistoryPanel from './components/GroupingReportHistoryPanel';
 import useStudentGrouping from './hooks/useStudentGrouping';
 import './TeacherStudentGroupingPage.css';
 
@@ -26,7 +28,21 @@ const TeacherStudentGroupingPage = () => {
         handleStandardClick,
         handleBackToOverview,
         handleOverride,
-        handleRefreshActivities
+        handleRefreshActivities,
+        exportingPdf,
+        handleExportPdf,
+        exportingOverviewPdf,
+        historyLoading,
+        historyItems,
+        historyPagination,
+        historyPage,
+        historyReportType,
+        downloadingReportId,
+        handleExportOverviewPdf,
+        handleHistoryPageChange,
+        handleHistoryReportTypeChange,
+        handleDownloadReport,
+        handleRefreshHistory
     } = useStudentGrouping();
 
     return (
@@ -58,23 +74,48 @@ const TeacherStudentGroupingPage = () => {
             )}
 
             {selectedClassId && view === 'overview' && (
-                <StudentGroupOverview
-                    overview={overview}
-                    overviewLoading={overviewLoading}
-                    onStandardClick={handleStandardClick}
-                />
+                <>
+                    <Box sx={{ mb: 2 }}>
+                        <Button
+                            startIcon={<HiOutlineDownload />}
+                            onClick={handleExportOverviewPdf}
+                            size="small"
+                            variant="outlined"
+                            disabled={exportingOverviewPdf || overviewLoading}
+                        >
+                            {exportingOverviewPdf ? 'Exporting...' : 'Export Class Overview PDF'}
+                        </Button>
+                    </Box>
+
+                    <StudentGroupOverview
+                        overview={overview}
+                        overviewLoading={overviewLoading}
+                        onStandardClick={handleStandardClick}
+                    />
+                </>
             )}
 
             {selectedClassId && view === 'detail' && (
                 <>
                     <Box sx={{ mb: 2 }}>
-                        <Button
-                            startIcon={<HiOutlineArrowLeft />}
-                            onClick={handleBackToOverview}
-                            size="small"
-                        >
-                            Back to Overview
-                        </Button>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            <Button
+                                startIcon={<HiOutlineArrowLeft />}
+                                onClick={handleBackToOverview}
+                                size="small"
+                            >
+                                Back to Overview
+                            </Button>
+                            <Button
+                                startIcon={<HiOutlineDownload />}
+                                onClick={handleExportPdf}
+                                size="small"
+                                variant="outlined"
+                                disabled={exportingPdf || loading}
+                            >
+                                {exportingPdf ? 'Exporting...' : 'Export PDF'}
+                            </Button>
+                        </Box>
                     </Box>
 
                     {error && (
@@ -93,6 +134,21 @@ const TeacherStudentGroupingPage = () => {
                         onRefreshActivities={handleRefreshActivities}
                     />
                 </>
+            )}
+
+            {selectedClassId && (
+                <GroupingReportHistoryPanel
+                    items={historyItems}
+                    loading={historyLoading}
+                    pagination={historyPagination}
+                    page={historyPage}
+                    reportType={historyReportType}
+                    downloadingReportId={downloadingReportId}
+                    onPageChange={handleHistoryPageChange}
+                    onReportTypeChange={handleHistoryReportTypeChange}
+                    onDownload={handleDownloadReport}
+                    onRefresh={handleRefreshHistory}
+                />
             )}
         </Box>
     );
