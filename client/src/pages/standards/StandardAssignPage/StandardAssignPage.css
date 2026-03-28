@@ -498,6 +498,121 @@
     min-width: 0;
 }
 
+.standard-picker {
+    position: relative;
+}
+
+.standard-picker-trigger {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.standard-picker-trigger:disabled {
+    cursor: not-allowed;
+    opacity: 0.75;
+}
+
+.standard-picker-trigger-text {
+    display: block;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.standard-picker-trigger-text.is-placeholder {
+    color: var(--text-muted);
+}
+
+.standard-picker-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 60;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-card);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.standard-picker-search-wrap {
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
+}
+
+.standard-picker-search {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.standard-picker-options {
+    display: grid;
+    gap: 4px;
+    max-height: min(46vh, 320px);
+    overflow: auto;
+    padding: 8px;
+}
+
+.standard-picker-option {
+    width: 100%;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    text-align: left;
+    padding: 8px 10px;
+    display: grid;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.standard-picker-option:hover {
+    background: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
+}
+
+.standard-picker-option.is-selected {
+    border-color: color-mix(in srgb, var(--primary-500) 35%, var(--border-color));
+    background: color-mix(in srgb, var(--primary-500) 10%, transparent);
+}
+
+.standard-picker-option-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.standard-picker-option-meta {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.standard-picker-empty {
+    padding: 10px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
 .assign-standard-description {
     display: block;
     margin-top: 0.55rem;
