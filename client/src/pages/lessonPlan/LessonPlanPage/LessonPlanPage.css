@@ -516,11 +516,16 @@ mask-image:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' f
     flex-direction: column;
     gap: 2px;
     flex: 1;
+    min-width: 0;
 }
 
-.standard-code {
+.standard-code,
+.standardcode {
     font-weight: 600;
     color: var(--accent-primary);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .standard-name {
@@ -533,12 +538,18 @@ mask-image:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' f
     font-size: 0.85rem;
     color: var(--text-secondary);
     line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .standard-explanation {
     display: block;
     font-size: 0.8rem;
     color: var(--text-muted);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .standards-selected {
@@ -566,13 +577,20 @@ mask-image:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' f
 
 .standard-selected-chip {
     display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--spacing-xs);
     padding: var(--spacing-xs) var(--spacing-sm);
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     font-size: 0.875rem;
+    max-width: 100%;
+}
+
+.standard-selected-chip span {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .standard-remove-btn {

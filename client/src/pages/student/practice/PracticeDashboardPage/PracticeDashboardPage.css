@@ -106,6 +106,10 @@
     font-weight: 600;
     color: var(--primary-400);
     margin-bottom: 4px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.4;
 }
 
 .standard-name {

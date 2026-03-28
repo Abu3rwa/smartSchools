@@ -246,6 +246,11 @@
 .standard-tag {
     font-size: 0.85rem;
     color: var(--text-secondary);
+    display: inline-block;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.4;
 }
 
 .risk-indicator {

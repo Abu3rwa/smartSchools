@@ -87,9 +87,10 @@
 
 .standard-description {
     max-width: 300px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.45;
     color: var(--text-secondary);
     font-size: 0.82rem;
 }

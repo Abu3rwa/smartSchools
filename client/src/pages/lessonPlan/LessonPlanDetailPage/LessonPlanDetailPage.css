@@ -248,6 +248,11 @@
     border-radius: var(--radius-full);
     font-size: 0.78rem;
     font-weight: 600;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+    max-width: 100%;
 }
 
 /* ── Stages table ────────────────────────────────────── */

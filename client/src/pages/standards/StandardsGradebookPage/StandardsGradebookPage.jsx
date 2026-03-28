@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo, useState } from 'react';
+import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import StandardsGradebookHeader from './components/StandardsGradebookHeader';
 import StandardsGradebookFilters from './components/StandardsGradebookFilters';
 import StandardsGradebookMatrix from './components/StandardsGradebookMatrix';
@@ -33,6 +33,9 @@ const StandardsGradebookPage = () => {
   const [assignSubmitting, setAssignSubmitting] = useState(false);
   const [assignError, setAssignError] = useState('');
   const [assignSuccess, setAssignSuccess] = useState('');
+  const [standardSearch, setStandardSearch] = useState('');
+  const [isStandardMenuOpen, setIsStandardMenuOpen] = useState(false);
+  const standardPickerRef = useRef(null);
   const [assignForm, setAssignForm] = useState({
     standardId: '',
     title: '',
@@ -47,6 +50,30 @@ const StandardsGradebookPage = () => {
   );
 
   const canAssignStandard = Boolean(filters.classId && filters.subjectId);
+
+  const selectedStandard = useMemo(
+    () =>
+      availableStandards.find(
+        (item) => String(item._id) === String(assignForm.standardId),
+      ) || null,
+    [availableStandards, assignForm.standardId],
+  );
+
+  const filteredStandardOptions = useMemo(() => {
+    const query = standardSearch.trim().toLowerCase();
+    if (!query) return availableStandards;
+
+    return availableStandards.filter((standard) => {
+      const code = String(standard?.code || '').toLowerCase();
+      const name = String(standard?.name || '').toLowerCase();
+      const description = String(standard?.description || '').toLowerCase();
+      return (
+        code.includes(query) ||
+        name.includes(query) ||
+        description.includes(query)
+      );
+    });
+  }, [availableStandards, standardSearch]);
 
   const loadAssignableStandards = useCallback(async () => {
     if (!canAssignStandard) return;
@@ -86,11 +113,14 @@ const StandardsGradebookPage = () => {
       notifyParents: true,
       notifyStudents: true,
     });
+    setStandardSearch('');
+    setIsStandardMenuOpen(false);
     setShowAssignModal(true);
   }, [canAssignStandard, t]);
 
   const closeAssignModal = useCallback(() => {
     if (assignSubmitting) return;
+    setIsStandardMenuOpen(false);
     setShowAssignModal(false);
   }, [assignSubmitting]);
 
@@ -107,7 +137,6 @@ const StandardsGradebookPage = () => {
     setAssignSuccess('');
 
     try {
-      const selectedStandard = availableStandards.find((item) => String(item._id) === String(assignForm.standardId));
       const semester = filters.period === 'semester_1' ? 1 : filters.period === 'semester_2' ? 2 : null;
       const defaultTitle = selectedStandard?.code
         ? `${selectedStandard.code} Assessment`
@@ -141,11 +170,11 @@ const StandardsGradebookPage = () => {
     assignForm.instructions,
     assignForm.notifyParents,
     assignForm.notifyStudents,
-    availableStandards,
     filters.classId,
     filters.subjectId,
     filters.period,
     onRefresh,
+    selectedStandard,
     t,
   ]);
 
@@ -154,6 +183,26 @@ const StandardsGradebookPage = () => {
       loadAssignableStandards();
     }
   }, [showAssignModal, loadAssignableStandards]);
+
+  useEffect(() => {
+    setStandardSearch('');
+    setIsStandardMenuOpen(false);
+  }, [filters.classId, filters.subjectId, showAssignModal]);
+
+  useEffect(() => {
+    if (!isStandardMenuOpen) return undefined;
+
+    const handleDocumentMouseDown = (event) => {
+      if (!standardPickerRef.current?.contains(event.target)) {
+        setIsStandardMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
+    };
+  }, [isStandardMenuOpen]);
 
   // Ctrl+S keyboard shortcut to save
   const handleKeyDown = useCallback((e) => {
@@ -242,23 +291,98 @@ const StandardsGradebookPage = () => {
             <form onSubmit={handleAssignSubmit} className="gb-assign-modal__body">
               {assignError && <div className="standards-gradebook-error">{assignError}</div>}
 
-              <label htmlFor="gb-assign-standard">{t('standardsGradebook:assignStandard.standard', 'Standard')}</label>
-              <select
-                id="gb-assign-standard"
-                value={assignForm.standardId}
-                onChange={(e) => setAssignForm((prev) => ({ ...prev, standardId: e.target.value }))}
-                disabled={standardsLoading || assignSubmitting}
-                required
-              >
-                <option value="">{standardsLoading
-                  ? t('standardsGradebook:assignStandard.loadingStandards', 'Loading standards...')
-                  : t('standardsGradebook:assignStandard.selectStandard', 'Select a standard')}</option>
-                {availableStandards.map((std) => (
-                  <option key={std._id} value={std._id}>
-                    {(std.code ? `${std.code} - ` : '')}{std.description}
-                  </option>
-                ))}
-              </select>
+              <label htmlFor="gb-assign-standard-search">{t('standardsGradebook:assignStandard.standard', 'Standard')}</label>
+              <div className="gb-standard-picker" ref={standardPickerRef}>
+                <button
+                  type="button"
+                  className="gb-standard-picker__trigger"
+                  onClick={() => {
+                    if (standardsLoading || assignSubmitting) return;
+                    setIsStandardMenuOpen((prev) => !prev);
+                  }}
+                  disabled={standardsLoading || assignSubmitting}
+                  aria-haspopup="listbox"
+                  aria-expanded={isStandardMenuOpen}
+                >
+                  <span
+                    className={`gb-standard-picker__trigger-text ${
+                      assignForm.standardId ? '' : 'is-placeholder'
+                    }`}
+                  >
+                    {selectedStandard
+                      ? selectedStandard.code && (selectedStandard.description || selectedStandard.name)
+                        ? `${selectedStandard.code} : ${selectedStandard.description || selectedStandard.name}`
+                        : selectedStandard.code || selectedStandard.description || selectedStandard.name || ''
+                      : standardsLoading
+                        ? t('standardsGradebook:assignStandard.loadingStandards', 'Loading standards...')
+                        : t('standardsGradebook:assignStandard.selectStandard', 'Select a standard')}
+                  </span>
+                </button>
+
+                {isStandardMenuOpen && !standardsLoading && (
+                  <div className="gb-standard-picker__menu" role="listbox">
+                    <div className="gb-standard-picker__search-wrap">
+                      <input
+                        id="gb-assign-standard-search"
+                        type="text"
+                        className="gb-standard-picker__search"
+                        value={standardSearch}
+                        onChange={(event) => setStandardSearch(event.target.value)}
+                        placeholder={t('standardsGradebook:assignStandard.searchStandard', 'Search standards...')}
+                        autoFocus
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            setIsStandardMenuOpen(false);
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div className="gb-standard-picker__options">
+                      {filteredStandardOptions.length === 0 ? (
+                        <div className="gb-standard-picker__empty">
+                          {t('standardsGradebook:assignStandard.noMatchingStandards', 'No standards match your search.')}
+                        </div>
+                      ) : (
+                        filteredStandardOptions.map((std) => {
+                          const isSelected = String(assignForm.standardId) === String(std._id);
+                          return (
+                            <button
+                              key={std._id}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              className={`gb-standard-picker__option ${isSelected ? 'is-selected' : ''}`}
+                              onClick={() => {
+                                setAssignForm((prev) => ({ ...prev, standardId: std._id }));
+                                setIsStandardMenuOpen(false);
+                              }}
+                            >
+                              <span className="gb-standard-picker__option-label">
+                                {std.code && (std.description || std.name)
+                                  ? `${std.code} : ${std.description || std.name}`
+                                  : std.code || std.description || std.name || ''}
+                              </span>
+                              <span className="gb-standard-picker__option-meta">
+                                {std.name || ''}
+                              </span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {selectedStandard?.description && (
+                <small
+                  className="gb-standard-picker__selected-desc"
+                  title={selectedStandard.description}
+                >
+                  {selectedStandard.description}
+                </small>
+              )}
 
               <label htmlFor="gb-assign-title">{t('standardsGradebook:assignStandard.assignmentTitle', 'Assignment title')}</label>
               <input

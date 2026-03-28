@@ -65,7 +65,15 @@ const PracticeReviewQueueCard = ({
               }}
             >
               <div>
-                <div style={{ fontWeight: 600 }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    lineHeight: 1.35,
+                    whiteSpace: "normal",
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {formatStandardLabel(task.standard) || "Standard"}
                 </div>
                 <div className="text-muted" style={{ fontSize: "0.82rem" }}>
