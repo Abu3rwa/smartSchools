@@ -1,6 +1,6 @@
 .school-settings-page {
     --settings-surface-border: color-mix(in srgb, var(--border-color) 84%, transparent);
-    max-width: 1240px;
+    /* max-width: 1240px; */
     margin: 0 auto;
     padding: clamp(0.75rem, 1vw + 0.5rem, 1.5rem);
     animation: fadeIn 0.35s ease;
@@ -233,6 +233,327 @@
 
 .school-settings-page .users-table tbody tr:hover {
     background: var(--bg-secondary);
+}
+
+.school-settings-page .users-controls {
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-secondary) 38%, transparent);
+}
+
+.school-settings-page .users-search-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+}
+
+.school-settings-page .users-search-field label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.school-settings-page .users-search-field input {
+    width: 100%;
+    max-width: 420px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.school-settings-page .users-search-field input:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--primary-500) 45%, var(--border-color));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-500) 18%, transparent);
+}
+
+.school-settings-page .users-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(170px, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.school-settings-page .users-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.school-settings-page .users-filter-field label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.school-settings-page .users-filter-field select {
+    width: 100%;
+    min-height: 38px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.school-settings-page .users-filter-actions {
+    display: flex;
+    align-items: flex-end;
+}
+
+.school-settings-page .users-filter-actions .btn {
+    width: 100%;
+}
+
+.school-settings-page .users-filter-summary {
+    margin: var(--spacing-sm) 0 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.school-settings-page .users-role-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.school-settings-page .users-role-chip {
+    white-space: nowrap;
+}
+
+.school-settings-page .users-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    padding: 0.24rem 0.55rem;
+    border-radius: var(--radius-full);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    border: 1px solid transparent;
+}
+
+.school-settings-page .users-status-badge.active {
+    color: color-mix(in srgb, var(--success-700, #166534) 90%, black 10%);
+    background: color-mix(in srgb, var(--success-500, #22c55e) 18%, transparent);
+    border-color: color-mix(in srgb, var(--success-500, #22c55e) 38%, transparent);
+}
+
+.school-settings-page .users-status-badge.inactive {
+    color: color-mix(in srgb, var(--warning-700, #92400e) 90%, black 10%);
+    background: color-mix(in srgb, var(--warning-500, #f59e0b) 18%, transparent);
+    border-color: color-mix(in srgb, var(--warning-500, #f59e0b) 38%, transparent);
+}
+
+.school-settings-page .users-mobile-list {
+    display: none;
+}
+
+.school-settings-page .users-filter-empty-state {
+    margin: var(--spacing-md);
+}
+
+.school-settings-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    background: color-mix(in srgb, var(--overlay-bg, rgba(0, 0, 0, 0.55)) 92%, transparent);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-md);
+}
+
+.school-settings-modal {
+    width: min(680px, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    border: 1px solid color-mix(in srgb, var(--border-color) 90%, transparent);
+    border-radius: calc(var(--radius-lg) + 2px);
+    background: color-mix(in srgb, var(--bg-primary) 96%, white 4%);
+    box-shadow: 0 20px 48px color-mix(in srgb, var(--text-primary) 22%, transparent);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.school-settings-modal--wide {
+    width: min(920px, calc(100vw - 2rem));
+}
+
+.school-settings-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-secondary) 45%, transparent);
+}
+
+.school-settings-modal-header h3 {
+    margin: 0;
+    font-size: 1.02rem;
+}
+
+.school-settings-modal-close {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.school-settings-modal-close:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+    border-color: var(--border-color-hover);
+}
+
+.school-settings-modal-body {
+    padding: var(--spacing-lg);
+    overflow-y: auto;
+    display: grid;
+    gap: var(--spacing-md);
+}
+
+.school-settings-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-secondary) 35%, transparent);
+}
+
+.school-settings-modal-field-hint {
+    margin-bottom: 0.5rem;
+}
+
+.school-settings-select-list {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+    background: color-mix(in srgb, var(--bg-secondary) 30%, transparent);
+}
+
+.school-settings-select-list--permissions {
+    max-height: 320px;
+}
+
+.school-settings-select-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.35rem 0;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.school-settings-permissions-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.school-settings-permissions-group:last-child {
+    margin-bottom: 0;
+}
+
+.school-settings-permissions-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.45rem;
+    color: var(--text-secondary);
+}
+
+.school-settings-permission-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    cursor: pointer;
+}
+
+.school-settings-permission-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.school-settings-permission-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.school-settings-permissions-selected {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.school-settings-title-editor {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+    background: color-mix(in srgb, var(--bg-secondary) 22%, transparent);
+}
+
+.school-settings-title-input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.school-settings-title-input-row input {
+    margin: 0;
+}
+
+.school-settings-title-add-btn {
+    min-width: 88px;
+}
+
+.school-settings-title-chip-list {
+    margin-top: var(--spacing-sm);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.school-settings-title-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.28rem 0.55rem;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--primary-500) 20%, transparent);
+    color: var(--text-primary);
+    border: 1px solid color-mix(in srgb, var(--primary-500) 45%, transparent);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.school-settings-title-chip button {
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.school-settings-title-empty {
+    color: var(--text-muted);
+    font-size: 0.82rem;
 }
 
 .school-settings-page .form-hint {
@@ -568,6 +889,10 @@
         padding: var(--spacing-md);
     }
 
+    .school-settings-page .users-filters-grid {
+        grid-template-columns: repeat(2, minmax(150px, 1fr));
+    }
+
     .school-settings-page .rollover-wizard {
         max-width: 100%;
     }
@@ -610,6 +935,92 @@
     .school-settings-page .users-table th,
     .school-settings-page .users-table td {
         padding: var(--spacing-sm);
+    }
+
+    .school-settings-page .users-controls {
+        padding: var(--spacing-sm);
+    }
+
+    .school-settings-page .users-filters-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .school-settings-page .users-table {
+        display: none;
+    }
+
+    .school-settings-page .users-mobile-list {
+        display: grid;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm);
+    }
+
+    .school-settings-page .users-mobile-card {
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-sm);
+        background: color-mix(in srgb, var(--bg-primary) 95%, white 5%);
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+    }
+
+    .school-settings-page .users-mobile-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .school-settings-page .users-mobile-card-header h4 {
+        margin: 0;
+        font-size: 0.95rem;
+    }
+
+    .school-settings-page .users-mobile-email {
+        margin: 0;
+        font-size: 0.84rem;
+        color: var(--text-secondary);
+        word-break: break-word;
+    }
+
+    .school-settings-page .users-mobile-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        font-size: 0.84rem;
+    }
+
+    .school-settings-modal-overlay {
+        padding: var(--spacing-sm);
+    }
+
+    .school-settings-modal,
+    .school-settings-modal--wide {
+        width: calc(100vw - 1rem);
+        max-height: calc(100vh - 1rem);
+    }
+
+    .school-settings-modal-header,
+    .school-settings-modal-body,
+    .school-settings-modal-footer {
+        padding: var(--spacing-sm);
+    }
+
+    .school-settings-title-input-row {
+        grid-template-columns: 1fr;
+    }
+
+    .school-settings-title-add-btn {
+        width: 100%;
+    }
+
+    .school-settings-modal-footer {
+        flex-direction: column-reverse;
+    }
+
+    .school-settings-modal-footer .btn {
+        width: 100%;
     }
 }
 

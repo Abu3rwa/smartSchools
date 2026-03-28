@@ -224,3 +224,64 @@
 .hamburger-btn {
     margin-inline-end: var(--spacing-sm);
 }
+
+/* Role Switcher */
+.role-switcher-btn {
+    width: auto;
+    gap: var(--spacing-xs);
+    padding: 0 var(--spacing-sm);
+}
+
+.role-switcher-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Impersonation Banner */
+.impersonation-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-md);
+    background: var(--warning-500, #f59e0b);
+    color: #1a1a1a;
+    font-size: 0.8rem;
+    font-weight: 600;
+    z-index: 100;
+}
+
+.impersonation-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.impersonation-stop-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+    color: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.impersonation-stop-btn:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+/* Shift header down when impersonating */
+.header-impersonating {
+    top: 36px;
+}

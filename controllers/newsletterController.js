@@ -7,7 +7,7 @@ import Class from "../models/Class.js";
 import Subject from "../models/Subject.js";
 import LessonPlan from "../models/LessonPlan.js";
 import Student from "../models/Student.js";
-import { getWeekRange } from "../utils/newsletterWeek.js";
+import { resolveNewsletterPeriod, resolveNewsletterWordLimits } from "../helpers/newsletterPeriod.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
 import {
   resolveRequestedLanguages,
@@ -48,7 +48,7 @@ function buildIssueClassLabel(issueClass) {
   return [issueClass.name, grade, section].filter(Boolean).join(" ");
 }
 
-async function ensureIssue({ schoolId, classId, academicYear, weekStart, weekEnd, createdBy }) {
+async function ensureIssue({ schoolId, classId, academicYear, weekStart, weekEnd, createdBy, frequency }) {
   return NewsletterIssue.findOneAndUpdate(
     { school: schoolId, class: classId, academicYear, weekStart },
     {
@@ -59,6 +59,7 @@ async function ensureIssue({ schoolId, classId, academicYear, weekStart, weekEnd
         weekStart,
         status: "draft",
         createdBy,
+        ...(frequency ? { frequency } : {}),
       },
       $set: {
         weekEnd,
@@ -97,17 +98,23 @@ export const ensureNewsletterIssue = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "classId is required" });
   }
 
+  const classDoc = await Class.findById(classId).select("department").lean();
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
-  const { weekStart, weekEnd } = getWeekRange(referenceDate);
+  const { periodStart, periodEnd, frequency } = resolveNewsletterPeriod({
+    school: req.school,
+    departmentId: classDoc?.department,
+    date: referenceDate,
+  });
   const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
   const issue = await ensureIssue({
     schoolId: req.schoolId,
     classId,
     academicYear: academicYearValue,
-    weekStart,
-    weekEnd,
+    weekStart: periodStart,
+    weekEnd: periodEnd,
     createdBy: req.user._id,
+    frequency,
   });
 
   res.json({ success: true, data: { issue } });
@@ -123,17 +130,23 @@ export const getNewsletterIssue = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "classId is required" });
   }
 
+  const classDoc = await Class.findById(classId).select("department").lean();
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
-  const { weekStart, weekEnd } = getWeekRange(referenceDate);
+  const { periodStart, periodEnd, frequency } = resolveNewsletterPeriod({
+    school: req.school,
+    departmentId: classDoc?.department,
+    date: referenceDate,
+  });
   const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
   const issue = await ensureIssue({
     schoolId: req.schoolId,
     classId,
     academicYear: academicYearValue,
-    weekStart,
-    weekEnd,
+    weekStart: periodStart,
+    weekEnd: periodEnd,
     createdBy: req.user._id,
+    frequency,
   });
 
   const sections = await NewsletterSection.find({ issue: issue._id })
@@ -188,7 +201,6 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
   }
 
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
-  const { weekStart, weekEnd } = getWeekRange(referenceDate);
   const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
   const [classDoc, subjectDoc] = await Promise.all([
@@ -197,6 +209,16 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
   ]);
   if (!classDoc) return res.status(404).json({ success: false, message: "Class not found" });
   if (!subjectDoc) return res.status(404).json({ success: false, message: "Subject not found" });
+
+  const { periodStart, periodEnd, frequency } = resolveNewsletterPeriod({
+    school: req.school,
+    departmentId: classDoc.department,
+    date: referenceDate,
+  });
+  const { minWords, maxWords } = resolveNewsletterWordLimits({
+    school: req.school,
+    departmentId: classDoc.department,
+  });
   const normalizedRequestedLanguages = resolveRequestedLanguages({
     requestedLanguages,
     primaryLanguage,
@@ -210,9 +232,10 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
     schoolId: req.schoolId,
     classId,
     academicYear: academicYearValue,
-    weekStart,
-    weekEnd,
+    weekStart: periodStart,
+    weekEnd: periodEnd,
     createdBy: req.user._id,
+    frequency,
   });
 
   const existingSection = await NewsletterSection.findOne({
@@ -238,14 +261,14 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
         _id: { $in: selectedLessonPlanIds },
         class: classId,
         subject: subjectId,
-        date: { $gte: weekStart, $lte: weekEnd },
+        date: { $gte: periodStart, $lte: periodEnd },
       })
         .sort({ date: 1 })
         .lean()
     : await LessonPlan.find({
         class: classId,
         subject: subjectId,
-        date: { $gte: weekStart, $lte: weekEnd },
+        date: { $gte: periodStart, $lte: periodEnd },
       })
         .sort({ date: 1 })
         .lean();
@@ -253,8 +276,8 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
   const generated = await generateNewsletterSection({
     classDoc,
     subjectDoc,
-    weekStart,
-    weekEnd,
+    weekStart: periodStart,
+    weekEnd: periodEnd,
     lessonPlans: weekLessonPlans,
     requestedLanguages: normalizedRequestedLanguages,
     primaryLanguage,
@@ -264,6 +287,8 @@ export const generateNewsletterSectionDraft = asyncHandler(async (req, res) => {
     adminFeedback,
     schoolId: req.schoolId,
     userId: req.user._id,
+    minWords,
+    maxWords,
   });
 
   const section = await NewsletterSection.findOneAndUpdate(
@@ -425,10 +450,25 @@ export const updateIssueExclusions = asyncHandler(async (req, res) => {
 export const listAdminIssues = asyncHandler(async (req, res) => {
   const { classId, academicYear, weekStart: requestedWeekStart } = req.query;
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
-  const { weekStart, weekEnd } = getWeekRange(referenceDate);
+
+  let periodStart, periodEnd, frequency;
+  if (classId) {
+    const classDoc = await Class.findById(classId).select("department").lean();
+    ({ periodStart, periodEnd, frequency } = resolveNewsletterPeriod({
+      school: req.school,
+      departmentId: classDoc?.department,
+      date: referenceDate,
+    }));
+  } else {
+    ({ periodStart, periodEnd, frequency } = resolveNewsletterPeriod({
+      school: req.school,
+      date: referenceDate,
+    }));
+  }
+
   const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
 
-  const query = { academicYear: academicYearValue, weekStart };
+  const query = { academicYear: academicYearValue, weekStart: periodStart };
   if (classId) query.class = classId;
 
   // Ensure at least one issue exists when classId provided (lazy creation).
@@ -437,9 +477,10 @@ export const listAdminIssues = asyncHandler(async (req, res) => {
       schoolId: req.schoolId,
       classId,
       academicYear: academicYearValue,
-      weekStart,
-      weekEnd,
+      weekStart: periodStart,
+      weekEnd: periodEnd,
       createdBy: req.user._id,
+      frequency,
     });
   }
 
@@ -488,7 +529,7 @@ export const listAdminIssues = asyncHandler(async (req, res) => {
     }
   );
 
-  res.json({ success: true, data: { issues, weekStart, weekEnd, progress, summary } });
+  res.json({ success: true, data: { issues, weekStart: periodStart, weekEnd: periodEnd, progress, summary } });
 });
 
 /**
@@ -798,14 +839,17 @@ export const approveAllSubmittedSectionsForIssue = asyncHandler(async (req, res)
 export const approveAllSubmittedSectionsForWeek = asyncHandler(async (req, res) => {
   const { classId, academicYear, weekStart: requestedWeekStart } = req.body || {};
   const referenceDate = parseDateOrNull(requestedWeekStart) || new Date();
-  const { weekStart } = getWeekRange(referenceDate);
+  const { periodStart } = resolveNewsletterPeriod({
+    school: req.school,
+    date: referenceDate,
+  });
   const academicYearValue = resolveRequestedAcademicYear(academicYear, req.school);
   const notes = (req.body?.notes || "").toString().trim();
 
   const issueQuery = {
     school: req.schoolId,
     academicYear: academicYearValue,
-    weekStart,
+    weekStart: periodStart,
   };
   if (classId) issueQuery.class = classId;
 

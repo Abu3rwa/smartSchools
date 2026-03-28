@@ -83,6 +83,15 @@ const SchoolSettingsTabs = ({
             {t('schoolSettings:tabs.communication')}
           </button>
         )}
+        {canManageCommunicationSettings && (
+          <button
+            className={`settings-nav-btn ${activeTab === 'newsletter' ? 'active' : ''}`}
+            onClick={() => onTabChange('newsletter')}
+          >
+            <HiOutlineDocumentText size={18} />
+            Newsletter
+          </button>
+        )}
         {canManageSchoolSettings && (
           <button
             className={`settings-nav-btn ${activeTab === 'admissionspromotion' ? 'active' : ''}`}

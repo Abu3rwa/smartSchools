@@ -60,15 +60,41 @@
       "name": "Name",
       "email": "Email",
       "role": "Role",
-      "department": "Department"
+      "department": "Department",
+      "status": "Status"
     },
     "actions": {
       "editRole": "Edit role"
     },
     "empty": "No users in this school.",
+    "filters": {
+      "searchLabel": "Search",
+      "searchPlaceholder": "Search by name, email, or department",
+      "role": "Role",
+      "status": "Status",
+      "department": "Department",
+      "allRoles": "All roles",
+      "allStatuses": "All statuses",
+      "allDepartments": "All departments",
+      "noDepartment": "No department",
+      "active": "Active",
+      "inactive": "Inactive",
+      "clear": "Clear filters",
+      "resultCount": "Showing {{shown}} of {{total}} users",
+      "noMatches": "No users match the selected filters."
+    },
     "modal": {
       "editRoleTitle": "Edit role — {{name}}",
       "roleLabel": "Role",
+      "activeRoleLabel": "Active role",
+      "rolesLabel": "Assigned roles",
+      "rolesHint": "Select all roles assigned to this user. They can switch between them.",
+      "titlesLabel": "Titles",
+      "titlesPlaceholder": "e.g. Humanities Teacher",
+      "addTitle": "Add",
+      "noTitles": "No titles added yet",
+      "removeTitleAria": "Remove title {{title}}",
+      "titlesHint": "Use the Add button to add each title (no comma typing needed).",
       "departmentLabel": "Department",
       "optional": "(optional)",
       "noneWholeSchoolPrincipal": "— None (whole-school principal) —",

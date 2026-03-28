@@ -211,6 +211,25 @@ export const changePassword = createAsyncThunk(
   }
 );
 
+// Switch active role (multi-role users)
+export const switchRole = createAsyncThunk(
+  'auth/switchRole',
+  async (role, { rejectWithValue, dispatch }) => {
+    try {
+      const response = await api.post('/auth/switch-role', { role });
+      if (response.data.success) {
+        const { user, token, profile } = response.data.data;
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        dispatch(setCredentials({ user, token }));
+        return { user, token, profile };
+      }
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to switch role');
+    }
+  }
+);
+
 // Get initial state from localStorage
 const getInitialState = () => {
   const token = localStorage.getItem('token');
@@ -375,6 +394,19 @@ const authSlice = createSlice({
           state.user.mustChangePassword = false;
           localStorage.setItem('user', JSON.stringify(state.user));
         }
+      })
+      // Switch Role
+      .addCase(switchRole.pending, (state) => {
+        state.roleSwitching = true;
+      })
+      .addCase(switchRole.fulfilled, (state, action) => {
+        state.roleSwitching = false;
+        state.user = action.payload.user;
+        state.teacherProfile = action.payload.profile || null;
+      })
+      .addCase(switchRole.rejected, (state, action) => {
+        state.roleSwitching = false;
+        state.error = action.payload;
       });
   }
 });
@@ -391,5 +423,9 @@ export const selectIsTeacher = (state) => state.auth.user?.role === 'teacher';
 export const selectCanEditClass = (state) =>
     ['admin', 'department_principal'].includes(state.auth.user?.role || '');
 export const selectTeacherProfile = (state) => state.auth.teacherProfile;
+export const selectUserRoles = (state) => state.auth.user?.roles || [state.auth.user?.role].filter(Boolean);
+export const selectHasMultipleRoles = (state) => (state.auth.user?.roles?.length || 0) > 1;
+export const selectRoleSwitching = (state) => !!state.auth.roleSwitching;
+export const selectCanImpersonate = (state) => ['super_admin', 'admin'].includes(state.auth.user?.role || '');
 
 export default authSlice.reducer;

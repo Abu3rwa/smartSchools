@@ -12,6 +12,7 @@ import CommunicationTab from './components/CommunicationTab';
 import AdmissionsPromotionTab from './components/AdmissionsPromotionTab';
 import StandardsGradebookTab from './components/StandardsGradebookTab';
 import StudentGroupingReportsTab from './components/StudentGroupingReportsTab';
+import NewsletterSettingsTab from './components/NewsletterSettingsTab';
 import { useTranslation } from 'react-i18next';
 import useSchoolSettings from './hooks/useSchoolSettings';
 import './SchoolSettingsPage.css';
@@ -82,6 +83,9 @@ const SchoolSettingsPage = () => {
     studentGroupingReportSettings,
     handleStudentGroupingReportSettingsChange,
     handleSaveStudentGroupingReportSettings,
+    newsletterSettings,
+    handleNewsletterSettingsChange,
+    handleSaveNewsletterSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,
@@ -246,6 +250,17 @@ const SchoolSettingsPage = () => {
               saving={studentGroupingReportSettings.saving}
               onChange={handleStudentGroupingReportSettingsChange}
               onSave={handleSaveStudentGroupingReportSettings}
+            />
+          )}
+
+          {activeTab === 'newsletter' && canManageCommunicationSettings && (
+            <NewsletterSettingsTab
+              settings={newsletterSettings}
+              loading={newsletterSettings.loading}
+              saving={newsletterSettings.saving}
+              departments={departments}
+              onChange={handleNewsletterSettingsChange}
+              onSave={handleSaveNewsletterSettings}
             />
           )}
 

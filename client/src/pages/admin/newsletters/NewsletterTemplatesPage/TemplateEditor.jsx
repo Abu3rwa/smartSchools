@@ -20,6 +20,16 @@ const BLOCK_TYPES = [
   { type: 'callout', icon: '💡', label: 'Callout' },
   { type: 'two_column', icon: '▐▌', label: 'Two Columns' },
   { type: 'footer', icon: '📎', label: 'Footer' },
+  { type: 'hero_banner', icon: '🏔️', label: 'Hero Banner' },
+  { type: 'image_grid', icon: '🖼️', label: 'Image Grid' },
+  { type: 'events_list', icon: '📅', label: 'Events List' },
+  { type: 'spotlight', icon: '⭐', label: 'Spotlight' },
+  { type: 'button', icon: '🔘', label: 'Button' },
+  { type: 'heading', icon: '🔤', label: 'Heading' },
+  { type: 'three_column', icon: '▐▌▐', label: 'Three Columns' },
+  { type: 'spacer', icon: '↕️', label: 'Spacer' },
+  { type: 'social_links', icon: '🔗', label: 'Social Links' },
+  { type: 'contact_info', icon: '📞', label: 'Contact Info' },
 ];
 
 const HEADER_STYLES = [
@@ -47,11 +57,21 @@ function newBlockId() {
 }
 
 function newBlock(type) {
-  const base = { id: newBlockId(), type, order: 0, visible: true, heading: '', subheading: '', content: '', imageUrl: '', imageAlt: '', iconEmoji: '', leftContent: '', rightContent: '', style: {} };
+  const base = { id: newBlockId(), type, order: 0, visible: true, heading: '', subheading: '', content: '', imageUrl: '', imageAlt: '', iconEmoji: '', leftContent: '', rightContent: '', middleContent: '', style: {} };
   if (type === 'header') { base.heading = 'Weekly Newsletter'; base.subheading = '{schoolName} · {classLabel} · {weekLabel}'; }
   if (type === 'callout') { base.iconEmoji = '💡'; base.content = 'Important note for parents…'; }
   if (type === 'footer') { base.content = 'This email was sent by the school. If you have questions, please contact the school office.'; }
   if (type === 'text') { base.content = 'Write your content here…'; }
+  if (type === 'hero_banner') { base.heading = 'Welcome Back!'; base.subheading = 'This week at {schoolName}'; base.style = { backgroundImageUrl: '', overlayOpacity: '0.5' }; }
+  if (type === 'image_grid') { base.images = [{ url: '', alt: '' }, { url: '', alt: '' }]; }
+  if (type === 'events_list') { base.events = [{ date: '', title: 'School Event', description: 'Event details…' }]; }
+  if (type === 'spotlight') { base.heading = 'Student/Teacher Name'; base.role = 'Student'; base.quote = 'A short quote or description…'; base.avatarUrl = ''; }
+  if (type === 'button') { base.buttonLabel = 'Learn More'; base.buttonUrl = ''; base.buttonStyle = 'filled'; }
+  if (type === 'heading') { base.heading = 'Section Title'; }
+  if (type === 'three_column') { base.leftContent = 'Column 1'; base.middleContent = 'Column 2'; base.rightContent = 'Column 3'; }
+  if (type === 'spacer') { base.spacerHeight = '24'; }
+  if (type === 'social_links') { base.socialLinks = { facebook: '', twitter: '', instagram: '', youtube: '', linkedin: '', website: '', tiktok: '' }; }
+  if (type === 'contact_info') { base.contactInfo = { phone: '', email: '', address: '', hours: '' }; }
   return base;
 }
 
@@ -250,6 +270,134 @@ function BlockEditor({ block, onChange }) {
         </>
       )}
 
+      {block.type === 'three_column' && (
+        <>
+          <div><label>Left Column</label><textarea value={block.leftContent || ''} rows={3} onChange={(e) => set('leftContent', e.target.value)} /></div>
+          <div><label>Middle Column</label><textarea value={block.middleContent || ''} rows={3} onChange={(e) => set('middleContent', e.target.value)} /></div>
+          <div><label>Right Column</label><textarea value={block.rightContent || ''} rows={3} onChange={(e) => set('rightContent', e.target.value)} /></div>
+        </>
+      )}
+
+      {block.type === 'hero_banner' && (
+        <>
+          <div><label>Heading</label><input type="text" value={block.heading || ''} onChange={(e) => set('heading', e.target.value)} /></div>
+          <div><label>Subheading</label><input type="text" value={block.subheading || ''} onChange={(e) => set('subheading', e.target.value)} /></div>
+          <div><label>Background Image URL</label><input type="url" value={block.style?.backgroundImageUrl || ''} onChange={(e) => setStyle('backgroundImageUrl', e.target.value)} /></div>
+          <div>
+            <label>Overlay Opacity (0–1)</label>
+            <input type="number" step="0.1" min="0" max="1" value={block.style?.overlayOpacity || '0.5'} onChange={(e) => setStyle('overlayOpacity', e.target.value)} />
+          </div>
+        </>
+      )}
+
+      {block.type === 'image_grid' && (
+        <>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Add 2–4 image URLs:</p>
+          {(block.images || []).map((img, i) => (
+            <div key={i} style={{ marginBottom: 8 }}>
+              <label>Image {i + 1} URL</label>
+              <input type="url" value={img.url || ''} onChange={(e) => {
+                const imgs = [...(block.images || [])];
+                imgs[i] = { ...imgs[i], url: e.target.value };
+                set('images', imgs);
+              }} />
+              <label>Alt</label>
+              <input type="text" value={img.alt || ''} onChange={(e) => {
+                const imgs = [...(block.images || [])];
+                imgs[i] = { ...imgs[i], alt: e.target.value };
+                set('images', imgs);
+              }} />
+            </div>
+          ))}
+          {(block.images || []).length < 4 && (
+            <button className="nt-btn" style={{ fontSize: '0.78rem' }} onClick={() => set('images', [...(block.images || []), { url: '', alt: '' }])}>+ Add Image</button>
+          )}
+          {(block.images || []).length > 2 && (
+            <button className="nt-btn" style={{ fontSize: '0.78rem', marginLeft: 4 }} onClick={() => set('images', (block.images || []).slice(0, -1))}>− Remove Last</button>
+          )}
+        </>
+      )}
+
+      {block.type === 'events_list' && (
+        <>
+          {(block.events || []).map((ev, i) => (
+            <div key={i} style={{ marginBottom: 12, padding: 8, border: '1px solid var(--border-color, #e2e8f0)', borderRadius: 6 }}>
+              <div><label>Date</label><input type="text" value={ev.date || ''} placeholder="Mar 25" onChange={(e) => {
+                const evts = [...(block.events || [])];
+                evts[i] = { ...evts[i], date: e.target.value };
+                set('events', evts);
+              }} /></div>
+              <div><label>Title</label><input type="text" value={ev.title || ''} onChange={(e) => {
+                const evts = [...(block.events || [])];
+                evts[i] = { ...evts[i], title: e.target.value };
+                set('events', evts);
+              }} /></div>
+              <div><label>Description</label><input type="text" value={ev.description || ''} onChange={(e) => {
+                const evts = [...(block.events || [])];
+                evts[i] = { ...evts[i], description: e.target.value };
+                set('events', evts);
+              }} /></div>
+            </div>
+          ))}
+          <button className="nt-btn" style={{ fontSize: '0.78rem' }} onClick={() => set('events', [...(block.events || []), { date: '', title: '', description: '' }])}>+ Add Event</button>
+          {(block.events || []).length > 1 && (
+            <button className="nt-btn" style={{ fontSize: '0.78rem', marginLeft: 4 }} onClick={() => set('events', (block.events || []).slice(0, -1))}>− Remove Last</button>
+          )}
+        </>
+      )}
+
+      {block.type === 'spotlight' && (
+        <>
+          <div><label>Name</label><input type="text" value={block.heading || ''} onChange={(e) => set('heading', e.target.value)} /></div>
+          <div><label>Role</label><input type="text" value={block.role || ''} placeholder="Student / Teacher" onChange={(e) => set('role', e.target.value)} /></div>
+          <div><label>Quote</label><textarea value={block.quote || ''} rows={3} onChange={(e) => set('quote', e.target.value)} /></div>
+          <div><label>Avatar URL</label><input type="url" value={block.avatarUrl || ''} onChange={(e) => set('avatarUrl', e.target.value)} /></div>
+        </>
+      )}
+
+      {block.type === 'button' && (
+        <>
+          <div><label>Button Label</label><input type="text" value={block.buttonLabel || ''} onChange={(e) => set('buttonLabel', e.target.value)} /></div>
+          <div><label>Button URL</label><input type="url" value={block.buttonUrl || ''} onChange={(e) => set('buttonUrl', e.target.value)} /></div>
+          <div>
+            <label>Button Style</label>
+            <select value={block.buttonStyle || 'filled'} onChange={(e) => set('buttonStyle', e.target.value)}>
+              <option value="filled">Filled</option>
+              <option value="outline">Outline</option>
+              <option value="pill">Pill</option>
+            </select>
+          </div>
+        </>
+      )}
+
+      {block.type === 'heading' && (
+        <div><label>Heading Text</label><input type="text" value={block.heading || ''} onChange={(e) => set('heading', e.target.value)} /></div>
+      )}
+
+      {block.type === 'spacer' && (
+        <div><label>Height (px)</label><input type="number" min="4" max="120" value={block.spacerHeight || '24'} onChange={(e) => set('spacerHeight', e.target.value)} /></div>
+      )}
+
+      {block.type === 'social_links' && (
+        <>
+          {['facebook', 'twitter', 'instagram', 'youtube', 'linkedin', 'website', 'tiktok'].map((key) => (
+            <div key={key}>
+              <label>{key.charAt(0).toUpperCase() + key.slice(1)} URL</label>
+              <input type="url" value={(block.socialLinks || {})[key] || ''} onChange={(e) => set('socialLinks', { ...(block.socialLinks || {}), [key]: e.target.value })} />
+            </div>
+          ))}
+        </>
+      )}
+
+      {block.type === 'contact_info' && (
+        <>
+          <div><label>Phone</label><input type="text" value={(block.contactInfo || {}).phone || ''} onChange={(e) => set('contactInfo', { ...(block.contactInfo || {}), phone: e.target.value })} /></div>
+          <div><label>Email</label><input type="email" value={(block.contactInfo || {}).email || ''} onChange={(e) => set('contactInfo', { ...(block.contactInfo || {}), email: e.target.value })} /></div>
+          <div><label>Address</label><input type="text" value={(block.contactInfo || {}).address || ''} onChange={(e) => set('contactInfo', { ...(block.contactInfo || {}), address: e.target.value })} /></div>
+          <div><label>Hours</label><input type="text" value={(block.contactInfo || {}).hours || ''} onChange={(e) => set('contactInfo', { ...(block.contactInfo || {}), hours: e.target.value })} /></div>
+        </>
+      )}
+
       {block.type === 'subjects' && (
         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
           This block automatically renders each subject's approved newsletter section. No content to edit — it pulls from teacher submissions.
@@ -349,7 +497,7 @@ function buildPreviewHtml(template) {
   ];
 
   const htmlBlocks = blocks.map((rawBlock) => {
-    const b = { ...rawBlock, content: interpolate(rawBlock.content), heading: interpolate(rawBlock.heading), subheading: interpolate(rawBlock.subheading), leftContent: interpolate(rawBlock.leftContent), rightContent: interpolate(rawBlock.rightContent) };
+    const b = { ...rawBlock, content: interpolate(rawBlock.content), heading: interpolate(rawBlock.heading), subheading: interpolate(rawBlock.subheading), leftContent: interpolate(rawBlock.leftContent), rightContent: interpolate(rawBlock.rightContent), middleContent: interpolate(rawBlock.middleContent) };
     const bs = b.style || {};
 
     switch (b.type) {
@@ -384,6 +532,70 @@ function buildPreviewHtml(template) {
         return `<div style="border-left:4px solid ${esc(accent)};padding:14px 16px;background:${esc(bs.backgroundColor || cardBg)};border-radius:${esc(bs.borderRadius || borderRadius)};color:${esc(bs.textColor || bodyColor)};font-size:${esc(bs.fontSize || baseFontSize)};line-height:${esc(lineHeight)};"><span style="font-size:18px;margin-right:6px;">${esc(b.iconEmoji || '💡')}</span>${md2(b.content || '')}</div>`;
       case 'two_column':
         return `<div style="display:flex;gap:16px;color:${esc(bs.textColor || bodyColor)};font-size:${esc(bs.fontSize || baseFontSize)};"><div style="flex:1;line-height:${esc(lineHeight)};">${md2(b.leftContent || '')}</div><div style="flex:1;line-height:${esc(lineHeight)};">${md2(b.rightContent || '')}</div></div>`;
+      case 'three_column':
+        return `<div style="display:flex;gap:16px;color:${esc(bs.textColor || bodyColor)};font-size:${esc(bs.fontSize || baseFontSize)};"><div style="flex:1;line-height:${esc(lineHeight)};">${md2(b.leftContent || '')}</div><div style="flex:1;line-height:${esc(lineHeight)};">${md2(b.middleContent || '')}</div><div style="flex:1;line-height:${esc(lineHeight)};">${md2(b.rightContent || '')}</div></div>`;
+      case 'hero_banner': {
+        const bgImg = bs.backgroundImageUrl ? `background-image:url('${esc(bs.backgroundImageUrl)}');background-size:cover;background-position:center;` : `background:linear-gradient(135deg,${esc(primary)} 0%,${esc(secondary)} 100%);`;
+        const overlay = `rgba(0,0,0,${esc(bs.overlayOpacity || '0.5')})`;
+        return `<div style="${bgImg}border-radius:${esc(borderRadius)};overflow:hidden;position:relative;">
+          <div style="background:${overlay};padding:32px ${esc(contentPadding)};text-align:center;">
+            <div style="font-size:${esc(headingFontSize)};font-weight:800;color:#fff;font-family:${esc(headingFont)};">${esc(b.heading || '')}</div>
+            ${b.subheading ? `<div style="margin-top:8px;font-size:14px;color:#fff;opacity:0.9;">${md2(b.subheading)}</div>` : ''}
+          </div>
+        </div>`;
+      }
+      case 'image_grid': {
+        const imgs = b.images || [];
+        const imgHtml = imgs.filter(im => im.url).map(im => `<div style="flex:1;min-width:120px;"><img src="${esc(im.url)}" alt="${esc(im.alt || '')}" style="width:100%;border-radius:8px;display:block;" /></div>`).join('');
+        return imgHtml ? `<div style="display:flex;gap:12px;flex-wrap:wrap;">${imgHtml}</div>` : `<div style="text-align:center;padding:24px;background:${esc(cardBg)};border:2px dashed ${esc(cardBorder)};border-radius:8px;color:#94a3b8;font-size:13px;">🖼️ Image Grid — add URLs in editor</div>`;
+      }
+      case 'events_list': {
+        const evts = b.events || [];
+        if (!evts.length) return `<div style="color:${esc(bodyColor)};font-size:13px;">No events added.</div>`;
+        return evts.map(ev => `<div style="display:flex;gap:12px;margin-bottom:10px;align-items:flex-start;">
+          <div style="min-width:50px;background:${esc(accent)};color:#fff;border-radius:8px;padding:8px;text-align:center;font-weight:700;font-size:12px;">${esc(ev.date || '—')}</div>
+          <div><div style="font-weight:700;color:${esc(bodyColor)};font-size:${esc(baseFontSize)};">${esc(ev.title || '')}</div><div style="color:${esc(bodyColor)};opacity:0.8;font-size:12px;margin-top:2px;">${esc(ev.description || '')}</div></div>
+        </div>`).join('');
+      }
+      case 'spotlight': {
+        const avatarHtml = b.avatarUrl
+          ? `<img src="${esc(b.avatarUrl)}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;" />`
+          : `<div style="width:64px;height:64px;border-radius:50%;background:${esc(accent)};color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;">${esc((b.heading || '?')[0])}</div>`;
+        return `<div style="display:flex;gap:16px;align-items:center;padding:16px;background:${esc(bs.backgroundColor || cardBg)};border-radius:${esc(borderRadius)};border:1px solid ${esc(cardBorder)};">
+          ${avatarHtml}
+          <div>
+            <div style="font-weight:700;font-size:${esc(baseFontSize)};color:${esc(bodyColor)};">${esc(b.heading || '')}</div>
+            ${b.role ? `<div style="font-size:12px;color:${esc(accent)};margin-top:2px;">${esc(b.role)}</div>` : ''}
+            ${b.quote ? `<div style="margin-top:6px;font-style:italic;color:${esc(bodyColor)};font-size:13px;">"${esc(b.quote)}"</div>` : ''}
+          </div>
+        </div>`;
+      }
+      case 'button': {
+        const btnStyle = b.buttonStyle || 'filled';
+        const btnStyles = {
+          filled: `background:${esc(accent)};color:#fff;border:none;`,
+          outline: `background:transparent;color:${esc(accent)};border:2px solid ${esc(accent)};`,
+          pill: `background:${esc(accent)};color:#fff;border:none;border-radius:50px;`,
+        };
+        return `<div style="text-align:center;padding:8px 0;">
+          <a href="${esc(b.buttonUrl || '#')}" style="display:inline-block;padding:12px 28px;text-decoration:none;font-weight:700;font-size:14px;border-radius:8px;${btnStyles[btnStyle] || btnStyles.filled}">${esc(b.buttonLabel || 'Button')}</a>
+        </div>`;
+      }
+      case 'heading':
+        return `<div style="font-size:${esc(headingFontSize)};font-weight:700;color:${esc(bs.textColor || accent)};font-family:${esc(headingFont)};text-align:${esc(bs.textAlign || 'left')};">${esc(b.heading || '')}</div>`;
+      case 'spacer':
+        return `<div style="height:${esc(b.spacerHeight || '24')}px;"></div>`;
+      case 'social_links': {
+        const links = b.socialLinks || {};
+        const labels = { facebook: '📘 Facebook', twitter: '🐦 Twitter', instagram: '📷 Instagram', youtube: '▶️ YouTube', linkedin: '💼 LinkedIn', website: '🌐 Website', tiktok: '🎵 TikTok' };
+        const items = Object.entries(links).filter(([, v]) => v).map(([k, v]) => `<a href="${esc(v)}" style="color:${esc(accent)};text-decoration:none;font-size:13px;margin:0 8px;">${labels[k] || k}</a>`);
+        return items.length ? `<div style="text-align:center;padding:8px 0;">${items.join(' ')}</div>` : `<div style="text-align:center;color:#94a3b8;font-size:13px;">Add social links in editor</div>`;
+      }
+      case 'contact_info': {
+        const ci = b.contactInfo || {};
+        const parts = [ci.phone && `📞 ${esc(ci.phone)}`, ci.email && `✉️ ${esc(ci.email)}`, ci.address && `📍 ${esc(ci.address)}`, ci.hours && `🕐 ${esc(ci.hours)}`].filter(Boolean);
+        return `<div style="text-align:center;color:${esc(bs.textColor || bodyColor)};font-size:13px;line-height:2;">${parts.join('<br/>')}</div>`;
+      }
       case 'footer': {
         const text = b.content || g.footerText || '';
         if (g.showFooter === false && !b.content) return '';

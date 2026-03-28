@@ -126,7 +126,8 @@ export const PERMISSIONS = {
     VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT: 'view_academic_excellence_at_risk_report',
 
     // Newsletter Templates
-    MANAGE_NEWSLETTER_TEMPLATES: 'manage_newsletter_templates'
+    MANAGE_NEWSLETTER_TEMPLATES: 'manage_newsletter_templates',
+    MANAGE_NEWSLETTER_SETTINGS: 'manage_newsletter_settings'
 };
 
 // Permission definitions with metadata
@@ -559,6 +560,11 @@ export const PERMISSION_DEFINITIONS = {
     [PERMISSIONS.MANAGE_NEWSLETTER_TEMPLATES]: {
         label: 'Manage Newsletter Templates',
         description: 'Create, edit, delete and configure newsletter email templates',
+        category: 'communication'
+    },
+    [PERMISSIONS.MANAGE_NEWSLETTER_SETTINGS]: {
+        label: 'Manage Newsletter Settings',
+        description: 'Configure newsletter frequency and AI word limits',
         category: 'communication'
     }
 };

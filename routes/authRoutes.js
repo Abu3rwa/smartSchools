@@ -13,7 +13,8 @@ import {
     forgotPassword,
     resetPassword,
     refresh,
-    impersonateUser
+    impersonateUser,
+    switchRole
 } from '../controllers/authenticationController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
@@ -42,7 +43,10 @@ router.post('/forgot-password', passwordResetLimiter, forgotPassword);
 router.post('/reset-password', passwordResetLimiter, resetPassword);
 
 // Super Admin Impersonation
-router.post('/impersonate', protect, authorize('super_admin'), impersonateUser);
+router.post('/impersonate', protect, authorize('super_admin', 'admin'), impersonateUser);
+
+// Role switching (multi-role users)
+router.post('/switch-role', protect, switchRole);
 
 // Google OAuth routes (login/register with Gmail tokens)
 router.get('/google/url', getGoogleAuthUrl);

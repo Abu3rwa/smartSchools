@@ -31,5 +31,13 @@
   "menu": {
     "settings": "Settings",
     "logout": "Logout"
+  },
+  "roleSwitcher": {
+    "switchRole": "Switch role",
+    "title": "Switch Active Role"
+  },
+  "impersonation": {
+    "viewing": "Viewing as {{name}} ({{role}})",
+    "stop": "Stop"
   }
 }

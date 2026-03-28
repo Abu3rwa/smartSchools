@@ -809,13 +809,23 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         });
     }
 
-    const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
-        lessonPlanIds: body.lessonPlanIds === undefined ? assignment.lessonPlanIds : body.lessonPlanIds,
-        schoolId: req.schoolId,
-        classId,
-        subjectId,
-        user: req.user
-    });
+    const classOrSubjectChanged = toId(assignment.class) !== classId || toId(assignment.subject) !== subjectId;
+    let normalizedLessonPlanIds;
+    if (body.lessonPlanIds !== undefined) {
+        normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
+            lessonPlanIds: body.lessonPlanIds,
+            schoolId: req.schoolId,
+            classId,
+            subjectId,
+            user: req.user
+        });
+    } else if (classOrSubjectChanged) {
+        // Class/subject changed but caller didn't update lesson plans — clear them
+        normalizedLessonPlanIds = [];
+    } else {
+        // Lesson plans untouched and class/subject unchanged — keep existing
+        normalizedLessonPlanIds = assignment.lessonPlanIds || [];
+    }
 
     const status = body.status && ['draft', 'published', 'closed', 'archived'].includes(String(body.status).toLowerCase())
         ? String(body.status).toLowerCase()

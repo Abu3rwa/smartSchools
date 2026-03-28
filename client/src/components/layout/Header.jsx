@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTheme, useMediaQuery, Menu, MenuItem } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { selectUser, logout } from '../../store/slices/authSlice';
+import { selectUser, logout, selectIsImpersonating } from '../../store/slices/authSlice';
 import {
     selectTheme,
     setTheme,
@@ -26,6 +26,8 @@ import {
 } from 'react-icons/hi';
 import notificationService from '../../services/notificationService';
 import ShortcutsMenu from './header/ShortcutsMenu';
+import RoleSwitcher from './header/RoleSwitcher';
+import ImpersonationBanner from './header/ImpersonationBanner';
 import { useHeaderShortcuts } from './header/useHeaderShortcuts';
 import './Header.css';
 
@@ -42,6 +44,7 @@ const Header = () => {
     const muiTheme = useTheme();
     const isDesktop = useMediaQuery(muiTheme.breakpoints.up('md'));
     const isRtl = i18n.dir(language) === 'rtl';
+    const isImpersonating = useSelector(selectIsImpersonating);
 
     const [notificationCount, setNotificationCount] = useState(0);
     const [userMenuAnchor, setUserMenuAnchor] = useState(null);
@@ -105,7 +108,9 @@ const Header = () => {
         : t('layout.header:actions.notifications');
 
     return (
-        <header className="header">
+        <>
+            <ImpersonationBanner />
+            <header className={`header${isImpersonating ? ' header-impersonating' : ''}`}>
             <div className="header-left">
                 {!isDesktop && user?.role !== 'student' && (
                     <button
@@ -165,6 +170,8 @@ const Header = () => {
                 <div className="academic-year">
                     <span className="badge badge-primary">{academicYear}</span>
                 </div>
+
+                <RoleSwitcher isRtl={isRtl} />
 
                 
                 <button
@@ -244,6 +251,7 @@ const Header = () => {
                 </div>
             </div>
         </header>
+        </>
     );
 };
 

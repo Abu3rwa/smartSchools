@@ -1,14 +1,14 @@
 export const landingPageDefaults = {
   seo: {
-    organizationName: 'NextGen School',
+    organizationName: 'ClassHope',
     description:
       'School operations platform for gradebook, attendance, standards practice, interventions, reports, reading, and revision planning.',
   },
   brand: {
-    name: 'NextGen School',
+    name: 'ClassHope',
     tagline: 'Core school operations plus learning support in one platform.',
     supportEmail: 'support@nextgenschool.com',
-    copyrightName: 'NextGen School',
+    copyrightName: 'ClassHope',
   },
   header: {
     loginLabel: 'Log in',
@@ -299,7 +299,7 @@ export const landingPageDefaults = {
     noMatchTemplate:
       'No schools match "{{searchTerm}}". Try another search or register your school.',
     noSchoolsMessage: 'No schools yet. Be the first-register your school.',
-    schoolsLabel: 'Schools on NextGen School',
+    schoolsLabel: 'Schools on ClassHope',
     matchingLabelTemplate: 'Matching "{{searchTerm}}"',
     showingLimitTemplate:
       'Showing {{shownCount}} of {{totalCount}} schools. Narrow your search to find your school.',

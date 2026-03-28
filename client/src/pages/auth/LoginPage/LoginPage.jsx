@@ -62,6 +62,9 @@ const LoginPage = () => {
                         <span className="showcase-chip">Assignments</span>
                         <span className="showcase-chip">Progress</span>
                         <span className="showcase-chip">Community</span>
+                        <span className="showcase-chip">Communication</span>
+                        <span className="showcase-chip">Engagement</span>
+                        <span className="showcase-chip">Data Driven Insights</span>
                     </div>
 
                     <div className="showcase-main-card">
@@ -73,7 +76,8 @@ const LoginPage = () => {
                         <ul className="showcase-list">
                             <li>Access coursework, schedules, and announcements</li>
                             <li>Follow assignment status and assessment progress</li>
-                            <li>Keep families informed through a shared platform</li>
+                            <li>Keep everyone informed through a shared platform</li>
+
                         </ul>
                     </div>
 

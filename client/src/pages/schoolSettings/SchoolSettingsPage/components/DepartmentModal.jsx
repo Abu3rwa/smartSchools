@@ -6,14 +6,19 @@ const DepartmentModal = ({ open, editingDeptId, formData, onChange, onSubmit, on
   if (!open) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
+    <div className="school-settings-modal-overlay" onClick={onClose}>
+      <div
+        className="school-settings-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="school-settings-modal-header">
           <h3>{editingDeptId ? t('schoolSettings:departments.modal.editTitle') : t('schoolSettings:departments.modal.addTitle')}</h3>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+          <button type="button" className="school-settings-modal-close" onClick={onClose}>&times;</button>
         </div>
         <form onSubmit={onSubmit}>
-          <div className="modal-body">
+          <div className="school-settings-modal-body">
             <div className="form-group">
               <label>{t('schoolSettings:departments.modal.nameLabel')}</label>
               <input
@@ -44,7 +49,7 @@ const DepartmentModal = ({ open, editingDeptId, formData, onChange, onSubmit, on
               />
             </div>
           </div>
-          <div className="modal-footer">
+          <div className="school-settings-modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               {t('schoolSettings:common.cancel')}
             </button>

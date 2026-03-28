@@ -680,6 +680,111 @@ router.patch('/me/student-grouping-report-settings', requireSchoolContext, autho
     });
 }));
 
+// ─── Newsletter Settings ────────────────────────────────────────────────────
+const NEWSLETTER_FREQUENCY_VALUES = ['weekly', 'biweekly', 'monthly'];
+
+function normalizeNewsletterSettings(raw) {
+    const s = raw && typeof raw === 'object' ? raw : {};
+    return {
+        frequency: NEWSLETTER_FREQUENCY_VALUES.includes(s.frequency) ? s.frequency : 'weekly',
+        aiMinWords: Number.isFinite(s.aiMinWords) ? s.aiMinWords : 100,
+        aiMaxWords: Number.isFinite(s.aiMaxWords) ? s.aiMaxWords : 120,
+        departmentOverrides: Array.isArray(s.departmentOverrides) ? s.departmentOverrides : [],
+    };
+}
+
+/**
+ * @desc    Get school newsletter settings
+ * @route   GET /api/schools/me/newsletter-settings
+ * @access  Private (Admin)
+ */
+router.get('/me/newsletter-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId)
+        .select('settings.newsletter')
+        .populate('settings.newsletter.departmentOverrides.department', 'name');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        data: normalizeNewsletterSettings(school.settings?.newsletter)
+    });
+}));
+
+/**
+ * @desc    Update school newsletter settings
+ * @route   PATCH /api/schools/me/newsletter-settings
+ * @access  Private (Admin)
+ */
+router.patch('/me/newsletter-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const payload = req.body && typeof req.body === 'object' ? req.body : {};
+    const patch = {};
+
+    if (payload.frequency !== undefined) {
+        if (!NEWSLETTER_FREQUENCY_VALUES.includes(payload.frequency)) {
+            return res.status(400).json({ success: false, message: `frequency must be one of: ${NEWSLETTER_FREQUENCY_VALUES.join(', ')}` });
+        }
+        patch.frequency = payload.frequency;
+    }
+
+    if (payload.aiMinWords !== undefined) {
+        const v = Number(payload.aiMinWords);
+        if (!Number.isFinite(v) || v < 30 || v > 500) {
+            return res.status(400).json({ success: false, message: 'aiMinWords must be a number between 30 and 500' });
+        }
+        patch.aiMinWords = v;
+    }
+
+    if (payload.aiMaxWords !== undefined) {
+        const v = Number(payload.aiMaxWords);
+        if (!Number.isFinite(v) || v < 50 || v > 600) {
+            return res.status(400).json({ success: false, message: 'aiMaxWords must be a number between 50 and 600' });
+        }
+        patch.aiMaxWords = v;
+    }
+
+    if (patch.aiMinWords !== undefined && patch.aiMaxWords !== undefined && patch.aiMinWords > patch.aiMaxWords) {
+        return res.status(400).json({ success: false, message: 'aiMinWords cannot exceed aiMaxWords' });
+    }
+
+    if (Array.isArray(payload.departmentOverrides)) {
+        patch.departmentOverrides = payload.departmentOverrides
+            .filter(o => o && typeof o === 'object' && o.department)
+            .map(o => ({
+                department: o.department,
+                ...(NEWSLETTER_FREQUENCY_VALUES.includes(o.frequency) ? { frequency: o.frequency } : {}),
+                ...(Number.isFinite(Number(o.aiMinWords)) ? { aiMinWords: Number(o.aiMinWords) } : {}),
+                ...(Number.isFinite(Number(o.aiMaxWords)) ? { aiMaxWords: Number(o.aiMaxWords) } : {}),
+            }));
+    }
+
+    if (Object.keys(patch).length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Provide at least one setting: frequency, aiMinWords, aiMaxWords, departmentOverrides'
+        });
+    }
+
+    const school = await School.findById(req.schoolId);
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    school.settings = school.settings || {};
+    school.settings.newsletter = {
+        ...normalizeNewsletterSettings(school.settings.newsletter),
+        ...patch
+    };
+    await school.save();
+
+    res.json({
+        success: true,
+        message: 'Newsletter settings updated',
+        data: normalizeNewsletterSettings(school.settings.newsletter)
+    });
+}));
+
 /**
  * @desc    Remove school logo
  * @route   DELETE /api/schools/me/logo
@@ -715,7 +820,7 @@ router.delete('/me/logo', requireSchoolContext, authorize('admin'), asyncHandler
  */
 router.get('/me/users', requireSchoolContext, userManagementAccess, asyncHandler(async (req, res) => {
     const users = await User.find({ school: req.schoolId })
-        .select('firstName lastName email role isActive department permissions permissionScopes createdAt')
+        .select('firstName lastName email role roles title titles isActive department permissions permissionScopes createdAt')
         .populate('department', 'name type')
         .sort({ role: 1, 'firstName': 1 });
 
@@ -729,7 +834,7 @@ router.get('/me/users', requireSchoolContext, userManagementAccess, asyncHandler
  */
 router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, asyncHandler(async (req, res) => {
     const { userId } = req.params;
-    const { role, department, permissions, permissionScopes } = req.body;
+    const { role, roles, department, permissions, permissionScopes, title, titles } = req.body;
 
     const user = await User.findById(userId).setOptions({ skipTenantFilter: true });
     if (!user) {
@@ -770,6 +875,33 @@ router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, as
         user.role = role;
     }
 
+    // Update roles array (multi-role support)
+    if (roles !== undefined) {
+        if (!Array.isArray(roles)) {
+            return res.status(400).json({ success: false, message: 'Roles must be an array' });
+        }
+        const invalidRoles = roles.filter((r) => !allowedRoles.includes(r));
+        if (invalidRoles.length > 0) {
+            return res.status(400).json({ success: false, message: `Invalid roles: ${invalidRoles.join(', ')}` });
+        }
+        user.roles = roles;
+        // If active role is not in the new roles array, switch to first role
+        if (roles.length > 0 && !roles.includes(user.role)) {
+            user.role = roles[0];
+        }
+    }
+
+    // Update titles array
+    if (titles !== undefined) {
+        if (!Array.isArray(titles)) {
+            return res.status(400).json({ success: false, message: 'Titles must be an array' });
+        }
+        user.titles = titles.map((t) => String(t).trim()).filter(Boolean);
+    }
+    if (title !== undefined) {
+        user.title = title;
+    }
+
     if (department !== undefined) {
         user.department = department || null;
     }
@@ -806,7 +938,7 @@ router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, as
     await user.save();
 
     const updated = await User.findById(user._id)
-        .select('firstName lastName email role isActive department permissions permissionScopes')
+        .select('firstName lastName email role roles title titles isActive department permissions permissionScopes')
         .populate('department', 'name type')
         .setOptions({ skipTenantFilter: true });
 

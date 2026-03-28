@@ -59,38 +59,91 @@ function TemplateCard({ template, onEdit, onDuplicate, onDelete, onSetDefault })
   );
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function toMultilineHtml(value) {
+  return escapeHtml(value).replace(/\n/g, '<br/>');
+}
+
+function truncate(value, maxLength) {
+  const text = String(value ?? '');
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}…`;
+}
+
 function buildMiniPreviewHtml(template) {
   const g = template.globalStyle || {};
   const primary = g.primaryColor || '#0d9488';
   const secondary = g.secondaryColor || '#0f766e';
   const bg = g.backgroundColor || '#ffffff';
   const font = g.fontFamily || 'Arial, sans-serif';
-  const sections = (template.sections || []).filter((s) => s.visible !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const sections = (template.sections || [])
+    .filter((s) => s && s.visible !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  const blockHtmls = sections.map((block) => {
-    switch (block.type) {
+  const blockHtmls = sections.map((rawBlock) => {
+    const block = rawBlock || {};
+    const type = String(block.type || '');
+
+    switch (type) {
       case 'header':
-        return `<div style="padding:12px;border-radius:8px;background:linear-gradient(135deg,${primary},${secondary});color:#fff;font-weight:800;font-size:14px;">${block.heading || 'Newsletter'}<div style="font-size:9px;opacity:0.8;margin-top:2px;">${(block.subheading || '').replace(/\n/g, ' · ')}</div></div>`;
+        return `<div style="padding:12px;border-radius:8px;background:linear-gradient(135deg,${primary},${secondary});color:#fff;font-weight:800;font-size:14px;">${escapeHtml(block.heading || 'Newsletter')}<div style="font-size:9px;opacity:0.8;margin-top:2px;">${toMultilineHtml(block.subheading || '')}</div></div>`;
       case 'text':
-        return `<div style="font-size:10px;color:#334155;line-height:1.4;padding:4px 0;">${(block.content || 'Text content…').slice(0, 120)}</div>`;
+        return `<div style="font-size:10px;color:#334155;line-height:1.4;padding:4px 0;">${toMultilineHtml(truncate(block.content || 'Text content...', 120))}</div>`;
       case 'subjects':
         return `<div style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:9px;color:#64748b;">📚 Subject sections appear here</div>`;
       case 'divider':
         return '<hr style="border:0;border-top:1px solid #e2e8f0;margin:6px 0;" />';
       case 'callout':
-        return `<div style="border-left:3px solid ${primary};padding:6px 8px;background:#f8fafc;font-size:9px;">${block.iconEmoji || '💡'} ${(block.content || 'Callout…').slice(0, 80)}</div>`;
+        return `<div style="border-left:3px solid ${primary};padding:6px 8px;background:#f8fafc;font-size:9px;">${escapeHtml(block.iconEmoji || '💡')} ${toMultilineHtml(truncate(block.content || 'Callout...', 80))}</div>`;
       case 'image':
-        return `<div style="text-align:center;font-size:9px;color:#94a3b8;">🖼️ Image</div>`;
+        return `<div style="text-align:center;font-size:9px;color:#94a3b8;">🖼️ ${block.imageUrl ? 'Image' : 'Image placeholder'}</div>`;
       case 'two_column':
-        return `<div style="display:flex;gap:6px;font-size:9px;color:#334155;"><div style="flex:1;background:#f8fafc;padding:4px;border-radius:4px;">${(block.leftContent || 'Left').slice(0, 40)}</div><div style="flex:1;background:#f8fafc;padding:4px;border-radius:4px;">${(block.rightContent || 'Right').slice(0, 40)}</div></div>`;
+        return `<div style="display:flex;gap:6px;font-size:9px;color:#334155;"><div style="flex:1;background:#f8fafc;padding:4px;border-radius:4px;">${escapeHtml(truncate(block.leftContent || 'Left', 40))}</div><div style="flex:1;background:#f8fafc;padding:4px;border-radius:4px;">${escapeHtml(truncate(block.rightContent || 'Right', 40))}</div></div>`;
+      case 'three_column':
+        return `<div style="display:flex;gap:6px;font-size:8px;color:#334155;"><div style="flex:1;background:#f8fafc;padding:4px;border-radius:4px;">${escapeHtml(truncate(block.leftContent || 'Left', 28))}</div><div style="flex:1;background:#f8fafc;padding:4px;border-radius:4px;">${escapeHtml(truncate(block.middleContent || 'Middle', 28))}</div><div style="flex:1;background:#f8fafc;padding:4px;border-radius:4px;">${escapeHtml(truncate(block.rightContent || 'Right', 28))}</div></div>`;
+      case 'hero_banner':
+        return `<div style="padding:10px;border-radius:8px;background:linear-gradient(135deg,${primary},${secondary});color:#fff;"><div style="font-size:12px;font-weight:700;">${escapeHtml(truncate(block.heading || 'Hero banner', 44))}</div><div style="font-size:9px;opacity:0.85;margin-top:3px;">${escapeHtml(truncate(block.subheading || '', 64))}</div></div>`;
+      case 'image_grid': {
+        const imageCount = Array.isArray(block.images) ? block.images.filter((img) => img?.url).length : 0;
+        return `<div style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:9px;color:#64748b;">🖼️ Image grid (${imageCount || 0})</div>`;
+      }
+      case 'events_list': {
+        const eventCount = Array.isArray(block.events) ? block.events.length : 0;
+        return `<div style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:9px;color:#64748b;">📅 Events (${eventCount || 0})</div>`;
+      }
+      case 'spotlight':
+        return `<div style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:9px;color:#334155;">⭐ ${escapeHtml(truncate(block.heading || 'Spotlight', 44))}</div>`;
+      case 'button':
+        return `<div style="text-align:center;"><span style="display:inline-block;background:${primary};color:#fff;border-radius:999px;padding:5px 10px;font-size:9px;font-weight:700;">${escapeHtml(truncate(block.buttonLabel || 'Button', 24))}</span></div>`;
+      case 'heading':
+        return `<div style="font-size:12px;font-weight:800;color:${primary};">${escapeHtml(truncate(block.heading || 'Heading', 60))}</div>`;
+      case 'spacer':
+        return `<div style="height:${Math.max(4, Math.min(40, Number(block.spacerHeight) || 12))}px;"></div>`;
+      case 'social_links':
+        return '<div style="padding:6px 0;text-align:center;font-size:9px;color:#64748b;">🔗 Social links</div>';
+      case 'contact_info':
+        return '<div style="padding:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:9px;color:#64748b;">📞 Contact info</div>';
       case 'footer':
-        return `<div style="font-size:8px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:4px;">${(block.content || 'Footer text…').slice(0, 60)}</div>`;
+        return `<div style="font-size:8px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:4px;">${toMultilineHtml(truncate(block.content || 'Footer text...', 60))}</div>`;
       default:
-        return '';
+        return `<div style="padding:6px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;font-size:8px;color:#64748b;">${escapeHtml(type || 'Unknown block')}</div>`;
     }
   });
 
-  return `<!DOCTYPE html><html><head><style>body{margin:0;padding:10px;font-family:${font};background:${bg};}</style></head><body>${blockHtmls.join('<div style="height:6px;"></div>')}</body></html>`;
+  const previewBody = blockHtmls.filter(Boolean);
+  if (previewBody.length === 0) {
+    previewBody.push('<div style="padding:10px;border:1px dashed #cbd5e1;border-radius:8px;font-size:10px;color:#64748b;">No previewable blocks yet</div>');
+  }
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:10px;font-family:${escapeHtml(font)};background:${bg};}</style></head><body>${previewBody.join('<div style="height:6px;"></div>')}</body></html>`;
 }
 
 export default function NewsletterTemplatesPage() {

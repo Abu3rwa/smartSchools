@@ -60,15 +60,41 @@
       "name": "الاسم",
       "email": "البريد الإلكتروني",
       "role": "الدور",
-      "department": "القسم"
+      "department": "القسم",
+      "status": "الحالة"
     },
     "actions": {
       "editRole": "تعديل الدور"
     },
     "empty": "لا يوجد مستخدمون في هذه المدرسة.",
+    "filters": {
+      "searchLabel": "بحث",
+      "searchPlaceholder": "ابحث بالاسم أو البريد الإلكتروني أو القسم",
+      "role": "الدور",
+      "status": "الحالة",
+      "department": "القسم",
+      "allRoles": "كل الأدوار",
+      "allStatuses": "كل الحالات",
+      "allDepartments": "كل الأقسام",
+      "noDepartment": "بدون قسم",
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "clear": "مسح الفلاتر",
+      "resultCount": "عرض {{shown}} من أصل {{total}} مستخدم",
+      "noMatches": "لا يوجد مستخدمون مطابقون للفلاتر المحددة."
+    },
     "modal": {
       "editRoleTitle": "تعديل الدور — {{name}}",
       "roleLabel": "الدور",
+      "activeRoleLabel": "الدور النشط",
+      "rolesLabel": "الأدوار المعينة",
+      "rolesHint": "اختر جميع الأدوار المعينة لهذا المستخدم. يمكنه التبديل بينها.",
+      "titlesLabel": "المسميات",
+      "titlesPlaceholder": "مثال: معلم علوم",
+      "addTitle": "إضافة",
+      "noTitles": "لم تتم إضافة مسميات بعد",
+      "removeTitleAria": "إزالة المسمى {{title}}",
+      "titlesHint": "استخدم زر الإضافة لإدخال كل مسمى بشكل مستقل (بدون كتابة فواصل).",
       "departmentLabel": "القسم",
       "optional": "(اختياري)",
       "noneWholeSchoolPrincipal": "— بدون (مدير عام للمدرسة) —",

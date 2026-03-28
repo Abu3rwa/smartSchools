@@ -212,7 +212,9 @@ export const login = asyncHandler(async (req, res) => {
                 lastName: user.lastName,
                 fullName: user.fullName,
                 title: user.title,
+                titles: user.titles || [],
                 role: user.role,
+                roles: user.roles?.length ? user.roles : [user.role],
                 school: user.school,
                 lastLogin: user.lastLogin,
                 permissions: user.permissions || [],
@@ -258,7 +260,9 @@ export const getMe = asyncHandler(async (req, res) => {
                 lastName: user.lastName,
                 fullName: user.fullName,
                 title: user.title,
+                titles: user.titles || [],
                 role: user.role,
+                roles: user.roles?.length ? user.roles : [user.role],
                 school: user.school,
                 department: user.department,
                 phone: user.phone,
@@ -583,6 +587,82 @@ export const logout = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Switch active role for the current user
+ * @route   POST /api/auth/switch-role
+ * @access  Private
+ */
+export const switchRole = asyncHandler(async (req, res) => {
+    const { role } = req.body;
+
+    if (!role) {
+        return res.status(400).json({ success: false, message: 'Role is required' });
+    }
+
+    const user = await User.findById(req.user._id).populate('school').populate('department', 'name type');
+
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Build the effective roles list (roles array OR fallback to [role])
+    const availableRoles = user.roles?.length ? user.roles : [user.role];
+
+    if (!availableRoles.includes(role)) {
+        return res.status(403).json({
+            success: false,
+            message: `Role '${role}' is not assigned to this user`
+        });
+    }
+
+    // Update active role
+    user.role = role;
+    await user.save({ validateBeforeSave: false });
+
+    // Reload teacher profile if switching to teacher
+    let profile = null;
+    if (role === 'teacher') {
+        profile = await Teacher.findOne({ user: user._id })
+            .populate('subjects', 'name code')
+            .populate('assignedClasses.class', 'name grade section')
+            .populate('assignedClasses.subject', 'name code');
+    }
+
+    // Generate fresh token with updated role context
+    const token = generateAccessToken(user);
+
+    res.json({
+        success: true,
+        message: `Switched to ${role} role`,
+        data: {
+            user: {
+                id: user._id,
+                _id: user._id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                fullName: user.fullName,
+                title: user.title,
+                titles: user.titles || [],
+                role: user.role,
+                roles: user.roles?.length ? user.roles : [user.role],
+                school: user.school,
+                department: user.department,
+                phone: user.phone,
+                avatar: user.avatar,
+                lastLogin: user.lastLogin,
+                permissions: user.permissions || [],
+                permissionScopes: user.permissionScopes || {},
+                uiPreferences: {
+                    headerShortcuts: normalizeHeaderShortcuts(user.uiPreferences?.headerShortcuts)
+                }
+            },
+            profile,
+            token
+        }
+    });
+});
+
+/**
  * @desc    Impersonate a user (Super Admin only)
  * @route   POST /api/auth/impersonate
  * @access  Private (Super Admin)
@@ -590,9 +670,8 @@ export const logout = asyncHandler(async (req, res) => {
 export const impersonateUser = asyncHandler(async (req, res) => {
     const { userId } = req.body;
 
-    // This is a super admin only function, but the authorization is handled in the route middleware.
-    // We can add an extra check here for safety.
-    if (req.user.role !== 'super_admin') {
+    // Allow both super_admin and admin to impersonate
+    if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
         return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
@@ -606,8 +685,21 @@ export const impersonateUser = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    // Admin can only impersonate users in their own school
+    if (req.user.role === 'admin') {
+        const adminSchoolId = req.user.school?._id || req.user.school;
+        const targetSchoolId = userToImpersonate.school?._id || userToImpersonate.school;
+        if (!adminSchoolId || !targetSchoolId || adminSchoolId.toString() !== targetSchoolId.toString()) {
+            return res.status(403).json({ success: false, message: 'Cannot impersonate users from other schools' });
+        }
+        // Admin cannot impersonate other admins or super_admin
+        if (['admin', 'super_admin'].includes(userToImpersonate.role)) {
+            return res.status(403).json({ success: false, message: 'Cannot impersonate admin-level users' });
+        }
+    }
+
     // Log the impersonation action for auditing
-    console.log(`AUDIT: Super Admin '${req.user.email}' is impersonating user '${userToImpersonate.email}' (ID: ${userToImpersonate._id})`);
+    console.log(`AUDIT: ${req.user.role} '${req.user.email}' is impersonating user '${userToImpersonate.email}' (ID: ${userToImpersonate._id})`);
 
     // Generate token for the target user
     const token = generateAccessToken(userToImpersonate);
@@ -618,13 +710,15 @@ export const impersonateUser = asyncHandler(async (req, res) => {
         data: {
             user: {
                 id: userToImpersonate._id,
+                _id: userToImpersonate._id,
                 email: userToImpersonate.email,
                 firstName: userToImpersonate.firstName,
                 lastName: userToImpersonate.lastName,
                 fullName: userToImpersonate.fullName,
                 role: userToImpersonate.role,
+                roles: userToImpersonate.roles?.length ? userToImpersonate.roles : [userToImpersonate.role],
+                titles: userToImpersonate.titles || [],
                 school: userToImpersonate.school,
-                // We don't want to leak sensitive info during impersonation
             },
             token
         }

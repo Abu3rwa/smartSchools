@@ -42,6 +42,18 @@ const userSchema = new mongoose.Schema({
         ],
         default: 'student'
     },
+    // All roles assigned to this user (multi-role support)
+    roles: {
+        type: [String],
+        enum: [
+            'super_admin', 'admin', 'staff', 'teacher', 'parent', 'student',
+            'department_principal', 'attendance_manager', 'lesson_plan_reviewer',
+            'report_viewer', 'event_coordinator', 'behavior_manager',
+            'transportation_coordinator', 'cafeteria_manager', 'library_manager',
+            'it_support', 'counselor', 'nurse'
+        ],
+        default: []
+    },
     // Permissions array for granular access control
     permissions: {
         type: [String],
@@ -159,6 +171,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         trim: true,
         maxlength: [100, 'Title cannot exceed 100 characters']
+    },
+    // Multiple titles for multi-role users (e.g. "Humanities Teacher", "Department Head")
+    titles: {
+        type: [String],
+        default: []
     },
     phone: {
         type: String,
@@ -283,6 +300,13 @@ userSchema.virtual('fullName').get(function () {
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {
+    // Keep roles array in sync with active role
+    if (this.role && (!this.roles || this.roles.length === 0)) {
+        this.roles = [this.role];
+    } else if (this.role && this.roles && !this.roles.includes(this.role)) {
+        this.roles.push(this.role);
+    }
+
     if (!this.isModified('password')) return next();
 
     const salt = await bcrypt.genSalt(12);

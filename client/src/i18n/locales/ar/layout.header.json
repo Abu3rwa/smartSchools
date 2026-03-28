@@ -31,5 +31,13 @@
   "menu": {
     "settings": "الإعدادات",
     "logout": "تسجيل الخروج"
+  },
+  "roleSwitcher": {
+    "switchRole": "تبديل الدور",
+    "title": "تبديل الدور النشط"
+  },
+  "impersonation": {
+    "viewing": "عرض كـ {{name}} ({{role}})",
+    "stop": "إيقاف"
   }
 }

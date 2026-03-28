@@ -176,7 +176,7 @@ const useSchoolSettings = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [userFormData, setUserFormData] = useState({ role: '', department: '', permissions: [] });
+  const [userFormData, setUserFormData] = useState({ role: '', roles: [], department: '', permissions: [], titles: [] });
   const [submittingUser, setSubmittingUser] = useState(false);
 
   const [academicYears, setAcademicYears] = useState([]);
@@ -226,6 +226,11 @@ const useSchoolSettings = () => {
     loading: false,
     saving: false,
     data: DEFAULT_STUDENT_GROUPING_REPORT_SETTINGS
+  });
+  const [newsletterSettings, setNewsletterSettings] = useState({
+    loading: false,
+    saving: false,
+    data: { frequency: 'weekly', aiMinWords: 100, aiMaxWords: 120, departmentOverrides: [] }
   });
   const [gradingScales, setGradingScales] = useState([]);
   const [gradingScalesLoading, setGradingScalesLoading] = useState(false);
@@ -323,6 +328,17 @@ const useSchoolSettings = () => {
           setStudentGroupingReportSettings((prev) => ({
             ...prev,
             data: normalizeStudentGroupingReportSettings(school.settings.studentGroupingReports)
+          }));
+        }
+        if (school?.settings?.newsletter) {
+          setNewsletterSettings((prev) => ({
+            ...prev,
+            data: {
+              frequency: school.settings.newsletter.frequency || 'weekly',
+              aiMinWords: school.settings.newsletter.aiMinWords ?? 100,
+              aiMaxWords: school.settings.newsletter.aiMaxWords ?? 120,
+              departmentOverrides: school.settings.newsletter.departmentOverrides || [],
+            }
           }));
         }
       }
@@ -598,6 +614,55 @@ const useSchoolSettings = () => {
       );
     }
   }, [canManageSchoolSettings, studentGroupingReportSettings.data, t]);
+
+  // ── Newsletter settings ──────────────────────────────────────
+  const fetchNewsletterSettings = useCallback(async () => {
+    if (!canManageCommunicationSettings) return;
+    setNewsletterSettings((prev) => ({ ...prev, loading: true }));
+    try {
+      const response = await api.get('/schools/me/newsletter-settings');
+      if (response.data?.success) {
+        setNewsletterSettings((prev) => ({ ...prev, loading: false, data: response.data.data }));
+      } else {
+        setNewsletterSettings((prev) => ({ ...prev, loading: false }));
+        toast.error(response.data?.message || 'Failed to load newsletter settings');
+      }
+    } catch (error) {
+      setNewsletterSettings((prev) => ({ ...prev, loading: false }));
+      toast.error(error.response?.data?.message || 'Failed to load newsletter settings');
+    }
+  }, [canManageCommunicationSettings]);
+
+  useEffect(() => {
+    if (activeTab === 'newsletter' && canManageCommunicationSettings) {
+      fetchNewsletterSettings();
+    }
+  }, [activeTab, canManageCommunicationSettings, fetchNewsletterSettings]);
+
+  const handleNewsletterSettingsChange = useCallback((patch) => {
+    setNewsletterSettings((prev) => ({
+      ...prev,
+      data: { ...prev.data, ...(patch || {}) }
+    }));
+  }, []);
+
+  const handleSaveNewsletterSettings = useCallback(async () => {
+    if (!canManageCommunicationSettings) return;
+    setNewsletterSettings((prev) => ({ ...prev, saving: true }));
+    try {
+      const response = await api.patch('/schools/me/newsletter-settings', newsletterSettings.data);
+      if (response.data?.success) {
+        setNewsletterSettings((prev) => ({ ...prev, saving: false, data: response.data.data }));
+        toast.success('Newsletter settings updated');
+      } else {
+        setNewsletterSettings((prev) => ({ ...prev, saving: false }));
+        toast.error(response.data?.message || 'Failed to update newsletter settings');
+      }
+    } catch (error) {
+      setNewsletterSettings((prev) => ({ ...prev, saving: false }));
+      toast.error(error.response?.data?.message || 'Failed to update newsletter settings');
+    }
+  }, [canManageCommunicationSettings, newsletterSettings.data]);
 
   const fetchGradingScales = useCallback(async () => {
     if (!canManageGradeScaling) return;
@@ -991,8 +1056,10 @@ const useSchoolSettings = () => {
     setEditingUser(targetUser);
     setUserFormData({
       role: targetUser.role,
+      roles: targetUser.roles?.length ? targetUser.roles : [targetUser.role],
       department: targetUser.department?._id || targetUser.department || '',
-      permissions: normalizePermissions(targetUser.permissions)
+      permissions: normalizePermissions(targetUser.permissions),
+      titles: targetUser.titles || []
     });
     setShowUserModal(true);
   }, []);
@@ -1009,8 +1076,10 @@ const useSchoolSettings = () => {
       try {
         const response = await api.patch(`/schools/me/users/${editingUser._id}`, {
           role: userFormData.role,
+          roles: userFormData.roles || [userFormData.role],
           department: userFormData.department || null,
-          permissions: normalizedPermissions
+          permissions: normalizedPermissions,
+          titles: userFormData.titles || []
         });
         if (response.data.success) {
           toast.success(t('schoolSettings:toast.userUpdated'));
@@ -1026,13 +1095,13 @@ const useSchoolSettings = () => {
         setSubmittingUser(false);
       }
     },
-    [canManageUsers, editingUser?._id, fetchSchoolUsers, t, userFormData.department, userFormData.permissions, userFormData.role]
+    [canManageUsers, editingUser?._id, fetchSchoolUsers, t, userFormData.department, userFormData.permissions, userFormData.role, userFormData.roles, userFormData.titles]
   );
 
   const handleCloseUserModal = useCallback(() => {
     setShowUserModal(false);
     setEditingUser(null);
-    setUserFormData({ role: '', department: '', permissions: [] });
+    setUserFormData({ role: '', roles: [], department: '', permissions: [], titles: [] });
   }, []);
 
   const handlePermissionToggle = useCallback((permission) => {
@@ -1305,6 +1374,9 @@ const useSchoolSettings = () => {
     studentGroupingReportSettings,
     handleStudentGroupingReportSettingsChange,
     handleSaveStudentGroupingReportSettings,
+    newsletterSettings,
+    handleNewsletterSettingsChange,
+    handleSaveNewsletterSettings,
     handleCopyClasses,
     handleDeactivateYear,
     handlePromoteStudents,
