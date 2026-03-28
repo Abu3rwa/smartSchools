@@ -507,13 +507,10 @@
     background: color-mix(in srgb, var(--bg-secondary) 78%, transparent);
     color: var(--text-secondary);
     line-height: 1.45;
-    overflow: hidden;
+    white-space: pre-wrap;
+    overflow: visible;
     overflow-wrap: anywhere;
     word-break: break-word;
-    display: -webkit-box;
-    line-clamp: 4;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
 }
 .assign-summary-card-header {
     display: flex;
