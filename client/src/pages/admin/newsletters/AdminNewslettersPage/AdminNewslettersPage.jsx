@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +30,7 @@ const EMPTY_SECTIONS = [];
 const AdminNewslettersPage = () => {
   const { t } = useTranslation(['newsletters']);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const academicYear = useSelector(selectCurrentAcademicYear);
   const classes = useSelector(selectClasses);
   const admin = useSelector(selectAdminNewsletter);
@@ -204,8 +206,19 @@ const AdminNewslettersPage = () => {
   return (
     <div className="admin-newsletters-page">
       <div className="an-header">
-        <h2>{t('newsletters:admin.header.title')}</h2>
-        <p>{t('newsletters:admin.header.subtitle')}</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h2>{t('newsletters:admin.header.title')}</h2>
+            <p>{t('newsletters:admin.header.subtitle')}</p>
+          </div>
+          <button
+            className="an-approve-btn"
+            onClick={() => navigate('/portal/newsletters/admin/templates')}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            🎨 {t('newsletters:admin.actions.templateDesign', 'Template Design')}
+          </button>
+        </div>
       </div>
 
       <div className="an-tabs">

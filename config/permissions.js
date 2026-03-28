@@ -123,7 +123,10 @@ export const PERMISSIONS = {
     VIEW_ACADEMIC_EXCELLENCE_SCHOOL_ANALYTICS: 'view_academic_excellence_school_analytics',
     VIEW_ACADEMIC_EXCELLENCE_CLASS_ANALYTICS: 'view_academic_excellence_class_analytics',
     EXPORT_ACADEMIC_EXCELLENCE_REPORTS: 'export_academic_excellence_reports',
-    VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT: 'view_academic_excellence_at_risk_report'
+    VIEW_ACADEMIC_EXCELLENCE_AT_RISK_REPORT: 'view_academic_excellence_at_risk_report',
+
+    // Newsletter Templates
+    MANAGE_NEWSLETTER_TEMPLATES: 'manage_newsletter_templates'
 };
 
 // Permission definitions with metadata
@@ -552,6 +555,11 @@ export const PERMISSION_DEFINITIONS = {
         label: 'View AE At Risk Report',
         description: 'View at-risk student Academic Excellence reports',
         category: 'reports'
+    },
+    [PERMISSIONS.MANAGE_NEWSLETTER_TEMPLATES]: {
+        label: 'Manage Newsletter Templates',
+        description: 'Create, edit, delete and configure newsletter email templates',
+        category: 'communication'
     }
 };
 

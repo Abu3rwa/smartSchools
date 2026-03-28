@@ -1,1 +1,1 @@
-export const SAAS_URL = 'gradebook.app';
+export const SAAS_URL = 'classhope.com';

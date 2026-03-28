@@ -105,6 +105,21 @@ const schoolSchema = new mongoose.Schema({
                 default: true
             }
         },
+        newsletter: {
+            frequency: {
+                type: String,
+                enum: ['weekly', 'biweekly', 'monthly'],
+                default: 'weekly'
+            },
+            aiMinWords: { type: Number, default: 100, min: 30, max: 500 },
+            aiMaxWords: { type: Number, default: 120, min: 50, max: 600 },
+            departmentOverrides: [{
+                department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
+                frequency: { type: String, enum: ['weekly', 'biweekly', 'monthly'] },
+                aiMinWords: { type: Number, min: 30, max: 500 },
+                aiMaxWords: { type: Number, min: 50, max: 600 },
+            }]
+        },
         notifications: {
             studentNotifications: {
                 onAssignmentPosted: { type: Boolean, default: true },

@@ -56,6 +56,43 @@ const LoginPage = () => {
             )}
 
             <div className="login-wrap">
+                <aside className="login-showcase" aria-label="School workflow highlights">
+                    <div className="showcase-chip-row">
+                        <span className="showcase-chip">Learning</span>
+                        <span className="showcase-chip">Assignments</span>
+                        <span className="showcase-chip">Progress</span>
+                        <span className="showcase-chip">Community</span>
+                    </div>
+
+                    <div className="showcase-main-card">
+                        <p className="showcase-overline">Education Portal</p>
+                        <h2>One Login for Teaching, Learning, and Family Follow-up</h2>
+                        <p>
+                            Students, parents, teachers, and admins can sign in here to stay connected to classes, updates, and learning progress.
+                        </p>
+                        <ul className="showcase-list">
+                            <li>Access coursework, schedules, and announcements</li>
+                            <li>Follow assignment status and assessment progress</li>
+                            <li>Keep families informed through a shared platform</li>
+                        </ul>
+                    </div>
+
+                    <div className="showcase-metrics" aria-hidden="true">
+                        <div className="showcase-metric-card">
+                            <span className="metric-value">4 Roles</span>
+                            <span className="metric-label">Students, Parents, Teachers, Admins</span>
+                        </div>
+                        <div className="showcase-metric-card">
+                            <span className="metric-value">Real-Time</span>
+                            <span className="metric-label">Learning and communication updates</span>
+                        </div>
+                        <div className="showcase-metric-card">
+                            <span className="metric-value">Unified</span>
+                            <span className="metric-label">One connected education workspace</span>
+                        </div>
+                    </div>
+                </aside>
+
                 <div className="login-container animate-fadeIn">
                     <LoginLogo 
                         isSchoolContext={isSchoolContext} 

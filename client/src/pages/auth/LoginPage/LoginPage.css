@@ -17,10 +17,14 @@
 
 .login-wrap {
     flex: 1;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) minmax(320px, 420px);
+    gap: clamp(1.2rem, 2vw, 2rem);
     align-items: center;
     justify-content: center;
     padding: var(--spacing-xl);
+    width: min(1120px, 100%);
+    margin: 0 auto;
 }
 
 .login-header {
@@ -75,6 +79,140 @@
     text-decoration: underline;
 }
 
+.login-showcase {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    padding: clamp(1rem, 2vw, 1.5rem);
+    animation: loginSlideIn 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-showcase::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 12% 15%, color-mix(in srgb, var(--primary) 22%, transparent) 0%, transparent 44%),
+        radial-gradient(circle at 88% 82%, color-mix(in srgb, var(--accent-amber) 18%, transparent) 0%, transparent 38%),
+        color-mix(in srgb, var(--bg-card) 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-color) 84%, var(--primary) 16%);
+    box-shadow: 0 26px 60px rgba(13, 25, 48, 0.15);
+    z-index: -1;
+}
+
+.showcase-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.showcase-chip {
+    padding: 0.34rem 0.78rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--bg-secondary) 80%, var(--primary) 20%);
+    border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border-color) 55%);
+    color: var(--text-secondary);
+    animation: chipFloat 4.4s ease-in-out infinite;
+}
+
+.showcase-chip:nth-child(2) {
+    animation-delay: 0.24s;
+}
+
+.showcase-chip:nth-child(3) {
+    animation-delay: 0.44s;
+}
+
+.showcase-main-card {
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--border-color) 70%, var(--primary) 30%);
+    padding: clamp(1rem, 2.2vw, 1.35rem);
+    background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--bg-card) 86%, var(--primary) 14%) 0%,
+        color-mix(in srgb, var(--bg-card) 92%, transparent) 100%
+    );
+    animation: cardBreath 6s ease-in-out infinite;
+}
+
+.showcase-overline {
+    margin: 0;
+    font-size: 0.73rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.showcase-main-card h2 {
+    margin: var(--spacing-xs) 0 var(--spacing-sm);
+    font-size: clamp(1.45rem, 2.4vw, 1.9rem);
+    line-height: 1.2;
+}
+
+.showcase-main-card > p {
+    margin: 0 0 var(--spacing-md);
+    color: var(--text-secondary);
+    line-height: 1.7;
+    font-size: 0.96rem;
+}
+
+.showcase-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.45rem;
+    color: var(--text-primary);
+    font-size: 0.92rem;
+}
+
+.showcase-list li::marker {
+    color: var(--primary);
+}
+
+.showcase-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.showcase-metric-card {
+    border: 1px solid color-mix(in srgb, var(--border-color) 70%, var(--primary) 30%);
+    border-radius: 12px;
+    padding: 0.7rem;
+    background: color-mix(in srgb, var(--bg-card) 90%, var(--primary) 10%);
+    display: grid;
+    gap: 0.18rem;
+    animation: metricRise 5.4s ease-in-out infinite;
+}
+
+.showcase-metric-card:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.showcase-metric-card:nth-child(3) {
+    animation-delay: 0.35s;
+}
+
+.metric-value {
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+.metric-label {
+    font-size: 0.73rem;
+    line-height: 1.35;
+    color: var(--text-secondary);
+}
+
 .login-error-state {
     text-align: center;
 }
@@ -117,6 +255,22 @@
     border-radius: var(--radius-xl);
     padding: var(--spacing-2xl);
     box-shadow: var(--shadow-lg);
+    position: relative;
+    isolation: isolate;
+}
+
+.login-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+        160deg,
+        color-mix(in srgb, var(--primary) 22%, transparent) 0%,
+        transparent 42%
+    );
+    z-index: -1;
 }
 
 /* Logo */
@@ -260,6 +414,64 @@
     border-color: var(--primary);
 }
 
+.login-forgot {
+    margin-top: var(--spacing-md);
+    text-align: center;
+}
+
+.forgot-password-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-bottom: 1px dashed color-mix(in srgb, var(--text-secondary) 35%, transparent);
+    transition: color 180ms ease, border-color 180ms ease;
+}
+
+.forgot-password-link:hover {
+    color: var(--primary);
+    border-bottom-color: color-mix(in srgb, var(--primary) 70%, transparent);
+}
+
+@keyframes loginSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-18px) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes chipFloat {
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+@keyframes metricRise {
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+@keyframes cardBreath {
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-2px);
+    }
+}
+
 /* Demo Credentials */
 .demo-credentials {
     margin-top: var(--spacing-xl);
@@ -311,6 +523,15 @@
         padding: var(--spacing-md);
     }
 
+    .login-wrap {
+        grid-template-columns: 1fr;
+        width: min(520px, 100%);
+    }
+
+    .login-showcase {
+        display: none;
+    }
+
     .login-container {
         width: 100%;
         max-width: 100%;
@@ -329,5 +550,14 @@
 
     .logo-title {
         font-size: 1.75rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .login-showcase,
+    .showcase-chip,
+    .showcase-metric-card,
+    .showcase-main-card {
+        animation: none !important;
     }
 }

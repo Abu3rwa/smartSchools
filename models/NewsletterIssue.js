@@ -3,7 +3,8 @@ import { tenantIsolationPlugin } from "../middleware/tenantIsolation.js";
 
 /**
  * NewsletterIssue
- * One weekly newsletter per class (per school) for a specific week range.
+ * One newsletter per class (per school) for a specific period.
+ * The period can be weekly, biweekly, or monthly — configured per school + department.
  * Teachers contribute subject sections; admins review/exclude subjects and send.
  */
 const newsletterIssueSchema = new mongoose.Schema(
@@ -26,9 +27,17 @@ const newsletterIssueSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Week boundary (recommended: Monday 00:00 local time)
+    // Period boundary — weekStart/weekEnd kept for backward compatibility.
+    // New code should use periodStart/periodEnd virtuals or set weekStart/weekEnd directly.
     weekStart: { type: Date, required: true, index: true },
     weekEnd: { type: Date, required: true },
+
+    // The cadence that was active when this issue was created (stamped for history).
+    frequency: {
+      type: String,
+      enum: ["weekly", "biweekly", "monthly"],
+      default: "weekly",
+    },
 
     status: {
       type: String,
@@ -60,11 +69,15 @@ const newsletterIssueSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// One issue per class/week
+// One issue per class/period (unique on weekStart which serves as periodStart)
 newsletterIssueSchema.index(
   { school: 1, class: 1, academicYear: 1, weekStart: 1 },
   { unique: true }
 );
+
+// Virtual aliases: periodStart ↔ weekStart, periodEnd ↔ weekEnd
+newsletterIssueSchema.virtual("periodStart").get(function () { return this.weekStart; }).set(function (v) { this.weekStart = v; });
+newsletterIssueSchema.virtual("periodEnd").get(function () { return this.weekEnd; }).set(function (v) { this.weekEnd = v; });
 
 newsletterIssueSchema.plugin(tenantIsolationPlugin);
 

@@ -72,6 +72,7 @@ const LessonPlanPage = lazy(() => import("./pages/lessonPlan/LessonPlanPage"));
 const LessonPlanDetailPage = lazy(() => import("./pages/lessonPlan/LessonPlanDetailPage"));
 const AssignmentsPage = lazy(() => import("./pages/assignments/AssignmentsPage"));
 const AdminNewslettersPage = lazy(() => import("./pages/admin/newsletters/AdminNewslettersPage"));
+const NewsletterTemplatesPage = lazy(() => import("./pages/admin/newsletters/NewsletterTemplatesPage"));
 const ParentNewslettersPage = lazy(() => import("./pages/parent/newsletters/ParentNewslettersPage"));
 const SBRConfigPage = lazy(() => import("./pages/sbr/SBRConfigPage"));
 const SBRGenerationPage = lazy(() => import("./pages/sbr/SBRGenerationPage"));
@@ -550,6 +551,16 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal"]}>
                   <AdminAttendancePage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="newsletters/admin/templates"
+              element={
+                <RoleRoute roles={["admin"]}>
+                  <FeatureGate feature="newsletterCommunication" showUpgradePrompt>
+                    <NewsletterTemplatesPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />

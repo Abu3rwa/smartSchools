@@ -1,5 +1,6 @@
 import NewsletterIssue from "../models/NewsletterIssue.js";
 import NewsletterSection from "../models/NewsletterSection.js";
+import NewsletterTemplate from "../models/NewsletterTemplate.js";
 import Student from "../models/Student.js";
 import Notification from "../models/Notification.js";
 import notificationService from "./notificationService.js";
@@ -10,6 +11,10 @@ import {
   computeIssueReadiness,
   getExpectedSubjectIdsForClass,
 } from "./newsletterIssueService.js";
+import {
+  renderTemplateHtml,
+  getBuiltinDefaultSections,
+} from "./newsletterTemplateRenderer.js";
 
 function formatClassLabel(cls) {
   if (!cls) return "Class";
@@ -128,14 +133,45 @@ export async function prepareNewsletterIssueEmailContent({ issueId }) {
   const classLabel = formatClassLabel(cls);
   const weekLabel = formatWeekLabel(issue.weekStart, issue.weekEnd);
   const subjectLine = `Weekly Newsletter - ${classLabel} (${weekLabel})`;
+  const schoolBranding = school?.settings?.branding || {};
 
-  const htmlContent = buildCombinedNewsletterHtml({
-    classLabel,
-    weekLabel,
-    sections,
-    schoolName: school?.name || "School",
-    branding: school?.settings?.branding || {},
-  });
+  /* ── Try template-based rendering first, else legacy ────────── */
+  let activeTemplate = await NewsletterTemplate.findOne({
+    school: issue.school,
+    isDefault: true,
+    isActive: true,
+  }).lean();
+  if (!activeTemplate) {
+    activeTemplate = await NewsletterTemplate.findOne({
+      school: issue.school,
+      isActive: true,
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+  }
+
+  let htmlContent;
+  if (activeTemplate) {
+    htmlContent = renderTemplateHtml({
+      template: activeTemplate,
+      classLabel,
+      weekLabel,
+      sections,
+      schoolName: school?.name || "School",
+      branding: schoolBranding,
+    });
+  } else {
+    // Legacy: use built-in default sections through the template renderer
+    htmlContent = renderTemplateHtml({
+      template: { sections: getBuiltinDefaultSections(), globalStyle: {} },
+      classLabel,
+      weekLabel,
+      sections,
+      schoolName: school?.name || "School",
+      branding: schoolBranding,
+    });
+  }
+
   const textContent = buildCombinedNewsletterText({ classLabel, weekLabel, sections });
 
   return {
