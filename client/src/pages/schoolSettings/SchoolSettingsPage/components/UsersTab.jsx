@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { HiOutlineUserGroup } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import TablePagination from '../../../../components/common/TablePagination';
+import { impersonateUser, selectCanImpersonate } from '../../../../store/slices/authSlice';
 
 const DEFAULT_PAGE_SIZE = 10;
 const ALL_FILTER = 'all';
+const IMPERSONATABLE_ROLES = new Set(['teacher', 'student']);
 
 const getAssignedRoles = (user) => {
   const fromArray = Array.isArray(user?.roles) ? user.roles : [];
@@ -12,8 +17,27 @@ const getAssignedRoles = (user) => {
   return Array.from(new Set((fromArray.length > 0 ? fromArray : fallback).filter(Boolean)));
 };
 
+const getUserDisplayName = (user) => {
+  const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  return fullName || user?.email || '';
+};
+
+const canImpersonateTargetUser = (user) => {
+  const primaryRole = String(user?.role || '').toLowerCase();
+  if (primaryRole === 'admin' || primaryRole === 'super_admin') {
+    return false;
+  }
+
+  return getAssignedRoles(user)
+    .map((role) => String(role).toLowerCase())
+    .some((role) => IMPERSONATABLE_ROLES.has(role));
+};
+
 const UsersTab = ({ users, loading, onEdit, modal }) => {
   const { t } = useTranslation(['schoolSettings']);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const canImpersonate = useSelector(selectCanImpersonate);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,6 +121,48 @@ const UsersTab = ({ users, loading, onEdit, modal }) => {
     const startIndex = (safeCurrentPage - 1) * pageSize;
     return filteredUsers.slice(startIndex, startIndex + pageSize);
   }, [filteredUsers, safeCurrentPage, pageSize]);
+
+  const handleImpersonate = async (user) => {
+    if (!canImpersonate || !canImpersonateTargetUser(user)) {
+      return;
+    }
+
+    const displayName = getUserDisplayName(user);
+    const confirmed = window.confirm(
+      t('schoolSettings:confirm.impersonateUser', {
+        defaultValue: 'Are you sure you want to impersonate {{name}}?',
+        name: displayName
+      })
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const toastId = toast.loading(
+      t('schoolSettings:toast.impersonationStarting', {
+        defaultValue: 'Starting impersonation...'
+      })
+    );
+
+    try {
+      await dispatch(impersonateUser(user._id)).unwrap();
+      toast.success(
+        t('schoolSettings:toast.impersonationStarted', {
+          defaultValue: 'Impersonation started. Redirecting...'
+        }),
+        { id: toastId }
+      );
+      navigate('/portal/dashboard');
+    } catch (error) {
+      const message = typeof error === 'string'
+        ? error
+        : t('schoolSettings:toast.impersonationFailed', {
+          defaultValue: 'Failed to impersonate user'
+        });
+      toast.error(message, { id: toastId });
+    }
+  };
 
   return (
     <div className="tab-content">
@@ -227,6 +293,7 @@ const UsersTab = ({ users, loading, onEdit, modal }) => {
                       {paginatedUsers.map((user) => {
                         const assignedRoles = getAssignedRoles(user);
                         const isActive = user?.isActive !== false;
+                        const canImpersonateThisUser = canImpersonate && canImpersonateTargetUser(user);
                         return (
                           <tr key={user._id}>
                             <td>{user.firstName} {user.lastName}</td>
@@ -249,9 +316,21 @@ const UsersTab = ({ users, loading, onEdit, modal }) => {
                               </span>
                             </td>
                             <td>
-                              <button className="btn btn-sm btn-secondary" onClick={() => onEdit(user)}>
-                                {t('schoolSettings:users.actions.editRole')}
-                              </button>
+                              <div className="users-actions-cell">
+                                {canImpersonateThisUser && (
+                                  <button
+                                    className="btn btn-sm btn-secondary"
+                                    onClick={() => handleImpersonate(user)}
+                                  >
+                                    {t('schoolSettings:users.actions.impersonate', {
+                                      defaultValue: 'Impersonate'
+                                    })}
+                                  </button>
+                                )}
+                                <button className="btn btn-sm btn-secondary" onClick={() => onEdit(user)}>
+                                  {t('schoolSettings:users.actions.editRole')}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -263,6 +342,7 @@ const UsersTab = ({ users, loading, onEdit, modal }) => {
                     {paginatedUsers.map((user) => {
                       const assignedRoles = getAssignedRoles(user);
                       const isActive = user?.isActive !== false;
+                      const canImpersonateThisUser = canImpersonate && canImpersonateTargetUser(user);
                       return (
                         <article className="users-mobile-card" key={`${user._id}-mobile`}>
                           <div className="users-mobile-card-header">
@@ -288,9 +368,18 @@ const UsersTab = ({ users, loading, onEdit, modal }) => {
                             <strong>{t('schoolSettings:users.table.department')}:</strong>
                             <span>{user.department?.name ?? t('schoolSettings:common.dash')}</span>
                           </div>
-                          <button className="btn btn-secondary" onClick={() => onEdit(user)}>
-                            {t('schoolSettings:users.actions.editRole')}
-                          </button>
+                          <div className="users-mobile-actions">
+                            {canImpersonateThisUser && (
+                              <button className="btn btn-secondary" onClick={() => handleImpersonate(user)}>
+                                {t('schoolSettings:users.actions.impersonate', {
+                                  defaultValue: 'Impersonate'
+                                })}
+                              </button>
+                            )}
+                            <button className="btn btn-secondary" onClick={() => onEdit(user)}>
+                              {t('schoolSettings:users.actions.editRole')}
+                            </button>
+                          </div>
                         </article>
                       );
                     })}

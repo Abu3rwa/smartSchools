@@ -10,6 +10,7 @@
   },
   "filters": {
     "searchPlaceholder": "ابحث في المعايير...",
+    "allClasses": "كل الفصول",
     "allSubjects": "كل المواد",
     "allGrades": "كل الصفوف",
     "grade": "الصف {{grade}}"

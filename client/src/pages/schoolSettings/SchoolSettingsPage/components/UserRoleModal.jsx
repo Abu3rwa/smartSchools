@@ -7,6 +7,11 @@ const UserRoleModal = ({ open, editingUser, formData, departments, onChange, onP
   const { t } = useTranslation(['schoolSettings']);
   const [titleInput, setTitleInput] = useState('');
 
+  const titleItems = useMemo(() => {
+    const raw = Array.isArray(formData?.titles) ? formData.titles : [];
+    return Array.from(new Set(raw.map((item) => String(item || '').trim()).filter(Boolean)));
+  }, [formData?.titles]);
+
   useEffect(() => {
     if (open) {
       setTitleInput('');
@@ -14,11 +19,6 @@ const UserRoleModal = ({ open, editingUser, formData, departments, onChange, onP
   }, [open, editingUser?._id]);
 
   if (!open || !editingUser) return null;
-
-  const titleItems = useMemo(() => {
-    const raw = Array.isArray(formData.titles) ? formData.titles : [];
-    return Array.from(new Set(raw.map((item) => String(item || '').trim()).filter(Boolean)));
-  }, [formData.titles]);
 
   const handleRolesToggle = (roleValue) => {
     const currentRoles = formData.roles || [];

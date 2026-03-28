@@ -1,6 +1,26 @@
 import Standard from '../models/Standard.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
+import { resolveTeacherProfile, getTeacherSubjectIds } from '../helpers/teacherScoping.js';
+
+const toStringId = (value) => (value ? String(value) : '');
+
+const resolveTeacherScopedSubjectIds = async (req) => {
+    if (req.user.role !== 'teacher') {
+        return null;
+    }
+
+    const teacher = await resolveTeacherProfile(req);
+    if (!teacher) {
+        return { error: 'Teacher profile not found' };
+    }
+
+    const subjectIds = await getTeacherSubjectIds(teacher._id);
+    return {
+        teacher,
+        subjectIds: (Array.isArray(subjectIds) ? subjectIds : []).map((id) => toStringId(id)).filter(Boolean)
+    };
+};
 
 /**
  * @desc    Get all standards
@@ -10,7 +30,50 @@ import { runImportPipeline } from '../services/import/importPipeline.js';
 export const getStandards = asyncHandler(async (req, res) => {
     const { page = 1, limit = 50, search, subject, gradeLevel, category, isActive } = req.query;
 
-    const query = {};
+    const query = { school: req.schoolId };
+
+    const teacherScope = await resolveTeacherScopedSubjectIds(req);
+    if (teacherScope?.error) {
+        return res.status(403).json({ success: false, message: teacherScope.error });
+    }
+
+    if (teacherScope) {
+        if (teacherScope.subjectIds.length === 0) {
+            return res.json({
+                success: true,
+                data: {
+                    standards: [],
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total: 0,
+                        pages: 0
+                    }
+                }
+            });
+        }
+
+        if (subject) {
+            const requestedSubject = toStringId(subject);
+            if (!teacherScope.subjectIds.includes(requestedSubject)) {
+                return res.json({
+                    success: true,
+                    data: {
+                        standards: [],
+                        pagination: {
+                            page: parseInt(page),
+                            limit: parseInt(limit),
+                            total: 0,
+                            pages: 0
+                        }
+                    }
+                });
+            }
+            query.subject = requestedSubject;
+        } else {
+            query.subject = { $in: teacherScope.subjectIds };
+        }
+    }
 
     if (search) {
         query.$or = [
@@ -20,7 +83,7 @@ export const getStandards = asyncHandler(async (req, res) => {
         ];
     }
 
-    if (subject) query.subject = subject;
+    if (subject && !teacherScope) query.subject = subject;
     if (gradeLevel) query.gradeLevel = parseInt(gradeLevel);
     if (category) query.category = { $regex: category, $options: 'i' };
     if (isActive !== undefined) query.isActive = isActive === 'true';
@@ -63,6 +126,27 @@ export const getStandard = asyncHandler(async (req, res) => {
             success: false,
             message: 'Standard not found'
         });
+    }
+
+    if (toStringId(standard.school) !== toStringId(req.schoolId)) {
+        return res.status(404).json({
+            success: false,
+            message: 'Standard not found'
+        });
+    }
+
+    const teacherScope = await resolveTeacherScopedSubjectIds(req);
+    if (teacherScope?.error) {
+        return res.status(403).json({ success: false, message: teacherScope.error });
+    }
+    if (teacherScope) {
+        const standardSubjectId = toStringId(standard.subject?._id || standard.subject);
+        if (!teacherScope.subjectIds.includes(standardSubjectId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to view this standard'
+            });
+        }
     }
 
     res.json({
@@ -236,7 +320,22 @@ export const importStandards = asyncHandler(async (req, res) => {
 export const getStandardsBySubject = asyncHandler(async (req, res) => {
     const { gradeLevel } = req.query;
 
-    const match = { isActive: true };
+    const match = { school: req.schoolId, isActive: true };
+
+    const teacherScope = await resolveTeacherScopedSubjectIds(req);
+    if (teacherScope?.error) {
+        return res.status(403).json({ success: false, message: teacherScope.error });
+    }
+    if (teacherScope) {
+        if (teacherScope.subjectIds.length === 0) {
+            return res.json({
+                success: true,
+                data: { groups: [] }
+            });
+        }
+        match.subject = { $in: teacherScope.subjectIds };
+    }
+
     if (gradeLevel) match.gradeLevel = parseInt(gradeLevel);
 
     const result = await Standard.aggregate([

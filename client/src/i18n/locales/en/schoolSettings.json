@@ -64,7 +64,8 @@
       "status": "Status"
     },
     "actions": {
-      "editRole": "Edit role"
+      "editRole": "Edit role",
+      "impersonate": "Impersonate"
     },
     "empty": "No users in this school.",
     "filters": {
@@ -319,7 +320,8 @@
   "confirm": {
     "deleteDepartment": "Are you sure you want to delete this department?",
     "promoteStudents": "Promote students from {{fromYear}} to {{toYear}}? This will update all active students.",
-    "deleteGradingScale": "Delete grading scale \"{{name}}\"?"
+    "deleteGradingScale": "Delete grading scale \"{{name}}\"?",
+    "impersonateUser": "Are you sure you want to impersonate {{name}}?"
   },
   "toast": {
     "loadUsersFailed": "Failed to load users",
@@ -379,6 +381,9 @@
     "defaultGradingScaleUpdated": "Default grading scale updated",
     "setDefaultGradingScaleFailed": "Failed to set default grading scale",
     "gradingScaleDeleted": "Grading scale deleted",
-    "deleteGradingScaleFailed": "Failed to delete grading scale"
+    "deleteGradingScaleFailed": "Failed to delete grading scale",
+    "impersonationStarting": "Starting impersonation...",
+    "impersonationStarted": "Impersonation started. Redirecting...",
+    "impersonationFailed": "Failed to impersonate user"
   }
 }

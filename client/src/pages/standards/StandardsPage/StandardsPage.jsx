@@ -14,6 +14,8 @@ const StandardsPage = () => {
         setActiveTab,
         searchTerm,
         setSearchTerm,
+        filterClass,
+        setFilterClass,
         filterSubject,
         setFilterSubject,
         filterGrade,
@@ -32,6 +34,7 @@ const StandardsPage = () => {
         importResult,
         templateMeta,
         subjects,
+        classes,
         isAdmin,
         filteredStandards,
         handleOpenCreateModal,
@@ -55,10 +58,13 @@ const StandardsPage = () => {
                     <StandardsFiltersBar
                         searchTerm={searchTerm}
                         onSearchTermChange={setSearchTerm}
+                        filterClass={filterClass}
+                        onFilterClassChange={setFilterClass}
                         filterSubject={filterSubject}
                         onFilterSubjectChange={setFilterSubject}
                         filterGrade={filterGrade}
                         onFilterGradeChange={setFilterGrade}
+                        classes={classes}
                         subjects={subjects}
                     />
                     <StandardsList

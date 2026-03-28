@@ -5,10 +5,13 @@ import { GRADE_LEVEL_OPTIONS } from '../constants';
 const StandardsFiltersBar = ({
     searchTerm,
     onSearchTermChange,
+    filterClass,
+    onFilterClassChange,
     filterSubject,
     onFilterSubjectChange,
     filterGrade,
     onFilterGradeChange,
+    classes,
     subjects
 }) => {
     const { t } = useTranslation(['standards']);
@@ -29,6 +32,14 @@ const StandardsFiltersBar = ({
                 {subjects.map((subject) => (
                     <option key={subject._id} value={subject._id}>
                         {subject.name}
+                    </option>
+                ))}
+            </select>
+            <select value={filterClass} onChange={(event) => onFilterClassChange(event.target.value)}>
+                <option value="">{t('standards:filters.allClasses', { defaultValue: 'All Classes' })}</option>
+                {classes.map((schoolClass) => (
+                    <option key={schoolClass._id} value={schoolClass._id}>
+                        {schoolClass.name || `${t('standards:filters.grade', { grade: schoolClass.grade })} ${schoolClass.section || ''}`.trim()}
                     </option>
                 ))}
             </select>

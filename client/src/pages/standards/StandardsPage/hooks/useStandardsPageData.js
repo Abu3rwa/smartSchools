@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -19,9 +19,11 @@ import {
     buildStandardFormDataFromStandard,
     createInitialStandardFormData,
     filterStandardsList,
+    getSubjectsForStandardsFilter,
     parseStandardsImportText
 } from '../utils/standardsPagePresentation';
 import importTemplateService from '../../../../services/importTemplateService';
+import { selectClasses } from '../../../../store/slices/classSlice';
 
 const useStandardsPageData = () => {
     const { t } = useTranslation(['standards']);
@@ -30,11 +32,14 @@ const useStandardsPageData = () => {
     const loading = useSelector(selectStandardsLoading);
     const importResult = useSelector(selectImportResult);
     const subjects = useSelector(selectSubjects);
+    const classes = useSelector(selectClasses);
     const user = useSelector(selectUser);
     const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const isTeacher = user?.role === 'teacher';
 
     const [activeTab, setActiveTab] = useState(STANDARDS_PAGE_TABS.list);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterClass, setFilterClass] = useState('');
     const [filterSubject, setFilterSubject] = useState('');
     const [filterGrade, setFilterGrade] = useState('');
     const [showModal, setShowModal] = useState(false);
@@ -64,11 +69,47 @@ const useStandardsPageData = () => {
         };
     }, []);
 
+    const classOptions = useMemo(() => {
+        const list = Array.isArray(classes) ? classes : [];
+        return [...list].sort((left, right) => {
+            const leftGrade = Number(left?.grade || 0);
+            const rightGrade = Number(right?.grade || 0);
+            if (leftGrade !== rightGrade) return leftGrade - rightGrade;
+            const leftName = String(left?.name || left?.section || '');
+            const rightName = String(right?.name || right?.section || '');
+            return leftName.localeCompare(rightName);
+        });
+    }, [classes]);
+
+    const scopedSubjects = useMemo(() => (
+        getSubjectsForStandardsFilter({
+            classes: classOptions,
+            subjects,
+            filterClass,
+            isTeacher,
+            userId: user?._id || user?.id
+        })
+    ), [classOptions, subjects, filterClass, isTeacher, user?._id, user?.id]);
+
+    useEffect(() => {
+        if (!filterSubject) return;
+        const isStillAvailable = scopedSubjects.some((subject) => String(subject?._id) === String(filterSubject));
+        if (!isStillAvailable) {
+            setFilterSubject('');
+        }
+    }, [filterSubject, scopedSubjects]);
+
     const filteredStandards = filterStandardsList(
         standards,
         searchTerm,
         filterSubject,
-        filterGrade
+        filterGrade,
+        filterClass,
+        classOptions,
+        {
+            isTeacher,
+            userId: user?._id || user?.id
+        }
     );
 
     const handleCloseModal = () => {
@@ -179,6 +220,8 @@ const useStandardsPageData = () => {
         setActiveTab,
         searchTerm,
         setSearchTerm,
+        filterClass,
+        setFilterClass,
         filterSubject,
         setFilterSubject,
         filterGrade,
@@ -196,7 +239,8 @@ const useStandardsPageData = () => {
         loading,
         importResult,
         templateMeta,
-        subjects,
+        subjects: scopedSubjects,
+        classes: classOptions,
         isAdmin,
         filteredStandards,
         handleOpenCreateModal,

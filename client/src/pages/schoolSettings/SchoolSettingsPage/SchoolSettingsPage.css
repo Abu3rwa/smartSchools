@@ -348,6 +348,17 @@
     border-color: color-mix(in srgb, var(--warning-500, #f59e0b) 38%, transparent);
 }
 
+.school-settings-page .users-actions-cell {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.school-settings-page .users-actions-cell .btn {
+    white-space: nowrap;
+}
+
 .school-settings-page .users-mobile-list {
     display: none;
 }
@@ -990,6 +1001,16 @@
         gap: 0.25rem;
         font-size: 0.84rem;
     }
+
+        .school-settings-page .users-mobile-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+        }
+
+        .school-settings-page .users-mobile-actions .btn {
+            width: 100%;
+        }
 
     .school-settings-modal-overlay {
         padding: var(--spacing-sm);

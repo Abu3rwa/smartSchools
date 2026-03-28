@@ -21,7 +21,87 @@ export const buildStandardFormDataFromStandard = (standard) => {
     };
 };
 
-export const filterStandardsList = (standards, searchTerm, filterSubject, filterGrade) => {
+const getEntityId = (entity) => String(entity?._id || entity?.id || entity || '');
+
+const getClassTeacherUserId = (schoolClass) =>
+    getEntityId(schoolClass?.classTeacher?.user || schoolClass?.classTeacher?.user?._id);
+
+const getSubjectTeacherUserId = (subjectEntry) =>
+    getEntityId(
+        subjectEntry?.teacher?.user ||
+        subjectEntry?.teacher?.user?._id ||
+        subjectEntry?.teacher
+    );
+
+export const getScopedClassSubjects = (schoolClass, isTeacher, userId) => {
+    const classSubjectsRaw = Array.isArray(schoolClass?.subjects) ? schoolClass.subjects : [];
+
+    if (!isTeacher) {
+        return classSubjectsRaw
+            .map((entry) => entry?.subject)
+            .filter(Boolean);
+    }
+
+    const userIdValue = getEntityId(userId);
+    const isClassTeacher = getClassTeacherUserId(schoolClass) === userIdValue;
+
+    const scopedEntries = classSubjectsRaw.filter((entry) => {
+        if (!entry?.subject) return false;
+        if (isClassTeacher) return true;
+        return getSubjectTeacherUserId(entry) === userIdValue;
+    });
+
+    const seen = new Set();
+    return scopedEntries
+        .map((entry) => entry.subject)
+        .filter((subject) => {
+            const subjectId = getEntityId(subject);
+            if (!subjectId || seen.has(subjectId)) return false;
+            seen.add(subjectId);
+            return true;
+        });
+};
+
+export const getSubjectsForStandardsFilter = ({ classes, subjects, filterClass, isTeacher, userId }) => {
+    const allSubjects = Array.isArray(subjects) ? subjects : [];
+    if (!filterClass) {
+        return allSubjects;
+    }
+
+    const selectedClass = Array.isArray(classes)
+        ? classes.find((schoolClass) => getEntityId(schoolClass) === String(filterClass))
+        : null;
+
+    if (!selectedClass) {
+        return [];
+    }
+
+    return getScopedClassSubjects(selectedClass, isTeacher, userId).sort((left, right) => {
+        const leftName = String(left?.name || '');
+        const rightName = String(right?.name || '');
+        return leftName.localeCompare(rightName);
+    });
+};
+
+export const filterStandardsList = (
+    standards,
+    searchTerm,
+    filterSubject,
+    filterGrade,
+    filterClass,
+    classes,
+    options = {}
+) => {
+    const isTeacher = options?.isTeacher === true;
+    const userId = options?.userId;
+    const selectedClass = Array.isArray(classes)
+        ? classes.find((schoolClass) => getEntityId(schoolClass) === String(filterClass || ''))
+        : null;
+    const selectedClassGrade = selectedClass?.grade != null ? Number(selectedClass.grade) : null;
+    const selectedClassSubjectIds = new Set(
+        getScopedClassSubjects(selectedClass, isTeacher, userId).map((subject) => getEntityId(subject))
+    );
+
     return standards.filter((standard) => {
         const searchValue = searchTerm.toLowerCase();
         const matchSearch =
@@ -29,10 +109,25 @@ export const filterStandardsList = (standards, searchTerm, filterSubject, filter
             standard.code?.toLowerCase().includes(searchValue) ||
             standard.name?.toLowerCase().includes(searchValue) ||
             standard.description?.toLowerCase().includes(searchValue);
+        const standardSubjectId = getEntityId(standard.subject);
         const matchSubject =
-            !filterSubject || (standard.subject?._id || standard.subject) === filterSubject;
+            !filterSubject || standardSubjectId === String(filterSubject);
         const matchGrade = !filterGrade || standard.gradeLevel === parseInt(filterGrade);
-        return matchSearch && matchSubject && matchGrade;
+
+        let matchClass = true;
+        if (filterClass) {
+            if (!selectedClass) {
+                matchClass = false;
+            } else {
+                const hasSubjectMatch = selectedClassSubjectIds.has(standardSubjectId);
+                const hasGradeMatch =
+                    selectedClassGrade == null ||
+                    Number(standard.gradeLevel) === selectedClassGrade;
+                matchClass = hasSubjectMatch && hasGradeMatch;
+            }
+        }
+
+        return matchSearch && matchSubject && matchGrade && matchClass;
     });
 };
 

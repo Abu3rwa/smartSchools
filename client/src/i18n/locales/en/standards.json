@@ -10,6 +10,7 @@
   },
   "filters": {
     "searchPlaceholder": "Search standards...",
+    "allClasses": "All Classes",
     "allSubjects": "All Subjects",
     "allGrades": "All Grades",
     "grade": "Grade {{grade}}"

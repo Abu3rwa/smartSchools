@@ -536,7 +536,7 @@ const StandardAssignForm = ({
 
                     <div className="form-group">
                         <label>{t('standardAssign:form.labels.standardRequired')}</label>
-                        <select
+                        <select className="standard-select"
                             value={formData.standardId}
                             disabled={!formData.classId || !formData.subjectId}
                             onChange={(event) =>
@@ -565,7 +565,10 @@ const StandardAssignForm = ({
                             </small>
                         ) : null}
                         {formData.standardId && (
-                            <small className="text-muted assign-inline-hint">
+                            <small
+                                className="text-muted assign-inline-hint assign-standard-description"
+                                title={getStandardDescription(selectedStandard)}
+                            >
                                 {getStandardDescription(selectedStandard)}
                             </small>
                         )}

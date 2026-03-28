@@ -64,7 +64,8 @@
       "status": "الحالة"
     },
     "actions": {
-      "editRole": "تعديل الدور"
+      "editRole": "تعديل الدور",
+      "impersonate": "تسجيل الدخول كمستخدم"
     },
     "empty": "لا يوجد مستخدمون في هذه المدرسة.",
     "filters": {
@@ -319,7 +320,8 @@
   "confirm": {
     "deleteDepartment": "هل أنت متأكد من حذف هذا القسم؟",
     "promoteStudents": "هل تريد ترفيع الطلاب من {{fromYear}} إلى {{toYear}}؟ سيؤدي ذلك إلى تحديث جميع الطلاب النشطين.",
-    "deleteGradingScale": "حذف سلم التقدير \"{{name}}\"؟"
+    "deleteGradingScale": "حذف سلم التقدير \"{{name}}\"؟",
+    "impersonateUser": "هل أنت متأكد من تسجيل الدخول كمستخدم {{name}}؟"
   },
   "toast": {
     "loadUsersFailed": "فشل تحميل المستخدمين",
@@ -379,6 +381,9 @@
     "defaultGradingScaleUpdated": "تم تحديث سلم التقدير الافتراضي",
     "setDefaultGradingScaleFailed": "فشل تعيين سلم التقدير الافتراضي",
     "gradingScaleDeleted": "تم حذف سلم التقدير",
-    "deleteGradingScaleFailed": "فشل حذف سلم التقدير"
+    "deleteGradingScaleFailed": "فشل حذف سلم التقدير",
+    "impersonationStarting": "جارٍ بدء وضع انتحال المستخدم...",
+    "impersonationStarted": "تم بدء انتحال المستخدم. جارٍ إعادة التوجيه...",
+    "impersonationFailed": "فشل انتحال المستخدم"
   }
 }

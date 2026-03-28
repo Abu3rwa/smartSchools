@@ -59,13 +59,12 @@ export const getStandardDescription = (standard, t) => {
 
 export const getStandardOptionLabel = (standard, t) => {
     const baseLabel = formatStandardLabel(standard) || `${standard?.code || 'STD'}`;
-    const description = getStandardDescription(standard, t);
-    const shortDescription =
-        description.length > 90 ? `${description.substring(0, 90)}...` : description;
+    const compactLabel =
+        baseLabel.length > 100 ? `${baseLabel.substring(0, 100)}...` : baseLabel;
     const gradePart = `${translate(t, 'standardAssign:common.grade', 'Grade')} ${
         standard?.gradeLevel || '-'
     }`;
-    return `${baseLabel} (${gradePart}) | ${shortDescription}`;
+    return `${compactLabel} (${gradePart})`;
 };
 
 export const parseNullablePositiveInt = (value) => {
