@@ -20,9 +20,9 @@ import {
   regenerateSlide,
   reorderSlides,
   clearCurrent,
-} from "../../../../store/slices/presentationSlice";
-import presentationService from "../../../../services/presentationService";
-import SlideRenderer from "../../../../components/presentations/SlideRenderer";
+} from "../../../store/slices/presentationSlice";
+import presentationService from "../../../services/presentationService";
+import SlideRenderer from "../../../components/presentations/SlideRenderer";
 import "./PresentationEditorPage.css";
 
 const PresentationEditorPage = () => {

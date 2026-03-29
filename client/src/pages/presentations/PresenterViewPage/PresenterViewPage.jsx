@@ -12,8 +12,8 @@ import {
 import {
   fetchPresentation,
   clearCurrent,
-} from "../../../../store/slices/presentationSlice";
-import SlideRenderer from "../../../../components/presentations/SlideRenderer";
+} from "../../../store/slices/presentationSlice";
+import SlideRenderer from "../../../components/presentations/SlideRenderer";
 import "./PresenterViewPage.css";
 
 const PresenterViewPage = () => {

@@ -10,16 +10,28 @@ import {
   HiOutlineDocumentText,
 } from "react-icons/hi2";
 
-import { selectClasses } from "../../../../store/slices/classSlice";
-import { selectSubjects } from "../../../../store/slices/subjectSlice";
+import { selectClasses } from "../../../store/slices/classSlice";
+import { selectSubjects } from "../../../store/slices/subjectSlice";
+import {
+  fetchLessons,
+  selectLessons,
+  selectLessonsLoading,
+} from "../../../store/slices/lessonSlice";
 import {
   uploadMaterials,
   generatePresentation,
   fetchTemplates,
   clearUploadedMaterials,
-} from "../../../../store/slices/presentationSlice";
+} from "../../../store/slices/presentationSlice";
 
 const STEPS = ["details", "materials", "generate"];
+const PROMPT_PRESETS = [
+  "Keep language simple and age-appropriate for grade 5.",
+  "Include one short collaborative activity slide.",
+  "Add checks for understanding after key concepts.",
+  "Use concrete examples before abstract definitions.",
+  "End with a concise recap and exit ticket.",
+];
 
 const NewPresentationModal = ({ onClose }) => {
   const { t } = useTranslation(["presentations", "common"]);
@@ -27,6 +39,8 @@ const NewPresentationModal = ({ onClose }) => {
   const navigate = useNavigate();
   const classes = useSelector(selectClasses);
   const subjects = useSelector(selectSubjects);
+  const lessonPlans = useSelector(selectLessons);
+  const lessonPlansLoading = useSelector(selectLessonsLoading);
   const { templates, uploadedMaterials, uploading, generating, error } =
     useSelector((s) => s.presentations);
 
@@ -35,9 +49,12 @@ const NewPresentationModal = ({ onClose }) => {
   const [description, setDescription] = useState("");
   const [classId, setClassId] = useState("");
   const [subjectId, setSubjectId] = useState("");
+  const [lessonPlanId, setLessonPlanId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [slideCount, setSlideCount] = useState(10);
   const [prompt, setPrompt] = useState("");
+  const [selectedPrompts, setSelectedPrompts] = useState([]);
+  const [customPrompt, setCustomPrompt] = useState("");
 
   useEffect(() => {
     dispatch(fetchTemplates());
@@ -45,6 +62,45 @@ const NewPresentationModal = ({ onClose }) => {
       dispatch(clearUploadedMaterials());
     };
   }, [dispatch]);
+
+  useEffect(() => {
+    const filters = {
+      page: 1,
+      limit: 100,
+      class: classId || undefined,
+      subject: subjectId || undefined,
+    };
+    dispatch(fetchLessons(filters));
+  }, [dispatch, classId, subjectId]);
+
+  useEffect(() => {
+    if (!lessonPlanId) return;
+    const stillExists = (lessonPlans || []).some((l) => l._id === lessonPlanId);
+    if (!stillExists) {
+      setLessonPlanId("");
+    }
+  }, [lessonPlans, lessonPlanId]);
+
+  const togglePromptPreset = useCallback((preset) => {
+    setSelectedPrompts((prev) =>
+      prev.includes(preset)
+        ? prev.filter((p) => p !== preset)
+        : [...prev, preset]
+    );
+  }, []);
+
+  const addCustomPrompt = useCallback(() => {
+    const value = customPrompt.trim();
+    if (!value) return;
+    setSelectedPrompts((prev) =>
+      prev.includes(value) ? prev : [...prev, value]
+    );
+    setCustomPrompt("");
+  }, [customPrompt]);
+
+  const removePrompt = useCallback((value) => {
+    setSelectedPrompts((prev) => prev.filter((p) => p !== value));
+  }, []);
 
   const handleFileUpload = useCallback(
     async (e) => {
@@ -65,22 +121,30 @@ const NewPresentationModal = ({ onClose }) => {
       toast.error("Title is required");
       return;
     }
+    const mergedPrompt = [...selectedPrompts, prompt.trim()]
+      .filter(Boolean)
+      .join("\n");
+
     const payload = {
       title: title.trim(),
       description: description.trim(),
       classId: classId || undefined,
       subjectId: subjectId || undefined,
+      lessonPlanId: lessonPlanId || undefined,
       templateId: templateId || undefined,
       extractionIds: uploadedMaterials.map((m) => m._id),
       slideCount,
-      prompt: prompt.trim(),
+      prompt: mergedPrompt,
     };
 
     const res = await dispatch(generatePresentation(payload));
     if (!res.error) {
       toast.success("Presentation generated!");
+      const generated = res.payload?.presentation || res.payload;
       onClose();
-      navigate(`/portal/presentations/${res.payload._id}`);
+      if (generated?._id) {
+        navigate(`/portal/presentations/${generated._id}`);
+      }
     } else {
       toast.error(res.payload || "Generation failed");
     }
@@ -90,10 +154,12 @@ const NewPresentationModal = ({ onClose }) => {
     description,
     classId,
     subjectId,
+    lessonPlanId,
     templateId,
     uploadedMaterials,
     slideCount,
     prompt,
+    selectedPrompts,
     onClose,
     navigate,
   ]);
@@ -184,6 +250,25 @@ const NewPresentationModal = ({ onClose }) => {
                   </select>
                 </div>
               </div>
+              <div className="form-group">
+                <label>Lesson Plan (optional)</label>
+                <select
+                  value={lessonPlanId}
+                  onChange={(e) => setLessonPlanId(e.target.value)}
+                  className="form-input"
+                >
+                  <option value="">
+                    {lessonPlansLoading
+                      ? "Loading lesson plans..."
+                      : "No lesson plan selected"}
+                  </option>
+                  {(lessonPlans || []).map((lesson) => (
+                    <option key={lesson._id} value={lesson._id}>
+                      {lesson.title || "Untitled Lesson"}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="form-row">
                 <div className="form-group">
                   <label>Template</label>
@@ -263,6 +348,72 @@ const NewPresentationModal = ({ onClose }) => {
           {step === 2 && (
             <div className="wizard-panel">
               <div className="form-group">
+                <label>Prompt Suggestions</label>
+                <div className="prompt-chip-list">
+                  {PROMPT_PRESETS.map((preset) => {
+                    const active = selectedPrompts.includes(preset);
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        className={`prompt-chip ${active ? "active" : ""}`}
+                        onClick={() => togglePromptPreset(preset)}
+                      >
+                        {preset}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Add Custom Prompt</label>
+                <div className="prompt-custom-row">
+                  <input
+                    type="text"
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCustomPrompt();
+                      }
+                    }}
+                    placeholder="e.g. Include one real-world math scenario"
+                    className="form-input"
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={addCustomPrompt}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {selectedPrompts.length > 0 && (
+                <div className="form-group">
+                  <label>Selected Prompts</label>
+                  <div className="prompt-selected-list">
+                    {selectedPrompts.map((item) => (
+                      <span key={item} className="prompt-selected-item">
+                        {item}
+                        <button
+                          type="button"
+                          className="prompt-remove-btn"
+                          onClick={() => removePrompt(item)}
+                          aria-label="Remove prompt"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group">
                 <label>
                   Additional Instructions{" "}
                   <span className="label-hint">(optional)</span>
@@ -285,7 +436,16 @@ const NewPresentationModal = ({ onClose }) => {
                   <strong>Slides:</strong> {slideCount}
                 </p>
                 <p>
+                  <strong>Lesson Plan:</strong>{" "}
+                  {lessonPlanId
+                    ? lessonPlans.find((l) => l._id === lessonPlanId)?.title || "Selected"
+                    : "—"}
+                </p>
+                <p>
                   <strong>Materials:</strong> {uploadedMaterials.length} files
+                </p>
+                <p>
+                  <strong>Prompts:</strong> {selectedPrompts.length}
                 </p>
                 {templateId && (
                   <p>

@@ -222,3 +222,290 @@
   border-color: #1a73e8;
   color: #1a73e8;
 }
+
+.presentation-list-page .modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.presentation-list-page .modal-content {
+  background: #fff;
+  border-radius: 14px;
+  width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.presentation-list-page .modal-lg {
+  max-width: 640px;
+}
+
+.presentation-list-page .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.presentation-list-page .modal-header h2 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.presentation-list-page .modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.presentation-list-page .modal-footer {
+  display: flex;
+  padding: 14px 20px;
+  border-top: 1px solid #e8e8e8;
+  gap: 8px;
+}
+
+.presentation-list-page .btn-secondary {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.presentation-list-page .btn-secondary:hover {
+  border-color: #999;
+}
+
+.presentation-list-page .wizard-steps {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px;
+  background: #fafafa;
+}
+
+.presentation-list-page .wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #999;
+  cursor: default;
+}
+
+.presentation-list-page .wizard-step.active {
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-weight: 600;
+}
+
+.presentation-list-page .wizard-step.completed {
+  color: #1a73e8;
+  cursor: pointer;
+}
+
+.presentation-list-page .step-number {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.presentation-list-page .wizard-step.active .step-number {
+  background: #1a73e8;
+  color: #fff;
+}
+
+.presentation-list-page .wizard-step.completed .step-number {
+  background: #4caf50;
+  color: #fff;
+}
+
+.presentation-list-page .wizard-panel {
+  min-height: 200px;
+}
+
+.presentation-list-page .upload-zone {
+  margin-bottom: 16px;
+}
+
+.presentation-list-page .upload-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 20px;
+  border: 2px dashed #d0d0d0;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #888;
+  font-size: 14px;
+  text-align: center;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.presentation-list-page .upload-label:hover {
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+
+.presentation-list-page .upload-progress {
+  text-align: center;
+  font-size: 13px;
+  color: #1a73e8;
+  margin-top: 8px;
+}
+
+.presentation-list-page .uploaded-files {
+  margin-top: 16px;
+}
+
+.presentation-list-page .uploaded-files h4 {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+
+.presentation-list-page .uploaded-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.presentation-list-page .file-name {
+  flex: 1;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-list-page .file-meta {
+  color: #999;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.presentation-list-page .step-hint {
+  font-size: 13px;
+  color: #888;
+  margin-top: 16px;
+  line-height: 1.5;
+}
+
+.presentation-list-page .generation-summary {
+  background: #f9f9f9;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.presentation-list-page .generation-summary h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.presentation-list-page .generation-summary p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.presentation-list-page .spinner-sm {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: presentation-spin 0.6s linear infinite;
+}
+
+@keyframes presentation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.prompt-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prompt-chip {
+  border: 1px solid #d8e3ff;
+  background: #f6f9ff;
+  color: #2458c5;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.prompt-chip:hover {
+  border-color: #1a73e8;
+}
+
+.prompt-chip.active {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.prompt-custom-row {
+  display: flex;
+  gap: 8px;
+}
+
+.prompt-selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prompt-selected-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #334155;
+  font-size: 12px;
+}
+
+.prompt-remove-btn {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+
+.prompt-remove-btn:hover {
+  color: #ef4444;
+}

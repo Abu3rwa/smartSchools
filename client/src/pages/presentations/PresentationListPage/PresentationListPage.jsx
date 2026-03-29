@@ -14,8 +14,8 @@ import {
 import {
   fetchPresentations,
   deletePresentation,
-} from "../../../../store/slices/presentationSlice";
-import presentationService from "../../../../services/presentationService";
+} from "../../../store/slices/presentationSlice";
+import presentationService from "../../../services/presentationService";
 import NewPresentationModal from "./NewPresentationModal";
 import "./PresentationListPage.css";
 
@@ -26,6 +26,7 @@ const PresentationListPage = () => {
   const { list, pagination, loading, error } = useSelector(
     (s) => s.presentations
   );
+  const presentations = Array.isArray(list) ? list : [];
 
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -104,7 +105,7 @@ const PresentationListPage = () => {
         <div className="loading-spinner-container">
           <div className="spinner" />
         </div>
-      ) : list.length === 0 ? (
+      ) : presentations.length === 0 ? (
         <div className="empty-state">
           <HiOutlinePresentationChartBar size={48} />
           <h3>{t("presentations:noPresentations", "No presentations yet")}</h3>
@@ -125,7 +126,7 @@ const PresentationListPage = () => {
       ) : (
         <>
           <div className="presentation-grid">
-            {list.map((p) => (
+            {presentations.map((p) => (
               <div
                 key={p._id}
                 className="presentation-card"

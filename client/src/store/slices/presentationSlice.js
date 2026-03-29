@@ -12,7 +12,7 @@ export const uploadMaterials = createAsyncThunk(
       const res = await api.post("/presentations/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      return res.data.data;
+      return res.data?.data ?? res.data;
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Upload failed"
@@ -26,7 +26,7 @@ export const generatePresentation = createAsyncThunk(
   async (payload, { rejectWithValue }) => {
     try {
       const res = await api.post("/presentations/generate", payload);
-      return res.data.data;
+      return res.data?.data ?? res.data;
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Generation failed"
@@ -40,7 +40,7 @@ export const fetchPresentations = createAsyncThunk(
   async (params = {}, { rejectWithValue }) => {
     try {
       const res = await api.get("/presentations", { params });
-      return res.data;
+      return res.data?.data ?? res.data;
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Failed to load presentations"
@@ -54,7 +54,7 @@ export const fetchPresentation = createAsyncThunk(
   async (id, { rejectWithValue }) => {
     try {
       const res = await api.get(`/presentations/${id}`);
-      return res.data.data;
+      return res.data?.data ?? res.data;
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Failed to load presentation"
@@ -68,7 +68,7 @@ export const updatePresentation = createAsyncThunk(
   async ({ id, data }, { rejectWithValue }) => {
     try {
       const res = await api.put(`/presentations/${id}`, data);
-      return res.data.data;
+      return res.data?.data ?? res.data;
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Update failed"
@@ -85,7 +85,8 @@ export const updateSlide = createAsyncThunk(
         `/presentations/${id}/slides/${slideIndex}`,
         data
       );
-      return { slideIndex, slide: res.data.data };
+      const payload = res.data?.data ?? res.data;
+      return { slideIndex, slide: payload?.slide ?? payload };
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Slide update failed"
@@ -102,7 +103,8 @@ export const regenerateSlide = createAsyncThunk(
         `/presentations/${id}/slides/${slideIndex}/regenerate`,
         { prompt, keepLayout }
       );
-      return { slideIndex, slide: res.data.data.slide };
+      const payload = res.data?.data ?? res.data;
+      return { slideIndex, slide: payload?.slide ?? payload };
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Regeneration failed"
@@ -118,7 +120,7 @@ export const reorderSlides = createAsyncThunk(
       const res = await api.put(`/presentations/${id}/reorder`, {
         slideOrder,
       });
-      return res.data.data;
+      return res.data?.data ?? res.data;
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Reorder failed"
@@ -146,7 +148,7 @@ export const fetchTemplates = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const res = await api.get("/presentations/templates");
-      return res.data.data;
+      return res.data?.data ?? res.data;
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Failed to load templates"
@@ -194,9 +196,12 @@ const presentationSlice = createSlice({
       })
       .addCase(uploadMaterials.fulfilled, (state, action) => {
         state.uploading = false;
+        const uploaded = Array.isArray(action.payload)
+          ? action.payload
+          : action.payload?.extractions || [];
         state.uploadedMaterials = [
           ...state.uploadedMaterials,
-          ...action.payload,
+          ...uploaded,
         ];
       })
       .addCase(uploadMaterials.rejected, (state, action) => {
@@ -211,7 +216,7 @@ const presentationSlice = createSlice({
       })
       .addCase(generatePresentation.fulfilled, (state, action) => {
         state.generating = false;
-        state.current = action.payload;
+        state.current = action.payload?.presentation || action.payload || null;
         state.uploadedMaterials = [];
       })
       .addCase(generatePresentation.rejected, (state, action) => {
@@ -226,8 +231,11 @@ const presentationSlice = createSlice({
       })
       .addCase(fetchPresentations.fulfilled, (state, action) => {
         state.loading = false;
-        state.list = action.payload.data;
-        state.pagination = action.payload.pagination;
+        const listPayload = action.payload;
+        state.list = Array.isArray(listPayload)
+          ? listPayload
+          : listPayload?.presentations || listPayload?.data || [];
+        state.pagination = listPayload?.pagination || null;
       })
       .addCase(fetchPresentations.rejected, (state, action) => {
         state.loading = false;
@@ -241,7 +249,7 @@ const presentationSlice = createSlice({
       })
       .addCase(fetchPresentation.fulfilled, (state, action) => {
         state.loading = false;
-        state.current = action.payload;
+        state.current = action.payload?.presentation || action.payload || null;
       })
       .addCase(fetchPresentation.rejected, (state, action) => {
         state.loading = false;
@@ -250,11 +258,13 @@ const presentationSlice = createSlice({
 
       // Update meta
       .addCase(updatePresentation.fulfilled, (state, action) => {
-        state.current = action.payload;
+        const updated = action.payload?.presentation || action.payload;
+        state.current = updated || null;
+        if (!updated || !Array.isArray(state.list)) return;
         const idx = state.list.findIndex(
-          (p) => p._id === action.payload._id
+          (p) => p._id === updated._id
         );
-        if (idx !== -1) state.list[idx] = action.payload;
+        if (idx !== -1) state.list[idx] = updated;
       })
 
       // Update slide
@@ -262,7 +272,7 @@ const presentationSlice = createSlice({
         state.error = null;
       })
       .addCase(updateSlide.fulfilled, (state, action) => {
-        if (state.current) {
+        if (state.current && Array.isArray(state.current.slides)) {
           state.current.slides[action.payload.slideIndex] =
             action.payload.slide;
         }
@@ -275,7 +285,7 @@ const presentationSlice = createSlice({
       })
       .addCase(regenerateSlide.fulfilled, (state, action) => {
         state.regenerating = false;
-        if (state.current) {
+        if (state.current && Array.isArray(state.current.slides)) {
           state.current.slides[action.payload.slideIndex] =
             action.payload.slide;
         }
@@ -287,18 +297,29 @@ const presentationSlice = createSlice({
 
       // Reorder
       .addCase(reorderSlides.fulfilled, (state, action) => {
-        state.current = action.payload;
+        if (!state.current) return;
+        if (Array.isArray(action.payload?.slides)) {
+          state.current.slides = action.payload.slides;
+          return;
+        }
+        if (Array.isArray(action.payload)) {
+          state.current.slides = action.payload;
+        }
       })
 
       // Delete
       .addCase(deletePresentation.fulfilled, (state, action) => {
-        state.list = state.list.filter((p) => p._id !== action.payload);
+        state.list = Array.isArray(state.list)
+          ? state.list.filter((p) => p._id !== action.payload)
+          : [];
         if (state.current?._id === action.payload) state.current = null;
       })
 
       // Templates
       .addCase(fetchTemplates.fulfilled, (state, action) => {
-        state.templates = action.payload;
+        state.templates = Array.isArray(action.payload)
+          ? action.payload
+          : action.payload?.templates || [];
       });
   },
 });

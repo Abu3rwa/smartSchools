@@ -17,6 +17,7 @@
   "items": {
     "dashboard": "Dashboard",
     "notifications": "Notifications",
+    "presentations": "Presentations",
     "messages": "Messages",
     "emailComposer": "Email Composer",
     "mySchedule": "My Schedule",
