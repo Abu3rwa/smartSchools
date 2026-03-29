@@ -109,6 +109,12 @@ export const FEATURES = {
         label: 'Newsletter Communication',
         description: 'Enable school newsletter creation and distribution workflows.',
         plans: ['professional', 'enterprise']
+    },
+    presentationBuilder: {
+        key: 'presentationBuilder',
+        label: 'AI Presentation Builder',
+        description: 'Generate AI-powered classroom presentations from lesson plans and uploaded materials.',
+        plans: ['professional', 'enterprise']
     }
 };
 

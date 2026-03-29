@@ -121,7 +121,11 @@ export const PERMISSIONS = {
 
     // Newsletter
     MANAGE_NEWSLETTER_TEMPLATES: 'manage_newsletter_templates',
-    MANAGE_NEWSLETTER_SETTINGS: 'manage_newsletter_settings'
+    MANAGE_NEWSLETTER_SETTINGS: 'manage_newsletter_settings',
+
+    // Presentations
+    MANAGE_PRESENTATIONS: 'manage_presentations',
+    MANAGE_PRESENTATION_TEMPLATES: 'manage_presentation_templates',
 };
 
 export const PERMISSION_DEFINITIONS = {
@@ -524,6 +528,16 @@ export const PERMISSION_DEFINITIONS = {
         label: 'View AE At Risk Report',
         description: 'View at-risk student Academic Excellence reports',
         category: 'reports'
+    },
+    [PERMISSIONS.MANAGE_PRESENTATIONS]: {
+        label: 'Manage Presentations',
+        description: 'Create, edit, and generate AI presentations',
+        category: 'academic'
+    },
+    [PERMISSIONS.MANAGE_PRESENTATION_TEMPLATES]: {
+        label: 'Manage Presentation Templates',
+        description: 'Create and manage presentation templates',
+        category: 'admin'
     }
 };
 

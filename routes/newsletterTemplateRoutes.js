@@ -11,7 +11,9 @@ import {
   duplicateTemplate,
   setDefaultTemplate,
   getActiveDefault,
+  uploadTemplateImage,
 } from "../controllers/newsletterTemplateController.js";
+import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -21,6 +23,12 @@ router.use(requireFeature("newsletterCommunication"));
 
 // Public-ish reads (any authenticated school user who has the feature)
 router.get("/active-default", getActiveDefault);
+router.post(
+  "/upload-image",
+  authorize("admin", "super_admin"),
+  upload.single("image"),
+  uploadTemplateImage,
+);
 
 // Admin / permitted-user management routes
 router.get("/", authorize("admin", "super_admin", "department_principal"), listTemplates);

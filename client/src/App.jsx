@@ -122,6 +122,9 @@ const SuperAdminSubscriptionDetailsPage = lazy(() => import("./pages/superAdmin/
 const BehaviorAnalyticsPage = lazy(() => import("./pages/superAdmin/BehaviorAnalyticsPage"));
 const SuperAdminLandingPageEditor = lazy(() => import("./pages/superAdmin/SuperAdminLandingPageEditor"));
 const ApiDocsPage = lazy(() => import("./pages/docs/ApiDocsPage"));
+const PresentationListPage = lazy(() => import("./pages/presentations/PresentationListPage/PresentationListPage"));
+const PresentationEditorPage = lazy(() => import("./pages/presentations/PresentationEditorPage/PresentationEditorPage"));
+const PresenterViewPage = lazy(() => import("./pages/presentations/PresenterViewPage/PresenterViewPage"));
 
 const RouteLoadingFallback = () => (
   <div className="loading-overlay">
@@ -955,6 +958,44 @@ function App() {
                   <FeatureGate feature="academicIntelligence" showUpgradePrompt>
                     <AdminAcademicExcellenceDashboard />
                   </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            {/* Presentations */}
+            <Route
+              path="presentations"
+              element={
+                <RoleRoute
+                  roles={["admin", "department_principal", "teacher"]}
+                  permissions={["manage_presentations"]}
+                >
+                  <FeatureGate feature="presentationBuilder" showUpgradePrompt>
+                    <PresentationListPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="presentations/:id"
+              element={
+                <RoleRoute
+                  roles={["admin", "department_principal", "teacher"]}
+                  permissions={["manage_presentations"]}
+                >
+                  <FeatureGate feature="presentationBuilder" showUpgradePrompt>
+                    <PresentationEditorPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="presentations/:id/present"
+              element={
+                <RoleRoute
+                  roles={["admin", "department_principal", "teacher"]}
+                  permissions={["manage_presentations"]}
+                >
+                  <PresenterViewPage />
                 </RoleRoute>
               }
             />

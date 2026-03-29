@@ -78,6 +78,7 @@ import sbrRoutes from "./routes/sbrRoutes.js";
 import reteachTaskRoutes from "./routes/reteachTaskRoutes.js";
 import studentGroupingRoutes from "./routes/studentGroupingRoutes.js";
 import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
+import presentationRoutes from "./routes/presentationRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
@@ -312,6 +313,7 @@ app.use("/api/curriculum-settings", curriculumSettingsRoutes);
 app.use("/api/academic-excellence", academicExcellenceRoutes);
 app.use("/api/student-grouping", studentGroupingRoutes);
 app.use("/api/sbr", sbrRoutes);
+app.use("/api/presentations", presentationRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);

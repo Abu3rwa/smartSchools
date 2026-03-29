@@ -1,6 +1,7 @@
 import { asyncHandler } from "../middleware/errorHandler.js";
 import NewsletterTemplate from "../models/NewsletterTemplate.js";
 import { hasPermission, PERMISSIONS } from "../config/permissions.js";
+import { uploadFile } from "../services/firebaseStorageService.js";
 
 /* ────────────────────────────────────────────────────────────────
  * Helpers
@@ -19,6 +20,26 @@ function requireTemplatePermission(user) {
 }
 
 const MAX_SECTIONS = 30;
+
+const MIME_EXTENSION_MAP = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+function resolveImageExtension(file = {}) {
+  const mime = String(file.mimetype || "").toLowerCase();
+  if (MIME_EXTENSION_MAP[mime]) return MIME_EXTENSION_MAP[mime];
+
+  const name = String(file.originalname || "");
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex > -1 && dotIndex < name.length - 1) {
+    return name.slice(dotIndex + 1).toLowerCase();
+  }
+  return "jpg";
+}
 
 /* ────────────────────────────────────────────────────────────────
  * List all templates for current school
@@ -50,6 +71,35 @@ export const getTemplate = asyncHandler(async (req, res) => {
   }
 
   res.json({ success: true, data: template });
+});
+
+/* ────────────────────────────────────────────────────────────────
+ * Upload image for template blocks/backgrounds
+ * POST /api/newsletter-templates/upload-image
+ * ──────────────────────────────────────────────────────────────── */
+export const uploadTemplateImage = asyncHandler(async (req, res) => {
+  requireTemplatePermission(req.user);
+
+  if (!req.file) {
+    const err = new Error("Please provide a valid image file");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const extension = resolveImageExtension(req.file);
+  const destinationPath = `newsletters/templates/${req.schoolId}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}.${extension}`;
+
+  const imageUrl = await uploadFile(req.file.buffer, req.file.mimetype, destinationPath);
+
+  res.status(201).json({
+    success: true,
+    data: {
+      url: imageUrl,
+      path: destinationPath,
+    },
+  });
 });
 
 /* ────────────────────────────────────────────────────────────────

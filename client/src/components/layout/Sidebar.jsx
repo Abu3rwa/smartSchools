@@ -67,6 +67,7 @@ import {
   HiOutlineChevronRight,
   HiOutlineBars3,
   HiOutlineLockClosed,
+  HiOutlinePresentationChartBar,
 } from "react-icons/hi2";
 import "./Sidebar.css";
 
@@ -361,6 +362,15 @@ const Sidebar = () => {
       teacher: true,
       feature: "newsletterCommunication",
       section: "communication",
+    },
+    {
+      path: "/portal/presentations",
+      icon: HiOutlinePresentationChartBar,
+      labelKey: "presentations",
+      roles: ["admin", "department_principal", "teacher"],
+      permissions: [PERMISSIONS.MANAGE_PRESENTATIONS],
+      feature: "presentationBuilder",
+      section: "teaching",
     },
     {
       path: "/portal/newsletters/admin",

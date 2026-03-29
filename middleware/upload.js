@@ -33,4 +33,40 @@ const upload = multer({
     fileFilter
 });
 
+// --- Presentation upload (PDF, DOCX, PPTX, images) ---
+const ALLOWED_PRESENTATION_MIMES = new Set([
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp'
+]);
+const ALLOWED_PRESENTATION_EXTENSIONS = new Set([
+    '.pdf', '.docx', '.pptx', '.jpg', '.jpeg', '.png', '.webp'
+]);
+
+const isAllowedPresentationUpload = (file = {}) => {
+    const mime = String(file.mimetype || '').toLowerCase();
+    const extension = path.extname(String(file.originalname || '')).toLowerCase();
+    return ALLOWED_PRESENTATION_MIMES.has(mime) && ALLOWED_PRESENTATION_EXTENSIONS.has(extension);
+};
+
+export const uploadPresentation = multer({
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        void req;
+        if (isAllowedPresentationUpload(file)) {
+            cb(null, true);
+        } else {
+            cb(
+                new Error('Invalid file type. Allowed: pdf, docx, pptx, jpg, jpeg, png, webp.'),
+                false
+            );
+        }
+    }
+});
+
 export default upload;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchTemplate,
@@ -7,6 +7,7 @@ import {
   selectTemplatesSaving,
   selectTemplatesLoading,
 } from '../../../../store/slices/newsletterTemplateSlice';
+import newsletterTemplateService from '../../../../services/newsletterTemplateService';
 import { toast } from 'react-hot-toast';
 import './NewsletterTemplatesPage.css';
 
@@ -225,10 +226,19 @@ function GlobalStyleEditor({ globalStyle, onChange }) {
 }
 
 /* ── Block Property Editor ────────────────────────────────────── */
-function BlockEditor({ block, onChange }) {
+function BlockEditor({ block, onChange, onUploadImage, isUploadingImage = false }) {
   if (!block) return null;
   const set = (key, val) => onChange({ ...block, [key]: val });
   const setStyle = (key, val) => onChange({ ...block, style: { ...block.style, [key]: val } });
+  const uploadLabel = isUploadingImage ? 'Uploading...' : 'Upload From Device';
+
+  const uploadTo = async (event, assign) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !onUploadImage) return;
+    const uploadedUrl = await onUploadImage(file);
+    if (uploadedUrl) assign(uploadedUrl);
+  };
 
   return (
     <div className="nt-block-editor">
@@ -259,6 +269,11 @@ function BlockEditor({ block, onChange }) {
       {block.type === 'image' && (
         <>
           <div><label>Image URL</label><input type="url" value={block.imageUrl || ''} onChange={(e) => set('imageUrl', e.target.value)} /></div>
+          <div>
+            <label>Upload Image</label>
+            <input type="file" accept="image/*" disabled={isUploadingImage} onChange={(e) => uploadTo(e, (url) => set('imageUrl', url))} />
+            <small style={{ color: 'var(--text-secondary)' }}>{uploadLabel}</small>
+          </div>
           <div><label>Alt Text</label><input type="text" value={block.imageAlt || ''} onChange={(e) => set('imageAlt', e.target.value)} /></div>
         </>
       )}
@@ -284,6 +299,11 @@ function BlockEditor({ block, onChange }) {
           <div><label>Subheading</label><input type="text" value={block.subheading || ''} onChange={(e) => set('subheading', e.target.value)} /></div>
           <div><label>Background Image URL</label><input type="url" value={block.style?.backgroundImageUrl || ''} onChange={(e) => setStyle('backgroundImageUrl', e.target.value)} /></div>
           <div>
+            <label>Upload Background Image</label>
+            <input type="file" accept="image/*" disabled={isUploadingImage} onChange={(e) => uploadTo(e, (url) => setStyle('backgroundImageUrl', url))} />
+            <small style={{ color: 'var(--text-secondary)' }}>{uploadLabel}</small>
+          </div>
+          <div>
             <label>Overlay Opacity (0–1)</label>
             <input type="number" step="0.1" min="0" max="1" value={block.style?.overlayOpacity || '0.5'} onChange={(e) => setStyle('overlayOpacity', e.target.value)} />
           </div>
@@ -301,6 +321,17 @@ function BlockEditor({ block, onChange }) {
                 imgs[i] = { ...imgs[i], url: e.target.value };
                 set('images', imgs);
               }} />
+              <label>Upload Image {i + 1}</label>
+              <input
+                type="file"
+                accept="image/*"
+                disabled={isUploadingImage}
+                onChange={(e) => uploadTo(e, (url) => {
+                  const imgs = [...(block.images || [])];
+                  imgs[i] = { ...imgs[i], url };
+                  set('images', imgs);
+                })}
+              />
               <label>Alt</label>
               <input type="text" value={img.alt || ''} onChange={(e) => {
                 const imgs = [...(block.images || [])];
@@ -352,6 +383,11 @@ function BlockEditor({ block, onChange }) {
           <div><label>Role</label><input type="text" value={block.role || ''} placeholder="Student / Teacher" onChange={(e) => set('role', e.target.value)} /></div>
           <div><label>Quote</label><textarea value={block.quote || ''} rows={3} onChange={(e) => set('quote', e.target.value)} /></div>
           <div><label>Avatar URL</label><input type="url" value={block.avatarUrl || ''} onChange={(e) => set('avatarUrl', e.target.value)} /></div>
+          <div>
+            <label>Upload Avatar</label>
+            <input type="file" accept="image/*" disabled={isUploadingImage} onChange={(e) => uploadTo(e, (url) => set('avatarUrl', url))} />
+            <small style={{ color: 'var(--text-secondary)' }}>{uploadLabel}</small>
+          </div>
         </>
       )}
 
@@ -482,12 +518,12 @@ function buildPreviewHtml(template) {
 
   const blocks = [...(template.sections || [])].filter((b) => b.visible !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  const interpolate = (text) => (text || '')
+  const interpolate = (text) => String(text ?? '')
     .replace(/\{classLabel\}/gi, 'Grade 5 - Green')
     .replace(/\{weekLabel\}/gi, '3/24/2026 – 3/28/2026')
     .replace(/\{schoolName\}/gi, 'Al-Noor Academy');
 
-  const esc = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const md2 = (t) => esc(t).replace(/\n/g, '<br/>');
 
   const sampleSubjects = [
@@ -616,6 +652,12 @@ function buildPreviewHtml(template) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:0;}</style></head><body><div style="font-family:${esc(font)};max-width:${esc(maxWidth)};margin:0 auto;padding:${esc(contentPadding)};background:${esc(bg)};">${htmlBlocks.filter(Boolean).join(`<div style="height:${esc(sectionSpacing)};"></div>`)}</div></body></html>`;
 }
 
+function buildPreviewErrorHtml(error) {
+  const message = String(error?.message || 'Failed to render preview');
+  const safeMessage = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:24px;font-family:Arial, Helvetica, sans-serif;background:#fff7ed;color:#9a3412;"><h3 style="margin:0 0 8px 0;">Preview unavailable</h3><p style="margin:0;">${safeMessage}</p></body></html>`;
+}
+
 /* ── Main Editor Component ────────────────────────────────────── */
 export default function TemplateEditor({ templateId, onBack }) {
   const dispatch = useDispatch();
@@ -630,7 +672,7 @@ export default function TemplateEditor({ templateId, onBack }) {
   const [activeBlockId, setActiveBlockId] = useState(null);
   const [sidebarTab, setSidebarTab] = useState('blocks'); // blocks | style
   const [dirty, setDirty] = useState(false);
-  const iframeRef = useRef(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Load template
   useEffect(() => {
@@ -649,14 +691,32 @@ export default function TemplateEditor({ templateId, onBack }) {
   }, [saved, templateId]);
 
   // Live preview
-  const previewHtml = useMemo(() => buildPreviewHtml({ sections, globalStyle }), [sections, globalStyle]);
-
-  useEffect(() => {
-    if (iframeRef.current) {
-      const doc = iframeRef.current.contentDocument;
-      if (doc) { doc.open(); doc.write(previewHtml); doc.close(); }
+  const previewHtml = useMemo(() => {
+    try {
+      return buildPreviewHtml({ sections, globalStyle });
+    } catch (error) {
+      return buildPreviewErrorHtml(error);
     }
-  }, [previewHtml]);
+  }, [sections, globalStyle]);
+
+  const uploadImage = useCallback(async (file) => {
+    if (!file) return '';
+    try {
+      setUploadingImage(true);
+      const response = await newsletterTemplateService.uploadImage(file);
+      const uploadedUrl = response?.data?.url || '';
+      if (!uploadedUrl) {
+        throw new Error('Image upload failed');
+      }
+      toast.success('Image uploaded');
+      return uploadedUrl;
+    } catch (error) {
+      toast.error(error?.message || 'Failed to upload image');
+      return '';
+    } finally {
+      setUploadingImage(false);
+    }
+  }, []);
 
   // Active block
   const activeBlock = useMemo(() => sections.find((s) => s.id === activeBlockId) || null, [sections, activeBlockId]);
@@ -809,7 +869,7 @@ export default function TemplateEditor({ templateId, onBack }) {
               {activeBlock && (
                 <div className="nt-sidebar-section">
                   <h3>Edit Block</h3>
-                  <BlockEditor block={activeBlock} onChange={updateBlock} />
+                  <BlockEditor block={activeBlock} onChange={updateBlock} onUploadImage={uploadImage} isUploadingImage={uploadingImage} />
                 </div>
               )}
             </>
@@ -829,7 +889,7 @@ export default function TemplateEditor({ templateId, onBack }) {
         {/* Canvas / Preview */}
         <div className="nt-editor-canvas">
           <div className="nt-editor-canvas-inner">
-            <iframe ref={iframeRef} title="template-preview" sandbox="" style={{ width: '100%', minHeight: 600, border: 'none' }} />
+            <iframe title="template-preview" srcDoc={previewHtml} sandbox="allow-same-origin" style={{ width: '100%', minHeight: 600, border: 'none' }} />
           </div>
         </div>
       </div>

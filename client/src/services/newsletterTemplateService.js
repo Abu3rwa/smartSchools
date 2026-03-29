@@ -40,6 +40,15 @@ const newsletterTemplateService = {
     const response = await api.patch(`/newsletter-templates/${id}/set-default`);
     return response.data;
   },
+
+  uploadImage: async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await api.post('/newsletter-templates/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
 };
 
 export default newsletterTemplateService;

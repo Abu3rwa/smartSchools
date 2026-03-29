@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {
+      size: 10in 7.5in;
+      margin: 0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: {{fontFamily}}; color: #222; }
+
+    .slide {
+      width: 10in;
+      height: 7.5in;
+      padding: 0.6in 0.8in;
+      page-break-after: always;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .slide:last-child { page-break-after: auto; }
+
+    /* Slide number */
+    .slide-number {
+      position: absolute;
+      bottom: 0.3in;
+      right: 0.4in;
+      font-size: 11px;
+      color: #999;
+    }
+
+    /* ─── Title Slide ─── */
+    .slide.layout-title-only,
+    .slide.layout-section-header {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      background: linear-gradient(135deg, {{primaryColor}} 0%, {{secondaryColor}} 100%);
+      color: #fff;
+    }
+    .slide.layout-title-only .slide-title,
+    .slide.layout-section-header .slide-title {
+      font-size: 42px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+    .slide.layout-title-only .slide-subtitle,
+    .slide.layout-section-header .slide-subtitle {
+      font-size: 22px;
+      font-weight: 400;
+      opacity: 0.9;
+    }
+    .slide.layout-title-only .slide-number,
+    .slide.layout-section-header .slide-number {
+      color: rgba(255,255,255,0.5);
+    }
+
+    /* ─── Title + Body ─── */
+    .slide.layout-title-body .slide-title {
+      font-size: 30px;
+      font-weight: 700;
+      color: {{primaryColor}};
+      border-bottom: 3px solid {{primaryColor}};
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+    }
+    .slide.layout-title-body .slide-body {
+      flex: 1;
+      font-size: 18px;
+      line-height: 1.7;
+    }
+
+    /* ─── Two Column ─── */
+    .slide.layout-two-column .slide-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: {{primaryColor}};
+      border-bottom: 3px solid {{primaryColor}};
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .slide.layout-two-column .columns {
+      display: flex;
+      gap: 0.5in;
+      flex: 1;
+    }
+    .slide.layout-two-column .col {
+      flex: 1;
+      font-size: 17px;
+      line-height: 1.6;
+    }
+
+    /* ─── Comparison ─── */
+    .slide.layout-comparison .slide-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: {{primaryColor}};
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .slide.layout-comparison .columns {
+      display: flex;
+      gap: 0.3in;
+      flex: 1;
+    }
+    .slide.layout-comparison .col {
+      flex: 1;
+      background: #f7f9fc;
+      border-radius: 10px;
+      padding: 20px;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    /* ─── Image + Text ─── */
+    .slide.layout-image-text .slide-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: {{primaryColor}};
+      margin-bottom: 16px;
+    }
+    .slide.layout-image-text .image-text-row {
+      display: flex;
+      gap: 0.4in;
+      flex: 1;
+      align-items: center;
+    }
+    .slide.layout-image-text .image-col {
+      flex: 0 0 40%;
+      text-align: center;
+    }
+    .slide.layout-image-text .image-col img {
+      max-width: 100%;
+      max-height: 4in;
+      border-radius: 8px;
+    }
+    .slide.layout-image-text .text-col {
+      flex: 1;
+      font-size: 17px;
+      line-height: 1.6;
+    }
+
+    /* ─── Big Number ─── */
+    .slide.layout-big-number {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .slide.layout-big-number .slide-title {
+      font-size: 80px;
+      font-weight: 800;
+      color: {{primaryColor}};
+      margin-bottom: 16px;
+    }
+    .slide.layout-big-number .slide-body {
+      font-size: 22px;
+      color: #555;
+      max-width: 7in;
+    }
+
+    /* ─── Quote ─── */
+    .slide.layout-quote {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      background: #f7f9fc;
+    }
+    .slide.layout-quote .slide-body {
+      font-size: 26px;
+      font-style: italic;
+      color: #333;
+      max-width: 7in;
+      line-height: 1.6;
+      position: relative;
+      padding: 0 40px;
+    }
+    .slide.layout-quote .slide-body::before {
+      content: "\201C";
+      font-size: 80px;
+      color: {{primaryColor}};
+      position: absolute;
+      top: -30px;
+      left: -10px;
+      line-height: 1;
+    }
+    .slide.layout-quote .slide-title {
+      margin-top: 20px;
+      font-size: 18px;
+      color: #888;
+      font-weight: 400;
+    }
+
+    /* ─── Blank ─── */
+    .slide.layout-blank { background: #fff; }
+
+    /* Global body content styles */
+    .slide-body ul, .slide-body ol { padding-left: 28px; margin: 8px 0; }
+    .slide-body li { margin-bottom: 6px; }
+    .slide-body strong { color: {{primaryColor}}; }
+    .slide-body table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    .slide-body th { background: {{primaryColor}}; color: #fff; padding: 8px 12px; text-align: left; font-size: 15px; }
+    .slide-body td { border-bottom: 1px solid #e0e0e0; padding: 8px 12px; font-size: 15px; }
+  </style>
+</head>
+<body>
+{{#each slides}}
+  {{#if (eq layout "title-only")}}
+  <div class="slide layout-title-only">
+    <div class="slide-title">{{title}}</div>
+    {{#if subtitle}}<div class="slide-subtitle">{{subtitle}}</div>{{/if}}
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+
+  {{else if (eq layout "section-header")}}
+  <div class="slide layout-section-header">
+    <div class="slide-title">{{title}}</div>
+    {{#if subtitle}}<div class="slide-subtitle">{{subtitle}}</div>{{/if}}
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+
+  {{else if (eq layout "two-column")}}
+  <div class="slide layout-two-column">
+    <div class="slide-title">{{title}}</div>
+    <div class="columns">
+      <div class="col">{{{bodyHtml}}}</div>
+      <div class="col">{{{bodyHtml2}}}</div>
+    </div>
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+
+  {{else if (eq layout "comparison")}}
+  <div class="slide layout-comparison">
+    <div class="slide-title">{{title}}</div>
+    <div class="columns">
+      <div class="col">{{{bodyHtml}}}</div>
+      <div class="col">{{{bodyHtml2}}}</div>
+    </div>
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+
+  {{else if (eq layout "image-text")}}
+  <div class="slide layout-image-text">
+    <div class="slide-title">{{title}}</div>
+    <div class="image-text-row">
+      <div class="image-col">
+        {{#if imageUrl}}<img src="{{imageUrl}}" alt="{{imageAlt}}" />{{/if}}
+        {{#if imageCaption}}<p style="font-size:13px;color:#888;margin-top:6px;">{{imageCaption}}</p>{{/if}}
+      </div>
+      <div class="text-col">{{{bodyHtml}}}</div>
+    </div>
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+
+  {{else if (eq layout "big-number")}}
+  <div class="slide layout-big-number">
+    <div class="slide-title">{{title}}</div>
+    <div class="slide-body">{{{bodyHtml}}}</div>
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+
+  {{else if (eq layout "quote")}}
+  <div class="slide layout-quote">
+    <div class="slide-body">{{{bodyHtml}}}</div>
+    <div class="slide-title">{{title}}</div>
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+
+  {{else if (eq layout "blank")}}
+  <div class="slide layout-blank">
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+
+  {{else}}
+  {{! Default: title-body layout }}
+  <div class="slide layout-title-body">
+    <div class="slide-title">{{title}}</div>
+    <div class="slide-body">{{{bodyHtml}}}</div>
+    <div class="slide-number">{{slideNumber}} / {{totalSlides}}</div>
+  </div>
+  {{/if}}
+{{/each}}
+</body>
+</html>

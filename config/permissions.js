@@ -127,7 +127,11 @@ export const PERMISSIONS = {
 
     // Newsletter Templates
     MANAGE_NEWSLETTER_TEMPLATES: 'manage_newsletter_templates',
-    MANAGE_NEWSLETTER_SETTINGS: 'manage_newsletter_settings'
+    MANAGE_NEWSLETTER_SETTINGS: 'manage_newsletter_settings',
+
+    // Presentations
+    MANAGE_PRESENTATIONS: 'manage_presentations',
+    MANAGE_PRESENTATION_TEMPLATES: 'manage_presentation_templates'
 };
 
 // Permission definitions with metadata
@@ -566,6 +570,16 @@ export const PERMISSION_DEFINITIONS = {
         label: 'Manage Newsletter Settings',
         description: 'Configure newsletter frequency and AI word limits',
         category: 'communication'
+    },
+    [PERMISSIONS.MANAGE_PRESENTATIONS]: {
+        label: 'Manage Presentations',
+        description: 'Create, edit, and manage AI classroom presentations',
+        category: 'content'
+    },
+    [PERMISSIONS.MANAGE_PRESENTATION_TEMPLATES]: {
+        label: 'Manage Presentation Templates',
+        description: 'Create and manage presentation template structures',
+        category: 'content'
     }
 };
 
