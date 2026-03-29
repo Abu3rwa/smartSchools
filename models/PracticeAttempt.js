@@ -107,6 +107,19 @@ const practiceAttemptSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    gradingMode: {
+      type: String,
+      enum: ["exact_match", "normalized_match", "conceptual"],
+      default: "conceptual",
+    },
+    acceptableAnswers: {
+      type: [String],
+      default: [],
+    },
+    evaluationCriteria: {
+      type: String,
+      default: "",
+    },
     hintsUsed: {
       type: Number,
       default: 0,

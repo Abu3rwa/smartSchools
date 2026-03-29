@@ -221,8 +221,10 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         user: req.user
     });
 
-    // Determine the grade type - support both new types and legacy 'daily'
-    const effectiveGradeType = gradeType || 'classwork';
+    // Determine the grade type - derive from category when not explicit
+    const CATEGORY_TO_GRADE_TYPE = { test: 'monthly_test', exam: 'semester_exam', midterm: 'midterm_exam', final: 'final_exam' };
+    const normalizedCategory = (category || '').trim().toLowerCase();
+    const effectiveGradeType = gradeType || CATEGORY_TO_GRADE_TYPE[normalizedCategory] || normalizedCategory || 'classwork';
     const resolvedAssessmentGroupId = req.body.assessmentGroupId || generateAssessmentGroupId('asg');
 
     // Calculate month and semester from date (Use UTC to avoid timezone shifts)
@@ -284,6 +286,141 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         success: true,
         message: `${savedGrades.length} grades added successfully`,
         data: { count: savedGrades.length }
+    });
+});
+
+/**
+ * @desc    Bulk update existing grades (edit mode)
+ * @route   PUT /api/grades/bulk
+ * @access  Private (Teacher, Admin)
+ */
+export const bulkUpdateGrades = asyncHandler(async (req, res) => {
+    const { grades: gradeUpdates } = req.body;
+    // gradeUpdates: [{ _id, marks, maxMarks, remarks }]
+
+    if (!Array.isArray(gradeUpdates) || gradeUpdates.length === 0) {
+        return res.status(400).json({ success: false, message: 'grades array is required and must not be empty' });
+    }
+
+    const gradeIds = gradeUpdates.map((g) => g._id).filter(Boolean);
+    if (gradeIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Each grade must have an _id' });
+    }
+
+    // Fetch all existing grades to verify ownership and school
+    const existingGrades = await Grade.find({
+        _id: { $in: gradeIds },
+        school: req.schoolId
+    }).lean();
+
+    if (existingGrades.length !== gradeIds.length) {
+        return res.status(404).json({ success: false, message: 'One or more grades not found' });
+    }
+
+    // Teacher access control: can only edit own grades
+    if (req.user.role === 'teacher') {
+        const teacherProfile = await resolveTeacherProfile(req);
+        if (!teacherProfile) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        for (const grade of existingGrades) {
+            const gradeTeacherId = grade.teacher?.toString();
+            if (gradeTeacherId !== teacherProfile._id.toString() && gradeTeacherId !== req.user._id.toString()) {
+                return res.status(403).json({ success: false, message: 'You can only modify grades you created' });
+            }
+        }
+    }
+
+    // Build bulk write operations
+    const updateMap = new Map(gradeUpdates.map((g) => [g._id, g]));
+    const operations = [];
+    for (const existing of existingGrades) {
+        const update = updateMap.get(existing._id.toString());
+        if (!update) continue;
+        const setFields = {};
+        if (update.marks !== undefined && update.marks !== null && update.marks !== '') {
+            setFields.marks = Number(update.marks);
+        }
+        if (update.maxMarks !== undefined) setFields.maxMarks = Number(update.maxMarks);
+        if (update.remarks !== undefined) setFields.remarks = update.remarks;
+        if (Object.keys(setFields).length > 0) {
+            operations.push({
+                updateOne: {
+                    filter: { _id: existing._id, school: req.schoolId },
+                    update: { $set: setFields }
+                }
+            });
+        }
+    }
+
+    if (operations.length === 0) {
+        return res.status(400).json({ success: false, message: 'No valid updates to apply' });
+    }
+
+    const result = await Grade.bulkWrite(operations);
+
+    res.json({
+        success: true,
+        message: `${result.modifiedCount} grades updated successfully`,
+        data: { modifiedCount: result.modifiedCount }
+    });
+});
+
+/**
+ * @desc    Get grades by assessment group ID (for edit mode)
+ * @route   GET /api/grades/by-group/:assessmentGroupId
+ * @access  Private (Teacher, Admin)
+ */
+export const getGradesByAssessmentGroup = asyncHandler(async (req, res) => {
+    const { assessmentGroupId } = req.params;
+
+    if (!assessmentGroupId) {
+        return res.status(400).json({ success: false, message: 'Assessment group ID is required' });
+    }
+
+    const query = {
+        assessmentGroupId,
+        school: req.schoolId
+    };
+
+    // Teacher access control
+    if (req.user.role === 'teacher') {
+        const teacherProfile = await resolveTeacherProfile(req);
+        if (!teacherProfile) {
+            return res.status(403).json({ success: false, message: 'Teacher profile not found' });
+        }
+        query.$or = [
+            { teacher: teacherProfile._id },
+            { teacher: req.user._id }
+        ];
+    }
+
+    const grades = await Grade.find(query)
+        .populate('student', 'firstName lastName studentId')
+        .sort({ 'student.firstName': 1 });
+
+    if (grades.length === 0) {
+        return res.status(404).json({ success: false, message: 'No grades found for this assessment group' });
+    }
+
+    // Extract metadata from first grade
+    const first = grades[0];
+
+    res.json({
+        success: true,
+        data: {
+            grades,
+            metadata: {
+                classId: first.class,
+                subject: first.subject,
+                category: first.category,
+                gradeType: first.gradeType,
+                date: first.date,
+                maxMarks: first.maxMarks,
+                assessmentGroupId: first.assessmentGroupId,
+                title: first.title
+            }
+        }
     });
 });
 

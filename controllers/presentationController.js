@@ -18,6 +18,131 @@ import { PRESENTATION_LIMITS } from "../config/presentationLimits.js";
 
 const MODEL_NAME = "gemini-2.5-flash-lite";
 
+const DEFAULT_GLOBAL_TEMPLATES = [
+  {
+    name: "Standard Lesson",
+    description:
+      "A complete lesson flow with objectives, core content, activity, and recap.",
+    category: "lesson",
+    isGlobal: true,
+    isActive: true,
+    slideStructure: [
+      {
+        layout: "title",
+        purpose: "opener",
+        promptHint: "Title slide with lesson topic and class context",
+        required: true,
+      },
+      {
+        layout: "title-body",
+        purpose: "objective",
+        promptHint: "2-4 student-friendly learning objectives",
+        required: true,
+      },
+      {
+        layout: "title-body",
+        purpose: "content",
+        promptHint: "Introduce the key concept with a simple explanation",
+        required: true,
+      },
+      {
+        layout: "two-column",
+        purpose: "content",
+        promptHint: "Concept vs examples in two clear columns",
+        required: true,
+      },
+      {
+        layout: "title-body",
+        purpose: "activity",
+        promptHint: "Guided or collaborative classroom activity",
+        required: true,
+      },
+      {
+        layout: "title-body",
+        purpose: "assessment",
+        promptHint: "Quick check-for-understanding questions",
+        required: true,
+      },
+      {
+        layout: "title-body",
+        purpose: "summary",
+        promptHint: "Key takeaways tied back to objectives",
+        required: true,
+      },
+      {
+        layout: "title",
+        purpose: "closer",
+        promptHint: "Closing and next steps/homework",
+        required: false,
+      },
+    ],
+    defaultTheme: {
+      primaryColor: "#1a73e8",
+      secondaryColor: "#174ea6",
+      fontFamily: "Segoe UI, Roboto, Arial, sans-serif",
+      fontSize: "medium",
+    },
+  },
+  {
+    name: "Quick Review",
+    description:
+      "A compact review deck for recap and exam preparation.",
+    category: "review",
+    isGlobal: true,
+    isActive: true,
+    slideStructure: [
+      {
+        layout: "title",
+        purpose: "opener",
+        promptHint: "Review topic and goals",
+        required: true,
+      },
+      {
+        layout: "bullets",
+        purpose: "content",
+        promptHint: "Summarize main concepts in concise bullets",
+        required: true,
+      },
+      {
+        layout: "comparison",
+        purpose: "content",
+        promptHint: "Common mistakes vs correct approach",
+        required: true,
+      },
+      {
+        layout: "title-body",
+        purpose: "assessment",
+        promptHint: "3-4 short practice or discussion questions",
+        required: true,
+      },
+      {
+        layout: "title",
+        purpose: "summary",
+        promptHint: "Recap and action steps for students",
+        required: true,
+      },
+    ],
+    defaultTheme: {
+      primaryColor: "#0d47a1",
+      secondaryColor: "#1565c0",
+      fontFamily: "Segoe UI, Roboto, Arial, sans-serif",
+      fontSize: "medium",
+    },
+  },
+];
+
+const ensureGlobalPresentationTemplates = async () => {
+  const existingGlobalCount = await PresentationTemplate.countDocuments({
+    isGlobal: true,
+  }).setOptions({ skipTenantFilter: true });
+
+  if (existingGlobalCount > 0) return;
+
+  await PresentationTemplate.insertMany(DEFAULT_GLOBAL_TEMPLATES, {
+    ordered: false,
+  });
+};
+
 // ─── Upload materials ───────────────────────────────────────────────────────
 
 export const uploadMaterials = asyncHandler(async (req, res) => {
@@ -119,7 +244,27 @@ export const generatePresentation = asyncHandler(async (req, res) => {
 
   let template = null;
   if (templateId) {
-    template = await PresentationTemplate.findById(templateId).lean();
+    template = await PresentationTemplate.findById(templateId)
+      .setOptions({ skipTenantFilter: true })
+      .lean();
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        message: "Template not found",
+      });
+    }
+
+    const canUseTemplate =
+      template.isGlobal ||
+      (template.school && template.school.toString() === req.schoolId.toString());
+
+    if (!canUseTemplate) {
+      return res.status(403).json({
+        success: false,
+        message: "Template does not belong to your school",
+      });
+    }
   }
 
   let standards = [];
@@ -524,12 +669,15 @@ export const deletePresentation = asyncHandler(async (req, res) => {
 // ─── Template CRUD ──────────────────────────────────────────────────────────
 
 export const listTemplates = asyncHandler(async (req, res) => {
+  await ensureGlobalPresentationTemplates();
+
   const templates = await PresentationTemplate.find({
     $or: [
       { school: req.schoolId, isActive: true },
       { isGlobal: true, isActive: true },
     ],
   })
+    .setOptions({ skipTenantFilter: true })
     .sort({ usageCount: -1 })
     .lean();
 

@@ -238,7 +238,7 @@ class StandardsPracticeAIService {
         isCorrect: relevance.isCorrect,
         ...feedbackContext,
       });
-      const finalFeedbackParts = relevance.guardApplied
+      let fallbackFeedbackParts = relevance.guardApplied
         ? this._mergeFeedbackParts(
             deterministic.feedbackParts,
             relevance.feedbackPartsPatch,
@@ -246,18 +246,42 @@ class StandardsPracticeAIService {
             studentFirstName,
           )
         : deterministic.feedbackParts;
+
+      // Grammar exact-match guard for fallback path
+      let fallbackIsCorrect = relevance.isCorrect;
+      const grammarGuard = this._applyGrammarExactMatchGuard({
+        questionText,
+        studentAnswer,
+        correctAnswer,
+        isCorrect: relevance.isCorrect,
+        subjectName,
+      });
+      if (grammarGuard.guardApplied) {
+        fallbackIsCorrect = grammarGuard.isCorrect;
+        const grammarDeterministic = this._buildDeterministicFeedback({
+          isCorrect: grammarGuard.isCorrect,
+          ...feedbackContext,
+        });
+        fallbackFeedbackParts = this._mergeFeedbackParts(
+          grammarDeterministic.feedbackParts,
+          grammarGuard.feedbackPartsPatch,
+          gradeLevel,
+          studentFirstName,
+        );
+      }
+
       const finalFeedback = this._ensureFeedbackPersonalization(
         this._normalizeFeedback(
-          this._buildFeedbackSummary(finalFeedbackParts),
+          this._buildFeedbackSummary(fallbackFeedbackParts),
           gradeLevel,
         ),
         studentFirstName,
       );
 
       return {
-        isCorrect: relevance.isCorrect,
+        isCorrect: fallbackIsCorrect,
         feedback: finalFeedback || deterministic.feedback,
-        feedbackParts: finalFeedbackParts,
+        feedbackParts: fallbackFeedbackParts,
         tokenUsage: usage,
       };
     };
@@ -336,8 +360,34 @@ class StandardsPracticeAIService {
           gradeLevel,
           studentFirstName,
         });
-        const finalFeedbackParts = guarded.feedbackParts;
-        const feedbackSourceText = guarded.guardApplied || relevance.guardApplied
+        let finalIsCorrect = guarded.feedbackParts
+          ? relevance.isCorrect
+          : relevance.isCorrect;
+        let finalFeedbackParts = guarded.feedbackParts;
+
+        // Grammar exact-match guard: override AI leniency for fill-in-blank / word-selection ELA questions
+        const grammarGuard = this._applyGrammarExactMatchGuard({
+          questionText,
+          studentAnswer,
+          correctAnswer,
+          isCorrect: relevance.isCorrect,
+          subjectName,
+        });
+        if (grammarGuard.guardApplied) {
+          finalIsCorrect = grammarGuard.isCorrect;
+          const grammarDeterministic = this._buildDeterministicFeedback({
+            isCorrect: grammarGuard.isCorrect,
+            ...feedbackContext,
+          });
+          finalFeedbackParts = this._mergeFeedbackParts(
+            grammarDeterministic.feedbackParts,
+            grammarGuard.feedbackPartsPatch,
+            gradeLevel,
+            studentFirstName,
+          );
+        }
+
+        const feedbackSourceText = guarded.guardApplied || relevance.guardApplied || grammarGuard.guardApplied
           ? this._buildFeedbackSummary(finalFeedbackParts)
           : parsed.feedback?.trim() || this._buildFeedbackSummary(finalFeedbackParts);
         const finalFeedback = this._ensureFeedbackPersonalization(
@@ -349,7 +399,7 @@ class StandardsPracticeAIService {
         );
 
         return {
-          isCorrect: relevance.isCorrect,
+          isCorrect: finalIsCorrect,
           feedback: finalFeedback || deterministic.feedback,
           feedbackParts: finalFeedbackParts,
           tokenUsage: usage,

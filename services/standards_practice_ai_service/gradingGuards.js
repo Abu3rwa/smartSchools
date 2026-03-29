@@ -513,6 +513,52 @@ export default {
     };
   },
 
+  _applyGrammarExactMatchGuard({
+    questionText,
+    studentAnswer,
+    correctAnswer,
+    isCorrect,
+    subjectName,
+  }) {
+    if (!isCorrect) return { isCorrect, guardApplied: false, feedbackPartsPatch: null };
+
+    const domain = this._classifySubjectDomain(subjectName);
+    if (domain !== "ela") return { isCorrect, guardApplied: false, feedbackPartsPatch: null };
+
+    const question = String(questionText || "").toLowerCase();
+    const isExactAnswerQuestion =
+      /\b(choose|select|fill in|complete|correct form|correct verb|correct word|which word|word bank|drag .* correct)\b/i.test(
+        question,
+      );
+    if (!isExactAnswerQuestion) return { isCorrect, guardApplied: false, feedbackPartsPatch: null };
+
+    const expectedWords = String(correctAnswer || "").trim().split(/\s+/);
+    if (expectedWords.length > 4) return { isCorrect, guardApplied: false, feedbackPartsPatch: null };
+
+    const normalize = (s) =>
+      String(s || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/[^a-z0-9\s']/g, "")
+        .replace(/\s+/g, " ");
+    const studentNorm = normalize(studentAnswer);
+    const expectedNorm = normalize(correctAnswer);
+
+    if (studentNorm !== expectedNorm) {
+      return {
+        isCorrect: false,
+        guardApplied: true,
+        feedbackPartsPatch: {
+          reasonSummary: `The expected answer is "${correctAnswer}" but you wrote "${studentAnswer}".`,
+          correctionOrConfirmation: `For this type of question, the exact form matters. The correct answer is "${correctAnswer}".`,
+          confidenceLevel: "high",
+        },
+      };
+    }
+    return { isCorrect, guardApplied: false, feedbackPartsPatch: null };
+  },
+
   _diagnoseShortAnswerLanguageIssue({
     questionText = "",
     studentAnswer = "",

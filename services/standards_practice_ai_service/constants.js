@@ -121,6 +121,8 @@ const optionSchema = z.object({
   text: z.string(),
 });
 
+export const GRADING_MODES = ["exact_match", "normalized_match", "conceptual"];
+
 export const practiceQuestionSchema = z
   .object({
     instruction: z.string().default(""),
@@ -132,6 +134,9 @@ export const practiceQuestionSchema = z
     difficulty: z.string().optional(),
     skill: z.string().default(""),
     subskill: z.string().default(""),
+    gradingMode: z.enum(GRADING_MODES).default("conceptual"),
+    acceptableAnswers: z.array(z.string()).default([]),
+    evaluationCriteria: z.string().default(""),
   })
   .strict();
 

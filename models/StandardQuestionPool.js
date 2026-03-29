@@ -28,6 +28,16 @@ const questionSchema = new mongoose.Schema(
     },
     skill: { type: String, trim: true, default: '' },
     subskill: { type: String, trim: true, default: '' },
+    gradingMode: {
+      type: String,
+      enum: ['exact_match', 'normalized_match', 'conceptual'],
+      default: 'conceptual',
+    },
+    acceptableAnswers: {
+      type: [String],
+      default: [],
+    },
+    evaluationCriteria: { type: String, trim: true, default: '' },
   },
   { _id: true }
 );
