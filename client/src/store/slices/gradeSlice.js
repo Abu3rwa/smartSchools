@@ -26,6 +26,30 @@ export const bulkAddGrades = createAsyncThunk(
     }
 );
 
+export const bulkUpdateGrades = createAsyncThunk(
+    'grades/bulkUpdate',
+    async (gradesData, { rejectWithValue }) => {
+        try {
+            const response = await api.put('/grades/bulk', gradesData);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to update grades');
+        }
+    }
+);
+
+export const fetchGradesByAssessmentGroup = createAsyncThunk(
+    'grades/fetchByGroup',
+    async (assessmentGroupId, { rejectWithValue }) => {
+        try {
+            const response = await api.get(`/grades/by-group/${assessmentGroupId}`);
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to fetch grades');
+        }
+    }
+);
+
 export const fetchStudentGrades = createAsyncThunk(
     'grades/fetchStudentGrades',
     async ({ studentId, filters = {} }, { rejectWithValue }) => {
@@ -181,6 +205,28 @@ const gradeSlice = createSlice({
             })
             .addCase(bulkAddGrades.rejected, (state, action) => {
                 state.submitting = false;
+                state.error = action.payload;
+            })
+            // Bulk update grades
+            .addCase(bulkUpdateGrades.pending, (state) => {
+                state.submitting = true;
+            })
+            .addCase(bulkUpdateGrades.fulfilled, (state) => {
+                state.submitting = false;
+            })
+            .addCase(bulkUpdateGrades.rejected, (state, action) => {
+                state.submitting = false;
+                state.error = action.payload;
+            })
+            // Fetch grades by assessment group
+            .addCase(fetchGradesByAssessmentGroup.pending, (state) => {
+                state.loading = true;
+            })
+            .addCase(fetchGradesByAssessmentGroup.fulfilled, (state) => {
+                state.loading = false;
+            })
+            .addCase(fetchGradesByAssessmentGroup.rejected, (state, action) => {
+                state.loading = false;
                 state.error = action.payload;
             })
             // Fetch student grades

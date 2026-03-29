@@ -210,6 +210,7 @@ const GradebookPage = () => {
                 notificationSending={notificationSending}
                 hasStudents={students.length > 0}
                 onOpenAddModal={handleOpenAddModal}
+                grades={grades}
             />
 
             <GradebookFilters

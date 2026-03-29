@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { selectClasses } from '../../../store/slices/classSlice';
 import { selectSubjects } from '../../../store/slices/subjectSlice';
 import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices/studentSlice';
-import { bulkAddGrades, selectGradesSubmitting } from '../../../store/slices/gradeSlice';
+import { bulkAddGrades, bulkUpdateGrades, fetchGradesByAssessmentGroup, selectGradesSubmitting } from '../../../store/slices/gradeSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { fetchMyClasses, selectMyClasses } from '../../../store/slices/teacherSlice';
 import { selectIsTeacher } from '../../../store/slices/authSlice';
@@ -56,7 +56,12 @@ const GradeEntryPage = () => {
         setSelectedLessonPlanIds,
         handleGradeChange,
         resetGradesForStudents,
-        setGrades
+        setGrades,
+        editMode,
+        editAssessmentGroupId,
+        editGradeMap,
+        enterEditMode,
+        exitEditMode
     } = useGradeEntryPageState({ initialClassId: searchParams.get('class') || '' });
 
     useEffect(() => {
@@ -66,19 +71,42 @@ const GradeEntryPage = () => {
     }, [academicYear, dispatch, isTeacher]);
 
     useEffect(() => {
-        if (selectedClass) {
+        if (selectedClass && !editMode) {
             dispatch(fetchStudentsByClass(selectedClass));
             setGrades({});
         }
-    }, [dispatch, selectedClass, setGrades]);
+    }, [dispatch, editMode, selectedClass, setGrades]);
 
     useEffect(() => {
-        setSelectedLessonPlanIds([]);
-    }, [selectedClass, selectedSubject, setSelectedLessonPlanIds]);
+        if (!editMode) {
+            setSelectedLessonPlanIds([]);
+        }
+    }, [editMode, selectedClass, selectedSubject, setSelectedLessonPlanIds]);
 
     useEffect(() => {
-        resetGradesForStudents(classStudents);
-    }, [classStudents, resetGradesForStudents]);
+        if (!editMode) {
+            resetGradesForStudents(classStudents);
+        }
+    }, [classStudents, editMode, resetGradesForStudents]);
+
+    // Load grades for edit mode when navigated with ?assessmentGroupId=xxx
+    useEffect(() => {
+        const groupId = searchParams.get('assessmentGroupId');
+        if (groupId && !editMode) {
+            dispatch(fetchGradesByAssessmentGroup(groupId)).then((result) => {
+                if (fetchGradesByAssessmentGroup.fulfilled.match(result)) {
+                    const { grades: gradesData, metadata } = result.payload;
+                    // Fetch students for the class so the table has all rows
+                    if (metadata.classId) {
+                        dispatch(fetchStudentsByClass(String(metadata.classId)));
+                    }
+                    enterEditMode({ gradesData, metadata });
+                } else {
+                    toast.error(result.payload || t('grades:toasts.loadFailed', { defaultValue: 'Failed to load grades for editing' }));
+                }
+            });
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const availableClasses = useMemo(() => {
         return getAvailableClasses({ isTeacher, myClasses, classes });
@@ -95,6 +123,32 @@ const GradeEntryPage = () => {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
+        if (editMode) {
+            // Build update payload: only grades that have a corresponding grade document
+            const gradeUpdates = Object.entries(grades)
+                .filter(([studentId, data]) => editGradeMap[studentId] && data.marks !== '' && data.marks !== null)
+                .map(([studentId, data]) => ({
+                    _id: editGradeMap[studentId],
+                    marks: Number.parseFloat(data.marks),
+                    maxMarks,
+                    remarks: data.remarks || ''
+                }));
+
+            if (gradeUpdates.length === 0) {
+                toast.error(t('grades:toasts.enterAtLeastOne'));
+                return;
+            }
+
+            const result = await dispatch(bulkUpdateGrades({ grades: gradeUpdates }));
+            if (bulkUpdateGrades.fulfilled.match(result)) {
+                toast.success(t('grades:toasts.updatedSuccess', { defaultValue: '{{count}} grades updated successfully', count: gradeUpdates.length }));
+            } else {
+                toast.error(result.payload || t('grades:toasts.updateFailed', { defaultValue: 'Failed to update grades' }));
+            }
+            return;
+        }
+
+        // Add mode
         const gradesToSubmit = mapGradesForSubmission(grades);
         if (gradesToSubmit.length === 0) {
             toast.error(t('grades:toasts.enterAtLeastOne'));
@@ -121,9 +175,18 @@ const GradeEntryPage = () => {
         }
     };
 
+    const handleCancelEdit = useCallback(() => {
+        exitEditMode();
+        resetGradesForStudents(classStudents);
+        // Remove assessmentGroupId from URL
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('assessmentGroupId');
+        window.history.replaceState({}, '', `${window.location.pathname}${newParams.toString() ? '?' + newParams.toString() : ''}`);
+    }, [classStudents, exitEditMode, resetGradesForStudents, searchParams]);
+
     return (
         <div className="grade-entry-page">
-            <GradeEntryHeader />
+            <GradeEntryHeader editMode={editMode} />
 
             <GradeEntrySelectionForm
                 selectedClass={selectedClass}
@@ -142,6 +205,7 @@ const GradeEntryPage = () => {
                 availableSubjects={availableSubjects}
                 selectedLessonPlanIds={selectedLessonPlanIds}
                 onSelectedLessonPlanIdsChange={setSelectedLessonPlanIds}
+                disabled={editMode}
             />
 
             {selectedClass && selectedSubject && classStudents.length > 0 && (
@@ -155,6 +219,8 @@ const GradeEntryPage = () => {
                     enteredCount={enteredCount}
                     submitting={submitting}
                     onSubmit={handleSubmit}
+                    editMode={editMode}
+                    onCancelEdit={handleCancelEdit}
                 />
             )}
 

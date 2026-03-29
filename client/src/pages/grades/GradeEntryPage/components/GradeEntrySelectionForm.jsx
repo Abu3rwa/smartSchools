@@ -19,7 +19,8 @@ const GradeEntrySelectionForm = ({
     availableClasses,
     availableSubjects,
     selectedLessonPlanIds,
-    onSelectedLessonPlanIdsChange
+    onSelectedLessonPlanIdsChange,
+    disabled = false
 }) => {
     const { t } = useTranslation(['grades']);
 
@@ -28,7 +29,7 @@ const GradeEntrySelectionForm = ({
             <div className="selection-grid">
                 <div className="form-group">
                     <label>{t('grades:entry.form.selectClass')}</label>
-                    <select value={selectedClass} onChange={(event) => onClassChange(event.target.value)} required>
+                    <select value={selectedClass} onChange={(event) => onClassChange(event.target.value)} required disabled={disabled}>
                         <option value="">{t('grades:entry.form.chooseClass')}</option>
                         {availableClasses.map((item) => (
                             <option key={item._id} value={item._id}>{item.name}</option>
@@ -42,7 +43,7 @@ const GradeEntrySelectionForm = ({
                         value={selectedSubject}
                         onChange={(event) => onSubjectChange(event.target.value)}
                         required
-                        disabled={!selectedClass}
+                        disabled={!selectedClass || disabled}
                     >
                         <option value="">{t('grades:entry.form.chooseSubject')}</option>
                         {availableSubjects.map((subject) => (
@@ -56,7 +57,7 @@ const GradeEntrySelectionForm = ({
                 <div className="form-group">
                     <label>{t('grades:entry.form.category')}</label>
                     <div className="category-selection">
-                        <select value={selectedCategory} onChange={(event) => onCategoryChange(event.target.value)} required>
+                        <select value={selectedCategory} onChange={(event) => onCategoryChange(event.target.value)} required disabled={disabled}>
                             {GRADE_CATEGORY_OPTIONS.map((category) => (
                                 <option key={category} value={category}>
                                     {t(`grades:categories.${category}`, { defaultValue: category })}
@@ -85,6 +86,7 @@ const GradeEntrySelectionForm = ({
                         value={selectedDate}
                         onChange={(event) => onDateChange(event.target.value)}
                         max={format(new Date(), 'yyyy-MM-dd')}
+                        disabled={disabled}
                     />
                 </div>
 
@@ -96,6 +98,7 @@ const GradeEntrySelectionForm = ({
                         onChange={(event) => onMaxMarksChange(Number(event.target.value))}
                         min={1}
                         max={100}
+                        disabled={disabled}
                     />
                 </div>
             </div>

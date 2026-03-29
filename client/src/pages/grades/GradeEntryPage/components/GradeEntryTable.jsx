@@ -1,7 +1,9 @@
 import {
     HiOutlineBell,
     HiOutlineCheckCircle,
-    HiOutlineSave
+    HiOutlinePencil,
+    HiOutlineSave,
+    HiOutlineX
 } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 
@@ -14,7 +16,9 @@ const GradeEntryTable = ({
     onGradeChange,
     enteredCount,
     submitting,
-    onSubmit
+    onSubmit,
+    editMode = false,
+    onCancelEdit
 }) => {
     const { t } = useTranslation(['grades']);
 
@@ -23,18 +27,28 @@ const GradeEntryTable = ({
             <div className="card">
                 <div className="card-header">
                     <h3 className="card-title">
-                        {t('grades:entry.table.title', { count: classStudents.length })}
+                        {editMode
+                            ? t('grades:entry.table.editTitle', { defaultValue: 'Edit Grades ({{count}} students)', count: classStudents.length })
+                            : t('grades:entry.table.title', { count: classStudents.length })}
                     </h3>
                     <div className="header-actions">
-                        <label className="checkbox-label">
-                            <input
-                                type="checkbox"
-                                checked={sendNotifications}
-                                onChange={(event) => onSendNotificationsChange(event.target.checked)}
-                            />
-                            <HiOutlineBell />
-                            {t('grades:entry.table.sendParentNotifications')}
-                        </label>
+                        {editMode && (
+                            <span className="badge badge-warning" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 8 }}>
+                                <HiOutlinePencil size={14} />
+                                {t('grades:entry.table.editMode', { defaultValue: 'Edit Mode' })}
+                            </span>
+                        )}
+                        {!editMode && (
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={sendNotifications}
+                                    onChange={(event) => onSendNotificationsChange(event.target.checked)}
+                                />
+                                <HiOutlineBell />
+                                {t('grades:entry.table.sendParentNotifications')}
+                            </label>
+                        )}
                     </div>
                 </div>
 
@@ -68,7 +82,7 @@ const GradeEntryTable = ({
                                         <input
                                             type="number"
                                             className="marks-input"
-                                            value={grades[student._id]?.marks || ''}
+                                            value={grades[student._id]?.marks ?? ''}
                                             onChange={(event) => onGradeChange(student._id, 'marks', event.target.value)}
                                             min={0}
                                             max={maxMarks}
@@ -86,7 +100,7 @@ const GradeEntryTable = ({
                                         />
                                     </td>
                                     <td>
-                                        {grades[student._id]?.marks && (
+                                        {grades[student._id]?.marks !== '' && grades[student._id]?.marks !== undefined && (
                                             <HiOutlineCheckCircle className="status-icon success" size={20} />
                                         )}
                                     </td>
@@ -100,19 +114,29 @@ const GradeEntryTable = ({
                     <div className="entry-summary">
                         <span>{t('grades:entry.table.summary', { entered: enteredCount, total: classStudents.length })}</span>
                     </div>
-                    <button type="submit" className="btn btn-primary btn-lg" disabled={submitting}>
-                        {submitting ? (
-                            <>
-                                <span className="spinner" style={{ width: 20, height: 20 }}></span>
-                                {t('grades:common.saving')}
-                            </>
-                        ) : (
-                            <>
-                                <HiOutlineSave size={20} />
-                                {t('grades:entry.table.save')}
-                            </>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        {editMode && (
+                            <button type="button" className="btn btn-secondary btn-lg" onClick={onCancelEdit} disabled={submitting}>
+                                <HiOutlineX size={20} />
+                                {t('grades:entry.table.cancelEdit', { defaultValue: 'Cancel' })}
+                            </button>
                         )}
-                    </button>
+                        <button type="submit" className="btn btn-primary btn-lg" disabled={submitting}>
+                            {submitting ? (
+                                <>
+                                    <span className="spinner" style={{ width: 20, height: 20 }}></span>
+                                    {t('grades:common.saving')}
+                                </>
+                            ) : (
+                                <>
+                                    <HiOutlineSave size={20} />
+                                    {editMode
+                                        ? t('grades:entry.table.updateGrades', { defaultValue: 'Update Grades' })
+                                        : t('grades:entry.table.save')}
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
