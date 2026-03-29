@@ -36,6 +36,8 @@ router.post('/daily', authorize('teacher', 'admin'), validationRules.createGrade
 router.post('/bulk', authorize('teacher', 'admin'), bulkAddGrades);
 router.put('/bulk', authorize('teacher', 'admin'), bulkUpdateGrades);
 router.get('/by-group/:assessmentGroupId', authorize('teacher', 'admin'), getGradesByAssessmentGroup);
+router.get('/assessment-group/:assessmentGroupId', authorize('teacher', 'admin'), getGradesByAssessmentGroup);
+router.get('/group/:assessmentGroupId', authorize('teacher', 'admin'), getGradesByAssessmentGroup);
 router.post(
     '/homework/bulk',
     authorize('teacher', 'admin'),

@@ -41,9 +41,29 @@ export const bulkUpdateGrades = createAsyncThunk(
 export const fetchGradesByAssessmentGroup = createAsyncThunk(
     'grades/fetchByGroup',
     async (assessmentGroupId, { rejectWithValue }) => {
+        const candidatePaths = [
+            `/grades/by-group/${assessmentGroupId}`,
+            `/grades/assessment-group/${assessmentGroupId}`,
+            `/grades/group/${assessmentGroupId}`
+        ];
+
         try {
-            const response = await api.get(`/grades/by-group/${assessmentGroupId}`);
-            return response.data.data;
+            for (const path of candidatePaths) {
+                try {
+                    const response = await api.get(path);
+                    return response.data.data;
+                } catch (error) {
+                    const status = error?.response?.status;
+                    // Try the next known route alias when this one is missing.
+                    if (status === 404) {
+                        continue;
+                    }
+
+                    throw error;
+                }
+            }
+
+            return rejectWithValue('Grade edit endpoint was not found on this server. Please restart or redeploy backend API.');
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to fetch grades');
         }
