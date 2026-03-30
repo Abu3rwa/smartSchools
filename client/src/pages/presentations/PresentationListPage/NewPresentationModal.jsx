@@ -23,6 +23,10 @@ import {
   fetchTemplates,
   clearUploadedMaterials,
 } from "../../../store/slices/presentationSlice";
+import {
+  DEFAULT_PRESENTATION_LAYOUT_SYSTEM,
+  PRESENTATION_LAYOUT_SYSTEMS,
+} from "../shared/presentationLayoutSystems";
 
 const STEPS = ["details", "materials", "generate"];
 const PROMPT_PRESETS = [
@@ -51,6 +55,7 @@ const NewPresentationModal = ({ onClose }) => {
   const [subjectId, setSubjectId] = useState("");
   const [lessonPlanId, setLessonPlanId] = useState("");
   const [templateId, setTemplateId] = useState("");
+  const [layoutSystem, setLayoutSystem] = useState(DEFAULT_PRESENTATION_LAYOUT_SYSTEM);
   const [slideCount, setSlideCount] = useState(10);
   const [prompt, setPrompt] = useState("");
   const [selectedPrompts, setSelectedPrompts] = useState([]);
@@ -132,6 +137,7 @@ const NewPresentationModal = ({ onClose }) => {
       subjectId: subjectId || undefined,
       lessonPlanId: lessonPlanId || undefined,
       templateId: templateId || undefined,
+      layoutSystem,
       extractionIds: uploadedMaterials.map((m) => m._id),
       slideCount,
       prompt: mergedPrompt,
@@ -156,6 +162,7 @@ const NewPresentationModal = ({ onClose }) => {
     subjectId,
     lessonPlanId,
     templateId,
+    layoutSystem,
     uploadedMaterials,
     slideCount,
     prompt,
@@ -284,6 +291,23 @@ const NewPresentationModal = ({ onClose }) => {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="form-group">
+                  <label>Layout System</label>
+                  <select
+                    value={layoutSystem}
+                    onChange={(e) => setLayoutSystem(e.target.value)}
+                    className="form-input"
+                  >
+                    {PRESENTATION_LAYOUT_SYSTEMS.map((system) => (
+                      <option key={system.id} value={system.id}>
+                        {system.name}
+                      </option>
+                    ))}
+                  </select>
+                  <small className="helper-text">
+                    {PRESENTATION_LAYOUT_SYSTEMS.find((system) => system.id === layoutSystem)?.description}
+                  </small>
                 </div>
                 <div className="form-group">
                   <label>Slide Count</label>
@@ -453,6 +477,10 @@ const NewPresentationModal = ({ onClose }) => {
                     {templates.find((t) => t._id === templateId)?.name || "—"}
                   </p>
                 )}
+                <p>
+                  <strong>Layout System:</strong>{" "}
+                  {PRESENTATION_LAYOUT_SYSTEMS.find((system) => system.id === layoutSystem)?.name || "—"}
+                </p>
               </div>
 
               {error && <div className="error-banner">{error}</div>}

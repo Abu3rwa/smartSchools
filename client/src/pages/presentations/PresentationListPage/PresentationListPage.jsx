@@ -66,7 +66,8 @@ const PresentationListPage = () => {
 
   const statusColors = {
     draft: "#ff9800",
-    published: "#4caf50",
+    ready: "#4caf50",
+    presented: "#2563eb",
     archived: "#9e9e9e",
   };
 

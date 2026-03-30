@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { tenantIsolationPlugin } from "../middleware/tenantIsolation.js";
+import { DEFAULT_PRESENTATION_LAYOUT_SYSTEM } from "../config/presentationLayoutSystems.js";
 
 const { Schema } = mongoose;
 
@@ -8,6 +9,24 @@ const citationSchema = new Schema(
     source: { type: String, maxlength: 200 },
     page: { type: String, maxlength: 20 },
     chunk: { type: String, maxlength: 100 },
+  },
+  { _id: false }
+);
+
+const slideBackgroundSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["solid", "gradient", "image"],
+      default: "solid",
+    },
+    solidColor: { type: String, default: "#ffffff" },
+    gradientFrom: { type: String, default: "#1a73e8" },
+    gradientTo: { type: String, default: "#174ea6" },
+    gradientAngle: { type: Number, default: 135 },
+    imageUrl: { type: String, default: "" },
+    overlayColor: { type: String, default: "#000000" },
+    overlayOpacity: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -39,11 +58,24 @@ const slideSchema = new Schema(
     imageUrl: { type: String, default: "" },
     imageAlt: { type: String, maxlength: 200, default: "" },
     imageCaption: { type: String, maxlength: 300, default: "" },
+    background: { type: slideBackgroundSchema, default: () => ({}) },
     citations: { type: [citationSchema], default: [] },
     aiGenerated: { type: Boolean, default: true },
     editedAt: { type: Date },
   },
   { _id: false }
+);
+
+const commentSchema = new Schema(
+  {
+    author: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    message: { type: String, required: true, maxlength: 2000 },
+    slideIndex: { type: Number, min: 0, default: 0 },
+    resolved: { type: Boolean, default: false },
+    resolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    resolvedAt: { type: Date },
+  },
+  { timestamps: true }
 );
 
 const presentationSchema = new Schema(
@@ -85,6 +117,21 @@ const presentationSchema = new Schema(
         default: "medium",
       },
     },
+    themeTokens: {
+      titleColor: { type: String, default: "#0f172a" },
+      bodyColor: { type: String, default: "#1f2937" },
+      canvasColor: { type: String, default: "#ffffff" },
+      surfaceColor: { type: String, default: "#f8fafc" },
+      gradientFrom: { type: String, default: "#1a73e8" },
+      gradientTo: { type: String, default: "#174ea6" },
+      gradientAngle: { type: Number, default: 135 },
+    },
+    schemaVersion: { type: Number, default: 2 },
+    layoutSystem: {
+      type: String,
+      default: DEFAULT_PRESENTATION_LAYOUT_SYSTEM,
+      maxlength: 80,
+    },
 
     // Source materials
     extractions: [
@@ -125,6 +172,7 @@ const presentationSchema = new Schema(
         },
       },
     ],
+    comments: { type: [commentSchema], default: [] },
   },
   { timestamps: true }
 );

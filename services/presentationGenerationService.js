@@ -4,6 +4,10 @@ import {
   VALID_SLIDE_LAYOUTS,
   ALLOWED_HTML_TAGS,
 } from "../config/presentationLimits.js";
+import {
+  DEFAULT_PRESENTATION_LAYOUT_SYSTEM,
+  PRESENTATION_LAYOUT_SYSTEM_MAP,
+} from "../config/presentationLayoutSystems.js";
 
 // ─── Token budget allocation ────────────────────────────────────────────────
 const TOKEN_BUDGET = {
@@ -20,11 +24,15 @@ export function buildContext({
   lessonPlan,
   extractions,
   template,
+  layoutSystem,
   prompt,
   standards,
   requestedLanguages,
 }) {
   const context = {};
+  const resolvedLayoutSystem =
+    PRESENTATION_LAYOUT_SYSTEM_MAP[layoutSystem] ||
+    PRESENTATION_LAYOUT_SYSTEM_MAP[DEFAULT_PRESENTATION_LAYOUT_SYSTEM];
 
   if (lessonPlan) {
     const parts = [
@@ -64,7 +72,11 @@ export function buildContext({
 
   if (template?.slideStructure?.length) {
     context.templateStructure = template.slideStructure;
+  } else if (resolvedLayoutSystem?.slideStructure?.length) {
+    context.templateStructure = resolvedLayoutSystem.slideStructure;
   }
+
+  context.layoutSystem = resolvedLayoutSystem;
 
   context.teacherPrompt = sanitizeTeacherPrompt(prompt);
   context.requestedLanguages = requestedLanguages || ["en"];
@@ -90,6 +102,13 @@ export function buildGenerationPrompt(context, slideCount) {
         )
         .join("\n")
     : `Generate ${count} slides with a natural lesson flow: opener → objectives → content → activity → assessment → summary → closer.`;
+
+  const layoutSystemBlock = context.layoutSystem
+    ? `## LAYOUT SYSTEM
+Selected layout system: ${context.layoutSystem.name} (${context.layoutSystem.id})
+Description: ${context.layoutSystem.description}
+Design guidance: ${context.layoutSystem.promptGuidance}`
+    : "";
 
   const sections = [
     `You are an expert educational content designer. Create a classroom presentation as a valid JSON array of slides.
@@ -122,6 +141,10 @@ Each slide must match this exact schema:
 ## SLIDE STRUCTURE (${count} slides)
 ${templateBlock}`,
   ];
+
+  if (layoutSystemBlock) {
+    sections.push(layoutSystemBlock);
+  }
 
   if (context.lessonPlan) {
     sections.push(`## LESSON CONTEXT\n${context.lessonPlan}`);
@@ -202,6 +225,9 @@ export async function regenerateSingleSlide({
   modelName,
 }) {
   const slide = presentation.slides[slideIndex];
+  const layoutSystem =
+    PRESENTATION_LAYOUT_SYSTEM_MAP[presentation.layoutSystem] ||
+    PRESENTATION_LAYOUT_SYSTEM_MAP[DEFAULT_PRESENTATION_LAYOUT_SYSTEM];
   if (!slide) {
     throw Object.assign(new Error("Slide not found at given index"), {
       status: 404,
@@ -225,6 +251,10 @@ ${nextSlide ? `Next slide: "${nextSlide.title}" — ${nextSlide.speakerNotes || 
 Layout: ${slide.layout}
 Title: ${slide.title}
 Content: ${slide.bodyHtml || ""}
+
+## PRESENTATION DESIGN SYSTEM
+Layout system: ${layoutSystem?.name || DEFAULT_PRESENTATION_LAYOUT_SYSTEM}
+Guidance: ${layoutSystem?.promptGuidance || "Keep the slide visually consistent with the rest of the deck."}
 
 ## TEACHER INSTRUCTION
 ${sanitizeTeacherPrompt(teacherPrompt) || "Improve this slide while maintaining consistency with surrounding slides."}

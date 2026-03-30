@@ -95,6 +95,50 @@ export const updateSlide = createAsyncThunk(
   }
 );
 
+export const patchSlide = createAsyncThunk(
+  "presentations/patchSlide",
+  async ({ id, slideIndex, operations, version }, { rejectWithValue }) => {
+    try {
+      const res = await api.patch(
+        `/presentations/${id}/slides/${slideIndex}/patch`,
+        { operations, version }
+      );
+      const payload = res.data?.data ?? res.data;
+      return {
+        slideIndex,
+        slide: payload?.slide ?? payload,
+        version: payload?.version,
+      };
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Patch update failed"
+      );
+    }
+  }
+);
+
+export const applyLayoutToSlide = createAsyncThunk(
+  "presentations/applyLayoutToSlide",
+  async ({ id, slideIndex, layout, preserveContent = true }, { rejectWithValue }) => {
+    try {
+      const res = await api.post(
+        `/presentations/${id}/slides/${slideIndex}/apply-layout`,
+        { layout, preserveContent }
+      );
+      const payload = res.data?.data ?? res.data;
+      return {
+        slideIndex,
+        slide: payload?.slide ?? payload,
+        version: payload?.version,
+      };
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Apply layout failed"
+      );
+    }
+  }
+);
+
 export const regenerateSlide = createAsyncThunk(
   "presentations/regenerateSlide",
   async ({ id, slideIndex, prompt, keepLayout }, { rejectWithValue }) => {
@@ -108,6 +152,27 @@ export const regenerateSlide = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(
         err.response?.data?.message || "Regeneration failed"
+      );
+    }
+  }
+);
+
+export const textAssistSlide = createAsyncThunk(
+  "presentations/textAssistSlide",
+  async ({ id, slideIndex, action, selectedText, customPrompt }, { rejectWithValue }) => {
+    try {
+      const res = await api.post(
+        `/presentations/${id}/slides/${slideIndex}/text-assist`,
+        { action, selectedText, customPrompt }
+      );
+      const payload = res.data?.data ?? res.data;
+      return {
+        assistedText: payload?.assistedText || "",
+        tokenUsage: payload?.tokenUsage || null,
+      };
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Text assist failed"
       );
     }
   }
@@ -157,6 +222,73 @@ export const fetchTemplates = createAsyncThunk(
   }
 );
 
+export const fetchComments = createAsyncThunk(
+  "presentations/fetchComments",
+  async ({ id, slideIndex, resolved }, { rejectWithValue }) => {
+    try {
+      const params = {};
+      if (slideIndex != null) params.slideIndex = slideIndex;
+      if (resolved != null) params.resolved = String(Boolean(resolved));
+      const res = await api.get(`/presentations/${id}/comments`, { params });
+      const payload = res.data?.data ?? res.data;
+      return payload?.comments || [];
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to load comments"
+      );
+    }
+  }
+);
+
+export const addComment = createAsyncThunk(
+  "presentations/addComment",
+  async ({ id, message, slideIndex }, { rejectWithValue }) => {
+    try {
+      const res = await api.post(`/presentations/${id}/comments`, {
+        message,
+        slideIndex,
+      });
+      const payload = res.data?.data ?? res.data;
+      return payload?.comment || payload;
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to add comment"
+      );
+    }
+  }
+);
+
+export const resolveComment = createAsyncThunk(
+  "presentations/resolveComment",
+  async ({ id, commentId, resolved = true }, { rejectWithValue }) => {
+    try {
+      const res = await api.patch(`/presentations/${id}/comments/${commentId}`, {
+        resolved,
+      });
+      const payload = res.data?.data ?? res.data;
+      return payload?.comment || payload;
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to resolve comment"
+      );
+    }
+  }
+);
+
+export const deleteComment = createAsyncThunk(
+  "presentations/deleteComment",
+  async ({ id, commentId }, { rejectWithValue }) => {
+    try {
+      await api.delete(`/presentations/${id}/comments/${commentId}`);
+      return commentId;
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Failed to delete comment"
+      );
+    }
+  }
+);
+
 // ─── Slice ──────────────────────────────────────────────────────────────────
 
 const presentationSlice = createSlice({
@@ -170,6 +302,12 @@ const presentationSlice = createSlice({
     loading: false,
     generating: false,
     regenerating: false,
+    patching: false,
+    autosaveStatus: "idle",
+    textAssisting: false,
+    lastTextAssist: null,
+    comments: [],
+    commentsLoading: false,
     uploading: false,
     error: null,
   },
@@ -278,6 +416,49 @@ const presentationSlice = createSlice({
         }
       })
 
+      // Patch slide
+      .addCase(patchSlide.pending, (state) => {
+        state.patching = true;
+        state.autosaveStatus = "saving";
+        state.error = null;
+      })
+      .addCase(patchSlide.fulfilled, (state, action) => {
+        state.patching = false;
+        state.autosaveStatus = "saved";
+        if (state.current && Array.isArray(state.current.slides)) {
+          state.current.slides[action.payload.slideIndex] =
+            action.payload.slide;
+        }
+        if (state.current?.generation && action.payload.version) {
+          state.current.generation.version = action.payload.version;
+        }
+      })
+      .addCase(patchSlide.rejected, (state, action) => {
+        state.patching = false;
+        state.autosaveStatus = "error";
+        state.error = action.payload;
+      })
+
+      // Apply layout
+      .addCase(applyLayoutToSlide.pending, (state) => {
+        state.patching = true;
+        state.error = null;
+      })
+      .addCase(applyLayoutToSlide.fulfilled, (state, action) => {
+        state.patching = false;
+        if (state.current && Array.isArray(state.current.slides)) {
+          state.current.slides[action.payload.slideIndex] =
+            action.payload.slide;
+        }
+        if (state.current?.generation && action.payload.version) {
+          state.current.generation.version = action.payload.version;
+        }
+      })
+      .addCase(applyLayoutToSlide.rejected, (state, action) => {
+        state.patching = false;
+        state.error = action.payload;
+      })
+
       // Regenerate slide
       .addCase(regenerateSlide.pending, (state) => {
         state.regenerating = true;
@@ -292,6 +473,20 @@ const presentationSlice = createSlice({
       })
       .addCase(regenerateSlide.rejected, (state, action) => {
         state.regenerating = false;
+        state.error = action.payload;
+      })
+
+      // Text assist
+      .addCase(textAssistSlide.pending, (state) => {
+        state.textAssisting = true;
+        state.error = null;
+      })
+      .addCase(textAssistSlide.fulfilled, (state, action) => {
+        state.textAssisting = false;
+        state.lastTextAssist = action.payload;
+      })
+      .addCase(textAssistSlide.rejected, (state, action) => {
+        state.textAssisting = false;
         state.error = action.payload;
       })
 
@@ -320,6 +515,32 @@ const presentationSlice = createSlice({
         state.templates = Array.isArray(action.payload)
           ? action.payload
           : action.payload?.templates || [];
+      })
+
+      // Comments
+      .addCase(fetchComments.pending, (state) => {
+        state.commentsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchComments.fulfilled, (state, action) => {
+        state.commentsLoading = false;
+        state.comments = Array.isArray(action.payload) ? action.payload : [];
+      })
+      .addCase(fetchComments.rejected, (state, action) => {
+        state.commentsLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(addComment.fulfilled, (state, action) => {
+        if (action.payload) state.comments.push(action.payload);
+      })
+      .addCase(resolveComment.fulfilled, (state, action) => {
+        const updated = action.payload;
+        if (!updated?._id) return;
+        const idx = state.comments.findIndex((comment) => comment._id === updated._id);
+        if (idx !== -1) state.comments[idx] = updated;
+      })
+      .addCase(deleteComment.fulfilled, (state, action) => {
+        state.comments = state.comments.filter((comment) => comment._id !== action.payload);
       });
   },
 });

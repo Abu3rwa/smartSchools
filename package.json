@@ -16,6 +16,7 @@
     "test:maintainability:curriculum": "node --test tests/curriculumValidators.test.js tests/curriculumControllers.contract.test.js tests/curriculumMapService.test.js tests/curriculumSettingsService.test.js",
     "test:reminder": "node scripts/test-attendance-reminder.js",
     "test:newsletter": "node scripts/test-newsletter-utils.js",
+    "migrate:presentation-schema-v3": "node scripts/migrate-presentation-schema-v3.js",
     "cleanup:remove-pacing-feature": "node scripts/removePacingFeatureData.js",
     "pl": "node  scripts/playground.js",
     "lint": "eslint .",

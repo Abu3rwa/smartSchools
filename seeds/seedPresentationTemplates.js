@@ -16,7 +16,7 @@ const templates = [
     isActive: true,
     slideStructure: [
       {
-        layout: "title-only",
+        layout: "title",
         purpose: "Title slide with lesson name and date",
         promptHint: "Engaging title, subtitle with subject and date",
         required: true,
@@ -77,7 +77,7 @@ const templates = [
         required: true,
       },
       {
-        layout: "title-only",
+        layout: "title",
         purpose: "Closing slide",
         promptHint:
           "Homework or next steps; encouraging closing message",
@@ -98,7 +98,7 @@ const templates = [
     isActive: true,
     slideStructure: [
       {
-        layout: "title-only",
+        layout: "title",
         purpose: "Title and topic overview",
         promptHint: "Topic name and what will be reviewed",
         required: true,
@@ -123,7 +123,7 @@ const templates = [
         required: true,
       },
       {
-        layout: "title-only",
+        layout: "title",
         purpose: "Wrap-up",
         promptHint:
           "Key takeaway message and study tips",

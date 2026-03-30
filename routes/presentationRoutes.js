@@ -11,10 +11,18 @@ import {
   generatePresentation,
   getPresentation,
   listPresentations,
+  listLayoutSystems,
   updatePresentation,
   updateSlide,
+  patchSlide,
+  applySlideLayout,
   regenerateSlide,
+  textAssistSlide,
   reorderSlides,
+  listComments,
+  addComment,
+  resolveComment,
+  deleteComment,
   exportPdf,
   deletePresentation,
   listTemplates,
@@ -49,6 +57,12 @@ router.post(
   presentationValidators.generate,
   validate,
   generatePresentation
+);
+
+router.get(
+  "/layout-systems",
+  authorize("teacher", "admin", "department_principal"),
+  listLayoutSystems
 );
 
 // ─── Templates (must be before /:id to avoid matching "templates" as id) ───
@@ -129,6 +143,24 @@ router.put(
   updateSlide
 );
 
+router.patch(
+  "/:id/slides/:slideIndex/patch",
+  authorize("teacher", "admin", "department_principal"),
+  requirePermission(PERMISSIONS.MANAGE_PRESENTATIONS),
+  presentationValidators.patchSlide,
+  validate,
+  patchSlide
+);
+
+router.post(
+  "/:id/slides/:slideIndex/apply-layout",
+  authorize("teacher", "admin", "department_principal"),
+  requirePermission(PERMISSIONS.MANAGE_PRESENTATIONS),
+  presentationValidators.applyLayout,
+  validate,
+  applySlideLayout
+);
+
 router.post(
   "/:id/slides/:slideIndex/regenerate",
   authorize("teacher", "admin", "department_principal"),
@@ -139,6 +171,15 @@ router.post(
   regenerateSlide
 );
 
+router.post(
+  "/:id/slides/:slideIndex/text-assist",
+  authorize("teacher", "admin", "department_principal"),
+  requirePermission(PERMISSIONS.MANAGE_PRESENTATIONS),
+  presentationValidators.textAssist,
+  validate,
+  textAssistSlide
+);
+
 router.put(
   "/:id/reorder",
   authorize("teacher", "admin", "department_principal"),
@@ -147,6 +188,38 @@ router.put(
   presentationValidators.reorder,
   validate,
   reorderSlides
+);
+
+router.get(
+  "/:id/comments",
+  authorize("teacher", "admin", "department_principal"),
+  presentationValidators.listComments,
+  validate,
+  listComments
+);
+
+router.post(
+  "/:id/comments",
+  authorize("teacher", "admin", "department_principal"),
+  presentationValidators.addComment,
+  validate,
+  addComment
+);
+
+router.patch(
+  "/:id/comments/:commentId",
+  authorize("teacher", "admin", "department_principal"),
+  presentationValidators.resolveComment,
+  validate,
+  resolveComment
+);
+
+router.delete(
+  "/:id/comments/:commentId",
+  authorize("teacher", "admin", "department_principal"),
+  presentationValidators.resolveComment,
+  validate,
+  deleteComment
 );
 
 // ─── Export ─────────────────────────────────────────────────────────────────

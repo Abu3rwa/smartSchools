@@ -14,7 +14,15 @@ import {
   scanAndRedactPII,
 } from "../services/presentationGenerationService.js";
 import { exportPresentationPdf } from "../services/presentationExportService.js";
+import { assistSlideText } from "../services/presentationTextAssistService.js";
 import { PRESENTATION_LIMITS } from "../config/presentationLimits.js";
+import { applySlidePatchOperations } from "../services/presentationPatchService.js";
+import { applyLayoutToSlide } from "../services/presentationLayoutService.js";
+import {
+  DEFAULT_PRESENTATION_LAYOUT_SYSTEM,
+  PRESENTATION_LAYOUT_SYSTEMS,
+} from "../config/presentationLayoutSystems.js";
+import { PRESENTATION_FEATURE_FLAGS } from "../config/presentationFeatureFlags.js";
 
 const MODEL_NAME = "gemini-2.5-flash-lite";
 
@@ -200,6 +208,8 @@ export const generatePresentation = asyncHandler(async (req, res) => {
     standardIds,
     templateId,
     theme,
+    schemaVersion,
+    layoutSystem = DEFAULT_PRESENTATION_LAYOUT_SYSTEM,
     slideCount = 10,
     extractionIds,
     prompt,
@@ -281,6 +291,7 @@ export const generatePresentation = asyncHandler(async (req, res) => {
     lessonPlan,
     extractions,
     template,
+    layoutSystem,
     prompt,
     standards,
     requestedLanguages,
@@ -311,6 +322,17 @@ export const generatePresentation = asyncHandler(async (req, res) => {
     standards: standardIds || [],
     template: templateId || undefined,
     theme: theme || template?.defaultTheme || undefined,
+    schemaVersion: schemaVersion || 2,
+    layoutSystem,
+    themeTokens: {
+      titleColor: theme?.primaryColor || "#0f172a",
+      bodyColor: "#1f2937",
+      canvasColor: theme?.secondaryColor || "#ffffff",
+      surfaceColor: "#f8fafc",
+      gradientFrom: theme?.primaryColor || template?.defaultTheme?.primaryColor || "#1a73e8",
+      gradientTo: theme?.secondaryColor || template?.defaultTheme?.secondaryColor || "#174ea6",
+      gradientAngle: 135,
+    },
     extractions: extractionIds || [],
     generation: {
       prompt,
@@ -452,11 +474,19 @@ export const updatePresentation = asyncHandler(async (req, res) => {
     return res.status(403).json({ success: false, message: "Access denied" });
   }
 
-  const { title, description, theme, status } = req.body;
+  const { title, description, theme, themeTokens, status, schemaVersion, layoutSystem } = req.body;
   if (title !== undefined) presentation.title = title;
   if (description !== undefined) presentation.description = description;
   if (theme) Object.assign(presentation.theme, theme);
+  if (themeTokens) {
+    presentation.themeTokens = {
+      ...(presentation.themeTokens?.toObject ? presentation.themeTokens.toObject() : presentation.themeTokens || {}),
+      ...themeTokens,
+    };
+  }
   if (status) presentation.status = status;
+  if (schemaVersion !== undefined) presentation.schemaVersion = schemaVersion;
+  if (layoutSystem !== undefined) presentation.layoutSystem = layoutSystem;
 
   await presentation.save();
 
@@ -482,7 +512,7 @@ export const updateSlide = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Invalid slide index" });
   }
 
-  const { layout, title, subtitle, bodyHtml, bodyHtml2, speakerNotes, imageUrl, imageAlt, imageCaption } = req.body;
+  const { layout, title, subtitle, bodyHtml, bodyHtml2, speakerNotes, imageUrl, imageAlt, imageCaption, background } = req.body;
   const slide = presentation.slides[slideIndex];
 
   if (layout !== undefined) slide.layout = layout;
@@ -494,6 +524,12 @@ export const updateSlide = asyncHandler(async (req, res) => {
   if (imageUrl !== undefined) slide.imageUrl = imageUrl;
   if (imageAlt !== undefined) slide.imageAlt = imageAlt;
   if (imageCaption !== undefined) slide.imageCaption = imageCaption;
+  if (background) {
+    slide.background = {
+      ...(slide.background?.toObject ? slide.background.toObject() : slide.background || {}),
+      ...background,
+    };
+  }
 
   slide.aiGenerated = false;
   slide.editedAt = new Date();
@@ -560,6 +596,71 @@ export const regenerateSlide = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { slide: presentation.slides[slideIndex] } });
 });
 
+// ─── AI text assist for selected slide text ────────────────────────────────
+
+export const textAssistSlide = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const slideIndex = parseInt(req.params.slideIndex);
+  const { action, selectedText, customPrompt } = req.body;
+
+  const presentation = await Presentation.findById(id);
+  if (!presentation) {
+    return res.status(404).json({ success: false, message: "Presentation not found" });
+  }
+
+  if (req.user.role === "teacher" && presentation.teacher.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ success: false, message: "Access denied" });
+  }
+
+  if (slideIndex < 0 || slideIndex >= presentation.slides.length) {
+    return res.status(400).json({ success: false, message: "Invalid slide index" });
+  }
+
+  const slide = presentation.slides[slideIndex];
+
+  const result = await assistSlideText({
+    action,
+    selectedText,
+    customPrompt,
+    slideContext: {
+      presentationId: presentation._id,
+      title: slide.title,
+      layout: slide.layout,
+      speakerNotes: slide.speakerNotes,
+    },
+    schoolId: req.schoolId,
+    userId: req.user._id,
+    modelName: MODEL_NAME,
+  });
+
+  if (result.tokenUsage?.total) {
+    await AITokenUsage.create({
+      model: MODEL_NAME,
+      feature: "presentation_text_assist",
+      school: req.schoolId,
+      user: req.user._id,
+      inputTokens: result.tokenUsage.input,
+      outputTokens: result.tokenUsage.output,
+      totalTokens: result.tokenUsage.total,
+      schoolId: req.schoolId.toString(),
+      metadata: {
+        entityType: "Presentation",
+        entityId: presentation._id,
+        slideIndex,
+        action,
+      },
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      assistedText: result.assistedText,
+      tokenUsage: result.tokenUsage,
+    },
+  });
+});
+
 // ─── Reorder slides ─────────────────────────────────────────────────────────
 
 export const reorderSlides = asyncHandler(async (req, res) => {
@@ -595,6 +696,209 @@ export const reorderSlides = asyncHandler(async (req, res) => {
   await presentation.save();
 
   res.json({ success: true, data: { slides: presentation.slides } });
+});
+
+// ─── Patch single slide ────────────────────────────────────────────────────
+
+export const patchSlide = asyncHandler(async (req, res) => {
+  if (!PRESENTATION_FEATURE_FLAGS.patchEditing) {
+    return res.status(404).json({ success: false, message: "Patch editing is disabled" });
+  }
+
+  const { id } = req.params;
+  const slideIndex = parseInt(req.params.slideIndex);
+  const { operations = [], version } = req.body;
+
+  const presentation = await Presentation.findById(id);
+  if (!presentation) {
+    return res.status(404).json({ success: false, message: "Presentation not found" });
+  }
+
+  if (req.user.role === "teacher" && presentation.teacher.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ success: false, message: "Access denied" });
+  }
+
+  if (slideIndex < 0 || slideIndex >= presentation.slides.length) {
+    return res.status(400).json({ success: false, message: "Invalid slide index" });
+  }
+
+  const currentVersion = presentation.generation?.version || 1;
+  if (version && Number(version) !== currentVersion) {
+    return res.status(409).json({
+      success: false,
+      message: "Version conflict. Please refresh before saving.",
+      data: { currentVersion },
+    });
+  }
+
+  const slide = presentation.slides[slideIndex];
+  applySlidePatchOperations(slide, operations);
+
+  slide.aiGenerated = false;
+  slide.editedAt = new Date();
+  presentation.generation.version = currentVersion + 1;
+  await presentation.save();
+
+  res.json({
+    success: true,
+    data: {
+      slide: presentation.slides[slideIndex],
+      version: presentation.generation.version,
+    },
+  });
+});
+
+// ─── Apply layout to a slide ───────────────────────────────────────────────
+
+export const applySlideLayout = asyncHandler(async (req, res) => {
+  if (!PRESENTATION_FEATURE_FLAGS.applyLayout) {
+    return res.status(404).json({ success: false, message: "Apply layout is disabled" });
+  }
+
+  const { id } = req.params;
+  const slideIndex = parseInt(req.params.slideIndex);
+  const { layout, preserveContent = true } = req.body;
+
+  const presentation = await Presentation.findById(id);
+  if (!presentation) {
+    return res.status(404).json({ success: false, message: "Presentation not found" });
+  }
+
+  if (req.user.role === "teacher" && presentation.teacher.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ success: false, message: "Access denied" });
+  }
+
+  if (slideIndex < 0 || slideIndex >= presentation.slides.length) {
+    return res.status(400).json({ success: false, message: "Invalid slide index" });
+  }
+
+  const slide = presentation.slides[slideIndex];
+  applyLayoutToSlide({ slide, layout, preserveContent });
+
+  slide.aiGenerated = false;
+  slide.editedAt = new Date();
+  presentation.generation.version = (presentation.generation?.version || 1) + 1;
+  await presentation.save();
+
+  res.json({
+    success: true,
+    data: {
+      slide: presentation.slides[slideIndex],
+      version: presentation.generation.version,
+    },
+  });
+});
+
+// ─── Collaboration comments ────────────────────────────────────────────────
+
+export const listComments = asyncHandler(async (req, res) => {
+  if (!PRESENTATION_FEATURE_FLAGS.collaborationComments) {
+    return res.status(404).json({ success: false, message: "Comments are disabled" });
+  }
+
+  const { id } = req.params;
+  const slideIndex = req.query.slideIndex != null ? Number(req.query.slideIndex) : null;
+  const resolvedFilter = req.query.resolved;
+
+  const presentation = await Presentation.findById(id)
+    .populate("comments.author", "firstName lastName")
+    .populate("comments.resolvedBy", "firstName lastName");
+
+  if (!presentation) {
+    return res.status(404).json({ success: false, message: "Presentation not found" });
+  }
+
+  const comments = (presentation.comments || []).filter((comment) => {
+    if (slideIndex != null && comment.slideIndex !== slideIndex) return false;
+    if (resolvedFilter === "true" && comment.resolved !== true) return false;
+    if (resolvedFilter === "false" && comment.resolved !== false) return false;
+    return true;
+  });
+
+  res.json({ success: true, data: { comments } });
+});
+
+export const addComment = asyncHandler(async (req, res) => {
+  if (!PRESENTATION_FEATURE_FLAGS.collaborationComments) {
+    return res.status(404).json({ success: false, message: "Comments are disabled" });
+  }
+
+  const { id } = req.params;
+  const { message, slideIndex = 0 } = req.body;
+
+  const presentation = await Presentation.findById(id);
+  if (!presentation) {
+    return res.status(404).json({ success: false, message: "Presentation not found" });
+  }
+
+  if (slideIndex < 0 || slideIndex >= presentation.slides.length) {
+    return res.status(400).json({ success: false, message: "Invalid slide index" });
+  }
+
+  presentation.comments.push({
+    author: req.user._id,
+    message,
+    slideIndex,
+    resolved: false,
+  });
+
+  await presentation.save();
+  await presentation.populate("comments.author", "firstName lastName");
+
+  const comment = presentation.comments[presentation.comments.length - 1];
+  res.status(201).json({ success: true, data: { comment } });
+});
+
+export const resolveComment = asyncHandler(async (req, res) => {
+  if (!PRESENTATION_FEATURE_FLAGS.collaborationComments) {
+    return res.status(404).json({ success: false, message: "Comments are disabled" });
+  }
+
+  const { id, commentId } = req.params;
+  const { resolved = true } = req.body;
+
+  const presentation = await Presentation.findById(id)
+    .populate("comments.author", "firstName lastName")
+    .populate("comments.resolvedBy", "firstName lastName");
+
+  if (!presentation) {
+    return res.status(404).json({ success: false, message: "Presentation not found" });
+  }
+
+  const comment = presentation.comments.id(commentId);
+  if (!comment) {
+    return res.status(404).json({ success: false, message: "Comment not found" });
+  }
+
+  comment.resolved = Boolean(resolved);
+  comment.resolvedBy = resolved ? req.user._id : undefined;
+  comment.resolvedAt = resolved ? new Date() : undefined;
+  await presentation.save();
+
+  res.json({ success: true, data: { comment } });
+});
+
+export const deleteComment = asyncHandler(async (req, res) => {
+  if (!PRESENTATION_FEATURE_FLAGS.collaborationComments) {
+    return res.status(404).json({ success: false, message: "Comments are disabled" });
+  }
+
+  const { id, commentId } = req.params;
+  const presentation = await Presentation.findById(id);
+
+  if (!presentation) {
+    return res.status(404).json({ success: false, message: "Presentation not found" });
+  }
+
+  const comment = presentation.comments.id(commentId);
+  if (!comment) {
+    return res.status(404).json({ success: false, message: "Comment not found" });
+  }
+
+  comment.deleteOne();
+  await presentation.save();
+
+  res.json({ success: true, message: "Comment deleted" });
 });
 
 // ─── Export to PDF ──────────────────────────────────────────────────────────
@@ -682,6 +986,13 @@ export const listTemplates = asyncHandler(async (req, res) => {
     .lean();
 
   res.json({ success: true, data: { templates } });
+});
+
+export const listLayoutSystems = asyncHandler(async (_req, res) => {
+  res.json({
+    success: true,
+    data: { layoutSystems: PRESENTATION_LAYOUT_SYSTEMS },
+  });
 });
 
 export const createTemplate = asyncHandler(async (req, res) => {

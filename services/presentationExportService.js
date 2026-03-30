@@ -51,14 +51,46 @@ Handlebars.registerHelper("colorWithOpacity", (hex, opacity) => {
 
 // ─── Map presentation for template ──────────────────────────────────────────
 
+function buildColorWithOpacity(hex, opacity) {
+  if (!hex || typeof hex !== "string") return `rgba(0,0,0,${opacity || 0})`;
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${opacity})`;
+}
+
+function buildSlideBackgroundStyle(background = {}, theme = {}, themeTokens = {}) {
+  if (background.type === "image" && background.imageUrl) {
+    const overlayOpacity = Number(background.overlayOpacity) || 0;
+    const overlayColor = background.overlayColor || "#000000";
+
+    return `linear-gradient(${buildColorWithOpacity(overlayColor, overlayOpacity)}, ${buildColorWithOpacity(overlayColor, overlayOpacity)}), url(${background.imageUrl}) center / cover no-repeat`;
+  }
+
+  if (background.type === "gradient") {
+    const angle = background.gradientAngle ?? themeTokens.gradientAngle ?? 135;
+    const gradientFrom = background.gradientFrom || themeTokens.gradientFrom || theme.primaryColor || "#1a73e8";
+    const gradientTo = background.gradientTo || themeTokens.gradientTo || theme.secondaryColor || "#174ea6";
+    return `linear-gradient(${angle}deg, ${gradientFrom} 0%, ${gradientTo} 100%)`;
+  }
+
+  return background.solidColor || themeTokens.canvasColor || "#ffffff";
+}
+
 function mapPresentationForTemplate(presentation, schoolBranding = {}) {
   const theme = presentation.theme || {};
+  const themeTokens = presentation.themeTokens || {};
+
   return {
     title: presentation.title || "Untitled Presentation",
     schoolName: schoolBranding.schoolName || "",
     schoolLogo: schoolBranding.schoolLogo || "",
     primaryColor: theme.primaryColor || "#1a73e8",
     secondaryColor: theme.secondaryColor || "#174ea6",
+    titleColor: themeTokens.titleColor || theme.primaryColor || "#0f172a",
+    bodyColor: themeTokens.bodyColor || "#1f2937",
+    surfaceColor: themeTokens.surfaceColor || "#f8fafc",
     fontFamily: theme.fontFamily || "Segoe UI, Roboto, Arial, sans-serif",
     slides: (presentation.slides || [])
       .sort((a, b) => a.order - b.order)
@@ -69,6 +101,7 @@ function mapPresentationForTemplate(presentation, schoolBranding = {}) {
         totalSlides: presentation.slides.length,
         bodyHtml: slide.bodyHtml || "",
         bodyHtml2: slide.bodyHtml2 || "",
+        backgroundStyle: buildSlideBackgroundStyle(slide.background, theme, themeTokens),
       })),
   };
 }

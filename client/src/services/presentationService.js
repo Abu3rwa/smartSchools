@@ -38,9 +38,33 @@ const presentationService = {
     return response.data;
   },
 
+  patchSlide: async (id, slideIndex, data) => {
+    const response = await api.patch(
+      `/presentations/${id}/slides/${slideIndex}/patch`,
+      data
+    );
+    return response.data;
+  },
+
+  applyLayoutToSlide: async (id, slideIndex, data) => {
+    const response = await api.post(
+      `/presentations/${id}/slides/${slideIndex}/apply-layout`,
+      data
+    );
+    return response.data;
+  },
+
   regenerateSlide: async (id, slideIndex, data) => {
     const response = await api.post(
       `/presentations/${id}/slides/${slideIndex}/regenerate`,
+      data
+    );
+    return response.data;
+  },
+
+  textAssist: async (id, slideIndex, data) => {
+    const response = await api.post(
+      `/presentations/${id}/slides/${slideIndex}/text-assist`,
       data
     );
     return response.data;
@@ -62,6 +86,26 @@ const presentationService = {
 
   delete: async (id) => {
     const response = await api.delete(`/presentations/${id}`);
+    return response.data;
+  },
+
+  listComments: async (id, params = {}) => {
+    const response = await api.get(`/presentations/${id}/comments`, { params });
+    return response.data;
+  },
+
+  addComment: async (id, data) => {
+    const response = await api.post(`/presentations/${id}/comments`, data);
+    return response.data;
+  },
+
+  resolveComment: async (id, commentId, data) => {
+    const response = await api.patch(`/presentations/${id}/comments/${commentId}`, data);
+    return response.data;
+  },
+
+  deleteComment: async (id, commentId) => {
+    const response = await api.delete(`/presentations/${id}/comments/${commentId}`);
     return response.data;
   },
 
