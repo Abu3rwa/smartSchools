@@ -295,7 +295,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
  * @access  Private (Teacher, Admin)
  */
 export const bulkUpdateGrades = asyncHandler(async (req, res) => {
-    const { grades: gradeUpdates } = req.body;
+    const { grades: gradeUpdates, metadata = {} } = req.body;
     // gradeUpdates: [{ _id, marks, maxMarks, remarks }]
 
     if (!Array.isArray(gradeUpdates) || gradeUpdates.length === 0) {
@@ -317,6 +317,39 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'One or more grades not found' });
     }
 
+    const hasClassUpdate = Boolean(metadata.classId);
+    const hasSubjectUpdate = Boolean(metadata.subject);
+    const hasCategoryUpdate = metadata.category !== undefined;
+    const hasDateUpdate = Boolean(metadata.date);
+    const hasMetadataMaxMarksUpdate = metadata.maxMarks !== undefined;
+
+    let resolvedDate = null;
+    let resolvedMonth = null;
+    let resolvedSemester = null;
+
+    if (hasDateUpdate) {
+        resolvedDate = new Date(metadata.date);
+        if (Number.isNaN(resolvedDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'Invalid metadata.date value' });
+        }
+        resolvedMonth = resolvedDate.getMonth() + 1;
+        resolvedSemester = (resolvedMonth >= 8 && resolvedMonth <= 12) ? 1 : 2;
+    }
+
+    if (hasClassUpdate) {
+        const targetClass = await Class.findOne({ _id: metadata.classId, school: req.schoolId }).select('_id').lean();
+        if (!targetClass) {
+            return res.status(400).json({ success: false, message: 'Invalid class selected for update' });
+        }
+    }
+
+    if (hasSubjectUpdate) {
+        const targetSubject = await Subject.findOne({ _id: metadata.subject, school: req.schoolId }).select('_id').lean();
+        if (!targetSubject) {
+            return res.status(400).json({ success: false, message: 'Invalid subject selected for update' });
+        }
+    }
+
     // Teacher access control: can only edit own grades
     if (req.user.role === 'teacher') {
         const teacherProfile = await resolveTeacherProfile(req);
@@ -327,6 +360,34 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
             const gradeTeacherId = grade.teacher?.toString();
             if (gradeTeacherId !== teacherProfile._id.toString() && gradeTeacherId !== req.user._id.toString()) {
                 return res.status(403).json({ success: false, message: 'You can only modify grades you created' });
+            }
+        }
+
+        if (hasClassUpdate || hasSubjectUpdate) {
+            const accessChecks = [];
+            for (const grade of existingGrades) {
+                accessChecks.push({
+                    classId: hasClassUpdate ? metadata.classId : grade.class,
+                    subjectId: hasSubjectUpdate ? metadata.subject : grade.subject
+                });
+            }
+
+            const uniqChecks = new Map();
+            accessChecks.forEach((item) => {
+                const key = `${String(item.classId)}_${String(item.subjectId)}`;
+                if (!uniqChecks.has(key)) {
+                    uniqChecks.set(key, item);
+                }
+            });
+
+            for (const check of uniqChecks.values()) {
+                const authorized = await isTeacherAuthorizedForClassSubject(teacherProfile._id, check.classId, check.subjectId);
+                if (!authorized) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'You are not authorized to assign this subject in the selected class'
+                    });
+                }
             }
         }
     }
@@ -343,6 +404,15 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
         }
         if (update.maxMarks !== undefined) setFields.maxMarks = Number(update.maxMarks);
         if (update.remarks !== undefined) setFields.remarks = update.remarks;
+        if (hasMetadataMaxMarksUpdate) setFields.maxMarks = Number(metadata.maxMarks);
+        if (hasClassUpdate) setFields.class = metadata.classId;
+        if (hasSubjectUpdate) setFields.subject = metadata.subject;
+        if (hasCategoryUpdate) setFields.category = String(metadata.category || 'other').toLowerCase();
+        if (hasDateUpdate) {
+            setFields.date = resolvedDate;
+            setFields.month = resolvedMonth;
+            setFields.semester = resolvedSemester;
+        }
         if (Object.keys(setFields).length > 0) {
             operations.push({
                 updateOne: {

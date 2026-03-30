@@ -139,7 +139,16 @@ const GradeEntryPage = () => {
                 return;
             }
 
-            const result = await dispatch(bulkUpdateGrades({ grades: gradeUpdates }));
+            const result = await dispatch(bulkUpdateGrades({
+                grades: gradeUpdates,
+                metadata: {
+                    classId: selectedClass,
+                    subject: selectedSubject,
+                    category: (selectedCategory === 'Custom' ? customCategory : selectedCategory || '').toLowerCase(),
+                    date: selectedDate,
+                    maxMarks
+                }
+            }));
             if (bulkUpdateGrades.fulfilled.match(result)) {
                 toast.success(t('grades:toasts.updatedSuccess', { defaultValue: '{{count}} grades updated successfully', count: gradeUpdates.length }));
             } else {
@@ -205,7 +214,7 @@ const GradeEntryPage = () => {
                 availableSubjects={availableSubjects}
                 selectedLessonPlanIds={selectedLessonPlanIds}
                 onSelectedLessonPlanIdsChange={setSelectedLessonPlanIds}
-                disabled={editMode}
+                disabled={false}
             />
 
             {selectedClass && selectedSubject && classStudents.length > 0 && (
