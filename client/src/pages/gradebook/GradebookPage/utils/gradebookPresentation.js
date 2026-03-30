@@ -33,19 +33,62 @@ export const getAvailableSubjects = ({ currentClass, subjects, userRole, teacher
 };
 
 const DEFAULT_GRADING_SCALE = [
-    { grade: 'A+', min: 97, max: 100, color: '#14532d' },
-    { grade: 'A', min: 93, max: 96, color: '#166534' },
-    { grade: 'A-', min: 90, max: 92, color: '#15803d' },
+    { grade: 'A+', min: 97, max: 100, color: '#00f562' },
+    { grade: 'A', min: 93, max: 96, color: '#00f562da' },
+    { grade: 'A-', min: 90, max: 92, color: '#00f562' },
     { grade: 'B+', min: 87, max: 89, color: '#059669' },
     { grade: 'B', min: 83, max: 86, color: '#0d9488' },
     { grade: 'B-', min: 80, max: 82, color: '#0284c7' },
-    { grade: 'C+', min: 77, max: 79, color: '#2563eb' },
-    { grade: 'C', min: 73, max: 76, color: '#4f46e5' },
-    { grade: 'C-', min: 70, max: 72, color: '#7c3aed' },
-    { grade: 'D+', min: 67, max: 69, color: '#c2410c' },
-    { grade: 'D', min: 50, max: 66, color: '#ea580c' },
+    
+    { grade: 'C+', min: 77, max: 79, color: '#2825eb' },
+    { grade: 'C', min: 73, max: 76, color: '#2549eb' },
+    { grade: 'C-', min: 70, max: 72, color: '#258beb' },
+
+    { grade: 'D+', min: 67, max: 69, color: '#ecc710' },
+    { grade: 'D', min: 50, max: 66, color: '#ecc710' },
     { grade: 'F', min: 0, max: 49, color: '#dc2626' }
 ];
+
+const MIN_PERCENTAGE = 0;
+const MAX_PERCENTAGE = 100;
+const EPSILON = 1e-9;
+
+const hasContiguousNonOverlappingBands = (bands) => {
+    if (!Array.isArray(bands) || bands.length === 0) {
+        return false;
+    }
+
+    const firstBand = bands[0];
+    const lastBand = bands[bands.length - 1];
+
+    if (firstBand.max < MAX_PERCENTAGE - EPSILON) {
+        return false;
+    }
+
+    if (lastBand.min > MIN_PERCENTAGE + EPSILON) {
+        return false;
+    }
+
+    for (let i = 0; i < bands.length; i += 1) {
+        const currentBand = bands[i];
+
+        if (currentBand.min > currentBand.max) {
+            return false;
+        }
+
+        if (i === bands.length - 1) {
+            continue;
+        }
+
+        const nextBand = bands[i + 1];
+        const expectedBoundary = currentBand.min - 1;
+        if (Math.abs(nextBand.max - expectedBoundary) > EPSILON) {
+            return false;
+        }
+    }
+
+    return true;
+};
 
 export const normalizeGradingScaleBands = (bands = []) => {
     if (!Array.isArray(bands) || bands.length === 0) {
@@ -59,10 +102,14 @@ export const normalizeGradingScaleBands = (bands = []) => {
             max: Number(band?.max),
             color: String(band?.color || '').trim() || '#64748b'
         }))
-        .filter((band) => Number.isFinite(band.min) && Number.isFinite(band.max) && band.grade)
+        .filter((band) => Number.isFinite(band.min) && Number.isFinite(band.max) && band.grade && band.min >= MIN_PERCENTAGE && band.max <= MAX_PERCENTAGE)
         .sort((a, b) => b.min - a.min || b.max - a.max);
 
-    return normalized.length ? normalized : DEFAULT_GRADING_SCALE;
+    if (!normalized.length || !hasContiguousNonOverlappingBands(normalized)) {
+        return DEFAULT_GRADING_SCALE;
+    }
+
+    return normalized;
 };
 
 export const getScaleBandForPercentage = (value, gradingScale = null) => {

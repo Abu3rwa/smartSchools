@@ -1,4 +1,5 @@
 import express from "express";
+import multer from "multer";
 import { protect, authorize, requirePermission } from "../middleware/auth.js";
 import { requireFeature } from "../middleware/featureGate.js";
 import { requireSchoolContext } from "../middleware/tenantIsolation.js";
@@ -6,6 +7,24 @@ import { validate } from "../middleware/validator.js";
 import { uploadPresentation } from "../middleware/upload.js";
 import { presentationValidators } from "../validators/presentationValidators.js";
 import { PERMISSIONS } from "../config/permissions.js";
+
+/** Catch multer errors and return a structured 400 response */
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    const messages = {
+      LIMIT_FILE_SIZE: "File too large. Maximum size is 10 MB.",
+      LIMIT_FILE_COUNT: "Too many files. Maximum is 2 files per upload.",
+      LIMIT_UNEXPECTED_FILE: "Unexpected file field.",
+    };
+    return res
+      .status(400)
+      .json({ success: false, message: messages[err.code] || err.message });
+  }
+  if (err && err.message && err.message.startsWith("Invalid file type")) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  next(err);
+};
 import {
   uploadMaterials,
   generatePresentation,
@@ -43,7 +62,8 @@ router.post(
   "/upload",
   authorize("teacher", "admin", "department_principal"),
   requirePermission(PERMISSIONS.MANAGE_PRESENTATIONS),
-  uploadPresentation.array("files", 5),
+  uploadPresentation.array("files", 2),
+  handleMulterError,
   presentationValidators.upload,
   validate,
   uploadMaterials

@@ -158,12 +158,24 @@ export const uploadMaterials = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "No files uploaded" });
   }
 
+  const UPLOAD_TIMEOUT_MS = 25_000; // stay well under Render's 30s request timeout
+  const withTimeout = (promise, ms) =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Operation timed out")), ms)
+      ),
+    ]);
+
   const extractions = [];
 
   for (const file of req.files) {
     // Upload to Firebase
     const destinationPath = `schools/${req.schoolId}/presentations/materials/${Date.now()}_${file.originalname}`;
-    const fileUrl = await uploadFile(file.buffer, file.mimetype, destinationPath);
+    await withTimeout(
+      uploadFile(file.buffer, file.mimetype, destinationPath),
+      UPLOAD_TIMEOUT_MS
+    );
 
     // Extract text content
     let extractionResult = { text: "", pageCount: 0, wordCount: 0, chunks: [] };
