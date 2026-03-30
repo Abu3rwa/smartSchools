@@ -1458,6 +1458,9 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       difficulty: poolQuestion.difficulty || effectiveDifficulty,
       skill: poolQuestion.skill || "",
       subskill: poolQuestion.subskill || "",
+      gradingMode: poolQuestion.gradingMode || "conceptual",
+      acceptableAnswers: poolQuestion.acceptableAnswers || [],
+      evaluationCriteria: poolQuestion.evaluationCriteria || "",
       tokenUsage: null,
     };
     question = sanitizeServedMultipleChoiceQuestion(question, {
@@ -1577,6 +1580,9 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     difficulty: question.difficulty,
     skill: question.skill || null,
     subskill: question.subskill || null,
+    gradingMode: question.gradingMode || "conceptual",
+    acceptableAnswers: question.acceptableAnswers || [],
+    evaluationCriteria: question.evaluationCriteria || "",
     attemptNumber: attemptCount + 1,
     status: "pending",
     session: session._id,
@@ -1723,6 +1729,9 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     difficulty: attempt.difficulty || "medium",
     attemptNumber: attempt.attemptNumber || 1,
     recentPerformance,
+    gradingMode: attempt.gradingMode || "conceptual",
+    acceptableAnswers: attempt.acceptableAnswers || [],
+    evaluationCriteria: attempt.evaluationCriteria || "",
   });
 
   if (evaluation.tokenUsage && evaluation.tokenUsage.total > 0) {

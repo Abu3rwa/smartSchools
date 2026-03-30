@@ -537,6 +537,13 @@ const Sidebar = () => {
       section: "assessment",
     },
     {
+      path: "/portal/my-assignments",
+      icon: HiOutlinePencilSquare,
+      labelKey: "assignments",
+      roles: ["student"],
+      section: "assessment",
+    },
+    {
       path: "/portal/student-attendance",
       icon: HiOutlineClipboardDocumentCheck,
       labelKey: "myAttendance",

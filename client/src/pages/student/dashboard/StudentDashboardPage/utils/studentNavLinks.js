@@ -31,6 +31,12 @@ export const studentNavLinks = [
     section: "learning",
   },
   {
+    path: "/portal/my-assignments",
+    icon: HiOutlineBookOpen,
+    labelKey: "assignments",
+    section: "learning",
+  },
+  {
     path: "/portal/student-attendance",
     icon: HiOutlineClipboardCheck,
     labelKey: "myAttendance",

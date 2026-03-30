@@ -21,6 +21,11 @@ const assignmentService = {
         return response.data;
     },
 
+    getMyAssignments: async (params = {}) => {
+        const response = await api.get('/assignments/my', { params });
+        return response.data;
+    },
+
     createAssignment: async (payload) => {
         const response = await api.post('/assignments', payload);
         return response.data;

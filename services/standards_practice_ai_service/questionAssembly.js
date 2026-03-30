@@ -116,6 +116,9 @@ export default {
       difficulty: this._sanitizeDifficulty(parsed.difficulty || requestedDifficulty),
       skill: this._sanitizeText(parsed.skill || "", { maxLength: 60, sentenceCase: false }),
       subskill: this._sanitizeText(parsed.subskill || "", { maxLength: 60, sentenceCase: false }),
+      gradingMode: parsed.gradingMode || "conceptual",
+      acceptableAnswers: Array.isArray(parsed.acceptableAnswers) ? parsed.acceptableAnswers.filter(Boolean) : [],
+      evaluationCriteria: this._sanitizeText(parsed.evaluationCriteria || "", { maxLength: 300, sentenceCase: false }),
     };
   },
 

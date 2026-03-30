@@ -27,9 +27,12 @@ const UpcomingDueDatesCard = ({ upcomingAssignments, todayStart }) => {
                                         Practice
                                     </Link>
                                 ) : (
-                                    <span className="due-title">
-                                        {assignment.title || 'Class assignment'}
-                                    </span>
+                                    <Link
+                                        to={`/portal/my-assignments/${assignment.id || assignment._id}`}
+                                        className="link-sm"
+                                    >
+                                        See assignment
+                                    </Link>
                                 )}
                             </div>
                         </li>

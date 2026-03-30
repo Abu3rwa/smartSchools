@@ -169,6 +169,9 @@ class StandardsPracticeAIService {
       difficulty = "medium",
       attemptNumber = 1,
       recentPerformance = {},
+      gradingMode = "conceptual",
+      acceptableAnswers = [],
+      evaluationCriteria = "",
     } = options;
 
     const feedbackContext = {
@@ -204,6 +207,43 @@ class StandardsPracticeAIService {
       const isCorrect =
         String(normalizedStudentAnswer || "").trim().toUpperCase() ===
         String(normalizedCorrectAnswer || "").trim().toUpperCase();
+      const deterministic = this._buildDeterministicFeedback({
+        isCorrect,
+        ...feedbackContext,
+      });
+      return {
+        isCorrect,
+        feedback: deterministic.feedback,
+        feedbackParts: deterministic.feedbackParts,
+        tokenUsage: { input: 0, output: 0, total: 0 },
+      };
+    }
+
+    // Deterministic path for exact_match / normalized_match grading modes
+    if (gradingMode === "exact_match" || gradingMode === "normalized_match") {
+      const normalizeExact = (s) =>
+        String(s || "")
+          .trim()
+          .toLowerCase()
+          .replace(/[\u2018\u2019]/g, "'")
+          .replace(/\s+/g, " ");
+      const normalizeLoose = (s) =>
+        normalizeExact(s).replace(/[^a-z0-9\s]/g, "");
+      const studentNorm =
+        gradingMode === "exact_match"
+          ? normalizeExact(studentAnswer)
+          : normalizeLoose(studentAnswer);
+      const candidateList = [
+        correctAnswer,
+        ...(Array.isArray(acceptableAnswers) ? acceptableAnswers : []),
+      ];
+      const isCorrect = candidateList.some((ans) => {
+        const ansNorm =
+          gradingMode === "exact_match"
+            ? normalizeExact(ans)
+            : normalizeLoose(ans);
+        return ansNorm === studentNorm;
+      });
       const deterministic = this._buildDeterministicFeedback({
         isCorrect,
         ...feedbackContext,
@@ -301,6 +341,7 @@ class StandardsPracticeAIService {
           gradeLevel,
           attemptNumber,
           recentPerformance,
+          evaluationCriteria,
           retryNotes: previousFailureNotes,
         });
 

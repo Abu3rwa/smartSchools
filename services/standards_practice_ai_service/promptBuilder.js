@@ -134,6 +134,11 @@ REQUIRED OUTPUT BEHAVIOR:
 - The "instruction" field must be a short, explicit direction telling the student exactly what to do (e.g., "Choose the correct verb form to complete the sentence." or "Select the option that best matches the main idea."). It must never be empty.
 - The "skill" field should identify the broad skill being tested (e.g., "grammar", "reading comprehension", "vocabulary", "math operations").
 - The "subskill" field should narrow it further (e.g., "verb tense", "main idea", "context clues", "fractions").
+- Set "gradingMode" to "exact_match" when the question has one specific correct answer that must match exactly (fill-in-blank, choose the correct word/form, word bank completion, verb conjugation, single-word vocabulary).
+- Set "gradingMode" to "normalized_match" for answers that are a single word or short phrase where minor formatting differences (capitalization, punctuation) are acceptable but the core content must match.
+- Set "gradingMode" to "conceptual" when the answer requires explanation, description, or can be expressed in multiple valid ways.
+- "acceptableAnswers" should list all valid answer variations (e.g., ["had hidden", "Had hidden"]). Include common valid alternative forms. Leave as [] for conceptual answers.
+- "evaluationCriteria" should describe exactly what makes an answer correct for this question. For example: "Student must use the past perfect form: 'had' + past participle. The auxiliary 'had' is essential." Leave as "" for conceptual or multiple-choice questions.
 - Keep explanations clear and teacher-like.
 - Do not mention AI or model behavior.
 - Return STRICT JSON only. No markdown, no code fences, no extra text.
@@ -148,7 +153,10 @@ OUTPUT JSON SHAPE:
   "explanation": "...",
   "difficulty": "${difficulty}",
   "skill": "broad skill name",
-  "subskill": "specific subskill name"
+  "subskill": "specific subskill name",
+  "gradingMode": "exact_match or normalized_match or conceptual",
+  "acceptableAnswers": ["alternative answer form 1"],
+  "evaluationCriteria": "What exactly makes the answer correct"
 }`;
   },
 
@@ -165,6 +173,7 @@ OUTPUT JSON SHAPE:
     gradeLevel,
     attemptNumber,
     recentPerformance = {},
+    evaluationCriteria = "",
     retryNotes = [],
   }) {
     const studentName = this._normalizeStudentName(studentFirstName);
@@ -207,9 +216,11 @@ RECENT INCORRECT STREAK: ${incorrectStreak}
 QUESTION: ${questionText}
 EXPECTED ANSWER: ${correctAnswer}
 STUDENT'S ANSWER: ${studentAnswer}
+${evaluationCriteria ? `EVALUATION CRITERIA: ${evaluationCriteria}` : ""}
 
 Rules:
-- Be fair on wording differences if concept is correct.
+${evaluationCriteria ? `- CRITICAL: When EVALUATION CRITERIA are provided, they take priority over general leniency rules. The student's answer MUST satisfy ALL stated criteria to be marked correct. Do NOT consider an answer correct if it partially matches the expected answer but fails one or more evaluation criteria.
+` : ""}- Be fair on wording differences if concept is correct.
 - CRITICAL: Only mark "isCorrect": false when the student's answer fails the SPECIFIC skill being tested (the STANDARD). Judge the targeted skill, not peripheral errors. If the mistake is unrelated to the standard being tested, still mark "isCorrect": true and mention the off-topic issue gently.
 ${subjectRules}
 - Personalize warmly for a student by first name.
