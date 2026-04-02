@@ -6,7 +6,6 @@ import { selectClasses } from '../../store/slices/classSlice';
 import { fetchMyClasses, selectMyClasses } from '../../store/slices/teacherSlice';
 import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import { selectUser } from '../../store/slices/authSlice';
-import GradebookClassFilters from './GradebookPage/components/GradebookClassFilters';
 import GradebookPage from './GradebookPage';
 import './GradebookPage/GradebookPage.css';
 
@@ -123,18 +122,17 @@ const GradebookRedirectPage = () => {
 
     return (
         <div className="gradebook-page">
-            <GradebookClassFilters
-                classes={availableClasses}
-                selectedClassId={selectedClassId}
-                onClassChange={handleClassChange}
-                selectedGrade={selectedGrade}
-                onGradeChange={handleGradeChange}
-                selectedSubjectFilter={selectedSubjectFilter}
-                onSubjectFilterChange={handleSubjectFilterChange}
-            />
-
             {selectedClassId && (
-                <GradebookPage key={selectedClassId} classId={selectedClassId} />
+                <GradebookPage
+                    key={selectedClassId}
+                    classId={selectedClassId}
+                    availableClasses={availableClasses}
+                    selectedGrade={selectedGrade}
+                    onGradeChange={handleGradeChange}
+                    selectedSubjectFilter={selectedSubjectFilter}
+                    onSubjectFilterChange={handleSubjectFilterChange}
+                    onClassChange={handleClassChange}
+                />
             )}
         </div>
     );

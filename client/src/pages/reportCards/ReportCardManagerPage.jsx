@@ -18,9 +18,9 @@ import {
     updateReportCardComments,
     selectReportCards,
     selectReportCardsLoading,
-    selectReportCardGenerating,
+    selectReportCardsGenerating,
     selectCurrentReportCard,
-    selectBulkResult,
+    selectReportCardBulkResult,
     clearBulkResult,
     clearCurrentReportCard
 } from '../../store/slices/reportCardSlice';
@@ -38,9 +38,9 @@ const ReportCardManagerPage = () => {
     const { t } = useTranslation(['gradebook']);
     const reportCards = useSelector(selectReportCards);
     const loading = useSelector(selectReportCardsLoading);
-    const generating = useSelector(selectReportCardGenerating);
+    const generating = useSelector(selectReportCardsGenerating);
     const currentReportCard = useSelector(selectCurrentReportCard);
-    const bulkResult = useSelector(selectBulkResult);
+    const bulkResult = useSelector(selectReportCardBulkResult);
     const academicYear = useSelector(selectCurrentAcademicYear);
 
     const [filters, setFilters] = useState({ classId: '', semester: 1, status: '' });

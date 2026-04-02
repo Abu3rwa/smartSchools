@@ -38,7 +38,8 @@
   "filters": {
     "subject": "Subject",
     "selectSubject": "Select Subject",
-    "month": "Month"
+    "month": "Month",
+    "category": "Category"
   },
   "table": {
     "columns": {

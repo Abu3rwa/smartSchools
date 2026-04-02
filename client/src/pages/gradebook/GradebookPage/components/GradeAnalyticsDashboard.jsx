@@ -10,7 +10,7 @@ import {
     selectSpreadsheetStudents,
     selectSpreadsheetColumns,
     selectSpreadsheetGrades
-} from '../../../store/slices/spreadsheetSlice';
+} from '../../../../store/slices/spreadsheetSlice';
 
 const GRADE_BANDS = [
     { label: 'A (90-100)', min: 90, color: '#10b981' },

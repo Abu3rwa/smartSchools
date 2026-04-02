@@ -38,7 +38,8 @@
   "filters": {
     "subject": "المادة",
     "selectSubject": "اختر المادة",
-    "month": "الشهر"
+    "month": "الشهر",
+    "category": "الفئة"
   },
   "table": {
     "columns": {

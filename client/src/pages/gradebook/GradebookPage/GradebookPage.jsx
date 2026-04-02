@@ -11,7 +11,6 @@ import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectNotificationSending } from '../../../store/slices/notificationSlice';
 import { selectHasFeature } from '../../../store/slices/schoolFeaturesSlice';
 import GradebookHeader from './components/GradebookHeader';
-import GradebookFilters from './components/GradebookFilters';
 import GradebookTable from './components/GradebookTable';
 import GradebookSpreadsheet from './components/GradebookSpreadsheet';
 import AddGradesModal from './components/AddGradesModal';
@@ -27,7 +26,15 @@ import useReteachTasks from './hooks/useReteachTasks';
 import { MONTHS } from './constants';
 import './GradebookPage.css';
 
-const GradebookPage = ({ classId: classIdProp } = {}) => {
+const GradebookPage = ({
+    classId: classIdProp,
+    availableClasses,
+    selectedGrade,
+    onGradeChange,
+    selectedSubjectFilter,
+    onSubjectFilterChange,
+    onClassChange
+} = {}) => {
     const { classId: classIdParam } = useParams();
     const classId = classIdProp || classIdParam;
     const isEmbedded = Boolean(classIdProp);
@@ -223,21 +230,24 @@ const GradebookPage = ({ classId: classIdProp } = {}) => {
                 onViewModeChange={setViewMode}
                 hasSpreadsheet={hasSpreadsheet}
                 isEmbedded={isEmbedded}
+                selectedSubject={selectedSubject}
+                onSubjectChange={setSelectedSubject}
+                selectedMonth={selectedMonth}
+                onMonthChange={setSelectedMonth}
+                subjects={availableSubjects}
+                months={MONTHS}
+                availableClasses={availableClasses}
+                selectedGrade={selectedGrade}
+                onGradeChange={onGradeChange}
+                selectedSubjectFilter={selectedSubjectFilter}
+                onSubjectFilterChange={onSubjectFilterChange}
+                onClassChange={onClassChange}
             />
 
             {viewMode === 'spreadsheet' && hasSpreadsheet ? (
                 <GradebookSpreadsheet />
             ) : (
                 <>
-                    <GradebookFilters
-                        selectedSubject={selectedSubject}
-                        onSubjectChange={setSelectedSubject}
-                        selectedMonth={selectedMonth}
-                        onMonthChange={setSelectedMonth}
-                        subjects={availableSubjects}
-                        months={MONTHS}
-                    />
-
                     <div className="grades-content">
                         <GradebookTable
                             loading={loading}
