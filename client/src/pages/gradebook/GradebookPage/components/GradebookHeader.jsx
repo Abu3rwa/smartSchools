@@ -6,7 +6,9 @@ import {
     HiOutlineMail,
     HiOutlinePencilAlt,
     HiOutlinePlus,
-    HiOutlineSparkles
+    HiOutlineSparkles,
+    HiOutlineViewGrid,
+    HiOutlineTable
 } from 'react-icons/hi';
 import { CATEGORY_FILTER_OPTIONS } from '../constants';
 
@@ -20,7 +22,11 @@ const GradebookHeader = ({
     notificationSending,
     hasStudents,
     onOpenAddModal,
-    grades
+    grades,
+    viewMode = 'table',
+    onViewModeChange,
+    hasSpreadsheet = false,
+    isEmbedded = false
 }) => {
     const { t } = useTranslation(['gradebook']);
 
@@ -43,10 +49,12 @@ const GradebookHeader = ({
 
     return (
         <>
-            <Link to={`/portal/classes/${classId}`} className="back-link">
-                <HiOutlineArrowLeft />
-                {t('gradebook:header.backToClass')}
-            </Link>
+            {!isEmbedded && (
+                <Link to={`/portal/classes/${classId}`} className="back-link">
+                    <HiOutlineArrowLeft />
+                    {t('gradebook:header.backToClass')}
+                </Link>
+            )}
 
             <div className="gradebook-header">
                 <div>
@@ -58,6 +66,27 @@ const GradebookHeader = ({
                 </div>
 
                 <div className="header-actions">
+                    {hasSpreadsheet && onViewModeChange && (
+                        <div className="view-toggle" style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                            <button
+                                className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-outline'}`}
+                                onClick={() => onViewModeChange('table')}
+                                title={t('gradebook:header.tableView', { defaultValue: 'Table View' })}
+                                style={{ borderRadius: 0, border: 'none' }}
+                            >
+                                <HiOutlineTable size={16} />
+                            </button>
+                            <button
+                                className={`btn btn-sm ${viewMode === 'spreadsheet' ? 'btn-primary' : 'btn-outline'}`}
+                                onClick={() => onViewModeChange('spreadsheet')}
+                                title={t('gradebook:header.spreadsheetView', { defaultValue: 'Spreadsheet View' })}
+                                style={{ borderRadius: 0, border: 'none' }}
+                            >
+                                <HiOutlineViewGrid size={16} />
+                            </button>
+                        </div>
+                    )}
+
                     <div className="category-filter-inline">
                         <select
                             value={selectedCategoryFilter}

@@ -115,6 +115,48 @@ export const FEATURES = {
         label: 'AI Presentation Builder',
         description: 'Generate AI-powered classroom presentations from lesson plans and uploaded materials.',
         plans: ['professional', 'enterprise']
+    },
+    gradebookSpreadsheet: {
+        key: 'gradebookSpreadsheet',
+        label: 'Gradebook Spreadsheet View',
+        description: 'Column-based spreadsheet gradebook with inline editing and formula support.',
+        plans: ['starter', 'professional', 'enterprise']
+    },
+    gradebookFormulas: {
+        key: 'gradebookFormulas',
+        label: 'Gradebook Formulas',
+        description: 'Weighted grade formulas for auto-calculating midterm, semester, and final grades.',
+        plans: ['professional', 'enterprise']
+    },
+    gradebookTemplates: {
+        key: 'gradebookTemplates',
+        label: 'Gradebook Templates',
+        description: 'Save and reuse gradebook column structures across subjects and semesters.',
+        plans: ['professional', 'enterprise']
+    },
+    traditionalReportCards: {
+        key: 'traditionalReportCards',
+        label: 'Traditional Report Cards',
+        description: 'Generate traditional percentage/letter-grade report cards with configurable templates.',
+        plans: ['professional', 'enterprise']
+    },
+    gradeImportExport: {
+        key: 'gradeImportExport',
+        label: 'Grade Import/Export',
+        description: 'Import grades from CSV and export gradebook to Excel.',
+        plans: ['professional', 'enterprise']
+    },
+    gradeAnalytics: {
+        key: 'gradeAnalytics',
+        label: 'Grade Analytics',
+        description: 'Visual analytics for student, class, and school-level grade insights.',
+        plans: ['professional', 'enterprise']
+    },
+    parentGradebook: {
+        key: 'parentGradebook',
+        label: 'Parent Gradebook Portal',
+        description: 'Read-only gradebook and progress dashboard for parents.',
+        plans: ['starter', 'professional', 'enterprise']
     }
 };
 

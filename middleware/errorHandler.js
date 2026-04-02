@@ -57,9 +57,17 @@ const buildErrorPayload = (error, originalError) => {
 
 // Global error handler middleware
 const errorHandler = (err, req, res, next) => {
-    void req;
     void next;
     logger.error(err.message, err);
+
+    // Ensure CORS headers are present on error responses so the browser
+    // doesn't mask the real error behind a misleading CORS failure.
+    const origin = req.headers.origin;
+    if (origin && !res.headersSent) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
     const error = mapKnownErrors(err);
     const statusCode = error.statusCode || 500;
     const payload = buildErrorPayload(error, err);

@@ -275,6 +275,7 @@ const useSchoolSettings = () => {
       canManageSchoolSettings ? 'branding' : null,
       canManageCommunicationSettings ? 'communication' : null,
       canManageSchoolSettings ? 'admissionspromotion' : null,
+      canManageSchoolSettings ? 'gradebookconfig' : null,
       canManageSchoolSettings ? 'standardsgradebook' : null,
       canManageSchoolSettings ? 'studentgroupingreports' : null,
       canManageSchoolSettings ? 'schoolyear' : null

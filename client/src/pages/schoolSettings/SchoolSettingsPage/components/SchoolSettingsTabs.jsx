@@ -103,6 +103,15 @@ const SchoolSettingsTabs = ({
         )}
         {canManageSchoolSettings && (
           <button
+            className={`settings-nav-btn ${activeTab === 'gradebookconfig' ? 'active' : ''}`}
+            onClick={() => onTabChange('gradebookconfig')}
+          >
+            <HiOutlineCalendar size={18} />
+            {t('schoolSettings:tabs.gradebookConfig', 'Gradebook Config')}
+          </button>
+        )}
+        {canManageSchoolSettings && (
+          <button
             className={`settings-nav-btn ${activeTab === 'standardsgradebook' ? 'active' : ''}`}
             onClick={() => onTabChange('standardsgradebook')}
           >

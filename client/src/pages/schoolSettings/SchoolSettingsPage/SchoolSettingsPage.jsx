@@ -10,6 +10,7 @@ import BrandingTab from './components/BrandingTab';
 import GradingScalesTab from './components/GradingScalesTab';
 import CommunicationTab from './components/CommunicationTab';
 import AdmissionsPromotionTab from './components/AdmissionsPromotionTab';
+import GradebookConfigTab from './components/GradebookConfigTab';
 import StandardsGradebookTab from './components/StandardsGradebookTab';
 import StudentGroupingReportsTab from './components/StudentGroupingReportsTab';
 import NewsletterSettingsTab from './components/NewsletterSettingsTab';
@@ -231,6 +232,10 @@ const SchoolSettingsPage = () => {
               onChange={handleAdmissionsPromotionSettingsChange}
               onSave={handleSaveAdmissionsPromotionSettings}
             />
+          )}
+
+          {activeTab === 'gradebookconfig' && canManageSchoolSettings && (
+            <GradebookConfigTab />
           )}
 
           {activeTab === 'standardsgradebook' && canManageSchoolSettings && (

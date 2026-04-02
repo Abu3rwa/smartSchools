@@ -17,7 +17,13 @@ import {
     updateGrade,
     deleteGrade,
     getClassStatistics,
-    getDashboardStats
+    getDashboardStats,
+    getSpreadsheetData,
+    batchSaveGrades,
+    autoFillColumn,
+    exportGradebook,
+    getMissingGradesReport,
+    importGrades
 } from '../controllers/gradebookController.js';
 import { protect, authorize, requirePermission } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/permissions.js';
@@ -52,6 +58,18 @@ router.get('/student/:studentId', getStudentGrades);
 router.get('/report/:studentId', getStudentGradeReport);
 router.get('/class/:classId', authorize('teacher', 'admin', 'department_principal'), getClassGrades);
 router.get('/gradebook/:classId', authorize('teacher', 'admin', 'department_principal'), getGradebookGrades);
+
+// Phase 3: Spreadsheet view
+router.get('/spreadsheet/:classId', authorize('teacher', 'admin', 'department_principal'), getSpreadsheetData);
+router.put('/spreadsheet/batch-save', authorize('teacher', 'admin'), batchSaveGrades);
+
+// Phase 6: Auto-fill, Import & Export
+router.post('/auto-fill', authorize('teacher', 'admin'), autoFillColumn);
+router.post('/import', authorize('teacher', 'admin'), importGrades);
+router.get('/export/:classId', authorize('teacher', 'admin', 'department_principal'), exportGradebook);
+
+// Phase 7: Missing & Low Grades Report
+router.get('/missing-report/:classId', authorize('teacher', 'admin', 'department_principal'), getMissingGradesReport);
 
 // Averages
 router.get('/average/monthly/:studentId', getMonthlyAverage);

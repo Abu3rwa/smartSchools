@@ -77,6 +77,7 @@ export const PERMISSIONS = {
     VIEW_GRADES: 'view_grades',
     EDIT_GRADES: 'edit_grades',
     MANAGE_GRADE_SCALING: 'manage_grade_scaling',
+    MANAGE_GRADEBOOK_CONFIG: 'manage_gradebook_config',
     MANAGE_ASSIGNMENT_CONFIG: 'manage_assignment_config',
     CREATE_ASSIGNMENTS: 'create_assignments',
     PUBLISH_ASSIGNMENTS: 'publish_assignments',
@@ -354,6 +355,11 @@ export const PERMISSION_DEFINITIONS = {
     [PERMISSIONS.MANAGE_GRADE_SCALING]: {
         label: 'Manage Grade Scaling',
         description: 'Create, update, and manage grading scales and defaults',
+        category: 'academic'
+    },
+    [PERMISSIONS.MANAGE_GRADEBOOK_CONFIG]: {
+        label: 'Manage Gradebook Config',
+        description: 'Configure semester structure, grade categories, and grading policies',
         category: 'academic'
     },
     [PERMISSIONS.MANAGE_ASSIGNMENT_CONFIG]: {

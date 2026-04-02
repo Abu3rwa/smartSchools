@@ -5,6 +5,15 @@
     "selectClass": "اختر الصف",
     "open": "فتح دفتر الدرجات"
   },
+  "classFilters": {
+    "grade": "المرحلة",
+    "allGrades": "جميع المراحل",
+    "gradeN": "الصف {{n}}",
+    "subject": "المادة",
+    "allSubjects": "جميع المواد",
+    "class": "الفصل",
+    "noClasses": "لا توجد فصول مطابقة"
+  },
   "header": {
     "backToClass": "العودة إلى الصف",
     "title": "دفتر الدرجات",

@@ -21,7 +21,7 @@ const presentationExtractionSchema = new Schema(
     originalName: { type: String, required: true },
     mimeType: { type: String, required: true },
     fileSize: { type: Number, required: true },
-    storagePath: { type: String, required: true },
+    storagePath: { type: String, default: "" },
 
     // Extracted content
     extractedText: { type: String, maxlength: 100000 },

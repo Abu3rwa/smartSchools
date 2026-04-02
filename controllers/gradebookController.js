@@ -3,6 +3,7 @@ import Grade from '../models/Grade.js';
 import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import Subject from '../models/Subject.js';
+import GradebookColumn from '../models/GradebookColumn.js';
 import HomeworkAssignment from '../models/HomeworkAssignment.js';
 import HomeworkSubmission from '../models/HomeworkSubmission.js';
 import gradeService from '../services/gradeService.js';
@@ -1703,4 +1704,659 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
             }
         }
     });
+});
+
+// ── Phase 3: Spreadsheet data endpoint ──
+
+/**
+ * @desc    Get full spreadsheet data for a class+subject (column-based view)
+ * @route   GET /api/grades/spreadsheet/:classId
+ * @access  Private (Teacher, Admin)
+ */
+export const getSpreadsheetData = asyncHandler(async (req, res) => {
+    const { classId } = req.params;
+    const { subject, subjectId, semester, academicYear } = req.query;
+    const resolvedSubjectId = subject || subjectId;
+
+    if (!resolvedSubjectId) {
+        return res.status(400).json({ success: false, message: 'Subject is required' });
+    }
+
+    const year = resolveRequestedAcademicYear(academicYear, req.school);
+    const semesterNumber = semester ? Number(semester) : null;
+
+    const gradeFilter = {
+        school: req.schoolId,
+        class: classId,
+        subject: resolvedSubjectId,
+        academicYear: year
+    };
+    if (semesterNumber) gradeFilter.semester = semesterNumber;
+
+    const columnFilter = {
+        school: req.schoolId,
+        class: classId,
+        subject: resolvedSubjectId,
+        academicYear: year
+    };
+    if (semesterNumber) columnFilter.semester = semesterNumber;
+
+    const [students, columns, grades, gradingScale] = await Promise.all([
+        Student.find({
+            school: req.schoolId,
+            currentClass: classId,
+            status: 'active'
+        })
+            .select('firstName lastName studentNumber')
+            .sort({ firstName: 1, lastName: 1 })
+            .lean(),
+        GradebookColumn.find(columnFilter)
+            .sort({ sortOrder: 1, createdAt: 1 })
+            .lean(),
+        Grade.find(gradeFilter)
+            .select('_id student columnId marks maxMarks remarks publicComment date category title')
+            .lean(),
+        getActiveGradingScale(req.schoolId)
+    ]);
+
+    const gradesByStudent = {};
+    for (const grade of grades) {
+        if (!grade?.student || !grade?.columnId) continue;
+        const studentKey = grade.student.toString();
+        const columnKey = grade.columnId.toString();
+        if (!gradesByStudent[studentKey]) {
+            gradesByStudent[studentKey] = {};
+        }
+        gradesByStudent[studentKey][columnKey] = grade;
+    }
+
+    const normalizedStudents = students.map((student) => ({
+        ...student,
+        name: `${student.firstName || ''} ${student.lastName || ''}`.trim()
+    }));
+
+    // Backward-compatible shape for any consumers still reading studentData[]
+    const studentData = normalizedStudents.map((student) => ({
+        studentId: student._id.toString(),
+        grades: Object.values(gradesByStudent[student._id.toString()] || {})
+    }));
+
+    res.json({
+        success: true,
+        data: {
+            students: normalizedStudents,
+            columns,
+            grades: gradesByStudent,
+            gradingScale,
+            studentData
+        }
+    });
+});
+
+/**
+ * @desc    Batch save grades (create or update in bulk)
+ * @route   PUT /api/grades/spreadsheet/batch-save
+ * @access  Private (Teacher, Admin)
+ */
+export const batchSaveGrades = asyncHandler(async (req, res) => {
+    const {
+        entries,
+        classId,
+        subject,
+        subjectId,
+        academicYear,
+        semester
+    } = req.body;
+    // entries: [{ _id?, studentId|student, columnId, marks, maxMarks?, date?, category? }]
+
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return res.status(400).json({ success: false, message: 'entries array is required' });
+    }
+
+    if (entries.length > 500) {
+        return res.status(400).json({ success: false, message: 'Maximum 500 entries per batch' });
+    }
+
+    const resolvedClassId = classId || entries[0]?.class;
+    const resolvedSubjectId = subject || subjectId || entries[0]?.subject;
+    if (!resolvedClassId || !resolvedSubjectId) {
+        return res.status(400).json({
+            success: false,
+            message: 'classId and subject are required'
+        });
+    }
+
+    const year = resolveRequestedAcademicYear(academicYear, req.school);
+    const requestedSemester = semester ? Number(semester) : null;
+    const bulkOps = [];
+    const uniqueColumnIds = [...new Set(entries
+        .map((entry) => entry.columnId)
+        .filter((columnId) => mongoose.Types.ObjectId.isValid(String(columnId))))];
+    const columnIds = uniqueColumnIds.map((columnId) => new mongoose.Types.ObjectId(columnId));
+
+    const columns = await GradebookColumn.find({
+        school: req.schoolId,
+        _id: { $in: columnIds }
+    })
+        .select('_id maxMarks category date')
+        .lean();
+    const columnMap = new Map(columns.map((column) => [column._id.toString(), column]));
+
+    for (const entry of entries) {
+        const resolvedStudentId = entry.studentId || entry.student;
+        const resolvedColumnId = entry.columnId;
+
+        if (!resolvedStudentId || !resolvedColumnId) {
+            continue;
+        }
+
+        if (entry._id) {
+            if (entry.marks == null || entry.marks === '') {
+                bulkOps.push({
+                    deleteOne: {
+                        filter: {
+                            _id: entry._id,
+                            school: req.schoolId
+                        }
+                    }
+                });
+                continue;
+            }
+
+            // Update existing grade
+            bulkOps.push({
+                updateOne: {
+                    filter: { _id: entry._id, school: req.schoolId },
+                    update: {
+                        $set: {
+                            marks: entry.marks,
+                            ...(entry.maxMarks !== undefined && { maxMarks: entry.maxMarks }),
+                            ...(entry.remarks !== undefined && { remarks: entry.remarks }),
+                            ...(entry.publicComment !== undefined && { publicComment: entry.publicComment })
+                        }
+                    }
+                }
+            });
+        } else {
+            const column = columnMap.get(String(resolvedColumnId));
+            const effectiveDate = entry.date ? new Date(entry.date) : (column?.date ? new Date(column.date) : new Date());
+            const month = effectiveDate.getMonth() + 1;
+            const derivedSemester = requestedSemester || ((month >= 8 && month <= 12) ? 1 : 2);
+
+            if (entry.marks == null || entry.marks === '') {
+                bulkOps.push({
+                    deleteOne: {
+                        filter: {
+                            school: req.schoolId,
+                            student: resolvedStudentId,
+                            class: entry.class || resolvedClassId,
+                            subject: entry.subject || resolvedSubjectId,
+                            academicYear: year,
+                            columnId: resolvedColumnId
+                        }
+                    }
+                });
+                continue;
+            }
+
+            // Upsert by student+column for the scoped class/subject/year
+            bulkOps.push({
+                updateOne: {
+                    filter: {
+                        school: req.schoolId,
+                        student: resolvedStudentId,
+                        class: entry.class || resolvedClassId,
+                        subject: entry.subject || resolvedSubjectId,
+                        academicYear: year,
+                        columnId: resolvedColumnId
+                    },
+                    update: {
+                        $set: {
+                            teacher: req.user._id,
+                            gradeType: entry.gradeType || entry.category || column?.category || 'classwork',
+                            category: entry.category || column?.category || 'classwork',
+                            date: effectiveDate,
+                            month,
+                            semester: derivedSemester,
+                            marks: Number(entry.marks),
+                            maxMarks: entry.maxMarks || column?.maxMarks || 100,
+                            title: entry.title || '',
+                            remarks: entry.remarks || '',
+                            publicComment: entry.publicComment || ''
+                        },
+                        $setOnInsert: {
+                            school: req.schoolId,
+                            student: resolvedStudentId,
+                            subject: entry.subject || resolvedSubjectId,
+                            class: entry.class || resolvedClassId,
+                            academicYear: year,
+                            columnId: resolvedColumnId
+                        }
+                    },
+                    upsert: true
+                }
+            });
+        }
+    }
+
+    if (bulkOps.length === 0) {
+        return res.json({ success: true, data: { updated: 0, created: 0, deleted: 0 } });
+    }
+
+    const result = await Grade.bulkWrite(bulkOps, { ordered: false });
+    const created = result.upsertedCount || 0;
+    const updated = result.modifiedCount || 0;
+    const deleted = result.deletedCount || 0;
+
+    res.json({ success: true, data: { updated, created, deleted } });
+});
+
+// ── Phase 6: Auto-fill ──
+
+/**
+ * @desc    Auto-fill a column with a single value
+ * @route   POST /api/grades/auto-fill
+ * @access  Private (Teacher, Admin)
+ */
+export const autoFillColumn = asyncHandler(async (req, res) => {
+    const {
+        columnId,
+        classId,
+        subject,
+        subjectId,
+        value,
+        maxMarks,
+        onlyEmpty,
+        academicYear,
+        date,
+        category
+    } = req.body;
+    const resolvedSubjectId = subject || subjectId;
+
+    if (!classId || !resolvedSubjectId || value === undefined) {
+        return res.status(400).json({ success: false, message: 'classId, subject, and value are required' });
+    }
+
+    const year = resolveRequestedAcademicYear(academicYear, req.school);
+
+    // Get all students in the class
+    const classDoc = await Class.findById(classId).lean();
+    if (!classDoc) return res.status(404).json({ success: false, message: 'Class not found' });
+
+    const students = await Student.find({
+        school: req.schoolId,
+        currentClass: classId,
+        status: 'active'
+    }).select('_id').lean();
+
+    let skipped = 0;
+    let filled = 0;
+
+    if (onlyEmpty && columnId) {
+        // Find students who already have a grade in this column
+        const existingGrades = await Grade.find({
+            school: req.schoolId,
+            columnId,
+            class: classId
+        }).select('student').lean();
+        const existingSet = new Set(existingGrades.map(g => g.student.toString()));
+
+        const toCreate = students
+            .filter(s => !existingSet.has(s._id.toString()))
+            .map(s => ({
+                school: req.schoolId,
+                student: s._id,
+                subject: resolvedSubjectId,
+                class: classId,
+                teacher: req.user._id,
+                academicYear: year,
+                gradeType: category || 'classwork',
+                category: category || 'classwork',
+                date: date || new Date(),
+                marks: value,
+                maxMarks: maxMarks || 100,
+                columnId
+            }));
+
+        if (toCreate.length > 0) {
+            await Grade.insertMany(toCreate, { ordered: false });
+        }
+        filled = toCreate.length;
+        skipped = existingSet.size;
+    } else if (columnId) {
+        // Overwrite all — upsert for each student
+        for (const student of students) {
+            await Grade.findOneAndUpdate(
+                { school: req.schoolId, columnId, student: student._id },
+                {
+                    $set: {
+                        marks: value,
+                        maxMarks: maxMarks || 100,
+                        subject: resolvedSubjectId,
+                        class: classId,
+                        teacher: req.user._id,
+                        academicYear: year,
+                        gradeType: category || 'classwork',
+                        category: category || 'classwork',
+                        date: date || new Date()
+                    }
+                },
+                { upsert: true }
+            );
+            filled++;
+        }
+    } else {
+        // No column — create new grades for each student
+        const toCreate = students.map(s => ({
+            school: req.schoolId,
+            student: s._id,
+            subject: resolvedSubjectId,
+            class: classId,
+            teacher: req.user._id,
+            academicYear: year,
+            gradeType: category || 'classwork',
+            category: category || 'classwork',
+            date: date || new Date(),
+            marks: value,
+            maxMarks: maxMarks || 100,
+            title: req.body.title || 'Auto-filled'
+        }));
+        await Grade.insertMany(toCreate, { ordered: false });
+        filled = toCreate.length;
+    }
+
+    res.json({ success: true, data: { filled, skipped } });
+});
+
+// ── Phase 6: Export ──
+
+/**
+ * @desc    Export gradebook data as JSON (for client-side Excel generation)
+ * @route   GET /api/grades/export/:classId
+ * @access  Private (Teacher, Admin)
+ */
+export const exportGradebook = asyncHandler(async (req, res) => {
+    const { classId } = req.params;
+    const { subject, subjectId, semester, academicYear } = req.query;
+    const resolvedSubjectId = subject || subjectId;
+
+    if (!resolvedSubjectId) {
+        return res.status(400).json({ success: false, message: 'Subject is required' });
+    }
+
+    const year = resolveRequestedAcademicYear(academicYear, req.school);
+    const gradeFilter = {
+        school: req.schoolId,
+        class: classId,
+        subject: resolvedSubjectId,
+        academicYear: year
+    };
+    if (semester) gradeFilter.semester = Number(semester);
+
+    const [grades, students, classDoc, gradingScale] = await Promise.all([
+        Grade.find(gradeFilter).lean(),
+        Student.find({ school: req.schoolId, currentClass: classId, status: 'active' })
+            .select('firstName lastName studentNumber').lean(),
+        Class.findById(classId).select('name').lean(),
+        getActiveGradingScale(req.schoolId)
+    ]);
+
+    // Build export-friendly structure
+    const studentMap = new Map(students.map(s => [s._id.toString(), s]));
+    const columnGroups = new Map();
+
+    for (const g of grades) {
+        const key = g.columnId?.toString() || g.assessmentGroupId || `${g.category}:${g.date?.toISOString().slice(0, 10)}`;
+        if (!columnGroups.has(key)) {
+            columnGroups.set(key, {
+                name: g.title || g.category,
+                category: g.category,
+                date: g.date,
+                maxMarks: g.maxMarks,
+                grades: []
+            });
+        }
+        const student = studentMap.get(g.student.toString());
+        columnGroups.get(key).grades.push({
+            studentName: student ? `${student.firstName} ${student.lastName}` : 'Unknown',
+            studentNumber: student?.studentNumber || '',
+            marks: g.marks,
+            maxMarks: g.maxMarks
+        });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            className: classDoc?.name || '',
+            academicYear: year,
+            students: students.map(s => ({ name: `${s.firstName} ${s.lastName}`, studentNumber: s.studentNumber })),
+            columns: [...columnGroups.values()],
+            gradingScale
+        }
+    });
+});
+
+// ── Phase 7: Missing & Low Grades Report ──
+
+/**
+ * @desc    Get missing and low grades report
+ * @route   GET /api/grades/missing-report/:classId
+ * @access  Private (Teacher, Admin)
+ */
+export const getMissingGradesReport = asyncHandler(async (req, res) => {
+    const { classId } = req.params;
+    const { subject, subjectId, semester, academicYear, lowGradeThreshold } = req.query;
+    const resolvedSubjectId = subject || subjectId;
+
+    const year = resolveRequestedAcademicYear(academicYear, req.school);
+    const threshold = Number(lowGradeThreshold) || 50;
+
+    const students = await Student.find({
+        school: req.schoolId,
+        currentClass: classId,
+        status: 'active'
+    }).select('firstName lastName studentNumber').lean();
+
+    const gradeFilter = {
+        school: req.schoolId,
+        class: classId,
+        academicYear: year
+    };
+    if (resolvedSubjectId) gradeFilter.subject = resolvedSubjectId;
+    if (semester) gradeFilter.semester = Number(semester);
+
+    const grades = await Grade.find(gradeFilter).lean();
+
+    const studentGradeMap = new Map();
+    for (const g of grades) {
+        const sid = g.student.toString();
+        if (!studentGradeMap.has(sid)) studentGradeMap.set(sid, []);
+        studentGradeMap.get(sid).push(g);
+    }
+
+    const report = {
+        studentsWithNoGrades: [],
+        lowGrades: [],
+        summary: { totalStudents: students.length, studentsWithGrades: 0, studentsWithLowGrades: 0 }
+    };
+
+    for (const student of students) {
+        const sid = student._id.toString();
+        const sGrades = studentGradeMap.get(sid);
+
+        if (!sGrades || sGrades.length === 0) {
+            report.studentsWithNoGrades.push({
+                studentId: sid,
+                name: `${student.firstName} ${student.lastName}`,
+                studentNumber: student.studentNumber
+            });
+            continue;
+        }
+
+        report.summary.studentsWithGrades++;
+
+        const lowOnes = sGrades.filter(g => g.maxMarks > 0 && (g.marks / g.maxMarks) * 100 < threshold);
+        if (lowOnes.length > 0) {
+            report.summary.studentsWithLowGrades++;
+            for (const g of lowOnes) {
+                report.lowGrades.push({
+                    studentId: sid,
+                    name: `${student.firstName} ${student.lastName}`,
+                    category: g.category,
+                    title: g.title || g.gradeType,
+                    marks: g.marks,
+                    maxMarks: g.maxMarks,
+                    percentage: Math.round((g.marks / g.maxMarks) * 100),
+                    date: g.date
+                });
+            }
+        }
+    }
+
+    res.json({ success: true, data: report });
+});
+
+// ── Phase 6: Grade Import ──
+
+/**
+ * @desc    Import grades from structured JSON (parsed CSV on client side)
+ * @route   POST /api/grades/import
+ * @access  Private (Teacher, Admin)
+ *
+ * Body: { classId, subjectId, academicYear, semester, rows: [{ studentIdentifier, columnName, marks, maxMarks }] }
+ * - Matches students by studentNumber or name.
+ * - Creates columns automatically from columnName if they don't exist.
+ */
+export const importGrades = asyncHandler(async (req, res) => {
+    const { classId, subjectId, academicYear, semester, rows, category } = req.body;
+    if (!classId || !subjectId || !academicYear || !semester || !Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'classId, subjectId, academicYear, semester, and rows are required' });
+    }
+
+    let normalizedRows = rows;
+
+    // Support both row formats:
+    // 1) [{ studentIdentifier, columnName, marks, maxMarks }]
+    // 2) [{ studentName, grades: { "HW #1": 90, "Quiz 1": 84 } }]
+    if (rows[0] && typeof rows[0] === 'object' && rows[0].grades && typeof rows[0].grades === 'object') {
+        normalizedRows = [];
+        for (const row of rows) {
+            const identifier = String(
+                row.studentIdentifier || row.studentName || row.name || ''
+            ).trim();
+            if (!identifier) continue;
+
+            for (const [columnName, marks] of Object.entries(row.grades || {})) {
+                if (marks === '' || marks === null || marks === undefined) continue;
+                normalizedRows.push({
+                    studentIdentifier: identifier,
+                    columnName,
+                    marks,
+                    maxMarks: row.maxMarks || 100
+                });
+            }
+        }
+    }
+
+    if (normalizedRows.length > 5000) {
+        return res.status(400).json({ success: false, message: 'Maximum 5000 grade rows per import' });
+    }
+
+    const year = resolveRequestedAcademicYear(academicYear, req.school);
+
+    // Load students for matching
+    const students = await Student.find({
+        school: req.schoolId,
+        currentClass: classId,
+        status: 'active'
+    }).select('firstName lastName studentNumber').lean();
+
+    const studentByNumber = new Map();
+    const studentByName = new Map();
+    for (const s of students) {
+        if (s.studentNumber) studentByNumber.set(s.studentNumber.toLowerCase(), s);
+        const fullName = `${s.firstName} ${s.lastName}`.toLowerCase().trim();
+        studentByName.set(fullName, s);
+    }
+
+    // Load existing columns for the scope
+    const GradebookColumn = (await import('../models/GradebookColumn.js')).default;
+    const existingColumns = await GradebookColumn.find({
+        school: req.schoolId,
+        class: classId,
+        subject: subjectId,
+        academicYear: year,
+        semester: Number(semester)
+    }).lean();
+    const columnByName = new Map(existingColumns.map(c => [c.name.toLowerCase(), c]));
+
+    const results = { imported: 0, skipped: 0, columnsCreated: 0, errors: [] };
+    const gradesToCreate = [];
+
+    for (let i = 0; i < normalizedRows.length; i++) {
+        const row = normalizedRows[i];
+        const identifier = String(row.studentIdentifier || '').trim();
+        const colName = String(row.columnName || '').trim();
+        const marks = Number(row.marks);
+        const maxMarks = Number(row.maxMarks) || 100;
+
+        if (!identifier || !colName || !Number.isFinite(marks)) {
+            results.skipped++;
+            results.errors.push({ row: i + 1, message: 'Missing studentIdentifier, columnName, or invalid marks' });
+            continue;
+        }
+
+        // Match student
+        const student = studentByNumber.get(identifier.toLowerCase()) || studentByName.get(identifier.toLowerCase());
+        if (!student) {
+            results.skipped++;
+            results.errors.push({ row: i + 1, message: `Student not found: ${identifier}` });
+            continue;
+        }
+
+        // Find or create column
+        let column = columnByName.get(colName.toLowerCase());
+        if (!column) {
+            column = await GradebookColumn.create({
+                school: req.schoolId,
+                class: classId,
+                subject: subjectId,
+                academicYear: year,
+                semester: Number(semester),
+                name: colName,
+                category: category || 'classwork',
+                maxMarks,
+                date: new Date(),
+                sortOrder: existingColumns.length + results.columnsCreated + 1,
+                createdBy: req.user._id
+            });
+            columnByName.set(colName.toLowerCase(), column);
+            results.columnsCreated++;
+        }
+
+        gradesToCreate.push({
+            school: req.schoolId,
+            student: student._id,
+            subject: subjectId,
+            class: classId,
+            teacher: req.user._id,
+            academicYear: year,
+            semester: Number(semester),
+            gradeType: category || 'classwork',
+            category: category || 'classwork',
+            date: new Date(),
+            marks,
+            maxMarks,
+            columnId: column._id,
+            title: colName
+        });
+    }
+
+    if (gradesToCreate.length > 0) {
+        await Grade.insertMany(gradesToCreate, { ordered: false });
+        results.imported = gradesToCreate.length;
+    }
+
+    res.json({ success: true, data: results });
 });

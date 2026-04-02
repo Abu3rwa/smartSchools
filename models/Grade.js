@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { resolveSemesterForDate, resolveExamPeriodForDate } from '../services/gradebookConfigService.js';
 
 const gradeSchema = new mongoose.Schema({
     school: {
@@ -126,6 +127,30 @@ const gradeSchema = new mongoose.Schema({
         type: String,
         enum: ['manual', 'homework_submission'],
         default: 'manual'
+    },
+    // Phase 1: Gradebook Enhancement — optional fields (backward-compatible)
+    columnId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'GradebookColumn',
+        default: null,
+        index: true
+    },
+    examPeriod: {
+        type: String,
+        enum: ['midterm', 'final', null],
+        default: null
+    },
+    publicComment: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+        default: ''
+    },
+    privateComment: {
+        type: String,
+        trim: true,
+        maxlength: 1000,
+        default: ''
     }
 }, {
     timestamps: true,
@@ -166,7 +191,7 @@ gradeSchema.virtual('letterGrade').get(function () {
 });
 
 // Pre-save hook to set month and semester
-gradeSchema.pre('save', function (next) {
+gradeSchema.pre('save', async function (next) {
     if (!this.assessmentGroupId) {
         this.assessmentGroupId = new mongoose.Types.ObjectId().toString();
     }
@@ -174,9 +199,23 @@ gradeSchema.pre('save', function (next) {
     const date = new Date(this.date);
     this.month = date.getMonth() + 1; // 1-12
 
-    // Determine semester (Aug-Dec = 1, Jan-May = 2)
-    const month = date.getMonth() + 1;
-    this.semester = (month >= 8 && month <= 12) ? 1 : 2;
+    // Resolve semester from GradebookConfig if available, else fallback to month-based
+    try {
+        const configSemester = await resolveSemesterForDate(this.school, date);
+        this.semester = configSemester || ((this.month >= 8 && this.month <= 12) ? 1 : 2);
+    } catch {
+        // Fallback: month-based (Aug-Dec = 1, Jan-Jul = 2)
+        this.semester = (this.month >= 8 && this.month <= 12) ? 1 : 2;
+    }
+
+    // Auto-detect exam period if not already set
+    if (!this.examPeriod) {
+        try {
+            this.examPeriod = await resolveExamPeriodForDate(this.school, date);
+        } catch {
+            // Leave null — not critical
+        }
+    }
 
     next();
 });

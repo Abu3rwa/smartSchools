@@ -5,7 +5,7 @@ import LessonPlan from "../models/LessonPlan.js";
 import Standard from "../models/Standard.js";
 import { AITokenUsage } from "../models/AITokenUsage.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
-import { uploadFile, deleteFile } from "../services/firebaseStorageService.js";
+import { deleteFile } from "../services/firebaseStorageService.js";
 import { extractFromBuffer } from "../services/presentationExtractionService.js";
 import {
   buildContext,
@@ -158,26 +158,10 @@ export const uploadMaterials = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "No files uploaded" });
   }
 
-  const UPLOAD_TIMEOUT_MS = 25_000; // stay well under Render's 30s request timeout
-  const withTimeout = (promise, ms) =>
-    Promise.race([
-      promise,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Operation timed out")), ms)
-      ),
-    ]);
-
   const extractions = [];
 
   for (const file of req.files) {
-    // Upload to Firebase
-    const destinationPath = `schools/${req.schoolId}/presentations/materials/${Date.now()}_${file.originalname}`;
-    await withTimeout(
-      uploadFile(file.buffer, file.mimetype, destinationPath),
-      UPLOAD_TIMEOUT_MS
-    );
-
-    // Extract text content
+    // Extract text content directly from the uploaded buffer.
     let extractionResult = { text: "", pageCount: 0, wordCount: 0, chunks: [] };
     try {
       extractionResult = await extractFromBuffer(file.buffer, file.mimetype);
@@ -191,7 +175,6 @@ export const uploadMaterials = asyncHandler(async (req, res) => {
       originalName: file.originalname,
       mimeType: file.mimetype,
       fileSize: file.size,
-      storagePath: destinationPath,
       extractedText: extractionResult.text,
       chunks: extractionResult.chunks,
       pageCount: extractionResult.pageCount,

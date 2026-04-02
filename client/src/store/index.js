@@ -27,6 +27,12 @@ import messagesReducer from './slices/messagesSlice';
 import studentGroupingReducer from './slices/studentGroupingSlice';
 import newsletterTemplatesReducer from './slices/newsletterTemplateSlice';
 import presentationsReducer from './slices/presentationSlice';
+import gradebookConfigReducer from './slices/gradebookConfigSlice';
+import gradebookColumnsReducer from './slices/gradebookColumnsSlice';
+import formulaReducer from './slices/formulaSlice';
+import reportCardReducer from './slices/reportCardSlice';
+import spreadsheetReducer from './slices/spreadsheetSlice';
+import analyticsReducer from './slices/analyticsSlice';
 import uiReducer, {
     fetchSchoolAcademicYear,
     updateSchoolAcademicYear
@@ -52,6 +58,12 @@ const YEAR_SCOPED_SLICE_KEYS = [
     'sbGradebook',
     'practiceHistory',
     'presentations',
+    'gradebookConfig',
+    'gradebookColumns',
+    'formulas',
+    'reportCards',
+    'spreadsheet',
+    'analytics',
 ];
 
 const appReducer = combineReducers({
@@ -84,7 +96,13 @@ const appReducer = combineReducers({
     messages: messagesReducer,
     studentGrouping: studentGroupingReducer,
     newsletterTemplates: newsletterTemplatesReducer,
-    presentations: presentationsReducer
+    presentations: presentationsReducer,
+    gradebookConfig: gradebookConfigReducer,
+    gradebookColumns: gradebookColumnsReducer,
+    formulas: formulaReducer,
+    reportCards: reportCardReducer,
+    spreadsheet: spreadsheetReducer,
+    analytics: analyticsReducer
 });
 
 const hasAcademicYearChanged = (state, action) => {

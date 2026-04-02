@@ -5,6 +5,15 @@
     "selectClass": "Select Class",
     "open": "Open Gradebook"
   },
+  "classFilters": {
+    "grade": "Grade",
+    "allGrades": "All Grades",
+    "gradeN": "Grade {{n}}",
+    "subject": "Subject",
+    "allSubjects": "All Subjects",
+    "class": "Class",
+    "noClasses": "No classes match"
+  },
   "header": {
     "backToClass": "Back to Class",
     "title": "Gradebook",

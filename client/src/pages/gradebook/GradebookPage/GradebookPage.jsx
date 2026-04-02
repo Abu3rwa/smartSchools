@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
@@ -8,9 +9,11 @@ import { selectSubjects } from '../../../store/slices/subjectSlice';
 import { selectTeacherProfile, selectUser } from '../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectNotificationSending } from '../../../store/slices/notificationSlice';
+import { selectHasFeature } from '../../../store/slices/schoolFeaturesSlice';
 import GradebookHeader from './components/GradebookHeader';
 import GradebookFilters from './components/GradebookFilters';
 import GradebookTable from './components/GradebookTable';
+import GradebookSpreadsheet from './components/GradebookSpreadsheet';
 import AddGradesModal from './components/AddGradesModal';
 import AIReportModal from './components/AIReportModal';
 import ReteachTaskModal from './components/ReteachTaskModal';
@@ -24,8 +27,10 @@ import useReteachTasks from './hooks/useReteachTasks';
 import { MONTHS } from './constants';
 import './GradebookPage.css';
 
-const GradebookPage = () => {
-    const { classId } = useParams();
+const GradebookPage = ({ classId: classIdProp } = {}) => {
+    const { classId: classIdParam } = useParams();
+    const classId = classIdProp || classIdParam;
+    const isEmbedded = Boolean(classIdProp);
 
     const currentClass = useSelector(selectCurrentClass);
     const students = useSelector(selectClassStudents);
@@ -34,6 +39,9 @@ const GradebookPage = () => {
     const teacherProfile = useSelector(selectTeacherProfile);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const notificationSending = useSelector(selectNotificationSending);
+    const hasSpreadsheet = useSelector((state) => selectHasFeature(state, 'gradebookSpreadsheet'));
+
+    const [viewMode, setViewMode] = useState('table');
 
     const {
         selectedSubject,
@@ -199,7 +207,7 @@ const GradebookPage = () => {
     };
 
     return (
-        <div className="gradebook-page">
+        <div className={isEmbedded ? 'gradebook-page-embedded' : 'gradebook-page'}>
             <GradebookHeader
                 classId={classId}
                 className={currentClass?.name}
@@ -211,38 +219,39 @@ const GradebookPage = () => {
                 hasStudents={students.length > 0}
                 onOpenAddModal={handleOpenAddModal}
                 grades={grades}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                hasSpreadsheet={hasSpreadsheet}
+                isEmbedded={isEmbedded}
             />
 
-            <GradebookFilters
-                selectedSubject={selectedSubject}
-                onSubjectChange={setSelectedSubject}
-                selectedMonth={selectedMonth}
-                onMonthChange={setSelectedMonth}
-                subjects={availableSubjects}
-                months={MONTHS}
-            />
+            {viewMode === 'spreadsheet' && hasSpreadsheet ? (
+                <GradebookSpreadsheet />
+            ) : (
+                <>
+                    <GradebookFilters
+                        selectedSubject={selectedSubject}
+                        onSubjectChange={setSelectedSubject}
+                        selectedMonth={selectedMonth}
+                        onMonthChange={setSelectedMonth}
+                        subjects={availableSubjects}
+                        months={MONTHS}
+                    />
 
-            {/* <ReteachTasksPanel
-                tasks={reteachTasks}
-                loading={reteachTasksLoading}
-                error={reteachTasksError}
-                saving={reteachTasksSaving}
-                onRefresh={refreshTasks}
-                onStatusChange={updateTaskStatus}
-            /> */}
-
-            <div className="grades-content">
-                <GradebookTable
-                    loading={loading}
-                    students={students}
-                    grades={grades}
-                    gradingScale={gradingScale}
-                    dynamicCategories={dynamicCategories}
-                    processedData={processedData}
-                    onOpenAIModal={handleOpenAIModal}
-                    onOpenLearningTrace={handleOpenLearningTrace}
-                />
-            </div>
+                    <div className="grades-content">
+                        <GradebookTable
+                            loading={loading}
+                            students={students}
+                            grades={grades}
+                            gradingScale={gradingScale}
+                            dynamicCategories={dynamicCategories}
+                            processedData={processedData}
+                            onOpenAIModal={handleOpenAIModal}
+                            onOpenLearningTrace={handleOpenLearningTrace}
+                        />
+                    </div>
+                </>
+            )}
 
             <AddGradesModal
                 open={showAddModal}

@@ -49,6 +49,9 @@ const WeeklyReportPage = lazy(() => import("./pages/reports/WeeklyReportPage"));
 const WeeklyReportRedirectPage = lazy(() => import("./pages/reports/WeeklyReportPage/WeeklyReportRedirectPage"));
 const GradebookPage = lazy(() => import("./pages/gradebook/GradebookPage"));
 const GradebookRedirectPage = lazy(() => import("./pages/gradebook/GradebookRedirectPage"));
+const ReportCardManagerPage = lazy(() => import("./pages/reportCards/ReportCardManagerPage"));
+const ParentGradebookPage = lazy(() => import("./pages/parentGradebook/ParentGradebookPage"));
+const GradeAnalyticsDashboardPage = lazy(() => import("./pages/gradebook/GradebookPage/components/GradeAnalyticsDashboard"));
 const TeachersPage = lazy(() => import("./pages/teachers/TeachersPage"));
 const TeacherDetailsPage = lazy(() => import("./pages/teachers/TeacherDetailsPage"));
 const SubjectsPage = lazy(() => import("./pages/subjects/SubjectsPage"));
@@ -397,6 +400,36 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal", "teacher"]}>
                   <GradebookPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="report-cards"
+              element={
+                <RoleRoute roles={["admin", "teacher"]}>
+                  <FeatureGate feature="traditionalReportCards" showUpgradePrompt>
+                    <ReportCardManagerPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="grade-analytics"
+              element={
+                <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                  <FeatureGate feature="gradeAnalytics" showUpgradePrompt>
+                    <GradeAnalyticsDashboardPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="parent-gradebook"
+              element={
+                <RoleRoute roles={["parent"]}>
+                  <FeatureGate feature="parentGradebook" showUpgradePrompt>
+                    <ParentGradebookPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />

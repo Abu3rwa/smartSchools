@@ -69,6 +69,13 @@ import homeworkRoutes from "./routes/homeworkRoutes.js";
 import assignmentRoutes from "./routes/assignmentRoutes.js";
 import assignmentTypeRoutes from "./routes/assignmentTypeRoutes.js";
 import gradingScaleRoutes from "./routes/gradingScaleRoutes.js";
+import gradebookConfigRoutes from "./routes/gradebookConfigRoutes.js";
+import gradebookColumnRoutes from "./routes/gradebookColumnRoutes.js";
+import formulaRoutes from "./routes/formulaRoutes.js";
+import reportCardRoutes from "./routes/reportCardRoutes.js";
+import templateRoutes from "./routes/templateRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
+import parentGradebookRoutes from "./routes/parentGradebookRoutes.js";
 import calendarRoutes from "./routes/calendarRoutes.js";
 import communicationEmailRoutes from "./routes/communicationEmailRoutes.js";
 import curriculumMapRoutes from "./routes/curriculumMapRoutes.js";
@@ -148,6 +155,8 @@ app.use(
 // HTTPS enforcement in production behind a reverse proxy (Render/Heroku/etc.)
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
+    // Never redirect preflight OPTIONS requests — let CORS middleware handle them
+    if (req.method === 'OPTIONS') return next();
     if (req.headers['x-forwarded-proto'] !== 'https') {
       return res.redirect(301, `https://${req.headers.host}${req.url}`);
     }
@@ -306,6 +315,13 @@ app.use("/api/homework", homeworkRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/assignment-types", assignmentTypeRoutes);
 app.use("/api/grading-scales", gradingScaleRoutes);
+app.use("/api/gradebook-config", gradebookConfigRoutes);
+app.use("/api/gradebook-columns", gradebookColumnRoutes);
+app.use("/api/gradebook-formulas", formulaRoutes);
+app.use("/api/report-cards", reportCardRoutes);
+app.use("/api/gradebook-templates", templateRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/parent", parentGradebookRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/communication-email", communicationEmailRoutes);
 app.use("/api/curriculum-maps", curriculumMapRoutes);
