@@ -20,6 +20,8 @@ import { protect, authorize } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
 import upload from '../middleware/upload.js';
+import { validateRequestSchema } from '../middleware/schemaValidator.js';
+import { forgotPasswordBodySchema, resetPasswordBodySchema, changePasswordBodySchema } from '../schemas/authSchemas.js';
 
 const router = express.Router();
 
@@ -39,8 +41,8 @@ router.post('/login', validationRules.login, validate, login);
 router.post('/refresh', refresh);
 
 // Password reset routes (public) with rate limiting
-router.post('/forgot-password', passwordResetLimiter, forgotPassword);
-router.post('/reset-password', passwordResetLimiter, resetPassword);
+router.post('/forgot-password', passwordResetLimiter, validateRequestSchema({ bodySchema: forgotPasswordBodySchema }), forgotPassword);
+router.post('/reset-password', passwordResetLimiter, validateRequestSchema({ bodySchema: resetPasswordBodySchema }), resetPassword);
 
 // Super Admin Impersonation
 router.post('/impersonate', protect, authorize('super_admin', 'admin'), impersonateUser);
@@ -55,7 +57,7 @@ router.get('/google/callback', googleCallback);
 // Protected routes
 router.get('/me', protect, getMe);
 router.put('/profile', protect, upload.single('avatar'), updateProfile);
-router.put('/password', protect, changePassword);
+router.put('/password', protect, validateRequestSchema({ bodySchema: changePasswordBodySchema }), changePassword);
 router.post('/logout', protect, logout);
 
 // Test email sending

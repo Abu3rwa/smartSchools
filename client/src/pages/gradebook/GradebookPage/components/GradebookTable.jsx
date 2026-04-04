@@ -1,4 +1,5 @@
 import { HiOutlineChartBar, HiOutlineSparkles } from 'react-icons/hi';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
     getClassCategoryAverage,
@@ -89,7 +90,9 @@ const GradebookTable = ({
                                                     {student.firstName?.charAt(0)}
                                                     {student.lastName?.charAt(0)}
                                                 </div>
-                                                <span>{student.firstName} {student.lastName}</span>
+                                                <Link to={`/portal/grades/student/${student._id}`} className="student-name-link">
+                                                    {student.firstName} {student.lastName}
+                                                </Link>
                                             </div>
 
                                             <button

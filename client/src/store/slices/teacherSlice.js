@@ -136,6 +136,7 @@ const teacherSlice = createSlice({
     name: 'teachers',
     initialState: {
         teachers: [],
+        pagination: null,
         currentTeacher: null,
         myClasses: [],
         loading: false,
@@ -153,7 +154,8 @@ const teacherSlice = createSlice({
             })
             .addCase(fetchTeachers.fulfilled, (state, action) => {
                 state.loading = false;
-                state.teachers = action.payload.teachers;
+                state.teachers = action.payload?.teachers || [];
+                state.pagination = action.payload?.pagination || null;
             })
             .addCase(fetchTeachers.rejected, (state, action) => {
                 state.loading = false;
@@ -220,6 +222,7 @@ const teacherSlice = createSlice({
 export const { clearError } = teacherSlice.actions;
 
 export const selectTeachers = (state) => state.teachers.teachers;
+export const selectTeachersPagination = (state) => state.teachers.pagination;
 export const selectCurrentTeacher = (state) => state.teachers.currentTeacher;
 export const selectMyClasses = (state) => state.teachers.myClasses;
 export const selectTeachersLoading = (state) => state.teachers.loading;

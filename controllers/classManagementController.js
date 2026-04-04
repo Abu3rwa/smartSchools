@@ -29,16 +29,39 @@ async function resolveDepartmentId(value, schoolId) {
     return dept ? dept._id : null;
 }
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * @desc    Get all classes
  * @route   GET /api/classes
  * @access  Private
  */
 export const getClasses = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 20, grade, academicYear, isActive, department } = req.query;
+    const { page = 1, limit = 20, search, grade, academicYear, isActive, department } = req.query;
     const effectiveAcademicYear = academicYear || req.academicYear;
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const parsedLimit = String(limit).toLowerCase() === 'all'
+        ? 0
+        : Math.max(parseInt(limit, 10) || 0, 0);
+    const shouldPaginate = parsedLimit > 0;
 
     const query = {};
+    const normalizedSearch = typeof search === 'string' ? search.trim() : '';
+
+    if (normalizedSearch) {
+        const searchRegex = new RegExp(escapeRegex(normalizedSearch), 'i');
+        const searchConditions = [
+            { name: searchRegex },
+            { section: searchRegex }
+        ];
+
+        if (/^\d+$/.test(normalizedSearch)) {
+            searchConditions.push({ grade: Number.parseInt(normalizedSearch, 10) });
+        }
+
+        query.$or = searchConditions;
+    }
+
     if (grade) query.grade = grade;
     if (effectiveAcademicYear) query.academicYear = effectiveAcademicYear;
     if (isActive !== undefined) query.isActive = isActive === 'true';
@@ -67,7 +90,7 @@ export const getClasses = asyncHandler(async (req, res) => {
         }
     }
 
-    const classes = await Class.find(query)
+    let classesQuery = Class.find(query)
         .populate('department', 'name type')
         .populate('classTeacher', 'user')
         .populate({
@@ -79,9 +102,15 @@ export const getClasses = asyncHandler(async (req, res) => {
             path: 'subjects.teacher',
             populate: { path: 'user', select: 'firstName lastName email _id' }
         })
-        .sort({ grade: 1, section: 1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit));
+        .sort({ grade: 1, section: 1 });
+
+    if (shouldPaginate) {
+        classesQuery = classesQuery
+            .skip((parsedPage - 1) * parsedLimit)
+            .limit(parsedLimit);
+    }
+
+    const classes = await classesQuery;
 
     // Get student counts (single aggregation instead of N+1)
     const classIds = classes.map(c => c._id);
@@ -99,16 +128,18 @@ export const getClasses = asyncHandler(async (req, res) => {
     }
 
     const total = await Class.countDocuments(query);
+    const totalPages = shouldPaginate ? Math.max(1, Math.ceil(total / parsedLimit)) : 1;
 
     res.json({
         success: true,
         data: {
             classes: classesWithCounts,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: parsedPage,
+                limit: shouldPaginate ? parsedLimit : total,
                 total,
-                pages: Math.ceil(total / limit)
+                pages: totalPages,
+                totalPages
             }
         }
     });

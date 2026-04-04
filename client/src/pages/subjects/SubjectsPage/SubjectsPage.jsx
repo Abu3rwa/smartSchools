@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
     fetchSubjects,
     selectSubjects,
+    selectSubjectsPagination,
     selectSubjectsLoading,
     selectSubjectsError,
     createSubject,
@@ -32,6 +33,7 @@ const SubjectsPage = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation(['subjects']);
     const subjects = useSelector(selectSubjects);
+    const pagination = useSelector(selectSubjectsPagination);
     const loading = useSelector(selectSubjectsLoading);
     const error = useSelector(selectSubjectsError);
     const isAdmin = useSelector(selectIsAdmin);
@@ -51,13 +53,23 @@ const SubjectsPage = () => {
         setSubmitting,
         formData,
         setFormData,
-        filteredSubjects,
         resetForm
     } = useSubjectsPageState(subjects);
 
+    const subjectsQueryParams = useMemo(() => ({
+        page: currentPage,
+        limit: pageSize,
+        search: searchTerm.trim() || undefined
+    }), [currentPage, pageSize, searchTerm]);
+
+    const totalItems = Number.isFinite(Number(pagination?.total))
+        ? Number(pagination.total)
+        : subjects.length;
+    const totalPages = Math.max(1, Number(pagination?.totalPages ?? pagination?.pages) || 1);
+
     useEffect(() => {
-        dispatch(fetchSubjects({ limit: 0 }));
-    }, [dispatch]);
+        dispatch(fetchSubjects(subjectsQueryParams));
+    }, [dispatch, subjectsQueryParams]);
 
     useEffect(() => {
         let mounted = true;
@@ -92,6 +104,7 @@ const SubjectsPage = () => {
 
             if (createSubject.fulfilled.match(result) || updateSubject.fulfilled.match(result)) {
                 toast.success(editingId ? t('subjects:toast.updated') : t('subjects:toast.created'));
+                dispatch(fetchSubjects(subjectsQueryParams));
                 handleCloseModal();
             } else {
                 toast.error(result.payload || (editingId ? t('subjects:toast.updateFailed') : t('subjects:toast.createFailed')));
@@ -113,6 +126,7 @@ const SubjectsPage = () => {
         const result = await dispatch(deleteSubject(id));
         if (deleteSubject.fulfilled.match(result)) {
             toast.success(t('subjects:toast.deleted'));
+            dispatch(fetchSubjects(subjectsQueryParams));
         } else {
             toast.error(result.payload || t('subjects:toast.deleteFailed'));
         }
@@ -167,17 +181,11 @@ const SubjectsPage = () => {
             } else if (skipped > 0) {
                 toast(t('subjects:toast.importSkippedRows', { count: skipped }));
             }
-            dispatch(fetchSubjects({ limit: 0 }));
+            dispatch(fetchSubjects(subjectsQueryParams));
         } catch (importError) {
             toast.error(importError?.response?.data?.message || t('subjects:toast.importFailed'));
         }
     };
-
-    const totalPages = Math.max(1, Math.ceil(filteredSubjects.length / pageSize));
-    const paginatedSubjects = useMemo(() => {
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredSubjects.slice(startIndex, startIndex + pageSize);
-    }, [filteredSubjects, currentPage, pageSize]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -215,20 +223,20 @@ const SubjectsPage = () => {
             <SubjectsTable
                 loading={loading}
                 error={error}
-                subjects={paginatedSubjects}
+                subjects={subjects}
                 isAdmin={isAdmin}
-                onRetry={() => dispatch(fetchSubjects({ limit: 0 }))}
+                onRetry={() => dispatch(fetchSubjects(subjectsQueryParams))}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
             />
             <TablePagination
                 page={currentPage}
                 pageSize={pageSize}
-                totalItems={filteredSubjects.length}
+                totalItems={totalItems}
                 totalPages={totalPages}
                 onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
                 onPageSizeChange={(nextSize) => {
-                    setPageSize(nextSize);
+                    setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
                     setCurrentPage(1);
                 }}
             />

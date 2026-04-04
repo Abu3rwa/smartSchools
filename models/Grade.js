@@ -168,6 +168,24 @@ gradeSchema.index({ gradeType: 1 });
 gradeSchema.index({ school: 1, lessonPlanIds: 1 });
 gradeSchema.index({ school: 1, assessmentGroupId: 1 });
 gradeSchema.index({ school: 1, homeworkAssignment: 1, student: 1 });
+
+// Student grade feed pagination and sorting (school-scoped by tenant isolation).
+gradeSchema.index({ school: 1, student: 1, academicYear: 1, date: -1 });
+gradeSchema.index({ school: 1, student: 1, subject: 1, academicYear: 1, date: -1 });
+gradeSchema.index({ school: 1, student: 1, month: 1, academicYear: 1, date: -1 });
+gradeSchema.index({ school: 1, student: 1, semester: 1, academicYear: 1, date: -1 });
+
+// Category filter uses an $or on category and gradeType.
+gradeSchema.index({ school: 1, student: 1, category: 1, academicYear: 1, date: -1 });
+gradeSchema.index({ school: 1, student: 1, gradeType: 1, academicYear: 1, date: -1 });
+
+// Class and teacher scoped list queries also run under school isolation.
+gradeSchema.index({ school: 1, class: 1, subject: 1, date: -1 });
+gradeSchema.index({ school: 1, teacher: 1, date: -1 });
+
+// Assessment-group edits commonly filter by school + group + teacher.
+gradeSchema.index({ school: 1, assessmentGroupId: 1, teacher: 1 });
+
 gradeSchema.index(
     { school: 1, assignment: 1, student: 1 },
     { unique: true, partialFilterExpression: { assignment: { $exists: true, $ne: null } } }
@@ -192,6 +210,11 @@ gradeSchema.virtual('letterGrade').get(function () {
 
 // Pre-save hook to set month and semester
 gradeSchema.pre('save', async function (next) {
+    // BE-018: Cross-field validation — marks must not exceed maxMarks
+    if (this.marks != null && this.maxMarks != null && this.marks > this.maxMarks) {
+        return next(new Error(`marks (${this.marks}) cannot exceed maxMarks (${this.maxMarks})`));
+    }
+
     if (!this.assessmentGroupId) {
         this.assessmentGroupId = new mongoose.Types.ObjectId().toString();
     }

@@ -186,7 +186,8 @@ export const getSchedules = asyncHandler(async (req, res) => {
         .populate('participants.user', 'firstName lastName email')
         .sort({ startTime: 1 })
         .skip(skip)
-        .limit(numericLimit);
+        .limit(numericLimit)
+        .lean();
 
     const total = await Schedule.countDocuments(query);
 
@@ -217,7 +218,8 @@ export const getScheduleById = asyncHandler(async (req, res) => {
         .populate('attendance.student', 'firstName lastName')
         .populate('materials.uploadedBy', 'firstName lastName')
         .populate('createdBy', 'firstName lastName')
-        .populate('updatedBy', 'firstName lastName');
+        .populate('updatedBy', 'firstName lastName')
+        .lean();
 
     if (!schedule) {
         return res.status(404).json({ success: false, message: 'Schedule not found' });
@@ -732,7 +734,8 @@ export const getSchedulesByDateRange = asyncHandler(async (req, res) => {
         .populate('class', 'name grade section')
         .populate('subject', 'name code')
         .populate('room', 'name')
-        .sort({ startTime: 1 });
+        .sort({ startTime: 1 })
+        .lean();
 
     res.json({
         success: true,

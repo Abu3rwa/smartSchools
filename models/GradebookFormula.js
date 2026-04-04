@@ -100,6 +100,40 @@ gradebookFormulaSchema.index(
 
 gradebookFormulaSchema.plugin(tenantIsolationPlugin);
 
+// BE-029: Prevent circular formula references and unbounded nesting
+gradebookFormulaSchema.pre('save', async function (next) {
+    const nestedFormulaIds = this.factors
+        .filter(f => f.formulaId)
+        .map(f => f.formulaId.toString());
+
+    if (nestedFormulaIds.length === 0) return next();
+
+    // Self-reference check
+    const selfId = this._id?.toString();
+    if (selfId && nestedFormulaIds.includes(selfId)) {
+        return next(new Error('A formula cannot reference itself'));
+    }
+
+    // Depth check: walk one level of nested formulas to ensure max depth = 2
+    const GradebookFormula = mongoose.model('GradebookFormula');
+    const children = await GradebookFormula.find({
+        _id: { $in: nestedFormulaIds }
+    }).select('factors').lean();
+
+    for (const child of children) {
+        const hasGrandchildren = (child.factors || []).some(f => f.formulaId);
+        if (hasGrandchildren) {
+            return next(new Error('Formula nesting depth cannot exceed 2 levels'));
+        }
+        // Check if child references us (circular)
+        if (selfId && (child.factors || []).some(f => f.formulaId?.toString() === selfId)) {
+            return next(new Error('Circular formula reference detected'));
+        }
+    }
+
+    next();
+});
+
 const GradebookFormula = mongoose.model('GradebookFormula', gradebookFormulaSchema);
 
 export default GradebookFormula;

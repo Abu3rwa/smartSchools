@@ -180,6 +180,7 @@ export const getTeachers = asyncHandler(async (req, res) => {
     }
 
     const total = await Teacher.countDocuments(query);
+    const totalPages = shouldPaginate ? Math.max(1, Math.ceil(total / parsedLimit)) : 1;
 
     let teachersQuery = Teacher.find(query)
         .populate('user', 'firstName lastName email phone mustChangePassword loginInvite')
@@ -205,7 +206,8 @@ export const getTeachers = asyncHandler(async (req, res) => {
                 page: parsedPage,
                 limit: shouldPaginate ? parsedLimit : total,
                 total,
-                pages: shouldPaginate ? Math.ceil(total / parsedLimit) : 1
+                pages: totalPages,
+                totalPages
             }
         }
     });

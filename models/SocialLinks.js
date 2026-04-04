@@ -15,6 +15,6 @@ const SocialLinksSchema = new mongoose.Schema({
     
     
     
-});
+}, { timestamps: true });
 
 export default mongoose.model("SocialLinks", SocialLinksSchema);

@@ -127,7 +127,8 @@ export const getMyAttendance = asyncHandler(async (req, res) => {
     const records = await Attendance.find(query)
         .populate('subject', 'name code')
         .populate('period', 'name startTime endTime')
-        .sort({ date: -1 });
+        .sort({ date: -1 })
+        .lean();
 
     const myRecords = records.map(r => {
         const entry = r.studentAttendance.find(
@@ -221,7 +222,8 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
         .populate('period', 'name')
         .populate('studentAttendance.student', 'firstName lastName email')
         .populate('recordedBy', 'firstName lastName')
-        .sort({ date: 1, startTime: 1 });
+        .sort({ date: 1, startTime: 1 })
+        .lean();
 
     // Get schedules for the period to identify missed attendance
     const schedules = await Schedule.find({
@@ -233,7 +235,8 @@ export const getTeacherAttendance = asyncHandler(async (req, res) => {
         status: { $ne: 'cancelled' }
     })
         .populate('class subject room')
-        .sort({ startTime: 1 });
+        .sort({ startTime: 1 })
+        .lean();
 
     // Identify missed attendance
     const attendedScheduleIds = attendanceRecords
@@ -336,7 +339,8 @@ export const getAdminAttendance = asyncHandler(async (req, res) => {
         .populate('schedule class subject teacher')
         .populate('period', 'name')
         .populate('recordedBy', 'firstName lastName')
-        .sort({ date: 1, startTime: 1 });
+        .sort({ date: 1, startTime: 1 })
+        .lean();
 
     // Get missed attendance
     const missedAttendance = await Attendance.findMissedAttendance(req.schoolId, now, { classIds: yearClassIds });
@@ -564,20 +568,22 @@ export const createOrUpdateAttendance = asyncHandler(async (req, res) => {
         attendance = existingAttendance;
     }
 
-    // Send parent notifications for absent students
+    // BE-011: Send parent notifications for absent students in parallel instead of sequentially
     const absentStudents = attendance.studentAttendance.filter(s => s.status === 'absent');
-    for (const absentStudent of absentStudents) {
-        await generateNotification({
-            type: 'parent_notification',
-            recipient: absentStudent.student,
-            message: `Your child was marked absent from ${schedule.subject.name} class today. Please check on them and ensure they're doing well.`,
-            metadata: {
-                attendanceId: attendance._id,
-                scheduleId: scheduleId,
-                subject: schedule.subject.name,
-                date: attendance.date
-            }
-        });
+    if (absentStudents.length > 0) {
+        await Promise.allSettled(absentStudents.map(absentStudent =>
+            generateNotification({
+                type: 'parent_notification',
+                recipient: absentStudent.student,
+                message: `Your child was marked absent from ${schedule.subject.name} class today. Please check on them and ensure they're doing well.`,
+                metadata: {
+                    attendanceId: attendance._id,
+                    scheduleId: scheduleId,
+                    subject: schedule.subject.name,
+                    date: attendance.date
+                }
+            })
+        ));
     }
 
     res.json(attendance);

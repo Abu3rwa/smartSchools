@@ -21,6 +21,116 @@ import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../u
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { decorateGradesWithScale, getActiveGradingScale } from '../services/gradingScaleEngine.js';
 import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
+import logger from '../utils/logger.js';
+
+const DEFAULT_GRADE_PAGE_LIMIT = 10;
+const MAX_GRADE_PAGE_LIMIT = 100;
+
+const resolvePaginationParams = (pageValue, limitValue) => {
+    const paginate = pageValue !== undefined || limitValue !== undefined;
+    const parsedPage = Number.parseInt(pageValue, 10);
+    const parsedLimit = Number.parseInt(limitValue, 10);
+
+    return {
+        paginate,
+        page: Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1,
+        limit: Number.isFinite(parsedLimit) && parsedLimit > 0
+            ? Math.min(parsedLimit, MAX_GRADE_PAGE_LIMIT)
+            : DEFAULT_GRADE_PAGE_LIMIT
+    };
+};
+
+const normalizeCategoryFilter = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized || undefined;
+};
+
+const buildDateQuery = ({ startDate, endDate }) => {
+    if (!startDate && !endDate) {
+        return undefined;
+    }
+
+    const dateQuery = {};
+    if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        dateQuery.$gte = start;
+    }
+    if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        dateQuery.$lte = end;
+    }
+
+    return Object.keys(dateQuery).length > 0 ? dateQuery : undefined;
+};
+
+const getAvailableSubjectsForQuery = async (matchQuery) => {
+    const rows = await Grade.aggregate([
+        { $match: matchQuery },
+        { $group: { _id: '$subject' } },
+        {
+            $lookup: {
+                from: 'subjects',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'subject'
+            }
+        },
+        { $unwind: '$subject' },
+        {
+            $project: {
+                _id: '$subject._id',
+                name: '$subject.name'
+            }
+        },
+        { $sort: { name: 1 } }
+    ]);
+
+    return Array.isArray(rows) ? rows : [];
+};
+
+const getBySubjectSummary = async (matchQuery) => {
+    const rows = await Grade.aggregate([
+        { $match: matchQuery },
+        {
+            $group: {
+                _id: '$subject',
+                totalMarks: { $sum: '$marks' },
+                totalMaxMarks: { $sum: '$maxMarks' }
+            }
+        },
+        {
+            $lookup: {
+                from: 'subjects',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'subject'
+            }
+        },
+        { $unwind: '$subject' },
+        {
+            $project: {
+                _id: 0,
+                subject: {
+                    _id: '$subject._id',
+                    name: '$subject.name',
+                    code: '$subject.code'
+                },
+                totalMarks: 1,
+                totalMaxMarks: 1
+            }
+        },
+        { $sort: { 'subject.name': 1 } }
+    ]);
+
+    return (Array.isArray(rows) ? rows : []).map((row) => ({
+        subject: row.subject,
+        average: row.totalMaxMarks > 0
+            ? Math.round((row.totalMarks / row.totalMaxMarks) * 100)
+            : 0
+    }));
+};
 
 const getTeacherGradeScope = async (req, classId = null) => {
     if (req.user.role !== 'teacher') {
@@ -169,7 +279,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         subjectId: subject,
         classId: resolvedClassId,
         academicYear
-    }).catch(() => {});
+    }).catch(err => logger.error('AE sync failed for grade', { studentId: student, error: err.message }));
 
     res.status(201).json({
         success: true,
@@ -263,7 +373,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
                 grade.student,
                 { ...grade.toObject(), subjectName: subjectData?.name },
                 req.user._id
-            ).catch(err => console.error('Notification error:', err));
+            ).catch(err => logger.error('Grade notification error', { error: err.message }));
         }
     }
 
@@ -279,7 +389,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
                 subjectId: subject,
                 classId,
                 academicYear
-            }).catch(() => {});
+            }).catch(err => logger.error('AE sync failed for bulk grade', { studentId: sid, error: err.message }));
         }
     }
 
@@ -756,7 +866,7 @@ export const bulkGradeHomework = asyncHandler(async (req, res) => {
             subjectId: assignment.subject,
             classId: assignment.class,
             academicYear: assignment.academicYear
-        }).catch(() => {});
+        }).catch(err => logger.error('AE sync failed for homework grade', { studentId: row.studentId, error: err.message }));
     }
 
     res.status(200).json({
@@ -848,34 +958,75 @@ export const getMyGrades = asyncHandler(async (req, res) => {
         return res.status(404).json({ success: false, message: 'Student profile not found' });
     }
 
-    const { month, semester, subjectId, academicYear, startDate, endDate } = req.query;
+    const {
+        month,
+        semester,
+        subjectId,
+        academicYear,
+        startDate,
+        endDate,
+        gradeType,
+        category,
+        page,
+        limit
+    } = req.query;
+    const pagination = resolvePaginationParams(page, limit);
+    const normalizedCategory = normalizeCategoryFilter(category);
+    const normalizedGradeType = normalizeCategoryFilter(gradeType);
     const effectiveAcademicYear = resolveAcademicYearForRequest(req, academicYear);
     if ((student.academicYear || '').toString() !== effectiveAcademicYear) {
         return res.json({
             success: true,
-            data: { grades: [], bySubject: [], academicYear: effectiveAcademicYear }
+            data: {
+                grades: [],
+                bySubject: [],
+                academicYear: effectiveAcademicYear,
+                availableCategories: [],
+                availableSubjects: [],
+                pagination: {
+                    page: pagination.page,
+                    limit: pagination.limit,
+                    total: 0,
+                    totalPages: 1
+                }
+            }
         });
     }
+
     const query = { student: student._id };
     if (month) query.month = parseInt(month, 10);
     if (semester) query.semester = parseInt(semester, 10);
     if (subjectId) query.subject = subjectId;
-    if (startDate || endDate) {
-        query.date = {};
-        if (startDate) {
-            const start = new Date(startDate);
-            start.setHours(0, 0, 0, 0);
-            query.date.$gte = start;
-        }
-        if (endDate) {
-            const end = new Date(endDate);
-            end.setHours(23, 59, 59, 999);
-            query.date.$lte = end;
-        }
+    const dateQuery = buildDateQuery({ startDate, endDate });
+    if (dateQuery) {
+        query.date = dateQuery;
+    }
+    if (normalizedCategory) {
+        query.$or = [
+            { category: normalizedCategory },
+            { gradeType: normalizedCategory }
+        ];
+    } else if (normalizedGradeType) {
+        query.gradeType = normalizedGradeType;
     }
     query.academicYear = effectiveAcademicYear;
 
-    const grades = await Grade.find(query)
+    const categoryQuery = { ...query };
+    delete categoryQuery.$or;
+    delete categoryQuery.gradeType;
+
+    const subjectQuery = { ...categoryQuery };
+    delete subjectQuery.subject;
+
+    const [availableCategoriesRaw, availableGradeTypesRaw, availableSubjects, bySubject, totalItems] = await Promise.all([
+        Grade.distinct('category', categoryQuery),
+        Grade.distinct('gradeType', categoryQuery),
+        getAvailableSubjectsForQuery(subjectQuery),
+        getBySubjectSummary(query),
+        pagination.paginate ? Grade.countDocuments(query) : Promise.resolve(null)
+    ]);
+
+    let gradesQuery = Grade.find(query)
         .populate('subject', 'name code maxMarks passingMarks')
         .populate('class', 'name grade')
         .populate({
@@ -887,28 +1038,42 @@ export const getMyGrades = asyncHandler(async (req, res) => {
             }
         })
         .sort({ date: -1 });
+
+    if (pagination.paginate) {
+        gradesQuery = gradesQuery
+            .skip((pagination.page - 1) * pagination.limit)
+            .limit(pagination.limit);
+    }
+
+    const grades = await gradesQuery;
     const gradingScale = await getActiveGradingScale(req.schoolId);
     const decoratedGrades = decorateGradesWithScale(grades, gradingScale);
-
-    const subjectMap = {};
-    for (const g of decoratedGrades) {
-        const sid = g.subject?._id?.toString();
-        if (!sid) continue;
-        if (!subjectMap[sid]) {
-            subjectMap[sid] = { subject: g.subject, grades: [], total: 0, count: 0 };
-        }
-        subjectMap[sid].grades.push(g);
-        subjectMap[sid].total += (g.marks / g.maxMarks) * 100;
-        subjectMap[sid].count += 1;
-    }
-    const bySubject = Object.values(subjectMap).map(s => ({
-        ...s,
-        average: s.count > 0 ? Math.round(s.total / s.count) : 0
-    }));
+    const resolvedTotal = Number.isFinite(totalItems) ? totalItems : decoratedGrades.length;
+    const resolvedTotalPages = Math.max(1, Math.ceil(resolvedTotal / pagination.limit));
+    const availableCategories = Array.from(new Set([
+        ...(availableCategoriesRaw || []),
+        ...(availableGradeTypesRaw || [])
+    ]))
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean)
+        .sort();
 
     res.json({
         success: true,
-        data: { grades: decoratedGrades, bySubject, academicYear: effectiveAcademicYear, gradingScale }
+        data: {
+            grades: decoratedGrades,
+            bySubject,
+            academicYear: effectiveAcademicYear,
+            gradingScale,
+            availableCategories,
+            availableSubjects,
+            pagination: {
+                page: pagination.page,
+                limit: pagination.limit,
+                total: resolvedTotal,
+                totalPages: resolvedTotalPages
+            }
+        }
     });
 });
 
@@ -925,21 +1090,29 @@ export const getStudentGrades = asyncHandler(async (req, res) => {
         month,
         semester,
         gradeType,
+        category,
         academicYear,
         schoolYear,
         startDate,
-        endDate
+        endDate,
+        page,
+        limit
     } = req.query;
+    const pagination = resolvePaginationParams(page, limit);
+    const normalizedCategory = normalizeCategoryFilter(category);
+    const normalizedGradeType = normalizeCategoryFilter(gradeType);
     const requestedSchoolYear = String(schoolYear || academicYear || '').trim();
     const shouldUseAllSchoolYears = requestedSchoolYear.toLowerCase() === 'all';
     const effectiveAcademicYear = shouldUseAllSchoolYears
         ? undefined
         : resolveRequestedAcademicYear(requestedSchoolYear, req.school);
+    const selectedSubjectFilter = String(subject || subjectId || '').trim();
     const filters = {
-        subject: subject || subjectId,
+        subject: selectedSubjectFilter || undefined,
         month: month ? parseInt(month) : undefined,
         semester: semester ? parseInt(semester) : undefined,
-        gradeType,
+        gradeType: normalizedGradeType,
+        category: normalizedCategory,
         startDate,
         endDate,
         academicYear: effectiveAcademicYear,
@@ -975,19 +1148,82 @@ export const getStudentGrades = asyncHandler(async (req, res) => {
         }
     }
 
-    const grades = await gradeService.getStudentGrades(studentId, filters);
-    const gradingScale = await getActiveGradingScale(req.schoolId);
-    const availableAcademicYears = await Grade.distinct('academicYear', { student: studentId, school: req.schoolId });
+    const categoryQuery = {
+        student: studentId,
+        school: req.schoolId
+    };
+    if (filters.subject) categoryQuery.subject = filters.subject;
+    if (filters.month) categoryQuery.month = filters.month;
+    if (filters.semester) categoryQuery.semester = filters.semester;
+    if (filters.academicYear) categoryQuery.academicYear = filters.academicYear;
+    const dateQuery = buildDateQuery({ startDate: filters.startDate, endDate: filters.endDate });
+    if (dateQuery) categoryQuery.date = dateQuery;
+
+    const subjectQuery = { ...categoryQuery };
+    if (selectedSubjectFilter) {
+        delete subjectQuery.subject;
+    }
+
+    const summaryQuery = { ...categoryQuery };
+    if (normalizedCategory) {
+        summaryQuery.$or = [
+            { category: normalizedCategory },
+            { gradeType: normalizedCategory }
+        ];
+    } else if (normalizedGradeType) {
+        summaryQuery.gradeType = normalizedGradeType;
+    }
+
+    const [gradesResult, gradingScale, availableAcademicYears, availableCategoriesRaw, availableGradeTypesRaw, availableSubjects, bySubject] = await Promise.all([
+        gradeService.getStudentGrades(studentId, filters, pagination.paginate
+            ? { paginate: true, page: pagination.page, limit: pagination.limit }
+            : undefined),
+        getActiveGradingScale(req.schoolId),
+        Grade.distinct('academicYear', { student: studentId, school: req.schoolId }),
+        Grade.distinct('category', categoryQuery),
+        Grade.distinct('gradeType', categoryQuery),
+        getAvailableSubjectsForQuery(subjectQuery),
+        getBySubjectSummary(summaryQuery)
+    ]);
+
+    const grades = Array.isArray(gradesResult)
+        ? gradesResult
+        : (gradesResult?.grades || []);
+    const responsePagination = Array.isArray(gradesResult)
+        ? {
+            page: 1,
+            limit: grades.length || 1,
+            total: grades.length,
+            totalPages: 1
+        }
+        : {
+            page: gradesResult?.pagination?.page || pagination.page,
+            limit: gradesResult?.pagination?.limit || pagination.limit,
+            total: gradesResult?.pagination?.total || 0,
+            totalPages: gradesResult?.pagination?.totalPages || 1
+        };
+    const availableCategories = Array.from(new Set([
+        ...(availableCategoriesRaw || []),
+        ...(availableGradeTypesRaw || [])
+    ]))
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean)
+        .sort();
+
     availableAcademicYears.sort();
 
     res.json({
         success: true,
         data: {
             grades,
-            count: grades.length,
+            bySubject,
+            count: responsePagination.total,
             availableAcademicYears,
             academicYear: effectiveAcademicYear || null,
-            gradingScale
+            gradingScale,
+            availableCategories,
+            availableSubjects,
+            pagination: responsePagination
         }
     });
 });

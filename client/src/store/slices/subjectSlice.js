@@ -66,6 +66,7 @@ const subjectSlice = createSlice({
     name: 'subjects',
     initialState: {
         subjects: [],
+        pagination: null,
         gradeSubjects: [],
         loading: false,
         error: null
@@ -84,7 +85,8 @@ const subjectSlice = createSlice({
             })
             .addCase(fetchSubjects.fulfilled, (state, action) => {
                 state.loading = false;
-                state.subjects = action.payload.subjects;
+                state.subjects = action.payload?.subjects || [];
+                state.pagination = action.payload?.pagination || null;
             })
             .addCase(fetchSubjects.rejected, (state, action) => {
                 state.loading = false;
@@ -116,6 +118,7 @@ export const { clearError } = subjectSlice.actions;
 
 // Selectors
 export const selectSubjects = (state) => state.subjects.subjects;
+export const selectSubjectsPagination = (state) => state.subjects.pagination;
 export const selectGradeSubjects = (state) => state.subjects.gradeSubjects;
 export const selectSubjectsLoading = (state) => state.subjects.loading;
 export const selectSubjectsError = (state) => state.subjects.error;

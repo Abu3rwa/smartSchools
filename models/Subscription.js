@@ -230,7 +230,16 @@ const subscriptionSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Indexes (school already has unique: true in schema)
+// BE-013: Guard against unbounded embedded arrays
+subscriptionSchema.pre('save', function (next) {
+    if (this.paymentMethods && this.paymentMethods.length > 20) {
+        return next(new Error('Maximum 20 payment methods allowed'));
+    }
+    if (this.invoices && this.invoices.length > 500) {
+        return next(new Error('Maximum 500 invoices allowed'));
+    }
+    next();
+});
 subscriptionSchema.index({ stripeCustomerId: 1 });
 subscriptionSchema.index({ stripeSubscriptionId: 1 });
 subscriptionSchema.index({ status: 1 });

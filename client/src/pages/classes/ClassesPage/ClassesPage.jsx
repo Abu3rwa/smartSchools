@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { fetchClasses, selectClasses, selectClassesLoading, selectClassesError, createClass, updateClass, deleteClass } from '../../../store/slices/classSlice';
+import { fetchClasses, selectClasses, selectClassesPagination, selectClassesLoading, selectClassesError, createClass, updateClass, deleteClass } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { selectIsAdmin } from '../../../store/slices/authSlice';
@@ -20,6 +20,7 @@ const ClassesPage = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation(['classes', 'common']);
     const classes = useSelector(selectClasses);
+    const pagination = useSelector(selectClassesPagination);
     const departments = useSelector(selectDepartments);
     const loading = useSelector(selectClassesLoading);
     const error = useSelector(selectClassesError);
@@ -42,10 +43,20 @@ const ClassesPage = () => {
         department: ''
     });
 
+    const classQueryParams = useMemo(() => ({
+        academicYear,
+        page: currentPage,
+        limit: pageSize,
+        search: searchTerm.trim() || undefined
+    }), [academicYear, currentPage, pageSize, searchTerm]);
+
     useEffect(() => {
-        dispatch(fetchClasses({ academicYear, limit: 0 }));
         dispatch(fetchDepartments());
-    }, [dispatch, academicYear]);
+    }, [dispatch]);
+
+    useEffect(() => {
+        dispatch(fetchClasses(classQueryParams));
+    }, [dispatch, classQueryParams]);
 
     useEffect(() => {
         let mounted = true;
@@ -61,18 +72,10 @@ const ClassesPage = () => {
         };
     }, []);
 
-    const filteredClasses = useMemo(() => (
-        classes.filter((cls) =>
-            cls.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            cls.grade?.toString().includes(searchTerm)
-        )
-    ), [classes, searchTerm]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredClasses.length / pageSize));
-    const paginatedClasses = useMemo(() => {
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredClasses.slice(startIndex, startIndex + pageSize);
-    }, [filteredClasses, currentPage, pageSize]);
+    const totalItems = Number.isFinite(Number(pagination?.total))
+        ? Number(pagination.total)
+        : classes.length;
+    const totalPages = Math.max(1, Number(pagination?.totalPages ?? pagination?.pages) || 1);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -93,6 +96,7 @@ const ClassesPage = () => {
                 toast.success(t('classes:toast.created'));
                 setShowModal(false);
                 setFormData({ grade: '', section: '', academicYear, room: '', capacity: 40, department: '' });
+                dispatch(fetchClasses(classQueryParams));
             } else {
                 toast.error(result.payload || t('classes:toast.createFailed'));
             }
@@ -114,6 +118,7 @@ const ClassesPage = () => {
 
         if (updateClass.fulfilled.match(result)) {
             toast.success(t('classes:toast.toggled', { state: willActivate ? t('classes:actions.activated') : t('classes:actions.deactivated') }));
+            dispatch(fetchClasses(classQueryParams));
         } else {
             toast.error(result.payload || t('classes:toast.toggleFailed'));
         }
@@ -174,6 +179,7 @@ const ClassesPage = () => {
                     }
                 )
             );
+            dispatch(fetchClasses(classQueryParams));
         } else {
             toast.error(result.payload || t('classes:toast.deleteFailed'));
         }
@@ -224,7 +230,7 @@ const ClassesPage = () => {
             } else if (skipped > 0) {
                 toast(t('classes:toast.importSkippedRows', { count: skipped }));
             }
-            dispatch(fetchClasses({ academicYear, limit: 0 }));
+            dispatch(fetchClasses(classQueryParams));
         } catch (importError) {
             toast.error(importError?.response?.data?.message || t('classes:toast.importFailed'));
         }
@@ -289,7 +295,7 @@ const ClassesPage = () => {
             ) : error ? (
                 <div className="error-container">
                     <p className="error-message">{error}</p>
-                    <button className="btn btn-primary" onClick={() => dispatch(fetchClasses({ academicYear, limit: 0 }))}>
+                    <button className="btn btn-primary" onClick={() => dispatch(fetchClasses(classQueryParams))}>
                         {t('common:actions.retry')}
                     </button>
                 </div>
@@ -309,7 +315,7 @@ const ClassesPage = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {paginatedClasses.map((cls, index) => (
+                            {classes.map((cls, index) => (
                                 <tr key={cls._id} className="animate-fadeIn" style={{ animationDelay: `${index * 0.05}s` }}>
                                     <td>
                                         <span className="grade-badge">{cls.grade}</span>
@@ -371,7 +377,7 @@ const ClassesPage = () => {
                             ))}
                         </tbody>
                     </table>
-                    {filteredClasses.length === 0 && (
+                    {classes.length === 0 && (
                         <div className="empty-state">
                             <HiOutlineAcademicCap size={48} />
                             <h3>{t('classes:empty.title')}</h3>
@@ -389,11 +395,11 @@ const ClassesPage = () => {
             <TablePagination
                 page={currentPage}
                 pageSize={pageSize}
-                totalItems={filteredClasses.length}
+                totalItems={totalItems}
                 totalPages={totalPages}
                 onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
                 onPageSizeChange={(nextSize) => {
-                    setPageSize(nextSize);
+                    setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
                     setCurrentPage(1);
                 }}
             />

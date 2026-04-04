@@ -104,24 +104,30 @@ const createAdminNotifications = async ({
 
 const transitionSubscription = async ({ subscription, nextStatus, now }) => {
     if (subscription.status === nextStatus) return false;
-    subscription.status = nextStatus;
-    if (nextStatus === 'inactive') {
-        subscription.billing = {
-            ...subscription.billing,
-            nextBillingAt: null
-        };
-    }
-    subscription.metadata = {
-        ...subscription.metadata,
-        notes: `Lifecycle job set status to ${nextStatus} on ${now.toISOString()}`
+
+    // BE-010: Atomic status transition using findOneAndUpdate with precondition
+    const previousStatus = subscription.status;
+    const updateFields = {
+        status: nextStatus,
+        'metadata.notes': `Lifecycle job set status to ${nextStatus} on ${now.toISOString()}`
     };
-    await subscription.save();
+    if (nextStatus === 'inactive') {
+        updateFields['billing.nextBillingAt'] = null;
+    }
+
+    const updated = await Subscription.findOneAndUpdate(
+        { _id: subscription._id, status: previousStatus },
+        { $set: updateFields },
+        { new: true }
+    ).setOptions({ skipTenantFilter: true });
+
+    if (!updated) return false; // Another process already transitioned it
 
     await syncSchoolSubscriptionState({
-        schoolId: subscription.school,
-        plan: subscription.plan,
-        status: subscription.status,
-        features: subscription.features
+        schoolId: updated.school,
+        plan: updated.plan,
+        status: updated.status,
+        features: updated.features
     });
 
     return true;

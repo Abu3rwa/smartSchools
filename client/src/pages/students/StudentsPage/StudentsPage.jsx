@@ -8,13 +8,14 @@ import {
     createStudent,
     fetchStudents,
     importStudents,
+    selectStudentsPagination,
     selectStudents,
     selectStudentsLoading,
     sendParentLoginInvite,
     sendStudentLoginInvite,
     updateStudent
 } from '../../../store/slices/studentSlice';
-import { selectClasses } from '../../../store/slices/classSlice';
+import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import {
     fetchSchoolFeatures,
@@ -133,16 +134,34 @@ const StudentsPage = () => {
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState(null);
     const [importTemplateMeta, setImportTemplateMeta] = useState(null);
+    const pagination = useSelector(selectStudentsPagination);
+
+    const studentsQueryParams = useMemo(() => ({
+        page: currentPage,
+        limit: pageSize,
+        search: searchTerm.trim() || undefined,
+        classId: filterClass || undefined,
+        academicYear: academicYear || undefined
+    }), [currentPage, pageSize, searchTerm, filterClass, academicYear]);
+
+    const totalItems = Number.isFinite(Number(pagination?.total))
+        ? Number(pagination.total)
+        : students.length;
+    const totalPages = Math.max(1, Number(pagination?.totalPages ?? pagination?.pages) || 1);
 
     useEffect(() => {
         setSearchTerm(searchFromUrl);
     }, [searchFromUrl]);
 
     useEffect(() => {
-        dispatch(fetchStudents({ search: searchFromUrl || undefined, limit: 'all' }));
+        dispatch(fetchClasses({ limit: 'all', academicYear: academicYear || undefined }));
         dispatch(fetchDepartments());
         dispatch(fetchSchoolFeatures());
-    }, [dispatch, searchFromUrl]);
+    }, [dispatch, academicYear]);
+
+    useEffect(() => {
+        dispatch(fetchStudents(studentsQueryParams));
+    }, [dispatch, studentsQueryParams]);
 
     useEffect(() => {
         if (!showImportModal) return;
@@ -160,7 +179,7 @@ const StudentsPage = () => {
     }, [showImportModal]);
 
     const refreshStudents = () => {
-        dispatch(fetchStudents({ search: searchFromUrl || undefined, limit: 'all' }));
+        dispatch(fetchStudents(studentsQueryParams));
         dispatch(fetchSchoolFeatures());
     };
 
@@ -366,17 +385,17 @@ const StudentsPage = () => {
 
     const toggleSelectAllStudents = () => {
         setSelectedStudentIds((previous) => {
-            const allSelected = paginatedStudents.length > 0
-                && paginatedStudents.every((student) => previous.has(student._id));
+            const allSelected = students.length > 0
+                && students.every((student) => previous.has(student._id));
 
             if (allSelected) {
                 const next = new Set(previous);
-                paginatedStudents.forEach((student) => next.delete(student._id));
+                students.forEach((student) => next.delete(student._id));
                 return next;
             }
 
             const next = new Set(previous);
-            paginatedStudents.forEach((student) => next.add(student._id));
+            students.forEach((student) => next.add(student._id));
             return next;
         });
     };
@@ -547,26 +566,6 @@ const StudentsPage = () => {
         setImportResult(null);
     };
 
-    const filteredStudents = useMemo(() => (
-        students.filter((student) => {
-            const fullName = `${student.firstName} ${student.lastName}`.toLowerCase();
-            const matchesSearch = fullName.includes(searchTerm.toLowerCase())
-                || student.studentId?.toLowerCase().includes(searchTerm.toLowerCase());
-
-            const matchesClass = filterClass === ''
-                || (filterClass === 'unassigned' && !student.currentClass)
-                || student.currentClass?._id === filterClass;
-
-            return matchesSearch && matchesClass;
-        })
-    ), [students, searchTerm, filterClass]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
-    const paginatedStudents = useMemo(() => {
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredStudents.slice(startIndex, startIndex + pageSize);
-    }, [filteredStudents, currentPage, pageSize]);
-
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, filterClass, searchFromUrl]);
@@ -579,7 +578,7 @@ const StudentsPage = () => {
 
     useEffect(() => {
         setSelectedStudentIds((previous) => {
-            const visibleStudentIds = new Set(filteredStudents.map((student) => student._id));
+            const visibleStudentIds = new Set(students.map((student) => student._id));
             const next = new Set();
             previous.forEach((studentId) => {
                 if (visibleStudentIds.has(studentId)) {
@@ -588,10 +587,10 @@ const StudentsPage = () => {
             });
             return next;
         });
-    }, [filteredStudents]);
+    }, [students]);
 
-    const isAllSelected = paginatedStudents.length > 0
-        && paginatedStudents.every((student) => selectedStudentIds.has(student._id));
+    const isAllSelected = students.length > 0
+        && students.every((student) => selectedStudentIds.has(student._id));
 
     return (
         <div className="students-page">
@@ -696,7 +695,7 @@ const StudentsPage = () => {
             </div>
 
             <StudentsTable
-                students={paginatedStudents}
+                students={students}
                 isAdmin={isAdmin}
                 loading={loading}
                 isAllSelected={isAllSelected}
@@ -712,11 +711,11 @@ const StudentsPage = () => {
             <TablePagination
                 page={currentPage}
                 pageSize={pageSize}
-                totalItems={filteredStudents.length}
+                totalItems={totalItems}
                 totalPages={totalPages}
                 onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
                 onPageSizeChange={(nextSize) => {
-                    setPageSize(nextSize);
+                    setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
                     setCurrentPage(1);
                 }}
             />

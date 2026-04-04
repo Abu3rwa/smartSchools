@@ -73,6 +73,6 @@ const aiTokenUsageSchema = new Schema({
       guardian: { sent: { type: Boolean, default: false }, sentAt: Date, messageId: String },
       teacher: { sent: { type: Boolean, default: false }, sentAt: Date, messageId: String }
   }
-});
+}, { timestamps: true });
 
 export const AITokenUsage = model('AITokenUsage', aiTokenUsageSchema);

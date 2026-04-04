@@ -211,7 +211,7 @@ export const generatePresentation = asyncHandler(async (req, res) => {
     requestedLanguages,
   } = req.body;
 
-  // Daily quota check
+  // Daily quota check — re-verified after creation to close race window
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
@@ -224,7 +224,8 @@ export const generatePresentation = asyncHandler(async (req, res) => {
   const planKey = req.school?.plan || "professional";
   const dailyLimit = PRESENTATION_LIMITS.dailyGenerations[planKey] || PRESENTATION_LIMITS.dailyGenerations.professional;
 
-  if (todayCount >= dailyLimit) {
+  // BE-010: Use dailyLimit + 1 as a soft gate; hard check happens after creation
+  if (todayCount >= dailyLimit + 1) {
     return res.status(429).json({
       success: false,
       message: `Daily generation limit reached (${dailyLimit}). Please try again tomorrow.`,
@@ -343,6 +344,20 @@ export const generatePresentation = asyncHandler(async (req, res) => {
     },
     status: "draft",
   });
+
+  // BE-010: Post-creation quota verification to close race window
+  const postCreateCount = await Presentation.countDocuments({
+    school: req.schoolId,
+    teacher: req.user._id,
+    createdAt: { $gte: startOfDay },
+  });
+  if (postCreateCount > dailyLimit) {
+    await Presentation.findByIdAndDelete(presentation._id);
+    return res.status(429).json({
+      success: false,
+      message: `Daily generation limit reached (${dailyLimit}). Please try again tomorrow.`,
+    });
+  }
 
   // Track token usage
   if (result.generation.totalTokens) {

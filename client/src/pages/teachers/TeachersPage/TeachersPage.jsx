@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import {
     assignMultipleClassesToTeacher,
     bulkSendTeacherLoginInvites,
@@ -10,12 +11,12 @@ import {
     fetchTeachers,
     removeClassFromTeacher,
     selectTeachers,
+    selectTeachersPagination,
     selectTeachersLoading,
     sendTeacherLoginInvite,
     updateTeacher
 } from '../../../store/slices/teacherSlice';
 import { selectSubjects } from '../../../store/slices/subjectSlice';
-import { selectClasses } from '../../../store/slices/classSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import {
     fetchSchoolFeatures,
@@ -48,6 +49,7 @@ const TeachersPage = () => {
     const navigate = useNavigate();
     const { t } = useTranslation(['teachers']);
     const teachers = useSelector(selectTeachers);
+    const pagination = useSelector(selectTeachersPagination);
     const subjects = useSelector(selectSubjects);
     const classes = useSelector(selectClasses);
     const departments = useSelector(selectDepartments);
@@ -85,7 +87,6 @@ const TeachersPage = () => {
         formData,
         setFormData,
         assignments,
-        filteredTeachers,
         resetFormData,
         resetAssignments,
         addAssignmentRow,
@@ -93,11 +94,26 @@ const TeachersPage = () => {
         updateAssignmentField
     } = useTeachersPageState(teachers);
 
+    const teachersQueryParams = useMemo(() => ({
+        page: currentPage,
+        limit: pageSize,
+        search: searchTerm.trim() || undefined
+    }), [currentPage, pageSize, searchTerm]);
+
+    const totalItems = Number.isFinite(Number(pagination?.total))
+        ? Number(pagination.total)
+        : teachers.length;
+    const totalPages = Math.max(1, Number(pagination?.totalPages ?? pagination?.pages) || 1);
+
     useEffect(() => {
-        dispatch(fetchTeachers({ limit: 0 }));
         dispatch(fetchDepartments());
         dispatch(fetchSchoolFeatures());
+        dispatch(fetchClasses({ limit: 'all' }));
     }, [dispatch]);
+
+    useEffect(() => {
+        dispatch(fetchTeachers(teachersQueryParams));
+    }, [dispatch, teachersQueryParams]);
 
     const teacherCapacity = useMemo(() => {
         const maxTeachers = Number(schoolLimits?.maxTeachers);
@@ -145,16 +161,12 @@ const TeachersPage = () => {
         const refreshedTeacher = teachers.find((teacher) => teacher._id === selectedTeacher._id);
         if (refreshedTeacher) {
             setSelectedTeacher(refreshedTeacher);
-            return;
         }
-
-        setShowAssignModal(false);
-        setSelectedTeacher(null);
-    }, [selectedTeacher?._id, setSelectedTeacher, setShowAssignModal, teachers]);
+    }, [selectedTeacher?._id, setSelectedTeacher, teachers]);
 
     useEffect(() => {
         setSelectedTeacherIds((previous) => {
-            const visibleTeacherIds = new Set(filteredTeachers.map((teacher) => teacher._id));
+            const visibleTeacherIds = new Set(teachers.map((teacher) => teacher._id));
             const next = new Set();
             previous.forEach((teacherId) => {
                 if (visibleTeacherIds.has(teacherId)) {
@@ -163,13 +175,7 @@ const TeachersPage = () => {
             });
             return next;
         });
-    }, [filteredTeachers]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredTeachers.length / pageSize));
-    const paginatedTeachers = useMemo(() => {
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredTeachers.slice(startIndex, startIndex + pageSize);
-    }, [filteredTeachers, currentPage, pageSize]);
+    }, [teachers]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -237,17 +243,17 @@ const TeachersPage = () => {
 
     const toggleSelectAllTeachers = () => {
         setSelectedTeacherIds((previous) => {
-            const allVisibleSelected = paginatedTeachers.length > 0
-                && paginatedTeachers.every((teacher) => previous.has(teacher._id));
+            const allVisibleSelected = teachers.length > 0
+                && teachers.every((teacher) => previous.has(teacher._id));
 
             if (allVisibleSelected) {
                 const next = new Set(previous);
-                paginatedTeachers.forEach((teacher) => next.delete(teacher._id));
+                teachers.forEach((teacher) => next.delete(teacher._id));
                 return next;
             }
 
             const next = new Set(previous);
-            paginatedTeachers.forEach((teacher) => next.add(teacher._id));
+            teachers.forEach((teacher) => next.add(teacher._id));
             return next;
         });
     };
@@ -267,7 +273,7 @@ const TeachersPage = () => {
             };
 
             setTeacherInviteResult(inviteResult);
-            dispatch(fetchTeachers({ limit: 0 }));
+            dispatch(fetchTeachers(teachersQueryParams));
 
             if (inviteResult.emailSent) {
                 toast.success(t('teachers:toast.inviteSent'));
@@ -294,7 +300,7 @@ const TeachersPage = () => {
         if (bulkSendTeacherLoginInvites.fulfilled.match(result)) {
             setBulkTeacherInviteResults(result.payload.data);
             setSelectedTeacherIds(new Set());
-            dispatch(fetchTeachers({ limit: 0 }));
+            dispatch(fetchTeachers(teachersQueryParams));
 
             const createdCount = result.payload.data.created?.length || 0;
             const errorCount = result.payload.data.errors?.length || 0;
@@ -323,6 +329,7 @@ const TeachersPage = () => {
             if (createTeacher.fulfilled.match(result)) {
                 toast.success(t('teachers:toast.created'));
                 dispatch(fetchSchoolFeatures());
+                dispatch(fetchTeachers(teachersQueryParams));
                 handleCloseCreateModal();
             } else {
                 toast.error(result.payload || t('teachers:toast.createFailed'));
@@ -351,6 +358,7 @@ const TeachersPage = () => {
 
             if (updateTeacher.fulfilled.match(result)) {
                 toast.success(t('teachers:toast.updated'));
+                dispatch(fetchTeachers(teachersQueryParams));
                 handleCloseEditModal();
             } else {
                 toast.error(result.payload || t('teachers:toast.updateFailed'));
@@ -370,6 +378,7 @@ const TeachersPage = () => {
             if (deleteTeacher.fulfilled.match(result)) {
                 toast.success(t('teachers:toast.deleted'));
                 dispatch(fetchSchoolFeatures());
+                dispatch(fetchTeachers(teachersQueryParams));
                 if (selectedTeacher?._id === teacher._id) {
                     handleCloseAssignModal();
                 }
@@ -434,7 +443,7 @@ const TeachersPage = () => {
                     setSelectedTeacher(result.payload.teacher);
                 }
                 toast.success(t('teachers:toast.assignmentRemoved'));
-                dispatch(fetchClasses());
+                dispatch(fetchClasses({ limit: 'all' }));
             } else {
                 toast.error(result.payload || t('teachers:toast.assignmentRemoveFailed'));
             }
@@ -464,7 +473,7 @@ const TeachersPage = () => {
             if (assignMultipleClassesToTeacher.fulfilled.match(result)) {
                 toast.success(t('teachers:toast.assigned'));
                 handleCloseAssignModal();
-                dispatch(fetchClasses());
+                dispatch(fetchClasses({ limit: 'all' }));
             } else {
                 toast.error(result.payload || t('teachers:toast.assignFailed'));
             }
@@ -518,7 +527,7 @@ const TeachersPage = () => {
             } else if (skipped > 0) {
                 toast(t('teachers:toast.importSkippedRows', { count: skipped }));
             }
-            dispatch(fetchTeachers({ limit: 0 }));
+            dispatch(fetchTeachers(teachersQueryParams));
             dispatch(fetchSchoolFeatures());
         } catch (importError) {
             const responseData = importError?.response?.data || {};
@@ -596,12 +605,12 @@ const TeachersPage = () => {
 
             <TeachersTable
                 loading={loading}
-                teachers={paginatedTeachers}
+                teachers={teachers}
                 canManageTeachers={canManageTeachers}
                 selectedTeacherIds={selectedTeacherIds}
                 isAllTeachersSelected={
-                    paginatedTeachers.length > 0
-                    && paginatedTeachers.every((teacher) => selectedTeacherIds.has(teacher._id))
+                    teachers.length > 0
+                    && teachers.every((teacher) => selectedTeacherIds.has(teacher._id))
                 }
                 toggleSelectAllTeachers={toggleSelectAllTeachers}
                 toggleSelectTeacher={toggleSelectTeacher}
@@ -615,11 +624,11 @@ const TeachersPage = () => {
             <TablePagination
                 page={currentPage}
                 pageSize={pageSize}
-                totalItems={filteredTeachers.length}
+                totalItems={totalItems}
                 totalPages={totalPages}
                 onPageChange={(nextPage) => setCurrentPage(Math.max(1, Math.min(nextPage, totalPages)))}
                 onPageSizeChange={(nextSize) => {
-                    setPageSize(nextSize);
+                    setPageSize(Math.max(Number(nextSize) || DEFAULT_PAGE_SIZE, 1));
                     setCurrentPage(1);
                 }}
             />

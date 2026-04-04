@@ -205,6 +205,8 @@ const attendanceSchema = new mongoose.Schema({
 attendanceSchema.index({ school: 1, date: 1 });
 attendanceSchema.index({ teacher: 1, date: 1 });
 attendanceSchema.index({ class: 1, date: 1 });
+// BE-012: Compound index for teacher attendance by class range + date range query
+attendanceSchema.index({ school: 1, teacher: 1, class: 1, date: 1 });
 attendanceSchema.index(
     { schedule: 1, date: 1 },
     {

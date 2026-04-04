@@ -28,7 +28,7 @@ class GradeService {
     /**
      * Get all grades for a student
      */
-    async getStudentGrades(studentId, filters = {}) {
+    async getStudentGrades(studentId, filters = {}, options = {}) {
         const query = { student: studentId };
 
         if (filters.subject) query.subject = filters.subject;
@@ -36,7 +36,14 @@ class GradeService {
         if (filters.academicYear) query.academicYear = filters.academicYear;
         if (filters.month) query.month = filters.month;
         if (filters.semester) query.semester = filters.semester;
-        if (filters.gradeType) query.gradeType = filters.gradeType;
+        if (filters.category) {
+            query.$or = [
+                { category: filters.category },
+                { gradeType: filters.category }
+            ];
+        } else if (filters.gradeType) {
+            query.gradeType = filters.gradeType;
+        }
         if (filters.date && (filters.date.$gte || filters.date.$lte)) {
             query.date = filters.date;
         }
@@ -54,7 +61,15 @@ class GradeService {
             }
         }
 
-        const grades = await Grade.find(query)
+        const shouldPaginate = Boolean(options?.paginate);
+        const requestedPage = Number.parseInt(options?.page, 10);
+        const requestedLimit = Number.parseInt(options?.limit, 10);
+        const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+        const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+            ? Math.min(requestedLimit, 100)
+            : 20;
+
+        let gradesQuery = Grade.find(query)
             .populate('subject', 'name code')
             .populate('class', 'name grade section')
             .populate('teacher', 'firstName lastName email')
@@ -66,14 +81,37 @@ class GradeService {
                     select: 'code'
                 }
             })
-            .sort({ date: -1 });
+            .sort({ date: -1 })
+            .lean({ virtuals: true });
 
-        if (!filters.schoolId) {
-            return grades;
+        let totalItems = null;
+        if (shouldPaginate) {
+            totalItems = await Grade.countDocuments(query);
+            gradesQuery = gradesQuery.skip((page - 1) * limit).limit(limit);
         }
 
-        const gradingScale = await getActiveGradingScale(filters.schoolId);
-        return decorateGradesWithScale(grades, gradingScale);
+        const grades = await gradesQuery;
+
+        const decoratedGrades = !filters.schoolId
+            ? grades
+            : decorateGradesWithScale(grades, await getActiveGradingScale(filters.schoolId));
+
+        if (!shouldPaginate) {
+            return decoratedGrades;
+        }
+
+        const safeTotalItems = Number.isFinite(totalItems) ? totalItems : decoratedGrades.length;
+        const totalPages = Math.max(1, Math.ceil(safeTotalItems / limit));
+
+        return {
+            grades: decoratedGrades,
+            pagination: {
+                page,
+                limit,
+                total: safeTotalItems,
+                totalPages
+            }
+        };
     }
 
     /**
@@ -110,7 +148,8 @@ class GradeService {
                     select: 'code'
                 }
             })
-            .sort({ date: -1 });
+            .sort({ date: -1 })
+            .lean({ virtuals: true });
     }
 
     /**
@@ -126,7 +165,8 @@ class GradeService {
             }
         })
             .populate('student', 'firstName lastName studentId')
-            .sort({ 'student.firstName': 1 });
+            .sort({ 'student.firstName': 1 })
+            .lean({ virtuals: true });
     }
 
     /**
@@ -152,7 +192,8 @@ class GradeService {
 
         const grades = await Grade.find(query)
             .populate('student', 'firstName lastName studentId')
-            .sort({ date: -1, 'student.firstName': 1 });
+            .sort({ date: -1, 'student.firstName': 1 })
+            .lean({ virtuals: true });
 
         // Filter out orphaned grades where student is null
         const validGrades = grades.filter((grade) => grade.student && grade.student._id);

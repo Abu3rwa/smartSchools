@@ -10,6 +10,12 @@ const normalizeClassesPayload = (payload) => {
   return [];
 };
 
+const normalizeClassesPagination = (payload) => {
+  if (payload?.pagination && typeof payload.pagination === 'object') return payload.pagination;
+  if (payload?.data?.pagination && typeof payload.data.pagination === 'object') return payload.data.pagination;
+  return null;
+};
+
 export const fetchClasses = createAsyncThunk('classes/fetchClasses', async (params = {}) => {
   const response = await classService.getClasses(params);
   return response;
@@ -98,6 +104,7 @@ export const fetchClassInsights = createAsyncThunk(
 
 const initialState = {
   classes: [],
+  pagination: null,
   selectedClass: null,
   status: 'idle',
   error: null,
@@ -125,6 +132,7 @@ const classesSlice = createSlice({
       .addCase(fetchClasses.fulfilled, (state, action) => {
         state.status = 'succeeded';
         state.classes = normalizeClassesPayload(action.payload);
+        state.pagination = normalizeClassesPagination(action.payload);
       })
       .addCase(fetchClasses.rejected, (state, action) => {
         state.status = 'failed';
@@ -227,6 +235,8 @@ export const { clearClassAnalyticsData } = classesSlice.actions;
 
 export const selectClasses = (state) =>
   Array.isArray(state?.classes?.classes) ? state.classes.classes : [];
+
+export const selectClassesPagination = (state) => state.classes.pagination;
 
 export const selectCurrentClass = (state) => state.classes.selectedClass;
 export const selectClassStudents = (state) => state.classes.selectedClass?.students || [];

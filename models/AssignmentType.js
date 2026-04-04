@@ -74,6 +74,20 @@ assignmentTypeSchema.index({ school: 1, isActive: 1, sortOrder: 1, name: 1 });
 
 assignmentTypeSchema.plugin(tenantIsolationPlugin);
 
+// BE-028: Propagate name/key changes to denormalized fields in Grade documents
+assignmentTypeSchema.post('findOneAndUpdate', async function (doc) {
+    if (!doc) return;
+    try {
+        const Grade = mongoose.model('Grade');
+        await Grade.updateMany(
+            { school: doc.school, assignmentTypeKey: doc.key },
+            { $set: { assignmentTypeName: doc.name } }
+        ).setOptions({ skipTenantFilter: true });
+    } catch {
+        // Non-critical — grades will show old name until next save
+    }
+});
+
 const AssignmentType = mongoose.model('AssignmentType', assignmentTypeSchema);
 
 export default AssignmentType;

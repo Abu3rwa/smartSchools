@@ -322,6 +322,7 @@ const inviteParentContactGroup = async ({
  */
 export const getStudents = asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, search, classId, status, academicYear } = req.query;
+    const isUnassignedClassFilter = classId === 'unassigned';
     const effectiveAcademicYear = academicYear || req.academicYear;
     const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
     const parsedLimit = String(limit).toLowerCase() === 'all'
@@ -339,7 +340,9 @@ export const getStudents = asyncHandler(async (req, res) => {
         ];
     }
 
-    if (classId) {
+    if (classId === 'unassigned') {
+        query.currentClass = null;
+    } else if (classId) {
         query.currentClass = classId;
 
         // Verify class access for department principals
@@ -362,7 +365,7 @@ export const getStudents = asyncHandler(async (req, res) => {
     // This ensures that if a student is correctly enrolled in a class, they are visible 
     // even if their individual 'department' field is missing or out of sync, as long as
     // the user has access to that class.
-    if (!classId) {
+    if (!classId || isUnassignedClassFilter) {
         applyDepartmentScope(query, req.departmentId);
     }
     
@@ -376,11 +379,13 @@ export const getStudents = asyncHandler(async (req, res) => {
         }
         const teacherClassIds = await getTeacherClassIds(teacher._id);
 
-        if (classId) {
+        if (classId && classId !== 'unassigned') {
             const canAccess = teacherClassIds.some(id => id.toString() === classId);
             if (!canAccess) {
                 return res.status(403).json({ success: false, message: 'Not authorized for this class' });
             }
+        } else if (classId === 'unassigned') {
+            return res.status(403).json({ success: false, message: 'Not authorized for this class filter' });
         } else {
             query.currentClass = { $in: teacherClassIds };
         }
@@ -395,6 +400,7 @@ export const getStudents = asyncHandler(async (req, res) => {
         .limit(shouldPaginate ? parsedLimit : 0);
 
     const total = await Student.countDocuments(query);
+    const totalPages = shouldPaginate ? Math.max(1, Math.ceil(total / parsedLimit)) : 1;
 
     res.json({
         success: true,
@@ -404,7 +410,8 @@ export const getStudents = asyncHandler(async (req, res) => {
                 page: parsedPage,
                 limit: shouldPaginate ? parsedLimit : total,
                 total,
-                pages: shouldPaginate ? Math.ceil(total / parsedLimit) : 1
+                pages: totalPages,
+                totalPages
             }
         }
     });

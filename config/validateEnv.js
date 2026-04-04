@@ -37,6 +37,12 @@ export function validateEnvironment() {
     process.exit(1);
   }
 
+  // BE-003: Enforce cryptographic strength of JWT_SECRET
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 20) {
+    logger.error('JWT_SECRET must be at least 20 characters for cryptographic security');
+    process.exit(1);
+  }
+
   for (const varName of optionalEnvVars) {
     if (!process.env[varName]) {
       warnings.push(varName);

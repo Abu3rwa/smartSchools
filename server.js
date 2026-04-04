@@ -12,6 +12,9 @@ import { createServer } from "http";
 import connectDB from "./config/db.js";
 import { validateEnvironment } from "./config/validateEnv.js";
 import errorHandler, { notFound } from "./middleware/errorHandler.js";
+import correlationId from "./middleware/correlationId.js";
+import aiTokenBudgetGuard from "./middleware/aiTokenBudgetGuard.js";
+import paginationMiddleware from "./middleware/pagination.js";
 import { connectAi } from "./utils/connectAi.js";
 import logger from "./utils/logger.js";
 
@@ -95,29 +98,30 @@ import { processAttendanceRemindersForEnabledSchools } from "./controllers/atten
 import { runCurriculumImportJobCycle } from "./jobs/curriculumAiImportJobRunner.js";
 import { runAcademicExcellenceNightlyJob } from "./jobs/academicExcellenceSyncJob.js";
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
+import { validateTenantIsolation } from "./utils/validateTenantIsolation.js";
 // Validate environment variables
 validateEnvironment();
 // Connect to database
 connectDB();
 const app = express();
-app.set("trust proxy", 1);
-// CORS configuration
+app.set("trust proxy", 1); // Render single-proxy; update if adding Cloudflare
+// CORS configuration — BE-007: origins from env var
 const allowedOrigins = [
   process.env.CLIENT_URL,
+  ...(process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
+  // Fallback defaults kept for backward compatibility
   "http://localhost:5173",
-  "https://smile3-8c8c5.web.app",
-  "https://smile3-8c8c5.firebaseapp.com",
-  "https://schoolos-is02.onrender.com",
-  "https://schoolworkso.onrender.com",
 ]
   .map((origin) => (typeof origin === "string" ? origin.trim() : origin))
   .filter(Boolean);
 
 const isAllowedFirebaseOrigin = (origin) => {
   if (!origin) return false;
+  // Restrict to known Firebase project prefix instead of wildcard
+  const projectPrefix = process.env.FIREBASE_PROJECT_ID || 'smile3-8c8c5';
   return (
-    /^https:\/\/[a-z0-9-]+\.web\.app$/i.test(origin) ||
-    /^https:\/\/[a-z0-9-]+\.firebaseapp\.com$/i.test(origin)
+    origin === `https://${projectPrefix}.web.app` ||
+    origin === `https://${projectPrefix}.firebaseapp.com`
   );
 };
 
@@ -164,11 +168,24 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Security middleware
+// BE-030: Correlation ID for request tracing
+app.use(correlationId);
+
+// Security middleware — BE-005: explicit CSP directives
 app.use(
   helmet({
-    contentSecurityPolicy:
-      process.env.NODE_ENV === "production" ? undefined : false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", process.env.CLIENT_URL, "https://generativelanguage.googleapis.com"].filter(Boolean),
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      }
+    },
     crossOriginEmbedderPolicy: false,
   }),
 );
@@ -190,9 +207,16 @@ const authLimiter = rateLimit({
 
 const isProduction = process.env.NODE_ENV === "production";
 
+// BE-034: Key generator for per-user rate limiting (falls back to IP for unauthenticated requests)
+const userKeyGenerator = (req) => {
+  if (req.user?._id) return `user_${req.user._id}`;
+  return req.ip;
+};
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isProduction ? 1000 : 10000,
+  keyGenerator: userKeyGenerator,
   message: {
     success: false,
     message: "Too many requests, please try again later",
@@ -201,15 +225,19 @@ const apiLimiter = rateLimit({
 const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
+  keyGenerator: userKeyGenerator,
   message: {
     success: false,
     message: "Too many AI requests, please try again later",
   },
 });
 
-// Body parser
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// Body parser — BE-032: reduced default limit
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// BE-021: Global pagination defaults for list endpoints
+app.use("/api", paginationMiddleware);
 
 // Ignore favicon requests
 app.get("/favicon.ico", (req, res) => res.status(204).end());
@@ -229,15 +257,27 @@ app.get("/api/health/ready", async (req, res) => {
   const mongoose = (await import("mongoose")).default;
   const state = mongoose.connection.readyState;
   const connected = state === 1;
-  const checks = { mongodb: state === 1 ? "connected" : state === 2 ? "connecting" : "disconnected" };
-  res.status(connected ? 200 : 503).json({ ready: connected, checks });
+  const checks = {
+    mongodb: state === 1 ? "connected" : state === 2 ? "connecting" : "disconnected",
+  };
+
+  // BE-031: check external dependencies
+  try {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    checks.aiService = process.env.GEMINI_API_KEY ? 'configured' : 'missing_key';
+  } catch {
+    checks.aiService = 'unavailable';
+  }
+
+  const allHealthy = connected && checks.aiService !== 'unavailable';
+  res.status(allHealthy ? 200 : 503).json({ ready: allHealthy, checks });
 });
 
 // Apply rate limiters
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/public/register-school", authLimiter);
-app.use("/api/ai", aiLimiter);
+app.use("/api/ai", aiLimiter, aiTokenBudgetGuard);
 if (isProduction) {
   app.use("/api", apiLimiter);
 }
@@ -295,7 +335,7 @@ app.use("/api/lesson-plan-criteria", lessonPlanCriteriaRoutes);
 app.use("/api/school-calendar", schoolCalendarRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use("/api/rooms", roomRoutes);
-app.use("/api/import", importRoutes);
+// BE-032: larger limit for import routes that handle CSV bulk data\napp.use(\"/api/import\", express.json({ limit: \"5mb\" }), importRoutes);
 app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/newsletter-templates", newsletterTemplateRoutes);
 app.use("/api/standards", standardRoutes);
@@ -359,8 +399,14 @@ const ACADEMIC_EXCELLENCE_NIGHTLY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const httpServer = createServer(app);
 initRealtimeGateway(httpServer);
 
+// BE-040: Track all interval handles for graceful shutdown
+const activeIntervals = [];
+
 const server = httpServer.listen(PORT, () => {
   logger.success(`Server is running on port ${PORT}`);
+
+  // BE-023: Validate all tenant-scoped models have isolation plugin
+  validateTenantIsolation();
 
   let attendanceReminderJobRunning = false;
   const runAttendanceReminderScheduler = async () => {
@@ -383,18 +429,18 @@ const server = httpServer.listen(PORT, () => {
   };
 
   setTimeout(runAttendanceReminderScheduler, 30 * 1000);
-  setInterval(runAttendanceReminderScheduler, ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS);
+  activeIntervals.push(setInterval(runAttendanceReminderScheduler, ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS));
 
   // Substitution expiry: mark stale SUBMITTED requests as EXPIRED
   if (process.env.RUN_SUBSTITUTION_EXPIRY_JOB !== "false") {
     const SUBSTITUTION_EXPIRY_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-    setInterval(async () => {
+    activeIntervals.push(setInterval(async () => {
       try {
         await expireStaleSubstitutionRequests();
       } catch (err) {
         logger.error("Substitution expiry job error:", err?.message || err);
       }
-    }, SUBSTITUTION_EXPIRY_INTERVAL_MS);
+    }, SUBSTITUTION_EXPIRY_INTERVAL_MS));
   }
 
   // Optional scheduler: ensure weekly issues exist for all classes (idempotent).
@@ -403,13 +449,13 @@ const server = httpServer.listen(PORT, () => {
     ensureCurrentWeekIssuesForAllClasses(new Date()).catch((err) => {
       logger.error("Newsletter issue scheduler startup error:", err?.message || err);
     });
-    setInterval(async () => {
+    activeIntervals.push(setInterval(async () => {
       try {
         await ensureCurrentWeekIssuesForAllClasses(new Date());
       } catch (err) {
         logger.error("Newsletter issue scheduler error:", err?.message || err);
       }
-    }, NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS);
+    }, NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS));
   }
 
   if (process.env.RUN_REVIEW_SCHEDULER_JOB !== "false") {
@@ -417,13 +463,13 @@ const server = httpServer.listen(PORT, () => {
       logger.error("Review scheduler startup error:", err?.message || err);
     });
 
-    setInterval(async () => {
+    activeIntervals.push(setInterval(async () => {
       try {
         await runReviewSchedulerJob();
       } catch (err) {
         logger.error("Review scheduler job error:", err?.message || err);
       }
-      }, REVIEW_SCHEDULER_INTERVAL_MS);
+      }, REVIEW_SCHEDULER_INTERVAL_MS));
   }
 
   if (process.env.RUN_SUBSCRIPTION_LIFECYCLE_JOB !== "false") {
@@ -439,7 +485,7 @@ const server = httpServer.listen(PORT, () => {
     };
 
     setTimeout(runLifecycle, 60 * 1000);
-    setInterval(runLifecycle, SUBSCRIPTION_LIFECYCLE_INTERVAL_MS);
+    activeIntervals.push(setInterval(runLifecycle, SUBSCRIPTION_LIFECYCLE_INTERVAL_MS));
   }
 
   if (process.env.RUN_COMMUNICATION_EMAIL_SCHEDULER !== "false") {
@@ -454,7 +500,7 @@ const server = httpServer.listen(PORT, () => {
       }
     };
     setTimeout(runCommunicationEmailScheduler, 30 * 1000);
-    setInterval(runCommunicationEmailScheduler, COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS);
+    activeIntervals.push(setInterval(runCommunicationEmailScheduler, COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS));
   }
 
   if (process.env.RUN_CURRICULUM_AI_IMPORT_RUNNER !== "false") {
@@ -466,7 +512,7 @@ const server = httpServer.listen(PORT, () => {
       }
     };
     setTimeout(runCurriculumImportScheduler, 15 * 1000);
-    setInterval(runCurriculumImportScheduler, CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS);
+    activeIntervals.push(setInterval(runCurriculumImportScheduler, CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS));
   }
 
   if (process.env.RUN_ACADEMIC_EXCELLENCE_NIGHTLY_JOB !== "false") {
@@ -479,13 +525,19 @@ const server = httpServer.listen(PORT, () => {
     };
     // First run 2 minutes after startup, then every 24 hours
     setTimeout(runAcademicExcellenceScheduler, 2 * 60 * 1000);
-    setInterval(runAcademicExcellenceScheduler, ACADEMIC_EXCELLENCE_NIGHTLY_INTERVAL_MS);
+    activeIntervals.push(setInterval(runAcademicExcellenceScheduler, ACADEMIC_EXCELLENCE_NIGHTLY_INTERVAL_MS));
   }
 });
 
 // Graceful shutdown handling
 const gracefulShutdown = async (signal) => {
   logger.info(`${signal} received. Starting graceful shutdown...`);
+
+  // BE-040: Clear all scheduled job intervals
+  for (const handle of activeIntervals) {
+    clearInterval(handle);
+  }
+  logger.info(`Cleared ${activeIntervals.length} scheduled job intervals`);
 
   try {
     // Stop accepting new requests

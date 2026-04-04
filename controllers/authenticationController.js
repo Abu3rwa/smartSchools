@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { google } from 'googleapis';
 import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
@@ -16,6 +17,8 @@ import {
 import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
 import { getPlatformBranding } from '../services/platformBrandingService.js';
 import { getClientUrl } from '../helpers/portalUrl.js';
+import { encryptSecret, decryptSecret } from '../utils/secretCrypto.js';
+import logger from '../utils/logger.js';
 
 const DEFAULT_CLIENT_URL = getClientUrl();
 
@@ -51,6 +54,10 @@ const resolveGoogleLoginRedirectUri = (req) => {
 
     if (configuredRedirectUri && (!isProduction || !isLocalLikeUrl(configuredRedirectUri))) {
         return configuredRedirectUri;
+    }
+
+    if (isProduction) {
+        throw new Error('GOOGLE_LOGIN_REDIRECT_URI must be set in production');
     }
 
     const host = req.get('host');
@@ -699,7 +706,12 @@ export const impersonateUser = asyncHandler(async (req, res) => {
     }
 
     // Log the impersonation action for auditing
-    console.log(`AUDIT: ${req.user.role} '${req.user.email}' is impersonating user '${userToImpersonate.email}' (ID: ${userToImpersonate._id})`);
+    logger.warn('SECURITY_AUDIT: User Impersonation', {
+        impersonator: { id: req.user._id, email: req.user.email, role: req.user.role },
+        target: { id: userToImpersonate._id, email: userToImpersonate.email, role: userToImpersonate.role },
+        schoolId: userToImpersonate.school?._id || userToImpersonate.school,
+        timestamp: new Date().toISOString()
+    });
 
     // Generate token for the target user
     const token = generateAccessToken(userToImpersonate);
@@ -755,11 +767,11 @@ export const getGoogleAuthUrl = asyncHandler(async (req, res) => {
         'https://www.googleapis.com/auth/gmail.send'         // Send emails on their behalf
     ];
 
-    // Step 3: Prepare state with school context
-    const statePayload = {};
+    // Step 3: Prepare signed state with school context (CSRF protection)
+    const statePayload = { nonce: crypto.randomBytes(16).toString('hex') };
     if (schoolSlug) statePayload.schoolSlug = schoolSlug;
     if (frontendOrigin) statePayload.frontendOrigin = resolveSafeClientUrl(frontendOrigin);
-    const state = Object.keys(statePayload).length > 0 ? JSON.stringify(statePayload) : '';
+    const state = jwt.sign(statePayload, process.env.JWT_SECRET, { expiresIn: '10m' });
 
     // Step 4: Generate the authorization URL
     const authUrl = oauth2Client.generateAuthUrl({
@@ -784,7 +796,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
     const { code, error } = req.query;
     let state = {};
     try {
-        state = JSON.parse(req.query.state || '{}');
+        state = jwt.verify(req.query.state || '', process.env.JWT_SECRET);
     } catch {
         state = {};
     }
@@ -853,18 +865,15 @@ export const googleCallback = asyncHandler(async (req, res) => {
             await user.save();
         }
 
-        // Step 7: Store Gmail tokens on the user for sending emails later
+        // Step 7: Store Gmail tokens on the user (encrypted at rest)
         user.gmailTokens = {
             email: googleUser.email,
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
+            accessToken: encryptSecret(tokens.access_token),
+            refreshToken: encryptSecret(tokens.refresh_token),
             expiryDate: new Date(tokens.expiry_date),
             isActive: true
         };
         user.mustChangePassword = false;
-        await user.save();
-
-        // Step 8: Update last login
         user.lastLogin = new Date();
         await user.save();
 
@@ -918,13 +927,13 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
             );
 
             oauth2Client.setCredentials({
-                refresh_token: user.gmailTokens.refreshToken
+                refresh_token: decryptSecret(user.gmailTokens.refreshToken)
             });
 
             const { credentials } = await oauth2Client.refreshAccessToken();
 
-            // Update user's tokens
-            user.gmailTokens.accessToken = credentials.access_token;
+            // Update user's tokens (encrypted)
+            user.gmailTokens.accessToken = encryptSecret(credentials.access_token);
             user.gmailTokens.expiryDate = new Date(credentials.expiry_date);
             await user.save();
 
@@ -938,8 +947,8 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
                 user: user.gmailTokens.email,
                 clientId: process.env.GOOGLE_CLIENT_ID,
                 clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-                refreshToken: user.gmailTokens.refreshToken,
-                accessToken: user.gmailTokens.accessToken
+                refreshToken: decryptSecret(user.gmailTokens.refreshToken),
+                accessToken: decryptSecret(user.gmailTokens.accessToken)
             }
         });
 

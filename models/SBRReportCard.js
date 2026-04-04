@@ -57,7 +57,8 @@ const sbrReportCategorySchema = new mongoose.Schema(
         },
         standards: {
             type: [sbrReportStandardSchema],
-            default: []
+            default: [],
+            validate: { validator: (arr) => arr.length <= 200, message: 'Exceeds max 200 standards per category' }
         }
     },
     { _id: false }
@@ -81,7 +82,8 @@ const sbrReportSubjectSchema = new mongoose.Schema(
         },
         categories: {
             type: [sbrReportCategorySchema],
-            default: []
+            default: [],
+            validate: { validator: (arr) => arr.length <= 50, message: 'Exceeds max 50 categories per subject' }
         }
     },
     { _id: false }
@@ -132,7 +134,8 @@ const sbrReportCardSchema = new mongoose.Schema(
         },
         subjects: {
             type: [sbrReportSubjectSchema],
-            default: []
+            default: [],
+            validate: { validator: (arr) => arr.length <= 30, message: 'Exceeds max 30 subjects per report card' }
         },
         generatedBy: {
             type: mongoose.Schema.Types.ObjectId,

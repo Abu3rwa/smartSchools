@@ -228,6 +228,7 @@ export const { clearCurrentStudent, clearError } = studentCoreSlice.actions;
 
 // Selectors
 export const selectStudents = (state) => state.students.students;
+export const selectStudentsPagination = (state) => state.students.pagination;
 export const selectCurrentStudent = (state) => state.students.currentStudent;
 export const selectClassStudents = (state) => state.students.classStudents;
 export const selectStudentsLoading = (state) => state.students.loading;

@@ -3,6 +3,8 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, getTeacherSubjectIds } from '../helpers/teacherScoping.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * @desc    Get all subjects
  * @route   GET /api/subjects
@@ -10,13 +12,20 @@ import { runImportPipeline } from '../services/import/importPipeline.js';
  */
 export const getSubjects = asyncHandler(async (req, res) => {
     const { page = 1, limit = 50, search, type, grade, isActive } = req.query;
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const parsedLimit = String(limit).toLowerCase() === 'all'
+        ? 0
+        : Math.max(parseInt(limit, 10) || 0, 0);
+    const shouldPaginate = parsedLimit > 0;
 
     const query = {};
+    const normalizedSearch = typeof search === 'string' ? search.trim() : '';
 
-    if (search) {
+    if (normalizedSearch) {
+        const searchRegex = new RegExp(escapeRegex(normalizedSearch), 'i');
         query.$or = [
-            { name: { $regex: search, $options: 'i' } },
-            { code: { $regex: search, $options: 'i' } }
+            { name: searchRegex },
+            { code: searchRegex }
         ];
     }
 
@@ -34,22 +43,29 @@ export const getSubjects = asyncHandler(async (req, res) => {
         query._id = { $in: subjectIds };
     }
 
-    const subjects = await Subject.find(query)
-        .sort({ name: 1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit));
+    let subjectsQuery = Subject.find(query).sort({ name: 1 });
+
+    if (shouldPaginate) {
+        subjectsQuery = subjectsQuery
+            .skip((parsedPage - 1) * parsedLimit)
+            .limit(parsedLimit);
+    }
+
+    const subjects = await subjectsQuery;
 
     const total = await Subject.countDocuments(query);
+    const totalPages = shouldPaginate ? Math.max(1, Math.ceil(total / parsedLimit)) : 1;
 
     res.json({
         success: true,
         data: {
             subjects,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: parsedPage,
+                limit: shouldPaginate ? parsedLimit : total,
                 total,
-                pages: Math.ceil(total / limit)
+                pages: totalPages,
+                totalPages
             }
         }
     });

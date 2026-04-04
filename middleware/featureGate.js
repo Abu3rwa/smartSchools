@@ -14,12 +14,22 @@ const toPlainObject = (value) => {
     return typeof value.toObject === 'function' ? value.toObject() : value;
 };
 
+// BE-025: Short-lived cache to reduce DB hits for feature resolution
+const featureContextCache = new Map();
+const FEATURE_CACHE_TTL_MS = 30 * 1000; // 30 seconds
+
 export const resolveSchoolFeatureContext = async (schoolId) => {
     if (!schoolId) return null;
 
+    const cacheKey = schoolId.toString();
+    const cached = featureContextCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < FEATURE_CACHE_TTL_MS) {
+        return cached.value;
+    }
+
     const [school, subscription] = await Promise.all([
-        School.findById(schoolId).select('subscription.plan settings.features'),
-        Subscription.findOne({ school: schoolId })
+        School.findById(schoolId).select('subscription.plan settings.features').lean(),
+        Subscription.findOne({ school: schoolId }).lean()
     ]);
 
     if (!school) return null;
@@ -52,7 +62,7 @@ export const resolveSchoolFeatureContext = async (schoolId) => {
     const fallbackLimits = planConfig?.limits || starterPlanConfig?.limits || {};
     const limits = subscription ? toPlainObject(subscription.limits) : fallbackLimits;
 
-    return {
+    const result = {
         school,
         subscription,
         plan: effectivePlan,
@@ -60,6 +70,11 @@ export const resolveSchoolFeatureContext = async (schoolId) => {
         features,
         limits
     };
+
+    // BE-025: Cache the resolved context
+    featureContextCache.set(cacheKey, { value: result, ts: Date.now() });
+
+    return result;
 };
 
 export const buildFeatureMetadata = (features, currentPlan) => {

@@ -33,10 +33,11 @@ const mapKnownErrors = (err) => {
     return { ...err, message: err.message };
 };
 
-const buildErrorPayload = (error, originalError) => {
+const buildErrorPayload = (error, originalError, statusCode) => {
     const payload = {
         success: false,
-        message: error.message || 'Server Error'
+        // BE-035: Never leak raw internal error messages to clients for 500s
+        message: statusCode >= 500 ? 'Internal server error' : (error.message || 'Server Error')
     };
 
     if (error.code) {
@@ -50,6 +51,9 @@ const buildErrorPayload = (error, originalError) => {
     }
     if (process.env.NODE_ENV === 'development') {
         payload.stack = originalError.stack;
+        if (statusCode >= 500) {
+            payload.message = error.message || 'Server Error';
+        }
     }
 
     return payload;
@@ -58,7 +62,8 @@ const buildErrorPayload = (error, originalError) => {
 // Global error handler middleware
 const errorHandler = (err, req, res, next) => {
     void next;
-    logger.error(err.message, err);
+    // BE-030: Include correlation ID in error logs
+    logger.error(err.message, { correlationId: req.correlationId, stack: err.stack });
 
     // Ensure CORS headers are present on error responses so the browser
     // doesn't mask the real error behind a misleading CORS failure.
@@ -70,7 +75,10 @@ const errorHandler = (err, req, res, next) => {
 
     const error = mapKnownErrors(err);
     const statusCode = error.statusCode || 500;
-    const payload = buildErrorPayload(error, err);
+    const payload = buildErrorPayload(error, err, statusCode);
+    if (req.correlationId) {
+        payload.requestId = req.correlationId;
+    }
     return res.status(statusCode).json(payload);
 };
 

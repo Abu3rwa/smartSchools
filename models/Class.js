@@ -109,5 +109,18 @@ classSchema.pre('save', function (next) {
 // Apply tenant isolation plugin
 classSchema.plugin(tenantIsolationPlugin);
 
+// BE-027: Cascade cleanup — clear student.currentClass references when a class is deleted
+classSchema.pre('findOneAndDelete', async function (next) {
+    const classDoc = await this.model.findOne(this.getFilter());
+    if (classDoc) {
+        const Student = mongoose.model('Student');
+        await Student.updateMany(
+            { currentClass: classDoc._id },
+            { $unset: { currentClass: '' } }
+        );
+    }
+    next();
+});
+
 const Class = mongoose.model('Class', classSchema);
 export default Class;

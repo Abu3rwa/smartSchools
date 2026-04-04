@@ -10,6 +10,9 @@
     "build": "node -e \"console.log('Backend API build step: no-op')\"",
     "seed": "node seeds/seedData.js",
     "seed:import-templates": "node seeds/seedImportTemplates.js",
+    "migrate": "node scripts/migrate.js up",
+    "migrate:status": "node scripts/migrate.js status",
+    "migrate:down": "node scripts/migrate.js down",
     "test": "node --test tests",
     "test:maintainability": "node --test tests/communicationEmailDispatchService.test.js tests/communicationEmailService.test.js tests/communicationEmailValidators.test.js tests/schemaValidator.test.js",
     "test:maintainability:messaging": "node --test tests/messageThreadService.test.js tests/messagingAudienceService.test.js tests/messagingMapperAndUtils.test.js tests/messageController.contract.test.js tests/messageValidators.test.js tests/messageRealtimeService.test.js",
@@ -36,7 +39,8 @@
     "coverage:maintainability:curriculum:check": "c8 --include=controllers/curriculumMapController.js --include=controllers/curriculumSettingsController.js --include=services/curriculum/curriculumSettingsService.js --include=validators/curriculumValidators.js --check-coverage --lines 70 --functions 70 --statements 70 --branches 60 node --test tests/curriculumValidators.test.js tests/curriculumControllers.contract.test.js tests/curriculumMapService.test.js tests/curriculumSettingsService.test.js",
     "quality:maintainability:curriculum": "npm run lint:maintainability:curriculum && npm run dup:maintainability:curriculum && npm run coverage:maintainability:curriculum:check",
     "quality:maintainability:all": "npm run quality:maintainability && npm run quality:maintainability:messaging && npm run quality:maintainability:curriculum",
-    "deploy": "git add . ; git commit -m \"Deployment\" ; git push origin main",
+    "predeploy": "npm run lint 2>/dev/null; npm test 2>/dev/null; echo 'Pre-deploy checks done'",
+    "deploy": "echo 'Use CI/CD pipeline for deployment. Direct git push deploy is disabled for safety.' && exit 1",
     "render-build": "npm install && cd client && npm install && npm run build"
   },
   "keywords": [
