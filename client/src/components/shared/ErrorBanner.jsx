@@ -9,7 +9,7 @@ import { HiOutlineExclamationCircle, HiOutlineRefresh } from 'react-icons/hi';
  */
 const ErrorBanner = ({ message = 'Something went wrong', onRetry }) => {
     return (
-        <div style={{
+        <div role="alert" style={{
             display: 'flex',
             alignItems: 'center',
             gap: 'var(--spacing-md)',

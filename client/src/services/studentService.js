@@ -25,9 +25,11 @@ const studentService = {
         return response.data;
     },
 
-    // Delete student
-    deleteStudent: async (id) => {
-        const response = await api.delete(`/students/${id}`);
+    // Delete student (soft-delete by default, permanent for inactive when requested)
+    deleteStudent: async (id, { permanent = false } = {}) => {
+        const response = await api.delete(`/students/${id}`, {
+            params: permanent ? { permanent: 'true' } : undefined
+        });
         return response.data;
     },
 

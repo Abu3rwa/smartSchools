@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -36,4 +37,4 @@ const RecentStudentsCard = ({ students }) => {
     );
 };
 
-export default RecentStudentsCard;
+export default memo(RecentStudentsCard);

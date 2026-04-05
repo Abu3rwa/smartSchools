@@ -12,15 +12,15 @@
 }
 
 .subscription-expired-banner.teacher {
-    background: #fff1f1;
-    color: #8b1f1f;
-    border-color: #f5b8b8;
+    background: var(--error-50);
+    color: var(--error-700);
+    border-color: var(--error-200);
 }
 
 .subscription-expired-banner.student {
-    background: #fff6e8;
-    color: #8a4f0a;
-    border-color: #f3d6a2;
+    background: var(--warning-50);
+    color: var(--warning-800);
+    border-color: var(--warning-200);
 }
 
 .subscription-expired-banner button {

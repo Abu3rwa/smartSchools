@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -33,4 +34,4 @@ const ClassesOverviewCard = ({ classes }) => {
     );
 };
 
-export default ClassesOverviewCard;
+export default memo(ClassesOverviewCard);

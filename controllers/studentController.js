@@ -27,6 +27,13 @@ const RE_ENROLLMENT_STATUSES = new Set([
 const PROMOTION_DECISION_TYPES = new Set(['promote', 'retain', 'promote_with_conditions', 'hold_review']);
 const PROMOTION_APPROVAL_STATUSES = new Set(['pending', 'approved', 'rejected']);
 
+const parseBooleanParam = (value) => {
+    if (value === true || value === false) return value;
+    if (value === undefined || value === null) return false;
+    const normalized = String(value).trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+};
+
 const normalizeEmail = (value) => {
     if (typeof value !== 'string') return null;
     const normalized = value.trim().toLowerCase();
@@ -622,6 +629,7 @@ export const updateStudent = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 export const deleteStudent = asyncHandler(async (req, res) => {
+    const shouldPermanentlyDelete = parseBooleanParam(req.query?.permanent);
     const student = await Student.findById(req.params.id);
 
     if (!student) {
@@ -631,13 +639,69 @@ export const deleteStudent = asyncHandler(async (req, res) => {
         });
     }
 
+    if (student.school?.toString() !== req.schoolId.toString()) {
+        return res.status(403).json({
+            success: false,
+            message: 'Not authorized to delete this student'
+        });
+    }
+
+    if (shouldPermanentlyDelete) {
+        if (String(student.status || '').toLowerCase() !== 'inactive') {
+            return res.status(400).json({
+                success: false,
+                message: 'Only inactive students can be permanently deleted'
+            });
+        }
+
+        if (student.photoUrl && student.photoUrl.includes('storage.googleapis.com')) {
+            try {
+                await deleteFile(student.photoUrl);
+            } catch (error) {
+                // Continue with deletion even if file cleanup fails.
+            }
+        }
+
+        if (student.user) {
+            const linkedUser = await User.findById(student.user)
+                .setOptions({ skipTenantFilter: true })
+                .select('role roles school');
+
+            if (linkedUser) {
+                const roles = Array.isArray(linkedUser.roles) && linkedUser.roles.length > 0
+                    ? linkedUser.roles
+                    : [linkedUser.role].filter(Boolean);
+                const isStudentOnlyUser = roles.length > 0 && roles.every((role) => role === 'student');
+                const sameSchool = !linkedUser.school || linkedUser.school.toString() === req.schoolId.toString();
+
+                if (isStudentOnlyUser && sameSchool) {
+                    await User.findByIdAndDelete(linkedUser._id).setOptions({ skipTenantFilter: true });
+                } else {
+                    await User.findByIdAndUpdate(
+                        linkedUser._id,
+                        { isActive: false },
+                        { runValidators: false }
+                    ).setOptions({ skipTenantFilter: true });
+                }
+            }
+        }
+
+        await student.deleteOne();
+
+        return res.json({
+            success: true,
+            message: 'Inactive student permanently deleted successfully'
+        });
+    }
+
     // Soft delete - mark as inactive
     student.status = 'inactive';
     await student.save();
 
     res.json({
         success: true,
-        message: 'Student deleted successfully'
+        message: 'Student marked inactive successfully',
+        data: { student }
     });
 });
 

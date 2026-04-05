@@ -105,7 +105,7 @@ export default function SlideRenderer({
           <div className="slide-image-text-row">
             <div className="slide-image-col">
               {slide.imageUrl && (
-                <img src={slide.imageUrl} alt={slide.imageAlt || ""} />
+                <img src={slide.imageUrl} alt={slide.imageAlt || ""} loading="lazy" />
               )}
               {slide.imageCaption && (
                 <p className="slide-image-caption">{slide.imageCaption}</p>
@@ -129,7 +129,7 @@ export default function SlideRenderer({
           }}>{slide.title}</h2>
           {slide.imageUrl && (
             <div className="slide-full-image-wrap">
-              <img src={slide.imageUrl} alt={slide.imageAlt || ""} className="slide-full-image" />
+              <img src={slide.imageUrl} alt={slide.imageAlt || ""} className="slide-full-image" loading="lazy" />
             </div>
           )}
           <div

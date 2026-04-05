@@ -131,7 +131,7 @@
 .radio-option input[type="radio"] {
     width: 18px;
     height: 18px;
-    accent-color: #667eea;
+    accent-color: var(--accent-purple);
     cursor: pointer;
 }
 
@@ -170,7 +170,7 @@
 .period-option.selected {
     background: rgba(102, 126, 234, 0.15);
     border-color: rgba(102, 126, 234, 0.4);
-    color: #667eea;
+    color: var(--accent-purple);
 }
 
 .period-option .option-icon {
@@ -235,7 +235,7 @@
 .progress-percentage {
     font-size: 0.875rem;
     font-weight: 600;
-    color: #667eea;
+    color: var(--accent-purple);
 }
 
 .progress-bar-container {
@@ -247,7 +247,7 @@
 
 .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(90deg, var(--accent-purple) 0%, #764ba2 100%);
     border-radius: 4px;
     transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
@@ -294,7 +294,7 @@
     border-radius: 20px;
     font-size: 0.75rem;
     font-weight: 600;
-    color: #667eea;
+    color: var(--accent-purple);
 }
 
 .ai-badge svg {
@@ -456,7 +456,7 @@
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--accent-purple) 0%, #764ba2 100%);
     color: white;
     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
@@ -490,7 +490,7 @@
     width: 48px;
     height: 48px;
     border: 3px solid rgba(255, 255, 255, 0.1);
-    border-top-color: #667eea;
+    border-top-color: var(--accent-purple);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }

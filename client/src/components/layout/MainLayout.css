@@ -41,8 +41,8 @@
 .admin-layout .btn-primary,
 .admin-layout .btn-success,
 .admin-layout .btn-danger {
-    color: #ffffff;
-    -webkit-text-fill-color: #ffffff;
+    color: var(--on-accent);
+    -webkit-text-fill-color: var(--on-accent);
 }
 
 .admin-layout .btn-secondary,

@@ -101,7 +101,7 @@ const LessonPlanDetailPage = () => {
                 <div className="lp-header">
                     <div className="lp-header-left">
                         {schoolLogo ? (
-                            <img src={schoolLogo} alt="School Logo" className="lp-school-logo" />
+                            <img src={schoolLogo} alt="School Logo" className="lp-school-logo" loading="lazy" />
                         ) : (
                             <div className="lp-school-logo-placeholder">
                                 <HiOutlineAcademicCap size={36} />

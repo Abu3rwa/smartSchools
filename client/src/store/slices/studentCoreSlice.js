@@ -81,10 +81,19 @@ export const importStudents = createAsyncThunk(
 
 export const deleteStudent = createAsyncThunk(
     'students/deleteStudent',
-    async (id, { rejectWithValue }) => {
+    async (payload, { rejectWithValue }) => {
         try {
-            await api.delete(`/students/${id}`);
-            return id;
+            const studentId = typeof payload === 'string' ? payload : payload?.id;
+            const permanent = Boolean(typeof payload === 'object' && payload?.permanent);
+            const response = await api.delete(`/students/${studentId}`, {
+                params: permanent ? { permanent: 'true' } : undefined
+            });
+            return {
+                id: studentId,
+                permanent,
+                student: response.data?.data?.student || null,
+                message: response.data?.message || null
+            };
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to delete student');
         }
@@ -206,7 +215,30 @@ const studentCoreSlice = createSlice({
             })
             // Delete student
             .addCase(deleteStudent.fulfilled, (state, action) => {
-                state.students = state.students.filter(s => s._id !== action.payload);
+                const { id, permanent, student } = action.payload || {};
+                if (!id) return;
+
+                if (permanent) {
+                    state.students = state.students.filter((s) => s._id !== id);
+                    state.classStudents = state.classStudents.filter((s) => s._id !== id);
+                    if (state.currentStudent?._id === id) {
+                        state.currentStudent = null;
+                    }
+                    return;
+                }
+
+                if (student) {
+                    syncStudentAcrossCollections(state, student);
+                    return;
+                }
+
+                const target = state.students.find((s) => s._id === id);
+                if (target) target.status = 'inactive';
+                const classTarget = state.classStudents.find((s) => s._id === id);
+                if (classTarget) classTarget.status = 'inactive';
+                if (state.currentStudent?._id === id) {
+                    state.currentStudent.status = 'inactive';
+                }
             })
             // Cross-slice: sync student data when promotion decisions are made
             .addCase(submitStudentPromotionDecision.fulfilled, (state, action) => {

@@ -11,7 +11,7 @@ const LoadingSpinner = ({ message, size = 'md', className = '' }) => {
     const px = sizeMap[size] || sizeMap.md;
 
     return (
-        <div className={`shared-loading ${className}`.trim()}>
+        <div className={`shared-loading ${className}`.trim()} role="status" aria-live="polite">
             <div
                 className="spinner"
                 style={{ width: px, height: px, margin: '0 auto var(--spacing-md)' }}

@@ -250,7 +250,7 @@
     justify-content: center;
     gap: var(--spacing-md);
     background: var(--warning-500, #f59e0b);
-    color: #1a1a1a;
+    color: var(--bg-primary);
     font-size: 0.8rem;
     font-weight: 600;
     z-index: 100;

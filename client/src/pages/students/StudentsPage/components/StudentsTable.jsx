@@ -92,6 +92,7 @@ const StudentsTable = ({
                             const lastInviteAt = formatInviteTimestamp(student.user?.loginInvite?.sentAt);
                             const isSendingStudentInvite = sendingStudentInviteFor === student._id;
                             const isSendingParentInvite = sendingParentInviteFor === student._id;
+                            const isInactive = String(student.status || '').toLowerCase() === 'inactive';
                             const primaryEmail = student.email || student.studentEmail || student.user?.email || student.parentInfo?.fatherEmail;
 
                             return (
@@ -196,17 +197,21 @@ const StudentsTable = ({
                                                 <button
                                                     className="btn-icon text-danger"
                                                     onClick={() => {
-                                                        if (window.confirm(t('students:confirm.deleteStudent', { name: `${student.firstName} ${student.lastName}` }))) {
-                                                            dispatch(deleteStudent(student._id)).then((result) => {
+                                                        const confirmMessage = isInactive
+                                                            ? t('students:confirm.permanentDeleteInactive', { name: `${student.firstName} ${student.lastName}` })
+                                                            : t('students:confirm.deleteStudent', { name: `${student.firstName} ${student.lastName}` });
+
+                                                        if (window.confirm(confirmMessage)) {
+                                                            dispatch(deleteStudent({ id: student._id, permanent: isInactive })).then((result) => {
                                                                 if (deleteStudent.fulfilled.match(result)) {
-                                                                    toast.success(t('students:toast.deleted'));
+                                                                    toast.success(isInactive ? t('students:toast.permanentlyDeleted') : t('students:toast.markedInactive'));
                                                                 } else {
                                                                     toast.error(result.payload || t('students:toast.deleteFailed'));
                                                                 }
                                                             });
                                                         }
                                                     }}
-                                                    title={t('students:actions.deleteStudent')}
+                                                    title={isInactive ? t('students:actions.permanentlyDeleteInactive') : t('students:actions.deleteStudent')}
                                                 >
                                                     <HiOutlineTrash size={16} />
                                                 </button>
@@ -230,4 +235,4 @@ const StudentsTable = ({
     );
 };
 
-export default StudentsTable;
+export default React.memo(StudentsTable);

@@ -41,6 +41,7 @@
     "noParentEmailOnFile": "No parent email on file",
     "editStudent": "Edit student",
     "deleteStudent": "Delete student",
+    "permanentlyDeleteInactive": "Permanently delete inactive student",
     "copyEmail": "Copy email",
     "copyPassword": "Copy password",
     "copyAll": "Copy All",
@@ -163,7 +164,8 @@
     "resetPassword": "Reset password for {{name}}?",
     "sendParentCredentials": "Send mobile app login credentials to {{count}} parent contact(s) for {{name}}?\n\nThis will create or reset their parent account password.",
     "sendParentInvite": "Send login invites to {{count}} parent contact(s) for {{name}}?\n\nThis will create or rotate their parent account password.",
-    "deleteStudent": "Delete {{name}}?"
+    "deleteStudent": "Delete {{name}}?",
+    "permanentDeleteInactive": "Permanently delete inactive student {{name}}?\n\nThis action cannot be undone."
   },
   "invite": {
     "lastSentAt": "Last sent: {{value}}",
@@ -180,6 +182,8 @@
     "updated": "Student updated successfully!",
     "updateFailed": "Failed to update student",
     "deleted": "Student deleted",
+    "markedInactive": "Student marked as inactive",
+    "permanentlyDeleted": "Inactive student permanently deleted",
     "deleteFailed": "Failed to delete",
     "loginCreated": "Login account created!",
     "loginCreateFailed": "Failed to create login",

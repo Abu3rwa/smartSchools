@@ -6,13 +6,24 @@ import { Toaster } from 'react-hot-toast'
 import './i18n'
 import store from './store'
 import App from './App.jsx'
+import NetworkStatusBanner from './components/NetworkStatusBanner'
 import './index.css'
+
+// FE-017: Global unhandled error / rejection handlers
+// Replace console.error with Sentry.captureException when error tracking is added
+window.addEventListener('error', (event) => {
+  console.error('[Unhandled Error]', event.error || event.message);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[Unhandled Promise Rejection]', event.reason);
+});
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Provider store={store}>
       <BrowserRouter>
         <App />
+        <NetworkStatusBanner />
         <Toaster
           position="top-right"
           toastOptions={{

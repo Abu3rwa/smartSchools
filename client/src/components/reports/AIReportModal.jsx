@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
-import DOMPurify from 'dompurify';
+import DOMPurify from 'isomorphic-dompurify';
 import { 
     HiOutlineX, 
     HiOutlineCalendar, 

@@ -1,6 +1,6 @@
 import { HiOutlineX } from 'react-icons/hi';
 import { format } from 'date-fns';
-import DOMPurify from 'dompurify';
+import DOMPurify from 'isomorphic-dompurify';
 import { useTranslation } from 'react-i18next';
 
 const NotificationDetailsModal = ({

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTheme, useMediaQuery } from '@mui/material';
@@ -102,9 +102,9 @@ const MainLayout = () => {
         }
     }, [isDesktop, dispatch]);
 
-    const handleDrawerClose = () => {
+    const handleDrawerClose = useCallback(() => {
         dispatch(setSidebarOpen(false));
-    };
+    }, [dispatch]);
 
     return (
         <div className={`main-layout ${sidebarOpen && isDesktop && showSidebarForRole ? '' : 'sidebar-collapsed'}`}>

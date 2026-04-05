@@ -1,6 +1,7 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
-const PROD_FALLBACK_API_URL = 'https://schoolworkso.onrender.com/api';
+const PROD_FALLBACK_API_URL = import.meta.env.VITE_PROD_API_URL || 'https://schoolworkso.onrender.com/api';
 
 const isLocalLikeUrl = (value = '') => /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(String(value));
 
@@ -32,6 +33,7 @@ const API_URL = resolveApiUrl();
 // Create axios instance
 const api = axios.create({
     baseURL: API_URL,
+    timeout: 30000,
     headers: {
         'Content-Type': 'application/json'
     }
@@ -149,6 +151,19 @@ api.interceptors.response.use(
         if (status === 401) {
             clearAuthStorage();
             window.location.href = '/login';
+        }
+
+        // FE-003: Provide user feedback for common error categories
+        if (status === 403) {
+            toast.error('You do not have permission to perform this action.');
+        } else if (status === 429) {
+            toast.error('Too many requests. Please wait a moment and try again.');
+        } else if (status >= 500) {
+            toast.error('Server error. Please try again later.');
+        } else if (error.code === 'ECONNABORTED') {
+            toast.error('Request timed out. Please check your connection and try again.');
+        } else if (!error.response) {
+            toast.error('Connection lost. Please check your internet connection.');
         }
 
         return Promise.reject(error);

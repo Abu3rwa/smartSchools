@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { HiOutlineChartBar, HiOutlineSparkles } from 'react-icons/hi';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -164,4 +165,4 @@ const GradebookTable = ({
     );
 };
 
-export default GradebookTable;
+export default memo(GradebookTable);

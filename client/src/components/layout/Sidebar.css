@@ -248,7 +248,7 @@
 .nav-badge {
   margin-inline-start: auto;
   background: var(--accent-amber);
-  color: #111827;
+  color: var(--bg-primary);
   font-size: 0.7rem;
   font-weight: 700;
   padding: 2px 8px;
@@ -256,8 +256,8 @@
 }
 
 .nav-badge-upgrade {
-  background: #f59e0b;
-  color: #111827;
+  background: var(--accent-amber);
+  color: var(--bg-primary);
   margin-inline-start: 0.35rem;
   max-width: 66px;
   overflow: hidden;
@@ -269,7 +269,7 @@
 }
 
 .nav-feature-lock {
-  color: #f59e0b;
+  color: var(--accent-amber);
   margin-inline-start: auto;
 }
 
@@ -283,8 +283,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #f59e0b;
-  color: #111827;
+  background: var(--accent-amber);
+  color: var(--bg-primary);
   pointer-events: none;
 }
 

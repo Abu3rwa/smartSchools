@@ -29,6 +29,7 @@ import AdminLayout from "./components/layout/AdminLayout";
 import FeatureGate from "./components/FeatureGate";
 
 import BehaviorAutoTracker from "./components/behavior/BehaviorAutoTracker";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const LandingPage = lazy(() => import("./pages/landing/LandingPage"));
 const RegisterSchoolPage = lazy(() => import("./pages/auth/RegisterSchoolPage"));
@@ -132,7 +133,7 @@ const PresentationEditorPage = lazy(() => import("./pages/presentations/Presenta
 const PresenterViewPage = lazy(() => import("./pages/presentations/PresenterViewPage/PresenterViewPage"));
 
 const RouteLoadingFallback = () => (
-  <div className="loading-overlay">
+  <div className="loading-overlay" role="status" aria-live="polite">
     <div className="spinner"></div>
   </div>
 );
@@ -299,6 +300,7 @@ function App() {
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
         <BehaviorAutoTracker />
+        <ErrorBoundary>
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
           {/* Public Routes */}
@@ -1159,6 +1161,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </ErrorBoundary>
       </ThemeProvider>
     </CacheProvider>
   );

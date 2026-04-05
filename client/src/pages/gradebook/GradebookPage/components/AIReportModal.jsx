@@ -1,4 +1,4 @@
-import DOMPurify from 'dompurify';
+import DOMPurify from 'isomorphic-dompurify';
 import { useTranslation } from 'react-i18next';
 import {
     HiOutlineMail,
