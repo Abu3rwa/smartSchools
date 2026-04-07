@@ -131,6 +131,9 @@ const ApiDocsPage = lazy(() => import("./pages/docs/ApiDocsPage"));
 const PresentationListPage = lazy(() => import("./pages/presentations/PresentationListPage/PresentationListPage"));
 const PresentationEditorPage = lazy(() => import("./pages/presentations/PresentationEditorPage/PresentationEditorPage"));
 const PresenterViewPage = lazy(() => import("./pages/presentations/PresenterViewPage/PresenterViewPage"));
+const WorksheetListPage = lazy(() => import("./pages/worksheets/WorksheetListPage/WorksheetListPage"));
+const WorksheetCreatePage = lazy(() => import("./pages/worksheets/WorksheetCreatePage/WorksheetCreatePage"));
+const WorksheetDetailPage = lazy(() => import("./pages/worksheets/WorksheetDetailPage/WorksheetDetailPage"));
 
 const RouteLoadingFallback = () => (
   <div className="loading-overlay" role="status" aria-live="polite">
@@ -1049,6 +1052,37 @@ function App() {
                   permissions={["manage_presentations"]}
                 >
                   <PresenterViewPage />
+                </RoleRoute>
+              }
+            />
+            {/* Worksheet Checker */}
+            <Route
+              path="worksheets"
+              element={
+                <RoleRoute roles={["admin", "teacher"]}>
+                  <FeatureGate feature="worksheetChecker" showUpgradePrompt>
+                    <WorksheetListPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="worksheets/new"
+              element={
+                <RoleRoute roles={["admin", "teacher"]}>
+                  <FeatureGate feature="worksheetChecker" showUpgradePrompt>
+                    <WorksheetCreatePage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="worksheets/:id"
+              element={
+                <RoleRoute roles={["admin", "teacher"]}>
+                  <FeatureGate feature="worksheetChecker" showUpgradePrompt>
+                    <WorksheetDetailPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />

@@ -31,7 +31,11 @@ export const NOTIFICATION_TYPES = {
     ACADEMIC_EXCELLENCE_TASK_ASSIGNED: 'academic_excellence_task_assigned',
     ACADEMIC_EXCELLENCE_TASK_OVERDUE: 'academic_excellence_task_overdue',
     ACADEMIC_EXCELLENCE_WEEKLY_DIGEST: 'academic_excellence_weekly_digest',
-    ACADEMIC_EXCELLENCE_MILESTONE: 'academic_excellence_milestone'
+    ACADEMIC_EXCELLENCE_MILESTONE: 'academic_excellence_milestone',
+    // Worksheet Checker
+    WORKSHEET_MARKED: 'worksheet_marked',
+    WORKSHEET_RESULT: 'worksheet_result',
+    WORKSHEET_PARENT_RESULT: 'worksheet_parent_result'
 };
 
 export const NOTIFICATION_TYPE_VALUES = Object.freeze(Object.values(NOTIFICATION_TYPES));

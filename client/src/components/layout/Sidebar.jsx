@@ -373,6 +373,14 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
+      path: "/portal/worksheets",
+      icon: HiOutlineDocumentCheck,
+      labelKey: "worksheetChecker",
+      roles: ["admin", "teacher"],
+      feature: "worksheetChecker",
+      section: "teaching",
+    },
+    {
       path: "/portal/newsletters/admin",
       icon: HiOutlineDocumentCheck,
       labelKey: "newslettersReview",

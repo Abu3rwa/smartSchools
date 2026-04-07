@@ -1,0 +1,185 @@
+.worksheet-create-page {
+    padding: 24px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.worksheet-create-page h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 24px;
+}
+
+/* Steps */
+.worksheet-steps {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+}
+
+.worksheet-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: #f3f4f6;
+    font-size: 0.8125rem;
+    color: #666;
+    transition: all 0.2s;
+}
+
+.worksheet-step.active {
+    background: var(--primary-color, #2563eb);
+    color: #fff;
+}
+
+.worksheet-step.done {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.step-number {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.08);
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.worksheet-step.active .step-number {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Step content */
+.worksheet-step-content {
+    margin-bottom: 32px;
+}
+
+.worksheet-step-content h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0 0 8px;
+}
+
+.worksheet-hint {
+    color: #888;
+    font-size: 0.8125rem;
+    margin-bottom: 16px;
+}
+
+/* Upload zone */
+.worksheet-upload-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px;
+    border: 2px dashed #d1d5db;
+    border-radius: 12px;
+    cursor: pointer;
+    color: #999;
+    transition: all 0.2s;
+    min-height: 200px;
+}
+
+.worksheet-upload-zone:hover {
+    border-color: var(--primary-color, #2563eb);
+    color: var(--primary-color, #2563eb);
+    background: #f0f6ff;
+}
+
+.worksheet-upload-preview {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+}
+
+/* Form */
+.worksheet-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.form-field.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-field label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #555;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    transition: border-color 0.2s;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+    outline: none;
+    border-color: var(--primary-color, #2563eb);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+/* Review summary */
+.worksheet-review-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 0.875rem;
+}
+
+.review-image {
+    margin-top: 8px;
+}
+
+.review-image img {
+    display: block;
+    max-width: 300px;
+    border-radius: 8px;
+    margin-top: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+/* Nav */
+.worksheet-step-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+@media (max-width: 600px) {
+    .worksheet-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .worksheet-steps {
+        flex-wrap: wrap;
+    }
+
+    .step-label {
+        display: none;
+    }
+}

@@ -33,6 +33,7 @@ import formulaReducer from './slices/formulaSlice';
 import reportCardReducer from './slices/reportCardSlice';
 import spreadsheetReducer from './slices/spreadsheetSlice';
 import analyticsReducer from './slices/analyticsSlice';
+import worksheetReducer from './slices/worksheetSlice';
 import uiReducer, {
     fetchSchoolAcademicYear,
     updateSchoolAcademicYear
@@ -64,6 +65,7 @@ const YEAR_SCOPED_SLICE_KEYS = [
     'reportCards',
     'spreadsheet',
     'analytics',
+    'worksheets',
 ];
 
 const appReducer = combineReducers({
@@ -102,7 +104,8 @@ const appReducer = combineReducers({
     formulas: formulaReducer,
     reportCards: reportCardReducer,
     spreadsheet: spreadsheetReducer,
-    analytics: analyticsReducer
+    analytics: analyticsReducer,
+    worksheets: worksheetReducer
 });
 
 const hasAcademicYearChanged = (state, action) => {
