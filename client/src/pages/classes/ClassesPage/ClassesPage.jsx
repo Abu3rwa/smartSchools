@@ -39,7 +39,7 @@ const ClassesPage = () => {
         section: '',
         academicYear: academicYear,
         room: '',
-        capacity: 40,
+        capacity: 15,
         department: ''
     });
 
@@ -435,7 +435,7 @@ const ClassesPage = () => {
                                             placeholder={t('classes:form.sectionPlaceholder')}
                                             value={formData.section}
                                             onChange={(e) => setFormData({ ...formData, section: e.target.value.toUpperCase() })}
-                                            maxLength={2}
+                                            maxLength={10}
                                         />
                                     </div>
                                 </div>
