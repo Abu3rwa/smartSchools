@@ -38,6 +38,7 @@
     "title": "Create Worksheet",
     "stepUpload": "Upload",
     "stepDetails": "Details",
+    "stepUploads": "Uploads (Optional)",
     "stepAnswerKey": "Answer Key",
     "stepReview": "Review",
     "fieldTitle": "Worksheet Title",

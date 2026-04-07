@@ -94,6 +94,23 @@
     background: #f0f6ff;
 }
 
+.worksheet-upload-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.worksheet-upload-col h3 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0 0 4px;
+}
+
+.worksheet-upload-col .worksheet-upload-zone {
+    min-height: 160px;
+    padding: 24px;
+}
+
 .worksheet-upload-preview {
     max-width: 100%;
     max-height: 300px;
