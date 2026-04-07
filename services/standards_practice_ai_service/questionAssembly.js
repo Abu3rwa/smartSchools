@@ -49,8 +49,9 @@ export default {
     });
 
     let questionText = this._sanitizeText(parsed.questionText, {
-      maxLength: limits.questionMax,
+      maxLength: limits.questionTextMax,
       sentenceCase: true,
+      preserveLineBreaks: true,
     });
     questionText = this._ensureStudentNameInStem(questionText, studentFirstName);
 
