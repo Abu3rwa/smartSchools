@@ -712,6 +712,7 @@ const persistCandidate = async ({ candidate, entityType, preparation, context })
 
         const updates = { ...payload };
         if (candidate.normalized.studentId) updates.studentId = candidate.normalized.studentId;
+        if (classDoc?._id) updates.$addToSet = { enrolledClasses: classDoc._id };
         await Student.findByIdAndUpdate(candidate.existing._id, updates, { runValidators: true });
         return { ...base, updated: true, documentId: candidate.existing._id };
     }

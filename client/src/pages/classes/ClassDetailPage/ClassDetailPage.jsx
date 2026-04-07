@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -15,15 +15,18 @@ import {
     selectClassInsights,
     selectClassAnalyticsLoading,
     selectClassInsightsLoading,
-    clearClassAnalyticsData
+    clearClassAnalyticsData,
+    enrollStudentsInClass,
+    unenrollStudentFromClass
 } from '../../../store/slices/classSlice';
 import { selectSubjects } from '../../../store/slices/subjectSlice';
 import { selectTeachers } from '../../../store/slices/teacherSlice';
 import { fetchDepartments, selectDepartments } from '../../../store/slices/departmentSlice';
 import { selectIsAdmin, selectCanEditClass } from '../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
-import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardList, HiOutlinePlus, HiOutlineDocumentText, HiOutlineChartBar, HiOutlineLightBulb, HiOutlinePencil } from 'react-icons/hi';
+import { HiOutlineArrowLeft, HiOutlineUserGroup, HiOutlineBookOpen, HiOutlineClipboardList, HiOutlinePlus, HiOutlineDocumentText, HiOutlineChartBar, HiOutlineLightBulb, HiOutlinePencil, HiOutlineX, HiOutlineSearch } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import api from '../../../config/api';
 import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
 import './ClassDetailPage.css';
 
@@ -49,6 +52,14 @@ const ClassDetailPage = () => {
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [insightsPrimaryLanguage, setInsightsPrimaryLanguage] = useState('en');
     const [insightsSecondaryLanguage, setInsightsSecondaryLanguage] = useState('');
+
+    // Enroll students modal state
+    const [showEnrollModal, setShowEnrollModal] = useState(false);
+    const [enrollSearch, setEnrollSearch] = useState('');
+    const [enrollSearchResults, setEnrollSearchResults] = useState([]);
+    const [enrollSearching, setEnrollSearching] = useState(false);
+    const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+    const [enrolling, setEnrolling] = useState(false);
 
     const analytics = useSelector(selectClassAnalytics);
     const insightsData = useSelector(selectClassInsights);
@@ -160,6 +171,68 @@ const ClassDetailPage = () => {
         }
     };
 
+    // Enroll students handlers
+    const enrolledStudentIds = new Set(students.map((s) => s._id));
+
+    const handleEnrollSearch = useCallback(async (searchTerm) => {
+        if (!searchTerm || searchTerm.length < 2) {
+            setEnrollSearchResults([]);
+            return;
+        }
+        setEnrollSearching(true);
+        try {
+            const response = await api.get('/students', { params: { search: searchTerm, limit: 20, status: 'active' } });
+            const results = response.data?.data?.students || [];
+            setEnrollSearchResults(results.filter((s) => !enrolledStudentIds.has(s._id)));
+        } catch {
+            setEnrollSearchResults([]);
+        } finally {
+            setEnrollSearching(false);
+        }
+    }, [enrolledStudentIds]);
+
+    useEffect(() => {
+        if (!showEnrollModal) return;
+        const timer = setTimeout(() => handleEnrollSearch(enrollSearch), 300);
+        return () => clearTimeout(timer);
+    }, [enrollSearch, showEnrollModal, handleEnrollSearch]);
+
+    const toggleStudentSelection = (studentId) => {
+        setSelectedStudentIds((prev) =>
+            prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
+        );
+    };
+
+    const handleEnrollSubmit = async () => {
+        if (selectedStudentIds.length === 0) return;
+        setEnrolling(true);
+        try {
+            const result = await dispatch(enrollStudentsInClass({ classId: id, studentIds: selectedStudentIds }));
+            if (enrollStudentsInClass.fulfilled.match(result)) {
+                toast.success(`${selectedStudentIds.length} student(s) enrolled`);
+                setShowEnrollModal(false);
+                setSelectedStudentIds([]);
+                setEnrollSearch('');
+                setEnrollSearchResults([]);
+                dispatch(fetchClass(id));
+            } else {
+                toast.error(result.payload || 'Failed to enroll students');
+            }
+        } finally {
+            setEnrolling(false);
+        }
+    };
+
+    const handleUnenroll = async (studentId, studentName) => {
+        if (!window.confirm(`Remove ${studentName} from this class?`)) return;
+        const result = await dispatch(unenrollStudentFromClass({ classId: id, studentId }));
+        if (unenrollStudentFromClass.fulfilled.match(result)) {
+            toast.success('Student removed from class');
+        } else {
+            toast.error(result.payload || 'Failed to remove student');
+        }
+    };
+
     if (loading) {
         return (
             <div className="loading-container">
@@ -240,7 +313,14 @@ const ClassDetailPage = () => {
                 <div className="card">
                     <div className="card-header">
                         <h3 className="card-title">Students</h3>
-                        <span className="badge badge-primary">{students.length} enrolled</span>
+                        <div className="card-header-actions">
+                            <span className="badge badge-primary">{students.length} enrolled</span>
+                            {canEditClass && (
+                                <button className="btn btn-sm btn-primary" onClick={() => setShowEnrollModal(true)}>
+                                    <HiOutlinePlus /> Enroll Students
+                                </button>
+                            )}
+                        </div>
                     </div>
                     <div className="students-table">
                         {students.length > 0 ? (
@@ -276,6 +356,15 @@ const ClassDetailPage = () => {
                                                 <Link to={`/portal/students/${student._id}`} className="btn btn-ghost btn-sm">
                                                     Details
                                                 </Link>
+                                                {canEditClass && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-ghost btn-sm text-danger"
+                                                        onClick={() => handleUnenroll(student._id, `${student.firstName} ${student.lastName}`)}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -601,6 +690,73 @@ const ClassDetailPage = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Enroll Existing Students Modal */}
+            {showEnrollModal && (
+                <div className="modal-overlay" onClick={() => { setShowEnrollModal(false); setSelectedStudentIds([]); setEnrollSearch(''); setEnrollSearchResults([]); }}>
+                    <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>Enroll Existing Students</h3>
+                            <button className="modal-close" onClick={() => { setShowEnrollModal(false); setSelectedStudentIds([]); setEnrollSearch(''); setEnrollSearchResults([]); }}>&times;</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label>Search students by name or ID</label>
+                                <div className="search-input-wrapper">
+                                    <HiOutlineSearch className="search-icon" />
+                                    <input
+                                        type="text"
+                                        placeholder="Type at least 2 characters..."
+                                        value={enrollSearch}
+                                        onChange={(e) => setEnrollSearch(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+
+                            {selectedStudentIds.length > 0 && (
+                                <div className="selected-students-bar">
+                                    <span>{selectedStudentIds.length} student(s) selected</span>
+                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelectedStudentIds([])}>
+                                        Clear
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="enroll-search-results">
+                                {enrollSearching && <p className="text-muted">Searching...</p>}
+                                {!enrollSearching && enrollSearch.length >= 2 && enrollSearchResults.length === 0 && (
+                                    <p className="text-muted">No students found</p>
+                                )}
+                                {enrollSearchResults.map((student) => (
+                                    <label key={student._id} className={`enroll-student-row ${selectedStudentIds.includes(student._id) ? 'selected' : ''}`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedStudentIds.includes(student._id)}
+                                            onChange={() => toggleStudentSelection(student._id)}
+                                        />
+                                        <div className="avatar-sm">
+                                            {student.firstName?.charAt(0)}{student.lastName?.charAt(0)}
+                                        </div>
+                                        <div className="enroll-student-info">
+                                            <span className="enroll-student-name">{student.firstName} {student.lastName}</span>
+                                            <span className="enroll-student-meta">{student.studentId}{student.currentClass?.name ? ` • ${student.currentClass.name}` : ''}</span>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-secondary" onClick={() => { setShowEnrollModal(false); setSelectedStudentIds([]); setEnrollSearch(''); setEnrollSearchResults([]); }}>
+                                Cancel
+                            </button>
+                            <button type="button" className="btn btn-primary" disabled={enrolling || selectedStudentIds.length === 0} onClick={handleEnrollSubmit}>
+                                {enrolling ? 'Enrolling...' : `Enroll ${selectedStudentIds.length || ''} Student(s)`}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

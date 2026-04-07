@@ -187,7 +187,8 @@ export const promoteStudents = asyncHandler(async (req, res) => {
                 if (fallback) {
                     await Student.findByIdAndUpdate(student._id, {
                         currentClass: fallback._id,
-                        academicYear: toAcademicYear
+                        academicYear: toAcademicYear,
+                        $addToSet: { enrolledClasses: fallback._id }
                     });
                     result.promoted++;
                 } else {
@@ -199,7 +200,8 @@ export const promoteStudents = asyncHandler(async (req, res) => {
 
             await Student.findByIdAndUpdate(student._id, {
                 currentClass: nextClass._id,
-                academicYear: toAcademicYear
+                academicYear: toAcademicYear,
+                $addToSet: { enrolledClasses: nextClass._id }
             });
             result.promoted++;
         } catch (err) {

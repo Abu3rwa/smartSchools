@@ -102,6 +102,30 @@ export const fetchClassInsights = createAsyncThunk(
   }
 );
 
+export const enrollStudentsInClass = createAsyncThunk(
+  'classes/enrollStudentsInClass',
+  async ({ classId, studentIds }, { rejectWithValue }) => {
+    try {
+      const response = await classService.enrollStudentsInClass(classId, studentIds);
+      return { classId, response };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to enroll students');
+    }
+  }
+);
+
+export const unenrollStudentFromClass = createAsyncThunk(
+  'classes/unenrollStudentFromClass',
+  async ({ classId, studentId }, { rejectWithValue }) => {
+    try {
+      await classService.unenrollStudentFromClass(classId, studentId);
+      return { classId, studentId };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to remove student');
+    }
+  }
+);
+
 const initialState = {
   classes: [],
   pagination: null,
@@ -227,6 +251,13 @@ const classesSlice = createSlice({
       })
       .addCase(fetchClassInsights.rejected, (state) => {
         state.insightsLoading = false;
+      })
+      .addCase(unenrollStudentFromClass.fulfilled, (state, action) => {
+        if (state.selectedClass) {
+          state.selectedClass.students = (state.selectedClass.students || []).filter(
+            (s) => s._id !== action.payload.studentId
+          );
+        }
       });
   },
 });

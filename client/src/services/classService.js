@@ -57,6 +57,18 @@ const classService = {
             ...options
         });
         return response.data;
+    },
+
+    // Enroll existing students into a class
+    enrollStudentsInClass: async (classId, studentIds) => {
+        const response = await api.post(`/classes/${classId}/enroll-students`, { studentIds });
+        return response.data;
+    },
+
+    // Remove a student from a class
+    unenrollStudentFromClass: async (classId, studentId) => {
+        const response = await api.delete(`/classes/${classId}/students/${studentId}`);
+        return response.data;
     }
 };
 

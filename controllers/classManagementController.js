@@ -119,8 +119,10 @@ export const getClasses = asyncHandler(async (req, res) => {
         classesWithCounts = classes.map(cls => ({ ...cls.toObject(), studentCount: 0 }));
     } else {
         const counts = await Student.aggregate([
-            { $match: { currentClass: { $in: classIds }, status: 'active' } },
-            { $group: { _id: '$currentClass', count: { $sum: 1 } } }
+            { $match: { enrolledClasses: { $in: classIds }, status: 'active' } },
+            { $unwind: '$enrolledClasses' },
+            { $match: { enrolledClasses: { $in: classIds } } },
+            { $group: { _id: '$enrolledClasses', count: { $sum: 1 } } }
         ]);
         const countByClass = {};
         counts.forEach(r => { countByClass[r._id.toString()] = r.count; });
@@ -205,7 +207,7 @@ export const getClass = asyncHandler(async (req, res) => {
 
     // Get students in this class
     const students = await Student.find({
-        currentClass: req.params.id,
+        enrolledClasses: req.params.id,
         status: 'active'
     }).sort({ firstName: 1, lastName: 1 });
 
@@ -416,6 +418,10 @@ export const deleteClass = asyncHandler(async (req, res) => {
         Student.updateMany(
             { school: schoolId, currentClass: classId },
             { $set: { currentClass: null } }
+        ),
+        Student.updateMany(
+            { school: schoolId, enrolledClasses: classId },
+            { $pull: { enrolledClasses: classId } }
         ),
         Student.updateMany(
             {
@@ -632,9 +638,9 @@ export const getClassStats = asyncHandler(async (req, res) => {
     const classId = req.params.id;
 
     const [totalStudents, maleCount, femaleCount] = await Promise.all([
-        Student.countDocuments({ currentClass: classId, status: 'active' }),
-        Student.countDocuments({ currentClass: classId, status: 'active', gender: 'male' }),
-        Student.countDocuments({ currentClass: classId, status: 'active', gender: 'female' })
+        Student.countDocuments({ enrolledClasses: classId, status: 'active' }),
+        Student.countDocuments({ enrolledClasses: classId, status: 'active', gender: 'male' }),
+        Student.countDocuments({ enrolledClasses: classId, status: 'active', gender: 'female' })
     ]);
 
     const classData = await Class.findById(classId);
@@ -649,5 +655,66 @@ export const getClassStats = asyncHandler(async (req, res) => {
             availableSeats: (classData?.capacity || 40) - totalStudents,
             subjectCount: classData?.subjects?.length || 0
         }
+    });
+});
+
+/**
+ * @desc    Enroll existing students into a class (multi-class support)
+ * @route   POST /api/classes/:id/enroll-students
+ * @access  Private (Admin)
+ */
+export const enrollStudentsInClass = asyncHandler(async (req, res) => {
+    const classId = req.params.id;
+    const { studentIds } = req.body;
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'studentIds array is required' });
+    }
+
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId });
+    if (!classDoc) {
+        return res.status(404).json({ success: false, message: 'Class not found' });
+    }
+
+    // Only enroll students that belong to this school and are active
+    const result = await Student.updateMany(
+        { _id: { $in: studentIds }, school: req.schoolId, status: 'active' },
+        { $addToSet: { enrolledClasses: classDoc._id } }
+    );
+
+    res.json({
+        success: true,
+        message: `${result.modifiedCount} student(s) enrolled in class`,
+        data: { modifiedCount: result.modifiedCount }
+    });
+});
+
+/**
+ * @desc    Remove a student from a class (multi-class unenroll)
+ * @route   DELETE /api/classes/:id/students/:studentId
+ * @access  Private (Admin)
+ */
+export const unenrollStudentFromClass = asyncHandler(async (req, res) => {
+    const { id: classId, studentId } = req.params;
+
+    const student = await Student.findOne({ _id: studentId, school: req.schoolId });
+    if (!student) {
+        return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    await Student.updateOne(
+        { _id: studentId },
+        { $pull: { enrolledClasses: classId } }
+    );
+
+    // If the student's primary class is this one, also clear it
+    if (student.currentClass && student.currentClass.toString() === classId.toString()) {
+        student.currentClass = null;
+        await student.save();
+    }
+
+    res.json({
+        success: true,
+        message: 'Student removed from class'
     });
 });

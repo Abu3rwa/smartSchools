@@ -47,11 +47,16 @@ const studentSchema = new mongoose.Schema({
         ref: 'Department',
         default: null
     },
-    // Current class enrollment
+    // Current class enrollment (legacy primary class — kept for backward compat)
     currentClass: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Class'
     },
+    // All classes a student is enrolled in (many-to-many)
+    enrolledClasses: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Class'
+    }],
     enrollmentDate: {
         type: Date,
         default: Date.now
@@ -205,6 +210,7 @@ const studentSchema = new mongoose.Schema({
 // Indexes
 studentSchema.index({ school: 1, studentId: 1 }, { unique: true });
 studentSchema.index({ currentClass: 1 });
+studentSchema.index({ enrolledClasses: 1 });
 studentSchema.index({ status: 1 });
 studentSchema.index({ 'parentInfo.fatherEmail': 1 });
 studentSchema.index({ 'parentInfo.motherEmail': 1 });
@@ -328,6 +334,21 @@ studentSchema.methods.getAllContactEmailEntries = function () {
 studentSchema.methods.getAllContactEmails = function () {
     return this.getAllContactEmailEntries().map((entry) => entry.email);
 };
+
+// Sync currentClass into enrolledClasses on every save
+studentSchema.pre('save', function (next) {
+    if (this.currentClass) {
+        const classIdStr = this.currentClass.toString();
+        const already = (this.enrolledClasses || []).some(
+            (id) => id && id.toString() === classIdStr
+        );
+        if (!already) {
+            if (!this.enrolledClasses) this.enrolledClasses = [];
+            this.enrolledClasses.push(this.currentClass);
+        }
+    }
+    next();
+});
 
 // Apply tenant isolation plugin
 studentSchema.plugin(tenantIsolationPlugin);

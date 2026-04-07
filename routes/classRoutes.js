@@ -8,7 +8,9 @@ import {
     deleteClass,
     addSubjectToClass,
     removeSubjectFromClass,
-    getClassStats
+    getClassStats,
+    enrollStudentsInClass,
+    unenrollStudentFromClass
 } from '../controllers/classManagementController.js';
 import { getClassAnalytics, getClassInsights } from '../controllers/classAnalyticsController.js';
 import { getClassObjectivePerformanceController } from '../controllers/academicIntelligenceController.js';
@@ -50,5 +52,9 @@ router.route('/:id')
 router.post('/:id/subjects', authorize('admin'), validationRules.mongoId, validate, addSubjectToClass);
 router.delete('/:id/subjects/:subjectId', authorize('admin'), removeSubjectFromClass);
 router.get('/:id/stats', authorize('admin', 'department_principal', 'teacher'), validationRules.mongoId, validate, getClassStats);
+
+// Multi-class enrollment
+router.post('/:id/enroll-students', authorize('admin', 'department_principal'), validationRules.mongoId, validate, enrollStudentsInClass);
+router.delete('/:id/students/:studentId', authorize('admin', 'department_principal'), unenrollStudentFromClass);
 
 export default router;

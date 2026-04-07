@@ -94,7 +94,7 @@ const ensureClassCapacity = async ({ schoolId, classDoc, excludedStudentId = nul
 
     const enrollmentQuery = {
         school: schoolId,
-        currentClass: classDoc._id,
+        enrolledClasses: classDoc._id,
         status: 'active'
     };
 
@@ -350,7 +350,7 @@ export const getStudents = asyncHandler(async (req, res) => {
     if (classId === 'unassigned') {
         query.currentClass = null;
     } else if (classId) {
-        query.currentClass = classId;
+        query.enrolledClasses = classId;
 
         // Verify class access for department principals
         if (req.departmentId && req.user.role === 'department_principal') {
@@ -394,7 +394,7 @@ export const getStudents = asyncHandler(async (req, res) => {
         } else if (classId === 'unassigned') {
             return res.status(403).json({ success: false, message: 'Not authorized for this class filter' });
         } else {
-            query.currentClass = { $in: teacherClassIds };
+            query.enrolledClasses = { $in: teacherClassIds };
         }
     }
 
@@ -568,6 +568,11 @@ export const updateStudent = asyncHandler(async (req, res) => {
     if (updates.email === '') updates.email = null;
     if (updates.studentEmail === '') updates.studentEmail = null;
 
+    // Sync enrolledClasses when currentClass is changed via update
+    if (updates.currentClass) {
+        updates.$addToSet = { enrolledClasses: updates.currentClass };
+    }
+
     const nextLegacyEmail = updates.email !== undefined ? updates.email : student.email;
     const nextStudentEmail = updates.studentEmail !== undefined ? updates.studentEmail : student.studentEmail;
     const nextPreferredLoginEmail = resolvePreferredStudentLoginEmail({
@@ -725,7 +730,7 @@ export const getStudentsByClass = asyncHandler(async (req, res) => {
     }
 
     const students = await Student.find({
-        currentClass: req.params.classId,
+        enrolledClasses: req.params.classId,
         status: 'active'
     }).sort({ firstName: 1, lastName: 1 });
 
@@ -752,7 +757,7 @@ export const bulkEnrollStudents = asyncHandler(async (req, res) => {
 
     const result = await Student.updateMany(
         { _id: { $in: studentIds }, school: req.schoolId },
-        update
+        { ...update, $addToSet: { enrolledClasses: classId } }
     );
 
     res.json({
@@ -822,6 +827,7 @@ export const enrollStudent = asyncHandler(async (req, res) => {
             }
         };
     }
+    updates.$addToSet = { enrolledClasses: newClass._id };
     const updated = await Student.findByIdAndUpdate(
         req.params.id,
         updates,
@@ -1054,6 +1060,8 @@ export const decideStudentPromotion = asyncHandler(async (req, res) => {
                 };
             }
         }
+
+        updates.$addToSet = { enrolledClasses: destinationClass._id };
 
         const decisionNote = String(note || '').trim();
         if (decisionNote) {

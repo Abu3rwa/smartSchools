@@ -88,14 +88,14 @@ classSchema.index({ academicYear: 1 });
 classSchema.virtual('students', {
     ref: 'Student',
     localField: '_id',
-    foreignField: 'currentClass',
+    foreignField: 'enrolledClasses',
     count: true
 });
 
 classSchema.virtual('studentList', {
     ref: 'Student',
     localField: '_id',
-    foreignField: 'currentClass'
+    foreignField: 'enrolledClasses'
 });
 
 // Generate class name from grade and section
@@ -114,10 +114,16 @@ classSchema.pre('findOneAndDelete', async function (next) {
     const classDoc = await this.model.findOne(this.getFilter());
     if (classDoc) {
         const Student = mongoose.model('Student');
-        await Student.updateMany(
-            { currentClass: classDoc._id },
-            { $unset: { currentClass: '' } }
-        );
+        await Promise.all([
+            Student.updateMany(
+                { currentClass: classDoc._id },
+                { $unset: { currentClass: '' } }
+            ),
+            Student.updateMany(
+                { enrolledClasses: classDoc._id },
+                { $pull: { enrolledClasses: classDoc._id } }
+            )
+        ]);
     }
     next();
 });
