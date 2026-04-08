@@ -6,7 +6,8 @@ import toast from 'react-hot-toast';
 import {
     HiOutlineArrowLeft,
     HiOutlineCloudArrowUp,
-    HiOutlineCheckCircle
+    HiOutlineCheckCircle,
+    HiOutlineDocumentText
 } from 'react-icons/hi2';
 import {
     createWorksheet,
@@ -53,7 +54,7 @@ const WorksheetCreatePage = () => {
         const file = e.target.files?.[0];
         if (file) {
             setTemplateFile(file);
-            setTemplatePreview(URL.createObjectURL(file));
+            setTemplatePreview(file.type === 'application/pdf' ? 'pdf' : URL.createObjectURL(file));
         }
     };
 
@@ -61,7 +62,7 @@ const WorksheetCreatePage = () => {
         const file = e.target.files?.[0];
         if (file) {
             setAnswerKeyFile(file);
-            setAnswerKeyPreview(URL.createObjectURL(file));
+            setAnswerKeyPreview(file.type === 'application/pdf' ? 'pdf' : URL.createObjectURL(file));
         }
     };
 
@@ -176,7 +177,12 @@ const WorksheetCreatePage = () => {
                             <h3>{t('worksheet:create.uploadTemplate')}</h3>
                             <p className="worksheet-hint">{t('worksheet:create.uploadTemplateHint')}</p>
                             <div className="worksheet-upload-zone" onClick={() => templateRef.current?.click()}>
-                                {templatePreview ? (
+                                {templatePreview === 'pdf' ? (
+                                    <div className="worksheet-pdf-preview">
+                                        <HiOutlineDocumentText size={36} />
+                                        <span>{templateFile?.name || 'PDF uploaded'}</span>
+                                    </div>
+                                ) : templatePreview ? (
                                     <img src={templatePreview} alt="Template" className="worksheet-upload-preview" />
                                 ) : (
                                     <>
@@ -185,14 +191,19 @@ const WorksheetCreatePage = () => {
                                     </>
                                 )}
                             </div>
-                            <input ref={templateRef} type="file" accept="image/*" hidden onChange={handleTemplateSelect} />
+                            <input ref={templateRef} type="file" accept="image/*,.pdf,application/pdf" hidden onChange={handleTemplateSelect} />
                         </div>
 
                         <div className="worksheet-upload-col">
                             <h3>{t('worksheet:create.uploadAnswerKey')}</h3>
                             <p className="worksheet-hint">{t('worksheet:create.uploadAnswerKeyHint')}</p>
                             <div className="worksheet-upload-zone" onClick={() => answerKeyRef.current?.click()}>
-                                {answerKeyPreview ? (
+                                {answerKeyPreview === 'pdf' ? (
+                                    <div className="worksheet-pdf-preview">
+                                        <HiOutlineDocumentText size={36} />
+                                        <span>{answerKeyFile?.name || 'PDF uploaded'}</span>
+                                    </div>
+                                ) : answerKeyPreview ? (
                                     <img src={answerKeyPreview} alt="Answer Key" className="worksheet-upload-preview" />
                                 ) : (
                                     <>
@@ -201,7 +212,7 @@ const WorksheetCreatePage = () => {
                                     </>
                                 )}
                             </div>
-                            <input ref={answerKeyRef} type="file" accept="image/*" hidden onChange={handleAnswerKeySelect} />
+                            <input ref={answerKeyRef} type="file" accept="image/*,.pdf,application/pdf" hidden onChange={handleAnswerKeySelect} />
                         </div>
                     </div>
                 </div>

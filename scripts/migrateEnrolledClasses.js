@@ -33,36 +33,19 @@ async function migrate() {
     const db = mongoose.connection.db;
     const collection = db.collection('students');
 
-    // Find students with a currentClass that isn't already in enrolledClasses
+    // Ensure every student with a currentClass has it in enrolledClasses
     const result = await collection.updateMany(
         {
-            currentClass: { $ne: null, $exists: true },
-            $or: [
-                { enrolledClasses: { $exists: false } },
-                { enrolledClasses: { $size: 0 } },
-                // Also catch case where currentClass is set but not in the array
-            ]
+            currentClass: { $ne: null, $exists: true }
         },
         [
             {
                 $set: {
                     enrolledClasses: {
-                        $cond: {
-                            if: {
-                                $or: [
-                                    { $eq: [{ $type: '$enrolledClasses' }, 'missing'] },
-                                    { $eq: [{ $size: { $ifNull: ['$enrolledClasses', []] } }, 0] }
-                                ]
-                            },
-                            then: ['$currentClass'],
-                            else: {
-                                $cond: {
-                                    if: { $in: ['$currentClass', { $ifNull: ['$enrolledClasses', []] }] },
-                                    then: '$enrolledClasses',
-                                    else: { $concatArrays: [{ $ifNull: ['$enrolledClasses', []] }, ['$currentClass']] }
-                                }
-                            }
-                        }
+                        $setUnion: [
+                            { $ifNull: ['$enrolledClasses', []] },
+                            ['$currentClass']
+                        ]
                     }
                 }
             }

@@ -51,7 +51,7 @@
     "fieldGradeLevel": "Grade Level",
     "fieldDescription": "Description (optional)",
     "uploadTemplate": "Upload Worksheet Template",
-    "uploadTemplateHint": "Upload a photo or scan of the blank worksheet",
+    "uploadTemplateHint": "Upload a photo, scan, or PDF of the blank worksheet",
     "uploadOptionalHint": "This step is optional — you can skip if you don't have a template image",
     "uploadAnswerKey": "Upload Answer Key",
     "uploadAnswerKeyHint": "Upload the completed answer key for model-based marking",

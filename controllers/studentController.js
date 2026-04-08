@@ -94,7 +94,7 @@ const ensureClassCapacity = async ({ schoolId, classDoc, excludedStudentId = nul
 
     const enrollmentQuery = {
         school: schoolId,
-        enrolledClasses: classDoc._id,
+        $or: [{ enrolledClasses: classDoc._id }, { currentClass: classDoc._id }],
         status: 'active'
     };
 
@@ -350,7 +350,7 @@ export const getStudents = asyncHandler(async (req, res) => {
     if (classId === 'unassigned') {
         query.currentClass = null;
     } else if (classId) {
-        query.enrolledClasses = classId;
+        query.$or = [{ enrolledClasses: classId }, { currentClass: classId }];
 
         // Verify class access for department principals
         if (req.departmentId && req.user.role === 'department_principal') {
@@ -394,7 +394,7 @@ export const getStudents = asyncHandler(async (req, res) => {
         } else if (classId === 'unassigned') {
             return res.status(403).json({ success: false, message: 'Not authorized for this class filter' });
         } else {
-            query.enrolledClasses = { $in: teacherClassIds };
+            query.$or = [{ enrolledClasses: { $in: teacherClassIds } }, { currentClass: { $in: teacherClassIds } }];
         }
     }
 
@@ -730,7 +730,7 @@ export const getStudentsByClass = asyncHandler(async (req, res) => {
     }
 
     const students = await Student.find({
-        enrolledClasses: req.params.classId,
+        $or: [{ enrolledClasses: req.params.classId }, { currentClass: req.params.classId }],
         status: 'active'
     }).sort({ firstName: 1, lastName: 1 });
 

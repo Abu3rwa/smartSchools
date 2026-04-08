@@ -69,4 +69,35 @@ export const uploadPresentation = multer({
     }
 });
 
+// --- Worksheet template upload (images + PDF) ---
+const ALLOWED_WORKSHEET_MIMES = new Set([
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
+    'application/pdf'
+]);
+const ALLOWED_WORKSHEET_EXTENSIONS = new Set([
+    '.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf'
+]);
+
+export const isAllowedWorksheetUpload = (file = {}) => {
+    const mime = String(file.mimetype || '').toLowerCase();
+    const extension = path.extname(String(file.originalname || '')).toLowerCase();
+    return ALLOWED_WORKSHEET_MIMES.has(mime) && ALLOWED_WORKSHEET_EXTENSIONS.has(extension);
+};
+
+export const uploadWorksheetTemplate = multer({
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        void req;
+        if (isAllowedWorksheetUpload(file)) {
+            cb(null, true);
+        } else {
+            cb(
+                new Error('Invalid file type. Allowed: jpg, jpeg, png, webp, gif, pdf.'),
+                false
+            );
+        }
+    }
+});
+
 export default upload;

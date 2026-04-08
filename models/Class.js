@@ -88,14 +88,14 @@ classSchema.index({ academicYear: 1 });
 classSchema.virtual('students', {
     ref: 'Student',
     localField: '_id',
-    foreignField: 'enrolledClasses',
+    foreignField: 'currentClass',
     count: true
 });
 
 classSchema.virtual('studentList', {
     ref: 'Student',
     localField: '_id',
-    foreignField: 'enrolledClasses'
+    foreignField: 'currentClass'
 });
 
 // Generate class name from grade and section

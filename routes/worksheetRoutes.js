@@ -4,6 +4,7 @@ import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import upload from '../middleware/upload.js';
+import { uploadWorksheetTemplate } from '../middleware/upload.js';
 import {
     createWorksheet,
     getWorksheet,
@@ -64,7 +65,7 @@ router.put(
 router.post(
     '/',
     authorize('teacher', 'admin'),
-    upload.fields([
+    uploadWorksheetTemplate.fields([
         { name: 'templateImage', maxCount: 1 },
         { name: 'answerKeyImage', maxCount: 1 }
     ]),

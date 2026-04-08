@@ -119,10 +119,11 @@ export const getClasses = asyncHandler(async (req, res) => {
         classesWithCounts = classes.map(cls => ({ ...cls.toObject(), studentCount: 0 }));
     } else {
         const counts = await Student.aggregate([
-            { $match: { enrolledClasses: { $in: classIds }, status: 'active' } },
-            { $unwind: '$enrolledClasses' },
-            { $match: { enrolledClasses: { $in: classIds } } },
-            { $group: { _id: '$enrolledClasses', count: { $sum: 1 } } }
+            { $match: { $or: [{ enrolledClasses: { $in: classIds } }, { currentClass: { $in: classIds } }], status: 'active' } },
+            { $project: { _classes: { $setUnion: [{ $ifNull: ['$enrolledClasses', []] }, { $cond: { if: '$currentClass', then: ['$currentClass'], else: [] } }] } } },
+            { $unwind: '$_classes' },
+            { $match: { _classes: { $in: classIds } } },
+            { $group: { _id: '$_classes', count: { $sum: 1 } } }
         ]);
         const countByClass = {};
         counts.forEach(r => { countByClass[r._id.toString()] = r.count; });
@@ -207,7 +208,7 @@ export const getClass = asyncHandler(async (req, res) => {
 
     // Get students in this class
     const students = await Student.find({
-        enrolledClasses: req.params.id,
+        $or: [{ enrolledClasses: req.params.id }, { currentClass: req.params.id }],
         status: 'active'
     }).sort({ firstName: 1, lastName: 1 });
 
@@ -638,9 +639,9 @@ export const getClassStats = asyncHandler(async (req, res) => {
     const classId = req.params.id;
 
     const [totalStudents, maleCount, femaleCount] = await Promise.all([
-        Student.countDocuments({ enrolledClasses: classId, status: 'active' }),
-        Student.countDocuments({ enrolledClasses: classId, status: 'active', gender: 'male' }),
-        Student.countDocuments({ enrolledClasses: classId, status: 'active', gender: 'female' })
+        Student.countDocuments({ $or: [{ enrolledClasses: classId }, { currentClass: classId }], status: 'active' }),
+        Student.countDocuments({ $or: [{ enrolledClasses: classId }, { currentClass: classId }], status: 'active', gender: 'male' }),
+        Student.countDocuments({ $or: [{ enrolledClasses: classId }, { currentClass: classId }], status: 'active', gender: 'female' })
     ]);
 
     const classData = await Class.findById(classId);
