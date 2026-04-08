@@ -55,6 +55,8 @@ const GradebookPage = ({
         setSelectedSubject,
         selectedMonth,
         setSelectedMonth,
+        selectedSemester,
+        setSelectedSemester,
         grades,
         setGrades,
         gradingScale,
@@ -234,6 +236,8 @@ const GradebookPage = ({
                 onSubjectChange={setSelectedSubject}
                 selectedMonth={selectedMonth}
                 onMonthChange={setSelectedMonth}
+                selectedSemester={selectedSemester}
+                onSemesterChange={setSelectedSemester}
                 subjects={availableSubjects}
                 months={MONTHS}
                 availableClasses={availableClasses}
@@ -245,7 +249,10 @@ const GradebookPage = ({
             />
 
             {viewMode === 'spreadsheet' && hasSpreadsheet ? (
-                <GradebookSpreadsheet />
+                <GradebookSpreadsheet
+                    selectedSubject={selectedSubject}
+                    selectedSemester={selectedSemester}
+                />
             ) : (
                 <>
                     <div className="grades-content">

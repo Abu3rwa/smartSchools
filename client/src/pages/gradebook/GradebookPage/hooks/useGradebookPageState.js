@@ -7,6 +7,7 @@ import {
 const useGradebookPageState = (students = []) => {
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+    const [selectedSemester, setSelectedSemester] = useState(1);
     const [grades, setGrades] = useState([]);
     const [gradingScale, setGradingScale] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -44,6 +45,8 @@ const useGradebookPageState = (students = []) => {
         setSelectedSubject,
         selectedMonth,
         setSelectedMonth,
+        selectedSemester,
+        setSelectedSemester,
         grades,
         setGrades,
         gradingScale,

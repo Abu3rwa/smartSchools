@@ -15,7 +15,6 @@ import {
     HiOutlineCalculator,
     HiOutlinePencil
 } from 'react-icons/hi';
-import { selectSubjects } from '../../../../store/slices/subjectSlice';
 import { selectClassStudents } from '../../../../store/slices/classSlice';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
 import {
@@ -64,12 +63,11 @@ const CATEGORY_COLORS = {
     other: '#64748b'
 };
 
-const GradebookSpreadsheet = () => {
+const GradebookSpreadsheet = ({ selectedSubject, selectedSemester }) => {
     const { classId } = useParams();
     const dispatch = useDispatch();
     const { t } = useTranslation(['gradebook']);
 
-    const subjects = useSelector(selectSubjects);
     const classStudents = useSelector(selectClassStudents);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const spreadsheetStudents = useSelector(selectSpreadsheetStudents);
@@ -82,8 +80,6 @@ const GradebookSpreadsheet = () => {
     const spreadsheetError = useSelector(selectSpreadsheetError);
     const columnsLoading = useSelector(selectColumnsLoading);
 
-    const [selectedSubject, setSelectedSubject] = useState('');
-    const [selectedSemester, setSelectedSemester] = useState(1);
     const [showAddColumn, setShowAddColumn] = useState(false);
     const [showAutoFill, setShowAutoFill] = useState(false);
     const [showImport, setShowImport] = useState(false);
@@ -97,13 +93,6 @@ const GradebookSpreadsheet = () => {
         [spreadsheetStudents, classStudents]
     );
     const isLoading = loading || columnsLoading;
-
-    // Set default subject
-    useEffect(() => {
-        if (subjects?.length && !selectedSubject) {
-            setSelectedSubject(subjects[0]._id);
-        }
-    }, [subjects, selectedSubject]);
 
     // Fetch data when filters change
     useEffect(() => {
@@ -265,14 +254,6 @@ const GradebookSpreadsheet = () => {
         <div className="gradebook-spreadsheet">
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-                <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}
-                    style={{ minWidth: 160 }}>
-                    {subjects?.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-                </select>
-                <select value={selectedSemester} onChange={e => setSelectedSemester(Number(e.target.value))}>
-                    <option value={1}>Semester 1</option>
-                    <option value={2}>Semester 2</option>
-                </select>
                 <div style={{ flex: 1 }} />
                 <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving || !hasDirtyChanges}>
                     <HiOutlineSave size={14} style={{ marginRight: 4 }} />

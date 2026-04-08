@@ -33,6 +33,8 @@ const GradebookHeader = ({
     onSubjectChange,
     selectedMonth,
     onMonthChange,
+    selectedSemester,
+    onSemesterChange,
     subjects = [],
     months = [],
     // Class-level filters (grade, subject filter, class) — only when embedded
@@ -236,31 +238,43 @@ const GradebookHeader = ({
                         </select>
                     </div>
 
-                    <div className="form-group">
-                        <label>{t('gradebook:filters.month')}</label>
-                        <select value={selectedMonth} onChange={(e) => onMonthChange(Number(e.target.value))}>
-                            {months.map((month) => (
-                                <option key={month.value} value={month.value}>
-                                    {t(`gradebook:months.${month.value}`, { defaultValue: month.label })}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    {viewMode === 'spreadsheet' ? (
+                        <div className="form-group">
+                            <label>{t('gradebook:filters.semester', { defaultValue: 'Semester' })}</label>
+                            <select value={selectedSemester} onChange={(e) => onSemesterChange(Number(e.target.value))}>
+                                <option value={1}>{t('gradebook:filters.semester1', { defaultValue: 'Semester 1' })}</option>
+                                <option value={2}>{t('gradebook:filters.semester2', { defaultValue: 'Semester 2' })}</option>
+                            </select>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="form-group">
+                                <label>{t('gradebook:filters.month')}</label>
+                                <select value={selectedMonth} onChange={(e) => onMonthChange(Number(e.target.value))}>
+                                    {months.map((month) => (
+                                        <option key={month.value} value={month.value}>
+                                            {t(`gradebook:months.${month.value}`, { defaultValue: month.label })}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
-                    <div className="form-group">
-                        <label>{t('gradebook:filters.category', { defaultValue: 'Category' })}</label>
-                        <select
-                            value={selectedCategoryFilter}
-                            onChange={(event) => onCategoryFilterChange(event.target.value)}
-                        >
-                            <option value="All">{t('gradebook:categories.all')}</option>
-                            {CATEGORY_FILTER_OPTIONS.map((category) => (
-                                <option key={category} value={category}>
-                                    {t(`gradebook:categories.${category}`, { defaultValue: category })}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                            <div className="form-group">
+                                <label>{t('gradebook:filters.category', { defaultValue: 'Category' })}</label>
+                                <select
+                                    value={selectedCategoryFilter}
+                                    onChange={(event) => onCategoryFilterChange(event.target.value)}
+                                >
+                                    <option value="All">{t('gradebook:categories.all')}</option>
+                                    {CATEGORY_FILTER_OPTIONS.map((category) => (
+                                        <option key={category} value={category}>
+                                            {t(`gradebook:categories.${category}`, { defaultValue: category })}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </>
