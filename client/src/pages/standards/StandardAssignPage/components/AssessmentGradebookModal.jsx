@@ -1,6 +1,63 @@
+import { useState } from 'react';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import { useTranslation } from 'react-i18next';
+
+const EditableScale4Cell = ({ value, isManual, onSave }) => {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState('');
+
+    const handleClick = () => {
+        setDraft(value != null ? String(value) : '');
+        setEditing(true);
+    };
+
+    const commit = () => {
+        setEditing(false);
+        const trimmed = draft.trim();
+        if (trimmed === '') {
+            onSave(null);
+            return;
+        }
+        const num = Number(trimmed);
+        if (!Number.isFinite(num) || num < 0 || num > 4) return;
+        const rounded = Number(num.toFixed(2));
+        if (rounded !== value) onSave(rounded);
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') setEditing(false);
+    };
+
+    if (editing) {
+        return (
+            <input
+                type="number"
+                min="0"
+                max="4"
+                step="0.01"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commit}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                style={{ width: 56, textAlign: 'center', fontSize: 13, padding: '2px 4px' }}
+            />
+        );
+    }
+
+    return (
+        <span
+            onClick={handleClick}
+            title="Click to override"
+            style={{ cursor: 'pointer', borderBottom: '1px dashed var(--text-muted)', display: 'inline-block', minWidth: 28, textAlign: 'center' }}
+        >
+            {value != null ? value : '—'}
+            {isManual && <span style={{ fontSize: 10, marginLeft: 3, color: 'var(--primary)' }}>✎</span>}
+        </span>
+    );
+};
 
 const AssessmentGradebookModal = ({
     show,
@@ -14,7 +71,8 @@ const AssessmentGradebookModal = ({
     assessmentGradebookAssignmentId,
     releasingAssessmentResults,
     onRetry,
-    onRelease
+    onRelease,
+    onScoreOverride
 }) => {
     const { t, i18n } = useTranslation(['standardAssign']);
     const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
@@ -170,9 +228,11 @@ const AssessmentGradebookModal = ({
                                                         : t('standardAssign:common.na')}
                                                 </td>
                                                 <td>
-                                                    {row.scale4 !== null && row.scale4 !== undefined
-                                                        ? row.scale4
-                                                        : t('standardAssign:common.na')}
+                                                    <EditableScale4Cell
+                                                        value={row.scale4}
+                                                        isManual={row.isManualEntry}
+                                                        onSave={(score) => onScoreOverride && onScoreOverride(row.student?._id, score)}
+                                                    />
                                                 </td>
                                                 <td style={row.tabSwitchCount > 0 ? { color: 'var(--error)', fontWeight: 600 } : undefined}>
                                                     {row.tabSwitchCount || 0}

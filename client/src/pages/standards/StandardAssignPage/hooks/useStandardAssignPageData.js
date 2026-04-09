@@ -498,6 +498,34 @@ const useStandardAssignPageData = () => {
         }
     };
 
+    const handleScoreOverride = async (studentId, score) => {
+        if (!assessmentGradebookData?.assignment) return;
+        const { standard, class: cls, subject, academicYear: assignAY, semester } = assessmentGradebookData.assignment;
+        try {
+            await api.put('/practice/sb-gradebook/manual-score', {
+                studentId,
+                standardId: standard?._id,
+                classId: cls?._id,
+                subjectId: subject?._id,
+                score,
+                academicYear: assignAY || academicYear,
+                semester: semester || selectedSemester || null
+            });
+            // Update local state immediately
+            setAssessmentGradebookData(prev => {
+                if (!prev) return prev;
+                const updatedRows = prev.rows.map(row => {
+                    if ((row.student?._id || row.student?.studentId) !== studentId) return row;
+                    return { ...row, scale4: score, isManualEntry: score != null };
+                });
+                return { ...prev, rows: updatedRows };
+            });
+            toast.success(score != null ? t('standardAssign:toasts.scoreOverridden', { defaultValue: 'Score updated' }) : t('standardAssign:toasts.scoreCleared', { defaultValue: 'Score cleared' }));
+        } catch (error) {
+            toast.error(error?.response?.data?.message || t('standardAssign:toasts.scoreOverrideFailed', { defaultValue: 'Failed to update score' }));
+        }
+    };
+
     const loadQuestionPool = async (assignmentId) => {
         setQuestionPoolLoading(true);
         setQuestionPoolError('');
@@ -691,6 +719,7 @@ const useStandardAssignPageData = () => {
         closeAssessmentGradebookModal,
         retryAssessmentGradebookLoad,
         handleReleaseAssessmentResults,
+        handleScoreOverride,
         handleManageQuestionPool,
         closeQuestionPoolModal,
         retryQuestionPoolLoad,

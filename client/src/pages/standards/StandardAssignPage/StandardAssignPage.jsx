@@ -71,6 +71,7 @@ const StandardAssignPage = () => {
         closeAssessmentGradebookModal,
         retryAssessmentGradebookLoad,
         handleReleaseAssessmentResults,
+        handleScoreOverride,
         handleManageQuestionPool,
         closeQuestionPoolModal,
         retryQuestionPoolLoad,
@@ -165,6 +166,7 @@ const StandardAssignPage = () => {
                 releasingAssessmentResults={releasingAssessmentResults}
                 onRetry={retryAssessmentGradebookLoad}
                 onRelease={handleReleaseAssessmentResults}
+                onScoreOverride={handleScoreOverride}
             />
 
             <QuestionPoolEditorModal

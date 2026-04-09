@@ -633,6 +633,7 @@ const upsertAssessmentGradebookProgress = async ({
     score,
     maxScore: assessmentConfig.maxMarks,
     percentage,
+    effectiveScore: Number.isFinite(percentage) ? percentageToScale4(percentage) : null,
     metadata: {
       passMarks: assessmentConfig.passMarks,
       resultsVisibility: assessmentConfig.resultsVisibility,
@@ -647,6 +648,15 @@ const upsertAssessmentGradebookProgress = async ({
   }
   if (releasedAt) {
     update.releasedAt = releasedAt;
+  }
+
+  // If a manual score already exists, preserve it as effective score
+  const existingEntry = await StandardsGradebookEntry.findOne(
+    { school: schoolId, assignment: assignment._id, student: studentId }
+  ).select("manualScore isManualEntry").lean();
+
+  if (existingEntry?.isManualEntry && existingEntry.manualScore != null) {
+    update.effectiveScore = existingEntry.manualScore;
   }
 
   return StandardsGradebookEntry.findOneAndUpdate(
@@ -2815,7 +2825,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
     assignment: assignment._id,
   })
     .select(
-      "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester metadata"
+      "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester metadata effectiveScore manualScore isManualEntry"
     )
     .lean();
   const entryByStudent = new Map(
@@ -2826,6 +2836,11 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
     students.map(async (student) => {
       const existing = entryByStudent.get(student._id.toString());
       if (existing) {
+        const scale4 = existing.isManualEntry && existing.manualScore != null
+          ? existing.manualScore
+          : existing.effectiveScore != null
+            ? existing.effectiveScore
+            : percentageToScale4(existing.percentage);
         return {
           student: student.toObject(),
           status: existing.status,
@@ -2834,7 +2849,8 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
           score: existing.score,
           maxScore: existing.maxScore,
           percentage: existing.percentage,
-          scale4: percentageToScale4(existing.percentage),
+          scale4,
+          isManualEntry: existing.isManualEntry || false,
           submittedAt: existing.submittedAt || null,
           releasedAt: existing.releasedAt || null,
           academicYear: existing.academicYear || assignment.academicYear || null,

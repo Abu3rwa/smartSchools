@@ -22,6 +22,11 @@ export const communicationEmailPreviewBodySchema = z.object({
     toStudents: tokenSelectionSchema.optional()
 }).passthrough();
 
+const optionalLanguageField = z.string().trim().max(12)
+    .transform(v => v === '' ? undefined : v)
+    .pipe(z.string().min(1).optional())
+    .optional();
+
 export const communicationEmailDraftBodySchema = z.object({
     prompt: z.string().trim().min(1).max(2000),
     tone: z.enum(TONE_OPTIONS).optional(),
@@ -29,9 +34,9 @@ export const communicationEmailDraftBodySchema = z.object({
     toTeachers: tokenSelectionSchema.optional(),
     toStudents: tokenSelectionSchema.optional(),
     requestedLanguages: z.array(z.string().trim().min(1).max(12)).max(2).optional(),
-    primaryLanguage: z.string().trim().min(1).max(12).optional(),
-    secondaryLanguage: z.string().trim().min(1).max(12).optional(),
-    language: z.string().trim().min(1).max(12).optional()
+    primaryLanguage: optionalLanguageField,
+    secondaryLanguage: optionalLanguageField,
+    language: optionalLanguageField
 }).passthrough();
 
 export const communicationEmailSendBodySchema = z.object({
