@@ -17,6 +17,7 @@ import './AdvancedReportGenerator.css';
 const AdvancedReportGenerator = () => {
   const {
     students,
+    classes,
     formData,
     generating,
     sending,
@@ -36,7 +37,8 @@ const AdvancedReportGenerator = () => {
       <div className="report-generator-form">
         <StudentSelectionSection
           students={students}
-          value={formData.studentId}
+          classes={classes}
+          formData={formData}
           onChange={handleInputChange}
         />
 

@@ -3,6 +3,7 @@ import DOMPurify from 'isomorphic-dompurify';
 import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchStudents, selectStudents } from '@/store/slices/studentSlice';
+import { fetchClasses, selectClasses } from '@/store/slices/classSlice';
 import api from '../../../../config/api';
 import { createDefaultFormData } from '../constants';
 import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../../constants/aiLanguages';
@@ -10,6 +11,7 @@ import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../../cons
 const useAdvancedReportGenerator = () => {
   const dispatch = useDispatch();
   const students = useSelector(selectStudents);
+  const classes = useSelector(selectClasses);
 
   const [formData, setFormData] = useState(createDefaultFormData());
   const [generating, setGenerating] = useState(false);
@@ -20,7 +22,21 @@ const useAdvancedReportGenerator = () => {
 
   useEffect(() => {
     dispatch(fetchStudents());
+    dispatch(fetchClasses());
   }, [dispatch]);
+
+  // Filter students by selected class
+  const filteredStudents = useMemo(() => {
+    if (!formData.classId) return students;
+    return students.filter((s) => {
+      const classId = formData.classId;
+      if (s.currentClass === classId || s.currentClass?._id === classId) return true;
+      if (Array.isArray(s.enrolledClasses)) {
+        return s.enrolledClasses.some((c) => c === classId || c?._id === classId);
+      }
+      return false;
+    });
+  }, [students, formData.classId]);
 
   const handleInputChange = useCallback((event) => {
     const { name, value, type, checked } = event.target;
@@ -58,7 +74,8 @@ const useAdvancedReportGenerator = () => {
 
     setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
+      ...(name === 'classId' ? { studentId: '' } : {})
     }));
   }, []);
 
@@ -144,7 +161,8 @@ const useAdvancedReportGenerator = () => {
   }, [report]);
 
   return {
-    students,
+    students: filteredStudents,
+    classes,
     formData,
     setFormData,
     generating,

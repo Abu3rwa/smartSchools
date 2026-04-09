@@ -11,6 +11,7 @@ export const REPORT_TYPE_OPTIONS = [
 export const LANGUAGE_OPTIONS = AI_LANGUAGE_OPTIONS;
 
 export const createDefaultFormData = () => ({
+  classId: '',
   studentId: '',
   reportType: 'monthly',
   primaryLanguage: 'en',
