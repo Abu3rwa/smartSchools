@@ -160,6 +160,7 @@ const SchoolSettingsPage = () => {
               users={users}
               loading={usersLoading}
               onEdit={handleEditUser}
+              showOpenFullPageAction
               modal={(
                 <UserRoleModal
                   open={userModalState.open}

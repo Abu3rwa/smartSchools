@@ -31,6 +31,11 @@
   gap: 4px;
 }
 
+.pool-filters .filter-group.filter-group-wide {
+  min-width: 280px;
+  flex: 1;
+}
+
 .pool-filters .filter-group label {
   font-size: 0.75rem;
   font-weight: 500;
@@ -45,6 +50,16 @@
   border-radius: 6px;
   font-size: 0.875rem;
   min-width: 160px;
+}
+
+.pool-filters .standards-multi-select {
+  min-height: 96px;
+  max-height: 120px;
+}
+
+.pool-filters .standards-helper {
+  font-size: 0.75rem;
+  color: #64748b;
 }
 
 .pool-selection-bar {

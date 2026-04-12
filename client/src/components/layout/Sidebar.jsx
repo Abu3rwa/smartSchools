@@ -523,6 +523,14 @@ const Sidebar = () => {
       section: "admin",
     },
     {
+      path: "/portal/user-management",
+      icon: HiOutlineUsers,
+      labelKey: "userManagement",
+      roles: ["admin", "department_principal"],
+      permissions: [PERMISSIONS.MANAGE_USERS],
+      section: "admin",
+    },
+    {
       path: "/portal/settings/subscription",
       icon: HiOutlineCreditCard,
       labelKey: "subscription",

@@ -33,7 +33,7 @@ const canImpersonateTargetUser = (user) => {
     .some((role) => IMPERSONATABLE_ROLES.has(role));
 };
 
-const UsersTab = ({ users, loading, onEdit, modal }) => {
+const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = false }) => {
   const { t } = useTranslation(['schoolSettings']);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -175,6 +175,17 @@ const UsersTab = ({ users, loading, onEdit, modal }) => {
           {users.length > 0 && (
             <>
               <div className="users-controls">
+                {showOpenFullPageAction && (
+                  <div className="users-filter-actions" style={{ marginBottom: 12, justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => navigate('/portal/user-management')}
+                    >
+                      {t('schoolSettings:users.actions.openFullPage', { defaultValue: 'Open full page' })}
+                    </button>
+                  </div>
+                )}
                 <div className="users-search-field">
                   <label htmlFor="school-settings-users-search">
                     {t('schoolSettings:users.filters.searchLabel', { defaultValue: 'Search' })}

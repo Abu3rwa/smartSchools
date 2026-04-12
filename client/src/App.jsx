@@ -62,6 +62,7 @@ const EmailComposerPage = lazy(() => import("./pages/EmailComposerPage"));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
 const SubscriptionPage = lazy(() => import("./pages/settings/SubscriptionPage/SubscriptionPage"));
 const SchoolSettingsPage = lazy(() => import("./pages/schoolSettings/SchoolSettingsPage"));
+const SchoolUserManagementPage = lazy(() => import("./pages/userManagement/SchoolUserManagementPage"));
 const AdminSchedulePage = lazy(() => import("./pages/admin/schedule/AdminSchedulePage"));
 const AdminAttendancePage = lazy(() => import("./pages/admin/attendance/AdminAttendancePage"));
 const AdminAttendanceRequestsPage = lazy(() => import("./pages/admin/attendanceRequests/AdminAttendanceRequestsPage"));
@@ -366,6 +367,17 @@ function App() {
                   permissions={["manage_users", "manage_school_settings"]}
                 >
                   <SchoolSettingsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="user-management"
+              element={
+                <RoleRoute
+                  roles={["admin", "department_principal"]}
+                  permissions={["manage_users"]}
+                >
+                  <SchoolUserManagementPage />
                 </RoleRoute>
               }
             />

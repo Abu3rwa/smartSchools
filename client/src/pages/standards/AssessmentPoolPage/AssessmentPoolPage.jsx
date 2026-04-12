@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { fetchPool, createAssessmentFromPool, clearPoolError } from '../../../store/slices/standardAssessmentSlice';
 import { fetchPoolQuestion } from '../../../api/standardAssessmentApi';
-import { PERMISSIONS } from '../../../constants/permissions';
+import standardService from '../../../services/standardService';
+import TablePagination from '../../../components/common/TablePagination';
 import './AssessmentPoolPage.css';
 
 const AssessmentPoolPage = () => {
@@ -13,9 +14,12 @@ const AssessmentPoolPage = () => {
 
   // Filters
   const [filters, setFilters] = useState({
-    subjectId: '', gradeLevel: '', questionType: '', difficulty: '', search: '',
+    subjectId: '', gradeLevel: '', questionType: '', difficulty: '', search: '', standardIds: [],
   });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [standardsOptions, setStandardsOptions] = useState([]);
+  const [standardsLoading, setStandardsLoading] = useState(false);
 
   // Selection
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -30,19 +34,59 @@ const AssessmentPoolPage = () => {
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const loadPool = useCallback(() => {
-    const params = { page, limit: 25 };
+    const params = { page, limit: pageSize };
     if (filters.subjectId) params.subjectId = filters.subjectId;
     if (filters.gradeLevel) params.gradeLevel = filters.gradeLevel;
+    if (filters.standardIds?.length > 0) params.standards = filters.standardIds.join(',');
     if (filters.questionType) params.questionType = filters.questionType;
     if (filters.difficulty) params.difficulty = filters.difficulty;
     if (filters.search) params.search = filters.search;
     dispatch(fetchPool(params));
-  }, [dispatch, filters, page]);
+  }, [dispatch, filters, page, pageSize]);
 
   useEffect(() => { loadPool(); }, [loadPool]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadStandards = async () => {
+      setStandardsLoading(true);
+      try {
+        const response = await standardService.getStandards({ limit: 500 });
+        if (!mounted) return;
+        setStandardsOptions(response?.data?.standards || []);
+      } catch {
+        if (!mounted) return;
+        setStandardsOptions([]);
+      } finally {
+        if (mounted) setStandardsLoading(false);
+      }
+    };
+
+    loadStandards();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(1);
+  };
+
+  const handleStandardsFilterChange = (event) => {
+    const selected = Array.from(event.target.selectedOptions).map((option) => option.value);
+    handleFilterChange('standardIds', selected);
+  };
+
+  const handlePageChange = (nextPage) => {
+    if (!pagination?.pages) return;
+    if (nextPage < 1 || nextPage > pagination.pages) return;
+    setPage(nextPage);
+  };
+
+  const handlePageSizeChange = (nextPageSize) => {
+    setPageSize(nextPageSize);
     setPage(1);
   };
 
@@ -156,6 +200,29 @@ const AssessmentPoolPage = () => {
             ))}
           </select>
         </div>
+        <div className="filter-group filter-group-wide">
+          <label>Standards</label>
+          <select
+            multiple
+            value={filters.standardIds}
+            onChange={handleStandardsFilterChange}
+            className="standards-multi-select"
+            aria-label="Filter by standards"
+          >
+            {standardsOptions.map((standard) => (
+              <option key={standard._id} value={standard._id}>
+                {standard.code} - {standard.name}
+              </option>
+            ))}
+          </select>
+          <div className="standards-helper">
+            {standardsLoading
+              ? 'Loading standards...'
+              : filters.standardIds.length > 0
+                ? `${filters.standardIds.length} selected`
+                : 'Hold Ctrl/Cmd to select multiple standards'}
+          </div>
+        </div>
       </div>
 
       {/* Selection bar */}
@@ -230,14 +297,15 @@ const AssessmentPoolPage = () => {
             </tbody>
           </table>
 
-          {/* Pagination */}
-          {pagination && pagination.pages > 1 && (
-            <div className="pagination-bar">
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-              <span>Page {pagination.page} of {pagination.pages} ({pagination.total} total)</span>
-              <button disabled={page >= pagination.pages} onClick={() => setPage(page + 1)}>Next</button>
-            </div>
-          )}
+          <TablePagination
+            page={pagination?.page || page}
+            pageSize={pagination?.limit || pageSize}
+            totalItems={pagination?.total || 0}
+            totalPages={pagination?.pages || 1}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            pageSizeOptions={[10, 25, 50, 100]}
+          />
         </>
       )}
 
