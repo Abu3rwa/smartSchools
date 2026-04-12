@@ -8,7 +8,7 @@ import './AssessmentAuditPage.css';
 const MAIN_TABS = { SETTINGS: 'settings', AUDIT: 'audit' };
 const SETTINGS_SECTIONS = ['pool', 'progressSend', 'narrative', 'liveEdit', 'comms'];
 
-const AssessmentAuditPage = () => {
+const AssessmentAuditPage = ({ embedded }) => {
   const dispatch = useDispatch();
   const auditLogs = useSelector((state) => state.standardAssessment.auditLogs);
 
@@ -191,7 +191,7 @@ const AssessmentAuditPage = () => {
   };
 
   return (
-    <div className="audit-settings-page">
+    <div className={embedded ? 'audit-settings-page audit-settings-page--embedded' : 'audit-settings-page'}>
       <div className="audit-settings-header">
         <h1>Assessment Admin</h1>
       </div>

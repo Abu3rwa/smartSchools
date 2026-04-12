@@ -8,7 +8,7 @@ import QuestionPoolEditorModal from './components/QuestionPoolEditorModal';
 import useStandardAssignPageData from './hooks/useStandardAssignPageData';
 import './StandardAssignPage.css';
 
-const StandardAssignPage = () => {
+const StandardAssignPage = ({ embedded }) => {
     const {
         assignments: _assignments,
         filteredAssignments,
@@ -87,7 +87,7 @@ const StandardAssignPage = () => {
     } = useStandardAssignPageData();
 
     return (
-        <div className="assign-page">
+        <div className={embedded ? 'assign-page assign-page--embedded' : 'assign-page'}>
             <StandardAssignPageHeader onCreate={openCreateModal} />
             <StandardAssignFiltersBar 
                 filters={filters} 

@@ -56,6 +56,8 @@ const useStandardsPageData = () => {
     }, [dispatch]);
 
     useEffect(() => {
+        if (activeTab !== STANDARDS_PAGE_TABS.import || templateMeta) return;
+
         let mounted = true;
         importTemplateService.getEntityTemplate('standards')
             .then((meta) => {
@@ -67,7 +69,7 @@ const useStandardsPageData = () => {
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [activeTab, templateMeta]);
 
     const classOptions = useMemo(() => {
         const list = Array.isArray(classes) ? classes : [];

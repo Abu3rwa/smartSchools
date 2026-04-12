@@ -283,3 +283,29 @@
         overflow-x: auto;
     }
 }
+
+/* Tab loading fallback */
+.tab-loading {
+    padding: var(--spacing-2xl);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* Embedded sub-page overrides — strip page shell when rendered as tab */
+.narrative-page--embedded,
+.progress-table-page--embedded,
+.assessment-pool-page--embedded,
+.live-edit-page--embedded,
+.audit-settings-page--embedded,
+.standards-gradebook-page--embedded,
+.assign-page--embedded {
+    padding: 0;
+    max-width: none;
+    margin: 0;
+}
+
+/* Scroll the tab area so headers are not hidden */
+.tabs {
+    overflow-x: auto;
+    scrollbar-width: thin;
+}

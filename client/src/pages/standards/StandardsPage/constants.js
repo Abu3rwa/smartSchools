@@ -1,6 +1,13 @@
 export const STANDARDS_PAGE_TABS = {
     list: 'list',
-    import: 'import'
+    import: 'import',
+    assign: 'assign',
+    gradebook: 'gradebook',
+    pool: 'pool',
+    progress: 'progress',
+    narrative: 'narrative',
+    liveEdit: 'liveEdit',
+    audit: 'audit',
 };
 
 export const GRADE_LEVEL_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];

@@ -1,18 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   generateNarrative, fetchNarrative, updateNarrative, sendNarrative,
   fetchNarratives, clearNarrativeGeneration, resetCurrentNarrative,
 } from '../../../store/slices/standardAssessmentSlice';
+import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
+import { fetchStudentsByClass, selectStudents } from '../../../store/slices/studentSlice';
+import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
+import { fetchStandards, selectStandards } from '../../../store/slices/standardSlice';
 import './AssessmentNarrativePage.css';
 
 const TABS = { GENERATE: 'generate', REVIEW: 'review', LIST: 'list' };
 
-const AssessmentNarrativePage = () => {
+const AssessmentNarrativePage = ({ embedded }) => {
   const dispatch = useDispatch();
   const {
     narratives, currentNarrative, narrativeGeneration,
   } = useSelector((state) => state.standardAssessment);
+
+  const classes = useSelector(selectClasses);
+  const students = useSelector(selectStudents);
+  const subjects = useSelector(selectSubjects);
+  const standards = useSelector(selectStandards);
 
   const [activeTab, setActiveTab] = useState(TABS.GENERATE);
 
@@ -21,7 +30,6 @@ const AssessmentNarrativePage = () => {
     studentId: '', classId: '', subjectId: '', gradeLevel: '',
     selectedStandardIds: [], language: 'en', toneProfile: 'formal',
   });
-  const [standardInput, setStandardInput] = useState('');
 
   // Review editor
   const [editedText, setEditedText] = useState('');
@@ -37,6 +45,61 @@ const AssessmentNarrativePage = () => {
   const [listFilters, setListFilters] = useState({ status: '', page: 1 });
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Fetch reference data on mount
+  useEffect(() => {
+    dispatch(fetchClasses());
+    dispatch(fetchSubjects());
+    dispatch(fetchStandards());
+  }, [dispatch]);
+
+  // Load students when class changes
+  useEffect(() => {
+    if (genForm.classId) {
+      dispatch(fetchStudentsByClass(genForm.classId));
+    }
+  }, [dispatch, genForm.classId]);
+
+  // Reset student when class changes
+  const handleClassChange = (classId) => {
+    setGenForm((p) => ({ ...p, classId, studentId: '', selectedStandardIds: [] }));
+  };
+
+  // Reset standards when subject changes
+  const handleSubjectChange = (subjectId) => {
+    setGenForm((p) => ({ ...p, subjectId, selectedStandardIds: [] }));
+  };
+
+  // Filtered students by selected class
+  const classStudents = useMemo(() => {
+    if (!genForm.classId) return [];
+    return (Array.isArray(students) ? students : []).filter(
+      (s) => String(s.class?._id || s.class || s.classId) === String(genForm.classId)
+    );
+  }, [students, genForm.classId]);
+
+  // Filtered subjects — if a class has subjects attached, scope to those
+  const filteredSubjects = useMemo(() => {
+    const list = Array.isArray(subjects) ? subjects : [];
+    if (!genForm.classId) return list;
+    const selectedClass = (Array.isArray(classes) ? classes : []).find(
+      (c) => String(c._id) === String(genForm.classId)
+    );
+    if (selectedClass?.subjects?.length) {
+      const classSubjectIds = new Set(selectedClass.subjects.map((s) => String(s._id || s)));
+      return list.filter((s) => classSubjectIds.has(String(s._id)));
+    }
+    return list;
+  }, [subjects, classes, genForm.classId]);
+
+  // Filtered standards by selected subject
+  const filteredStandards = useMemo(() => {
+    const list = Array.isArray(standards) ? standards : [];
+    if (!genForm.subjectId) return list;
+    return list.filter(
+      (s) => String(s.subject?._id || s.subject) === String(genForm.subjectId)
+    );
+  }, [standards, genForm.subjectId]);
+
   useEffect(() => {
     if (activeTab === TABS.LIST) {
       dispatch(fetchNarratives(listFilters));
@@ -49,12 +112,16 @@ const AssessmentNarrativePage = () => {
     }
   }, [currentNarrative.data]);
 
-  const addStandardId = () => {
-    const id = standardInput.trim();
-    if (id && !genForm.selectedStandardIds.includes(id)) {
-      setGenForm((p) => ({ ...p, selectedStandardIds: [...p.selectedStandardIds, id] }));
-      setStandardInput('');
-    }
+  const toggleStandard = (standardId) => {
+    setGenForm((p) => {
+      const exists = p.selectedStandardIds.includes(standardId);
+      return {
+        ...p,
+        selectedStandardIds: exists
+          ? p.selectedStandardIds.filter((id) => id !== standardId)
+          : [...p.selectedStandardIds, standardId],
+      };
+    });
   };
 
   const removeStandardId = (id) => {
@@ -121,7 +188,7 @@ const AssessmentNarrativePage = () => {
   const driftClass = driftPercent > 60 ? 'danger' : driftPercent > 30 ? 'warning' : '';
 
   return (
-    <div className="narrative-page">
+    <div className={embedded ? 'narrative-page narrative-page--embedded' : 'narrative-page'}>
       <div className="narrative-header">
         <h1>AI Narrative Reports</h1>
       </div>
@@ -144,46 +211,50 @@ const AssessmentNarrativePage = () => {
       {/* Generate Tab */}
       {activeTab === TABS.GENERATE && (
         <div className="generate-panel">
-          <div className="standard-picker">
-            <h3>Select Standards</h3>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                type="text"
-                placeholder="Enter Standard ID"
-                value={standardInput}
-                onChange={(e) => setStandardInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addStandardId()}
-                style={{ flex: 1, padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
-              />
-              <button className="btn-secondary" onClick={addStandardId}>Add</button>
-            </div>
-            <div className="standard-list">
-              {genForm.selectedStandardIds.length === 0 ? (
-                <p style={{ color: '#94a3b8', textAlign: 'center', padding: 24 }}>No standards selected yet</p>
-              ) : (
-                genForm.selectedStandardIds.map((id) => (
-                  <div key={id} className="standard-item selected">
-                    <span className="code">{id}</span>
-                    <button onClick={() => removeStandardId(id)} style={{ marginLeft: 'auto', cursor: 'pointer', background: 'none', border: 'none', color: '#ef4444', fontWeight: 700 }}>×</button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
           <div className="generate-options">
             <h3>Report Options</h3>
             <div className="option-group">
-              <label>Student ID *</label>
-              <input type="text" value={genForm.studentId} onChange={(e) => setGenForm((p) => ({ ...p, studentId: e.target.value }))} />
+              <label>Class</label>
+              <select
+                value={genForm.classId}
+                onChange={(e) => handleClassChange(e.target.value)}
+              >
+                <option value="">— Select Class —</option>
+                {(Array.isArray(classes) ? classes : []).map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}{c.grade ? ` (Grade ${c.grade})` : ''}{c.section ? ` - ${c.section}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="option-group">
-              <label>Class ID</label>
-              <input type="text" value={genForm.classId} onChange={(e) => setGenForm((p) => ({ ...p, classId: e.target.value }))} />
+              <label>Student *</label>
+              <select
+                value={genForm.studentId}
+                onChange={(e) => setGenForm((p) => ({ ...p, studentId: e.target.value }))}
+                disabled={!genForm.classId}
+              >
+                <option value="">{genForm.classId ? '— Select Student —' : '— Select a class first —'}</option>
+                {classStudents.map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || s._id}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="option-group">
-              <label>Subject ID</label>
-              <input type="text" value={genForm.subjectId} onChange={(e) => setGenForm((p) => ({ ...p, subjectId: e.target.value }))} />
+              <label>Subject</label>
+              <select
+                value={genForm.subjectId}
+                onChange={(e) => handleSubjectChange(e.target.value)}
+              >
+                <option value="">— All Subjects —</option>
+                {filteredSubjects.map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.name}{s.code ? ` (${s.code})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="option-group">
               <label>Language</label>
@@ -202,6 +273,56 @@ const AssessmentNarrativePage = () => {
                 <option value="concise">Concise</option>
               </select>
             </div>
+          </div>
+
+          <div className="standard-picker">
+            <h3>Select Standards {genForm.subjectId ? '' : <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400 }}>(filter by subject for fewer results)</span>}</h3>
+
+            {/* Selected standards chips */}
+            {genForm.selectedStandardIds.length > 0 && (
+              <div className="selected-standards-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {genForm.selectedStandardIds.map((id) => {
+                  const std = (Array.isArray(standards) ? standards : []).find((s) => String(s._id) === String(id));
+                  return (
+                    <span key={id} className="standard-chip">
+                      {std?.code || id}
+                      <button onClick={() => removeStandardId(id)} style={{ marginLeft: 4, cursor: 'pointer', background: 'none', border: 'none', color: 'var(--accent-red)', fontWeight: 700, padding: 0 }}>×</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Standards checklist */}
+            <div className="standard-list" style={{ maxHeight: 300, overflowY: 'auto' }}>
+              {filteredStandards.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>
+                  {genForm.subjectId ? 'No standards found for this subject.' : 'No standards available.'}
+                </p>
+              ) : (
+                filteredStandards.map((std) => {
+                  const isSelected = genForm.selectedStandardIds.includes(String(std._id));
+                  return (
+                    <label
+                      key={std._id}
+                      className={`standard-item ${isSelected ? 'selected' : ''}`}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '8px 12px' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleStandard(String(std._id))}
+                      />
+                      <span className="code" style={{ fontWeight: 600, minWidth: 120 }}>{std.code}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{std.name || std.description || ''}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
             <button
               className="btn-primary generate-btn"
               disabled={narrativeGeneration.loading || !genForm.studentId || genForm.selectedStandardIds.length === 0}
@@ -237,7 +358,7 @@ const AssessmentNarrativePage = () => {
                     {s.trend && ` | Trend: ${s.trend}`}
                   </div>
                 </div>
-              )) || <p style={{ color: '#94a3b8' }}>No evidence data available</p>}
+              )) || <p style={{ color: 'var(--text-muted)' }}>No evidence data available</p>}
             </div>
 
             <div className="narrative-editor-panel">
@@ -293,7 +414,7 @@ const AssessmentNarrativePage = () => {
             <select
               value={listFilters.status}
               onChange={(e) => setListFilters((p) => ({ ...p, status: e.target.value, page: 1 }))}
-              style={{ padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: 6 }}
+              style={{ padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-primary)' }}
             >
               <option value="">All Statuses</option>
               <option value="draft">Draft</option>
@@ -344,7 +465,7 @@ const AssessmentNarrativePage = () => {
         <div className="send-modal" onClick={() => setShowSendModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Send Narrative Report</h2>
-            <p style={{ color: '#64748b', marginBottom: 16 }}>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
               Send this approved narrative to the student and/or parent.
             </p>
             <div style={{ display: 'flex', gap: 16, margin: '16px 0' }}>

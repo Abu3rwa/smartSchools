@@ -6,7 +6,7 @@ import {
 } from '../../../store/slices/standardAssessmentSlice';
 import './AssessmentLiveEditPage.css';
 
-const AssessmentLiveEditPage = () => {
+const AssessmentLiveEditPage = ({ embedded }) => {
   const dispatch = useDispatch();
   const editImpact = useSelector((state) => state.standardAssessment.editImpact);
   const revisions = useSelector((state) => state.standardAssessment.revisions);
@@ -104,7 +104,7 @@ const AssessmentLiveEditPage = () => {
   const impact = editImpact.data;
 
   return (
-    <div className="live-edit-page">
+    <div className={embedded ? 'live-edit-page live-edit-page--embedded' : 'live-edit-page'}>
       <div className="live-edit-header">
         <h1>Live Assessment Editing</h1>
       </div>

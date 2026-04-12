@@ -239,6 +239,7 @@ const standardAssessmentSlice = createSlice({
   initialState,
   reducers: {
     clearPoolError(state) { state.pool.error = null; },
+    clearProgressTable(state) { state.progressTable = { rows: [], loading: false, error: null }; },
     clearSendResult(state) { state.sendResult = { loading: false, error: null, data: null, success: false }; },
     clearNarrativeGeneration(state) { state.narrativeGeneration = { loading: false, error: null, data: null }; },
     clearEditImpact(state) { state.editImpact = { data: null, loading: false, error: null }; },
@@ -431,6 +432,7 @@ const standardAssessmentSlice = createSlice({
 
 export const {
   clearPoolError,
+  clearProgressTable,
   clearSendResult,
   clearNarrativeGeneration,
   clearEditImpact,

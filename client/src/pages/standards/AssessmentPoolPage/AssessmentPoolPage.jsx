@@ -7,7 +7,7 @@ import standardService from '../../../services/standardService';
 import TablePagination from '../../../components/common/TablePagination';
 import './AssessmentPoolPage.css';
 
-const AssessmentPoolPage = () => {
+const AssessmentPoolPage = ({ embedded }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { questions, pagination, loading, error } = useSelector((state) => state.standardAssessment.pool);
@@ -142,7 +142,7 @@ const AssessmentPoolPage = () => {
   };
 
   return (
-    <div className="assessment-pool-page">
+    <div className={embedded ? 'assessment-pool-page assessment-pool-page--embedded' : 'assessment-pool-page'}>
       <div className="pool-header">
         <h1>Question Pool Library</h1>
         {selectedIds.size > 0 && (

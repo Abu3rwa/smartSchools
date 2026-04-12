@@ -82,6 +82,7 @@ const ParentNewslettersPage = lazy(() => import("./pages/parent/newsletters/Pare
 const SBRConfigPage = lazy(() => import("./pages/sbr/SBRConfigPage"));
 const SBRGenerationPage = lazy(() => import("./pages/sbr/SBRGenerationPage"));
 const SBRParentReportsPage = lazy(() => import("./pages/sbr/SBRParentReportsPage"));
+const SBRHubPage = lazy(() => import("./pages/sbr/SBRHubPage/SBRHubPage"));
 const AttendanceRemindersPage = lazy(() => import("./pages/admin/attendanceReminders/AttendanceRemindersPage"));
 const BehaviorManagementPage = lazy(() => import("./pages/behavior/BehaviorManagementPage"));
 const BehaviorTrackingDashboardPage = lazy(() => import("./pages/behavior/BehaviorTrackingDashboardPage"));
@@ -710,6 +711,17 @@ function App() {
                   permissions={["sbr:manage_scales"]}
                 >
                   <SBRConfigPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="sbr"
+              element={
+                <RoleRoute
+                  roles={["admin", "teacher", "parent"]}
+                  permissions={["sbr:generate_reports", "sbr:view_reports"]}
+                >
+                  <SBRHubPage />
                 </RoleRoute>
               }
             />

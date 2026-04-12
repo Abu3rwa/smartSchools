@@ -6,7 +6,7 @@ import useStandardsGradebookMatrixData from './hooks/useStandardsGradebookMatrix
 import api from '../../../config/api';
 import './StandardsGradebookPage.css';
 
-const StandardsGradebookPage = () => {
+const StandardsGradebookPage = ({ embedded }) => {
   const {
     t,
     standards,
@@ -230,7 +230,7 @@ const StandardsGradebookPage = () => {
   }, [hasPendingChanges]);
 
   return (
-    <div className="standards-gradebook-page">
+    <div className={embedded ? 'standards-gradebook-page standards-gradebook-page--embedded' : 'standards-gradebook-page'}>
       {/* Toolbar */}
       <div className="gb-toolbar">
         <button
