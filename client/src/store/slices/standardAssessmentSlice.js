@@ -75,9 +75,9 @@ export const fetchNarrative = createAsyncThunk(
 
 export const updateNarrative = createAsyncThunk(
   'standardAssessment/updateNarrative',
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data, updates }, { rejectWithValue }) => {
     try {
-      return await assessmentApi.updateNarrative(id, data);
+      return await assessmentApi.updateNarrative(id, data || updates || {});
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -86,9 +86,9 @@ export const updateNarrative = createAsyncThunk(
 
 export const sendNarrative = createAsyncThunk(
   'standardAssessment/sendNarrative',
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data, ...rest }, { rejectWithValue }) => {
     try {
-      return await assessmentApi.sendNarrative(id, data);
+      return await assessmentApi.sendNarrative(id, data || rest || {});
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -119,11 +119,24 @@ export const fetchEditImpact = createAsyncThunk(
   }
 );
 
+export const patchAssessment = createAsyncThunk(
+  'standardAssessment/patchAssessment',
+  async ({ assignmentId, id, data, updates }, { rejectWithValue }) => {
+    try {
+      const targetId = assignmentId || id;
+      return await assessmentApi.patchAssessment(targetId, data || updates || {});
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
 export const createRevision = createAsyncThunk(
   'standardAssessment/createRevision',
-  async ({ assignmentId, data }, { rejectWithValue }) => {
+  async ({ assignmentId, id, data }, { rejectWithValue }) => {
     try {
-      return await assessmentApi.createRevision(assignmentId, data);
+      const targetId = assignmentId || id;
+      return await assessmentApi.createRevision(targetId, data);
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -132,9 +145,11 @@ export const createRevision = createAsyncThunk(
 
 export const publishRevision = createAsyncThunk(
   'standardAssessment/publishRevision',
-  async ({ assignmentId, versionNumber }, { rejectWithValue }) => {
+  async ({ assignmentId, id, versionNumber, version }, { rejectWithValue }) => {
     try {
-      return await assessmentApi.publishRevision(assignmentId, versionNumber);
+      const targetId = assignmentId || id;
+      const targetVersion = versionNumber || version;
+      return await assessmentApi.publishRevision(targetId, targetVersion);
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -165,6 +180,39 @@ export const fetchAuditLogs = createAsyncThunk(
   }
 );
 
+export const fetchSettings = createAsyncThunk(
+  'standardAssessment/fetchSettings',
+  async (section, { rejectWithValue }) => {
+    try {
+      return await assessmentApi.fetchSettings(section);
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+export const updateSettings = createAsyncThunk(
+  'standardAssessment/updateSettings',
+  async ({ section, updates }, { rejectWithValue }) => {
+    try {
+      return await assessmentApi.updateSettings(section, updates);
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+export const exportAuditLogs = createAsyncThunk(
+  'standardAssessment/exportAuditLogs',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      return await assessmentApi.exportAuditLogs(params);
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
 // ── Slice ──
 
 const initialState = {
@@ -172,16 +220,18 @@ const initialState = {
   pool: { questions: [], pagination: null, loading: false, error: null },
   // Progress
   progressTable: { rows: [], loading: false, error: null },
-  sendResult: { loading: false, error: null, data: null },
+  sendResult: { loading: false, error: null, data: null, success: false },
   // Narrative
-  narratives: { items: [], pagination: null, loading: false, error: null },
+  narratives: { items: [], list: [], pagination: null, loading: false, error: null },
   currentNarrative: { data: null, loading: false, error: null },
   narrativeGeneration: { loading: false, error: null, data: null },
   // Live Edit
   editImpact: { data: null, loading: false, error: null },
-  revisions: { items: [], loading: false, error: null },
+  revisions: { items: [], list: [], loading: false, error: null },
   // Audit
-  auditLogs: { items: [], pagination: null, loading: false, error: null },
+  auditLogs: { items: [], list: [], pagination: null, loading: false, error: null },
+  settings: { data: null, loading: false, error: null },
+  exportAudit: { loading: false, error: null },
 };
 
 const standardAssessmentSlice = createSlice({
@@ -189,7 +239,7 @@ const standardAssessmentSlice = createSlice({
   initialState,
   reducers: {
     clearPoolError(state) { state.pool.error = null; },
-    clearSendResult(state) { state.sendResult = { loading: false, error: null, data: null }; },
+    clearSendResult(state) { state.sendResult = { loading: false, error: null, data: null, success: false }; },
     clearNarrativeGeneration(state) { state.narrativeGeneration = { loading: false, error: null, data: null }; },
     clearEditImpact(state) { state.editImpact = { data: null, loading: false, error: null }; },
     resetCurrentNarrative(state) { state.currentNarrative = { data: null, loading: false, error: null }; },
@@ -233,10 +283,12 @@ const standardAssessmentSlice = createSlice({
       .addCase(sendProgressTable.fulfilled, (state, action) => {
         state.sendResult.loading = false;
         state.sendResult.data = action.payload;
+        state.sendResult.success = true;
       })
       .addCase(sendProgressTable.rejected, (state, action) => {
         state.sendResult.loading = false;
         state.sendResult.error = action.payload;
+        state.sendResult.success = false;
       });
 
     // Narratives
@@ -245,6 +297,7 @@ const standardAssessmentSlice = createSlice({
       .addCase(fetchNarratives.fulfilled, (state, action) => {
         state.narratives.loading = false;
         state.narratives.items = action.payload.narratives || [];
+        state.narratives.list = action.payload.narratives || [];
         state.narratives.pagination = action.payload.pagination || null;
       })
       .addCase(fetchNarratives.rejected, (state, action) => {
@@ -287,10 +340,41 @@ const standardAssessmentSlice = createSlice({
       });
 
     builder
+      .addCase(patchAssessment.pending, (state) => { state.editImpact.loading = true; state.editImpact.error = null; })
+      .addCase(patchAssessment.fulfilled, (state) => {
+        state.editImpact.loading = false;
+      })
+      .addCase(patchAssessment.rejected, (state, action) => {
+        state.editImpact.loading = false;
+        state.editImpact.error = action.payload;
+      });
+
+    builder
+      .addCase(createRevision.pending, (state) => { state.revisions.loading = true; state.revisions.error = null; })
+      .addCase(createRevision.fulfilled, (state) => {
+        state.revisions.loading = false;
+      })
+      .addCase(createRevision.rejected, (state, action) => {
+        state.revisions.loading = false;
+        state.revisions.error = action.payload;
+      });
+
+    builder
+      .addCase(publishRevision.pending, (state) => { state.revisions.loading = true; state.revisions.error = null; })
+      .addCase(publishRevision.fulfilled, (state) => {
+        state.revisions.loading = false;
+      })
+      .addCase(publishRevision.rejected, (state, action) => {
+        state.revisions.loading = false;
+        state.revisions.error = action.payload;
+      });
+
+    builder
       .addCase(fetchRevisions.pending, (state) => { state.revisions.loading = true; state.revisions.error = null; })
       .addCase(fetchRevisions.fulfilled, (state, action) => {
         state.revisions.loading = false;
         state.revisions.items = action.payload.revisions || [];
+        state.revisions.list = action.payload.revisions || [];
       })
       .addCase(fetchRevisions.rejected, (state, action) => {
         state.revisions.loading = false;
@@ -303,11 +387,44 @@ const standardAssessmentSlice = createSlice({
       .addCase(fetchAuditLogs.fulfilled, (state, action) => {
         state.auditLogs.loading = false;
         state.auditLogs.items = action.payload.logs || [];
+        state.auditLogs.list = action.payload.logs || [];
         state.auditLogs.pagination = action.payload.pagination || null;
       })
       .addCase(fetchAuditLogs.rejected, (state, action) => {
         state.auditLogs.loading = false;
         state.auditLogs.error = action.payload;
+      });
+
+    builder
+      .addCase(fetchSettings.pending, (state) => { state.settings.loading = true; state.settings.error = null; })
+      .addCase(fetchSettings.fulfilled, (state, action) => {
+        state.settings.loading = false;
+        state.settings.data = action.payload;
+      })
+      .addCase(fetchSettings.rejected, (state, action) => {
+        state.settings.loading = false;
+        state.settings.error = action.payload;
+      });
+
+    builder
+      .addCase(updateSettings.pending, (state) => { state.settings.loading = true; state.settings.error = null; })
+      .addCase(updateSettings.fulfilled, (state, action) => {
+        state.settings.loading = false;
+        state.settings.data = action.payload;
+      })
+      .addCase(updateSettings.rejected, (state, action) => {
+        state.settings.loading = false;
+        state.settings.error = action.payload;
+      });
+
+    builder
+      .addCase(exportAuditLogs.pending, (state) => { state.exportAudit.loading = true; state.exportAudit.error = null; })
+      .addCase(exportAuditLogs.fulfilled, (state) => {
+        state.exportAudit.loading = false;
+      })
+      .addCase(exportAuditLogs.rejected, (state, action) => {
+        state.exportAudit.loading = false;
+        state.exportAudit.error = action.payload;
       });
   },
 });
