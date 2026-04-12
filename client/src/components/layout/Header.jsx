@@ -7,7 +7,6 @@ import { selectUser, logout, selectIsImpersonating } from '../../store/slices/au
 import {
     selectTheme,
     setTheme,
-    selectCurrentAcademicYear,
     toggleSidebar,
     selectLanguage,
     setLanguage,
@@ -28,6 +27,7 @@ import notificationService from '../../services/notificationService';
 import ShortcutsMenu from './header/ShortcutsMenu';
 import RoleSwitcher from './header/RoleSwitcher';
 import ImpersonationBanner from './header/ImpersonationBanner';
+import AcademicYearFilter from './header/AcademicYearFilter';
 import { useHeaderShortcuts } from './header/useHeaderShortcuts';
 import './Header.css';
 
@@ -40,7 +40,6 @@ const Header = () => {
     const schoolFeatures = useSelector(selectSchoolFeatures);
     const theme = useSelector(selectTheme);
     const language = useSelector(selectLanguage);
-    const academicYear = useSelector(selectCurrentAcademicYear);
     const muiTheme = useTheme();
     const isDesktop = useMediaQuery(muiTheme.breakpoints.up('md'));
     const isRtl = i18n.dir(language) === 'rtl';
@@ -167,9 +166,7 @@ const Header = () => {
                     </>
                 )}
 
-                <div className="academic-year">
-                    <span className="badge badge-primary">{academicYear}</span>
-                </div>
+                <AcademicYearFilter />
 
                 <RoleSwitcher isRtl={isRtl} />
 

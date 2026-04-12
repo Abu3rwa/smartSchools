@@ -34,6 +34,13 @@ const inferAcademicYear = () => {
 
 const getInitialAcademicYear = () => localStorage.getItem('currentAcademicYear') || inferAcademicYear();
 
+const getInitialSemester = () => {
+    const stored = localStorage.getItem('selectedSemester');
+    if (stored === '1' || stored === '2') return Number(stored);
+    if (stored === 'null') return null;
+    return new Date().getMonth() >= 7 ? 1 : 2;
+};
+
 export const fetchSchoolAcademicYear = createAsyncThunk(
     'ui/fetchSchoolAcademicYear',
     async (_, { rejectWithValue }) => {
@@ -70,6 +77,18 @@ export const updateSchoolAcademicYear = createAsyncThunk(
     }
 );
 
+export const fetchAvailableYears = createAsyncThunk(
+    'ui/fetchAvailableYears',
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await api.get('/schools/me/academic-years');
+            return response.data?.data || { academicYears: [], currentAcademicYear: null };
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to load available years');
+        }
+    }
+);
+
 const uiSlice = createSlice({
     name: 'ui',
     initialState: {
@@ -83,7 +102,10 @@ const uiSlice = createSlice({
         selectedClass: null,
         selectedSubject: null,
         selectedMonth: new Date().getMonth() + 1,
-        selectedSemester: new Date().getMonth() >= 7 ? 1 : 2,
+        selectedSemester: getInitialSemester(),
+        availableYears: [],
+        availableYearsLoading: false,
+        schoolCurrentYear: null,
         modalOpen: null,
         loading: {}
     },
@@ -119,6 +141,7 @@ const uiSlice = createSlice({
         },
         setSelectedSemester: (state, action) => {
             state.selectedSemester = action.payload;
+            localStorage.setItem('selectedSemester', String(action.payload));
         },
         openModal: (state, action) => {
             state.modalOpen = action.payload;
@@ -166,6 +189,19 @@ const uiSlice = createSlice({
                 if (action.payload) {
                     state.appName = action.payload;
                 }
+            })
+            .addCase(fetchAvailableYears.pending, (state) => {
+                state.availableYearsLoading = true;
+            })
+            .addCase(fetchAvailableYears.fulfilled, (state, action) => {
+                state.availableYearsLoading = false;
+                state.availableYears = action.payload.academicYears || [];
+                if (action.payload.currentAcademicYear) {
+                    state.schoolCurrentYear = action.payload.currentAcademicYear;
+                }
+            })
+            .addCase(fetchAvailableYears.rejected, (state) => {
+                state.availableYearsLoading = false;
             });
     }
 });
@@ -198,6 +234,9 @@ export const selectSelectedClass = (state) => state.ui.selectedClass;
 export const selectSelectedSubject = (state) => state.ui.selectedSubject;
 export const selectSelectedMonth = (state) => state.ui.selectedMonth;
 export const selectSelectedSemester = (state) => state.ui.selectedSemester;
+export const selectAvailableYears = (state) => state.ui.availableYears;
+export const selectAvailableYearsLoading = (state) => state.ui.availableYearsLoading;
+export const selectSchoolCurrentYear = (state) => state.ui.schoolCurrentYear;
 export const selectModalOpen = (state) => state.ui.modalOpen;
 
 export default uiSlice.reducer;

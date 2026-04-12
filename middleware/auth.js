@@ -51,11 +51,26 @@ export const protect = async (req, res, next) => {
             const headerAcademicYear = typeof req.headers['x-academic-year'] === 'string'
                 ? req.headers['x-academic-year'].trim()
                 : '';
-            const isHeaderMatchingSchoolYear = isValidAcademicYear(headerAcademicYear)
-                && headerAcademicYear === schoolAcademicYear;
-            req.academicYear = isHeaderMatchingSchoolYear
-                ? headerAcademicYear
-                : schoolAcademicYear;
+
+            // Resolve which academic year this request runs against
+            const headerIsValid = isValidAcademicYear(headerAcademicYear);
+            const isCurrentYear = headerAcademicYear === schoolAcademicYear;
+            const allowHistorical = user.school?.settings?.academicYearAccess?.allowHistoricalAccess === true;
+            const isAdmin = user.role === 'admin' || user.role === 'super_admin';
+
+            if (headerIsValid && (isCurrentYear || isAdmin || allowHistorical)) {
+                req.academicYear = headerAcademicYear;
+            } else {
+                req.academicYear = schoolAcademicYear;
+            }
+
+            // Flag: is this the current (writable) academic year?
+            req.isCurrentAcademicYear = (req.academicYear === schoolAcademicYear);
+
+            // Parse semester header
+            const headerSemester = parseInt(req.headers['x-academic-semester'], 10);
+            req.academicSemester = (headerSemester === 1 || headerSemester === 2) ? headerSemester : null;
+
             if (req.school?.settings) {
                 req.school.settings.currentAcademicYear = req.academicYear;
             }

@@ -7,17 +7,29 @@ import { resolveSchoolAcademicYear } from '../utils/academicYear.js';
 /**
  * @desc    List academic years that have at least one class or student
  * @route   GET /api/schools/me/academic-years
- * @access  Private (Admin)
+ * @access  Private (all authenticated users — filtered by school policy)
  */
 export const getAcademicYears = asyncHandler(async (req, res) => {
-    const [classYears, studentYears, school] = await Promise.all([
+    const school = await School.findById(req.schoolId)
+        .select('settings.currentAcademicYear settings.academicYearStartMonth settings.academicYearAccess');
+    const currentAcademicYear = resolveSchoolAcademicYear(school);
+    const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
+    const allowHistorical = school?.settings?.academicYearAccess?.allowHistoricalAccess === true;
+
+    // Non-admins only see the current year when historical access is off
+    if (!isAdmin && !allowHistorical) {
+        return res.json({
+            success: true,
+            data: { academicYears: [currentAcademicYear], currentAcademicYear }
+        });
+    }
+
+    const [classYears, studentYears] = await Promise.all([
         Class.distinct('academicYear', { school: req.schoolId }),
         Student.distinct('academicYear', { school: req.schoolId }),
-        School.findById(req.schoolId).select('settings.currentAcademicYear settings.academicYearStartMonth')
     ]);
-    const currentAcademicYear = resolveSchoolAcademicYear(school);
     const combined = [...new Set([...classYears, ...studentYears, currentAcademicYear])].filter(Boolean).sort();
-    res.json({ success: true, data: { academicYears: combined } });
+    res.json({ success: true, data: { academicYears: combined, currentAcademicYear } });
 });
 
 /**

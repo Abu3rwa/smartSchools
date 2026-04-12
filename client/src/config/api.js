@@ -76,6 +76,10 @@ api.interceptors.request.use(
         } else if (isAuthRequest && config.headers['x-academic-year']) {
             delete config.headers['x-academic-year'];
         }
+        const selectedSemester = localStorage.getItem('selectedSemester');
+        if (selectedSemester && selectedSemester !== 'null' && !isAuthRequest) {
+            config.headers['x-academic-semester'] = selectedSemester;
+        }
         return config;
     },
     (error) => {

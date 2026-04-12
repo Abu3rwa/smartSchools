@@ -78,6 +78,12 @@ const schoolSchema = new mongoose.Schema({
             max: 12,
             default: 8
         },
+        academicYearAccess: {
+            allowHistoricalAccess: {
+                type: Boolean,
+                default: false
+            }
+        },
         academicYearStartDate: {
             type: Date
         },

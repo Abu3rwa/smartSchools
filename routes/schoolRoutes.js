@@ -952,9 +952,9 @@ router.patch('/me/users/:userId', requireSchoolContext, userManagementAccess, as
 /**
  * @desc    List academic years that have classes or students
  * @route   GET /api/schools/me/academic-years
- * @access  Private (Admin)
+ * @access  Private (all authenticated users)
  */
-router.get('/me/academic-years', requireSchoolContext, authorize('admin'), asyncHandler(getAcademicYears));
+router.get('/me/academic-years', requireSchoolContext, asyncHandler(getAcademicYears));
 
 /**
  * @desc    Create classes for new year from previous year structure

@@ -98,3 +98,30 @@ export const isDateInAcademicYear = (dateValue, academicYearDateFilter) => {
 
     return date >= academicYearDateFilter.$gte && date <= academicYearDateFilter.$lte;
 };
+
+/**
+ * Assert the request targets the current (writable) academic year.
+ * Call at the top of any mutating controller to block writes to past years.
+ * Returns true if write is allowed, false if response was already sent (403).
+ */
+export const assertCurrentYearForWrite = (req, res) => {
+    if (!req.isCurrentAcademicYear) {
+        res.status(403).json({
+            success: false,
+            message: 'This academic year is read-only. Switch to the current year to make changes.'
+        });
+        return false;
+    }
+    return true;
+};
+
+/**
+ * Resolve the semester filter for a request.
+ * Prefers an explicit query/body param; falls back to the global x-academic-semester header.
+ * Returns 1, 2, or null (null = full year / no semester filter).
+ */
+export const getSemesterFilter = (req) => {
+    const querySemester = parseInt(req.query?.semester ?? req.body?.semester, 10);
+    if (querySemester === 1 || querySemester === 2) return querySemester;
+    return req.academicSemester ?? null;
+};
