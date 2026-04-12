@@ -54,6 +54,7 @@ const buildQuestionPool = async ({
                 subjectName,
                 difficulty,
                 questionType,
+                preserveFullText: true,
                 requestedLanguages: generationLanguages,
                 previousQuestions,
                 previousQuestionFingerprints: [],

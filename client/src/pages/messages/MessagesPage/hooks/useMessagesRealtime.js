@@ -33,13 +33,13 @@ const useMessagesRealtime = ({ selectedThreadId }) => {
             const pendingThreadIds = new Set(realtimeSyncThreadIdsRef.current);
             realtimeSyncThreadIdsRef.current.clear();
 
-            dispatch(fetchThreads({ page: 1 }));
+            dispatch(fetchThreads({ page: 1, silent: true }));
 
             const activeThreadId = selectedThreadIdRef.current;
             if (!activeThreadId) return;
             if (pendingThreadIds.size > 0 && !pendingThreadIds.has(activeThreadId)) return;
 
-            dispatch(fetchThreadDetail(activeThreadId));
+            dispatch(fetchThreadDetail({ threadId: activeThreadId, silent: true }));
         }, 350);
     }, [dispatch]);
 
@@ -76,10 +76,10 @@ const useMessagesRealtime = ({ selectedThreadId }) => {
             if (realtimeUrl && realtimeServiceRef.current) {
                 realtimeServiceRef.current.connect(realtimeUrl);
             }
-            dispatch(fetchThreads({ page: 1 }));
+            dispatch(fetchThreads({ page: 1, silent: true }));
             const activeThreadId = selectedThreadIdRef.current;
             if (activeThreadId) {
-                dispatch(fetchThreadDetail(activeThreadId));
+                dispatch(fetchThreadDetail({ threadId: activeThreadId, silent: true }));
             }
         };
 
@@ -88,6 +88,10 @@ const useMessagesRealtime = ({ selectedThreadId }) => {
     }, [dispatch]);
 
     useEffect(() => {
+        if (realtimeConnected) {
+            return undefined;
+        }
+
         let cancelled = false;
 
         const tick = async () => {
@@ -96,7 +100,7 @@ const useMessagesRealtime = ({ selectedThreadId }) => {
             if (!backgroundListSyncRef.current) {
                 backgroundListSyncRef.current = true;
                 try {
-                    await dispatch(fetchThreads({ page: 1 })).unwrap();
+                    await dispatch(fetchThreads({ page: 1, silent: true })).unwrap();
                 } catch {
                     // silent
                 } finally {
@@ -109,7 +113,7 @@ const useMessagesRealtime = ({ selectedThreadId }) => {
 
             backgroundDetailSyncRef.current = true;
             try {
-                await dispatch(fetchThreadDetail(activeThreadId)).unwrap();
+                await dispatch(fetchThreadDetail({ threadId: activeThreadId, silent: true })).unwrap();
             } catch {
                 // silent
             } finally {
@@ -117,7 +121,7 @@ const useMessagesRealtime = ({ selectedThreadId }) => {
             }
         };
 
-        const intervalMs = 4000;
+        const intervalMs = 15000;
         const intervalId = window.setInterval(() => {
             void tick();
         }, intervalMs);

@@ -22,7 +22,8 @@ export const fetchThreads = createAsyncThunk(
 
 export const fetchThreadDetail = createAsyncThunk(
     'messages/fetchThreadDetail',
-    async (threadId, { rejectWithValue }) => {
+    async (arg, { rejectWithValue }) => {
+        const threadId = typeof arg === 'object' ? arg?.threadId : arg;
         try {
             return await apiFetchThreadById(threadId);
         } catch (error) {
@@ -104,32 +105,50 @@ const messagesSlice = createSlice({
     extraReducers: (builder) => {
         // fetchThreads
         builder
-            .addCase(fetchThreads.pending, (state) => {
-                state.loading = true;
-                state.error = null;
+            .addCase(fetchThreads.pending, (state, action) => {
+                const isSilent = Boolean(action.meta?.arg?.silent);
+                if (!isSilent) {
+                    state.loading = true;
+                    state.error = null;
+                }
             })
             .addCase(fetchThreads.fulfilled, (state, action) => {
-                state.loading = false;
+                const isSilent = Boolean(action.meta?.arg?.silent);
+                if (!isSilent) {
+                    state.loading = false;
+                }
                 state.threads = action.payload.items || [];
                 state.pagination = action.payload.pagination || initialState.pagination;
                 state.unreadCount = action.payload.unreadCount ?? state.unreadCount;
             })
             .addCase(fetchThreads.rejected, (state, action) => {
-                state.loading = false;
-                state.error = action.payload;
+                const isSilent = Boolean(action.meta?.arg?.silent);
+                if (!isSilent) {
+                    state.loading = false;
+                    state.error = action.payload;
+                }
             });
 
         // fetchThreadDetail
         builder
-            .addCase(fetchThreadDetail.pending, (state) => {
-                state.detailLoading = true;
+            .addCase(fetchThreadDetail.pending, (state, action) => {
+                const isSilent = Boolean(action.meta?.arg?.silent);
+                if (!isSilent) {
+                    state.detailLoading = true;
+                }
             })
             .addCase(fetchThreadDetail.fulfilled, (state, action) => {
-                state.detailLoading = false;
+                const isSilent = Boolean(action.meta?.arg?.silent);
+                if (!isSilent) {
+                    state.detailLoading = false;
+                }
                 state.threadDetail = action.payload;
             })
-            .addCase(fetchThreadDetail.rejected, (state) => {
-                state.detailLoading = false;
+            .addCase(fetchThreadDetail.rejected, (state, action) => {
+                const isSilent = Boolean(action.meta?.arg?.silent);
+                if (!isSilent) {
+                    state.detailLoading = false;
+                }
             });
 
         // markThreadRead

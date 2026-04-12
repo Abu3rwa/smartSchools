@@ -20,6 +20,7 @@ export default {
     standardCode = "",
     attemptSeed = "",
     trueFalseTargetAnswer = null,
+    preserveFullText = false,
   }) {
     const parsedResult = practiceQuestionSchema.safeParse(raw);
     if (!parsedResult.success) {
@@ -42,27 +43,46 @@ export default {
     }
 
     const limits = this._getTextLimitsByGrade(gradeLevel);
+    const maxInstructionLength = preserveFullText
+      ? Number.POSITIVE_INFINITY
+      : limits.questionMax;
+    const maxQuestionTextLength = preserveFullText
+      ? Number.POSITIVE_INFINITY
+      : limits.questionTextMax;
+    const maxExplanationLength = preserveFullText
+      ? Number.POSITIVE_INFINITY
+      : limits.explanationMax;
+    const optionMaxLength = preserveFullText
+      ? Number.POSITIVE_INFINITY
+      : limits.optionMax;
+    const shortAnswerCorrectMaxLength = preserveFullText
+      ? Number.POSITIVE_INFINITY
+      : Math.max(80, Math.floor(limits.explanationMax * 0.8));
+    const initialCorrectAnswerMaxLength =
+      resolvedType === "short_answer" ? shortAnswerCorrectMaxLength : 20;
 
     const instruction = this._sanitizeText(parsed.instruction || "", {
-      maxLength: limits.questionMax,
+      maxLength: maxInstructionLength,
       sentenceCase: true,
     });
 
     let questionText = this._sanitizeText(parsed.questionText, {
-      maxLength: limits.questionTextMax,
+      maxLength: maxQuestionTextLength,
       sentenceCase: true,
       preserveLineBreaks: true,
     });
-    questionText = this._ensureStudentNameInStem(questionText, studentFirstName);
+    questionText = this._ensureStudentNameInStem(questionText, studentFirstName, {
+      preserveFullText,
+    });
 
     const explanation = this._sanitizeText(parsed.explanation || "", {
-      maxLength: limits.explanationMax,
+      maxLength: maxExplanationLength,
       sentenceCase: true,
     });
 
     let normalizedOptions = [];
     let normalizedCorrectAnswer = this._sanitizeText(parsed.correctAnswer, {
-      maxLength: 20,
+      maxLength: initialCorrectAnswerMaxLength,
       sentenceCase: false,
     });
 
@@ -70,7 +90,7 @@ export default {
       const normalized = this._normalizeMultipleChoicePayload({
         options: parsed.options,
         correctAnswer: normalizedCorrectAnswer,
-        optionMaxLength: limits.optionMax,
+        optionMaxLength,
         seed: `${attemptSeed}|${standardCode}|${questionText}`,
       });
       normalizedOptions = normalized.options;
@@ -96,7 +116,7 @@ export default {
     } else {
       normalizedOptions = [];
       normalizedCorrectAnswer = this._sanitizeText(normalizedCorrectAnswer, {
-        maxLength: Math.max(80, Math.floor(limits.explanationMax * 0.8)),
+        maxLength: shortAnswerCorrectMaxLength,
         sentenceCase: true,
       });
     }
@@ -586,6 +606,7 @@ export default {
     studentFirstName = "",
     questionMemory = { fingerprintSet: new Set() },
     contextHints = {},
+    preserveFullText = false,
   }) {
     const standardName = this._normalizeSentence(standard?.name || "this standard");
     const standardCode = this._normalizeSentence(standard?.code || "");
@@ -707,9 +728,9 @@ export default {
     const selected = nonDuplicate || candidateQuestions[0];
 
     if (selected.questionType === "multiple_choice") {
-      const optionMaxLength = this._getTextLimitsByGrade(
-        standard?.gradeLevel ?? null,
-      ).optionMax;
+      const optionMaxLength = preserveFullText
+        ? Number.POSITIVE_INFINITY
+        : this._getTextLimitsByGrade(standard?.gradeLevel ?? null).optionMax;
       try {
         const normalized = this._normalizeMultipleChoicePayload({
           options: selected.options,
@@ -735,7 +756,10 @@ export default {
         selected.explanation = this._sanitizeText(
           selected.explanation ||
             "Select the option that best matches the standard focus.",
-          { maxLength: 320, sentenceCase: true },
+          {
+            maxLength: preserveFullText ? Number.POSITIVE_INFINITY : 320,
+            sentenceCase: true,
+          },
         );
       }
     }
@@ -743,9 +767,13 @@ export default {
     return selected;
   },
 
-  _ensureStudentNameInStem(questionText, studentFirstName) {
+  _ensureStudentNameInStem(
+    questionText,
+    studentFirstName,
+    { preserveFullText = false } = {},
+  ) {
     const baseText = this._sanitizeText(questionText || "", {
-      maxLength: 420,
+      maxLength: preserveFullText ? Number.POSITIVE_INFINITY : 420,
       sentenceCase: true,
       preserveLineBreaks: true,
     });

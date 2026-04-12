@@ -34,6 +34,7 @@ import reportCardReducer from './slices/reportCardSlice';
 import spreadsheetReducer from './slices/spreadsheetSlice';
 import analyticsReducer from './slices/analyticsSlice';
 import worksheetReducer from './slices/worksheetSlice';
+import standardAssessmentReducer from './slices/standardAssessmentSlice';
 import uiReducer, {
     fetchSchoolAcademicYear,
     updateSchoolAcademicYear
@@ -105,7 +106,8 @@ const appReducer = combineReducers({
     reportCards: reportCardReducer,
     spreadsheet: spreadsheetReducer,
     analytics: analyticsReducer,
-    worksheets: worksheetReducer
+    worksheets: worksheetReducer,
+    standardAssessment: standardAssessmentReducer
 });
 
 const hasAcademicYearChanged = (state, action) => {

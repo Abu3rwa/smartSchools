@@ -39,6 +39,7 @@ class StandardsPracticeAIService {
       studentFirstName = "",
       contextHints = {},
       attemptNumber = 1,
+      preserveFullText = false,
     } = options;
     const normalizedTrueFalseTarget =
       this._normalizeTrueFalseToken(trueFalseTargetAnswer);
@@ -56,6 +57,7 @@ class StandardsPracticeAIService {
         studentFirstName,
         contextHints,
         attemptNumber,
+        preserveFullText,
       });
     }
 
@@ -105,6 +107,7 @@ class StandardsPracticeAIService {
           standardCode: standard?.code || "",
           attemptSeed: `${standard?.code || ""}|${attemptNumber}|${aiAttempt}`,
           trueFalseTargetAnswer: normalizedTrueFalseTarget,
+          preserveFullText,
         });
 
         return {
@@ -134,6 +137,7 @@ class StandardsPracticeAIService {
       questionMemory,
       contextHints,
       trueFalseTargetAnswer: normalizedTrueFalseTarget,
+      preserveFullText,
     });
 
     return {
@@ -473,6 +477,7 @@ class StandardsPracticeAIService {
     studentFirstName = "",
     contextHints = {},
     attemptNumber = 1,
+    preserveFullText = false,
   }) {
     const questionMemory = this._buildQuestionMemory({
       previousQuestions,
@@ -522,13 +527,16 @@ class StandardsPracticeAIService {
 
         const parsed = parsedResult.data;
         const limits = this._getTextLimitsByGrade(standard?.gradeLevel ?? null);
+        const maxQuestionLength = preserveFullText
+          ? Number.POSITIVE_INFINITY
+          : limits.questionMax;
         const trueStatement = this._sanitizeTrueFalseStatement(
           parsed.trueStatement,
-          limits.questionMax,
+          maxQuestionLength,
         );
         const falseStatement = this._sanitizeTrueFalseStatement(
           parsed.falseStatement,
-          limits.questionMax,
+          maxQuestionLength,
         );
         if (!trueStatement || !falseStatement) {
           throw new Error("true_false statements cannot be empty");
@@ -557,11 +565,13 @@ class StandardsPracticeAIService {
         }
         let questionText = `True or false: ${selectedStatement}`;
         questionText = this._sanitizeText(questionText, {
-          maxLength: limits.questionMax,
+          maxLength: maxQuestionLength,
           sentenceCase: true,
           preserveLineBreaks: true,
         });
-        questionText = this._ensureStudentNameInStem(questionText, studentFirstName);
+        questionText = this._ensureStudentNameInStem(questionText, studentFirstName, {
+          preserveFullText,
+        });
 
         if (this._isDuplicateQuestion(questionText, questionMemory)) {
           throw new Error(
@@ -579,7 +589,8 @@ class StandardsPracticeAIService {
               ? "This statement is true based on the target standard."
               : "This statement is false because one key detail is incorrect."),
           {
-            maxLength: limits.explanationMax,
+            // Keep full explanation text for question-pool editing and review.
+            maxLength: Number.POSITIVE_INFINITY,
             sentenceCase: true,
           },
         );
@@ -621,6 +632,7 @@ class StandardsPracticeAIService {
       studentFirstName,
       questionMemory,
       contextHints,
+      preserveFullText,
     });
 
     return {

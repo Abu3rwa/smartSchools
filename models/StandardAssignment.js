@@ -178,6 +178,27 @@ const standardAssignmentSchema = new mongoose.Schema({
             default: null
         }
     },
+    // ── Pool Source Tracking (Feature 1) ──
+    poolSource: {
+        isFromPool: { type: Boolean, default: false },
+        sourcePoolQuestionIds: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'StandardQuestionPool',
+        }],
+        generationBatchId: { type: String, trim: true, default: null },
+    },
+    // Canonical fingerprint of sorted standard IDs for fast compatibility matching
+    standardsFingerprint: {
+        type: String,
+        trim: true,
+        default: null,
+    },
+    // ── Live Edit Versioning (Feature 4) ──
+    currentVersion: {
+        type: Number,
+        default: 1,
+        min: 1,
+    },
     isActive: {
         type: Boolean,
         default: true

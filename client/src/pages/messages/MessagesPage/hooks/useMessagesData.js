@@ -42,7 +42,7 @@ const useMessagesData = ({ pageLimit }) => {
         if (append) setLoadingMore(true);
 
         try {
-            const result = await dispatch(fetchThreads({ page, limit: pageLimit, unreadOnly })).unwrap();
+            const result = await dispatch(fetchThreads({ page, limit: pageLimit, unreadOnly, silent })).unwrap();
             setLastUpdatedAt(new Date());
             return result;
         } catch (error) {
