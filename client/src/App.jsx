@@ -141,6 +141,14 @@ const PresenterViewPage = lazy(() => import("./pages/presentations/PresenterView
 const WorksheetListPage = lazy(() => import("./pages/worksheets/WorksheetListPage/WorksheetListPage"));
 const WorksheetCreatePage = lazy(() => import("./pages/worksheets/WorksheetCreatePage/WorksheetCreatePage"));
 const WorksheetDetailPage = lazy(() => import("./pages/worksheets/WorksheetDetailPage/WorksheetDetailPage"));
+const FinanceDashboardPage = lazy(() => import("./pages/finance/FinanceDashboardPage"));
+const FeeStructuresPage = lazy(() => import("./pages/finance/FeeStructuresPage"));
+const DiscountsPage = lazy(() => import("./pages/finance/DiscountsPage"));
+const InvoiceListPage = lazy(() => import("./pages/finance/InvoiceListPage"));
+const InvoiceDetailPage = lazy(() => import("./pages/finance/InvoiceDetailPage"));
+const InvoiceGeneratorPage = lazy(() => import("./pages/finance/InvoiceGeneratorPage"));
+const PaymentsPage = lazy(() => import("./pages/finance/PaymentsPage"));
+const FinanceReportsPage = lazy(() => import("./pages/finance/FinanceReportsPage"));
 
 const RouteLoadingFallback = () => (
   <div className="loading-overlay" role="status" aria-live="polite">
@@ -1235,6 +1243,71 @@ function App() {
                   <FeatureGate feature="readingAssistant" showUpgradePrompt>
                     <ReadingUploadPage />
                   </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            {/* Finance & Fee Management */}
+            <Route
+              path="finance"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_fee_structures", "view_invoices", "view_finance_reports"]}>
+                  <FinanceDashboardPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/fee-structures"
+              element={
+                <RoleRoute roles={["admin"]} permissions={["manage_fee_structures", "view_fee_structures"]}>
+                  <FeeStructuresPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/discounts"
+              element={
+                <RoleRoute roles={["admin"]} permissions={["manage_discounts"]}>
+                  <DiscountsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/invoices"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_invoices", "create_invoices"]}>
+                  <InvoiceListPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/invoices/generate"
+              element={
+                <RoleRoute roles={["admin"]} permissions={["create_invoices"]}>
+                  <InvoiceGeneratorPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/invoices/:id"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_invoices"]}>
+                  <InvoiceDetailPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/payments"
+              element={
+                <RoleRoute roles={["admin"]} permissions={["record_payments"]}>
+                  <PaymentsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="finance/reports"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_finance_reports"]}>
+                  <FinanceReportsPage />
                 </RoleRoute>
               }
             />

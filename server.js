@@ -90,6 +90,7 @@ import studentGroupingRoutes from "./routes/studentGroupingRoutes.js";
 import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import presentationRoutes from "./routes/presentationRoutes.js";
 import worksheetRoutes from "./routes/worksheetRoutes.js";
+import financeRoutes from "./routes/financeRoutes.js";
 import standardAssessmentFeatureRoutes from "./routes/standardAssessmentRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
@@ -375,6 +376,7 @@ app.use("/api/student-grouping", studentGroupingRoutes);
 app.use("/api/sbr", sbrRoutes);
 app.use("/api/presentations", presentationRoutes);
 app.use("/api/worksheets", worksheetRoutes);
+app.use("/api/finance", financeRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);

@@ -59,7 +59,7 @@ const AssessmentProgressPage = ({ embedded }) => {
       (c) => String(c._id) === String(filters.classId)
     );
     if (selectedClass?.subjects?.length) {
-      const ids = new Set(selectedClass.subjects.map((s) => String(s._id || s)));
+      const ids = new Set(selectedClass.subjects.map((s) => String(s.subject?._id || s.subject || s._id || s)));
       return list.filter((s) => ids.has(String(s._id)));
     }
     return list;

@@ -144,6 +144,20 @@ export const PERMISSIONS = {
     MANAGE_ASSESSMENT_COMMS_SETTINGS: 'manage_assessment_comms_settings',
     VIEW_ASSESSMENT_AUDIT_LOGS: 'view_assessment_audit_logs',
     EXPORT_ASSESSMENT_AUDIT_LOGS: 'export_assessment_audit_logs',
+
+    // Finance
+    MANAGE_FEE_STRUCTURES: 'manage_fee_structures',
+    VIEW_FEE_STRUCTURES: 'view_fee_structures',
+    CREATE_INVOICES: 'create_invoices',
+    VIEW_INVOICES: 'view_invoices',
+    CANCEL_INVOICES: 'cancel_invoices',
+    RECORD_PAYMENTS: 'record_payments',
+    VOID_PAYMENTS: 'void_payments',
+    MANAGE_PAYMENT_PLANS: 'manage_payment_plans',
+    MANAGE_DISCOUNTS: 'manage_discounts',
+    VIEW_FINANCE_REPORTS: 'view_finance_reports',
+    EXPORT_FINANCE_DATA: 'export_finance_data',
+    VIEW_STUDENT_FINANCE: 'view_student_finance',
 };
 
 export const PERMISSION_DEFINITIONS = {

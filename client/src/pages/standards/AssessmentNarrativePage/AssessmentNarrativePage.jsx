@@ -85,7 +85,7 @@ const AssessmentNarrativePage = ({ embedded }) => {
       (c) => String(c._id) === String(genForm.classId)
     );
     if (selectedClass?.subjects?.length) {
-      const classSubjectIds = new Set(selectedClass.subjects.map((s) => String(s._id || s)));
+      const classSubjectIds = new Set(selectedClass.subjects.map((s) => String(s.subject?._id || s.subject || s._id || s)));
       return list.filter((s) => classSubjectIds.has(String(s._id)));
     }
     return list;

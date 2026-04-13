@@ -150,7 +150,21 @@ export const PERMISSIONS = {
     MANAGE_ASSESSMENT_EDIT_SETTINGS: 'manage_assessment_edit_settings',
     MANAGE_ASSESSMENT_COMMS_SETTINGS: 'manage_assessment_comms_settings',
     VIEW_ASSESSMENT_AUDIT_LOGS: 'view_assessment_audit_logs',
-    EXPORT_ASSESSMENT_AUDIT_LOGS: 'export_assessment_audit_logs'
+    EXPORT_ASSESSMENT_AUDIT_LOGS: 'export_assessment_audit_logs',
+
+    // Finance & Fee Management
+    MANAGE_FEE_STRUCTURES: 'manage_fee_structures',
+    VIEW_FEE_STRUCTURES: 'view_fee_structures',
+    CREATE_INVOICES: 'create_invoices',
+    VIEW_INVOICES: 'view_invoices',
+    CANCEL_INVOICES: 'cancel_invoices',
+    RECORD_PAYMENTS: 'record_payments',
+    VOID_PAYMENTS: 'void_payments',
+    MANAGE_PAYMENT_PLANS: 'manage_payment_plans',
+    MANAGE_DISCOUNTS: 'manage_discounts',
+    VIEW_FINANCE_REPORTS: 'view_finance_reports',
+    EXPORT_FINANCE_DATA: 'export_finance_data',
+    VIEW_STUDENT_FINANCE: 'view_student_finance'
 };
 
 // Permission definitions with metadata
@@ -686,6 +700,68 @@ export const PERMISSION_DEFINITIONS = {
         label: 'Export Assessment Audit Logs',
         description: 'Export assessment audit logs as CSV/PDF for compliance reporting',
         category: 'standards_assessment'
+    },
+
+    // Finance & Fee Management
+    [PERMISSIONS.MANAGE_FEE_STRUCTURES]: {
+        label: 'Manage Fee Structures',
+        description: 'Create, edit, and delete fee structures and categories',
+        category: 'finance'
+    },
+    [PERMISSIONS.VIEW_FEE_STRUCTURES]: {
+        label: 'View Fee Structures',
+        description: 'View fee structure definitions',
+        category: 'finance'
+    },
+    [PERMISSIONS.CREATE_INVOICES]: {
+        label: 'Create Invoices',
+        description: 'Generate and issue invoices (single or bulk)',
+        category: 'finance'
+    },
+    [PERMISSIONS.VIEW_INVOICES]: {
+        label: 'View Invoices',
+        description: 'View invoices across students',
+        category: 'finance'
+    },
+    [PERMISSIONS.CANCEL_INVOICES]: {
+        label: 'Cancel Invoices',
+        description: 'Cancel issued invoices',
+        category: 'finance'
+    },
+    [PERMISSIONS.RECORD_PAYMENTS]: {
+        label: 'Record Payments',
+        description: 'Record incoming payments against invoices',
+        category: 'finance'
+    },
+    [PERMISSIONS.VOID_PAYMENTS]: {
+        label: 'Void Payments',
+        description: 'Reverse or void a recorded payment',
+        category: 'finance'
+    },
+    [PERMISSIONS.MANAGE_PAYMENT_PLANS]: {
+        label: 'Manage Payment Plans',
+        description: 'Create and modify installment plans',
+        category: 'finance'
+    },
+    [PERMISSIONS.MANAGE_DISCOUNTS]: {
+        label: 'Manage Discounts',
+        description: 'Create and assign discount and scholarship rules',
+        category: 'finance'
+    },
+    [PERMISSIONS.VIEW_FINANCE_REPORTS]: {
+        label: 'View Finance Reports',
+        description: 'Access revenue, outstanding, and collection reports',
+        category: 'finance'
+    },
+    [PERMISSIONS.EXPORT_FINANCE_DATA]: {
+        label: 'Export Finance Data',
+        description: 'Export financial data to CSV/PDF',
+        category: 'finance'
+    },
+    [PERMISSIONS.VIEW_STUDENT_FINANCE]: {
+        label: 'View Student Finance',
+        description: 'View a specific student balance and statement',
+        category: 'finance'
     }
 };
 
@@ -779,7 +855,8 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.APPROVE_ASSESSMENT_NARRATIVE,
         PERMISSIONS.SEND_ASSESSMENT_NARRATIVE,
         PERMISSIONS.EDIT_LIVE_ASSESSMENT,
-        PERMISSIONS.PUBLISH_ASSESSMENT_REVISION
+        PERMISSIONS.PUBLISH_ASSESSMENT_REVISION,
+        PERMISSIONS.VIEW_STUDENT_FINANCE
     ],
     department_principal: [
         PERMISSIONS.MANAGE_SUBSTITUTIONS,
@@ -838,7 +915,11 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.MANAGE_ASSESSMENT_NARRATIVE_SETTINGS,
         PERMISSIONS.MANAGE_ASSESSMENT_EDIT_SETTINGS,
         PERMISSIONS.MANAGE_ASSESSMENT_COMMS_SETTINGS,
-        PERMISSIONS.VIEW_ASSESSMENT_AUDIT_LOGS
+        PERMISSIONS.VIEW_ASSESSMENT_AUDIT_LOGS,
+        PERMISSIONS.VIEW_FEE_STRUCTURES,
+        PERMISSIONS.VIEW_INVOICES,
+        PERMISSIONS.VIEW_FINANCE_REPORTS,
+        PERMISSIONS.VIEW_STUDENT_FINANCE
     ],
     staff: [],
     parent: [
@@ -859,7 +940,8 @@ export const PERMISSION_CATEGORIES = {
     admin: 'Administration',
     standards_assessment: 'Standards Assessment',
     communication: 'Communication',
-    content: 'Content'
+    content: 'Content',
+    finance: 'Finance'
 };
 
 /**
