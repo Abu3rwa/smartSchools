@@ -7,7 +7,7 @@ import {
   clearProgressTable,
 } from '../../../store/slices/standardAssessmentSlice';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
-import { fetchStudentsByClass, selectStudents } from '../../../store/slices/studentSlice';
+import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices/studentSlice';
 import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
 import './AssessmentProgressPage.css';
 
@@ -17,7 +17,7 @@ const AssessmentProgressPage = ({ embedded }) => {
   const sendResult = useSelector((state) => state.standardAssessment.sendResult);
 
   const classes = useSelector(selectClasses);
-  const students = useSelector(selectStudents);
+  const classStudents = useSelector(selectClassStudents);
   const subjects = useSelector(selectSubjects);
 
   const [filters, setFilters] = useState({
@@ -45,13 +45,11 @@ const AssessmentProgressPage = ({ embedded }) => {
     }
   }, [dispatch, filters.classId]);
 
-  // Filtered students by selected class
-  const classStudents = useMemo(() => {
+  // Students for selected class (from store)
+  const filteredClassStudents = useMemo(() => {
     if (!filters.classId) return [];
-    return (Array.isArray(students) ? students : []).filter(
-      (s) => String(s.class?._id || s.class || s.classId) === String(filters.classId)
-    );
-  }, [students, filters.classId]);
+    return Array.isArray(classStudents) ? classStudents : [];
+  }, [classStudents, filters.classId]);
 
   // Filtered subjects — scope to class when possible
   const filteredSubjects = useMemo(() => {
@@ -206,7 +204,7 @@ const AssessmentProgressPage = ({ embedded }) => {
             disabled={!filters.classId}
           >
             <option value="">{filters.classId ? '— Select Student —' : '— Select a class first —'}</option>
-            {classStudents.map((s) => (
+            {filteredClassStudents.map((s) => (
               <option key={s._id} value={s._id}>
                 {s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || s._id}
               </option>

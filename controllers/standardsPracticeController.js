@@ -4187,6 +4187,150 @@ export const updateManualScore = asyncHandler(async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────────────────
+ *  Teacher Override — Per-Attempt isCorrect
+ * ───────────────────────────────────────────────────────────── */
+
+/**
+ * @desc    Override AI grading on a specific practice attempt
+ * @route   PUT /api/practice/attempts/:attemptId/override
+ * @access  Private (Admin, Teacher, Department Principal)
+ */
+export const overrideAttemptGrading = asyncHandler(async (req, res) => {
+  const { attemptId } = req.params;
+  const { isCorrect, reason } = req.body || {};
+
+  if (typeof isCorrect !== "boolean") {
+    return res.status(400).json({ success: false, message: "isCorrect (boolean) is required." });
+  }
+
+  const attempt = await PracticeAttempt.findOne({
+    _id: attemptId,
+    school: req.schoolId,
+  });
+  if (!attempt) {
+    return res.status(404).json({ success: false, message: "Attempt not found." });
+  }
+
+  // Authorization: teachers can only override their own class/subject attempts
+  if (req.user?.role === "teacher") {
+    const assignment = await StandardAssignment.findById(attempt.assignment)
+      .select("class subject")
+      .lean();
+    if (assignment) {
+      const authorized = await ensureTeacherCanAccessClassSubject(
+        req,
+        String(assignment.class),
+        String(assignment.subject),
+      );
+      if (!authorized) {
+        return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
+      }
+    }
+  }
+
+  const previousIsCorrect = attempt.teacherOverride?.isCorrect != null
+    ? attempt.teacherOverride.isCorrect
+    : attempt.isCorrect;
+
+  attempt.teacherOverride = {
+    isCorrect,
+    overriddenBy: req.user._id,
+    overriddenAt: new Date(),
+    reason: reason || "",
+  };
+  await attempt.save();
+
+  // If the override changed the correctness, recalculate mastery for this student+standard
+  if (previousIsCorrect !== isCorrect) {
+    try {
+      const assignment = await StandardAssignment.findById(attempt.assignment)
+        .select("class subject academicYear semester")
+        .lean();
+      if (assignment) {
+        await PracticeAttempt.calculateMastery(
+          attempt.student,
+          attempt.standard,
+          80,
+          5,
+          3,
+          req.schoolId,
+        );
+      }
+    } catch (err) {
+      logger.error("mastery_recalc_after_override_failed", {
+        attemptId: attempt._id,
+        error: err?.message || String(err),
+      });
+    }
+  }
+
+  return res.json({
+    success: true,
+    data: {
+      attemptId: attempt._id,
+      originalIsCorrect: attempt.isCorrect,
+      overrideIsCorrect: isCorrect,
+      overriddenBy: req.user._id,
+      overriddenAt: attempt.teacherOverride.overriddenAt,
+    },
+  });
+});
+
+/**
+ * @desc    Get detailed attempt list for a student in an assessment (teacher view)
+ * @route   GET /api/practice/attempts/student/:studentId/assessment/:assignmentId
+ * @access  Private (Admin, Teacher, Department Principal)
+ */
+export const getStudentAssessmentAttempts = asyncHandler(async (req, res) => {
+  const { studentId, assignmentId } = req.params;
+
+  const student = await Student.findOne({ _id: studentId, school: req.schoolId }).select("firstName lastName studentId").lean();
+  if (!student) {
+    return res.status(404).json({ success: false, message: "Student not found." });
+  }
+
+  const assignment = await StandardAssignment.findOne({ _id: assignmentId, school: req.schoolId })
+    .select("class subject standard title")
+    .lean();
+  if (!assignment) {
+    return res.status(404).json({ success: false, message: "Assignment not found." });
+  }
+
+  if (req.user?.role === "teacher") {
+    const authorized = await ensureTeacherCanAccessClassSubject(
+      req,
+      String(assignment.class),
+      String(assignment.subject),
+    );
+    if (!authorized) {
+      return res.status(403).json({ success: false, message: "Not authorized for this class/subject." });
+    }
+  }
+
+  const attempts = await PracticeAttempt.find({
+    school: req.schoolId,
+    student: studentId,
+    assignment: assignmentId,
+    status: "answered",
+  })
+    .select("questionText questionType options correctAnswer studentAnswer isCorrect feedback feedbackParts difficulty skill attemptNumber timeSpentSeconds answeredAt teacherOverride gradingMode")
+    .sort({ attemptNumber: 1 })
+    .lean();
+
+  return res.json({
+    success: true,
+    data: {
+      student,
+      assignment,
+      attempts: attempts.map((a) => ({
+        ...a,
+        effectiveIsCorrect: a.teacherOverride?.isCorrect != null ? a.teacherOverride.isCorrect : a.isCorrect,
+      })),
+    },
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────
  *  Manual Score Entry — Bulk
  * ───────────────────────────────────────────────────────────── */
 

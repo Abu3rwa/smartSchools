@@ -270,14 +270,14 @@ export default {
       const normalizedText = this._normalizeForComparison(cleanOptionText);
       if (normalizedLabel && normalizedLabel === normalizedText) {
         return this._sanitizeText(cleanOptionText, {
-          maxLength: 220,
+          maxLength: 800,
           sentenceCase: false,
         });
       }
       return `${option.label}. ${cleanOptionText}`;
     }
     return this._sanitizeText(this._stripLegacyMcOptionSuffix(correctAnswer || ""), {
-      maxLength: 220,
+      maxLength: 800,
       sentenceCase: false,
     });
   },

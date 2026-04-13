@@ -120,6 +120,13 @@ const practiceAttemptSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Teacher override — allows teacher to correct AI grading mistakes
+    teacherOverride: {
+      isCorrect: { type: Boolean, default: null },
+      overriddenBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      overriddenAt: { type: Date },
+      reason: { type: String, default: "" },
+    },
     hintsUsed: {
       type: Number,
       default: 0,

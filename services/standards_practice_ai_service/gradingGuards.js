@@ -17,7 +17,11 @@ export default {
     if (this._areNumericallyEquivalent(studentAnswer, correctAnswer)) return true;
 
     if (student.includes(expected) || expected.includes(student)) {
-      return Math.min(student.length, expected.length) >= 8;
+      const shorter = Math.min(student.length, expected.length);
+      const longer = Math.max(student.length, expected.length);
+      // Require the shorter string to be at least 60% of the longer one's length
+      // to prevent tiny fragments from matching long answers
+      return shorter >= 8 && shorter / longer >= 0.6;
     }
 
     const tokenize = (text) =>
