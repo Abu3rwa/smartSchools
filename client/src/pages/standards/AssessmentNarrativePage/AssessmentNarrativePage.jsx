@@ -5,7 +5,7 @@ import {
   fetchNarratives, clearNarrativeGeneration, resetCurrentNarrative,
 } from '../../../store/slices/standardAssessmentSlice';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
-import { fetchStudentsByClass, selectStudents } from '../../../store/slices/studentSlice';
+import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices/studentSlice';
 import { fetchSubjects, selectSubjects } from '../../../store/slices/subjectSlice';
 import { fetchStandards, selectStandards } from '../../../store/slices/standardSlice';
 import './AssessmentNarrativePage.css';
@@ -19,7 +19,7 @@ const AssessmentNarrativePage = ({ embedded }) => {
   } = useSelector((state) => state.standardAssessment);
 
   const classes = useSelector(selectClasses);
-  const students = useSelector(selectStudents);
+  const students = useSelector(selectClassStudents);
   const subjects = useSelector(selectSubjects);
   const standards = useSelector(selectStandards);
 

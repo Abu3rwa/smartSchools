@@ -1,7 +1,7 @@
 import Worksheet from '../../models/Worksheet.js';
 import WorksheetSubmission from '../../models/WorksheetSubmission.js';
 import WorksheetConfig from '../../models/WorksheetConfig.js';
-import { uploadFile } from '../firebaseStorageService.js';
+import { uploadFile, deleteFile } from '../firebaseStorageService.js';
 import worksheetOcrService from './worksheetOcrService.js';
 import { resolveConfig } from './worksheetConfigService.js';
 import logger from '../../utils/logger.js';
@@ -10,8 +10,9 @@ import logger from '../../utils/logger.js';
  * Create a new worksheet and optionally extract answer key.
  */
 export async function createWorksheet(data, teacherUser) {
+    const schoolId = teacherUser.school?._id || teacherUser.school;
     const worksheet = new Worksheet({
-        school: teacherUser.school,
+        school: schoolId,
         teacher: teacherUser._id,
         class: data.classId,
         subject: data.subjectId,
@@ -28,13 +29,13 @@ export async function createWorksheet(data, teacherUser) {
 
     // Upload template image
     if (data.templateImageBuffer) {
-        const destPath = `schools/${teacherUser.school}/worksheets/${worksheet._id}/template.${data.templateImageExt || 'jpg'}`;
+        const destPath = `schools/${schoolId}/worksheets/${worksheet._id}/template.${data.templateImageExt || 'jpg'}`;
         worksheet.templateImage = await uploadFile(data.templateImageBuffer, data.templateImageMime || 'image/jpeg', destPath);
     }
 
     // Upload answer key image
     if (data.answerKeyImageBuffer) {
-        const destPath = `schools/${teacherUser.school}/worksheets/${worksheet._id}/answer-key.${data.answerKeyImageExt || 'jpg'}`;
+        const destPath = `schools/${schoolId}/worksheets/${worksheet._id}/answer-key.${data.answerKeyImageExt || 'jpg'}`;
         worksheet.answerKeyImage = await uploadFile(data.answerKeyImageBuffer, data.answerKeyImageMime || 'image/jpeg', destPath);
     }
 
@@ -83,11 +84,12 @@ export async function addSubmission(worksheetId, studentId, imageBuffer, imageMi
     const worksheet = await Worksheet.findById(worksheetId);
     if (!worksheet) throw new Error('Worksheet not found');
 
-    const destPath = `schools/${teacherUser.school}/worksheets/${worksheetId}/submissions/${studentId}-${Date.now()}.jpg`;
+    const schoolId = teacherUser.school?._id || teacherUser.school;
+    const destPath = `schools/${schoolId}/worksheets/${worksheetId}/submissions/${studentId}-${Date.now()}.jpg`;
     const imageUrl = await uploadFile(imageBuffer, imageMime || 'image/jpeg', destPath);
 
     const submission = new WorksheetSubmission({
-        school: teacherUser.school,
+        school: schoolId,
         worksheet: worksheetId,
         student: studentId,
         originalImage: imageUrl,
@@ -110,13 +112,14 @@ export async function addBatchSubmissions(worksheetId, files, teacherUser) {
     const worksheet = await Worksheet.findById(worksheetId);
     if (!worksheet) throw new Error('Worksheet not found');
 
+    const schoolId = teacherUser.school?._id || teacherUser.school;
     const submissions = [];
     for (const file of files) {
-        const destPath = `schools/${teacherUser.school}/worksheets/${worksheetId}/submissions/batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+        const destPath = `schools/${schoolId}/worksheets/${worksheetId}/submissions/batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
         const imageUrl = await uploadFile(file.buffer, file.mimetype || 'image/jpeg', destPath);
 
         const submission = new WorksheetSubmission({
-            school: teacherUser.school,
+            school: schoolId,
             worksheet: worksheetId,
             student: null, // To be identified by AI or teacher
             originalImage: imageUrl,
@@ -239,6 +242,74 @@ export async function archiveWorksheet(worksheetId) {
     return updateWorksheetStatus(worksheetId, 'archived');
 }
 
+/**
+ * Delete a submission and its associated image from storage.
+ */
+export async function deleteSubmission(worksheetId, submissionId, schoolId) {
+    const submission = await WorksheetSubmission.findOne({ _id: submissionId, worksheet: worksheetId, school: schoolId });
+    if (!submission) throw new Error('Submission not found');
+
+    // Delete images from Firebase Storage
+    if (submission.originalImage) {
+        try { await deleteFile(submission.originalImage); } catch (e) { logger.warn('Failed to delete original image:', e.message); }
+    }
+    if (submission.annotatedImage) {
+        try { await deleteFile(submission.annotatedImage); } catch (e) { logger.warn('Failed to delete annotated image:', e.message); }
+    }
+
+    await WorksheetSubmission.deleteOne({ _id: submissionId });
+
+    // Update worksheet submission count
+    const worksheet = await Worksheet.findById(worksheetId);
+    if (worksheet) {
+        worksheet.submissionCount = await WorksheetSubmission.countDocuments({ worksheet: worksheetId });
+        worksheet.markedCount = await WorksheetSubmission.countDocuments({ worksheet: worksheetId, status: { $in: ['marked', 'reviewed', 'published'] } });
+        await worksheet.save();
+    }
+
+    return { deleted: true };
+}
+
+/**
+ * Replace a submission's image (resets to pending status for reprocessing).
+ */
+export async function replaceSubmissionImage(worksheetId, submissionId, imageBuffer, imageMime, schoolId) {
+    const submission = await WorksheetSubmission.findOne({ _id: submissionId, worksheet: worksheetId, school: schoolId });
+    if (!submission) throw new Error('Submission not found');
+
+    // Delete old image
+    if (submission.originalImage) {
+        try { await deleteFile(submission.originalImage); } catch (e) { logger.warn('Failed to delete old image:', e.message); }
+    }
+    if (submission.annotatedImage) {
+        try { await deleteFile(submission.annotatedImage); } catch (e) { logger.warn('Failed to delete old annotated image:', e.message); }
+    }
+
+    // Upload new image
+    const destPath = `schools/${schoolId}/worksheets/${worksheetId}/submissions/${submission.student || 'unknown'}-${Date.now()}.jpg`;
+    const imageUrl = await uploadFile(imageBuffer, imageMime || 'image/jpeg', destPath);
+
+    // Reset submission state
+    submission.originalImage = imageUrl;
+    submission.annotatedImage = undefined;
+    submission.status = 'pending';
+    submission.questionResults = [];
+    submission.totalScore = 0;
+    submission.maxScore = 0;
+    submission.percentage = 0;
+    submission.processingError = undefined;
+    await submission.save();
+
+    // Update worksheet marked count
+    const worksheet = await Worksheet.findById(worksheetId);
+    if (worksheet) {
+        worksheet.markedCount = await WorksheetSubmission.countDocuments({ worksheet: worksheetId, status: { $in: ['marked', 'reviewed', 'published'] } });
+        await worksheet.save();
+    }
+
+    return submission;
+}
+
 export default {
     createWorksheet,
     extractAnswerKey,
@@ -249,5 +320,7 @@ export default {
     getSubmissions,
     applyOverride,
     updateWorksheetStatus,
-    archiveWorksheet
+    archiveWorksheet,
+    deleteSubmission,
+    replaceSubmissionImage
 };

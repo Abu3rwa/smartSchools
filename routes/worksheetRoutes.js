@@ -3,7 +3,6 @@ import multer from 'multer';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
-import upload from '../middleware/upload.js';
 import { uploadWorksheetTemplate } from '../middleware/upload.js';
 import {
     createWorksheet,
@@ -16,6 +15,8 @@ import {
     addBatchSubmissions,
     getSubmissions,
     assignStudent,
+    deleteSubmission,
+    replaceSubmission,
     processOneSubmission,
     processAll,
     applyOverride,
@@ -85,7 +86,7 @@ router.post('/:id/extract-answer-key', authorize('teacher', 'admin'), extractAns
 router.post(
     '/:id/submissions',
     authorize('teacher', 'admin'),
-    upload.single('image'),
+    uploadWorksheetTemplate.single('image'),
     handleMulterError,
     addSubmission
 );
@@ -93,7 +94,7 @@ router.post(
 router.post(
     '/:id/submissions/batch',
     authorize('teacher', 'admin'),
-    upload.array('images', 30),
+    uploadWorksheetTemplate.array('images', 30),
     handleMulterError,
     addBatchSubmissions
 );
@@ -104,6 +105,20 @@ router.put(
     '/:id/submissions/:submissionId/assign',
     authorize('teacher', 'admin'),
     assignStudent
+);
+
+router.delete(
+    '/:id/submissions/:submissionId',
+    authorize('teacher', 'admin'),
+    deleteSubmission
+);
+
+router.put(
+    '/:id/submissions/:submissionId/replace',
+    authorize('teacher', 'admin'),
+    uploadWorksheetTemplate.single('image'),
+    handleMulterError,
+    replaceSubmission
 );
 
 // ─── Processing ───────────────────────────────────────────────────────────────

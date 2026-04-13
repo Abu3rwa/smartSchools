@@ -153,6 +153,32 @@ export const applyOverride = createAsyncThunk(
     }
 );
 
+export const deleteSubmission = createAsyncThunk(
+    'worksheets/deleteSubmission',
+    async ({ worksheetId, submissionId }, { rejectWithValue }) => {
+        try {
+            await api.delete(`/worksheets/${worksheetId}/submissions/${submissionId}`);
+            return submissionId;
+        } catch (err) {
+            return rejectWithValue(err.response?.data?.message || 'Delete failed');
+        }
+    }
+);
+
+export const replaceSubmission = createAsyncThunk(
+    'worksheets/replaceSubmission',
+    async ({ worksheetId, submissionId, formData }, { rejectWithValue }) => {
+        try {
+            const res = await api.put(`/worksheets/${worksheetId}/submissions/${submissionId}/replace`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            return res.data?.data ?? res.data;
+        } catch (err) {
+            return rejectWithValue(err.response?.data?.message || 'Replace failed');
+        }
+    }
+);
+
 export const publishResults = createAsyncThunk(
     'worksheets/publish',
     async (id, { rejectWithValue }) => {
@@ -294,6 +320,20 @@ const worksheetSlice = createSlice({
                 const idx = state.submissions.findIndex(s => s._id === action.payload?._id);
                 if (idx !== -1) state.submissions[idx] = action.payload;
             })
+
+            // Delete submission
+            .addCase(deleteSubmission.fulfilled, (state, action) => {
+                state.submissions = state.submissions.filter(s => s._id !== action.payload);
+            })
+
+            // Replace submission
+            .addCase(replaceSubmission.pending, (state) => { state.uploading = true; })
+            .addCase(replaceSubmission.fulfilled, (state, action) => {
+                state.uploading = false;
+                const idx = state.submissions.findIndex(s => s._id === action.payload?._id);
+                if (idx !== -1) state.submissions[idx] = action.payload;
+            })
+            .addCase(replaceSubmission.rejected, (state, action) => { state.uploading = false; state.error = action.payload; })
 
             // Publish
             .addCase(publishResults.fulfilled, (state, action) => {

@@ -20,12 +20,13 @@ function parseAiJson(text) {
  * Returns structured question/answer pairs.
  */
 export async function extractAnswers(imageUrl, language = 'en', totalQuestions = null, schoolId = null) {
-    const prompt = promptBuilder.buildOcrExtractionPrompt(language, totalQuestions);
+    const prompt = promptBuilder.buildOcrExtractionPrompt(language, totalQuestions)
+        + '\n\nAnalyze the attached worksheet image and extract all student answers.';
 
-    // Gemini Vision: pass image URL in the prompt for processing
-    const fullPrompt = `${prompt}\n\nImage URL: ${imageUrl}\n\nAnalyze the worksheet image at the URL above and extract all student answers.`;
-
-    const result = await connectAi(fullPrompt, { modelName: 'gemini-2.5-flash' });
+    const result = await connectAi(prompt, {
+        modelName: 'gemini-2.5-flash',
+        imageUrls: [imageUrl]
+    });
 
     if (schoolId) {
         await logAIUsage(schoolId, 'worksheet_ocr', result);
@@ -39,6 +40,7 @@ export async function extractAnswers(imageUrl, language = 'en', totalQuestions =
 
     return {
         questions: parsed.questions,
+        worksheetInstructions: parsed.worksheetInstructions || '',
         totalDetected: parsed.totalDetected || parsed.questions.length,
         language: parsed.language || language,
         confidence: parsed.confidence || 0,
@@ -66,9 +68,12 @@ OUTPUT FORMAT (strict JSON):
 
 Return ONLY valid JSON.
 
-Image URL: ${imageUrl}`;
+Analyze the attached answer key image.`;
 
-    const result = await connectAi(prompt, { modelName: 'gemini-2.5-flash' });
+    const result = await connectAi(prompt, {
+        modelName: 'gemini-2.5-flash',
+        imageUrls: [imageUrl]
+    });
 
     if (schoolId) {
         await logAIUsage(schoolId, 'worksheet_answer_key_extraction', result);

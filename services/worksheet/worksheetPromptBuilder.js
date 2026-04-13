@@ -34,15 +34,19 @@ The worksheet is in ${langLabel} (${language}).
 
 INSTRUCTIONS:
 1. Identify every question on the worksheet by its number.
-2. Read the student's handwritten or typed answer for each question.
-3. If a question appears unanswered or blank, set studentAnswer to "".
-4. For multiple choice, identify which option the student circled/marked (e.g. "A", "B", "C", "D").
-5. For true/false, read the student's selection.
-6. For written answers, transcribe the student's writing as accurately as possible.
-7. Preserve the original language of the student's answer.
+2. Read the student's answer for each question. Answers may be handwritten, typed in fillable PDF form fields, or digitally entered text.
+3. CRITICAL: Look ONLY at what the student actually wrote, typed, circled, or marked in the answer spaces/form fields. Do NOT infer, guess, or generate answers based on the questions. If an answer line, form field, or response area is empty — the student did not answer.
+4. If a question appears unanswered, blank, or has no visible student response in the answer area, you MUST set studentAnswer to "" (empty string). Never fill in what you think the correct answer might be.
+5. For multiple choice, identify which option the student circled/marked/selected (e.g. "A", "B", "C", "D"). If nothing is selected, set studentAnswer to "".
+6. For true/false, read the student's selection. If nothing is selected, set studentAnswer to "".
+7. For written answers, transcribe the student's handwriting or typed text as accurately as possible. If the field/line is blank, set studentAnswer to "".
+8. Preserve the original language of the student's answer.
+9. The printed question text, instructions, and example text are NOT student answers. Only actual student responses (handwritten, typed in form fields, or digitally entered) count.
+10. IMPORTANT: Read the worksheet's main task/instructions (e.g. "Write whether the underlined words are an independent clause or a dependent clause"). Include the full task description in the "worksheetInstructions" field. This is critical for understanding what the student is being asked to do.
 
 OUTPUT FORMAT (strict JSON, no markdown):
 {
+  "worksheetInstructions": "Read each sentence. Write whether the underlined words are an independent clause or a dependent clause.",
   "questions": [
     { "questionNumber": 1, "questionText": "...", "studentAnswer": "...", "answerType": "short_answer" },
     { "questionNumber": 2, "questionText": "...", "studentAnswer": "A", "answerType": "multiple_choice" }
@@ -52,6 +56,7 @@ OUTPUT FORMAT (strict JSON, no markdown):
   "confidence": 0.92
 }
 
+worksheetInstructions: The main task/directions printed on the worksheet telling students what to do. Extract this verbatim or as a close paraphrase.
 answerType must be one of: multiple_choice, true_false, fill_in_blank, short_answer, numeric, matching, essay, diagram, other.
 Return ONLY valid JSON. No markdown fences, no explanation text.`;
     },
@@ -60,7 +65,11 @@ Return ONLY valid JSON. No markdown fences, no explanation text.`;
      * Build prompt for marking with a model answer key.
      */
     buildModelMarkingPrompt(questions, modelAnswers, config = {}) {
-        const { spellingTolerance = 'moderate', partialCreditEnabled = true } = config;
+        const { spellingTolerance = 'moderate', partialCreditEnabled = true, worksheetInstructions = '' } = config;
+
+        const instructionsBlock = worksheetInstructions
+            ? `\nWORKSHEET TASK INSTRUCTIONS (from the worksheet itself):\n"${worksheetInstructions}"\nUse these instructions to understand what students were asked to do. Evaluate answers relative to this task.\n`
+            : '';
 
         const questionList = questions.map((q, i) => {
             const model = modelAnswers.find(m => m.questionNumber === q.questionNumber);
@@ -68,7 +77,7 @@ Return ONLY valid JSON. No markdown fences, no explanation text.`;
         }).join('\n');
 
         return `You are a strict but fair teacher marking student answers against an answer key.
-
+${instructionsBlock}
 MARKING RULES:
 - Spelling tolerance: ${spellingTolerance} (strict=exact match only, moderate=minor typos OK, lenient=meaning-based)
 - Partial credit: ${partialCreditEnabled ? 'enabled (award 0.0-1.0 for partially correct)' : 'disabled (binary correct/incorrect only)'}
@@ -110,7 +119,8 @@ Return ONLY valid JSON.`;
             language = 'en',
             spellingTolerance = 'moderate',
             partialCreditEnabled = true,
-            feedbackLevel = 'standard'
+            feedbackLevel = 'standard',
+            worksheetInstructions = ''
         } = config;
         const langLabel = getLanguageLabel(language);
 
@@ -125,9 +135,13 @@ Return ONLY valid JSON.`;
             instructional: 'State correct/incorrect, show correct answer, explain why, and suggest what to review.'
         };
 
+        const instructionsBlock = worksheetInstructions
+            ? `\nWORKSHEET TASK INSTRUCTIONS (from the worksheet itself):\n"${worksheetInstructions}"\nUse these instructions to understand what students were asked to do. Evaluate each answer relative to this task, not in isolation.\n`
+            : '';
+
         return `You are an expert ${subject} teacher for grade ${gradeLevel}. Mark these student answers using your knowledge.
 The worksheet is in ${langLabel}.
-
+${instructionsBlock}
 MARKING RULES:
 - Spelling tolerance: ${spellingTolerance}
 - Partial credit: ${partialCreditEnabled ? 'enabled' : 'disabled'}

@@ -337,7 +337,8 @@ app.use("/api/lesson-plan-criteria", lessonPlanCriteriaRoutes);
 app.use("/api/school-calendar", schoolCalendarRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use("/api/rooms", roomRoutes);
-// BE-032: larger limit for import routes that handle CSV bulk data\napp.use(\"/api/import\", express.json({ limit: \"5mb\" }), importRoutes);
+// BE-032: larger limit for import routes that handle CSV bulk data
+app.use("/api/import", express.json({ limit: "5mb" }), importRoutes);
 app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/newsletter-templates", newsletterTemplateRoutes);
 app.use("/api/standards", standardRoutes);

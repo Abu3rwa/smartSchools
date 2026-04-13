@@ -15,10 +15,51 @@ function parseAiJson(text) {
 }
 
 /**
+ * Build a deterministic "unanswered" result for a blank student answer.
+ */
+function buildUnansweredResult(q, markSource) {
+    return {
+        questionNumber: q.questionNumber,
+        studentAnswer: '',
+        correctAnswer: '',
+        isCorrect: false,
+        partialCredit: null,
+        pointsEarned: 0,
+        pointsTotal: 1,
+        feedback: 'No answer provided.',
+        confidence: 1,
+        markSource
+    };
+}
+
+/**
+ * Split questions into answered and unanswered, returning pre-built results for blanks.
+ */
+function separateBlanks(questions, markSource) {
+    const answered = [];
+    const blankResults = [];
+    for (const q of questions) {
+        if (!q.studentAnswer || !q.studentAnswer.trim()) {
+            blankResults.push(buildUnansweredResult(q, markSource));
+        } else {
+            answered.push(q);
+        }
+    }
+    return { answered, blankResults };
+}
+
+/**
  * Mark answers using a model answer key (Mode A).
  */
 export async function markWithModelAnswers(questions, modelAnswers, config, schoolId = null) {
-    const prompt = promptBuilder.buildModelMarkingPrompt(questions, modelAnswers, config);
+    const { answered, blankResults } = separateBlanks(questions, 'model');
+
+    if (answered.length === 0) {
+        // All answers blank — return deterministic results, no AI call needed
+        return blankResults;
+    }
+
+    const prompt = promptBuilder.buildModelMarkingPrompt(answered, modelAnswers, config);
     const result = await connectAi(prompt);
 
     if (schoolId) {
@@ -32,7 +73,7 @@ export async function markWithModelAnswers(questions, modelAnswers, config, scho
     }
 
     // Merge AI results with question data
-    return questions.map(q => {
+    const aiMarked = answered.map(q => {
         const aiResult = parsed.results.find(r => r.questionNumber === q.questionNumber);
         const model = modelAnswers.find(m => m.questionNumber === q.questionNumber);
 
@@ -49,13 +90,21 @@ export async function markWithModelAnswers(questions, modelAnswers, config, scho
             markSource: 'model'
         };
     });
+
+    return [...aiMarked, ...blankResults].sort((a, b) => a.questionNumber - b.questionNumber);
 }
 
 /**
  * Mark answers using AI knowledge (Mode B).
  */
 export async function markWithAiKnowledge(questions, config, schoolId = null) {
-    const prompt = promptBuilder.buildAiMarkingPrompt(questions, config);
+    const { answered, blankResults } = separateBlanks(questions, 'ai');
+
+    if (answered.length === 0) {
+        return blankResults;
+    }
+
+    const prompt = promptBuilder.buildAiMarkingPrompt(answered, config);
     const result = await connectAi(prompt);
 
     if (schoolId) {
@@ -68,7 +117,7 @@ export async function markWithAiKnowledge(questions, config, schoolId = null) {
         throw new Error('AI marking response missing results array');
     }
 
-    return questions.map(q => {
+    const aiMarked = answered.map(q => {
         const aiResult = parsed.results.find(r => r.questionNumber === q.questionNumber);
 
         return {
@@ -84,6 +133,8 @@ export async function markWithAiKnowledge(questions, config, schoolId = null) {
             markSource: 'ai'
         };
     });
+
+    return [...aiMarked, ...blankResults].sort((a, b) => a.questionNumber - b.questionNumber);
 }
 
 /**

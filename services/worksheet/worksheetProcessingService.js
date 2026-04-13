@@ -75,7 +75,8 @@ export async function processSubmission(worksheetId, submissionId) {
             language: worksheet.language,
             spellingTolerance: config.spellingTolerance,
             partialCreditEnabled: config.partialCreditEnabled,
-            feedbackLevel: config.feedbackLevel
+            feedbackLevel: config.feedbackLevel,
+            worksheetInstructions: extracted.worksheetInstructions || ''
         };
 
         const results = await worksheetMarkingService.markAnswers(

@@ -45,10 +45,28 @@
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+    align-items: center;
     margin-bottom: 24px;
     padding: 16px;
     background: #f9fafb;
     border-radius: 12px;
+}
+
+.worksheet-student-select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #fff;
+    color: #374151;
+    font-size: 0.875rem;
+    min-width: 220px;
+    cursor: pointer;
+}
+
+.worksheet-student-select:focus {
+    outline: none;
+    border-color: var(--primary-color, #2563eb);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .worksheet-btn-secondary {
@@ -131,6 +149,36 @@
 .submission-actions {
     display: flex;
     gap: 6px;
+}
+
+.worksheet-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    background: var(--bg-card, #fff);
+    color: var(--text-secondary, #64748b);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.worksheet-icon-btn:hover {
+    background: var(--bg-card-hover, #f1f5f9);
+    color: var(--primary, #2563eb);
+}
+
+.worksheet-icon-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.worksheet-icon-btn-danger:hover {
+    color: var(--accent-red, #ef4444);
+    border-color: var(--accent-red, #ef4444);
+    background: rgba(239, 68, 68, 0.08);
 }
 
 /* Review panel */

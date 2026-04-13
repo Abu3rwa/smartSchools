@@ -162,7 +162,24 @@ export const applyOverride = asyncHandler(async (req, res) => {
 });
 
 // ─── Status ───────────────────────────────────────────────────────────────────
+export const deleteSubmission = asyncHandler(async (req, res) => {
+    const result = await worksheetService.deleteSubmission(req.params.id, req.params.submissionId, req.user.school);
+    res.json({ success: true, data: result });
+});
 
+export const replaceSubmission = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Replacement worksheet image is required' });
+    }
+    const submission = await worksheetService.replaceSubmissionImage(
+        req.params.id,
+        req.params.submissionId,
+        req.file.buffer,
+        req.file.mimetype,
+        req.user.school
+    );
+    res.json({ success: true, data: submission });
+});
 export const updateStatus = asyncHandler(async (req, res) => {
     const { status } = updateStatusSchema.parse(req.body);
     const worksheet = await worksheetService.updateWorksheetStatus(req.params.id, status);

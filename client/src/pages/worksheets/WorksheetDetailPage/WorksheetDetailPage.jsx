@@ -11,7 +11,9 @@ import {
     HiOutlinePencilSquare,
     HiOutlineArrowPath,
     HiOutlineBookOpen,
-    HiOutlineDocumentArrowDown
+    HiOutlineDocumentArrowDown,
+    HiOutlineTrash,
+    HiOutlineDocumentArrowUp
 } from 'react-icons/hi2';
 import {
     fetchWorksheet,
@@ -23,6 +25,8 @@ import {
     applyOverride,
     publishResults,
     extractAnswerKey,
+    deleteSubmission,
+    replaceSubmission,
     clearCurrent,
     selectCurrentWorksheet,
     selectSubmissions,
@@ -31,6 +35,7 @@ import {
     selectWorksheetUploading,
     selectWorksheetError
 } from '../../../store/slices/worksheetSlice';
+import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices/studentSlice';
 import worksheetService from '../../../services/worksheetService';
 import './WorksheetDetailPage.css';
 
@@ -45,12 +50,15 @@ const WorksheetDetailPage = () => {
     const processing = useSelector(selectWorksheetProcessing);
     const uploading = useSelector(selectWorksheetUploading);
     const error = useSelector(selectWorksheetError);
+    const classStudents = useSelector(selectClassStudents);
 
     const [reviewingSubmission, setReviewingSubmission] = useState(null);
     const [overrides, setOverrides] = useState({});
     const singleFileRef = useRef(null);
     const batchFileRef = useRef(null);
+    const replaceFileRef = useRef(null);
     const [selectedStudent, setSelectedStudent] = useState('');
+    const [replacingSubmissionId, setReplacingSubmissionId] = useState(null);
 
     useEffect(() => {
         if (id) {
@@ -59,6 +67,14 @@ const WorksheetDetailPage = () => {
         }
         return () => { dispatch(clearCurrent()); };
     }, [dispatch, id]);
+
+    // Fetch class students when worksheet loads
+    useEffect(() => {
+        const classId = worksheet?.class?._id || worksheet?.class;
+        if (classId) {
+            dispatch(fetchStudentsByClass(classId));
+        }
+    }, [dispatch, worksheet?.class]);
 
     // ─── Upload handlers ────────────────────────────────────────────────
     const handleSingleUpload = useCallback(async (e) => {
@@ -128,6 +144,31 @@ const WorksheetDetailPage = () => {
         }
     }, [id, t]);
 
+    // ─── Delete submission ──────────────────────────────────────────────
+    const handleDeleteSubmission = useCallback(async (submissionId) => {
+        if (!window.confirm(t('worksheet:submissions.confirmDelete', 'Are you sure you want to delete this submission? This cannot be undone.'))) return;
+        const res = await dispatch(deleteSubmission({ worksheetId: id, submissionId }));
+        if (!res.error) {
+            toast.success(t('worksheet:notifications.submissionDeleted', 'Submission deleted'));
+            if (reviewingSubmission?._id === submissionId) setReviewingSubmission(null);
+        } else toast.error(res.payload || 'Delete failed');
+    }, [dispatch, id, t, reviewingSubmission]);
+
+    // ─── Replace submission ─────────────────────────────────────────────
+    const handleReplaceSubmission = useCallback(async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !replacingSubmissionId) return;
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await dispatch(replaceSubmission({ worksheetId: id, submissionId: replacingSubmissionId, formData }));
+        if (!res.error) {
+            toast.success(t('worksheet:notifications.submissionReplaced', 'Submission image replaced — ready to reprocess'));
+            setReplacingSubmissionId(null);
+            if (reviewingSubmission?._id === replacingSubmissionId) setReviewingSubmission(null);
+        } else toast.error(res.payload || 'Replace failed');
+        e.target.value = '';
+    }, [dispatch, id, replacingSubmissionId, t, reviewingSubmission]);
+
     // ─── Override ───────────────────────────────────────────────────────
     const handleOverrideChange = (qNum, field, value) => {
         setOverrides(prev => ({
@@ -186,15 +227,29 @@ const WorksheetDetailPage = () => {
                     </button>
                 )}
 
-                <button className="worksheet-btn-secondary" onClick={() => singleFileRef.current?.click()} disabled={uploading}>
+                <select
+                    className="worksheet-student-select"
+                    value={selectedStudent}
+                    onChange={(e) => setSelectedStudent(e.target.value)}
+                >
+                    <option value="">{t('worksheet:submissions.assignStudentPrompt', 'Select student for this submission')}</option>
+                    {(Array.isArray(classStudents) ? classStudents : []).map((s) => (
+                        <option key={s._id} value={s._id}>
+                            {s.name || `${s.firstName || ''} ${s.lastName || ''}`.trim() || s._id}
+                        </option>
+                    ))}
+                </select>
+
+                <button className="worksheet-btn-secondary" onClick={() => singleFileRef.current?.click()} disabled={uploading || !selectedStudent}>
                     <HiOutlineCloudArrowUp size={18} /> {t('worksheet:submissions.uploadSingle')}
                 </button>
-                <input ref={singleFileRef} type="file" accept="image/*" hidden onChange={handleSingleUpload} />
+                <input ref={singleFileRef} type="file" accept="image/*,.pdf" hidden onChange={handleSingleUpload} />
 
                 <button className="worksheet-btn-secondary" onClick={() => batchFileRef.current?.click()} disabled={uploading}>
                     <HiOutlineCloudArrowUp size={18} /> {t('worksheet:submissions.uploadBatch')}
                 </button>
-                <input ref={batchFileRef} type="file" accept="image/*" multiple hidden onChange={handleBatchUpload} />
+                <input ref={batchFileRef} type="file" accept="image/*,.pdf" multiple hidden onChange={handleBatchUpload} />
+                <input ref={replaceFileRef} type="file" accept="image/*,.pdf" hidden onChange={handleReplaceSubmission} />
 
                 {submissions.some(s => s.status === 'pending') && (
                     <button className="worksheet-btn-primary" onClick={handleProcessAll} disabled={processing}>
@@ -241,13 +296,33 @@ const WorksheetDetailPage = () => {
                             </div>
                             <div className="submission-actions">
                                 {sub.status === 'pending' && (
-                                    <button className="worksheet-icon-btn" onClick={() => handleProcessOne(sub._id)} disabled={processing}>
+                                    <button className="worksheet-icon-btn" title={t('worksheet:actions.process', 'Process')} onClick={() => handleProcessOne(sub._id)} disabled={processing}>
                                         <HiOutlineCpuChip size={16} />
                                     </button>
                                 )}
+                                {['marked', 'reviewed', 'failed'].includes(sub.status) && (
+                                    <button className="worksheet-icon-btn" title={t('worksheet:actions.reprocess', 'Reprocess')} onClick={() => handleProcessOne(sub._id)} disabled={processing}>
+                                        <HiOutlineArrowPath size={16} />
+                                    </button>
+                                )}
                                 {['marked', 'reviewed'].includes(sub.status) && (
-                                    <button className="worksheet-icon-btn" onClick={() => { setReviewingSubmission(sub); setOverrides({}); }}>
+                                    <button className="worksheet-icon-btn" title={t('worksheet:review.title', 'Review')} onClick={() => { setReviewingSubmission(sub); setOverrides({}); }}>
                                         <HiOutlinePencilSquare size={16} />
+                                    </button>
+                                )}
+                                {sub.status !== 'published' && (
+                                    <button
+                                        className="worksheet-icon-btn"
+                                        title={t('worksheet:actions.replace', 'Replace image')}
+                                        disabled={uploading}
+                                        onClick={() => { setReplacingSubmissionId(sub._id); replaceFileRef.current?.click(); }}
+                                    >
+                                        <HiOutlineDocumentArrowUp size={16} />
+                                    </button>
+                                )}
+                                {sub.status !== 'published' && (
+                                    <button className="worksheet-icon-btn worksheet-icon-btn-danger" title={t('worksheet:actions.delete', 'Delete')} onClick={() => handleDeleteSubmission(sub._id)}>
+                                        <HiOutlineTrash size={16} />
                                     </button>
                                 )}
                             </div>

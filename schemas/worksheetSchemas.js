@@ -10,12 +10,13 @@ export const LANGUAGES = ['en', 'ar', 'fr', 'es', 'pt', 'tr', 'ur'];
 
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 const objectId = z.string().regex(objectIdRegex, 'Invalid ObjectId');
+const academicYearPattern = z.string().regex(/^\d{4}-\d{4}$/, 'Academic year must be YYYY-YYYY format');
 
 // ─── Create Worksheet ─────────────────────────────────────────────────────────
 export const createWorksheetSchema = z.object({
     classId: objectId,
     subjectId: objectId,
-    academicYear: objectId,
+    academicYear: academicYearPattern,
     title: z.string().min(1).max(200),
     description: z.string().max(1000).optional(),
     language: z.enum(LANGUAGES).optional().default('en'),
@@ -114,7 +115,7 @@ export const listQuerySchema = z.object({
     classId: objectId.optional(),
     subject: objectId.optional(),
     status: z.enum(WORKSHEET_STATUSES).optional(),
-    academicYear: objectId.optional(),
+    academicYear: academicYearPattern.optional(),
     page: z.coerce.number().int().min(1).optional().default(1),
     limit: z.coerce.number().int().min(1).max(100).optional().default(20)
 }).strict();
