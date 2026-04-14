@@ -3,7 +3,7 @@ import { HiOutlineCheckCircle, HiOutlineXCircle, HiOutlineEye, HiOutlineArrowLef
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import { useTranslation } from 'react-i18next';
-import api from '../../../../services/api';
+import api from '../../../../config/api';
 
 const EditableScale4Cell = ({ value, isManual, onSave }) => {
     const [editing, setEditing] = useState(false);
