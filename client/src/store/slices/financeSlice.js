@@ -313,6 +313,7 @@ export const selectInvoicesPagination = (state) => state.finance.invoicesPaginat
 export const selectCurrentInvoice = (state) => state.finance.currentInvoice;
 export const selectCurrentInvoicePayments = (state) => state.finance.currentInvoicePayments;
 export const selectPayments = (state) => state.finance.payments;
+export const selectPaymentsPagination = (state) => state.finance.paymentsPagination;
 export const selectPaymentPlans = (state) => state.finance.paymentPlans;
 export const selectFinanceSummary = (state) => state.finance.summary;
 export const selectOutstandingReport = (state) => state.finance.outstandingReport;
