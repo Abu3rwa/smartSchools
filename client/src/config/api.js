@@ -42,6 +42,34 @@ const api = axios.create({
 let isRefreshing = false;
 let refreshSubscribers = [];
 
+const TOAST_COOLDOWN_MS = {
+    permission: 15000,
+    rateLimit: 30000,
+    server: 20000,
+    timeout: 20000,
+    network: 45000
+};
+
+const lastToastAt = new Map();
+
+const shouldShowToast = (key, cooldownMs) => {
+    const now = Date.now();
+    const lastShown = lastToastAt.get(key) || 0;
+    if (now - lastShown < cooldownMs) return false;
+    lastToastAt.set(key, now);
+    return true;
+};
+
+const showRateLimitedErrorToast = (key, message, cooldownMs, id) => {
+    if (!shouldShowToast(key, cooldownMs)) return;
+    toast.error(message, id ? { id } : undefined);
+};
+
+const isSilentBackgroundRequest = (requestUrl = '') => {
+    const url = String(requestUrl || '');
+    return url.includes('/behavior/events') || url.includes('/behavior/sessions/');
+};
+
 const subscribeTokenRefresh = (callback) => {
     refreshSubscribers.push(callback);
 };
@@ -94,6 +122,11 @@ api.interceptors.response.use(
         const originalRequest = error.config || {};
         const status = error.response?.status;
         const requestUrl = String(originalRequest.url || '');
+
+        // Ignore canceled requests and telemetry requests to avoid noisy UX.
+        if (error.code === 'ERR_CANCELED' || isSilentBackgroundRequest(requestUrl)) {
+            return Promise.reject(error);
+        }
 
         if (status === 401 && !requestUrl.includes('/auth/refresh') && !originalRequest._retry) {
             const refreshToken = localStorage.getItem('refreshToken');
@@ -159,15 +192,40 @@ api.interceptors.response.use(
 
         // FE-003: Provide user feedback for common error categories
         if (status === 403) {
-            toast.error('You do not have permission to perform this action.');
+            showRateLimitedErrorToast(
+                'permission-403',
+                'You do not have permission to perform this action.',
+                TOAST_COOLDOWN_MS.permission,
+                'permission-403'
+            );
         } else if (status === 429) {
-            toast.error('Too many requests. Please wait a moment and try again.');
+            showRateLimitedErrorToast(
+                'rate-limit-429',
+                'Too many requests. Please wait a moment and try again.',
+                TOAST_COOLDOWN_MS.rateLimit,
+                'rate-limit-429'
+            );
         } else if (status >= 500) {
-            toast.error('Server error. Please try again later.');
+            showRateLimitedErrorToast(
+                'server-5xx',
+                'Server error. Please try again later.',
+                TOAST_COOLDOWN_MS.server,
+                'server-5xx'
+            );
         } else if (error.code === 'ECONNABORTED') {
-            toast.error('Request timed out. Please check your connection and try again.');
+            showRateLimitedErrorToast(
+                'timeout',
+                'Request timed out. Please check your connection and try again.',
+                TOAST_COOLDOWN_MS.timeout,
+                'timeout'
+            );
         } else if (!error.response) {
-            toast.error('Connection lost. Please check your internet connection.');
+            showRateLimitedErrorToast(
+                'network-offline',
+                'Connection lost. Please check your internet connection.',
+                TOAST_COOLDOWN_MS.network,
+                'network-offline'
+            );
         }
 
         return Promise.reject(error);

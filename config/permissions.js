@@ -164,7 +164,24 @@ export const PERMISSIONS = {
     MANAGE_DISCOUNTS: 'manage_discounts',
     VIEW_FINANCE_REPORTS: 'view_finance_reports',
     EXPORT_FINANCE_DATA: 'export_finance_data',
-    VIEW_STUDENT_FINANCE: 'view_student_finance'
+    VIEW_STUDENT_FINANCE: 'view_student_finance',
+
+    // HR & Staff Management
+    VIEW_STAFF_PROFILES: 'view_staff_profiles',
+    MANAGE_STAFF_PROFILES: 'manage_staff_profiles',
+    VIEW_CONTRACTS: 'view_contracts',
+    MANAGE_CONTRACTS: 'manage_contracts',
+    MANAGE_LEAVE_TYPES: 'manage_leave_types',
+    APPROVE_LEAVE: 'approve_leave',
+    VIEW_LEAVE_CALENDAR: 'view_leave_calendar',
+    REQUEST_LEAVE: 'request_leave',
+    MANAGE_CERTIFICATIONS: 'manage_certifications',
+    VIEW_CERTIFICATIONS: 'view_certifications',
+    LOG_PROFESSIONAL_DEVELOPMENT: 'log_professional_development',
+    VIEW_PD_REPORTS: 'view_pd_reports',
+    MANAGE_PERFORMANCE_REVIEWS: 'manage_performance_reviews',
+    VIEW_OWN_HR_PROFILE: 'view_own_hr_profile',
+    MANAGE_HR_SETTINGS: 'manage_hr_settings'
 };
 
 // Permission definitions with metadata
@@ -762,6 +779,82 @@ export const PERMISSION_DEFINITIONS = {
         label: 'View Student Finance',
         description: 'View a specific student balance and statement',
         category: 'finance'
+    },
+    // HR & Staff Management
+    [PERMISSIONS.VIEW_STAFF_PROFILES]: {
+        label: 'View Staff Profiles',
+        description: 'View staff directory and individual profiles',
+        category: 'hr'
+    },
+    [PERMISSIONS.MANAGE_STAFF_PROFILES]: {
+        label: 'Manage Staff Profiles',
+        description: 'Create, edit, and deactivate staff records',
+        category: 'hr'
+    },
+    [PERMISSIONS.VIEW_CONTRACTS]: {
+        label: 'View Contracts',
+        description: 'View employment contracts and terms',
+        category: 'hr'
+    },
+    [PERMISSIONS.MANAGE_CONTRACTS]: {
+        label: 'Manage Contracts',
+        description: 'Create, edit, and terminate contracts',
+        category: 'hr'
+    },
+    [PERMISSIONS.MANAGE_LEAVE_TYPES]: {
+        label: 'Manage Leave Types',
+        description: 'Configure leave type policies and allocations',
+        category: 'hr'
+    },
+    [PERMISSIONS.APPROVE_LEAVE]: {
+        label: 'Approve Leave',
+        description: 'Approve or reject staff leave requests',
+        category: 'hr'
+    },
+    [PERMISSIONS.VIEW_LEAVE_CALENDAR]: {
+        label: 'View Leave Calendar',
+        description: 'View who is out on which days',
+        category: 'hr'
+    },
+    [PERMISSIONS.REQUEST_LEAVE]: {
+        label: 'Request Leave',
+        description: 'Submit leave requests',
+        category: 'hr'
+    },
+    [PERMISSIONS.MANAGE_CERTIFICATIONS]: {
+        label: 'Manage Certifications',
+        description: 'Add, edit, and verify staff certifications',
+        category: 'hr'
+    },
+    [PERMISSIONS.VIEW_CERTIFICATIONS]: {
+        label: 'View Certifications',
+        description: 'View certification status and expiry alerts',
+        category: 'hr'
+    },
+    [PERMISSIONS.LOG_PROFESSIONAL_DEVELOPMENT]: {
+        label: 'Log Professional Development',
+        description: 'Log PD activities, workshops, and training',
+        category: 'hr'
+    },
+    [PERMISSIONS.VIEW_PD_REPORTS]: {
+        label: 'View PD Reports',
+        description: 'View school-wide professional development reports',
+        category: 'hr'
+    },
+    [PERMISSIONS.MANAGE_PERFORMANCE_REVIEWS]: {
+        label: 'Manage Performance Reviews',
+        description: 'Create and manage staff performance reviews',
+        category: 'hr'
+    },
+    [PERMISSIONS.VIEW_OWN_HR_PROFILE]: {
+        label: 'View Own HR Profile',
+        description: 'View own staff profile, leave, certs, and reviews',
+        category: 'hr'
+    },
+    [PERMISSIONS.MANAGE_HR_SETTINGS]: {
+        label: 'Manage HR Settings',
+        description: 'Configure HR module policies and settings',
+        category: 'hr'
     }
 };
 
@@ -856,7 +949,11 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.SEND_ASSESSMENT_NARRATIVE,
         PERMISSIONS.EDIT_LIVE_ASSESSMENT,
         PERMISSIONS.PUBLISH_ASSESSMENT_REVISION,
-        PERMISSIONS.VIEW_STUDENT_FINANCE
+        PERMISSIONS.VIEW_STUDENT_FINANCE,
+        PERMISSIONS.VIEW_OWN_HR_PROFILE,
+        PERMISSIONS.REQUEST_LEAVE,
+        PERMISSIONS.VIEW_LEAVE_CALENDAR,
+        PERMISSIONS.LOG_PROFESSIONAL_DEVELOPMENT
     ],
     department_principal: [
         PERMISSIONS.MANAGE_SUBSTITUTIONS,
@@ -919,9 +1016,20 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.VIEW_FEE_STRUCTURES,
         PERMISSIONS.VIEW_INVOICES,
         PERMISSIONS.VIEW_FINANCE_REPORTS,
-        PERMISSIONS.VIEW_STUDENT_FINANCE
+        PERMISSIONS.VIEW_STUDENT_FINANCE,
+        PERMISSIONS.VIEW_STAFF_PROFILES,
+        PERMISSIONS.VIEW_CERTIFICATIONS,
+        PERMISSIONS.APPROVE_LEAVE,
+        PERMISSIONS.VIEW_LEAVE_CALENDAR,
+        PERMISSIONS.VIEW_PD_REPORTS,
+        PERMISSIONS.MANAGE_PERFORMANCE_REVIEWS
     ],
-    staff: [],
+    staff: [
+        PERMISSIONS.VIEW_OWN_HR_PROFILE,
+        PERMISSIONS.REQUEST_LEAVE,
+        PERMISSIONS.VIEW_LEAVE_CALENDAR,
+        PERMISSIONS.LOG_PROFESSIONAL_DEVELOPMENT
+    ],
     parent: [
         PERMISSIONS.VIEW_SBR_REPORTS
     ],
@@ -941,7 +1049,8 @@ export const PERMISSION_CATEGORIES = {
     standards_assessment: 'Standards Assessment',
     communication: 'Communication',
     content: 'Content',
-    finance: 'Finance'
+    finance: 'Finance',
+    hr: 'HR & Staff'
 };
 
 /**

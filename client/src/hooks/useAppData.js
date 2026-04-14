@@ -31,15 +31,20 @@ const useAppData = () => {
     useEffect(() => {
         if (!isAuthenticated || !user || user.role === 'super_admin') return;
 
-        if (classes.length === 0 && !classesLoading) {
+        const role = user.role;
+        const canFetchClasses = ['admin', 'department_principal', 'teacher'].includes(role);
+        const canFetchSubjects = ['admin', 'department_principal', 'teacher'].includes(role);
+        const canFetchTeachers = ['admin', 'department_principal'].includes(role);
+
+        if (canFetchClasses && classes.length === 0 && !classesLoading) {
             dispatch(fetchClasses(academicYear ? { academicYear } : undefined));
         }
 
-        if ((!subjects || subjects.length === 0) && !subjectsLoading) {
+        if (canFetchSubjects && (!subjects || subjects.length === 0) && !subjectsLoading) {
             dispatch(fetchSubjects());
         }
 
-        if (teachers.length === 0 && !teachersLoading) {
+        if (canFetchTeachers && teachers.length === 0 && !teachersLoading) {
             dispatch(fetchTeachers());
         }
     }, [dispatch, isAuthenticated, user, academicYear]);

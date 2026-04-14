@@ -35,6 +35,7 @@ import spreadsheetReducer from './slices/spreadsheetSlice';
 import analyticsReducer from './slices/analyticsSlice';
 import worksheetReducer from './slices/worksheetSlice';
 import financeReducer from './slices/financeSlice';
+import hrReducer from './slices/hrSlice';
 import standardAssessmentReducer from './slices/standardAssessmentSlice';
 import uiReducer, {
     fetchSchoolAcademicYear,
@@ -109,6 +110,7 @@ const appReducer = combineReducers({
     analytics: analyticsReducer,
     worksheets: worksheetReducer,
     finance: financeReducer,
+    hr: hrReducer,
     standardAssessment: standardAssessmentReducer
 });
 

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import puppeteer from 'puppeteer';
 import Handlebars from 'handlebars';
 import { normalizeStudentGroupingReportSettings } from '../utils/studentGroupingReportSettings.js';
+import { resolvePuppeteerExecutablePath } from '../utils/resolvePuppeteerExecutablePath.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,10 +18,17 @@ const compiledTemplatePromises = new Map();
 
 const getBrowser = async () => {
     if (!browserPromise) {
-        browserPromise = puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+        browserPromise = (async () => {
+            const executablePath = await resolvePuppeteerExecutablePath();
+
+            return puppeteer.launch({
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+                ...(executablePath ? { executablePath } : {})
+            });
+        })().catch((error) => {
+            browserPromise = null;
+            throw error;
         });
     }
 

@@ -150,6 +150,17 @@ const InvoiceGeneratorPage = lazy(() => import("./pages/finance/InvoiceGenerator
 const PaymentsPage = lazy(() => import("./pages/finance/PaymentsPage"));
 const FinanceReportsPage = lazy(() => import("./pages/finance/FinanceReportsPage"));
 
+const HRDashboardPage = lazy(() => import("./pages/hr/HRDashboardPage"));
+const StaffDirectoryPage = lazy(() => import("./pages/hr/StaffDirectoryPage"));
+const StaffProfileDetailPage = lazy(() => import("./pages/hr/StaffProfileDetailPage"));
+const LeaveManagementPage = lazy(() => import("./pages/hr/LeaveManagementPage"));
+const LeaveSettingsPage = lazy(() => import("./pages/hr/LeaveSettingsPage"));
+const CertificationsPage = lazy(() => import("./pages/hr/CertificationsPage"));
+const PerformanceReviewsPage = lazy(() => import("./pages/hr/PerformanceReviewsPage"));
+const PDLogPage = lazy(() => import("./pages/hr/PDLogPage"));
+const MyHRPage = lazy(() => import("./pages/hr/MyHRPage"));
+const HRSettingsPage = lazy(() => import("./pages/hr/HRSettingsPage"));
+
 const RouteLoadingFallback = () => (
   <div className="loading-overlay" role="status" aria-live="polite">
     <div className="spinner"></div>
@@ -1308,6 +1319,88 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal"]} permissions={["view_finance_reports"]}>
                   <FinanceReportsPage />
+                </RoleRoute>
+              }
+            />
+
+            {/* ─── HR & Staff Management ─── */}
+            <Route
+              path="hr"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_staff_profiles"]}>
+                  <HRDashboardPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/staff"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_staff_profiles"]}>
+                  <StaffDirectoryPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/staff/:id"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_staff_profiles"]}>
+                  <StaffProfileDetailPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/leave"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["approve_leave"]}>
+                  <LeaveManagementPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/leave-settings"
+              element={
+                <RoleRoute roles={["admin"]} permissions={["manage_leave_types"]}>
+                  <LeaveSettingsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/certifications"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_certifications"]}>
+                  <CertificationsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/reviews"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["manage_performance_reviews"]}>
+                  <PerformanceReviewsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/pd"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]} permissions={["view_pd_reports"]}>
+                  <PDLogPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/my"
+              element={
+                <RoleRoute roles={["admin", "teacher", "staff", "department_principal"]} permissions={["view_own_hr_profile"]}>
+                  <MyHRPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="hr/settings"
+              element={
+                <RoleRoute roles={["admin"]} permissions={["manage_hr_settings"]}>
+                  <HRSettingsPage />
                 </RoleRoute>
               }
             />

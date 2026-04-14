@@ -12,7 +12,9 @@
     "attendance": "Attendance",
     "school": "School",
     "learning": "Learning",
-    "account": "Account"
+    "account": "Account",
+    "finance": "Finance",
+    "hr": "HR & Staff"
   },
   "items": {
     "dashboard": "Dashboard",
@@ -66,6 +68,21 @@
     "sbResults": "SB Results",
     "academicExcellence": "Academic Excellence",
     "revisionPlans": "Revision Plans",
+    "financeDashboard": "Finance Dashboard",
+    "feeStructures": "Fee Structures",
+    "discounts": "Discounts",
+    "invoices": "Invoices",
+    "payments": "Payments",
+    "financeReports": "Finance Reports",
+    "hrDashboard": "HR Dashboard",
+    "staffDirectory": "Staff Directory",
+    "leaveManagement": "Leave Management",
+    "leaveSettings": "Leave Settings",
+    "certifications": "Certifications",
+    "performanceReviews": "Performance Reviews",
+    "professionalDevelopment": "Professional Development",
+    "myHRProfile": "My HR Profile",
+    "hrSettings": "HR Settings",
     "settings": "Settings"
   },
   "actions": {

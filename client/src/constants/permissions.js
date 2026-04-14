@@ -158,6 +158,23 @@ export const PERMISSIONS = {
     VIEW_FINANCE_REPORTS: 'view_finance_reports',
     EXPORT_FINANCE_DATA: 'export_finance_data',
     VIEW_STUDENT_FINANCE: 'view_student_finance',
+
+    // HR & Staff Management
+    VIEW_STAFF_PROFILES: 'view_staff_profiles',
+    MANAGE_STAFF_PROFILES: 'manage_staff_profiles',
+    VIEW_CONTRACTS: 'view_contracts',
+    MANAGE_CONTRACTS: 'manage_contracts',
+    MANAGE_LEAVE_TYPES: 'manage_leave_types',
+    APPROVE_LEAVE: 'approve_leave',
+    VIEW_LEAVE_CALENDAR: 'view_leave_calendar',
+    REQUEST_LEAVE: 'request_leave',
+    MANAGE_CERTIFICATIONS: 'manage_certifications',
+    VIEW_CERTIFICATIONS: 'view_certifications',
+    LOG_PROFESSIONAL_DEVELOPMENT: 'log_professional_development',
+    VIEW_PD_REPORTS: 'view_pd_reports',
+    MANAGE_PERFORMANCE_REVIEWS: 'manage_performance_reviews',
+    VIEW_OWN_HR_PROFILE: 'view_own_hr_profile',
+    MANAGE_HR_SETTINGS: 'manage_hr_settings',
 };
 
 export const PERMISSION_DEFINITIONS = {

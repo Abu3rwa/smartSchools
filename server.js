@@ -4,7 +4,7 @@ dotenv.config();
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import hpp from "hpp";
 import compression from "compression";
@@ -91,6 +91,7 @@ import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import presentationRoutes from "./routes/presentationRoutes.js";
 import worksheetRoutes from "./routes/worksheetRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
+import hrRoutes from "./routes/hrRoutes.js";
 import standardAssessmentFeatureRoutes from "./routes/standardAssessmentRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
@@ -213,7 +214,7 @@ const isProduction = process.env.NODE_ENV === "production";
 // BE-034: Key generator for per-user rate limiting (falls back to IP for unauthenticated requests)
 const userKeyGenerator = (req) => {
   if (req.user?._id) return `user_${req.user._id}`;
-  return req.ip;
+  return ipKeyGenerator(req.ip);
 };
 
 const apiLimiter = rateLimit({
@@ -377,6 +378,7 @@ app.use("/api/sbr", sbrRoutes);
 app.use("/api/presentations", presentationRoutes);
 app.use("/api/worksheets", worksheetRoutes);
 app.use("/api/finance", financeRoutes);
+app.use("/api/hr", hrRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);
