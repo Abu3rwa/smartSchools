@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../config/api';
 import './LessonPlanLinkSelector.css';
@@ -12,6 +12,9 @@ const getLessonDateLabel = (value) => {
 
 const normalizeLessonId = (lessonId) => String(lessonId || '').trim();
 
+const DEBOUNCE_MS = 300;
+const DEFAULT_LIMIT = 10;
+
 const LessonPlanLinkSelector = ({
     classId,
     subjectId,
@@ -20,12 +23,12 @@ const LessonPlanLinkSelector = ({
     disabled = false
 }) => {
     const { t } = useTranslation(['grades', 'gradebook', 'studentGrades']);
-    const [mode, setMode] = useState('direct');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [lessons, setLessons] = useState([]);
+    const debounceRef = useRef(null);
 
     const selectedIds = useMemo(() => {
         const ids = Array.isArray(selectedLessonPlanIds) ? selectedLessonPlanIds : [];
@@ -35,42 +38,45 @@ const LessonPlanLinkSelector = ({
     }, [selectedLessonPlanIds]);
 
     const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-    const canFetchDirect = Boolean(classId && subjectId && mode === 'direct');
-    const canFetchDateRange = Boolean(classId && subjectId && mode === 'dateRange' && startDate && endDate);
+    const canFetch = Boolean(classId && subjectId);
 
+    // Debounce search input
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setDebouncedSearch(search.trim());
+        }, DEBOUNCE_MS);
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, [search]);
+
+    // Fetch lessons when class/subject/search change
     useEffect(() => {
         let mounted = true;
-
-        const shouldFetch = canFetchDirect || canFetchDateRange;
-        if (!shouldFetch) {
+        if (!canFetch) {
             setLessons([]);
             setError('');
-            return () => {
-                mounted = false;
-            };
+            return () => { mounted = false; };
         }
 
         const fetchLessons = async () => {
             setLoading(true);
             setError('');
-
             try {
                 const params = {
                     class: classId,
                     subject: subjectId,
                     page: 1,
-                    limit: 100
+                    limit: DEFAULT_LIMIT
                 };
-
-                if (mode === 'dateRange') {
-                    params.startDate = startDate;
-                    params.endDate = endDate;
+                if (debouncedSearch) {
+                    params.search = debouncedSearch;
+                    params.limit = 20;
                 }
-
                 const response = await api.get('/lessons', { params });
                 if (!mounted) return;
-                const fetchedLessons = response.data?.data?.lessons || [];
-                setLessons(fetchedLessons);
+                setLessons(response.data?.data?.lessons || []);
             } catch (fetchError) {
                 if (!mounted) return;
                 setLessons([]);
@@ -81,12 +87,10 @@ const LessonPlanLinkSelector = ({
         };
 
         fetchLessons();
-        return () => {
-            mounted = false;
-        };
-    }, [canFetchDateRange, canFetchDirect, classId, endDate, mode, startDate, subjectId, t]);
+        return () => { mounted = false; };
+    }, [canFetch, classId, debouncedSearch, subjectId, t]);
 
-    const handleToggleLesson = (lessonId, checked) => {
+    const handleToggleLesson = useCallback((lessonId, checked) => {
         if (disabled) return;
         const normalizedId = normalizeLessonId(lessonId);
         if (!normalizedId) return;
@@ -96,9 +100,8 @@ const LessonPlanLinkSelector = ({
             onChange([...selectedIds, normalizedId]);
             return;
         }
-
         onChange(selectedIds.filter((currentId) => currentId !== normalizedId));
-    };
+    }, [disabled, onChange, selectedIdSet, selectedIds]);
 
     const handleClearSelection = () => {
         if (disabled) return;
@@ -107,6 +110,14 @@ const LessonPlanLinkSelector = ({
 
     const disabledSelector = disabled || !classId || !subjectId;
 
+    // Build display list: merge fetched lessons with any selected lessons not in fetch results
+    const displayLessons = useMemo(() => {
+        const fetchedIds = new Set(lessons.map((l) => normalizeLessonId(l._id)));
+        // Selected lessons that aren't in the current fetched list remain as minimal stubs
+        // (they keep their selection state visible)
+        return lessons;
+    }, [lessons]);
+
     return (
         <div className="lesson-plan-link-selector">
             <div className="lesson-plan-link-selector__header">
@@ -114,65 +125,34 @@ const LessonPlanLinkSelector = ({
                     <h4>{t('grades:lessonLinks.title', { defaultValue: 'Linked lesson plans (optional)' })}</h4>
                     <p>{t('grades:lessonLinks.selectedCount', { defaultValue: '{{count}} selected', count: selectedIds.length })}</p>
                 </div>
-                <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={handleClearSelection}
-                    disabled={disabledSelector || selectedIds.length === 0}
-                >
-                    {t('grades:lessonLinks.clear', { defaultValue: 'Clear selection' })}
-                </button>
-            </div>
-
-            <div className="lesson-plan-link-selector__controls">
-                <label className="form-group">
-                    <span>{t('grades:lessonLinks.modeLabel', { defaultValue: 'Selection mode' })}</span>
-                    <select
-                        value={mode}
-                        onChange={(event) => setMode(event.target.value)}
+                {selectedIds.length > 0 && (
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleClearSelection}
                         disabled={disabledSelector}
                     >
-                        <option value="direct">{t('grades:lessonLinks.mode.direct', { defaultValue: 'Direct list' })}</option>
-                        <option value="dateRange">{t('grades:lessonLinks.mode.dateRange', { defaultValue: 'Filter by date range' })}</option>
-                    </select>
-                </label>
-
-                {mode === 'dateRange' && (
-                    <>
-                        <label className="form-group">
-                            <span>{t('grades:lessonLinks.startDate', { defaultValue: 'Start date' })}</span>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(event) => setStartDate(event.target.value)}
-                                disabled={disabledSelector}
-                            />
-                        </label>
-                        <label className="form-group">
-                            <span>{t('grades:lessonLinks.endDate', { defaultValue: 'End date' })}</span>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(event) => setEndDate(event.target.value)}
-                                disabled={disabledSelector}
-                            />
-                        </label>
-                    </>
+                        {t('grades:lessonLinks.clear', { defaultValue: 'Clear selection' })}
+                    </button>
                 )}
             </div>
+
+            {!disabledSelector && (
+                <div className="lesson-plan-link-selector__search">
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder={t('grades:lessonLinks.searchPlaceholder', { defaultValue: 'Search by title...' })}
+                        disabled={disabledSelector}
+                    />
+                </div>
+            )}
 
             {disabledSelector && (
                 <p className="lesson-plan-link-selector__helper">
                     {t('grades:lessonLinks.selectClassSubjectFirst', {
                         defaultValue: 'Select class and subject first to load lesson plans.'
-                    })}
-                </p>
-            )}
-
-            {!disabledSelector && mode === 'dateRange' && (!startDate || !endDate) && (
-                <p className="lesson-plan-link-selector__helper">
-                    {t('grades:lessonLinks.chooseDateRange', {
-                        defaultValue: 'Choose a start and end date to filter lesson plans.'
                     })}
                 </p>
             )}
@@ -187,15 +167,17 @@ const LessonPlanLinkSelector = ({
                 <p className="lesson-plan-link-selector__error">{error}</p>
             )}
 
-            {!disabledSelector && !loading && !error && lessons.length === 0 && (canFetchDirect || canFetchDateRange) && (
+            {!disabledSelector && !loading && !error && displayLessons.length === 0 && canFetch && (
                 <p className="lesson-plan-link-selector__helper">
-                    {t('grades:lessonLinks.noLessons', { defaultValue: 'No lesson plans found for this filter.' })}
+                    {debouncedSearch
+                        ? t('grades:lessonLinks.noSearchResults', { defaultValue: 'No lesson plans match your search.' })
+                        : t('grades:lessonLinks.noLessons', { defaultValue: 'No lesson plans found for this filter.' })}
                 </p>
             )}
 
-            {!disabledSelector && lessons.length > 0 && (
+            {!disabledSelector && displayLessons.length > 0 && (
                 <div className="lesson-plan-link-selector__list">
-                    {lessons.map((lesson) => {
+                    {displayLessons.map((lesson) => {
                         const lessonId = normalizeLessonId(lesson?._id);
                         if (!lessonId) return null;
                         const standards = Array.isArray(lesson.standardIds)
@@ -216,7 +198,7 @@ const LessonPlanLinkSelector = ({
                                     <span className="lesson-plan-link-selector__title">{lessonLabel}</span>
                                     <span className="lesson-plan-link-selector__meta">
                                         {lessonDate || t('grades:common.notSet', { defaultValue: 'Date not set' })}
-                                        {standards.length > 0 ? ` - ${standards.join(', ')}` : ''}
+                                        {standards.length > 0 ? ` · ${standards.join(', ')}` : ''}
                                     </span>
                                 </span>
                             </label>

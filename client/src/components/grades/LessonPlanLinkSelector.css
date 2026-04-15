@@ -10,7 +10,7 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
 }
 
 .lesson-plan-link-selector__header h4 {
@@ -24,22 +24,24 @@
     color: var(--text-secondary, #6b7280);
 }
 
-.lesson-plan-link-selector__controls {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.65rem;
+.lesson-plan-link-selector__search {
     margin-bottom: 0.65rem;
 }
 
-.lesson-plan-link-selector__controls .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+.lesson-plan-link-selector__search input {
+    width: 100%;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-sm, 6px);
+    font-size: 0.88rem;
+    background: var(--bg-primary, #fff);
+    transition: border-color 0.15s;
 }
 
-.lesson-plan-link-selector__controls input,
-.lesson-plan-link-selector__controls select {
-    width: 100%;
+.lesson-plan-link-selector__search input:focus {
+    outline: none;
+    border-color: var(--primary, #3b82f6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 
 .lesson-plan-link-selector__helper {
@@ -55,7 +57,7 @@
 }
 
 .lesson-plan-link-selector__list {
-    max-height: 220px;
+    max-height: 260px;
     overflow-y: auto;
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: var(--radius-sm, 6px);
@@ -67,6 +69,12 @@
     gap: 0.6rem;
     padding: 0.55rem 0.6rem;
     border-bottom: 1px solid var(--border-color, #f1f5f9);
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.lesson-plan-link-selector__item:hover {
+    background-color: var(--bg-secondary, #f9fafb);
 }
 
 .lesson-plan-link-selector__item:last-child {

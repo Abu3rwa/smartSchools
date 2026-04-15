@@ -37,6 +37,8 @@ const AssignmentsPage = () => {
         setLoading,
         submitting,
         setSubmitting,
+        submittingGrades,
+        setSubmittingGrades,
         selectedClass,
         setSelectedClass,
         selectedSubject,
@@ -281,7 +283,7 @@ const AssignmentsPage = () => {
     };
 
     const onSubmitGrades = async () => {
-        if (!gradingAssignment) return;
+        if (!gradingAssignment || submittingGrades) return;
 
         const rows = Object.entries(gradeRows)
             .filter(([, row]) => row.marks !== '' && row.marks !== null && row.marks !== undefined)
@@ -297,6 +299,7 @@ const AssignmentsPage = () => {
             return;
         }
 
+        setSubmittingGrades(true);
         try {
             await assignmentService.gradeAssignment(gradingAssignment.id, {
                 rows,
@@ -307,6 +310,8 @@ const AssignmentsPage = () => {
             await fetchAssignments();
         } catch (error) {
             toast.error(error.response?.data?.message || t('assignments:toasts.saveGradesFailed'));
+        } finally {
+            setSubmittingGrades(false);
         }
     };
 
@@ -361,6 +366,7 @@ const AssignmentsPage = () => {
                 onGradeChange={onGradeChange}
                 onClose={() => setGradingAssignment(null)}
                 onSubmitGrades={onSubmitGrades}
+                submitting={submittingGrades}
             />
         </div>
     );

@@ -7,7 +7,8 @@ const AssignmentGradePanel = ({
     gradeRows,
     onGradeChange,
     onClose,
-    onSubmitGrades
+    onSubmitGrades,
+    submitting = false
 }) => {
     const { t } = useTranslation(['assignments']);
     if (!gradingAssignment) return null;
@@ -73,8 +74,8 @@ const AssignmentGradePanel = ({
             </div>
 
             <div className="card-footer">
-                <button type="button" className="btn btn-primary" onClick={onSubmitGrades}>
-                    {t('assignments:gradePanel.save')}
+                <button type="button" className="btn btn-primary" onClick={onSubmitGrades} disabled={submitting}>
+                    {submitting ? t('assignments:gradePanel.saving', { defaultValue: 'Saving…' }) : t('assignments:gradePanel.save')}
                 </button>
             </div>
         </div>

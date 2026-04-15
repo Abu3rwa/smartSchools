@@ -4,6 +4,7 @@
  */
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
+import toast from 'react-hot-toast';
 import { HiOutlineDocumentText, HiOutlineCheckCircle, HiOutlineCloudUpload, HiOutlineLightningBolt } from 'react-icons/hi';
 import AISuggestButton from './AISuggestButton.jsx';
 import StandardsSuggester from './StandardsSuggester.jsx';
@@ -62,8 +63,10 @@ const LessonPlanFormModal = ({
         extractedMaterialText: result.extractedText || '',
         materialFile: null,
       });
-    } catch (_err) {
+    } catch (err) {
       clearInterval(progressTimer);
+      setExtractProgress(0);
+      toast.error(err?.message || t('lessonPlan:teacherForm.aiContext.extractFailed', { defaultValue: 'Failed to extract PDF. Please try again.' }));
     } finally {
       setTimeout(() => {
         setExtracting(false);
@@ -297,7 +300,7 @@ const LessonPlanFormModal = ({
                     </button>
                     {(!formData.subjectId || !formData.classId) && (
                       <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        {t('lessonPlan:form.toasts.selectClassSubjectFirst')}
+                        {t('lessonPlan:teacherForm.aiContext.selectClassSubjectHint', { defaultValue: 'Select class & subject, then use "Generate from File & Title" below.' })}
                       </span>
                     )}
                   </div>
@@ -381,6 +384,11 @@ const LessonPlanFormModal = ({
                 <>
                   <span className="spinner-small" />
                   {t('lessonPlan:teacherForm.actions.generating')}
+                </>
+              ) : formData.extractedMaterialText ? (
+                <>
+                  <HiOutlineLightningBolt size={16} />
+                  {t('lessonPlan:teacherForm.actions.generateFromFile', { defaultValue: 'Generate from File & Title' })}
                 </>
               ) : (
                 <>{t('lessonPlan:teacherForm.actions.generateFromTitle')}</>

@@ -2,6 +2,7 @@ import Assignment from '../models/Assignment.js';
 import AssignmentType from '../models/AssignmentType.js';
 import Class from '../models/Class.js';
 import Grade from '../models/Grade.js';
+import Notification from '../models/Notification.js';
 import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
 import notificationService from '../services/notificationService.js';
@@ -278,8 +279,35 @@ const deleteAttachmentFiles = async (attachments) => {
 
 const sendAssignGradedNotifications = async ({ assignment, gradedRows, createdBy }) => {
     if (!Array.isArray(gradedRows) || gradedRows.length === 0) return;
+
+    // Deduplicate by studentId — keep only the last entry per student
+    const uniqueByStudent = new Map();
+    for (const row of gradedRows) {
+        const sid = toId(row.studentId);
+        if (sid) uniqueByStudent.set(sid, row);
+    }
+    const deduplicatedRows = [...uniqueByStudent.values()];
+
+    // Skip students who already received a graded notification for this assignment
+    // within the last 2 minutes (guards against rapid double-submissions)
+    const recentCutoff = new Date(Date.now() - 2 * 60 * 1000);
+    const recentNotifications = await Notification.find({
+        type: 'assignment_graded',
+        'metadata.assignmentId': String(assignment._id),
+        student: { $in: deduplicatedRows.map((r) => r.studentId) },
+        createdAt: { $gte: recentCutoff }
+    }).select('student').lean();
+    const recentlyNotifiedStudents = new Set(
+        recentNotifications.map((n) => toId(n.student))
+    );
+
+    const rowsToNotify = deduplicatedRows.filter(
+        (row) => !recentlyNotifiedStudents.has(toId(row.studentId))
+    );
+    if (rowsToNotify.length === 0) return;
+
     await Promise.allSettled(
-        gradedRows.flatMap((row) => [
+        rowsToNotify.flatMap((row) => [
             notificationService.sendAssignmentGradedNotification({
                 studentId: row.studentId,
                 assignment,

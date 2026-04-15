@@ -114,6 +114,15 @@ export const getLessonPlans = asyncHandler(async (req, res) => {
         if (endDate) query.date.$lte = new Date(endDate);
     }
 
+    const searchTerm = String(req.query.search || '').trim();
+    if (searchTerm) {
+        const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query.$or = [
+            { title: { $regex: escaped, $options: 'i' } },
+            { topic: { $regex: escaped, $options: 'i' } }
+        ];
+    }
+
     const skip = (Math.max(1, parseInt(page, 10)) - 1) * Math.max(1, parseInt(limit, 10));
     const lessons = await LessonPlan.find(query)
         .populate('class', 'name')
