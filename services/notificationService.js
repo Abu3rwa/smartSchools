@@ -80,8 +80,11 @@ const addSchoolNameToMailContent = (mailOptions, schoolName) => {
     nextMailOptions.text = `${textBody}${textBody ? "\n\n" : ""}School: ${normalizedSchoolName}`;
   }
 
+  // Inject school name into the styled template's {{SCHOOL_NAME}} placeholder
   const htmlBody = String(nextMailOptions.html || "");
-  if (!htmlBody.toLowerCase().includes(lowerSchoolName)) {
+  if (htmlBody.includes("{{SCHOOL_NAME}}")) {
+    nextMailOptions.html = htmlBody.replace(/\{\{SCHOOL_NAME\}\}/g, escapeHtml(normalizedSchoolName));
+  } else if (!htmlBody.toLowerCase().includes(lowerSchoolName)) {
     const footer = `<p style="margin-top:16px;font-size:12px;color:#334155;">School: ${escapeHtml(normalizedSchoolName)}</p>`;
     if (/<\/body>/i.test(htmlBody)) {
       nextMailOptions.html = htmlBody.replace(/<\/body>/i, `${footer}</body>`);
@@ -91,6 +94,36 @@ const addSchoolNameToMailContent = (mailOptions, schoolName) => {
   }
 
   return nextMailOptions;
+};
+
+/**
+ * Wrap email body content in a professional styled HTML email template.
+ * Uses {{SCHOOL_NAME}} placeholder which addSchoolNameToMailContent replaces.
+ */
+const wrapEmailHtml = ({ preheader = "", bodyHtml, accentColor = "#0d9488" }) => {
+  return [
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+    "<style>",
+    "body{margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%}",
+    ".wrapper{width:100%;background:#f1f5f9;padding:32px 0}",
+    ".card{max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)}",
+    `.header{background:${accentColor};padding:20px 28px}`,
+    ".header h1{margin:0;font-size:18px;font-weight:600;color:#ffffff;letter-spacing:0.3px}",
+    ".body-content{padding:24px 28px}",
+    ".body-content p{margin:0 0 12px;font-size:14px;line-height:1.6;color:#334155}",
+    ".body-content .label{font-weight:600;color:#1e293b}",
+    ".detail-row{margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155}",
+    `.btn{display:inline-block;margin:16px 0 4px;padding:10px 24px;background:${accentColor};color:#ffffff !important;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px}`,
+    ".footer{padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center}",
+    ".footer p{margin:0;font-size:12px;color:#94a3b8}",
+    "</style></head><body>",
+    preheader ? `<div style="display:none;max-height:0;overflow:hidden">${escapeHtml(preheader)}</div>` : "",
+    '<div class="wrapper"><div class="card">',
+    '<div class="header"><h1>{{SCHOOL_NAME}}</h1></div>',
+    `<div class="body-content">${bodyHtml}</div>`,
+    '<div class="footer"><p>This is an automated notification from {{SCHOOL_NAME}}.</p></div>',
+    "</div></div></body></html>",
+  ].join("");
 };
 
 class NotificationService {
@@ -112,7 +145,7 @@ class NotificationService {
       auth: { user, pass },
     });
     this._smtpFrom = process.env.FROM_EMAIL || user;
-    this._smtpFromName = process.env.FROM_NAME || 'Schoolworkso';
+    this._smtpFromName = process.env.FROM_NAME || 'Classhope';
     logger.info('SMTP transport configured', { host, user });
   }
 
@@ -449,7 +482,7 @@ class NotificationService {
       ? buildPortalLink(`/assignments/${assignment._id}`)
       : "";
 
-    const subject = `${typeName} posted: ${title}`;
+    const subject = `New ${typeName}: ${title}`;
     const messageLines = [
       `A new ${typeName.toLowerCase()} has been posted for ${studentName}.`,
       `Title: ${title}`,
@@ -458,22 +491,26 @@ class NotificationService {
       assignmentUrl ? `View: ${assignmentUrl}` : "Please review it in the app.",
     ].filter(Boolean);
 
-    const htmlParts = [
-      `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>`,
-      `<p><strong>Title:</strong> ${escapeHtml(title)}</p>`,
-      dueDate ? `<p><strong>Due date:</strong> ${escapeHtml(dueDate)}</p>` : "",
+    const detailRows = [
+      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
+      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
+      `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
+      dueDate ? `<p class="detail-row"><span class="label">Due date:</span> ${escapeHtml(dueDate)}</p>` : "",
       trimmedInstructions
-        ? `<p><strong>Instructions:</strong><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
+        ? `<p class="detail-row"><span class="label">Instructions:</span><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
         : "",
-      assignmentUrl
-        ? `<p><a href="${escapeHtml(assignmentUrl)}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Assignment</a></p>`
-        : "<p>Please review it in the app.</p>",
-    ].filter(Boolean);
+    ].filter(Boolean).join("");
+
+    const ctaHtml = assignmentUrl
+      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
+      : "<p>Open the app to review details.</p>";
+
+    const bodyHtml = `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>${detailRows}${ctaHtml}`;
 
     return {
       subject,
       message: messageLines.join("\n"),
-      htmlContent: htmlParts.join(""),
+      htmlContent: wrapEmailHtml({ preheader: `New ${typeName}: ${title}`, bodyHtml }),
     };
   }
 
@@ -488,33 +525,34 @@ class NotificationService {
       ? buildPortalLink(`/assignments/${assignment._id}`)
       : "";
 
+    const hasScore = Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0;
     const subject = `${typeName} graded: ${title}`;
     const messageLines = [
       `${studentName}'s ${typeName.toLowerCase()} has been graded.`,
       `Title: ${title}`,
-      Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0
-        ? `Score: ${marks}/${maxMarks}`
-        : "",
+      hasScore ? `Score: ${marks}/${maxMarks}` : "",
       remarks ? `Remarks: ${remarks}` : "",
       assignmentUrl ? `View: ${assignmentUrl}` : "Open the app to review details.",
     ].filter(Boolean);
 
-    const htmlParts = [
-      `<p><strong>${escapeHtml(studentName)}</strong>'s ${escapeHtml(typeName.toLowerCase())} has been graded.</p>`,
-      `<p><strong>Title:</strong> ${escapeHtml(title)}</p>`,
-      Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0
-        ? `<p><strong>Score:</strong> ${escapeHtml(`${marks}/${maxMarks}`)}</p>`
-        : "",
-      remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "",
-      assignmentUrl
-        ? `<p><a href="${escapeHtml(assignmentUrl)}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Grade</a></p>`
-        : "<p>Open the app to review details.</p>",
-    ].filter(Boolean);
+    const detailRows = [
+      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
+      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
+      `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
+      hasScore ? `<p class="detail-row"><span class="label">Score:</span> ${escapeHtml(`${marks}/${maxMarks}`)}</p>` : "",
+      remarks ? `<p class="detail-row"><span class="label">Remarks:</span> ${escapeHtml(remarks)}</p>` : "",
+    ].filter(Boolean).join("");
+
+    const ctaHtml = assignmentUrl
+      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View Grade</a></p>`
+      : "<p>Open the app to review details.</p>";
+
+    const bodyHtml = `<p><strong>${escapeHtml(studentName)}</strong>'s <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been graded.</p>${detailRows}${ctaHtml}`;
 
     return {
       subject,
       message: messageLines.join("\n"),
-      htmlContent: htmlParts.join(""),
+      htmlContent: wrapEmailHtml({ preheader: `${typeName} graded: ${title}`, bodyHtml }),
     };
   }
 
@@ -529,7 +567,7 @@ class NotificationService {
       ? buildPortalLink(`/homework/${assignment._id}`)
       : "";
 
-    const subject = `Homework posted: ${title}`;
+    const subject = `New Homework: ${title}`;
     const messageLines = [
       `A new homework has been posted for ${studentName}.`,
       `Title: ${title}`,
@@ -538,22 +576,25 @@ class NotificationService {
       assignmentUrl ? `View: ${assignmentUrl}` : "Please review it in the app.",
     ].filter(Boolean);
 
-    const htmlParts = [
-      `<p>A new homework has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>`,
-      `<p><strong>Title:</strong> ${escapeHtml(title)}</p>`,
-      dueDate ? `<p><strong>Due date:</strong> ${escapeHtml(dueDate)}</p>` : "",
+    const detailRows = [
+      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
+      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
+      dueDate ? `<p class="detail-row"><span class="label">Due date:</span> ${escapeHtml(dueDate)}</p>` : "",
       trimmedInstructions
-        ? `<p><strong>Instructions:</strong><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
+        ? `<p class="detail-row"><span class="label">Instructions:</span><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
         : "",
-      assignmentUrl
-        ? `<p><a href="${escapeHtml(assignmentUrl)}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Homework</a></p>`
-        : "<p>Please review it in the app.</p>",
-    ].filter(Boolean);
+    ].filter(Boolean).join("");
+
+    const ctaHtml = assignmentUrl
+      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View Homework</a></p>`
+      : "<p>Open the app to review details.</p>";
+
+    const bodyHtml = `<p>A new homework has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>${detailRows}${ctaHtml}`;
 
     return {
       subject,
       message: messageLines.join("\n"),
-      htmlContent: htmlParts.join(""),
+      htmlContent: wrapEmailHtml({ preheader: `New Homework: ${title}`, bodyHtml }),
     };
   }
 
@@ -567,33 +608,33 @@ class NotificationService {
       ? buildPortalLink(`/homework/${assignment._id}`)
       : "";
 
+    const hasScore = Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0;
     const subject = `Homework graded: ${title}`;
     const messageLines = [
       `${studentName}'s homework has been graded.`,
       `Title: ${title}`,
-      Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0
-        ? `Score: ${marks}/${maxMarks}`
-        : "",
+      hasScore ? `Score: ${marks}/${maxMarks}` : "",
       remarks ? `Remarks: ${remarks}` : "",
       assignmentUrl ? `View: ${assignmentUrl}` : "Open the app to review details.",
     ].filter(Boolean);
 
-    const htmlParts = [
-      `<p><strong>${escapeHtml(studentName)}</strong>'s homework has been graded.</p>`,
-      `<p><strong>Title:</strong> ${escapeHtml(title)}</p>`,
-      Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0
-        ? `<p><strong>Score:</strong> ${escapeHtml(`${marks}/${maxMarks}`)}</p>`
-        : "",
-      remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "",
-      assignmentUrl
-        ? `<p><a href="${escapeHtml(assignmentUrl)}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Grade</a></p>`
-        : "<p>Open the app to review details.</p>",
-    ].filter(Boolean);
+    const detailRows = [
+      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
+      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
+      hasScore ? `<p class="detail-row"><span class="label">Score:</span> ${escapeHtml(`${marks}/${maxMarks}`)}</p>` : "",
+      remarks ? `<p class="detail-row"><span class="label">Remarks:</span> ${escapeHtml(remarks)}</p>` : "",
+    ].filter(Boolean).join("");
+
+    const ctaHtml = assignmentUrl
+      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View Grade</a></p>`
+      : "<p>Open the app to review details.</p>";
+
+    const bodyHtml = `<p><strong>${escapeHtml(studentName)}</strong>'s homework has been graded.</p>${detailRows}${ctaHtml}`;
 
     return {
       subject,
       message: messageLines.join("\n"),
-      htmlContent: htmlParts.join(""),
+      htmlContent: wrapEmailHtml({ preheader: `Homework graded: ${title}`, bodyHtml }),
     };
   }
 
