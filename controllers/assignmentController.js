@@ -17,6 +17,7 @@ import {
 import { ensureDefaultAssignmentTypes } from './assignmentTypeController.js';
 import { validateGradeLessonPlanLinks } from '../helpers/gradeLessonPlanLinks.js';
 import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
+import { generateAssignmentReminder } from '../helpers/assignmentReminderAi.js';
 
 const toId = (value) => (value == null ? '' : String(value));
 
@@ -654,6 +655,47 @@ export const publishAssignment = asyncHandler(async (req, res) => {
         success: true,
         data: { assignment: mapAssignmentSummary(assignment) }
     });
+});
+
+/* ── Send AI-generated reminder to parents ── */
+export const sendAssignmentReminder = asyncHandler(async (req, res) => {
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+
+    if (assignment.status !== 'published') {
+        return res.status(400).json({ success: false, message: 'Can only send reminders for published assignments' });
+    }
+
+    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized' });
+
+    const tone = ['friendly', 'formal', 'encouraging'].includes(req.body?.tone) ? req.body.tone : 'friendly';
+    const students = await resolveTargetStudentsForAssignment(assignment);
+    if (students.length === 0) {
+        return res.status(400).json({ success: false, message: 'No students found for this assignment' });
+    }
+
+    // Generate one reminder per student (personalized with name) but batch-send
+    const results = await Promise.allSettled(
+        students.map(async (student) => {
+            const { subject, body } = await generateAssignmentReminder({
+                assignment,
+                studentName: student.fullName || 'Student',
+                tone,
+                tracking: { schoolId: req.schoolId, userId: req.user._id },
+            });
+            return notificationService.sendAssignmentReminderNotification({
+                studentId: student._id,
+                assignment,
+                subject,
+                reminderText: body,
+                createdBy: req.user._id,
+            });
+        })
+    );
+
+    const sent = results.filter((r) => r.status === 'fulfilled').length;
+    res.json({ success: true, data: { studentCount: students.length, remindersSent: sent } });
 });
 
 export const getAssignmentGradebook = asyncHandler(async (req, res) => {

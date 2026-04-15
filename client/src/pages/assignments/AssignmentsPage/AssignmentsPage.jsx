@@ -243,6 +243,19 @@ const AssignmentsPage = () => {
         }
     };
 
+    const [sendingReminder, setSendingReminder] = useState(null);
+    const onSendReminder = async (assignmentId) => {
+        setSendingReminder(assignmentId);
+        try {
+            const res = await assignmentService.sendReminder(assignmentId, { tone: 'friendly' });
+            toast.success(`Reminder sent to ${res.data?.remindersSent ?? 0} parent(s)`);
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to send reminder');
+        } finally {
+            setSendingReminder(null);
+        }
+    };
+
     const openGradePanel = async (assignment) => {
         setGradingAssignment(assignment);
         setGradeRows({});
@@ -357,6 +370,8 @@ const AssignmentsPage = () => {
                 onOpenGradePanel={openGradePanel}
                 onEditAssignment={onEditAssignment}
                 onDeleteAssignment={onDeleteAssignment}
+                onSendReminder={onSendReminder}
+                sendingReminder={sendingReminder}
             />
 
             <AssignmentGradePanel

@@ -8,6 +8,7 @@ import {
     getMyAssignmentsForStudent,
     gradeAssignment,
     publishAssignment,
+    sendAssignmentReminder,
     updateAssignment
 } from '../controllers/assignmentController.js';
 import { authorize, protect, requirePermission } from '../middleware/auth.js';
@@ -39,6 +40,15 @@ router.post(
     validationRules.mongoId,
     validate,
     publishAssignment
+);
+
+router.post(
+    '/:id/remind',
+    authorize('teacher', 'admin'),
+    requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    validationRules.mongoId,
+    validate,
+    sendAssignmentReminder
 );
 
 router.put(

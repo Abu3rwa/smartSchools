@@ -91,6 +91,11 @@ const assignmentService = {
     getAttachmentUrl: async (assignmentId, attachmentId) => {
         const response = await api.get(`/assignments/${assignmentId}/attachments/${attachmentId}/url`);
         return response.data;
+    },
+
+    sendReminder: async (id, payload = {}) => {
+        const response = await api.post(`/assignments/${id}/remind`, payload);
+        return response.data;
     }
 };
 

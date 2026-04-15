@@ -9,7 +9,9 @@ const AssignmentsTable = ({
     onPublishAssignment,
     onOpenGradePanel,
     onEditAssignment,
-    onDeleteAssignment
+    onDeleteAssignment,
+    onSendReminder,
+    sendingReminder
 }) => {
     const { t } = useTranslation(['assignments']);
 
@@ -60,6 +62,16 @@ const AssignmentsTable = ({
                                         {(assignment.status === 'published' || assignment.status === 'closed') && canCreateAssignments && (
                                             <button type="button" className="btn btn-primary btn-sm" onClick={() => onOpenGradePanel(assignment)}>
                                                 {t('assignments:actions.grade')}
+                                            </button>
+                                        )}
+                                        {assignment.status === 'published' && canCreateAssignments && onSendReminder && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline btn-sm"
+                                                disabled={sendingReminder === assignment.id}
+                                                onClick={() => onSendReminder(assignment.id)}
+                                            >
+                                                {sendingReminder === assignment.id ? t('assignments:actions.sending', { defaultValue: 'Sending…' }) : t('assignments:actions.remind', { defaultValue: 'Send Reminder' })}
                                             </button>
                                         )}
                                         {canCreateAssignments && (
