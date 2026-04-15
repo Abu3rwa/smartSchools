@@ -73,22 +73,32 @@ const AssessmentNarrativePage = ({ embedded }) => {
   const classStudents = useMemo(() => {
     if (!genForm.classId) return [];
     return (Array.isArray(students) ? students : []).filter(
-      (s) => String(s.class?._id || s.class || s.classId) === String(genForm.classId)
+      (s) => {
+        const id = String(s.currentClass?._id || s.currentClass || s.class?._id || s.class || s.classId || '');
+        return id === String(genForm.classId);
+      }
     );
   }, [students, genForm.classId]);
 
-  // Filtered subjects — if a class has subjects attached, scope to those
+  // Filtered subjects — use class-level populated subjects when available
   const filteredSubjects = useMemo(() => {
-    const list = Array.isArray(subjects) ? subjects : [];
-    if (!genForm.classId) return list;
+    const globalList = Array.isArray(subjects) ? subjects : [];
+    if (!genForm.classId) return globalList;
     const selectedClass = (Array.isArray(classes) ? classes : []).find(
       (c) => String(c._id) === String(genForm.classId)
     );
     if (selectedClass?.subjects?.length) {
+      // Prefer populated subject objects directly from the class
+      const fromClass = selectedClass.subjects
+        .map((s) => s.subject && typeof s.subject === 'object' && s.subject._id ? s.subject : null)
+        .filter(Boolean);
+      if (fromClass.length > 0) return fromClass;
+      // Fall back to matching against global subjects list by ID
       const classSubjectIds = new Set(selectedClass.subjects.map((s) => String(s.subject?._id || s.subject || s._id || s)));
-      return list.filter((s) => classSubjectIds.has(String(s._id)));
+      const matched = globalList.filter((s) => classSubjectIds.has(String(s._id)));
+      if (matched.length > 0) return matched;
     }
-    return list;
+    return globalList;
   }, [subjects, classes, genForm.classId]);
 
   // Filtered standards by selected subject
