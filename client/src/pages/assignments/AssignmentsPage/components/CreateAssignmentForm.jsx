@@ -90,6 +90,8 @@ const CreateAssignmentForm = ({
                         links={form.links || []}
                         onChange={(links) => setForm((prev) => ({ ...prev, links }))}
                         disabled={submitting}
+                        classId={selectedClass}
+                        subjectId={selectedSubject}
                     />
                 </div>
                 <div className="form-group full">

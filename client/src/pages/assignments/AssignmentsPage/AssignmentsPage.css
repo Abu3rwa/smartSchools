@@ -214,3 +214,109 @@
 .add-attachment-btn {
     align-self: flex-start;
 }
+
+/* Ref Picker (Standard / Assessment dropdown) */
+.ref-picker {
+    position: relative;
+    flex: 1;
+    min-width: 180px;
+}
+
+.ref-picker__trigger {
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--bg-primary, #fff);
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: var(--text-primary, #111827);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ref-picker__trigger:hover {
+    border-color: var(--primary, #3b82f6);
+}
+
+.ref-picker__trigger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ref-picker__placeholder {
+    color: var(--text-secondary, #9ca3af);
+}
+
+.ref-picker__dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    margin-top: 4px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: var(--radius-sm, 6px);
+    background: var(--bg-primary, #fff);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.ref-picker__search {
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.ref-picker__search:focus {
+    box-shadow: inset 0 -2px 0 var(--primary, #3b82f6);
+}
+
+.ref-picker__status {
+    padding: 10px;
+    font-size: 0.82rem;
+    color: var(--text-secondary, #6b7280);
+    text-align: center;
+}
+
+.ref-picker__option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 1px solid var(--border-color, #f1f5f9);
+    background: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.1s;
+}
+
+.ref-picker__option:last-child {
+    border-bottom: none;
+}
+
+.ref-picker__option:hover {
+    background: var(--bg-secondary, #f9fafb);
+}
+
+.ref-picker__option.is-selected {
+    background: var(--primary-lightest, #eff6ff);
+}
+
+.ref-picker__option-label {
+    color: var(--text-primary, #111827);
+}
+
+.ref-picker__option-sub {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #6b7280);
+}
