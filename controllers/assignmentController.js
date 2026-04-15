@@ -20,6 +20,15 @@ import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
 
 const toId = (value) => (value == null ? '' : String(value));
 
+/** Safely coerce a value that may be a JSON-stringified array (from FormData) into a real array. */
+const toArray = (v, fallback = []) => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') {
+        try { const parsed = JSON.parse(v); if (Array.isArray(parsed)) return parsed; } catch { /* ignore */ }
+    }
+    return fallback;
+};
+
 const parseBoolean = (value, fallback = false) => {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'string') {
@@ -528,7 +537,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         }
     }
 
-    const requestedStudentIds = Array.isArray(body.studentIds) ? body.studentIds : [];
+    const requestedStudentIds = toArray(body.studentIds);
     const scope = normalizeScope(body.scope, requestedStudentIds);
     const validSelectedStudentIds = scope === 'selected_students'
         ? await Student.find({
@@ -547,7 +556,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
     }
 
     const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
-        lessonPlanIds: body.lessonPlanIds,
+        lessonPlanIds: toArray(body.lessonPlanIds),
         schoolId: req.schoolId,
         classId,
         subjectId,
@@ -713,7 +722,7 @@ export const gradeAssignment = asyncHandler(async (req, res) => {
     const teacherProfile = req.user.role === 'teacher' ? await resolveTeacherProfile(req) : null;
     const gradingTeacherId = teacherProfile?._id || assignment.teacher || req.user._id;
     const normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
-        lessonPlanIds: req.body?.lessonPlanIds ?? assignment.lessonPlanIds ?? [],
+        lessonPlanIds: toArray(req.body?.lessonPlanIds, assignment.lessonPlanIds ?? []),
         schoolId: req.schoolId,
         classId: assignment.class,
         subjectId: assignment.subject,
@@ -903,11 +912,9 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid dueDate' });
     }
 
-    const requestedStudentIds = Array.isArray(body.studentIds)
-        ? body.studentIds
-        : Array.isArray(assignment.studentIds)
-            ? assignment.studentIds
-            : [];
+    const requestedStudentIds = toArray(body.studentIds,
+        Array.isArray(assignment.studentIds) ? assignment.studentIds : []
+    );
     const scope = body.scope === undefined
         ? normalizeScope(assignment.scope, requestedStudentIds)
         : normalizeScope(body.scope, requestedStudentIds);
@@ -932,7 +939,7 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     let normalizedLessonPlanIds;
     if (body.lessonPlanIds !== undefined) {
         normalizedLessonPlanIds = await validateGradeLessonPlanLinks({
-            lessonPlanIds: body.lessonPlanIds,
+            lessonPlanIds: toArray(body.lessonPlanIds),
             schoolId: req.schoolId,
             classId,
             subjectId,
