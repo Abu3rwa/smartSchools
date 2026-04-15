@@ -1,6 +1,8 @@
 import { HiOutlinePlus, HiOutlineUpload } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
+import LinkEditor from './LinkEditor';
+import AttachmentEditor from './AttachmentEditor';
 
 const CreateAssignmentForm = ({
     open,
@@ -80,6 +82,26 @@ const CreateAssignmentForm = ({
                         subjectId={selectedSubject}
                         selectedLessonPlanIds={form.lessonPlanIds || []}
                         onChange={(lessonPlanIds) => setForm((prev) => ({ ...prev, lessonPlanIds }))}
+                        disabled={submitting}
+                    />
+                </div>
+                <div className="form-group full">
+                    <LinkEditor
+                        links={form.links || []}
+                        onChange={(links) => setForm((prev) => ({ ...prev, links }))}
+                        disabled={submitting}
+                    />
+                </div>
+                <div className="form-group full">
+                    <AttachmentEditor
+                        attachmentFiles={form.attachmentFiles || []}
+                        existingAttachments={form.existingAttachments || []}
+                        onFilesChange={(attachmentFiles) => setForm((prev) => ({ ...prev, attachmentFiles }))}
+                        onRemoveExisting={(id) => setForm((prev) => ({
+                            ...prev,
+                            existingAttachments: (prev.existingAttachments || []).filter((att) => att._id !== id),
+                            removeAttachmentIds: [...(prev.removeAttachmentIds || []), id]
+                        }))}
                         disabled={submitting}
                     />
                 </div>

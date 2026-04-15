@@ -2,6 +2,7 @@ import express from 'express';
 import {
     createAssignment,
     deleteAssignment,
+    getAssignmentAttachmentUrl,
     getAssignmentGradebook,
     getAssignments,
     getMyAssignmentsForStudent,
@@ -13,6 +14,7 @@ import { authorize, protect, requirePermission } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
+import { uploadAssignmentAttachments } from '../middleware/uploadAssignmentAttachments.js';
 
 const router = express.Router();
 
@@ -26,6 +28,7 @@ router.post(
     '/',
     authorize('teacher', 'admin'),
     requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    uploadAssignmentAttachments.array('attachments', 5),
     createAssignment
 );
 
@@ -42,6 +45,7 @@ router.put(
     '/:id',
     authorize('teacher', 'admin'),
     requirePermission(PERMISSIONS.CREATE_ASSIGNMENTS),
+    uploadAssignmentAttachments.array('attachments', 5),
     validationRules.mongoId,
     validate,
     updateAssignment
@@ -71,6 +75,14 @@ router.post(
     validationRules.mongoId,
     validate,
     gradeAssignment
+);
+
+router.get(
+    '/:id/attachments/:attachmentId/url',
+    authorize('teacher', 'admin', 'student', 'department_principal'),
+    validationRules.mongoId,
+    validate,
+    getAssignmentAttachmentUrl
 );
 
 export default router;

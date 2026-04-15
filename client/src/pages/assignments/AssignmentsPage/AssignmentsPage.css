@@ -117,3 +117,100 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Link Editor */
+.link-editor,
+.attachment-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.link-editor-label,
+.attachment-editor-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+}
+
+.link-chips,
+.attachment-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.link-chip,
+.attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 13px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+}
+
+.link-chip-type {
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.link-chip-remove,
+.attachment-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    color: var(--text-secondary);
+}
+
+.link-chip-remove:hover,
+.attachment-chip-remove:hover {
+    color: var(--danger-btn-bg);
+}
+
+.link-draft {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.link-draft select,
+.link-draft input {
+    flex: 1;
+    min-width: 140px;
+}
+
+.link-draft-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.attachment-chip-name {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-chip-size {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.attachment-chip.new {
+    border-style: dashed;
+}
+
+.add-link-btn,
+.add-attachment-btn {
+    align-self: flex-start;
+}

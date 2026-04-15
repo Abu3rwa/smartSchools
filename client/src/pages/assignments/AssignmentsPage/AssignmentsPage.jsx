@@ -142,19 +142,27 @@ const AssignmentsPage = () => {
                 lessonPlanIds: Array.isArray(form.lessonPlanIds) && form.lessonPlanIds.length > 0
                     ? form.lessonPlanIds
                     : undefined,
+                links: Array.isArray(form.links) && form.links.length > 0
+                    ? form.links
+                    : undefined,
                 dueDate: form.dueDate || undefined,
                 maxMarks: Number(form.maxMarks || 10),
                 publishNow: form.publishNow,
                 notifyOnAssign: form.notifyOnAssign,
                 notifyOnGrade: form.notifyOnGrade,
-                academicYear
+                academicYear,
+                removeAttachmentIds: Array.isArray(form.removeAttachmentIds) && form.removeAttachmentIds.length > 0
+                    ? form.removeAttachmentIds
+                    : undefined
             };
 
+            const files = form.attachmentFiles || [];
+
             if (editingAssignment?.id) {
-                await assignmentService.updateAssignment(editingAssignment.id, payload);
+                await assignmentService.updateAssignment(editingAssignment.id, payload, files);
                 toast.success(t('assignments:toasts.updated'));
             } else {
-                await assignmentService.createAssignment(payload);
+                await assignmentService.createAssignment(payload, files);
                 toast.success(t('assignments:toasts.created'));
             }
 
@@ -183,6 +191,10 @@ const AssignmentsPage = () => {
                 : Array.isArray(assignment.lessonPlans)
                     ? assignment.lessonPlans.map((lesson) => lesson.id).filter(Boolean)
                     : [],
+            links: Array.isArray(assignment.links) ? assignment.links : [],
+            existingAttachments: Array.isArray(assignment.attachments) ? assignment.attachments : [],
+            attachmentFiles: [],
+            removeAttachmentIds: [],
             dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().slice(0, 10) : '',
             maxMarks: assignment.maxMarks || 10,
             publishNow: assignment.status === 'published',

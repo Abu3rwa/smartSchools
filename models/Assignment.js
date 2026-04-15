@@ -119,6 +119,28 @@ const assignmentSchema = new mongoose.Schema(
             ref: 'User',
             default: null
         },
+        links: [
+            {
+                type: {
+                    type: String,
+                    enum: ['external_url', 'assessment', 'practice_objective'],
+                    required: true
+                },
+                title: { type: String, trim: true, maxlength: 200, default: '' },
+                url: { type: String, trim: true, maxlength: 2000, default: '' },
+                refId: { type: mongoose.Schema.Types.ObjectId, default: null },
+                classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null }
+            }
+        ],
+        attachments: [
+            {
+                fileName: { type: String, required: true, trim: true, maxlength: 300 },
+                mimeType: { type: String, required: true, trim: true },
+                size: { type: Number, required: true },
+                storageKey: { type: String, required: true, trim: true },
+                url: { type: String, trim: true, default: '' }
+            }
+        ],
         metadata: {
             type: mongoose.Schema.Types.Mixed,
             default: null

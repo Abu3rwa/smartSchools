@@ -5,6 +5,7 @@ import Grade from '../models/Grade.js';
 import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
 import notificationService from '../services/notificationService.js';
+import { uploadPrivateFile, getSignedUrl, deleteFile } from '../services/firebaseStorageService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import {
@@ -110,6 +111,26 @@ const mapAssignmentSummary = (assignment) => {
             : [],
         lessonPlanIds: linkedLessonPlans.map((lesson) => lesson.id),
         lessonPlans: linkedLessonPlans,
+        links: Array.isArray(assignment.links)
+            ? assignment.links.map((link) => ({
+                _id: toId(link._id),
+                type: link.type || 'external_url',
+                title: link.title || '',
+                url: link.url || '',
+                refId: link.refId ? toId(link.refId) : null,
+                classId: link.classId ? toId(link.classId) : null
+            }))
+            : [],
+        attachments: Array.isArray(assignment.attachments)
+            ? assignment.attachments.map((att) => ({
+                _id: toId(att._id),
+                fileName: att.fileName || '',
+                mimeType: att.mimeType || '',
+                size: att.size || 0,
+                storageKey: att.storageKey || '',
+                url: att.url || ''
+            }))
+            : [],
         maxMarks: Number(assignment.maxMarks || 10),
         allowLateSubmission: assignment.allowLateSubmission === true,
         notifyOnAssign: assignment.notifyOnAssign !== false,
@@ -196,6 +217,62 @@ const sendAssignPostedNotifications = async ({ assignment, students, createdBy }
                 createdBy
             }),
         ])
+    );
+};
+
+const HTTP_URL_RE = /^https?:\/\/.+/i;
+
+const validateLinks = (rawLinks) => {
+    if (!Array.isArray(rawLinks) || rawLinks.length === 0) return [];
+    const MAX_LINKS = 10;
+    const validTypes = new Set(['external_url', 'assessment', 'practice_objective']);
+    const validated = [];
+    for (const link of rawLinks.slice(0, MAX_LINKS)) {
+        const type = String(link?.type || '').trim().toLowerCase();
+        if (!validTypes.has(type)) continue;
+        const title = String(link?.title || '').trim().slice(0, 200);
+        if (type === 'external_url') {
+            const url = String(link?.url || '').trim();
+            if (!HTTP_URL_RE.test(url)) continue;
+            validated.push({ type, title, url, refId: null, classId: null });
+        } else {
+            const refId = toId(link?.refId);
+            if (!refId) continue;
+            validated.push({
+                type,
+                title,
+                url: '',
+                refId,
+                classId: link?.classId ? toId(link.classId) : null
+            });
+        }
+    }
+    return validated;
+};
+
+const uploadAttachmentFiles = async (files, schoolId, assignmentId) => {
+    if (!Array.isArray(files) || files.length === 0) return [];
+    const results = [];
+    for (const file of files) {
+        const ext = file.originalname ? file.originalname.split('.').pop() : 'bin';
+        const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const destinationPath = `schools/${schoolId}/assignments/${assignmentId}/${safeName}`;
+        const { fileRef } = await uploadPrivateFile(file.buffer, file.mimetype, destinationPath);
+        results.push({
+            fileName: file.originalname || safeName,
+            mimeType: file.mimetype || 'application/octet-stream',
+            size: file.size || file.buffer.length,
+            storageKey: fileRef,
+            url: ''
+        });
+    }
+    return results;
+};
+
+const deleteAttachmentFiles = async (attachments) => {
+    if (!Array.isArray(attachments) || attachments.length === 0) return;
+    await Promise.allSettled(
+        attachments.map((att) => deleteFile(att.storageKey || att.url))
     );
 };
 
@@ -449,6 +526,10 @@ export const createAssignment = asyncHandler(async (req, res) => {
         user: req.user
     });
 
+    const validatedLinks = validateLinks(
+        typeof body.links === 'string' ? JSON.parse(body.links || '[]') : body.links
+    );
+
     const publishNow = parseBoolean(body.publishNow, false) || String(body.status || '').trim().toLowerCase() === 'published';
     const assignment = await Assignment.create({
         school: req.schoolId,
@@ -467,6 +548,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
         scope,
         studentIds: scope === 'selected_students' ? validSelectedStudentIds : [],
         lessonPlanIds: normalizedLessonPlanIds ?? [],
+        links: validatedLinks,
+        attachments: [],
         maxMarks: parsePositiveNumber(body.maxMarks, Number(type.defaults?.maxMarks || 10)),
         allowLateSubmission: body.allowLateSubmission === undefined
             ? type.defaults?.allowLateSubmission === true
@@ -485,6 +568,14 @@ export const createAssignment = asyncHandler(async (req, res) => {
     if (publishNow && assignment.notifyOnAssign !== false) {
         const students = await resolveTargetStudentsForAssignment(assignment);
         await sendAssignPostedNotifications({ assignment, students, createdBy: req.user._id });
+    }
+
+    // Upload attachment files after assignment creation so we have the ID for storage paths
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (files.length > 0) {
+        const uploadedAttachments = await uploadAttachmentFiles(files, req.schoolId, assignment._id);
+        assignment.attachments = uploadedAttachments;
+        await assignment.save();
     }
 
     const populated = await Assignment.findById(assignment._id)
@@ -858,6 +949,32 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     assignment.status = status;
     assignment.metadata = body.metadata === undefined ? assignment.metadata : body.metadata;
 
+    // Update links if provided
+    if (body.links !== undefined) {
+        const rawLinks = typeof body.links === 'string' ? JSON.parse(body.links || '[]') : body.links;
+        assignment.links = validateLinks(rawLinks);
+    }
+
+    // Handle attachment removals
+    if (body.removeAttachmentIds) {
+        const removeIds = typeof body.removeAttachmentIds === 'string'
+            ? JSON.parse(body.removeAttachmentIds || '[]')
+            : body.removeAttachmentIds;
+        if (Array.isArray(removeIds) && removeIds.length > 0) {
+            const removeSet = new Set(removeIds.map(String));
+            const toRemove = (assignment.attachments || []).filter((att) => removeSet.has(toId(att._id)));
+            await deleteAttachmentFiles(toRemove);
+            assignment.attachments = (assignment.attachments || []).filter((att) => !removeSet.has(toId(att._id)));
+        }
+    }
+
+    // Upload new attachment files
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (files.length > 0) {
+        const uploadedAttachments = await uploadAttachmentFiles(files, req.schoolId, assignment._id);
+        assignment.attachments = [...(assignment.attachments || []), ...uploadedAttachments];
+    }
+
     if (type) {
         assignment.assignmentType = type._id;
         assignment.assignmentTypeKey = type.key;
@@ -896,6 +1013,9 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
         assignment: assignment._id
     });
 
+    // Clean up attachment files from storage
+    await deleteAttachmentFiles(assignment.attachments);
+
     await assignment.deleteOne();
 
     res.json({
@@ -906,4 +1026,19 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
             deletedGradesCount: gradeDeleteResult?.deletedCount || 0
         }
     });
+});
+
+export const getAssignmentAttachmentUrl = asyncHandler(async (req, res) => {
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId }).lean();
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+
+    const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
+    if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized' });
+
+    const attachmentId = req.params.attachmentId;
+    const attachment = (assignment.attachments || []).find((att) => toId(att._id) === attachmentId);
+    if (!attachment) return res.status(404).json({ success: false, message: 'Attachment not found' });
+
+    const signedUrl = await getSignedUrl(attachment.storageKey);
+    res.json({ success: true, data: { url: signedUrl, fileName: attachment.fileName, mimeType: attachment.mimeType } });
 });

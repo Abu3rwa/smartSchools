@@ -26,12 +26,44 @@ const assignmentService = {
         return response.data;
     },
 
-    createAssignment: async (payload) => {
+    createAssignment: async (payload, files = []) => {
+        if (files.length > 0) {
+            const formData = new FormData();
+            Object.entries(payload).forEach(([key, value]) => {
+                if (value === undefined) return;
+                if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+                    formData.append(key, JSON.stringify(value));
+                } else {
+                    formData.append(key, value);
+                }
+            });
+            files.forEach((file) => formData.append('attachments', file));
+            const response = await api.post('/assignments', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            return response.data;
+        }
         const response = await api.post('/assignments', payload);
         return response.data;
     },
 
-    updateAssignment: async (id, payload) => {
+    updateAssignment: async (id, payload, files = []) => {
+        if (files.length > 0 || (payload.removeAttachmentIds && payload.removeAttachmentIds.length > 0)) {
+            const formData = new FormData();
+            Object.entries(payload).forEach(([key, value]) => {
+                if (value === undefined) return;
+                if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+                    formData.append(key, JSON.stringify(value));
+                } else {
+                    formData.append(key, value);
+                }
+            });
+            files.forEach((file) => formData.append('attachments', file));
+            const response = await api.put(`/assignments/${id}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            return response.data;
+        }
         const response = await api.put(`/assignments/${id}`, payload);
         return response.data;
     },
@@ -53,6 +85,11 @@ const assignmentService = {
 
     gradeAssignment: async (id, payload) => {
         const response = await api.post(`/assignments/${id}/grades`, payload);
+        return response.data;
+    },
+
+    getAttachmentUrl: async (assignmentId, attachmentId) => {
+        const response = await api.get(`/assignments/${assignmentId}/attachments/${attachmentId}/url`);
         return response.data;
     }
 };
