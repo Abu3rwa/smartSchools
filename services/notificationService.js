@@ -58,8 +58,9 @@ const buildSubjectNotesSummary = (grades = []) => {
 };
 
 const formatDateForNotice = (value) => {
+  if (!value) return "";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
+  if (Number.isNaN(parsed.getTime()) || parsed.getTime() === 0) return "";
   return parsed.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -524,6 +525,9 @@ class NotificationService {
     const instructions = String(assignment?.instructions || "").trim();
     const trimmedInstructions =
       instructions.length > 450 ? `${instructions.slice(0, 447)}...` : instructions;
+    const assignmentUrl = assignment?._id
+      ? buildPortalLink(`/homework/${assignment._id}`)
+      : "";
 
     const subject = `Homework posted: ${title}`;
     const messageLines = [
@@ -531,7 +535,7 @@ class NotificationService {
       `Title: ${title}`,
       dueDate ? `Due date: ${dueDate}` : "",
       trimmedInstructions ? `Instructions: ${trimmedInstructions}` : "",
-      "Please review it in the app.",
+      assignmentUrl ? `View: ${assignmentUrl}` : "Please review it in the app.",
     ].filter(Boolean);
 
     const htmlParts = [
@@ -541,7 +545,9 @@ class NotificationService {
       trimmedInstructions
         ? `<p><strong>Instructions:</strong><br/>${escapeHtml(trimmedInstructions).replace(/\n/g, "<br/>")}</p>`
         : "",
-      "<p>Please review it in the app.</p>",
+      assignmentUrl
+        ? `<p><a href="${escapeHtml(assignmentUrl)}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Homework</a></p>`
+        : "<p>Please review it in the app.</p>",
     ].filter(Boolean);
 
     return {
@@ -557,6 +563,9 @@ class NotificationService {
     const marks = Number(grade?.marks ?? 0);
     const maxMarks = Number(grade?.maxMarks ?? assignment?.maxMarks ?? 0);
     const remarks = String(grade?.remarks || "").trim();
+    const assignmentUrl = assignment?._id
+      ? buildPortalLink(`/homework/${assignment._id}`)
+      : "";
 
     const subject = `Homework graded: ${title}`;
     const messageLines = [
@@ -566,7 +575,7 @@ class NotificationService {
         ? `Score: ${marks}/${maxMarks}`
         : "",
       remarks ? `Remarks: ${remarks}` : "",
-      "Open the app to review details.",
+      assignmentUrl ? `View: ${assignmentUrl}` : "Open the app to review details.",
     ].filter(Boolean);
 
     const htmlParts = [
@@ -576,7 +585,9 @@ class NotificationService {
         ? `<p><strong>Score:</strong> ${escapeHtml(`${marks}/${maxMarks}`)}</p>`
         : "",
       remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "",
-      "<p>Open the app to review details.</p>",
+      assignmentUrl
+        ? `<p><a href="${escapeHtml(assignmentUrl)}" style="display:inline-block;padding:8px 16px;background:#0d9488;color:#fff;border-radius:6px;text-decoration:none;">View Grade</a></p>`
+        : "<p>Open the app to review details.</p>",
     ].filter(Boolean);
 
     return {
