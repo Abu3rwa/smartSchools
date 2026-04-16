@@ -244,11 +244,13 @@ const AssignmentsPage = () => {
     };
 
     const [sendingReminder, setSendingReminder] = useState(null);
-    const onSendReminder = async (assignmentId) => {
+    const onSendReminder = async (assignmentId, audience = 'both') => {
         setSendingReminder(assignmentId);
         try {
-            const res = await assignmentService.sendReminder(assignmentId, { tone: 'friendly' });
-            toast.success(`Reminder sent to ${res.data?.remindersSent ?? 0} parent(s)`);
+            const res = await assignmentService.sendReminder(assignmentId, { tone: 'friendly', audience });
+            const count = res.data?.remindersSent ?? 0;
+            const label = audience === 'students' ? 'student(s)' : audience === 'parents' ? 'parent(s)' : 'recipient(s)';
+            toast.success(`Reminder sent for ${count} student(s) to ${label}`);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to send reminder');
         } finally {

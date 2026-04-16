@@ -1083,6 +1083,90 @@ class NotificationService {
   }
 
   /**
+   * Send an AI-generated reminder directly to a student.
+   */
+  async sendStudentAssignmentReminderNotification({
+    studentId,
+    assignment,
+    subject,
+    reminderText,
+    createdBy = null,
+  }) {
+    if (!studentId || !assignment?._id) return null;
+
+    const student = await Student.findById(studentId);
+    if (!student?.user || !student?.school) return null;
+
+    const typeName = String(assignment.assignmentTypeName || "Assignment").trim();
+    const title = String(assignment.title || "Assignment").trim();
+    const dueDate = formatDateForNotice(assignment.dueDate);
+    const assignmentUrl = assignment._id ? buildPortalLink(`/assignments/${assignment._id}`) : "";
+
+    const detailRows = [
+      `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
+      `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
+      dueDate ? `<p class="detail-row"><span class="label">Due date:</span> ${escapeHtml(dueDate)}</p>` : "",
+    ].filter(Boolean).join("");
+
+    const ctaHtml = assignmentUrl
+      ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
+      : "<p>Open the app to review details.</p>";
+
+    const bodyHtml = `<p>${escapeHtml(reminderText)}</p>${detailRows}${ctaHtml}`;
+    const htmlContent = wrapEmailHtml({ preheader: subject, bodyHtml, accentColor: "#d97706" });
+
+    const metadata = {
+      assignmentId: String(assignment._id),
+      assignmentTypeKey: String(assignment.assignmentTypeKey || ""),
+      dueDate: assignment.dueDate || null,
+      isReminder: true,
+    };
+
+    const studentUserId = String(student.user?._id || student.user);
+    const studentUser = await User.findById(studentUserId).select("email").lean();
+    const studentEmail = studentUser?.email || "";
+
+    const notification = new Notification({
+      school: student.school,
+      recipient: studentUserId,
+      recipientEmail: studentEmail,
+      student: student._id,
+      type: "assignment_reminder",
+      subject,
+      message: reminderText,
+      htmlContent,
+      channels: ["push", ...(studentEmail ? ["email"] : [])],
+      metadata,
+      createdBy,
+    });
+    await notification.save();
+
+    try {
+      await this._dispatchStudentPush({ notification, student });
+    } catch (error) {
+      logger.error("student_assignment_reminder_push_failed", {
+        notificationId: String(notification._id || ""),
+        studentId: String(student._id),
+        error: error?.message || String(error),
+      });
+    }
+
+    if (studentEmail) {
+      try {
+        await this.sendEmail(notification, createdBy);
+      } catch (error) {
+        logger.error("student_assignment_reminder_email_failed", {
+          notificationId: String(notification._id || ""),
+          studentEmail,
+          error: error?.message || String(error),
+        });
+      }
+    }
+
+    return notification;
+  }
+
+  /**
    * Notify the student directly when an assignment is posted.
    * Respects school-level settings.notifications.studentNotifications.onAssignmentPosted.
    */

@@ -65,14 +65,26 @@ const AssignmentsTable = ({
                                             </button>
                                         )}
                                         {assignment.status === 'published' && canCreateAssignments && onSendReminder && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-outline btn-sm"
-                                                disabled={sendingReminder === assignment.id}
-                                                onClick={() => onSendReminder(assignment.id)}
-                                            >
-                                                {sendingReminder === assignment.id ? t('assignments:actions.sending', { defaultValue: 'Sending…' }) : t('assignments:actions.remind', { defaultValue: 'Send Reminder' })}
-                                            </button>
+                                            <div className="reminder-dropdown" style={{ display: 'inline-block', position: 'relative' }}>
+                                                <select
+                                                    className="btn btn-outline btn-sm"
+                                                    disabled={sendingReminder === assignment.id}
+                                                    value=""
+                                                    onChange={(e) => {
+                                                        if (e.target.value) {
+                                                            onSendReminder(assignment.id, e.target.value);
+                                                            e.target.value = '';
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="" disabled>
+                                                        {sendingReminder === assignment.id ? t('assignments:actions.sending', { defaultValue: 'Sending…' }) : t('assignments:actions.remind', { defaultValue: 'Send Reminder' })}
+                                                    </option>
+                                                    <option value="both">{t('assignments:actions.remindBoth', { defaultValue: 'Students & Parents' })}</option>
+                                                    <option value="students">{t('assignments:actions.remindStudents', { defaultValue: 'Students Only' })}</option>
+                                                    <option value="parents">{t('assignments:actions.remindParents', { defaultValue: 'Parents Only' })}</option>
+                                                </select>
+                                            </div>
                                         )}
                                         {canCreateAssignments && (
                                             <button type="button" className="btn btn-outline btn-sm" onClick={() => onEditAssignment(assignment)}>
