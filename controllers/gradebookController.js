@@ -21,7 +21,9 @@ import { resolveRequestedAcademicYear, resolveAcademicYearDateRange } from '../u
 import { resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { decorateGradesWithScale, getActiveGradingScale } from '../services/gradingScaleEngine.js';
 import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
+import { resolveSemesterForDate } from '../services/gradebookConfigService.js';
 import logger from '../utils/logger.js';
+import { logGradeAudit, logGradeAuditBulk } from '../services/gradeAuditService.js';
 
 const DEFAULT_GRADE_PAGE_LIMIT = 10;
 const MAX_GRADE_PAGE_LIMIT = 100;
@@ -341,7 +343,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
     // Calculate month and semester from date (Use UTC to avoid timezone shifts)
     const gradeDate = date ? new Date(date) : new Date();
     const month = gradeDate.getUTCMonth() + 1;
-    const semester = (month >= 8 && month <= 12) ? 1 : 2;
+    const semester = await resolveSemesterForDate(req.schoolId, gradeDate) || ((month >= 8 && month <= 12) ? 1 : 2);
 
     const gradeDocuments = grades.map(g => ({
         school: req.schoolId,
@@ -511,9 +513,15 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
         if (!update) continue;
         const setFields = {};
         if (update.marks !== undefined && update.marks !== null && update.marks !== '') {
-            setFields.marks = Number(update.marks);
+            const numMarks = Number(update.marks);
+            if (!Number.isFinite(numMarks) || numMarks < 0) continue; // skip invalid marks
+            setFields.marks = numMarks;
         }
-        if (update.maxMarks !== undefined) setFields.maxMarks = Number(update.maxMarks);
+        if (update.maxMarks !== undefined) {
+            const numMax = Number(update.maxMarks);
+            if (!Number.isFinite(numMax) || numMax <= 0) continue; // skip invalid maxMarks
+            setFields.maxMarks = numMax;
+        }
         if (update.remarks !== undefined) setFields.remarks = update.remarks;
         if (hasMetadataMaxMarksUpdate) setFields.maxMarks = Number(metadata.maxMarks);
         if (hasClassUpdate) setFields.class = metadata.classId;
@@ -539,6 +547,25 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
     }
 
     const result = await Grade.bulkWrite(operations);
+
+    // Audit trail for bulk updates
+    const auditEntries = [];
+    for (const existing of existingGrades) {
+        const update = updateMap.get(existing._id.toString());
+        if (!update) continue;
+        auditEntries.push({
+            schoolId: req.schoolId,
+            gradeId: existing._id,
+            studentId: existing.student,
+            subjectId: existing.subject,
+            classId: existing.class,
+            action: 'update',
+            changedBy: req.user._id,
+            previousValues: { marks: existing.marks, maxMarks: existing.maxMarks },
+            newValues: { marks: update.marks, maxMarks: update.maxMarks },
+        });
+    }
+    logGradeAuditBulk(auditEntries);
 
     res.json({
         success: true,
@@ -1557,6 +1584,12 @@ export const updateGrade = asyncHandler(async (req, res) => {
         updatePayload.lessonPlanIds = normalizedLessonPlanIds ?? [];
     }
 
+    // Snapshot previous values for audit trail
+    if (!existingGrade) {
+        existingGrade = await Grade.findById(req.params.id).select('marks maxMarks remarks student subject class school');
+    }
+    const prevSnapshot = existingGrade ? { marks: existingGrade.marks, maxMarks: existingGrade.maxMarks, remarks: existingGrade.remarks } : null;
+
     const grade = await gradeService.updateGrade(req.params.id, updatePayload);
 
     if (!grade) {
@@ -1565,6 +1598,18 @@ export const updateGrade = asyncHandler(async (req, res) => {
             message: 'Grade not found'
         });
     }
+
+    logGradeAudit({
+        schoolId: grade.school || req.schoolId,
+        gradeId: grade._id,
+        studentId: grade.student,
+        subjectId: grade.subject,
+        classId: grade.class,
+        action: 'update',
+        changedBy: req.user._id,
+        previousValues: prevSnapshot,
+        newValues: { marks, maxMarks, remarks },
+    });
 
     res.json({
         success: true,
@@ -1580,6 +1625,7 @@ export const updateGrade = asyncHandler(async (req, res) => {
  */
 export const deleteGrade = asyncHandler(async (req, res) => {
     // Access Control
+    let gradeSnapshot = null;
     if (req.user.role === 'teacher') {
         const teacher = await resolveTeacherProfile(req);
         if (!teacher) return res.status(403).json({ success: false, message: 'Teacher profile not found' });
@@ -1599,6 +1645,9 @@ export const deleteGrade = asyncHandler(async (req, res) => {
                 message: 'You can only delete grades you created'
             });
         }
+        gradeSnapshot = existingGrade;
+    } else {
+        gradeSnapshot = await Grade.findById(req.params.id).select('marks maxMarks student subject class school');
     }
 
     const grade = await gradeService.deleteGrade(req.params.id);
@@ -1607,6 +1656,19 @@ export const deleteGrade = asyncHandler(async (req, res) => {
         return res.status(404).json({
             success: false,
             message: 'Grade not found'
+        });
+    }
+
+    if (gradeSnapshot) {
+        logGradeAudit({
+            schoolId: gradeSnapshot.school || req.schoolId,
+            gradeId: gradeSnapshot._id,
+            studentId: gradeSnapshot.student,
+            subjectId: gradeSnapshot.subject,
+            classId: gradeSnapshot.class,
+            action: 'delete',
+            changedBy: req.user._id,
+            previousValues: { marks: gradeSnapshot.marks, maxMarks: gradeSnapshot.maxMarks },
         });
     }
 

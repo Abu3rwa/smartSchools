@@ -76,16 +76,20 @@ export const getStandards = asyncHandler(async (req, res) => {
     }
 
     if (search) {
+        const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         query.$or = [
-            { code: { $regex: search, $options: 'i' } },
-            { name: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } }
+            { code: { $regex: escapedSearch, $options: 'i' } },
+            { name: { $regex: escapedSearch, $options: 'i' } },
+            { description: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 
     if (subject && !teacherScope) query.subject = subject;
     if (gradeLevel) query.gradeLevel = parseInt(gradeLevel);
-    if (category) query.category = { $regex: category, $options: 'i' };
+    if (category) {
+        const escapedCategory = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query.category = { $regex: escapedCategory, $options: 'i' };
+    }
     if (isActive !== undefined) query.isActive = isActive === 'true';
 
     const standards = await Standard.find(query)

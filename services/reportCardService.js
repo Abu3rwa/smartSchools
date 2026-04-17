@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import TraditionalReportCard from '../models/TraditionalReportCard.js';
+import GradebookFormula from '../models/GradebookFormula.js';
 import Grade from '../models/Grade.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
@@ -60,6 +61,21 @@ export const generateReportCard = async ({
     };
 
     // Build subject grades
+    // Batch-load all formulas for this class to avoid N+1 queries
+    const allFormulas = await GradebookFormula.find({
+        school: schoolId,
+        class: classId,
+        academicYear,
+        ...(semesterFilter.semester ? { semester: semesterFilter.semester } : {})
+    }).lean();
+    const formulasBySubject = new Map();
+    for (const f of allFormulas) {
+        const sid = f.subject?.toString();
+        if (!sid) continue;
+        if (!formulasBySubject.has(sid)) formulasBySubject.set(sid, []);
+        formulasBySubject.get(sid).push(f);
+    }
+
     const subjects = [];
     let totalPercent = 0;
     let subjectCount = 0;
@@ -96,13 +112,8 @@ export const generateReportCard = async ({
         const totalMaxMarks = sGrades.reduce((s, g) => s + g.maxMarks, 0);
         const overallPct = totalMaxMarks > 0 ? (totalMarks / totalMaxMarks) * 100 : 0;
 
-        // Check for formula-based grades
-        const formulas = await getFormulas(schoolId, {
-            classId,
-            subjectId,
-            academicYear,
-            semester: semesterFilter.semester
-        });
+        // Use batch-loaded formulas instead of per-subject query
+        const formulas = formulasBySubject.get(subjectId) || [];
 
         let midtermGrade = null;
         let finalGrade = null;
@@ -149,7 +160,7 @@ export const generateReportCard = async ({
         class: classId,
         academicYear,
         period: { type: periodType, label: periodLabel || periodType },
-        reportCardId: `RC-${randomUUID().slice(0, 8).toUpperCase()}`,
+        reportCardId: `RC-${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`,
         subjects,
         overallAverage,
         overallGrade: letterGradeFor(overallAverage),

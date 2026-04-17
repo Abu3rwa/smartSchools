@@ -21,7 +21,10 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
 
     const userEmail = user.gmailTokens.email;
 
-  
+    // Sanitize subject to prevent header injection (strip CR/LF)
+    const sanitizedSubject = (subject || '').replace(/[\r\n]/g, '').substring(0, 200);
+    // Sanitize message body to prevent HTML injection
+    const sanitizedMessage = (message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     try {
         // Create OAuth2 client
@@ -60,8 +63,8 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
         const appName = branding?.appName || 'School Platform';
 
         // Create email content
-        const emailSubject = subject || `Test Email from ${appName}`;
-        const emailBody = message || `This is a test email sent using Gmail API through ${appName}!`;
+        const emailSubject = sanitizedSubject || `Test Email from ${appName}`;
+        const emailBody = sanitizedMessage || `This is a test email sent using Gmail API through ${appName}!`;
 
         // Build the email in RFC 2822 format
         const emailLines = [

@@ -3,6 +3,7 @@ import multer from 'multer';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
 import { uploadWorksheetTemplate } from '../middleware/upload.js';
 import {
     createWorksheet,
@@ -80,7 +81,7 @@ router.put('/:id', authorize('teacher', 'admin'), updateWorksheet);
 router.delete('/:id', authorize('teacher', 'admin'), deleteWorksheet);
 
 // ─── Answer Key ───────────────────────────────────────────────────────────────
-router.post('/:id/extract-answer-key', authorize('teacher', 'admin'), extractAnswerKey);
+router.post('/:id/extract-answer-key', authorize('teacher', 'admin'), aiFeatureRateLimiter, extractAnswerKey);
 
 // ─── Submissions ──────────────────────────────────────────────────────────────
 router.post(
@@ -122,8 +123,8 @@ router.put(
 );
 
 // ─── Processing ───────────────────────────────────────────────────────────────
-router.post('/:id/submissions/:submissionId/process', authorize('teacher', 'admin'), processOneSubmission);
-router.post('/:id/process-all', authorize('teacher', 'admin'), processAll);
+router.post('/:id/submissions/:submissionId/process', authorize('teacher', 'admin'), aiFeatureRateLimiter, processOneSubmission);
+router.post('/:id/process-all', authorize('teacher', 'admin'), aiFeatureRateLimiter, processAll);
 
 // ─── Status & Publishing ──────────────────────────────────────────────────────
 router.put('/:id/status', authorize('teacher', 'admin'), updateStatus);

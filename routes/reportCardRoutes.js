@@ -16,9 +16,9 @@ const router = express.Router();
 router.use(protect);
 router.use(requireSchoolContext);
 
-// Read — any authenticated user
-router.get('/', getReportCards);
-router.get('/:id', getReportCard);
+// Read — restricted to authorized roles
+router.get('/', authorize('admin', 'teacher', 'department_principal'), getReportCards);
+router.get('/:id', authorize('admin', 'teacher', 'department_principal', 'parent'), getReportCard);
 
 // Write — admin or teachers with permission
 router.post('/generate', authorize('teacher', 'admin'), generateReportCard);

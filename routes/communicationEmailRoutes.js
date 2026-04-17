@@ -17,6 +17,7 @@ import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { uploadCommunicationEmailAttachments } from '../middleware/uploadCommunicationEmailAttachments.js';
 import { validateRequestSchema } from '../middleware/schemaValidator.js';
+import { aiFeatureRateLimiter, emailSendRateLimiter } from '../middleware/rateLimiters.js';
 import {
     communicationEmailAttachmentParamsSchema,
     communicationEmailDraftBodySchema,
@@ -80,12 +81,14 @@ router.get(
 
 router.post(
     '/ai-draft',
+    aiFeatureRateLimiter,
     validateRequestSchema({ bodySchema: communicationEmailDraftBodySchema }),
     generateCommunicationEmailDraftController
 );
 
 router.post(
     '/send',
+    emailSendRateLimiter,
     validateRequestSchema({ bodySchema: communicationEmailSendBodySchema }),
     sendCommunicationEmailController
 );

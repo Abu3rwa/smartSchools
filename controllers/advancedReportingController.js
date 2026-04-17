@@ -189,8 +189,12 @@ export const getTokenUsage = asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const { period = 'monthly', year } = req.query;
 
+    // IDOR prevention: only admins can view other users' token usage
     const targetUserId = userId || req.user._id;
-    const schoolId = req.user.school;
+    if (targetUserId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    const schoolId = req.schoolId;
 
     // Calculate date range for the period
     const now = new Date();
@@ -290,7 +294,8 @@ export const getTokenUsage = asyncHandler(async (req, res) => {
  * @access  Private (Admin)
  */
 export const getSchoolTokenUsage = asyncHandler(async (req, res) => {
-    const { schoolId } = req.params;
+    // Always use authenticated user's school — ignore URL-provided schoolId
+    const schoolId = req.schoolId;
     const { period = 'monthly', year } = req.query;
 
     // Calculate date range

@@ -1642,7 +1642,8 @@ export const sendComposedEmail = async ({
         try {
             const result = await gmailOAuthService.sendEmail(senderUserId, {
                 from,
-                to: batch.join(', '),
+                to: from,
+                bcc: batch.join(', '),
                 subject: sanitizedSubject,
                 html: sanitizedHtml,
                 attachments: transportAttachments

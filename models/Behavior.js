@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 
 const behaviorSchema = new mongoose.Schema({
     // User Information
@@ -343,6 +344,8 @@ behaviorSchema.methods.getRiskScore = function() {
     if (mediumRiskEvents.includes(this.eventType)) return 2;
     return 1;
 };
+
+behaviorSchema.plugin(tenantIsolationPlugin);
 
 const Behavior = mongoose.model('Behavior', behaviorSchema);
 

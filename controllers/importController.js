@@ -79,7 +79,7 @@ export const listImportRuns = asyncHandler(async (req, res) => {
 });
 
 export const downloadImportErrorReport = asyncHandler(async (req, res) => {
-    const run = await ImportRun.findById(req.params.id).lean();
+    const run = await ImportRun.findOne({ _id: req.params.id, school: req.schoolId }).lean();
     if (!run) {
         return res.status(404).json({
             success: false,

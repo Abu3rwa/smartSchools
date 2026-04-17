@@ -55,7 +55,7 @@ async function resolveDepartmentId(value, schoolId) {
     if (!value) return null;
     if (mongoose.Types.ObjectId.isValid(value)) return value;
     // Treat as department name and look up
-    const dept = await Department.findOne({ school: schoolId, name: { $regex: new RegExp(`^${value}$`, 'i') } }).select('_id').lean();
+    const dept = await Department.findOne({ school: schoolId, name: { $regex: new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } }).select('_id').lean();
     return dept ? dept._id : null;
 }
 

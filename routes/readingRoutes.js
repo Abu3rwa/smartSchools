@@ -2,6 +2,7 @@ import express from 'express';
 import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
 import {
   uploadText,
   getTexts,
@@ -24,7 +25,7 @@ router.use(requireSchoolContext);
 router.use(requireFeature('readingAssistant'));
 
 // Teacher/Admin: upload and manage texts
-router.post('/upload-text', authorize('teacher', 'admin'), uploadText);
+router.post('/upload-text', authorize('teacher', 'admin'), aiFeatureRateLimiter, uploadText);
 router.get('/texts', authorize('teacher', 'admin'), getTexts);
 router.get('/texts/:textId', authorize('teacher', 'admin'), getTextById);
 
@@ -41,7 +42,7 @@ router.get('/simplify/:textId', authorize('student'), getSimplifiedForCurrentStu
 router.get('/simplify/:textId/:studentId', authorize('teacher', 'admin'), getSimplified);
 
 // Student: assess level
-router.post('/assess-level', authorize('student'), assessLevel);
+router.post('/assess-level', authorize('student'), aiFeatureRateLimiter, assessLevel);
 // Student (own), Teacher, Admin: get student level
 router.get('/student-level/:studentId', authorize('student', 'teacher', 'admin'), getStudentLevel);
 
@@ -49,6 +50,6 @@ router.get('/student-level/:studentId', authorize('student', 'teacher', 'admin')
 router.patch('/update-progress', authorize('student'), updateProgress);
 
 // Student: get AI feedback on critical thinking answer
-router.post('/evaluate-answer', authorize('student'), evaluateCriticalThinkingAnswer);
+router.post('/evaluate-answer', authorize('student'), aiFeatureRateLimiter, evaluateCriticalThinkingAnswer);
 
 export default router;

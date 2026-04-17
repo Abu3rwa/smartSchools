@@ -123,9 +123,9 @@ export const getSchedules = asyncHandler(async (req, res) => {
     if (search) {
         andConditions.push({
             $or: [
-                { title: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } },
-                { location: { $regex: search, $options: 'i' } }
+                { title: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
+                { description: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } },
+                { location: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } }
             ]
         });
     }

@@ -35,7 +35,7 @@ const router = express.Router();
 router.use(protect);
 
 // Dashboard statistics
-router.get('/dashboard/stats', getDashboardStats);
+router.get('/dashboard/stats', authorize('teacher', 'admin', 'department_principal'), getDashboardStats);
 
 // Add grades
 router.post('/daily', authorize('teacher', 'admin'), validationRules.createGrade, validate, addDailyGrade);
@@ -54,7 +54,7 @@ router.post('/exam', authorize('teacher', 'admin'), addExamGrade);
 
 // Get grades
 router.get('/my-grades', authorize('student'), getMyGrades);
-router.get('/student/:studentId', getStudentGrades);
+router.get('/student/:studentId', authorize('teacher', 'admin', 'department_principal', 'parent'), getStudentGrades);
 router.get('/report/:studentId', getStudentGradeReport);
 router.get('/class/:classId', authorize('teacher', 'admin', 'department_principal'), getClassGrades);
 router.get('/gradebook/:classId', authorize('teacher', 'admin', 'department_principal'), getGradebookGrades);
@@ -72,12 +72,12 @@ router.get('/export/:classId', authorize('teacher', 'admin', 'department_princip
 router.get('/missing-report/:classId', authorize('teacher', 'admin', 'department_principal'), getMissingGradesReport);
 
 // Averages
-router.get('/average/monthly/:studentId', getMonthlyAverage);
-router.get('/average/semester/:studentId', getSemesterAverage);
-router.get('/average/overall/:studentId', getOverallAverage);
+router.get('/average/monthly/:studentId', authorize('teacher', 'admin', 'department_principal', 'parent'), getMonthlyAverage);
+router.get('/average/semester/:studentId', authorize('teacher', 'admin', 'department_principal', 'parent'), getSemesterAverage);
+router.get('/average/overall/:studentId', authorize('teacher', 'admin', 'department_principal', 'parent'), getOverallAverage);
 
 // Statistics
-router.get('/stats/class/:classId', getClassStatistics);
+router.get('/stats/class/:classId', authorize('teacher', 'admin', 'department_principal'), getClassStatistics);
 
 // Update/Delete
 router.route('/:id')

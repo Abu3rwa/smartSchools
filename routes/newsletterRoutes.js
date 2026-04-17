@@ -2,6 +2,7 @@ import express from "express";
 import { protect, authorize } from "../middleware/auth.js";
 import { requireFeature } from "../middleware/featureGate.js";
 import { requireSchoolContext } from "../middleware/tenantIsolation.js";
+import { aiFeatureRateLimiter, emailSendRateLimiter } from "../middleware/rateLimiters.js";
 import {
   ensureNewsletterIssue,
   getNewsletterIssue,
@@ -33,7 +34,7 @@ router.get("/issues", authorize("teacher", "admin", "department_principal"), get
 router.get("/parent/history", authorize("parent"), listParentNewsletterHistory);
 
 // Teacher actions
-router.post("/sections/generate", authorize("teacher"), generateNewsletterSectionDraft);
+router.post("/sections/generate", authorize("teacher"), aiFeatureRateLimiter, generateNewsletterSectionDraft);
 router.post("/sections/:id/submit", authorize("teacher"), submitNewsletterSection);
 router.patch(
   "/sections/:id/content",
@@ -59,6 +60,6 @@ router.post(
 router.post("/admin/sections/:id/approve", authorize("admin", "super_admin", "department_principal"), approveNewsletterSection);
 router.post("/admin/sections/:id/reject", authorize("admin", "super_admin", "department_principal"), rejectNewsletterSection);
 router.patch("/admin/issues/:id/exclusions", authorize("admin", "super_admin", "department_principal"), updateIssueExclusions);
-router.post("/admin/issues/:id/send", authorize("admin", "super_admin", "department_principal"), sendIssueToParents);
+router.post("/admin/issues/:id/send", authorize("admin", "super_admin", "department_principal"), emailSendRateLimiter, sendIssueToParents);
 
 export default router;

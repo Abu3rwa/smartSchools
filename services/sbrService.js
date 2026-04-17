@@ -152,8 +152,20 @@ const mapRawPercentageToLevel = (rawPercentage, scale) => {
     }
 
     const clamped = Math.max(0, Math.min(100, Number(rawPercentage)));
+    const levels = scale?.levels?.length ? scale.levels : DEFAULT_SBR_LEVELS;
+
+    // Sort levels by minPercent descending so we match the highest qualifying level first
+    const sorted = [...levels].sort((a, b) => (b.minPercent ?? 0) - (a.minPercent ?? 0));
+    for (const level of sorted) {
+        if (clamped >= (level.minPercent ?? 0)) {
+            return { score: level.value, isNA: false };
+        }
+    }
+
+    // Fallback to lowest level
+    const lowest = sorted[sorted.length - 1];
     return {
-        score: Number(((clamped / 100) * 4).toFixed(2)),
+        score: lowest?.value ?? 1,
         isNA: false
     };
 };

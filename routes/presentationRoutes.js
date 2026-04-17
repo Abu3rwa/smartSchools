@@ -7,6 +7,7 @@ import { validate } from "../middleware/validator.js";
 import { uploadPresentation } from "../middleware/upload.js";
 import { presentationValidators } from "../validators/presentationValidators.js";
 import { PERMISSIONS } from "../config/permissions.js";
+import { aiFeatureRateLimiter } from "../middleware/rateLimiters.js";
 
 /** Catch multer errors and return a structured 400 response */
 const handleMulterError = (err, req, res, next) => {
@@ -185,6 +186,7 @@ router.post(
   "/:id/slides/:slideIndex/regenerate",
   authorize("teacher", "admin", "department_principal"),
   requirePermission(PERMISSIONS.MANAGE_PRESENTATIONS),
+  aiFeatureRateLimiter,
   presentationValidators.mongoId,
   presentationValidators.regenerateSlide,
   validate,
@@ -195,6 +197,7 @@ router.post(
   "/:id/slides/:slideIndex/text-assist",
   authorize("teacher", "admin", "department_principal"),
   requirePermission(PERMISSIONS.MANAGE_PRESENTATIONS),
+  aiFeatureRateLimiter,
   presentationValidators.textAssist,
   validate,
   textAssistSlide

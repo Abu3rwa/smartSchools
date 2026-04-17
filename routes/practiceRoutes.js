@@ -25,6 +25,7 @@ import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
 
 const router = express.Router();
 
@@ -35,8 +36,8 @@ router.use(requireFeature('standardsPractice'));
 
 // Student routes
 router.get('/my-assignments', authorize('student'), getMyAssignments);
-router.post('/generate', authorize('student'), generateQuestion);
-router.post('/submit', authorize('student'), submitAnswer);
+router.post('/generate', authorize('student'), aiFeatureRateLimiter, generateQuestion);
+router.post('/submit', authorize('student'), aiFeatureRateLimiter, submitAnswer);
 router.post('/assessment/finalize', authorize('student'), finalizeAssessment);
 router.get('/assessment/my-results', authorize('student'), getMyAssessmentResults);
 router.get('/history/:standardId', authorize('student'), getPracticeHistory);

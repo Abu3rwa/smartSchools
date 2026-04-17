@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 
 const behaviorSessionSchema = new mongoose.Schema(
     {
@@ -73,6 +74,8 @@ behaviorSessionSchema.methods.end = function endSession() {
     this.durationSeconds = Math.max(0, Math.round((now - this.startedAt) / 1000));
     return this.save();
 };
+
+behaviorSessionSchema.plugin(tenantIsolationPlugin);
 
 const BehaviorSession = mongoose.model('BehaviorSession', behaviorSessionSchema);
 

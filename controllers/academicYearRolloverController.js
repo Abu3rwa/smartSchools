@@ -99,8 +99,19 @@ export const copyClassesFromYear = asyncHandler(async (req, res) => {
  */
 export const deactivateYear = asyncHandler(async (req, res) => {
     const { academicYear } = req.body;
+    const dryRun = req.query.dryRun === 'true';
     if (!academicYear) {
         return res.status(400).json({ success: false, message: 'academicYear is required' });
+    }
+
+    if (dryRun) {
+        const count = await Class.countDocuments({ school: req.schoolId, academicYear, isActive: true });
+        return res.json({
+            success: true,
+            dryRun: true,
+            message: `Would deactivate ${count} active classes for ${academicYear}`,
+            data: { wouldDeactivate: count }
+        });
     }
 
     const result = await Class.updateMany(
@@ -122,8 +133,9 @@ export const deactivateYear = asyncHandler(async (req, res) => {
  */
 export const promoteStudents = asyncHandler(async (req, res) => {
     const { fromAcademicYear, toAcademicYear, options = {} } = req.body;
-    const graduateGrade = options.graduateGrade ?? 12;
-    const defaultSection = options.defaultSection ?? 'A';
+    const dryRun = req.query.dryRun === 'true';
+    const graduateGrade = Math.max(1, Math.min(12, Number(options.graduateGrade) || 12));
+    const defaultSection = String(options.defaultSection || 'A').substring(0, 10);
 
     if (!fromAcademicYear || !toAcademicYear) {
         return res.status(400).json({
@@ -144,6 +156,33 @@ export const promoteStudents = asyncHandler(async (req, res) => {
         status: 'active',
         currentClass: { $exists: true, $ne: null }
     }).populate('currentClass', 'grade section');
+
+    if (dryRun) {
+        const preview = { wouldPromote: 0, wouldGraduate: 0, wouldSkip: 0, issues: [] };
+        for (const student of students) {
+            const currentClass = student.currentClass;
+            if (!currentClass) { preview.wouldSkip++; continue; }
+            if (currentClass.grade >= graduateGrade) { preview.wouldGraduate++; continue; }
+            const nextGrade = currentClass.grade + 1;
+            const section = currentClass.section || defaultSection;
+            const nextClass = await Class.findOne({ school: req.schoolId, academicYear: toAcademicYear, grade: nextGrade, section }).lean();
+            if (!nextClass) {
+                const fallback = await Class.findOne({ school: req.schoolId, academicYear: toAcademicYear, grade: nextGrade, section: defaultSection }).lean();
+                if (fallback) { preview.wouldPromote++; } else {
+                    preview.wouldSkip++;
+                    preview.issues.push(`${student.studentId}: No class for Grade ${nextGrade}`);
+                }
+            } else {
+                preview.wouldPromote++;
+            }
+        }
+        return res.json({
+            success: true,
+            dryRun: true,
+            message: `Preview: ${preview.wouldPromote} promote, ${preview.wouldGraduate} graduate, ${preview.wouldSkip} skip`,
+            data: preview
+        });
+    }
 
     const result = { promoted: 0, graduated: 0, skipped: 0, errors: [] };
     const leftAt = new Date();

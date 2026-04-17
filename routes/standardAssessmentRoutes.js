@@ -4,6 +4,7 @@ import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
 import { PERMISSIONS } from '../config/permissions.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
 
 // Feature 1: Pool Library
 import {
@@ -103,6 +104,7 @@ router.get(
 router.post(
   '/narrative/generate',
   requirePermission(PERMISSIONS.GENERATE_ASSESSMENT_NARRATIVE),
+  aiFeatureRateLimiter,
   generateNarrativeDraft
 );
 

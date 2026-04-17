@@ -27,6 +27,19 @@ export const calculateFormula = async ({ formulaId, studentIds, schoolId }) => {
     const grades = await Grade.find(gradeFilter).lean();
     const gradingScale = await getActiveGradingScale(schoolId);
 
+    // Build formula cache for nested formula resolution
+    const allFormulas = await GradebookFormula.find({
+        school: schoolId,
+        class: formula.class,
+        subject: formula.subject,
+        academicYear: formula.academicYear,
+        ...(formula.semester ? { semester: formula.semester } : {})
+    }).lean();
+    const formulaCache = new Map();
+    for (const f of allFormulas) {
+        formulaCache.set(f._id.toString(), f);
+    }
+
     // Group grades by student
     const studentGrades = new Map();
     for (const g of grades) {
@@ -38,7 +51,7 @@ export const calculateFormula = async ({ formulaId, studentIds, schoolId }) => {
 
     const results = [];
     for (const [studentId, sGrades] of studentGrades) {
-        const result = computeFormulaForStudent(formula, sGrades, gradingScale);
+        const result = computeFormulaForStudent(formula, sGrades, gradingScale, formulaCache);
         results.push({ studentId, ...result });
     }
 
@@ -47,9 +60,9 @@ export const calculateFormula = async ({ formulaId, studentIds, schoolId }) => {
 
 /**
  * Pure computation: calculate one formula for one student given their grades.
- * Can also be used client-side with the same logic.
+ * Supports nested formulas via recursive computation with cycle detection.
  */
-export const computeFormulaForStudent = (formula, studentGrades, gradingScale = null) => {
+export const computeFormulaForStudent = (formula, studentGrades, gradingScale = null, _formulaCache = null, _visitedIds = null) => {
     const breakdown = [];
     let totalWeightedScore = 0;
 
@@ -57,14 +70,51 @@ export const computeFormulaForStudent = (formula, studentGrades, gradingScale = 
         let factorGrades;
 
         if (factor.formulaId) {
-            // Nested formula — would need recursive call. For now, skip/placeholder.
+            // Nested formula — recursive calculation with cycle detection
+            const nestedId = factor.formulaId.toString();
+            const visited = _visitedIds || new Set();
+            if (visited.has(nestedId)) {
+                // Cycle detected — skip to avoid infinite recursion
+                breakdown.push({
+                    category: `formula:${nestedId}`,
+                    weight: factor.weight,
+                    average: 0,
+                    weightedScore: 0,
+                    gradeCount: 0,
+                    note: 'Skipped — circular formula reference detected'
+                });
+                continue;
+            }
+
+            const cache = _formulaCache || new Map();
+            const nestedFormula = cache.get(nestedId);
+            if (!nestedFormula) {
+                // Formula not available in cache — skip gracefully
+                breakdown.push({
+                    category: `formula:${nestedId}`,
+                    weight: factor.weight,
+                    average: 0,
+                    weightedScore: 0,
+                    gradeCount: 0,
+                    note: 'Nested formula not found in cache'
+                });
+                continue;
+            }
+
+            visited.add(nestedId);
+            const nestedResult = computeFormulaForStudent(nestedFormula, studentGrades, gradingScale, cache, visited);
+            visited.delete(nestedId);
+
+            const weightedScore = nestedResult.percentage * (factor.weight / 100);
+            totalWeightedScore += weightedScore;
+
             breakdown.push({
-                category: `formula:${factor.formulaId}`,
+                category: `formula:${nestedId}`,
                 weight: factor.weight,
-                average: 0,
-                weightedScore: 0,
-                gradeCount: 0,
-                note: 'Nested formula — requires recursive calculation'
+                average: Math.round(nestedResult.percentage * 100) / 100,
+                weightedScore: Math.round(weightedScore * 100) / 100,
+                gradeCount: nestedResult.breakdown.reduce((sum, b) => sum + (b.gradeCount || 0), 0),
+                nestedBreakdown: nestedResult.breakdown
             });
             continue;
         }

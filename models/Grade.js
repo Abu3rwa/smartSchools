@@ -197,15 +197,12 @@ gradeSchema.virtual('percentage').get(function () {
 });
 
 // Virtual for letter grade
+// DEPRECATED: This virtual uses hardcoded thresholds that conflict with the
+// school's configurable grading scale (GradingScale model + gradingScaleEngine).
+// All production code should use gradingScaleEngine.resolveGradeDetails() instead.
+// Kept only for backward compatibility with any direct document access.
 gradeSchema.virtual('letterGrade').get(function () {
-    const percentage = (this.marks / this.maxMarks) * 100;
-    if (percentage >= 90) return 'A+';
-    if (percentage >= 80) return 'A';
-    if (percentage >= 70) return 'B+';
-    if (percentage >= 60) return 'B';
-    if (percentage >= 50) return 'C+';
-    if (percentage >= 40) return 'C';
-    return 'F';
+    return ''; // Use gradingScaleEngine for letter grades
 });
 
 // Pre-save hook to set month and semester

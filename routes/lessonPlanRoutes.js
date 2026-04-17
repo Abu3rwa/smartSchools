@@ -4,6 +4,7 @@ import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { uploadLessonPlanContext } from '../middleware/uploadLessonPlanContext.js';
+import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
 import {
     getLessonPlans,
     getLessonPlanById,
@@ -32,10 +33,10 @@ router.use(requireSchoolContext);
 router.use(resolveDepartmentScope);
 
 // AI routes (must be before /:id to avoid "ai" parsed as id)
-router.post('/ai/suggest', authorize('teacher', 'admin'), suggestField);
-router.post('/ai/detect-standards', authorize('teacher', 'admin'), detectStandards);
-router.post('/ai/generate-section', authorize('teacher', 'admin'), generateSection);
-router.post('/ai/extract-pdf', authorize('teacher', 'admin'), uploadLessonPlanContext, extractPdf);
+router.post('/ai/suggest', authorize('teacher', 'admin'), aiFeatureRateLimiter, suggestField);
+router.post('/ai/detect-standards', authorize('teacher', 'admin'), aiFeatureRateLimiter, detectStandards);
+router.post('/ai/generate-section', authorize('teacher', 'admin'), aiFeatureRateLimiter, generateSection);
+router.post('/ai/extract-pdf', authorize('teacher', 'admin'), aiFeatureRateLimiter, uploadLessonPlanContext, extractPdf);
 
 // Admin review routes (must be before /:id)
 router.get('/admin/review', authorizeWithPermission(

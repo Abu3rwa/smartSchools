@@ -102,8 +102,22 @@ function inlineEmailStyles(html) {
 }
 
 /**
+ * Escape HTML special characters to prevent XSS in email templates.
+ */
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * Load an HTML email template and replace {{placeholders}} with values.
  * Templates are cached after first read.
+ * All values are HTML-escaped by default. Use {{!key}} for raw (unescaped) HTML.
  *
  * @param {string} templateName - File name without extension (e.g. 'gradeUpdate')
  * @param {Object} data - Key/value pairs to replace in the template
@@ -130,9 +144,12 @@ export function renderTemplate(templateName, data = {}) {
   }
 
   for (const [key, value] of Object.entries(mergedData)) {
-    // Replace all occurrences of {{key}} with the value
+    // {{!key}} = raw (unescaped) HTML insertion for trusted template fragments
+    const rawRegex = new RegExp(`\\{\\{!${key}\\}\\}`, 'g');
+    html = html.replace(rawRegex, value ?? '');
+    // {{key}} = HTML-escaped insertion (safe for user-supplied data)
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-    html = html.replace(regex, value ?? '');
+    html = html.replace(regex, escapeHtml(value));
   }
 
   if (FINAL_REPORT_TEMPLATE_NAMES.has(templateName)) {

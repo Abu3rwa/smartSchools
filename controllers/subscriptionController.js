@@ -298,12 +298,12 @@ export const getAllSubscriptions = asyncHandler(async (req, res) => {
     if (search) {
         // Find schools matching search
         const matchingSchools = await School.find({
-            name: { $regex: search, $options: 'i' }
+            name: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' }
         }).select('_id');
         const schoolIds = matchingSchools.map(s => s._id);
         query.$or = [
             { school: { $in: schoolIds } },
-            { 'metadata.notes': { $regex: search, $options: 'i' } }
+            { 'metadata.notes': { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } }
         ];
     }
 

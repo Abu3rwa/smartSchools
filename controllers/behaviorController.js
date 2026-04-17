@@ -47,10 +47,17 @@ export const trackBehaviorEvent = asyncHandler(async (req, res) => {
         responseTime
     } = req.body;
 
+    // Restrict event types — security-sensitive types are system-only
+    const ALLOWED_USER_EVENT_TYPES = [
+        'feature_used', 'page_view', 'navigation', 'interaction',
+        'form_submission', 'search', 'export', 'import', 'preference_change'
+    ];
+    const sanitizedEventType = ALLOWED_USER_EVENT_TYPES.includes(eventType) ? eventType : 'feature_used';
+
     const event = await Behavior.logEvent({
         user: userId,
         school: schoolId,
-        eventType,
+        eventType: sanitizedEventType,
         action,
         description: description || action,
         resourceType: resourceType || 'system',

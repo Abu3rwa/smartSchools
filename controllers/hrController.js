@@ -80,8 +80,8 @@ export const getStaffProfiles = asyncHandler(async (req, res) => {
   if (search) {
     // We'll search by user name via a separate lookup, or use staff employeeId
     filter.$or = [
-      { employeeId: { $regex: search, $options: "i" } },
-      { "personalInfo.nationality": { $regex: search, $options: "i" } },
+      { employeeId: { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } },
+      { "personalInfo.nationality": { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: "i" } },
     ];
   }
 

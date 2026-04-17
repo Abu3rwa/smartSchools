@@ -340,10 +340,11 @@ export const getStudents = asyncHandler(async (req, res) => {
     const query = {};
 
     if (search) {
+        const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         query.$or = [
-            { firstName: { $regex: search, $options: 'i' } },
-            { lastName: { $regex: search, $options: 'i' } },
-            { studentId: { $regex: search, $options: 'i' } }
+            { firstName: { $regex: escapedSearch, $options: 'i' } },
+            { lastName: { $regex: escapedSearch, $options: 'i' } },
+            { studentId: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 
@@ -867,10 +868,11 @@ export const getPromotionQueue = asyncHandler(async (req, res) => {
     };
 
     if (search) {
+        const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         query.$or = [
-            { firstName: { $regex: search, $options: 'i' } },
-            { lastName: { $regex: search, $options: 'i' } },
-            { studentId: { $regex: search, $options: 'i' } }
+            { firstName: { $regex: escapedSearch, $options: 'i' } },
+            { lastName: { $regex: escapedSearch, $options: 'i' } },
+            { studentId: { $regex: escapedSearch, $options: 'i' } }
         ];
     }
 

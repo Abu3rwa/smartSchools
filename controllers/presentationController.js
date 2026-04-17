@@ -395,7 +395,7 @@ export const generatePresentation = asyncHandler(async (req, res) => {
 // ─── Get single presentation ────────────────────────────────────────────────
 
 export const getPresentation = asyncHandler(async (req, res) => {
-  const presentation = await Presentation.findById(req.params.id)
+  const presentation = await Presentation.findOne({ _id: req.params.id, school: req.schoolId })
     .populate("teacher", "firstName lastName")
     .populate("class", "name")
     .populate("subject", "name")
@@ -441,7 +441,8 @@ export const listPresentations = asyncHandler(async (req, res) => {
   if (classId) query.class = classId;
   if (subjectId) query.subject = subjectId;
   if (search) {
-    query.title = { $regex: search, $options: "i" };
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    query.title = { $regex: escapedSearch, $options: "i" };
   }
 
   const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -474,7 +475,7 @@ export const listPresentations = asyncHandler(async (req, res) => {
 // ─── Update presentation metadata ──────────────────────────────────────────
 
 export const updatePresentation = asyncHandler(async (req, res) => {
-  const presentation = await Presentation.findById(req.params.id);
+  const presentation = await Presentation.findOne({ _id: req.params.id, school: req.schoolId });
 
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
@@ -509,7 +510,7 @@ export const updateSlide = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const slideIndex = parseInt(req.params.slideIndex);
 
-  const presentation = await Presentation.findById(id);
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId });
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
   }
@@ -556,7 +557,7 @@ export const regenerateSlide = asyncHandler(async (req, res) => {
   const slideIndex = parseInt(req.params.slideIndex);
   const { prompt: teacherPrompt, keepLayout } = req.body;
 
-  const presentation = await Presentation.findById(id);
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId });
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
   }
@@ -613,7 +614,7 @@ export const textAssistSlide = asyncHandler(async (req, res) => {
   const slideIndex = parseInt(req.params.slideIndex);
   const { action, selectedText, customPrompt } = req.body;
 
-  const presentation = await Presentation.findById(id);
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId });
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
   }
@@ -674,7 +675,7 @@ export const textAssistSlide = asyncHandler(async (req, res) => {
 // ─── Reorder slides ─────────────────────────────────────────────────────────
 
 export const reorderSlides = asyncHandler(async (req, res) => {
-  const presentation = await Presentation.findById(req.params.id);
+  const presentation = await Presentation.findOne({ _id: req.params.id, school: req.schoolId });
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
   }
@@ -719,7 +720,7 @@ export const patchSlide = asyncHandler(async (req, res) => {
   const slideIndex = parseInt(req.params.slideIndex);
   const { operations = [], version } = req.body;
 
-  const presentation = await Presentation.findById(id);
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId });
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
   }
@@ -769,7 +770,7 @@ export const applySlideLayout = asyncHandler(async (req, res) => {
   const slideIndex = parseInt(req.params.slideIndex);
   const { layout, preserveContent = true } = req.body;
 
-  const presentation = await Presentation.findById(id);
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId });
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
   }
@@ -810,7 +811,7 @@ export const listComments = asyncHandler(async (req, res) => {
   const slideIndex = req.query.slideIndex != null ? Number(req.query.slideIndex) : null;
   const resolvedFilter = req.query.resolved;
 
-  const presentation = await Presentation.findById(id)
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId })
     .populate("comments.author", "firstName lastName")
     .populate("comments.resolvedBy", "firstName lastName");
 
@@ -836,7 +837,7 @@ export const addComment = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { message, slideIndex = 0 } = req.body;
 
-  const presentation = await Presentation.findById(id);
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId });
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
   }
@@ -867,7 +868,7 @@ export const resolveComment = asyncHandler(async (req, res) => {
   const { id, commentId } = req.params;
   const { resolved = true } = req.body;
 
-  const presentation = await Presentation.findById(id)
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId })
     .populate("comments.author", "firstName lastName")
     .populate("comments.resolvedBy", "firstName lastName");
 
@@ -894,7 +895,7 @@ export const deleteComment = asyncHandler(async (req, res) => {
   }
 
   const { id, commentId } = req.params;
-  const presentation = await Presentation.findById(id);
+  const presentation = await Presentation.findOne({ _id: id, school: req.schoolId });
 
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
@@ -914,7 +915,7 @@ export const deleteComment = asyncHandler(async (req, res) => {
 // ─── Export to PDF ──────────────────────────────────────────────────────────
 
 export const exportPdf = asyncHandler(async (req, res) => {
-  const presentation = await Presentation.findById(req.params.id)
+  const presentation = await Presentation.findOne({ _id: req.params.id, school: req.schoolId })
     .populate("template", "defaultTheme")
     .lean();
 
@@ -949,7 +950,7 @@ export const exportPdf = asyncHandler(async (req, res) => {
 // ─── Delete presentation ────────────────────────────────────────────────────
 
 export const deletePresentation = asyncHandler(async (req, res) => {
-  const presentation = await Presentation.findById(req.params.id);
+  const presentation = await Presentation.findOne({ _id: req.params.id, school: req.schoolId });
   if (!presentation) {
     return res.status(404).json({ success: false, message: "Presentation not found" });
   }

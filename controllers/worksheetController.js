@@ -67,7 +67,10 @@ export const listWorksheets = asyncHandler(async (req, res) => {
 
 export const updateWorksheet = asyncHandler(async (req, res) => {
     const parsed = updateWorksheetSchema.parse(req.body);
-    const worksheet = await Worksheet.findOne({ _id: req.params.id, school: req.user.school });
+    const query = { _id: req.params.id, school: req.user.school };
+    // Teachers can only edit their own worksheets
+    if (req.user.role === 'teacher') query.teacher = req.user._id;
+    const worksheet = await Worksheet.findOne(query);
     if (!worksheet) {
         return res.status(404).json({ success: false, message: 'Worksheet not found' });
     }
@@ -78,13 +81,27 @@ export const updateWorksheet = asyncHandler(async (req, res) => {
 });
 
 export const deleteWorksheet = asyncHandler(async (req, res) => {
-    const worksheet = await worksheetService.archiveWorksheet(req.params.id);
-    res.json({ success: true, data: worksheet });
+    // Verify ownership before archiving
+    const query = { _id: req.params.id, school: req.user.school };
+    if (req.user.role === 'teacher') query.teacher = req.user._id;
+    const worksheet = await Worksheet.findOne(query);
+    if (!worksheet) {
+        return res.status(404).json({ success: false, message: 'Worksheet not found' });
+    }
+    const archived = await worksheetService.archiveWorksheet(req.params.id);
+    res.json({ success: true, data: archived });
 });
 
 // ─── Answer Key Extraction ────────────────────────────────────────────────────
 
 export const extractAnswerKey = asyncHandler(async (req, res) => {
+    // Verify ownership
+    const query = { _id: req.params.id, school: req.user.school };
+    if (req.user.role === 'teacher') query.teacher = req.user._id;
+    const existing = await Worksheet.findOne(query);
+    if (!existing) {
+        return res.status(404).json({ success: false, message: 'Worksheet not found' });
+    }
     const worksheet = await worksheetService.extractAnswerKey(req.params.id);
     res.json({ success: true, data: { modelAnswers: worksheet.modelAnswers, totalQuestions: worksheet.totalQuestions } });
 });
@@ -144,11 +161,25 @@ export const assignStudent = asyncHandler(async (req, res) => {
 // ─── Processing ───────────────────────────────────────────────────────────────
 
 export const processOneSubmission = asyncHandler(async (req, res) => {
+    // Verify ownership
+    const query = { _id: req.params.id, school: req.user.school };
+    if (req.user.role === 'teacher') query.teacher = req.user._id;
+    const worksheet = await Worksheet.findOne(query);
+    if (!worksheet) {
+        return res.status(404).json({ success: false, message: 'Worksheet not found' });
+    }
     const result = await processSubmission(req.params.id, req.params.submissionId);
     res.json({ success: true, data: result });
 });
 
 export const processAll = asyncHandler(async (req, res) => {
+    // Verify ownership
+    const query = { _id: req.params.id, school: req.user.school };
+    if (req.user.role === 'teacher') query.teacher = req.user._id;
+    const worksheet = await Worksheet.findOne(query);
+    if (!worksheet) {
+        return res.status(404).json({ success: false, message: 'Worksheet not found' });
+    }
     const results = await processAllPending(req.params.id);
     res.json({ success: true, data: results });
 });
@@ -182,6 +213,13 @@ export const replaceSubmission = asyncHandler(async (req, res) => {
 });
 export const updateStatus = asyncHandler(async (req, res) => {
     const { status } = updateStatusSchema.parse(req.body);
+    // Verify ownership
+    const query = { _id: req.params.id, school: req.user.school };
+    if (req.user.role === 'teacher') query.teacher = req.user._id;
+    const existing = await Worksheet.findOne(query);
+    if (!existing) {
+        return res.status(404).json({ success: false, message: 'Worksheet not found' });
+    }
     const worksheet = await worksheetService.updateWorksheetStatus(req.params.id, status);
     res.json({ success: true, data: worksheet });
 });
