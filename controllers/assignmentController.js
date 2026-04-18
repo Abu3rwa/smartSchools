@@ -170,7 +170,6 @@ const resolveTargetStudentsForAssignment = async (assignment) => {
     const query = {
         school: assignment.school,
         currentClass: assignment.class,
-        academicYear: assignment.academicYear,
         status: 'active'
     };
     if (assignment.scope === 'selected_students') {
