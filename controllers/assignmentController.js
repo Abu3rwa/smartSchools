@@ -18,6 +18,7 @@ import { ensureDefaultAssignmentTypes } from './assignmentTypeController.js';
 import { validateGradeLessonPlanLinks } from '../helpers/gradeLessonPlanLinks.js';
 import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
 import { generateAssignmentReminder } from '../helpers/assignmentReminderAi.js';
+import logger from '../utils/logger.js';
 
 const toId = (value) => (value == null ? '' : String(value));
 
@@ -178,7 +179,7 @@ const resolveTargetStudentsForAssignment = async (assignment) => {
     }
     return Student.find(query)
         .select('_id firstName lastName studentId parentInfo email')
-        .lean();
+        .lean({ virtuals: true });
 };
 
 const verifyTeacherCanAccessAssignment = async (req, assignment) => {
@@ -681,36 +682,55 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
     // Generate one reminder per student (personalized with name) and send to selected audience
     const results = await Promise.allSettled(
         students.map(async (student) => {
-            const { subject, body } = await generateAssignmentReminder({
-                assignment,
-                studentName: student.fullName || 'Student',
-                tone,
-                tracking: { schoolId: req.schoolId, userId: req.user._id },
-            });
-            const promises = [];
-            if (sendToParents) {
-                promises.push(notificationService.sendAssignmentReminderNotification({
-                    studentId: student._id,
+            try {
+                const { subject, body } = await generateAssignmentReminder({
                     assignment,
-                    subject,
-                    reminderText: body,
-                    createdBy: req.user._id,
-                }));
+                    studentName: student.fullName || 'Student',
+                    tone,
+                    tracking: { schoolId: req.schoolId, userId: req.user._id },
+                });
+                const promises = [];
+                if (sendToParents) {
+                    promises.push(notificationService.sendAssignmentReminderNotification({
+                        studentId: student._id,
+                        assignment,
+                        subject,
+                        reminderText: body,
+                        createdBy: req.user._id,
+                    }));
+                }
+                if (sendToStudents) {
+                    promises.push(notificationService.sendStudentAssignmentReminderNotification({
+                        studentId: student._id,
+                        assignment,
+                        subject,
+                        reminderText: body,
+                        createdBy: req.user._id,
+                    }));
+                }
+                return Promise.all(promises);
+            } catch (err) {
+                logger.error('assignment_reminder_student_failed', {
+                    studentId: String(student._id),
+                    assignmentId: String(assignment._id),
+                    error: err?.message || String(err),
+                });
+                throw err;
             }
-            if (sendToStudents) {
-                promises.push(notificationService.sendStudentAssignmentReminderNotification({
-                    studentId: student._id,
-                    assignment,
-                    subject,
-                    reminderText: body,
-                    createdBy: req.user._id,
-                }));
-            }
-            return Promise.all(promises);
         })
     );
 
     const sent = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected');
+    if (failed.length > 0) {
+        logger.error('assignment_reminders_summary', {
+            assignmentId: String(assignment._id),
+            total: students.length,
+            sent,
+            failed: failed.length,
+            reasons: failed.map((r) => r.reason?.message || String(r.reason)).slice(0, 5),
+        });
+    }
     res.json({ success: true, data: { studentCount: students.length, remindersSent: sent, audience } });
 });
 

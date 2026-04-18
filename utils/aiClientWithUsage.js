@@ -25,17 +25,16 @@ export async function connectAiWithUsage(prompt, options = {}, opts = {}) {
 
   let response;
   let error = false;
+  let usageId;
   try {
     response = await originalConnectAi(prompt, options);
   } catch (err) {
     error = true;
     response = {};
     logger.error('connectAiWithUsage: AI call failed', err);
-    throw err; // Re-throw to preserve caller behavior
-  } finally {
-    // Always log usage, even on error
-    const usageId = await logAIUsage({
-      model: 'gemini-2.5-flash-lite',
+    // Log usage before re-throwing so the record is always created
+    usageId = await logAIUsage({
+      model: response?.modelName || 'gemini-2.5-flash-lite',
       feature: opts.feature,
       schoolId: opts.schoolId,
       userId: opts.userId,
@@ -47,7 +46,24 @@ export async function connectAiWithUsage(prompt, options = {}, opts = {}) {
       response,
       error
     });
-
-    return { ...response, usageId };
+    err.usageId = usageId;
+    throw err;
   }
+
+  // Log usage on success
+  usageId = await logAIUsage({
+    model: response?.modelName || 'gemini-2.5-flash-lite',
+    feature: opts.feature,
+    schoolId: opts.schoolId,
+    userId: opts.userId,
+    studentId: opts.studentId,
+    entityType: opts.entityType,
+    entityId: opts.entityId,
+    metadata: opts.metadata,
+    dateRange: opts.dateRange,
+    response,
+    error
+  });
+
+  return { ...response, usageId };
 }

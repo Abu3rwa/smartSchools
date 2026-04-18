@@ -9,6 +9,7 @@ import gmailOAuthService from "./gmailOAuthService.js";
 import { sendPushToUsers } from "./pushNotificationService.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
 import { buildPortalLink, getClientUrl } from "../helpers/portalUrl.js";
+import { getSignedUrl } from "./firebaseStorageService.js";
 import logger from "../utils/logger.js";
 
 /**
@@ -470,7 +471,7 @@ class NotificationService {
     };
   }
 
-  _buildAssignmentPostedContent({ student, assignment }) {
+  async _buildAssignmentPostedContent({ student, assignment }) {
     const studentName = student?.fullName || "Student";
     const typeName = String(assignment?.assignmentTypeName || "Assignment").trim() || "Assignment";
     const title = String(assignment?.title || "Assignment").trim() || "Assignment";
@@ -501,11 +502,52 @@ class NotificationService {
         : "",
     ].filter(Boolean).join("");
 
+    // Build links section (external URLs, assessments, practice objectives)
+    let linksHtml = "";
+    const assignmentLinks = assignment?.links || [];
+    if (assignmentLinks.length > 0) {
+      const linkItems = assignmentLinks.map((link) => {
+        const linkTitle = escapeHtml(link.title || link.type || "Link");
+        const linkUrl = link.url || "";
+        if (linkUrl) {
+          return `<li><a href="${escapeHtml(linkUrl)}" style="color:#0d9488;text-decoration:underline;">${linkTitle}</a></li>`;
+        }
+        return `<li>${linkTitle}</li>`;
+      }).join("");
+      linksHtml = `<p class="detail-row"><span class="label">Links:</span></p><ul style="margin:4px 0 12px 20px;padding:0;">${linkItems}</ul>`;
+    }
+
+    // Build attachments section with signed Firebase URLs
+    let attachmentsHtml = "";
+    const assignmentAttachments = assignment?.attachments || [];
+    if (assignmentAttachments.length > 0) {
+      const attachmentItems = [];
+      for (const att of assignmentAttachments) {
+        const fileName = escapeHtml(att.fileName || "File");
+        let downloadUrl = "";
+        try {
+          if (att.storageKey) {
+            downloadUrl = await getSignedUrl(att.storageKey);
+          } else if (att.url) {
+            downloadUrl = att.url;
+          }
+        } catch {
+          // If signed URL fails, skip the link
+        }
+        if (downloadUrl) {
+          attachmentItems.push(`<li><a href="${escapeHtml(downloadUrl)}" style="color:#0d9488;text-decoration:underline;">${fileName}</a></li>`);
+        } else {
+          attachmentItems.push(`<li>${fileName}</li>`);
+        }
+      }
+      attachmentsHtml = `<p class="detail-row"><span class="label">Attachments:</span></p><ul style="margin:4px 0 12px 20px;padding:0;">${attachmentItems.join("")}</ul>`;
+    }
+
     const ctaHtml = assignmentUrl
       ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
       : "<p>Open the app to review details.</p>";
 
-    const bodyHtml = `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>${detailRows}${ctaHtml}`;
+    const bodyHtml = `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>${detailRows}${linksHtml}${attachmentsHtml}${ctaHtml}`;
 
     return {
       subject,
@@ -877,7 +919,7 @@ class NotificationService {
       return [];
     }
 
-    const content = this._buildAssignmentPostedContent({ student, assignment });
+    const content = await this._buildAssignmentPostedContent({ student, assignment });
     const metadata = {
       assignmentId: String(assignment._id),
       assignmentTypeKey: String(assignment?.assignmentTypeKey || ""),
@@ -989,6 +1031,11 @@ class NotificationService {
 
     const audience = await this._resolveAssignmentAudience(student);
     if (audience.parentRecipients.length === 0 && audience.fallbackEmails.length === 0) {
+      logger.info("assignment_reminder_no_parent_audience", {
+        studentId: String(studentId),
+        studentName: student.fullName || "Unknown",
+        hasParentEmails: !!(student.parentInfo?.fatherEmail || student.parentInfo?.motherEmail || student.parentInfo?.guardianEmail),
+      });
       return [];
     }
 
@@ -1095,7 +1142,14 @@ class NotificationService {
     if (!studentId || !assignment?._id) return null;
 
     const student = await Student.findById(studentId);
-    if (!student?.user || !student?.school) return null;
+    if (!student?.user || !student?.school) {
+      logger.info("student_reminder_skipped_no_user", {
+        studentId: String(studentId),
+        hasUser: !!student?.user,
+        hasSchool: !!student?.school,
+      });
+      return null;
+    }
 
     const typeName = String(assignment.assignmentTypeName || "Assignment").trim();
     const title = String(assignment.title || "Assignment").trim();
@@ -1183,7 +1237,7 @@ class NotificationService {
     const schoolSettings = await this._getSchoolNotificationSettings(student.school);
     if (schoolSettings?.studentNotifications?.onAssignmentPosted === false) return null;
 
-    const content = this._buildAssignmentPostedContent({ student, assignment });
+    const content = await this._buildAssignmentPostedContent({ student, assignment });
     const metadata = {
       assignmentId: String(assignment._id),
       assignmentTypeKey: String(assignment?.assignmentTypeKey || ""),

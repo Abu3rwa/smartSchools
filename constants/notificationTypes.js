@@ -35,7 +35,9 @@ export const NOTIFICATION_TYPES = {
     // Worksheet Checker
     WORKSHEET_MARKED: 'worksheet_marked',
     WORKSHEET_RESULT: 'worksheet_result',
-    WORKSHEET_PARENT_RESULT: 'worksheet_parent_result'
+    WORKSHEET_PARENT_RESULT: 'worksheet_parent_result',
+    // Assignment Reminders
+    ASSIGNMENT_REMINDER: 'assignment_reminder',
 };
 
 export const NOTIFICATION_TYPE_VALUES = Object.freeze(Object.values(NOTIFICATION_TYPES));

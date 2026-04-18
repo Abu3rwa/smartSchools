@@ -155,7 +155,7 @@ const resolveTargetStudentsForAssignment = async (assignment) => {
     }
     return Student.find(query)
         .select('_id firstName lastName studentId parentInfo email')
-        .lean();
+        .lean({ virtuals: true });
 };
 
 const upsertSubmissionPlaceholders = async (assignment, students = []) => {
