@@ -115,6 +115,7 @@ const allowedOrigins = [
   ...(process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
   // Fallback defaults kept for backward compatibility
   "http://localhost:5173",
+  "https://schoolos-is02.onrender.com",
 ]
   .map((origin) => (typeof origin === "string" ? origin.trim() : origin))
   .filter(Boolean);
