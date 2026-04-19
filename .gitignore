@@ -2,6 +2,9 @@
 node_modules
 client/node_modules
 
+# Puppeteer browser cache
+.cache/
+
 # Environment variables
 .env
 .env.local

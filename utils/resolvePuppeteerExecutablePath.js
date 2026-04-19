@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import puppeteer from 'puppeteer';
 
 const WINDOWS_BROWSER_PATHS = [
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -55,6 +56,16 @@ export const resolvePuppeteerExecutablePath = async () => {
                 if (await pathExists(candidate)) {
                     return candidate;
                 }
+            }
+
+            // Fall back to Puppeteer's own bundled browser
+            try {
+                const executablePath = puppeteer.executablePath();
+                if (executablePath && await pathExists(executablePath)) {
+                    return executablePath;
+                }
+            } catch {
+                // ignore — bundled browser not available
             }
 
             return undefined;
