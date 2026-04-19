@@ -21,10 +21,14 @@ const getBrowser = async () => {
         browserPromise = (async () => {
             const executablePath = await resolvePuppeteerExecutablePath();
 
+            if (!executablePath) {
+                throw new Error('No compatible Chromium executable found for Puppeteer. Ensure the deployment build runs "npx puppeteer browsers install chrome".');
+            }
+
             return puppeteer.launch({
                 headless: true,
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
-                ...(executablePath ? { executablePath } : {})
+                executablePath
             });
         })().catch((error) => {
             browserPromise = null;

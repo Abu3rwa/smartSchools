@@ -24,6 +24,8 @@ const LINUX_BROWSER_PATHS = [
 
 let cachedExecutablePathPromise = null;
 
+const isWindowsStylePath = (value = '') => /^[a-zA-Z]:[\\/]/.test(String(value));
+
 const pathExists = async (candidatePath) => {
     if (!candidatePath) return false;
 
@@ -33,6 +35,25 @@ const pathExists = async (candidatePath) => {
     } catch {
         return false;
     }
+};
+
+const sanitizeExecutableEnvVar = async (key) => {
+    const rawValue = String(process.env[key] || '').trim();
+    if (!rawValue) return undefined;
+
+    // Prevent Windows local paths from breaking Linux production runtimes.
+    if (process.platform !== 'win32' && isWindowsStylePath(rawValue)) {
+        delete process.env[key];
+        return undefined;
+    }
+
+    if (await pathExists(rawValue)) {
+        return rawValue;
+    }
+
+    // Remove stale/non-existent overrides so Puppeteer can use defaults.
+    delete process.env[key];
+    return undefined;
 };
 
 const getPlatformCandidates = () => {
@@ -45,11 +66,9 @@ export const resolvePuppeteerExecutablePath = async () => {
     if (!cachedExecutablePathPromise) {
         cachedExecutablePathPromise = (async () => {
             const envCandidates = [
-                process.env.PUPPETEER_EXECUTABLE_PATH,
-                process.env.CHROME_PATH
-            ]
-                .map((value) => String(value || '').trim())
-                .filter(Boolean);
+                await sanitizeExecutableEnvVar('PUPPETEER_EXECUTABLE_PATH'),
+                await sanitizeExecutableEnvVar('CHROME_PATH')
+            ].filter(Boolean);
 
             const candidates = [...envCandidates, ...getPlatformCandidates()];
             for (const candidate of candidates) {
