@@ -657,7 +657,7 @@ export const publishAssignment = asyncHandler(async (req, res) => {
     });
 });
 
-/* ── Send AI-generated reminder to parents ── */
+/* ── Send reminder to parents ── */
 export const sendAssignmentReminder = asyncHandler(async (req, res) => {
     const assignment = await Assignment.findOne({ _id: req.params.id, school: req.schoolId });
     if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
@@ -669,7 +669,6 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
     const canAccess = await verifyTeacherCanAccessAssignment(req, assignment);
     if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized' });
 
-    const tone = ['friendly', 'formal', 'encouraging'].includes(req.body?.tone) ? req.body.tone : 'friendly';
     const audience = ['students', 'parents', 'both'].includes(req.body?.audience) ? req.body.audience : 'both';
     const students = await resolveTargetStudentsForAssignment(assignment);
     if (students.length === 0) {
@@ -683,11 +682,9 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
     const results = await Promise.allSettled(
         students.map(async (student) => {
             try {
-                const { subject, body } = await generateAssignmentReminder({
+                const { subject, body } = generateAssignmentReminder({
                     assignment,
                     studentName: student.fullName || 'Student',
-                    tone,
-                    tracking: { schoolId: req.schoolId, userId: req.user._id },
                 });
                 const promises = [];
                 if (sendToParents) {
