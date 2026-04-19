@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import path from 'path';
 import puppeteer from 'puppeteer';
 
 const WINDOWS_BROWSER_PATHS = [
@@ -56,6 +57,37 @@ const sanitizeExecutableEnvVar = async (key) => {
     return undefined;
 };
 
+const installChromiumIfMissing = async () => {
+    try {
+        const {
+            install,
+            detectBrowserPlatform,
+            resolveBuildId,
+            Browser
+        } = await import('@puppeteer/browsers');
+
+        const platform = detectBrowserPlatform();
+        if (!platform) return undefined;
+
+        const cacheDir = String(process.env.PUPPETEER_CACHE_DIR || '').trim() || path.resolve(process.cwd(), '.cache', 'puppeteer');
+        const buildId = await resolveBuildId(Browser.CHROME, platform, 'stable');
+        const installed = await install({
+            browser: Browser.CHROME,
+            buildId,
+            cacheDir
+        });
+
+        const installedPath = String(installed?.executablePath || '').trim();
+        if (installedPath && await pathExists(installedPath)) {
+            return installedPath;
+        }
+    } catch {
+        // ignore — we'll return undefined and let caller surface a clear error
+    }
+
+    return undefined;
+};
+
 const getPlatformCandidates = () => {
     if (process.platform === 'win32') return WINDOWS_BROWSER_PATHS;
     if (process.platform === 'darwin') return MACOS_BROWSER_PATHS;
@@ -85,6 +117,11 @@ export const resolvePuppeteerExecutablePath = async () => {
                 }
             } catch {
                 // ignore — bundled browser not available
+            }
+
+            const installedPath = await installChromiumIfMissing();
+            if (installedPath) {
+                return installedPath;
             }
 
             return undefined;

@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "postinstall": "node scripts/installPuppeteerBrowser.js",
     "build": "node -e \"console.log('Backend API build step: no-op')\"",
     "seed": "node seeds/seedData.js",
     "seed:import-templates": "node seeds/seedImportTemplates.js",
@@ -41,7 +42,7 @@
     "quality:maintainability:all": "npm run quality:maintainability && npm run quality:maintainability:messaging && npm run quality:maintainability:curriculum",
     "predeploy": "npm run lint 2>/dev/null; npm test 2>/dev/null; echo 'Pre-deploy checks done'",
     "deploy": "echo 'Use CI/CD pipeline for deployment. Direct git push deploy is disabled for safety.' && exit 1",
-    "render-build": "npm install && npx puppeteer browsers install chrome && cd client && npm install && npm run build"
+    "render-build": "npm install && cd client && npm install && npm run build"
   },
   "keywords": [
     "mern",
