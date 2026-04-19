@@ -5,6 +5,7 @@ import GroupingFilters from './components/GroupingFilters';
 import StudentGroupOverview from './components/StudentGroupOverview';
 import StudentGroupCard from './components/StudentGroupCard';
 import GroupingReportHistoryPanel from './components/GroupingReportHistoryPanel';
+import GroupingWorksheetPackPanel from './components/GroupingWorksheetPackPanel';
 import useStudentGrouping from './hooks/useStudentGrouping';
 import './TeacherStudentGroupingPage.css';
 
@@ -38,11 +39,24 @@ const TeacherStudentGroupingPage = () => {
         historyPage,
         historyReportType,
         downloadingReportId,
+        worksheetPacks,
+        worksheetPacksLoading,
+        creatingWorksheetPack,
+        endingWorksheetPackId,
+        publishingWorksheetPackId,
+        downloadingWorksheetPackId,
+        printingWorksheetPackId,
         handleExportOverviewPdf,
         handleHistoryPageChange,
         handleHistoryReportTypeChange,
         handleDownloadReport,
-        handleRefreshHistory
+        handleRefreshHistory,
+        handleCreateWorksheetPackDraft,
+        handleEndWorksheetPackAuthoring,
+        handlePublishWorksheetPack,
+        handleDownloadWorksheetPack,
+        handlePrintWorksheetPack,
+        handleRefreshWorksheetPacks
     } = useStudentGrouping();
 
     return (
@@ -132,6 +146,22 @@ const TeacherStudentGroupingPage = () => {
                         activitiesRefreshing={activitiesRefreshing}
                         onOverride={handleOverride}
                         onRefreshActivities={handleRefreshActivities}
+                    />
+
+                    <GroupingWorksheetPackPanel
+                        packs={worksheetPacks}
+                        loading={worksheetPacksLoading}
+                        creatingDraft={creatingWorksheetPack}
+                        endingPackId={endingWorksheetPackId}
+                        publishingPackId={publishingWorksheetPackId}
+                        downloadingPackId={downloadingWorksheetPackId}
+                        printingPackId={printingWorksheetPackId}
+                        onCreateDraft={handleCreateWorksheetPackDraft}
+                        onEndAuthoring={handleEndWorksheetPackAuthoring}
+                        onPublish={handlePublishWorksheetPack}
+                        onDownload={handleDownloadWorksheetPack}
+                        onPrint={handlePrintWorksheetPack}
+                        onRefresh={handleRefreshWorksheetPacks}
                     />
                 </>
             )}

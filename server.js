@@ -157,6 +157,8 @@ app.use(
       "x-session-id",
       "X-Academic-Year",
       "x-academic-year",
+      "X-Academic-Semester",
+      "x-academic-semester",
     ],
   }),
 );

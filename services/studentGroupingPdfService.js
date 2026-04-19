@@ -10,7 +10,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMPLATE_PATHS = {
     standard: path.resolve(__dirname, '../templates/student-grouping-standard-report.html'),
-    overview: path.resolve(__dirname, '../templates/student-grouping-overview-report.html')
+    overview: path.resolve(__dirname, '../templates/student-grouping-overview-report.html'),
+    worksheetPack: path.resolve(__dirname, '../templates/student-grouping-worksheet-pack.html')
 };
 
 let browserPromise = null;
@@ -346,6 +347,114 @@ const mapOverviewReportForTemplate = ({ reportData, branding = {}, language = 'e
     };
 };
 
+const mapWorksheetPackForTemplate = ({ packData, branding = {}, language = 'en' }) => {
+    const isArabic = language === 'ar';
+    const studentWorksheet = packData?.studentWorksheet && typeof packData.studentWorksheet === 'object'
+        ? packData.studentWorksheet
+        : {};
+    const headerFields = studentWorksheet?.headerFields && typeof studentWorksheet.headerFields === 'object'
+        ? studentWorksheet.headerFields
+        : {};
+    const responseLineCount = Math.max(3, Math.min(12, Number(studentWorksheet?.responseLineCount || 6)));
+    const labels = {
+        packTitle: isArabic ? 'حزمة أوراق عمل التمايز' : 'Differentiated Worksheet Pack',
+        generatedAt: isArabic ? 'تاريخ الإنشاء' : 'Generated At',
+        academicYear: isArabic ? 'العام الدراسي' : 'Academic Year',
+        classLabel: isArabic ? 'الفصل' : 'Class',
+        standardLabel: isArabic ? 'المعيار' : 'Standard',
+        subjectLabel: isArabic ? 'المادة' : 'Subject',
+        directionsLabel: isArabic ? 'تعليمات الطالب' : 'Student Directions',
+        nameLabel: isArabic ? 'الاسم' : 'Name',
+        dateLabel: isArabic ? 'التاريخ' : 'Date',
+        answerSpaceLabel: isArabic ? 'مساحة الإجابة' : 'Answer Space',
+        workSpaceLabel: isArabic ? 'مساحة العمل' : 'Work Area',
+        sectionsLabel: isArabic ? 'مجموعات الأنشطة' : 'Activity Groups',
+        studentCount: isArabic ? 'عدد الطلاب' : 'Students',
+        targetStudents: isArabic ? 'الطلاب المستهدفون' : 'Target Students',
+        teacherGuide: isArabic ? 'دليل المعلم' : 'Teacher Guide',
+        answerKey: isArabic ? 'إرشادات التصحيح' : 'Answer Key Guidance',
+        materials: isArabic ? 'المواد' : 'Materials',
+        closure: isArabic ? 'ختام الدرس' : 'Closure',
+        facilitationSteps: isArabic ? 'خطوات التنفيذ' : 'Facilitation Steps',
+        differentiation: isArabic ? 'التفريق' : 'Differentiation',
+        rubricNotes: isArabic ? 'ملاحظات التقييم' : 'Rubric Notes',
+        successCriteria: isArabic ? 'معايير النجاح' : 'Success Criteria',
+        noStudents: isArabic ? 'لا يوجد طلاب محددون لهذا القسم.' : 'No specific students listed for this section.'
+    };
+
+    const sections = Array.isArray(packData?.sections) ? packData.sections : [];
+    const teacherInstructions = packData?.teacherInstructions && typeof packData.teacherInstructions === 'object'
+        ? packData.teacherInstructions
+        : {};
+    const answerKey = packData?.answerKey && typeof packData.answerKey === 'object'
+        ? packData.answerKey
+        : {};
+
+    return {
+        isArabic,
+        direction: isArabic ? 'rtl' : 'ltr',
+        labels,
+        generatedAt: formatDate(packData?.generatedAt, isArabic),
+        academicYear: String(packData?.academicYear || ''),
+        className: String(packData?.classMeta?.className || ''),
+        standardCode: String(packData?.standardMeta?.code || ''),
+        standardName: String(packData?.standardMeta?.name || ''),
+        subjectName: String(packData?.standardMeta?.subjectName || ''),
+        packTitle: String(packData?.title || labels.packTitle),
+        schoolName: String(branding.schoolName || ''),
+        schoolLogo: String(branding.schoolLogo || ''),
+        teacherName: String(branding.teacherName || (isArabic ? 'المعلم' : 'Teacher')),
+        primaryColor: normalizeColor(branding.primaryColor, '#1f3c88'),
+        secondaryColor: normalizeColor(branding.secondaryColor, '#37517e'),
+        directions: String(studentWorksheet?.directions || ''),
+        studentWorksheet: {
+            headerFields: {
+                showNameLine: Boolean(headerFields?.showNameLine ?? true),
+                showDateLine: Boolean(headerFields?.showDateLine ?? true),
+                showClassLine: Boolean(headerFields?.showClassLine ?? true)
+            },
+            responseLines: Array.from({ length: responseLineCount }, (_, index) => index),
+            includeWorkBox: studentWorksheet?.includeWorkBox !== false
+        },
+        sections: sections.map((section) => ({
+            levelLabel: String(section?.levelLabel || section?.level || ''),
+            studentCount: Number(section?.studentCount || 0),
+            targetStudents: Array.isArray(section?.targetStudents) ? section.targetStudents : [],
+            activities: Array.isArray(section?.activities)
+                ? section.activities.map((activity) => ({
+                    title: String(activity?.title || ''),
+                    type: String(activity?.type || ''),
+                    description: String(activity?.description || ''),
+                    materials: String(activity?.materials || ''),
+                    studentTask: String(activity?.studentTask || '')
+                }))
+                : []
+        })),
+        teacherInstructions: {
+            objective: String(teacherInstructions?.objective || ''),
+            materials: String(teacherInstructions?.materials || ''),
+            timeEstimateMinutes: Number(teacherInstructions?.timeEstimateMinutes || 0),
+            facilitationSteps: Array.isArray(teacherInstructions?.facilitationSteps)
+                ? teacherInstructions.facilitationSteps
+                : [],
+            differentiation: Array.isArray(teacherInstructions?.differentiation)
+                ? teacherInstructions.differentiation
+                : [],
+            closure: String(teacherInstructions?.closure || '')
+        },
+        answerKey: {
+            rubricNotes: Array.isArray(answerKey?.rubricNotes) ? answerKey.rubricNotes : [],
+            sampleAnswers: Array.isArray(answerKey?.sampleAnswers)
+                ? answerKey.sampleAnswers.map((entry) => ({
+                    level: String(entry?.level || ''),
+                    activityTitle: String(entry?.activityTitle || ''),
+                    successCriteria: Array.isArray(entry?.successCriteria) ? entry.successCriteria : []
+                }))
+                : []
+        }
+    };
+};
+
 export const renderStudentGroupingStandardHtml = async (reportData, branding = {}, options = {}) => {
     const template = await getTemplate('standard');
     const payload = mapStandardReportForTemplate({
@@ -366,6 +475,16 @@ export const renderStudentGroupingOverviewHtml = async (reportData, branding = {
             ...reportData,
             reportConfig: options.reportConfig
         },
+        branding,
+        language: options.language === 'ar' ? 'ar' : 'en'
+    });
+    return template(payload);
+};
+
+export const renderStudentGroupingWorksheetPackHtml = async (packData, branding = {}, options = {}) => {
+    const template = await getTemplate('worksheetPack');
+    const payload = mapWorksheetPackForTemplate({
+        packData,
         branding,
         language: options.language === 'ar' ? 'ar' : 'en'
     });
@@ -399,6 +518,30 @@ export const generateStudentGroupingStandardPdf = async (reportData, branding = 
 
 export const generateStudentGroupingOverviewPdf = async (reportData, branding = {}, options = {}) => {
     const html = await renderStudentGroupingOverviewHtml(reportData, branding, options);
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+
+    try {
+        await page.setContent(html, { waitUntil: 'networkidle0' });
+        const pdfData = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            margin: {
+                top: '10mm',
+                bottom: '10mm',
+                left: '10mm',
+                right: '10mm'
+            }
+        });
+
+        return Buffer.isBuffer(pdfData) ? pdfData : Buffer.from(pdfData);
+    } finally {
+        await page.close();
+    }
+};
+
+export const generateStudentGroupingWorksheetPackPdf = async (packData, branding = {}, options = {}) => {
+    const html = await renderStudentGroupingWorksheetPackHtml(packData, branding, options);
     const browser = await getBrowser();
     const page = await browser.newPage();
 

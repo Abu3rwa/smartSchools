@@ -2,13 +2,13 @@ import api from '../config/api';
 
 const getFilenameFromDisposition = (disposition, fallback = 'student-grouping-report.pdf') => {
     const header = String(disposition || '');
-    const match = header.match(/filename\*?=(?:UTF-8''|\")?([^";]+)/i);
+    const match = header.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
     if (!match || !match[1]) return fallback;
 
     try {
-        return decodeURIComponent(match[1].replace(/\"/g, '').trim());
+        return decodeURIComponent(match[1].replace(/"/g, '').trim());
     } catch {
-        return match[1].replace(/\"/g, '').trim();
+        return match[1].replace(/"/g, '').trim();
     }
 };
 
@@ -23,6 +23,40 @@ const triggerBrowserDownload = ({ blob, filename }) => {
 
     // Delay revoke to avoid browser race conditions with file readers.
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const triggerBrowserPrint = ({ blob }) => {
+    const url = URL.createObjectURL(blob);
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.src = url;
+
+    const cleanup = () => {
+        setTimeout(() => {
+            try {
+                document.body.removeChild(iframe);
+            } catch {
+                // ignore cleanup race
+            }
+            URL.revokeObjectURL(url);
+        }, 1000);
+    };
+
+    iframe.onload = () => {
+        try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+        } finally {
+            cleanup();
+        }
+    };
+
+    document.body.appendChild(iframe);
 };
 
 const validatePdfBlob = async (blob, contentTypeHeader) => {
@@ -111,6 +145,60 @@ const studentGroupingService = {
         });
 
         return downloadPdfFromResponse(response, 'student-grouping-report.pdf');
+    },
+
+    async listWorksheetPacks({ classId, standardId, academicYear, page = 1, limit = 10 }) {
+        const response = await api.get(`/student-grouping/${classId}/${standardId}/worksheet-packs`, {
+            params: {
+                page,
+                limit,
+                ...(academicYear ? { academicYear } : {})
+            }
+        });
+
+        const data = getNestedData(response);
+        return {
+            items: Array.isArray(data.items) ? data.items : [],
+            pagination: data.pagination || null
+        };
+    },
+
+    async createWorksheetPackDraft({ classId, standardId, academicYear, language, title }) {
+        const response = await api.post(`/student-grouping/${classId}/${standardId}/worksheet-packs`, {
+            academicYear,
+            ...(language ? { language } : {}),
+            ...(title ? { title } : {})
+        });
+
+        return getNestedData(response);
+    },
+
+    async endWorksheetPackAuthoring({ packId }) {
+        const response = await api.put(`/student-grouping/worksheet-packs/${packId}/end-authoring`);
+        return getNestedData(response);
+    },
+
+    async publishWorksheetPack({ packId }) {
+        const response = await api.put(`/student-grouping/worksheet-packs/${packId}/publish`);
+        return getNestedData(response);
+    },
+
+    async downloadWorksheetPackPdf({ packId }) {
+        const response = await api.get(`/student-grouping/worksheet-packs/${packId}/export-pdf`, {
+            responseType: 'blob'
+        });
+
+        return downloadPdfFromResponse(response, 'grouping-worksheet-pack.pdf');
+    },
+
+    async printWorksheetPackPdf({ packId }) {
+        const response = await api.get(`/student-grouping/worksheet-packs/${packId}/print-pdf`, {
+            responseType: 'blob'
+        });
+
+        await validatePdfBlob(response.data, response.headers?.['content-type']);
+        triggerBrowserPrint({ blob: response.data });
+        return { success: true };
     }
 };
 

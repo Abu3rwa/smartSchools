@@ -12,6 +12,14 @@ import {
     getGroupingReports,
     downloadGroupingReport
 } from '../controllers/studentGroupingController.js';
+import {
+    createGroupingWorksheetPackDraft,
+    listGroupingWorksheetPacks,
+    endGroupingWorksheetPackAuthoring,
+    publishGroupingWorksheetPack,
+    exportGroupingWorksheetPackPdf,
+    printGroupingWorksheetPackPdf
+} from '../controllers/studentGroupingWorksheetPackController.js';
 
 const router = express.Router();
 
@@ -44,6 +52,42 @@ router.get(
     '/reports/:reportId/download',
     authorize('admin', 'department_principal', 'teacher'),
     downloadGroupingReport
+);
+
+router.get(
+    '/:classId/:standardId/worksheet-packs',
+    authorize('admin', 'department_principal', 'teacher'),
+    listGroupingWorksheetPacks
+);
+
+router.post(
+    '/:classId/:standardId/worksheet-packs',
+    authorize('admin', 'department_principal', 'teacher'),
+    createGroupingWorksheetPackDraft
+);
+
+router.put(
+    '/worksheet-packs/:packId/end-authoring',
+    authorize('admin', 'department_principal', 'teacher'),
+    endGroupingWorksheetPackAuthoring
+);
+
+router.put(
+    '/worksheet-packs/:packId/publish',
+    authorize('admin', 'department_principal', 'teacher'),
+    publishGroupingWorksheetPack
+);
+
+router.get(
+    '/worksheet-packs/:packId/export-pdf',
+    authorize('admin', 'department_principal', 'teacher'),
+    exportGroupingWorksheetPackPdf
+);
+
+router.get(
+    '/worksheet-packs/:packId/print-pdf',
+    authorize('admin', 'department_principal', 'teacher'),
+    printGroupingWorksheetPackPdf
 );
 
 router.get(

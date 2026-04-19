@@ -52,6 +52,13 @@ const useStudentGrouping = () => {
         pages: 0
     });
     const [downloadingReportId, setDownloadingReportId] = useState('');
+    const [worksheetPacks, setWorksheetPacks] = useState([]);
+    const [worksheetPacksLoading, setWorksheetPacksLoading] = useState(false);
+    const [creatingWorksheetPack, setCreatingWorksheetPack] = useState(false);
+    const [endingWorksheetPackId, setEndingWorksheetPackId] = useState('');
+    const [publishingWorksheetPackId, setPublishingWorksheetPackId] = useState('');
+    const [downloadingWorksheetPackId, setDownloadingWorksheetPackId] = useState('');
+    const [printingWorksheetPackId, setPrintingWorksheetPackId] = useState('');
 
     const selectedClass = useMemo(
         () => classes.find((item) => item._id === selectedClassId) || null,
@@ -158,6 +165,42 @@ const useStudentGrouping = () => {
         });
     }, [selectedClassId, academicYear, historyPage, historyReportType, selectedSubjectId, loadHistory]);
 
+    const loadWorksheetPacks = useCallback(async ({ classId, standardId } = {}) => {
+        if (!classId || !standardId) {
+            setWorksheetPacks([]);
+            return;
+        }
+
+        setWorksheetPacksLoading(true);
+        try {
+            const result = await studentGroupingService.listWorksheetPacks({
+                classId,
+                standardId,
+                academicYear,
+                page: 1,
+                limit: 20
+            });
+            setWorksheetPacks(result.items || []);
+        } catch (packError) {
+            setWorksheetPacks([]);
+            toast.error(packError?.response?.data?.message || 'Failed to load worksheet packs.');
+        } finally {
+            setWorksheetPacksLoading(false);
+        }
+    }, [academicYear]);
+
+    useEffect(() => {
+        if (!selectedClassId || !selectedStandardId) {
+            setWorksheetPacks([]);
+            return;
+        }
+
+        loadWorksheetPacks({
+            classId: selectedClassId,
+            standardId: selectedStandardId
+        });
+    }, [selectedClassId, selectedStandardId, loadWorksheetPacks]);
+
     const handleClassChange = useCallback((classId) => {
         setSelectedClassId(classId);
         setSelectedSubjectId('');
@@ -165,6 +208,7 @@ const useStudentGrouping = () => {
         setView('overview');
         setHistoryPage(1);
         setHistoryReportType('');
+        setWorksheetPacks([]);
         dispatch(clearGroupingData());
     }, [dispatch]);
 
@@ -173,6 +217,7 @@ const useStudentGrouping = () => {
         setSelectedStandardId('');
         setView('overview');
         setHistoryPage(1);
+        setWorksheetPacks([]);
         dispatch(clearGroupingData());
     }, [dispatch]);
 
@@ -184,6 +229,7 @@ const useStudentGrouping = () => {
     const handleBackToOverview = useCallback(() => {
         setSelectedStandardId('');
         setView('overview');
+        setWorksheetPacks([]);
         dispatch(clearGroupingData());
     }, [dispatch]);
 
@@ -299,6 +345,98 @@ const useStudentGrouping = () => {
         });
     }, [selectedClassId, historyPage, historyReportType, loadHistory]);
 
+    const handleCreateWorksheetPackDraft = useCallback(async () => {
+        if (!selectedClassId || !selectedStandardId || !academicYear) return;
+
+        setCreatingWorksheetPack(true);
+        try {
+            await studentGroupingService.createWorksheetPackDraft({
+                classId: selectedClassId,
+                standardId: selectedStandardId,
+                academicYear
+            });
+            toast.success('Worksheet pack draft created.');
+            await loadWorksheetPacks({
+                classId: selectedClassId,
+                standardId: selectedStandardId
+            });
+        } catch (packError) {
+            toast.error(packError?.response?.data?.message || 'Failed to create worksheet pack draft.');
+        } finally {
+            setCreatingWorksheetPack(false);
+        }
+    }, [selectedClassId, selectedStandardId, academicYear, loadWorksheetPacks]);
+
+    const handleEndWorksheetPackAuthoring = useCallback(async (packId) => {
+        if (!packId) return;
+
+        setEndingWorksheetPackId(packId);
+        try {
+            await studentGroupingService.endWorksheetPackAuthoring({ packId });
+            toast.success('Authoring ended. Distribution actions are now enabled.');
+            await loadWorksheetPacks({
+                classId: selectedClassId,
+                standardId: selectedStandardId
+            });
+        } catch (packError) {
+            toast.error(packError?.response?.data?.message || 'Failed to end authoring.');
+        } finally {
+            setEndingWorksheetPackId('');
+        }
+    }, [selectedClassId, selectedStandardId, loadWorksheetPacks]);
+
+    const handlePublishWorksheetPack = useCallback(async (packId) => {
+        if (!packId) return;
+
+        setPublishingWorksheetPackId(packId);
+        try {
+            await studentGroupingService.publishWorksheetPack({ packId });
+            toast.success('Worksheet pack published.');
+            await loadWorksheetPacks({
+                classId: selectedClassId,
+                standardId: selectedStandardId
+            });
+        } catch (packError) {
+            toast.error(packError?.response?.data?.message || 'Failed to publish worksheet pack.');
+        } finally {
+            setPublishingWorksheetPackId('');
+        }
+    }, [selectedClassId, selectedStandardId, loadWorksheetPacks]);
+
+    const handleDownloadWorksheetPack = useCallback(async (packId) => {
+        if (!packId) return;
+
+        setDownloadingWorksheetPackId(packId);
+        try {
+            await studentGroupingService.downloadWorksheetPackPdf({ packId });
+        } catch (packError) {
+            toast.error(packError?.response?.data?.message || 'Failed to download worksheet pack.');
+        } finally {
+            setDownloadingWorksheetPackId('');
+        }
+    }, []);
+
+    const handlePrintWorksheetPack = useCallback(async (packId) => {
+        if (!packId) return;
+
+        setPrintingWorksheetPackId(packId);
+        try {
+            await studentGroupingService.printWorksheetPackPdf({ packId });
+        } catch (packError) {
+            toast.error(packError?.response?.data?.message || 'Failed to print worksheet pack.');
+        } finally {
+            setPrintingWorksheetPackId('');
+        }
+    }, []);
+
+    const handleRefreshWorksheetPacks = useCallback(() => {
+        if (!selectedClassId || !selectedStandardId) return;
+        loadWorksheetPacks({
+            classId: selectedClassId,
+            standardId: selectedStandardId
+        });
+    }, [selectedClassId, selectedStandardId, loadWorksheetPacks]);
+
     return {
         classes,
         subjectOptions,
@@ -323,6 +461,13 @@ const useStudentGrouping = () => {
         historyPage,
         historyReportType,
         downloadingReportId,
+        worksheetPacks,
+        worksheetPacksLoading,
+        creatingWorksheetPack,
+        endingWorksheetPackId,
+        publishingWorksheetPackId,
+        downloadingWorksheetPackId,
+        printingWorksheetPackId,
         handleClassChange,
         handleSubjectChange,
         handleStandardClick,
@@ -334,7 +479,13 @@ const useStudentGrouping = () => {
         handleHistoryPageChange,
         handleHistoryReportTypeChange,
         handleDownloadReport,
-        handleRefreshHistory
+        handleRefreshHistory,
+        handleCreateWorksheetPackDraft,
+        handleEndWorksheetPackAuthoring,
+        handlePublishWorksheetPack,
+        handleDownloadWorksheetPack,
+        handlePrintWorksheetPack,
+        handleRefreshWorksheetPacks
     };
 };
 

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en" dir="{{direction}}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{packTitle}}</title>
+  <style>
+    :root {
+      --primary: {{primaryColor}};
+      --secondary: {{secondaryColor}};
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --bg-soft: #f8fafc;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.45;
+      background: #fff;
+    }
+
+    .page {
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .header {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 14px;
+      background: linear-gradient(180deg, #ffffff 0%, var(--bg-soft) 100%);
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .school {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .school-logo {
+      width: 42px;
+      height: 42px;
+      object-fit: contain;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 2px 0;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 14px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+
+    .meta-item {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .meta-item strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .section-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+
+    .section-card h2 {
+      margin: 0;
+      font-size: 13px;
+      color: #fff;
+      background: var(--secondary);
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-body {
+      padding: 10px;
+    }
+
+    .chip {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      border: 1px solid #dbeafe;
+      background: #eff6ff;
+      color: #1e40af;
+      margin: 2px 4px 2px 0;
+    }
+
+    .subheading {
+      margin: 8px 0 4px;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      font-weight: 700;
+    }
+
+    .activity-item {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px;
+      margin-bottom: 7px;
+      background: #fff;
+    }
+
+    .activity-title {
+      margin: 0 0 4px;
+      font-weight: 700;
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .activity-meta {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    .activity-task {
+      margin-top: 4px;
+    }
+
+    .answer-block {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--line);
+    }
+
+    .answer-label {
+      margin: 0 0 5px;
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.35px;
+      font-weight: 700;
+    }
+
+    .answer-lines {
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #fff;
+      padding: 6px 8px 0;
+      page-break-inside: avoid;
+    }
+
+    .answer-line {
+      border-bottom: 1px solid #d1d5db;
+      height: 17px;
+      margin-bottom: 6px;
+    }
+
+    .answer-line:last-child {
+      margin-bottom: 0;
+      border-bottom: none;
+      height: 10px;
+    }
+
+    .work-box {
+      margin-top: 7px;
+      min-height: 72px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 6px;
+      background: #f8fafc;
+      padding: 5px 8px;
+      color: #64748b;
+      font-size: 10px;
+      page-break-inside: avoid;
+    }
+
+    .student-meta-lines {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 22px;
+    }
+
+    .directions {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      margin-bottom: 12px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      page-break-inside: avoid;
+    }
+
+    .panel h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: var(--primary);
+    }
+
+    ul {
+      margin: 6px 0 0 16px;
+      padding: 0;
+    }
+
+    li { margin: 0 0 4px; }
+
+    .muted { color: var(--muted); }
+
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .section-card, .panel { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="header-top">
+        <div class="school">
+          {{#if schoolLogo}}
+          <img src="{{schoolLogo}}" alt="School Logo" class="school-logo" />
+          {{/if}}
+          <div>
+            <div class="title">{{packTitle}}</div>
+            <div class="muted">{{schoolName}}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-item"><strong>{{labels.generatedAt}}:</strong> {{generatedAt}}</div>
+        <div class="meta-item"><strong>{{labels.academicYear}}:</strong> {{academicYear}}</div>
+        <div class="meta-item"><strong>{{labels.classLabel}}:</strong> {{className}}</div>
+        <div class="meta-item"><strong>{{labels.standardLabel}}:</strong> {{standardCode}} - {{standardName}}</div>
+        <div class="meta-item"><strong>{{labels.subjectLabel}}:</strong> {{subjectName}}</div>
+        <div class="meta-item"><strong>Teacher:</strong> {{teacherName}}</div>
+      </div>
+    </header>
+
+    <section class="directions">
+      <div class="subheading">{{labels.directionsLabel}}</div>
+      <div>{{directions}}</div>
+      <div class="student-meta-lines">
+        {{#if studentWorksheet.headerFields.showNameLine}}
+          <div><strong>{{labels.nameLabel}}:</strong> ____________________</div>
+        {{/if}}
+        {{#if studentWorksheet.headerFields.showDateLine}}
+          <div><strong>{{labels.dateLabel}}:</strong> ____________________</div>
+        {{/if}}
+        {{#if studentWorksheet.headerFields.showClassLine}}
+          <div><strong>{{labels.classLabel}}:</strong> ____________________</div>
+        {{/if}}
+      </div>
+    </section>
+
+    <section>
+      <div class="subheading">{{labels.sectionsLabel}}</div>
+      {{#each sections}}
+      <article class="section-card">
+        <h2>
+          <span>{{this.levelLabel}}</span>
+          <span>{{../labels.studentCount}}: {{this.studentCount}}</span>
+        </h2>
+        <div class="section-body">
+          <div class="subheading">{{../labels.targetStudents}}</div>
+          {{#if this.targetStudents.length}}
+            <div>
+            {{#each this.targetStudents}}
+              <span class="chip">{{this}}</span>
+            {{/each}}
+            </div>
+          {{else}}
+            <div class="muted">{{../labels.noStudents}}</div>
+          {{/if}}
+
+          <div class="subheading" style="margin-top:10px;">Activities</div>
+          {{#each this.activities}}
+            <div class="activity-item">
+              <p class="activity-title">{{this.title}}</p>
+              <div class="activity-meta">Type: {{this.type}} | {{../../labels.materials}}: {{this.materials}}</div>
+              <div>{{this.description}}</div>
+              <div class="activity-task"><strong>Student Task:</strong> {{this.studentTask}}</div>
+
+              <div class="answer-block">
+                <p class="answer-label">{{../../labels.answerSpaceLabel}}</p>
+                <div class="answer-lines">
+                  {{#each ../../studentWorksheet.responseLines}}
+                    <div class="answer-line"></div>
+                  {{/each}}
+                </div>
+
+                {{#if ../../studentWorksheet.includeWorkBox}}
+                  <div class="work-box">{{../../labels.workSpaceLabel}}</div>
+                {{/if}}
+              </div>
+            </div>
+          {{/each}}
+        </div>
+      </article>
+      {{/each}}
+    </section>
+
+    <section class="two-col">
+      <article class="panel">
+        <h3>{{labels.teacherGuide}}</h3>
+        <div><strong>Objective:</strong> {{teacherInstructions.objective}}</div>
+        <div style="margin-top:4px;"><strong>{{labels.materials}}:</strong> {{teacherInstructions.materials}}</div>
+        <div style="margin-top:4px;"><strong>Time:</strong> {{teacherInstructions.timeEstimateMinutes}} min</div>
+
+        <div class="subheading">{{labels.facilitationSteps}}</div>
+        <ul>
+          {{#each teacherInstructions.facilitationSteps}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ul>
+
+        <div class="subheading">{{labels.differentiation}}</div>
+        <ul>
+          {{#each teacherInstructions.differentiation}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ul>
+
+        <div style="margin-top:6px;"><strong>{{labels.closure}}:</strong> {{teacherInstructions.closure}}</div>
+      </article>
+
+      <article class="panel">
+        <h3>{{labels.answerKey}}</h3>
+        <div class="subheading">{{labels.rubricNotes}}</div>
+        <ul>
+          {{#each answerKey.rubricNotes}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ul>
+
+        {{#each answerKey.sampleAnswers}}
+        <div class="activity-item">
+          <div><strong>{{this.activityTitle}}</strong> ({{this.level}})</div>
+          <div class="subheading">{{../../labels.successCriteria}}</div>
+          <ul>
+            {{#each this.successCriteria}}
+            <li>{{this}}</li>
+            {{/each}}
+          </ul>
+        </div>
+        {{/each}}
+      </article>
+    </section>
+  </div>
+</body>
+</html>
