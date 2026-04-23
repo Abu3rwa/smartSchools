@@ -32,6 +32,10 @@
   },
   "actions": {
     "publish": "Publish",
+    "publishing": "Publishing...",
+    "publishBoth": "Publish + Notify Students & Parents",
+    "publishStudents": "Publish + Notify Students",
+    "publishParents": "Publish + Notify Parents",
     "grade": "Grade",
     "edit": "Edit",
     "delete": "Delete",
@@ -51,7 +55,13 @@
     "instructionsPlaceholder": "Assignment instructions",
     "publishNow": "Publish now",
     "notifyOnAssign": "Notify on assign",
+    "notifyAudience": "Notify audience",
     "notifyOnGrade": "Notify on grade"
+  },
+  "audience": {
+    "both": "Students & Parents",
+    "students": "Students only",
+    "parents": "Parents only"
   },
   "gradePanel": {
     "title": "Grade: {{title}}",

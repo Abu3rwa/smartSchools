@@ -151,6 +151,7 @@ const AssignmentsPage = () => {
                 maxMarks: Number(form.maxMarks || 10),
                 publishNow: form.publishNow,
                 notifyOnAssign: form.notifyOnAssign,
+                notifyAudience: form.notifyAudience || 'both',
                 notifyOnGrade: form.notifyOnGrade,
                 academicYear,
                 removeAttachmentIds: Array.isArray(form.removeAttachmentIds) && form.removeAttachmentIds.length > 0
@@ -201,6 +202,7 @@ const AssignmentsPage = () => {
             maxMarks: assignment.maxMarks || 10,
             publishNow: assignment.status === 'published',
             notifyOnAssign: assignment.notifyOnAssign !== false,
+            notifyAudience: assignment.notifyAudience || 'both',
             notifyOnGrade: assignment.notifyOnGrade !== false
         }));
     };
@@ -233,13 +235,21 @@ const AssignmentsPage = () => {
         }
     };
 
-    const onPublishAssignment = async (assignmentId) => {
+    const [publishingAssignment, setPublishingAssignment] = useState(null);
+
+    const onPublishAssignment = async (assignmentId, notifyAudience = 'both') => {
+        setPublishingAssignment(assignmentId);
         try {
-            await assignmentService.publishAssignment(assignmentId, { notifyOnAssign: true });
+            await assignmentService.publishAssignment(assignmentId, {
+                notifyOnAssign: true,
+                notifyAudience
+            });
             toast.success(t('assignments:toasts.published'));
             await fetchAssignments();
         } catch (error) {
             toast.error(error.response?.data?.message || t('assignments:toasts.publishFailed'));
+        } finally {
+            setPublishingAssignment(null);
         }
     };
 
@@ -374,6 +384,7 @@ const AssignmentsPage = () => {
                 onDeleteAssignment={onDeleteAssignment}
                 onSendReminder={onSendReminder}
                 sendingReminder={sendingReminder}
+                publishingAssignment={publishingAssignment}
             />
 
             <AssignmentGradePanel

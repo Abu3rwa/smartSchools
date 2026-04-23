@@ -8,10 +8,28 @@ const SCORING_MODE_LABELS = {
   highest: 'Highest',
 };
 
-const StandardsGradebookHeader = ({ onRefresh, loading }) => {
+const StandardsGradebookHeader = ({ onRefresh, loading, embedded = false }) => {
   const { t } = useTranslation(['standardsGradebook']);
   const scoringMode = useSelector(selectSBGradebookMatrixScoringMode);
   const modeLabel = SCORING_MODE_LABELS[scoringMode] || 'Average';
+
+  if (embedded) {
+    return (
+      <div className="standards-gradebook-header standards-gradebook-header--embedded">
+        <span className="sb-scoring-mode-badge" title="Score aggregation mode (configure in School Settings)">
+          {t('standardsGradebook:header.scoring', 'Scoring')}: {modeLabel}
+        </span>
+        <button
+          type="button"
+          className="standards-gradebook-button"
+          onClick={onRefresh}
+          disabled={loading}
+        >
+          {loading ? t('standardsGradebook:actions.loading') : t('standardsGradebook:actions.refresh')}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="standards-gradebook-header">

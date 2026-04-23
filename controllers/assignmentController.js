@@ -41,6 +41,18 @@ const parseBoolean = (value, fallback = false) => {
     return fallback;
 };
 
+const NOTIFY_AUDIENCES = new Set(['students', 'parents', 'both']);
+
+const parseNotifyAudience = (value, fallback = 'both') => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (NOTIFY_AUDIENCES.has(normalized)) return normalized;
+
+    const fallbackNormalized = String(fallback || '').trim().toLowerCase();
+    if (NOTIFY_AUDIENCES.has(fallbackNormalized)) return fallbackNormalized;
+
+    return 'both';
+};
+
 const parseDate = (value, fallback = null) => {
     if (value === undefined || value === null || value === '') return fallback;
     const parsed = new Date(value);
@@ -146,6 +158,7 @@ const mapAssignmentSummary = (assignment) => {
         maxMarks: Number(assignment.maxMarks || 10),
         allowLateSubmission: assignment.allowLateSubmission === true,
         notifyOnAssign: assignment.notifyOnAssign !== false,
+        notifyAudience: parseNotifyAudience(assignment.notifyAudience, 'both'),
         notifyOnGrade: assignment.notifyOnGrade !== false,
         publishedAt: assignment.publishedAt || null,
         academicYear: assignment.academicYear || '',
@@ -213,21 +226,37 @@ const resolveAssignmentType = async ({ schoolId, assignmentTypeId, assignmentTyp
     return null;
 };
 
-const sendAssignPostedNotifications = async ({ assignment, students, createdBy }) => {
+const sendAssignPostedNotifications = async ({ assignment, students, createdBy, audience = 'both' }) => {
     if (!Array.isArray(students) || students.length === 0) return;
+
+    const resolvedAudience = parseNotifyAudience(audience, parseNotifyAudience(assignment?.notifyAudience, 'both'));
+    const sendToParents = resolvedAudience === 'parents' || resolvedAudience === 'both';
+    const sendToStudents = resolvedAudience === 'students' || resolvedAudience === 'both';
+    if (!sendToParents && !sendToStudents) return;
+
     await Promise.allSettled(
-        students.flatMap((student) => [
-            notificationService.sendAssignmentPostedNotification({
-                studentId: student._id,
-                assignment,
-                createdBy
-            }),
-            notificationService.sendStudentAssignmentPostedNotification({
-                studentId: student._id,
-                assignment,
-                createdBy
-            }),
-        ])
+        students.flatMap((student) => {
+            const notifications = [];
+            if (sendToParents) {
+                notifications.push(
+                    notificationService.sendAssignmentPostedNotification({
+                        studentId: student._id,
+                        assignment,
+                        createdBy
+                    })
+                );
+            }
+            if (sendToStudents) {
+                notifications.push(
+                    notificationService.sendStudentAssignmentPostedNotification({
+                        studentId: student._id,
+                        assignment,
+                        createdBy
+                    })
+                );
+            }
+            return notifications;
+        })
     );
 };
 
@@ -569,6 +598,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
     );
 
     const publishNow = parseBoolean(body.publishNow, false) || String(body.status || '').trim().toLowerCase() === 'published';
+    const notifyAudience = parseNotifyAudience(body.notifyAudience, 'both');
     const assignment = await Assignment.create({
         school: req.schoolId,
         academicYear,
@@ -595,6 +625,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         notifyOnAssign: body.notifyOnAssign === undefined
             ? type.defaults?.notifyOnAssign !== false
             : parseBoolean(body.notifyOnAssign, true),
+        notifyAudience,
         notifyOnGrade: body.notifyOnGrade === undefined
             ? type.defaults?.notifyOnGrade !== false
             : parseBoolean(body.notifyOnGrade, true),
@@ -605,7 +636,12 @@ export const createAssignment = asyncHandler(async (req, res) => {
 
     if (publishNow && assignment.notifyOnAssign !== false) {
         const students = await resolveTargetStudentsForAssignment(assignment);
-        await sendAssignPostedNotifications({ assignment, students, createdBy: req.user._id });
+        await sendAssignPostedNotifications({
+            assignment,
+            students,
+            createdBy: req.user._id,
+            audience: assignment.notifyAudience
+        });
     }
 
     // Upload attachment files after assignment creation so we have the ID for storage paths
@@ -642,13 +678,21 @@ export const publishAssignment = asyncHandler(async (req, res) => {
     assignment.notifyOnAssign = req.body?.notifyOnAssign === undefined
         ? assignment.notifyOnAssign !== false
         : parseBoolean(req.body.notifyOnAssign, true);
+    assignment.notifyAudience = req.body?.notifyAudience === undefined
+        ? parseNotifyAudience(assignment.notifyAudience, 'both')
+        : parseNotifyAudience(req.body.notifyAudience, assignment.notifyAudience);
     assignment.publishedAt = new Date();
     assignment.publishedBy = req.user._id;
     await assignment.save();
 
     if (assignment.notifyOnAssign !== false) {
         const students = await resolveTargetStudentsForAssignment(assignment);
-        await sendAssignPostedNotifications({ assignment, students, createdBy: req.user._id });
+        await sendAssignPostedNotifications({
+            assignment,
+            students,
+            createdBy: req.user._id,
+            audience: assignment.notifyAudience
+        });
     }
 
     res.json({
@@ -1053,6 +1097,9 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     assignment.notifyOnAssign = body.notifyOnAssign === undefined
         ? assignment.notifyOnAssign
         : parseBoolean(body.notifyOnAssign, assignment.notifyOnAssign);
+    assignment.notifyAudience = body.notifyAudience === undefined
+        ? parseNotifyAudience(assignment.notifyAudience, 'both')
+        : parseNotifyAudience(body.notifyAudience, assignment.notifyAudience);
     assignment.notifyOnGrade = body.notifyOnGrade === undefined
         ? assignment.notifyOnGrade
         : parseBoolean(body.notifyOnGrade, assignment.notifyOnGrade);

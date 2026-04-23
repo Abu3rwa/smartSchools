@@ -15,15 +15,15 @@ import { useTranslation } from 'react-i18next';
 import { STANDARDS_PAGE_TABS } from '../constants';
 
 const TAB_DEFS = [
-    { key: STANDARDS_PAGE_TABS.list, icon: HiOutlineClipboardList, labelKey: 'tabs.list' },
-    { key: STANDARDS_PAGE_TABS.import, icon: HiOutlineUpload, labelKey: 'tabs.import', adminOnly: true },
-    { key: STANDARDS_PAGE_TABS.assign, icon: HiOutlineLink, labelKey: 'tabs.assign' },
-    { key: STANDARDS_PAGE_TABS.gradebook, icon: HiOutlineChartBar, labelKey: 'tabs.gradebook' },
-    { key: STANDARDS_PAGE_TABS.pool, icon: HiOutlineRectangleStack, labelKey: 'tabs.pool' },
-    { key: STANDARDS_PAGE_TABS.progress, icon: HiOutlineTableCells, labelKey: 'tabs.progress' },
-    { key: STANDARDS_PAGE_TABS.narrative, icon: HiOutlineDocumentText, labelKey: 'tabs.narrative' },
-    { key: STANDARDS_PAGE_TABS.liveEdit, icon: HiOutlinePencilSquare, labelKey: 'tabs.liveEdit' },
-    { key: STANDARDS_PAGE_TABS.audit, icon: HiOutlineShieldCheck, labelKey: 'tabs.audit', adminOnly: true },
+    { key: STANDARDS_PAGE_TABS.list, icon: HiOutlineClipboardList, labelKey: 'tabs.list', fallbackLabel: 'Standards List' },
+    { key: STANDARDS_PAGE_TABS.import, icon: HiOutlineUpload, labelKey: 'tabs.import', fallbackLabel: 'Import', adminOnly: true },
+    { key: STANDARDS_PAGE_TABS.assign, icon: HiOutlineLink, labelKey: 'tabs.assign', fallbackLabel: 'Assign' },
+    { key: STANDARDS_PAGE_TABS.gradebook, icon: HiOutlineChartBar, labelKey: 'tabs.gradebook', fallbackLabel: 'Gradebook' },
+    { key: STANDARDS_PAGE_TABS.pool, icon: HiOutlineRectangleStack, labelKey: 'tabs.pool', fallbackLabel: 'Pool' },
+    { key: STANDARDS_PAGE_TABS.progress, icon: HiOutlineTableCells, labelKey: 'tabs.progress', fallbackLabel: 'Progress' },
+    { key: STANDARDS_PAGE_TABS.narrative, icon: HiOutlineDocumentText, labelKey: 'tabs.narrative', fallbackLabel: 'Narrative' },
+    { key: STANDARDS_PAGE_TABS.liveEdit, icon: HiOutlinePencilSquare, labelKey: 'tabs.liveEdit', fallbackLabel: 'Live Edit' },
+    { key: STANDARDS_PAGE_TABS.audit, icon: HiOutlineShieldCheck, labelKey: 'tabs.audit', fallbackLabel: 'Audit', adminOnly: true },
 ];
 
 const StandardsTabs = ({ activeTab, onTabChange, isAdmin }) => {
@@ -38,7 +38,7 @@ const StandardsTabs = ({ activeTab, onTabChange, isAdmin }) => {
                     onClick={() => onTabChange(tab.key)}
                 >
                     <tab.icon style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                    {t(`standards:${tab.labelKey}`, tab.labelKey.split('.').pop())}
+                    {t(`standards:${tab.labelKey}`, tab.fallbackLabel)}
                 </button>
             ))}
         </div>

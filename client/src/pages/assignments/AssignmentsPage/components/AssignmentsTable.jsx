@@ -11,7 +11,8 @@ const AssignmentsTable = ({
     onEditAssignment,
     onDeleteAssignment,
     onSendReminder,
-    sendingReminder
+    sendingReminder,
+    publishingAssignment
 }) => {
     const { t } = useTranslation(['assignments']);
 
@@ -55,9 +56,28 @@ const AssignmentsTable = ({
                                     <td>{assignment.maxMarks}</td>
                                     <td className="action-cell">
                                         {assignment.status === 'draft' && canCreateAssignments && (
-                                            <button type="button" className="btn btn-outline btn-sm" onClick={() => onPublishAssignment(assignment.id)}>
-                                                {t('assignments:actions.publish')}
-                                            </button>
+                                            <div className="reminder-dropdown" style={{ display: 'inline-block', position: 'relative' }}>
+                                                <select
+                                                    className="btn btn-outline btn-sm"
+                                                    disabled={publishingAssignment === assignment.id}
+                                                    value=""
+                                                    onChange={(e) => {
+                                                        if (e.target.value) {
+                                                            onPublishAssignment(assignment.id, e.target.value);
+                                                            e.target.value = '';
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="" disabled>
+                                                        {publishingAssignment === assignment.id
+                                                            ? t('assignments:actions.publishing')
+                                                            : t('assignments:actions.publish')}
+                                                    </option>
+                                                    <option value="both">{t('assignments:actions.publishBoth')}</option>
+                                                    <option value="students">{t('assignments:actions.publishStudents')}</option>
+                                                    <option value="parents">{t('assignments:actions.publishParents')}</option>
+                                                </select>
+                                            </div>
                                         )}
                                         {(assignment.status === 'published' || assignment.status === 'closed') && canCreateAssignments && (
                                             <button type="button" className="btn btn-primary btn-sm" onClick={() => onOpenGradePanel(assignment)}>

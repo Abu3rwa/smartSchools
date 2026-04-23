@@ -15,6 +15,7 @@ export const DEFAULT_ASSIGNMENT_FORM = {
     maxMarks: 10,
     publishNow: false,
     notifyOnAssign: true,
+    notifyAudience: 'both',
     notifyOnGrade: true,
     links: [],
     attachmentFiles: [],

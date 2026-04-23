@@ -32,6 +32,10 @@
   },
   "actions": {
     "publish": "نشر",
+    "publishing": "جارٍ النشر...",
+    "publishBoth": "نشر + إشعار الطلاب وأولياء الأمور",
+    "publishStudents": "نشر + إشعار الطلاب",
+    "publishParents": "نشر + إشعار أولياء الأمور",
     "grade": "تصحيح",
     "edit": "تعديل",
     "delete": "حذف",
@@ -51,7 +55,13 @@
     "instructionsPlaceholder": "تعليمات الواجب",
     "publishNow": "نشر الآن",
     "notifyOnAssign": "إشعار عند الإسناد",
+    "notifyAudience": "جهة الإشعار",
     "notifyOnGrade": "إشعار عند التصحيح"
+  },
+  "audience": {
+    "both": "الطلاب وأولياء الأمور",
+    "students": "الطلاب فقط",
+    "parents": "أولياء الأمور فقط"
   },
   "gradePanel": {
     "title": "تصحيح: {{title}}",

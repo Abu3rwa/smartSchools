@@ -106,6 +106,11 @@ const assignmentSchema = new mongoose.Schema(
             type: Boolean,
             default: true
         },
+        notifyAudience: {
+            type: String,
+            enum: ['students', 'parents', 'both'],
+            default: 'both'
+        },
         notifyOnGrade: {
             type: Boolean,
             default: true

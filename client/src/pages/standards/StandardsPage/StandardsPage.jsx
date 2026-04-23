@@ -60,7 +60,10 @@ const StandardsPage = () => {
 
     return (
         <div className="standards-page">
-            <StandardsPageHeader isAdmin={isAdmin} onAddStandard={handleOpenCreateModal} />
+            <StandardsPageHeader
+                showAddStandard={isAdmin && activeTab === STANDARDS_PAGE_TABS.list}
+                onAddStandard={handleOpenCreateModal}
+            />
 
             <StandardsTabs activeTab={activeTab} onTabChange={setActiveTab} isAdmin={isAdmin} />
 

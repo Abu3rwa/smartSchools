@@ -112,6 +112,18 @@ const CreateAssignmentForm = ({
             <div className="create-options">
                 <label><input type="checkbox" checked={form.publishNow} onChange={(event) => setForm((prev) => ({ ...prev, publishNow: event.target.checked }))} /> {t('assignments:form.publishNow')}</label>
                 <label><input type="checkbox" checked={form.notifyOnAssign} onChange={(event) => setForm((prev) => ({ ...prev, notifyOnAssign: event.target.checked }))} /> {t('assignments:form.notifyOnAssign')}</label>
+                <label className="notify-audience-field">
+                    <span>{t('assignments:form.notifyAudience')}</span>
+                    <select
+                        value={form.notifyAudience || 'both'}
+                        onChange={(event) => setForm((prev) => ({ ...prev, notifyAudience: event.target.value }))}
+                        disabled={submitting || !form.notifyOnAssign}
+                    >
+                        <option value="both">{t('assignments:audience.both')}</option>
+                        <option value="students">{t('assignments:audience.students')}</option>
+                        <option value="parents">{t('assignments:audience.parents')}</option>
+                    </select>
+                </label>
                 <label><input type="checkbox" checked={form.notifyOnGrade} onChange={(event) => setForm((prev) => ({ ...prev, notifyOnGrade: event.target.checked }))} /> {t('assignments:form.notifyOnGrade')}</label>
             </div>
 

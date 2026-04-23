@@ -5,36 +5,27 @@
 .standards-page .page-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: var(--spacing-lg);
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.standards-page .standards-page-header {
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .standards-page .header-actions {
     display: flex;
     gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .standards-page .standards-header-actions {
     align-items: center;
     justify-content: flex-end;
     flex-wrap: wrap;
-}
-
-.standards-page .standards-quick-links {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-}
-
-.standards-page .standards-quick-link {
-    font-size: 0.8rem;
-    padding: 8px 10px;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    text-decoration: none;
 }
 
 .standards-page .filters-bar {
@@ -193,33 +184,38 @@
 }
 
 /* Tabs */
-.tabs {
+.standards-page .tabs {
     display: flex;
-    gap: 0;
-    margin-bottom: var(--spacing-lg);
-    border-bottom: 2px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: var(--spacing-md);
+    border-bottom: none;
 }
 
-.tab-btn {
-    padding: var(--spacing-sm) var(--spacing-lg);
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
+.standards-page .tab-btn {
+    padding: 7px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 999px;
+    margin-bottom: 0;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     font-weight: 500;
     color: var(--text-muted);
     transition: all 0.2s ease;
+    white-space: nowrap;
 }
 
-.tab-btn.active {
+.standards-page .tab-btn.active {
+    background: var(--bg-secondary);
     color: var(--primary-600);
-    border-bottom-color: var(--primary-600);
+    border-color: var(--primary-600);
 }
 
-.tab-btn:hover:not(.active) {
+.standards-page .tab-btn:hover:not(.active) {
     color: var(--text-primary);
+    border-color: var(--text-muted);
 }
 
 /* Empty state */
@@ -264,10 +260,10 @@
     .standards-page .page-header {
         flex-direction: column;
         gap: var(--spacing-md);
+        align-items: flex-start;
     }
 
-    .standards-page .standards-header-actions,
-    .standards-page .standards-quick-links {
+    .standards-page .standards-header-actions {
         justify-content: flex-start;
     }
 
@@ -304,8 +300,8 @@
     margin: 0;
 }
 
-/* Scroll the tab area so headers are not hidden */
-.tabs {
+/* Keep tabs scrollable in tighter layouts */
+.standards-page .tabs {
     overflow-x: auto;
     scrollbar-width: thin;
 }

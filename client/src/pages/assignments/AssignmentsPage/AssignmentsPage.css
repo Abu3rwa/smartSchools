@@ -41,6 +41,15 @@
     gap: 8px;
 }
 
+.assignments-page .create-options .notify-audience-field {
+    align-items: center;
+    gap: 8px;
+}
+
+.assignments-page .create-options .notify-audience-field select {
+    min-width: 170px;
+}
+
 .assignments-page .assignment-table {
     width: 100%;
     border-collapse: collapse;
