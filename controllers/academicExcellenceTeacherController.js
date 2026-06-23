@@ -42,7 +42,7 @@ const parsePagination = (query = {}) => {
     return { page, limit };
 };
 
-const ALLOWED_QUESTION_TYPES = ['multiple_choice', 'short_answer', 'true_false'];
+const ALLOWED_QUESTION_TYPES = ['multiple_choice', 'true_false'];
 const ALLOWED_DIFFICULTIES = ['easy', 'medium', 'hard'];
 const ALLOWED_SESSION_TYPES = ['assessment', 'homework', 'classwork', 'practice'];
 

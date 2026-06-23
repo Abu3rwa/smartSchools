@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   generateNarrative, fetchNarrative, updateNarrative, sendNarrative,
-  fetchNarratives, clearNarrativeGeneration, resetCurrentNarrative,
+  fetchNarratives, fetchProgressTable, clearNarrativeGeneration, resetCurrentNarrative,
 } from '../../../store/slices/standardAssessmentSlice';
 import { fetchClasses, selectClasses } from '../../../store/slices/classSlice';
 import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices/studentSlice';
@@ -44,6 +44,8 @@ const AssessmentNarrativePage = ({ embedded }) => {
   // List
   const [listFilters, setListFilters] = useState({ status: '', page: 1 });
   const [successMsg, setSuccessMsg] = useState('');
+  const [attemptCountsByStandardId, setAttemptCountsByStandardId] = useState({});
+  const [attemptFilterLoading, setAttemptFilterLoading] = useState(false);
 
   // Fetch reference data on mount
   useEffect(() => {
@@ -104,11 +106,88 @@ const AssessmentNarrativePage = ({ embedded }) => {
   // Filtered standards by selected subject
   const filteredStandards = useMemo(() => {
     const list = Array.isArray(standards) ? standards : [];
-    if (!genForm.subjectId) return list;
-    return list.filter(
+    const bySubject = !genForm.subjectId
+      ? list
+      : list.filter(
       (s) => String(s.subject?._id || s.subject) === String(genForm.subjectId)
+      );
+
+    // De-duplicate standards coming from mixed sources by _id.
+    const uniqueById = [];
+    const seenIds = new Set();
+    bySubject.forEach((s) => {
+      const sid = String(s?._id || '');
+      if (!sid || seenIds.has(sid)) return;
+      seenIds.add(sid);
+      uniqueById.push(s);
+    });
+
+    if (!genForm.studentId) return uniqueById;
+
+    return uniqueById.filter(
+      (s) => Number(attemptCountsByStandardId[String(s._id)] || 0) > 0
     );
-  }, [standards, genForm.subjectId]);
+  }, [standards, genForm.subjectId, genForm.studentId, attemptCountsByStandardId]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadAttemptedStandards = async () => {
+      if (!genForm.studentId) {
+        setAttemptCountsByStandardId({});
+        setAttemptFilterLoading(false);
+        return;
+      }
+
+      setAttemptFilterLoading(true);
+      setAttemptCountsByStandardId({});
+      try {
+        const result = await dispatch(fetchProgressTable({
+          studentId: genForm.studentId,
+          classId: genForm.classId || undefined,
+          subjectId: genForm.subjectId || undefined,
+        })).unwrap();
+
+        if (isCancelled) return;
+
+        const rows = Array.isArray(result?.rows) ? result.rows : [];
+        const counts = {};
+        rows.forEach((row) => {
+          const sid = String(row?.standardId || '');
+          const attempts = Number(row?.attemptsCount || 0);
+          if (!sid || attempts <= 0) return;
+          counts[sid] = attempts;
+        });
+
+        setAttemptCountsByStandardId(counts);
+      } catch {
+        if (!isCancelled) {
+          setAttemptCountsByStandardId({});
+        }
+      } finally {
+        if (!isCancelled) {
+          setAttemptFilterLoading(false);
+        }
+      }
+    };
+
+    loadAttemptedStandards();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [dispatch, genForm.studentId, genForm.classId, genForm.subjectId]);
+
+  useEffect(() => {
+    if (!genForm.selectedStandardIds.length) return;
+
+    const visibleStandardIds = new Set(filteredStandards.map((s) => String(s._id)));
+    setGenForm((prev) => {
+      const nextSelected = prev.selectedStandardIds.filter((id) => visibleStandardIds.has(String(id)));
+      if (nextSelected.length === prev.selectedStandardIds.length) return prev;
+      return { ...prev, selectedStandardIds: nextSelected };
+    });
+  }, [filteredStandards, genForm.selectedStandardIds.length]);
 
   useEffect(() => {
     if (activeTab === TABS.LIST) {
@@ -305,13 +384,24 @@ const AssessmentNarrativePage = ({ embedded }) => {
 
             {/* Standards checklist */}
             <div className="standard-list" style={{ maxHeight: 300, overflowY: 'auto' }}>
-              {filteredStandards.length === 0 ? (
+              {attemptFilterLoading ? (
                 <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>
-                  {genForm.subjectId ? 'No standards found for this subject.' : 'No standards available.'}
+                  Loading standards with attempts...
+                </p>
+              ) : filteredStandards.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>
+                  {genForm.studentId
+                    ? (genForm.subjectId
+                      ? 'No standards with attempts found for this student in this subject.'
+                      : 'No standards with attempts found for this student.')
+                    : (genForm.subjectId
+                      ? 'No standards found for this subject.'
+                      : 'No standards available.')}
                 </p>
               ) : (
                 filteredStandards.map((std) => {
                   const isSelected = genForm.selectedStandardIds.includes(String(std._id));
+                  const attemptsCount = Number(attemptCountsByStandardId[String(std._id)] || 0);
                   return (
                     <label
                       key={std._id}
@@ -325,6 +415,9 @@ const AssessmentNarrativePage = ({ embedded }) => {
                       />
                       <span className="code" style={{ fontWeight: 600, minWidth: 120 }}>{std.code}</span>
                       <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{std.name || std.description || ''}</span>
+                      <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                        {attemptsCount} attempt{attemptsCount === 1 ? '' : 's'}
+                      </span>
                     </label>
                   );
                 })

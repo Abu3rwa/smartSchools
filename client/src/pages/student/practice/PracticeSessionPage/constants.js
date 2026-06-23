@@ -10,6 +10,5 @@ export const DIFFICULTY_LEVELS = ['easy', 'medium', 'hard'];
 
 export const QUESTION_TYPES = [
     { value: 'multiple_choice', label: 'Multiple Choice' },
-    { value: 'short_answer', label: 'Short Answer' },
     { value: 'true_false', label: 'True/False' }
 ];

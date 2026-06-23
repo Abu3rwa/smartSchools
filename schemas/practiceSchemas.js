@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const QUESTION_TYPES = ['multiple_choice', 'short_answer', 'true_false'];
+export const QUESTION_TYPES = ['multiple_choice', 'true_false'];
 export const DIFFICULTIES = ['easy', 'medium', 'hard'];
 export const SESSION_TYPES = ['assessment', 'homework', 'classwork', 'practice'];
 export const AI_LANGUAGE_CODES = ['en', 'ar', 'fr', 'es', 'pt', 'tr', 'ur'];

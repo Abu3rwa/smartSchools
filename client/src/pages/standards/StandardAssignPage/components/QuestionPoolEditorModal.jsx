@@ -4,7 +4,7 @@ import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 
 const MC_LABELS = ['A', 'B', 'C', 'D'];
-const QUESTION_TYPES = ['multiple_choice', 'short_answer', 'true_false'];
+const QUESTION_TYPES = ['multiple_choice', 'true_false'];
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
 
 const createMcOptions = () =>

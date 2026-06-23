@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const QUESTION_TYPES = ["multiple_choice", "short_answer", "true_false"];
+export const QUESTION_TYPES = ["multiple_choice", "true_false"];
 export const MAX_AI_RETRIES = 2;
 export const MC_LABELS = ["A", "B", "C", "D"];
 export const AMBIGUOUS_MC_OPTION_PATTERN =
