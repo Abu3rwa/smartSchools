@@ -1,6 +1,7 @@
 import {
     AI_STANDARD_LANGUAGE_OPTIONS,
     DIFFICULTY_OPTIONS,
+    GRAMMAR_LEVEL_OPTIONS,
     QUESTION_TYPE_OPTIONS
 } from '../../constants';
 
@@ -15,7 +16,8 @@ const StandardAssignStepRules = ({
     primaryAiLanguage,
     secondaryAiLanguage,
     applyAiLanguages,
-    formatQuestionType
+    formatQuestionType,
+    grammarOnly = false
 }) => (
     <section className="assign-step-section">
         <div className="assign-advanced-header">
@@ -44,41 +46,43 @@ const StandardAssignStepRules = ({
                     </button>
                     {openPanels.question && (
                         <div className="assign-accordion-content">
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>{t('standardAssign:form.labels.primaryAiLanguage')}</label>
-                                    <select
-                                        value={primaryAiLanguage}
-                                        onChange={(event) =>
-                                            applyAiLanguages(event.target.value, secondaryAiLanguage)
-                                        }
-                                    >
-                                        {AI_STANDARD_LANGUAGE_OPTIONS.map((language) => (
-                                            <option key={language.value} value={language.value}>
-                                                {language.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>{t('standardAssign:form.labels.secondaryAiLanguageOptional')}</label>
-                                    <select
-                                        value={secondaryAiLanguage}
-                                        onChange={(event) =>
-                                            applyAiLanguages(primaryAiLanguage, event.target.value)
-                                        }
-                                    >
-                                        <option value="">{t('standardAssign:form.options.none')}</option>
-                                        {AI_STANDARD_LANGUAGE_OPTIONS
-                                            .filter((language) => language.value !== primaryAiLanguage)
-                                            .map((language) => (
+                            {!grammarOnly && (
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>{t('standardAssign:form.labels.primaryAiLanguage')}</label>
+                                        <select
+                                            value={primaryAiLanguage}
+                                            onChange={(event) =>
+                                                applyAiLanguages(event.target.value, secondaryAiLanguage)
+                                            }
+                                        >
+                                            {AI_STANDARD_LANGUAGE_OPTIONS.map((language) => (
                                                 <option key={language.value} value={language.value}>
                                                     {language.label}
                                                 </option>
                                             ))}
-                                    </select>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>{t('standardAssign:form.labels.secondaryAiLanguageOptional')}</label>
+                                        <select
+                                            value={secondaryAiLanguage}
+                                            onChange={(event) =>
+                                                applyAiLanguages(primaryAiLanguage, event.target.value)
+                                            }
+                                        >
+                                            <option value="">{t('standardAssign:form.options.none')}</option>
+                                            {AI_STANDARD_LANGUAGE_OPTIONS
+                                                .filter((language) => language.value !== primaryAiLanguage)
+                                                .map((language) => (
+                                                    <option key={language.value} value={language.value}>
+                                                        {language.label}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="form-row">
                                 <div className="form-group">
@@ -196,6 +200,134 @@ const StandardAssignStepRules = ({
                                     ))}
                                 </div>
                             </div>
+
+                            <div className="form-group">
+                                {grammarOnly ? (
+                                    <>
+                                        <label>
+                                            {t('standardAssign:form.labels.enableGrammarLeveling', {
+                                                defaultValue: 'Enable Grammar Level Test (MAP-style)'
+                                            })}
+                                        </label>
+                                        <small className="text-muted">
+                                            {t('standardAssign:form.hints.grammarModeFixed', {
+                                                defaultValue: 'Grammar level mode is always enabled on this page.'
+                                            })}
+                                        </small>
+                                    </>
+                                ) : (
+                                    <>
+                                        <label className="assign-checkbox-option">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(formData.practiceConfig.enableGrammarLeveling)}
+                                                onChange={(event) => {
+                                                    const enabled = event.target.checked;
+                                                    const fallbackLevels = GRAMMAR_LEVEL_OPTIONS.map((item) => item.value);
+                                                    const currentLevels = Array.isArray(formData.practiceConfig.grammarLevels)
+                                                        ? formData.practiceConfig.grammarLevels
+                                                        : [];
+                                                    setFormData({
+                                                        ...formData,
+                                                        practiceConfig: {
+                                                            ...formData.practiceConfig,
+                                                            enableGrammarLeveling: enabled,
+                                                            grammarLevels: enabled
+                                                                ? (currentLevels.length > 0
+                                                                    ? currentLevels
+                                                                    : fallbackLevels)
+                                                                : []
+                                                        }
+                                                    });
+                                                }}
+                                            />
+                                            {t('standardAssign:form.labels.enableGrammarLeveling', {
+                                                defaultValue: 'Enable Grammar Level Test (MAP-style)'
+                                            })}
+                                        </label>
+                                        <small className="text-muted">
+                                            {t('standardAssign:form.hints.enableGrammarLeveling', {
+                                                defaultValue: 'Use level-based grammar coverage (Beginner to Advanced) and save progress over time.'
+                                            })}
+                                        </small>
+                                    </>
+                                )}
+                            </div>
+
+                            {Boolean(formData.practiceConfig.enableGrammarLeveling) && (
+                                <div className="form-group">
+                                    <label>
+                                        {t('standardAssign:form.labels.grammarLevels', {
+                                            defaultValue: 'Grammar Levels Included'
+                                        })}
+                                    </label>
+                                    <div className="checkbox-group assign-inline-checkboxes">
+                                        {GRAMMAR_LEVEL_OPTIONS.map((level) => {
+                                            const selectedLevels = Array.isArray(formData.practiceConfig.grammarLevels)
+                                                ? formData.practiceConfig.grammarLevels
+                                                : [];
+                                            return (
+                                                <label key={level.value} className="assign-checkbox-option">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedLevels.includes(level.value)}
+                                                        onChange={(event) => {
+                                                            const current = Array.isArray(formData.practiceConfig.grammarLevels)
+                                                                ? formData.practiceConfig.grammarLevels
+                                                                : [];
+                                                            const next = event.target.checked
+                                                                ? Array.from(new Set([...current, level.value]))
+                                                                : current.filter((item) => item !== level.value);
+                                                            setFormData({
+                                                                ...formData,
+                                                                practiceConfig: {
+                                                                    ...formData.practiceConfig,
+                                                                    grammarLevels: next
+                                                                }
+                                                            });
+                                                        }}
+                                                    />
+                                                    {t(`standardAssign:grammarLevels.${level.value}`, {
+                                                        defaultValue: level.label
+                                                    })}
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() =>
+                                                setFormData({
+                                                    ...formData,
+                                                    practiceConfig: {
+                                                        ...formData.practiceConfig,
+                                                        grammarLevels: ['beginner']
+                                                    }
+                                                })
+                                            }
+                                        >
+                                            {t('standardAssign:actions.beginnerOnly', { defaultValue: 'Beginner only' })}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() =>
+                                                setFormData({
+                                                    ...formData,
+                                                    practiceConfig: {
+                                                        ...formData.practiceConfig,
+                                                        grammarLevels: GRAMMAR_LEVEL_OPTIONS.map((item) => item.value)
+                                                    }
+                                                })
+                                            }
+                                        >
+                                            {t('standardAssign:actions.allLevels', { defaultValue: 'All levels' })}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="form-group">
                                 <label className="assign-checkbox-option">

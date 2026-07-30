@@ -5,6 +5,130 @@ import ErrorState from './ErrorState';
 import { useTranslation } from 'react-i18next';
 import api from '../../../../config/api';
 
+const escapeHtml = (value) =>
+    String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+const openPrintDocument = ({ title, htmlBody, isRtl = false }) => {
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=900');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="${isRtl ? 'ar' : 'en'}" dir="${isRtl ? 'rtl' : 'ltr'}">
+        <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>${escapeHtml(title)}</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 24px;
+                    color: #111827;
+                }
+
+                h1, h2, h3 {
+                    margin: 0 0 10px;
+                    color: #0f172a;
+                }
+
+                h1 {
+                    font-size: 1.4rem;
+                }
+
+                h2 {
+                    margin-top: 18px;
+                    font-size: 1.1rem;
+                }
+
+                .meta {
+                    color: #4b5563;
+                    margin-bottom: 12px;
+                    font-size: 0.92rem;
+                }
+
+                .grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    gap: 10px;
+                    margin: 10px 0 14px;
+                }
+
+                .card {
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    padding: 10px;
+                    background: #f9fafb;
+                }
+
+                .card .label {
+                    display: block;
+                    font-size: 0.78rem;
+                    color: #6b7280;
+                    margin-bottom: 4px;
+                }
+
+                .card .value {
+                    font-size: 1rem;
+                    font-weight: 700;
+                }
+
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 10px;
+                }
+
+                th,
+                td {
+                    border: 1px solid #d1d5db;
+                    padding: 8px;
+                    text-align: ${isRtl ? 'right' : 'left'};
+                    font-size: 0.85rem;
+                    vertical-align: top;
+                }
+
+                th {
+                    background: #f3f4f6;
+                    font-weight: 700;
+                }
+
+                .muted {
+                    color: #6b7280;
+                }
+
+                .section {
+                    margin-top: 16px;
+                }
+
+                @media print {
+                    body {
+                        margin: 12mm;
+                    }
+
+                    .section {
+                        page-break-inside: avoid;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            ${htmlBody}
+        </body>
+        </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+        printWindow.print();
+    }, 150);
+};
+
 const EditableScale4Cell = ({ value, isManual, onSave }) => {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
@@ -63,6 +187,9 @@ const EditableScale4Cell = ({ value, isManual, onSave }) => {
 
 /** Student Attempt Detail Panel — shows full questions + teacher override */
 const StudentAttemptDetailPanel = ({ studentId, assignmentId, studentName, onBack }) => {
+    const { t, i18n } = useTranslation(['standardAssign']);
+    const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
+    const isRtl = i18n.resolvedLanguage === 'ar';
     const [attempts, setAttempts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -111,28 +238,123 @@ const StudentAttemptDetailPanel = ({ studentId, assignmentId, studentName, onBac
         }
     };
 
+    const handlePrintStudentReport = () => {
+        const generatedAt = new Date().toLocaleString(locale);
+        const attemptsRows = attempts
+            .map((attempt, index) => {
+                const isCorrect = attempt.effectiveIsCorrect ?? attempt.isCorrect;
+                const statusLabel = isCorrect
+                    ? t('standardAssign:progress.correct', { defaultValue: 'Correct' })
+                    : t('standardAssign:progress.needsReview', { defaultValue: 'Incorrect' });
+
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${escapeHtml(statusLabel)}</td>
+                        <td>${escapeHtml(String(attempt.questionType || '').replace(/_/g, ' '))}</td>
+                        <td>${escapeHtml(attempt.difficulty || 'N/A')}</td>
+                        <td>${escapeHtml(attempt.studentAnswer || '—')}</td>
+                        <td>${escapeHtml(attempt.correctAnswer || '—')}</td>
+                        <td>${escapeHtml(attempt.questionText || '')}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        const reportTitle = t('standardAssign:reports.studentReportTitle', {
+            defaultValue: 'Student Test Result'
+        });
+
+        openPrintDocument({
+            title: `${reportTitle} - ${studentName}`,
+            isRtl,
+            htmlBody: `
+                <h1>${escapeHtml(reportTitle)}</h1>
+                <div class="meta">${escapeHtml(studentName)} • ${escapeHtml(
+                    t('standardAssign:reports.assignmentId', {
+                        defaultValue: 'Assignment'
+                    })
+                )}: ${escapeHtml(assignmentId)}</div>
+                <div class="meta">${escapeHtml(
+                    t('standardAssign:reports.generatedAt', {
+                        defaultValue: 'Generated at'
+                    })
+                )}: ${escapeHtml(generatedAt)}</div>
+
+                <div class="section">
+                    <h2>${escapeHtml(
+                        t('standardAssign:reports.studentAttempts', {
+                            defaultValue: 'Student Attempts'
+                        })
+                    )}</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.table.status'))}</th>
+                                <th>${escapeHtml(t('standardAssign:questionPool.labels.questionType'))}</th>
+                                <th>${escapeHtml(t('standardAssign:questionPool.labels.difficulty'))}</th>
+                                <th>${escapeHtml(
+                                    t('standardAssign:reports.studentAnswer', {
+                                        defaultValue: 'Student Answer'
+                                    })
+                                )}</th>
+                                <th>${escapeHtml(
+                                    t('standardAssign:reports.correctAnswer', {
+                                        defaultValue: 'Correct Answer'
+                                    })
+                                )}</th>
+                                <th>${escapeHtml(
+                                    t('standardAssign:questionPool.labels.questionTextRequired', {
+                                        defaultValue: 'Question Text'
+                                    })
+                                )}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${attemptsRows || `<tr><td colspan="7">${escapeHtml(
+                                t('standardAssign:reports.noAttemptRows', {
+                                    defaultValue: 'No attempts available.'
+                                })
+                            )}</td></tr>`}
+                        </tbody>
+                    </table>
+                </div>
+            `
+        });
+    };
+
     if (loading) return <LoadingState />;
     if (error) return <ErrorState message={error} />;
 
     return (
         <div>
-            <button
-                onClick={onBack}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    color: 'var(--primary)',
-                    marginBottom: 'var(--spacing-md)',
-                    padding: 0,
-                }}
-            >
-                <HiOutlineArrowLeft size={16} /> Back to gradebook
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--spacing-md)' }}>
+                <button
+                    onClick={onBack}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        color: 'var(--primary)',
+                        padding: 0,
+                    }}
+                >
+                    <HiOutlineArrowLeft size={16} />
+                    {t('standardAssign:actions.backToGradebook', {
+                        defaultValue: 'Back to gradebook'
+                    })}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={handlePrintStudentReport}>
+                    {t('standardAssign:actions.printStudentResult', {
+                        defaultValue: 'Print Student Result'
+                    })}
+                </button>
+            </div>
             <h4 style={{ marginBottom: 'var(--spacing-md)' }}>
                 {studentName} — Attempt Details
             </h4>
@@ -297,6 +519,7 @@ const AssessmentGradebookModal = ({
 }) => {
     const { t, i18n } = useTranslation(['standardAssign']);
     const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
+    const isRtl = i18n.resolvedLanguage === 'ar';
     const [detailStudent, setDetailStudent] = useState(null);
 
     if (!show) return null;
@@ -313,6 +536,228 @@ const AssessmentGradebookModal = ({
         const normalized = String(status || 'not_started').toLowerCase();
         return t(`standardAssign:progressStatus.${normalized}`, {
             defaultValue: normalized.replace(/_/g, ' ')
+        });
+    };
+
+    const handlePrintGradebookReport = () => {
+        if (!assessmentGradebookData) return;
+
+        const assignment = assessmentGradebookData.assignment || {};
+        const summary = assessmentGradebookData.summary || {};
+        const rows = Array.isArray(assessmentGradebookData.rows) ? assessmentGradebookData.rows : [];
+        const repeatedRows = Array.isArray(assessmentStandardAverageData?.rows)
+            ? assessmentStandardAverageData.rows
+            : [];
+
+        const totalStudents = Number(summary.totalStudents || 0);
+        const released = Number(summary.released || 0);
+        const submitted = Number(summary.submitted || 0);
+        const inProgress = Number(summary.inProgress || 0);
+        const notStarted = Number(summary.notStarted || 0);
+        const completionRate =
+            totalStudents > 0
+                ? Number((((released + submitted) / totalStudents) * 100).toFixed(1))
+                : 0;
+
+        const percentageValue = Number(summary.averagePercentage || 0);
+        const averagePercentage = Number.isFinite(percentageValue) ? percentageValue : 0;
+        const scaleValue = Number(summary.averageScale4 || 0);
+        const averageScale4 = Number.isFinite(scaleValue) ? scaleValue : 0;
+
+        const generatedAt = new Date().toLocaleString(locale);
+        const assignmentTitle = assignment?.title || assignment?.standard?.name || '-';
+        const standardLabel = [assignment?.standard?.code, assignment?.standard?.name]
+            .filter(Boolean)
+            .join(' - ');
+        const classLabel = assignment?.class?.name || '-';
+        const subjectLabel = assignment?.subject?.name || '-';
+
+        const studentRowsHtml = rows
+            .map((row) => {
+                const fullName = `${row.student?.firstName || ''} ${row.student?.lastName || ''}`.trim();
+                return `
+                    <tr>
+                        <td>${escapeHtml(fullName || '-')}</td>
+                        <td>${escapeHtml(getRowStatusLabel(row.status || 'not_started'))}</td>
+                        <td>${escapeHtml(row.totalAnswered ?? 0)}</td>
+                        <td>${escapeHtml(
+                            row.score !== null && row.score !== undefined
+                                ? `${row.score}/${row.maxScore || 100}`
+                                : t('standardAssign:common.na')
+                        )}</td>
+                        <td>${escapeHtml(
+                            row.percentage !== null && row.percentage !== undefined
+                                ? `${row.percentage}%`
+                                : t('standardAssign:common.na')
+                        )}</td>
+                        <td>${escapeHtml(
+                            row.scale4 !== null && row.scale4 !== undefined
+                                ? row.scale4
+                                : t('standardAssign:common.na')
+                        )}</td>
+                        <td>${escapeHtml(row.tabSwitchCount || 0)}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        const repeatedRowsHtml = repeatedRows
+            .map((row) => {
+                const fullName = `${row.student?.firstName || ''} ${row.student?.lastName || ''}`.trim();
+                return `
+                    <tr>
+                        <td>${escapeHtml(fullName || '-')}</td>
+                        <td>${escapeHtml(row.attemptCount ?? 0)}</td>
+                        <td>${escapeHtml(row.gradedAttemptCount ?? 0)}</td>
+                        <td>${escapeHtml(
+                            row.averagePercentage !== null && row.averagePercentage !== undefined
+                                ? `${row.averagePercentage}%`
+                                : t('standardAssign:common.na')
+                        )}</td>
+                        <td>${escapeHtml(
+                            row.averageScale4 !== null && row.averageScale4 !== undefined
+                                ? row.averageScale4
+                                : t('standardAssign:common.na')
+                        )}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        openPrintDocument({
+            title: t('standardAssign:reports.classReportTitle', {
+                defaultValue: 'Assessment Class Progress Report'
+            }),
+            isRtl,
+            htmlBody: `
+                <h1>${escapeHtml(
+                    t('standardAssign:reports.classReportTitle', {
+                        defaultValue: 'Assessment Class Progress Report'
+                    })
+                )}</h1>
+                <div class="meta">${escapeHtml(
+                    t('standardAssign:reports.generatedAt', {
+                        defaultValue: 'Generated at'
+                    })
+                )}: ${escapeHtml(generatedAt)}</div>
+                <div class="meta">${escapeHtml(
+                    t('standardAssign:form.summary.name')
+                )}: ${escapeHtml(assignmentTitle)}</div>
+                <div class="meta">${escapeHtml(
+                    t('standardAssign:form.summary.class')
+                )}: ${escapeHtml(classLabel)} • ${escapeHtml(
+                    t('standardAssign:form.summary.subject')
+                )}: ${escapeHtml(subjectLabel)} • ${escapeHtml(
+                    t('standardAssign:form.summary.standard')
+                )}: ${escapeHtml(standardLabel || '-')}</div>
+
+                <div class="section">
+                    <h2>${escapeHtml(
+                        t('standardAssign:reports.overallProgress', {
+                            defaultValue: 'Overall Progress'
+                        })
+                    )}</h2>
+                    <div class="grid">
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:assessmentGradebook.summary.total')
+                        )}</span><span class="value">${escapeHtml(totalStudents)}</span></div>
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:assessmentGradebook.summary.released')
+                        )}</span><span class="value">${escapeHtml(released)}</span></div>
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:assessmentGradebook.summary.submitted')
+                        )}</span><span class="value">${escapeHtml(submitted)}</span></div>
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:assessmentGradebook.summary.inProgress')
+                        )}</span><span class="value">${escapeHtml(inProgress)}</span></div>
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:assessmentGradebook.summary.notStarted')
+                        )}</span><span class="value">${escapeHtml(notStarted)}</span></div>
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:assessmentGradebook.summary.avgPercentage')
+                        )}</span><span class="value">${escapeHtml(`${averagePercentage}%`)}</span></div>
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:assessmentGradebook.summary.avgScale')
+                        )}</span><span class="value">${escapeHtml(averageScale4)}</span></div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>${escapeHtml(
+                        t('standardAssign:reports.classProgress', {
+                            defaultValue: 'Class Progress'
+                        })
+                    )}</h2>
+                    <div class="grid">
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:reports.completionRate', {
+                                defaultValue: 'Completion Rate'
+                            })
+                        )}</span><span class="value">${escapeHtml(`${completionRate}%`)}</span></div>
+                        <div class="card"><span class="label">${escapeHtml(
+                            t('standardAssign:reports.pendingStudents', {
+                                defaultValue: 'Pending Students'
+                            })
+                        )}</span><span class="value">${escapeHtml(Math.max(totalStudents - (released + submitted), 0))}</span></div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>${escapeHtml(
+                        t('standardAssign:reports.studentResults', {
+                            defaultValue: 'Student Test Results'
+                        })
+                    )}</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.table.student'))}</th>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.table.status'))}</th>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.table.answered'))}</th>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.table.score'))}</th>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.table.percentage'))}</th>
+                                <th>0-4</th>
+                                <th>${escapeHtml(
+                                    t('standardAssign:reports.tabSwitches', {
+                                        defaultValue: 'Tab Switches'
+                                    })
+                                )}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${studentRowsHtml || `<tr><td colspan="7">${escapeHtml(
+                                t('standardAssign:assessmentGradebook.noData')
+                            )}</td></tr>`}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="section">
+                    <h2>${escapeHtml(
+                        t('standardAssign:reports.testSpecificProgress', {
+                            defaultValue: 'Test-Specific Progress (Repeated Attempts)'
+                        })
+                    )}</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.averageTable.student'))}</th>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.averageTable.attempts'))}</th>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.averageTable.graded'))}</th>
+                                <th>${escapeHtml(
+                                    t('standardAssign:assessmentGradebook.averageTable.averagePercentage')
+                                )}</th>
+                                <th>${escapeHtml(t('standardAssign:assessmentGradebook.averageTable.averageScale'))}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${repeatedRowsHtml || `<tr><td colspan="5">${escapeHtml(
+                                t('standardAssign:assessmentGradebook.noRepeatedData')
+                            )}</td></tr>`}
+                        </tbody>
+                    </table>
+                </div>
+            `
         });
     };
 
@@ -565,6 +1010,16 @@ const AssessmentGradebookModal = ({
                     )}
                 </div>
                 <div className="modal-footer">
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={handlePrintGradebookReport}
+                        disabled={assessmentGradebookLoading || !assessmentGradebookData}
+                    >
+                        {t('standardAssign:actions.printReport', {
+                            defaultValue: 'Print Report'
+                        })}
+                    </button>
                     <button
                         type="button"
                         className="btn btn-secondary"

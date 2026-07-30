@@ -8,7 +8,17 @@ import QuestionPoolEditorModal from './components/QuestionPoolEditorModal';
 import useStandardAssignPageData from './hooks/useStandardAssignPageData';
 import './StandardAssignPage.css';
 
-const StandardAssignPage = ({ embedded }) => {
+const StandardAssignPage = ({
+    embedded,
+    grammarOnly = false,
+    headerTitle,
+    headerSubtitle,
+    createButtonLabel,
+    modalCreateTitle,
+    modalEditTitle,
+    modalCreateActionLabel,
+    modalEditActionLabel
+}) => {
     const {
         assignments: _assignments,
         filteredAssignments,
@@ -37,6 +47,7 @@ const StandardAssignPage = ({ embedded }) => {
         questionPoolError,
         questionPoolData,
         savingQuestionPool,
+        regeneratingQuestionIndex,
         classes,
         students,
         submitting,
@@ -76,6 +87,7 @@ const StandardAssignPage = ({ embedded }) => {
         closeQuestionPoolModal,
         retryQuestionPoolLoad,
         handleSaveQuestionPool,
+        handleRegenerateQuestionPoolQuestion,
         handleReviewQuestionPool,
         handleApproveQuestionPool,
         handlePublishQuestionPool,
@@ -84,11 +96,16 @@ const StandardAssignPage = ({ embedded }) => {
         getProgressStatusDisplay,
         getStandardDescription,
         getStandardOptionLabel
-    } = useStandardAssignPageData();
+    } = useStandardAssignPageData({ grammarOnly });
 
     return (
         <div className={embedded ? 'assign-page assign-page--embedded' : 'assign-page'}>
-            <StandardAssignPageHeader onCreate={openCreateModal} />
+            <StandardAssignPageHeader
+                onCreate={openCreateModal}
+                title={headerTitle}
+                subtitle={headerSubtitle}
+                createLabel={createButtonLabel}
+            />
             <StandardAssignFiltersBar 
                 filters={filters} 
                 onFilterChange={handleFilterChange} 
@@ -139,6 +156,11 @@ const StandardAssignPage = ({ embedded }) => {
                 showAdvanced={showAdvanced}
                 setShowAdvanced={setShowAdvanced}
                 getEntityId={getEntityId}
+                grammarOnly={grammarOnly}
+                modalCreateTitle={modalCreateTitle}
+                modalEditTitle={modalEditTitle}
+                submitCreateLabel={modalCreateActionLabel}
+                submitEditLabel={modalEditActionLabel}
             />
 
             <StandardAssignProgressModal
@@ -177,8 +199,10 @@ const StandardAssignPage = ({ embedded }) => {
                 data={questionPoolData}
                 assignmentId={questionPoolAssignmentId}
                 saving={savingQuestionPool}
+                regeneratingQuestionIndex={regeneratingQuestionIndex}
                 onRetry={retryQuestionPoolLoad}
                 onSave={handleSaveQuestionPool}
+                onRegenerateQuestion={handleRegenerateQuestionPoolQuestion}
             />
         </div>
     );

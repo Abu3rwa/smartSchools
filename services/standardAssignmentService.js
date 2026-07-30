@@ -1,6 +1,11 @@
 import StandardAssignment from '../models/StandardAssignment.js';
 import StandardQuestionPool from '../models/StandardQuestionPool.js';
 import standardsPracticeAIService from './standardsPracticeAIService.js';
+import {
+    generateGrammarQuestionPool,
+    hasGrammarLevelingEnabled,
+    normalizeGrammarLevels
+} from './grammarAssessmentService.js';
 import logger from '../utils/logger.js';
 
 export const DEFAULT_PREGENERATED_QUESTION_COUNT = 10;
@@ -34,18 +39,33 @@ const buildQuestionPool = async ({
     practiceConfig,
     generationLanguages = ['en'],
 }) => {
-    const allowedQuestionTypes =
+    const allowedQuestionTypesRaw =
         Array.isArray(practiceConfig?.allowedQuestionTypes) && practiceConfig.allowedQuestionTypes.length > 0
             ? practiceConfig.allowedQuestionTypes
-            : ['multiple_choice', 'short_answer', 'true_false'];
+            : ['multiple_choice', 'true_false'];
+    const allowedQuestionTypes = allowedQuestionTypesRaw.filter((type) =>
+        ['multiple_choice', 'true_false'].includes(type)
+    );
     const allowedDifficulties =
         Array.isArray(practiceConfig?.allowedDifficulties) && practiceConfig.allowedDifficulties.length > 0
             ? practiceConfig.allowedDifficulties
             : ['easy', 'medium', 'hard'];
 
+    if (hasGrammarLevelingEnabled(practiceConfig)) {
+        return generateGrammarQuestionPool({
+            questionCount,
+            allowedQuestionTypes,
+            allowedDifficulties,
+            levels: normalizeGrammarLevels(practiceConfig?.grammarLevels, { fallbackAll: true }),
+            seedPrefix: `${standard?._id || standard?.code || 'grammar'}|pool`,
+        });
+    }
+
     const questions = [];
     for (let i = 0; i < questionCount; i += 1) {
-        const questionType = allowedQuestionTypes[i % allowedQuestionTypes.length];
+        const questionType = allowedQuestionTypes.length > 0
+            ? allowedQuestionTypes[i % allowedQuestionTypes.length]
+            : 'multiple_choice';
         const difficulty = allowedDifficulties[i % allowedDifficulties.length];
         try {
             const previousQuestions = questions.map((question) => question.questionText).slice(-20);
@@ -75,8 +95,12 @@ const buildQuestionPool = async ({
                 correctAnswer: generated.correctAnswer,
                 explanation: generated.explanation || '',
                 difficulty: generated.difficulty || difficulty,
+                grammarLevel: generated.grammarLevel || null,
                 skill: generated.skill || '',
                 subskill: generated.subskill || '',
+                gradingMode: generated.gradingMode || 'conceptual',
+                acceptableAnswers: generated.acceptableAnswers || [],
+                evaluationCriteria: generated.evaluationCriteria || '',
             });
         } catch (error) {
             logger.warn('Question generation failed for pool item; using deterministic fallback', {
@@ -89,16 +113,35 @@ const buildQuestionPool = async ({
             });
 
             const standardName = standard?.name || 'this standard';
+            const fallbackType = questionType === 'true_false' ? 'true_false' : 'multiple_choice';
             questions.push({
-                instruction: 'Explain the key idea in your own words.',
-                questionText: `In 1-2 sentences, explain the key idea of ${standardName}.`,
-                questionType: 'short_answer',
-                options: [],
-                correctAnswer: `A strong response explains the key idea of ${standardName} using evidence from the lesson.`,
-                explanation: 'Focus on the main concept and explain it clearly.',
+                instruction: fallbackType === 'true_false'
+                    ? 'Read the statement and choose True or False.'
+                    : 'Choose the best answer.',
+                questionText: fallbackType === 'true_false'
+                    ? `${standardName} is a concept students should study in this assignment.`
+                    : `Which option best describes ${standardName}?`,
+                questionType: fallbackType,
+                options: fallbackType === 'true_false'
+                    ? [
+                        { label: 'A', text: 'True' },
+                        { label: 'B', text: 'False' },
+                    ]
+                    : [
+                        { label: 'A', text: `${standardName} is one of this assignment's focus standards.` },
+                        { label: 'B', text: 'It is unrelated to this assignment.' },
+                        { label: 'C', text: 'It is only used for attendance tracking.' },
+                        { label: 'D', text: 'It is only used for timetable generation.' },
+                    ],
+                correctAnswer: fallbackType === 'true_false' ? 'True' : 'A',
+                explanation: 'Review the standard description before answering.',
                 difficulty,
+                grammarLevel: null,
                 skill: '',
                 subskill: '',
+                gradingMode: 'exact_match',
+                acceptableAnswers: [],
+                evaluationCriteria: '',
             });
         }
     }

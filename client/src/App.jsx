@@ -92,6 +92,7 @@ const ReportTemplates = lazy(() => import("./pages/reports/ReportTemplates"));
 const ReportHistory = lazy(() => import("./pages/reports/ReportHistory"));
 const StandardsPage = lazy(() => import("./pages/standards/StandardsPage"));
 const StandardAssignPage = lazy(() => import("./pages/standards/StandardAssignPage"));
+const GrammarAssessmentPage = lazy(() => import("./pages/grammar"));
 const StandardsGradebookPage = lazy(() => import("./pages/standards/StandardsGradebookPage"));
 const AssessmentPoolPage = lazy(() => import("./pages/standards/AssessmentPoolPage/AssessmentPoolPage"));
 const AssessmentProgressPage = lazy(() => import("./pages/standards/AssessmentProgressPage/AssessmentProgressPage"));
@@ -899,6 +900,16 @@ function App() {
                 <RoleRoute roles={["admin", "teacher"]}>
                   <FeatureGate feature="standardsPractice" showUpgradePrompt>
                     <StandardAssignPage />
+                  </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="grammar-assessments"
+              element={
+                <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                  <FeatureGate feature="standardsPractice" showUpgradePrompt>
+                    <GrammarAssessmentPage />
                   </FeatureGate>
                 </RoleRoute>
               }

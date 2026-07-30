@@ -37,6 +37,7 @@ import worksheetReducer from './slices/worksheetSlice';
 import financeReducer from './slices/financeSlice';
 import hrReducer from './slices/hrSlice';
 import standardAssessmentReducer from './slices/standardAssessmentSlice';
+import grammarTestReducer from './slices/grammarTestSlice';
 import uiReducer, {
     fetchSchoolAcademicYear,
     updateSchoolAcademicYear
@@ -111,7 +112,8 @@ const appReducer = combineReducers({
     worksheets: worksheetReducer,
     finance: financeReducer,
     hr: hrReducer,
-    standardAssessment: standardAssessmentReducer
+    standardAssessment: standardAssessmentReducer,
+    grammarTests: grammarTestReducer,
 });
 
 const hasAcademicYearChanged = (state, action) => {

@@ -8,6 +8,10 @@ import MasteryRecord from "../models/MasteryRecord.js";
 import StandardsGradebookEntry from "../models/StandardsGradebookEntry.js";
 import StandardQuestionPool from "../models/StandardQuestionPool.js";
 import standardsPracticeAIService from "../services/standardsPracticeAIService.js";
+import {
+  generateGrammarQuestion,
+  normalizeGrammarLevels,
+} from "../services/grammarAssessmentService.js";
 import { scheduleFromAttempt } from "../services/reviewSchedulerService.js";
 import { upsertInterventionCase } from "../services/interventionQueueService.js";
 import notificationService from "../services/notificationService.js";
@@ -30,6 +34,7 @@ import { resolveRequestedLanguages } from "../utils/aiLanguageUtils.js";
 import {
   QUESTION_TYPES,
   DIFFICULTIES,
+  GRAMMAR_LEVELS,
   generateQuestionResponseSchema,
   submitAnswerResponseSchema,
   integrityEventSchema,
@@ -41,6 +46,8 @@ const DEFAULT_PRACTICE_CONFIG = {
   timeLimitSeconds: null,
   allowedQuestionTypes: QUESTION_TYPES,
   allowedDifficulties: DIFFICULTIES,
+  enableGrammarLeveling: false,
+  grammarLevels: [],
   availability: { startAt: null, endAt: null },
   lockStudentOptions: false,
 };
@@ -100,6 +107,11 @@ const getAssignmentPracticeConfig = (assignment) => {
     cfg.allowedDifficulties,
     DIFFICULTIES
   );
+  const allowedGrammarLevels = sanitizeAllowedValues(
+    cfg.grammarLevels,
+    GRAMMAR_LEVELS
+  );
+  const enableGrammarLeveling = Boolean(cfg.enableGrammarLeveling);
 
   return {
     sessionType: cfg.sessionType || DEFAULT_PRACTICE_CONFIG.sessionType,
@@ -114,6 +126,12 @@ const getAssignmentPracticeConfig = (assignment) => {
       allowedDifficulties.length > 0
         ? allowedDifficulties
         : DEFAULT_PRACTICE_CONFIG.allowedDifficulties,
+    enableGrammarLeveling,
+    grammarLevels: enableGrammarLeveling
+      ? allowedGrammarLevels.length > 0
+        ? allowedGrammarLevels
+        : [...GRAMMAR_LEVELS]
+      : [],
     availability: {
       startAt: cfg.availability?.startAt || null,
       endAt: cfg.availability?.endAt || null,
@@ -1445,6 +1463,10 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     subjectName,
     max: 2,
   });
+  const grammarLevelingEnabled = Boolean(practiceConfig.enableGrammarLeveling);
+  const grammarLevels = grammarLevelingEnabled
+    ? normalizeGrammarLevels(practiceConfig.grammarLevels, { fallbackAll: true })
+    : [];
   let question = null;
 
   if (publishedQuestionPool?.questions?.length > 0) {
@@ -1466,6 +1488,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       correctAnswer: poolQuestion.correctAnswer,
       explanation: poolQuestion.explanation || "",
       difficulty: poolQuestion.difficulty || effectiveDifficulty,
+      grammarLevel: poolQuestion.grammarLevel || null,
       skill: poolQuestion.skill || "",
       subskill: poolQuestion.subskill || "",
       gradingMode: poolQuestion.gradingMode || "conceptual",
@@ -1485,48 +1508,63 @@ export const generateQuestion = asyncHandler(async (req, res) => {
           )
         : null;
 
-    // Legacy fallback path for older assignments without question workflow.
-    const generationQuestions = [...previousQuestions];
-    const generationFingerprints = [...previousQuestionFingerprints];
-    for (let generationAttempt = 0; generationAttempt < 3; generationAttempt += 1) {
-      const candidate = await standardsPracticeAIService.generateQuestion({
-        standard: assignment.standard,
-        subjectName,
-        requestedLanguages: generationLanguages,
-        difficulty: effectiveDifficulty,
+    if (grammarLevelingEnabled) {
+      const preferredLevel =
+        grammarLevels.length > 0
+          ? grammarLevels[attemptCount % grammarLevels.length]
+          : null;
+      question = generateGrammarQuestion({
+        levels: grammarLevels,
         questionType: effectiveQuestionType,
-        trueFalseTargetAnswer: preferredTrueFalseAnswer,
-        previousQuestions: generationQuestions,
-        previousQuestionFingerprints: generationFingerprints,
-        recentAttempts: sessionAttempts.slice(0, 12),
-        studentFirstName: student.firstName || "",
-        contextHints: {
-          recentTopics: sessionContext.recentTopics,
-          recentMistakes: sessionContext.recentMistakes,
-          confidenceHint: sessionContext.confidenceHint,
-        },
-        attemptNumber: attemptCount + 1 + generationAttempt,
+        difficulty: effectiveDifficulty,
+        preferredLevel,
+        index: attemptCount,
+        seed: `${assignment._id}|${student._id}|${attemptCount + 1}|runtime`,
       });
+    } else {
+      // Legacy fallback path for older assignments without question workflow.
+      const generationQuestions = [...previousQuestions];
+      const generationFingerprints = [...previousQuestionFingerprints];
+      for (let generationAttempt = 0; generationAttempt < 3; generationAttempt += 1) {
+        const candidate = await standardsPracticeAIService.generateQuestion({
+          standard: assignment.standard,
+          subjectName,
+          requestedLanguages: generationLanguages,
+          difficulty: effectiveDifficulty,
+          questionType: effectiveQuestionType,
+          trueFalseTargetAnswer: preferredTrueFalseAnswer,
+          previousQuestions: generationQuestions,
+          previousQuestionFingerprints: generationFingerprints,
+          recentAttempts: sessionAttempts.slice(0, 12),
+          studentFirstName: student.firstName || "",
+          contextHints: {
+            recentTopics: sessionContext.recentTopics,
+            recentMistakes: sessionContext.recentMistakes,
+            confidenceHint: sessionContext.confidenceHint,
+          },
+          attemptNumber: attemptCount + 1 + generationAttempt,
+        });
 
-      if (!hasDuplicateMultipleChoiceOptions(candidate)) {
-        question = candidate;
-        break;
+        if (!hasDuplicateMultipleChoiceOptions(candidate)) {
+          question = candidate;
+          break;
+        }
+
+        generationQuestions.push(candidate.questionText || "");
+        generationFingerprints.push(buildQuestionFingerprint(candidate.questionText || ""));
+        logger.warn("practice_duplicate_mcq_options_regenerated", {
+          schoolId: req.schoolId,
+          assignmentId: assignment._id,
+          studentId: student._id,
+          generationAttempt: generationAttempt + 1,
+        });
       }
-
-      generationQuestions.push(candidate.questionText || "");
-      generationFingerprints.push(buildQuestionFingerprint(candidate.questionText || ""));
-      logger.warn("practice_duplicate_mcq_options_regenerated", {
-        schoolId: req.schoolId,
-        assignmentId: assignment._id,
-        studentId: student._id,
-        generationAttempt: generationAttempt + 1,
-      });
     }
 
     if (!question) {
       return res.status(503).json({
         success: false,
-        message: "Could not generate a clear multiple-choice question. Please try again.",
+        message: "Could not generate a clear question. Please try again.",
       });
     }
 
@@ -1588,6 +1626,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     correctAnswer: question.correctAnswer,
     explanation: question.explanation,
     difficulty: question.difficulty,
+    grammarLevel: question.grammarLevel || null,
     skill: question.skill || null,
     subskill: question.subskill || null,
     gradingMode: question.gradingMode || "conceptual",
@@ -1622,6 +1661,7 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       questionType: attempt.questionType,
       options: attempt.options,
       difficulty: attempt.difficulty,
+      grammarLevel: attempt.grammarLevel || null,
       skill: attempt.skill || null,
       subskill: attempt.subskill || null,
       attemptNumber: attempt.attemptNumber,
@@ -2517,6 +2557,61 @@ export const finalizeAssessment = asyncHandler(async (req, res) => {
   });
 });
 
+const buildGrammarProgressDocument = ({
+  student,
+  items = [],
+  summary = {},
+  academicYear,
+  semester,
+}) => {
+  const studentName = [student?.firstName, student?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || "Student";
+  const generatedAt = new Date().toISOString();
+  const lines = [
+    "# Grammar Progress Report",
+    `Generated: ${generatedAt}`,
+    `Student: ${studentName}`,
+    `Academic Year: ${academicYear || "N/A"}`,
+    `Semester: ${semester || "N/A"}`,
+    "",
+    "## Summary",
+    `- Total assessments: ${summary?.totalAssessments || 0}`,
+    `- Graded assessments: ${summary?.gradedCount || 0}`,
+    `- Average percentage: ${summary?.averagePercentage ?? 0}%`,
+    `- Average scale (4.0): ${summary?.averageScale4 ?? 0}`,
+    "",
+    "## Assessment Timeline",
+  ];
+
+  if (!Array.isArray(items) || items.length === 0) {
+    lines.push("- No grammar assessment attempts yet.");
+  } else {
+    items.forEach((item) => {
+      const levels = Array.isArray(item?.grammarLevels) && item.grammarLevels.length > 0
+        ? item.grammarLevels.join(", ")
+        : "N/A";
+      const score = Number.isFinite(item?.score)
+        ? `${item.score}/${item.maxScore || 0}`
+        : "Pending";
+      const percentage = Number.isFinite(item?.percentage)
+        ? `${item.percentage}%`
+        : "Pending";
+      lines.push(
+        `- ${item?.title || "Assessment"} | Status: ${item?.status || "not_started"} | Score: ${score} | Percentage: ${percentage} | Levels: ${levels}`
+      );
+    });
+  }
+
+  return {
+    title: `Grammar Progress Report - ${studentName}`,
+    generatedAt,
+    contentType: "text/markdown",
+    markdown: lines.join("\n"),
+  };
+};
+
 /**
  * @desc    Get student's SB assessment results (semester scoped)
  * @route   GET /api/practice/assessment/my-results
@@ -2676,6 +2771,10 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
       class: assignment.class || null,
       academicYear: assignment.academicYear || assignment.class?.academicYear || effectiveAcademicYear,
       semester: assignment.semester || effectiveSemester,
+      grammarLevelingEnabled: Boolean(assignment?.practiceConfig?.enableGrammarLeveling),
+      grammarLevels: Array.isArray(assignment?.practiceConfig?.grammarLevels)
+        ? assignment.practiceConfig.grammarLevels
+        : [],
       status: entry?.status || "not_started",
       totalAnswered: entry?.totalAnswered ?? 0,
       correctCount: entry?.correctCount ?? 0,
@@ -2706,6 +2805,20 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
   const averageScale4 = gradedItems.length > 0
     ? percentageToScale4(averagePercentage)
     : 0;
+  const summary = {
+    totalAssessments: items.length,
+    gradedCount: gradedItems.length,
+    averagePercentage,
+    averageScale4,
+  };
+
+  const progressDocument = buildGrammarProgressDocument({
+    student,
+    items,
+    summary,
+    academicYear: effectiveAcademicYear,
+    semester: effectiveSemester,
+  });
 
   const standardAccumulator = new Map();
   for (const item of gradedItems) {
@@ -2751,12 +2864,8 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
     data: {
       items,
       standardAverages,
-      summary: {
-        totalAssessments: items.length,
-        gradedCount: gradedItems.length,
-        averagePercentage,
-        averageScale4,
-      },
+      summary,
+      progressDocument,
       academicYear: effectiveAcademicYear,
       semester: effectiveSemester,
     },

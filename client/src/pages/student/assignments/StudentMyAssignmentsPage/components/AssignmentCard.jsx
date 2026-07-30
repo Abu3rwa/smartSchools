@@ -5,6 +5,11 @@ import { formatDueDate, getStatusMeta } from '../utils/studentMyAssignmentsPrese
 const AssignmentCard = ({ assignment }) => {
   const statusMeta = getStatusMeta(assignment);
   const id = assignment?.id || assignment?._id;
+  const practiceAssignmentId = assignment?.practiceAssignmentId;
+  const destination = practiceAssignmentId
+    ? `/portal/practice/${practiceAssignmentId}`
+    : `/portal/my-assignments/${id}`;
+  const actionLabel = practiceAssignmentId ? 'Start grammar test' : 'View assignment';
 
   return (
     <article className="assignment-card">
@@ -20,8 +25,8 @@ const AssignmentCard = ({ assignment }) => {
         <p className="card-due">Due {formatDueDate(assignment?.dueDate)}</p>
       </div>
       <div className="card-footer">
-        <Link to={`/portal/my-assignments/${id}`} className="btn btn-primary btn-sm">
-          View assignment
+        <Link to={destination} className="btn btn-primary btn-sm">
+          {actionLabel}
           <HiOutlineChevronRight size={16} />
         </Link>
       </div>

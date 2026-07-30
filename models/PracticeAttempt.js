@@ -99,6 +99,18 @@ const practiceAttemptSchema = new mongoose.Schema(
       enum: ["easy", "medium", "hard"],
       default: "medium",
     },
+    grammarLevel: {
+      type: String,
+      enum: [
+        "beginner",
+        "elementary",
+        "pre_intermediate",
+        "intermediate",
+        "upper_intermediate",
+        "advanced",
+      ],
+      default: null,
+    },
     skill: {
       type: String,
       default: null,

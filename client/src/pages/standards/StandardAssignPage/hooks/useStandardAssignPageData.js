@@ -24,7 +24,7 @@ import {
     selectCurrentAcademicYear,
     selectSelectedSemester
 } from '../../../../store/slices/uiSlice';
-import { createInitialFormData } from '../constants';
+import { createInitialFormData, GRAMMAR_LEVEL_OPTIONS } from '../constants';
 import {
     buildAssignmentEditForm,
     getEntityId,
@@ -36,7 +36,8 @@ import {
     parseNullablePositiveInt
 } from '../utils/standardAssignPagePresentation';
 
-const useStandardAssignPageData = () => {
+const useStandardAssignPageData = (options = {}) => {
+    const { grammarOnly = false } = options;
     const dispatch = useDispatch();
     const { t } = useTranslation(['standardAssign']);
     const standards = useSelector(selectStandards);
@@ -68,11 +69,26 @@ const useStandardAssignPageData = () => {
     const [questionPoolError, setQuestionPoolError] = useState('');
     const [questionPoolData, setQuestionPoolData] = useState(null);
     const [savingQuestionPool, setSavingQuestionPool] = useState(false);
+    const [regeneratingQuestionIndex, setRegeneratingQuestionIndex] = useState(null);
     const [classes, setClasses] = useState([]);
     const [students, setStudents] = useState([]);
     const [submitting, setSubmitting] = useState(false);
     const [editingAssignmentId, setEditingAssignmentId] = useState(null);
-    const [formData, setFormData] = useState(createInitialFormData(selectedSemester));
+    const [formData, setFormData] = useState(() => {
+        const base = createInitialFormData(selectedSemester);
+        if (!grammarOnly) return base;
+
+        return {
+            ...base,
+            practiceConfig: {
+                ...base.practiceConfig,
+                sessionType: 'assessment',
+                enableGrammarLeveling: true,
+                grammarLevels: GRAMMAR_LEVEL_OPTIONS.map((item) => item.value),
+                allowedQuestionTypes: ['multiple_choice', 'true_false']
+            }
+        };
+    });
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [poolActionLoadingId, setPoolActionLoadingId] = useState(null);
 
@@ -88,13 +104,20 @@ const useStandardAssignPageData = () => {
         setFilters(prev => ({ ...prev, [key]: value }));
     };
 
+    const assignmentsForView = useMemo(() => {
+        if (!grammarOnly) return assignments;
+        return assignments.filter((assignment) =>
+            Boolean(assignment?.practiceConfig?.enableGrammarLeveling)
+        );
+    }, [assignments, grammarOnly]);
+
     const filterOptions = useMemo(() => {
         const classesMap = new Map();
         const subjectsMap = new Map();
         const semestersSet = new Set();
         const yearsSet = new Set();
 
-        assignments.forEach(a => {
+        assignmentsForView.forEach(a => {
             if (a.class?._id) classesMap.set(a.class._id, a.class.name);
             if (a.subject?._id) subjectsMap.set(a.subject._id, a.subject.name);
             if (a.semester) semestersSet.add(a.semester);
@@ -107,17 +130,17 @@ const useStandardAssignPageData = () => {
             semesters: Array.from(semestersSet).sort(),
             academicYears: Array.from(yearsSet).sort()
         };
-    }, [assignments]);
+    }, [assignmentsForView]);
 
     const filteredAssignments = useMemo(() => {
-        return assignments.filter(a => {
+        return assignmentsForView.filter(a => {
             if (filters.classId && a.class?._id !== filters.classId) return false;
             if (filters.subjectId && a.subject?._id !== filters.subjectId) return false;
             if (filters.semester && String(a.semester) !== String(filters.semester)) return false;
             if (filters.academicYear && a.academicYear !== filters.academicYear) return false;
             return true;
         });
-    }, [assignments, filters]);
+    }, [assignmentsForView, filters]);
 
 
     const isAdmin = user?.role === 'admin';
@@ -135,9 +158,18 @@ const useStandardAssignPageData = () => {
         (Array.isArray(user?.permissions) && user.permissions.includes('approve_question_pool'));
 
     const selectedClass = classes.find((schoolClass) => schoolClass._id === formData.classId);
+    const isEnglishSubjectName = (value = '') => {
+        const normalized = String(value || '').toLowerCase();
+        return (
+            normalized.includes('english')
+            || normalized.includes('language art')
+            || normalized.includes('ela')
+            || normalized.includes('grammar')
+        );
+    };
     // Only allow teachers to see their own class+subjects unless they have higher privileges
     const classSubjects = getScopedClassSubjects(selectedClass, !hasAllSubjectAccess && isTeacher, user?._id || user?.id);
-    const subjectOptions = selectedClass
+    const scopedSubjectOptions = selectedClass
         ? classSubjects.length > 0
             ? classSubjects
             : hasAllSubjectAccess
@@ -146,6 +178,14 @@ const useStandardAssignPageData = () => {
         : hasAllSubjectAccess
             ? subjects
             : [];
+    const subjectOptions = grammarOnly
+        ? (() => {
+            const englishCandidates = scopedSubjectOptions.filter((subject) =>
+                isEnglishSubjectName(subject?.name || '') || isEnglishSubjectName(subject?.code || '')
+            );
+            return englishCandidates.length > 0 ? englishCandidates : scopedSubjectOptions;
+        })()
+        : scopedSubjectOptions;
 
     const availableStandards = standards.filter((standard) => {
         if (selectedClass?.grade && Number(standard.gradeLevel) !== Number(selectedClass.grade)) {
@@ -200,9 +240,23 @@ const useStandardAssignPageData = () => {
     };
 
     const resetAssignModalState = () => {
+        const base = createInitialFormData(selectedSemester);
+        const nextFormData = grammarOnly
+            ? {
+                ...base,
+                practiceConfig: {
+                    ...base.practiceConfig,
+                    sessionType: 'assessment',
+                    enableGrammarLeveling: true,
+                    grammarLevels: GRAMMAR_LEVEL_OPTIONS.map((item) => item.value),
+                    allowedQuestionTypes: ['multiple_choice', 'true_false']
+                }
+            }
+            : base;
+
         setEditingAssignmentId(null);
-        setFormData(createInitialFormData(selectedSemester));
-        setShowAdvanced(false);
+        setFormData(nextFormData);
+        setShowAdvanced(Boolean(grammarOnly));
         setStudents([]);
     };
 
@@ -234,10 +288,26 @@ const useStandardAssignPageData = () => {
 
     const handleEdit = async (assignment) => {
         const nextForm = buildAssignmentEditForm(assignment, selectedSemester);
+        const nextFormResolved = grammarOnly
+            ? {
+                ...nextForm,
+                practiceConfig: {
+                    ...nextForm.practiceConfig,
+                    sessionType: 'assessment',
+                    enableGrammarLeveling: true,
+                    allowedQuestionTypes: ['multiple_choice', 'true_false'],
+                    grammarLevels:
+                        Array.isArray(nextForm.practiceConfig?.grammarLevels)
+                        && nextForm.practiceConfig.grammarLevels.length > 0
+                            ? nextForm.practiceConfig.grammarLevels
+                            : GRAMMAR_LEVEL_OPTIONS.map((item) => item.value)
+                }
+            }
+            : nextForm;
         setEditingAssignmentId(assignment?._id || null);
-        setFormData(nextForm);
-        if (nextForm.classId) {
-            await loadStudents(nextForm.classId);
+        setFormData(nextFormResolved);
+        if (nextFormResolved.classId) {
+            await loadStudents(nextFormResolved.classId);
         }
         setShowAdvanced(true);
         setShowAssignModal(true);
@@ -273,6 +343,22 @@ const useStandardAssignPageData = () => {
             toast.error(t('standardAssign:toasts.subjectNotAvailableForClass'));
             setSubmitting(false);
             return;
+        }
+
+        if (formData.practiceConfig.enableGrammarLeveling) {
+            const allowedLevels = new Set(GRAMMAR_LEVEL_OPTIONS.map((item) => item.value));
+            const selectedLevels = Array.isArray(formData.practiceConfig.grammarLevels)
+                ? formData.practiceConfig.grammarLevels.filter((level) => allowedLevels.has(level))
+                : [];
+            if (selectedLevels.length === 0) {
+                toast.error(
+                    t('standardAssign:toasts.selectAtLeastOneGrammarLevel', {
+                        defaultValue: 'Please select at least one grammar level.'
+                    })
+                );
+                setSubmitting(false);
+                return;
+            }
         }
 
         const startAtRaw = formData.practiceConfig.availability?.startAt || '';
@@ -312,10 +398,29 @@ const useStandardAssignPageData = () => {
             semester: parseNullablePositiveInt(formData.semester) || selectedSemester || 1,
             practiceConfig: {
                 ...formData.practiceConfig,
+                sessionType: grammarOnly ? 'assessment' : formData.practiceConfig.sessionType,
                 questionLimit: parseNullablePositiveInt(formData.practiceConfig.questionLimit),
                 timeLimitSeconds:
                     (parseNullablePositiveInt(formData.practiceConfig.timeLimitSeconds) || 0) * 60 ||
                     null,
+                allowedQuestionTypes: grammarOnly
+                    ? ['multiple_choice', 'true_false']
+                    : formData.practiceConfig.allowedQuestionTypes,
+                enableGrammarLeveling: grammarOnly
+                    ? true
+                    : Boolean(formData.practiceConfig.enableGrammarLeveling),
+                grammarLevels: (grammarOnly || Boolean(formData.practiceConfig.enableGrammarLeveling))
+                    ? Array.from(
+                        new Set(
+                            (Array.isArray(formData.practiceConfig.grammarLevels)
+                                ? formData.practiceConfig.grammarLevels
+                                : []
+                            ).filter((level) =>
+                                GRAMMAR_LEVEL_OPTIONS.some((item) => item.value === level)
+                            )
+                        )
+                    )
+                    : undefined,
                 availability: {
                     startAt: startAt ? startAt.toISOString() : null,
                     endAt: endAt ? endAt.toISOString() : null
@@ -343,8 +448,16 @@ const useStandardAssignPageData = () => {
             if (success) {
                 toast.success(
                     editingAssignmentId
-                        ? t('standardAssign:toasts.assignmentUpdated')
-                        : t('standardAssign:toasts.standardAssigned')
+                        ? (grammarOnly
+                            ? t('standardAssign:toasts.grammarAssessmentUpdated', {
+                                defaultValue: 'Grammar assessment updated successfully!'
+                            })
+                            : t('standardAssign:toasts.assignmentUpdated'))
+                        : (grammarOnly
+                            ? t('standardAssign:toasts.grammarAssessmentCreated', {
+                                defaultValue: 'Grammar assessment created successfully!'
+                            })
+                            : t('standardAssign:toasts.standardAssigned'))
                 );
                 setShowAssignModal(false);
                 resetAssignModalState();
@@ -353,8 +466,16 @@ const useStandardAssignPageData = () => {
                 toast.error(
                     result.payload ||
                         (editingAssignmentId
-                            ? t('standardAssign:toasts.failedToUpdateAssignment')
-                            : t('standardAssign:toasts.failedToAssign'))
+                            ? (grammarOnly
+                                ? t('standardAssign:toasts.failedToUpdateGrammarAssessment', {
+                                    defaultValue: 'Failed to update grammar assessment'
+                                })
+                                : t('standardAssign:toasts.failedToUpdateAssignment'))
+                            : (grammarOnly
+                                ? t('standardAssign:toasts.failedToCreateGrammarAssessment', {
+                                    defaultValue: 'Failed to create grammar assessment'
+                                })
+                                : t('standardAssign:toasts.failedToAssign')))
                 );
             }
         } finally {
@@ -554,6 +675,7 @@ const useStandardAssignPageData = () => {
         setQuestionPoolData(null);
         setQuestionPoolError('');
         setSavingQuestionPool(false);
+        setRegeneratingQuestionIndex(null);
     };
 
     const retryQuestionPoolLoad = () => {
@@ -576,6 +698,44 @@ const useStandardAssignPageData = () => {
             toast.error(error?.response?.data?.message || t('standardAssign:toasts.failedToSaveQuestionPool'));
         } finally {
             setSavingQuestionPool(false);
+        }
+    };
+
+    const handleRegenerateQuestionPoolQuestion = async ({
+        questionIndex,
+        questionType,
+        difficulty,
+        grammarLevel
+    }) => {
+        if (!questionPoolAssignmentId) return;
+        setRegeneratingQuestionIndex(questionIndex);
+        try {
+            const response = await api.post(
+                `/standard-assignments/${questionPoolAssignmentId}/question-pool/regenerate`,
+                {
+                    questionIndex,
+                    questionType,
+                    difficulty,
+                    grammarLevel
+                }
+            );
+            toast.success(
+                response?.data?.message ||
+                    t('standardAssign:toasts.questionRegenerated', {
+                        defaultValue: 'Question regenerated successfully'
+                    })
+            );
+            await loadQuestionPool(questionPoolAssignmentId);
+            dispatch(fetchAssignments({ academicYear, semester: selectedSemester }));
+        } catch (error) {
+            toast.error(
+                error?.response?.data?.message ||
+                    t('standardAssign:toasts.failedToRegenerateQuestion', {
+                        defaultValue: 'Failed to regenerate question'
+                    })
+            );
+        } finally {
+            setRegeneratingQuestionIndex(null);
         }
     };
 
@@ -689,6 +849,7 @@ const useStandardAssignPageData = () => {
         questionPoolError,
         questionPoolData,
         savingQuestionPool,
+        regeneratingQuestionIndex,
         classes,
         students,
         submitting,
@@ -724,6 +885,7 @@ const useStandardAssignPageData = () => {
         closeQuestionPoolModal,
         retryQuestionPoolLoad,
         handleSaveQuestionPool,
+        handleRegenerateQuestionPoolQuestion,
         handleReviewQuestionPool,
         handleApproveQuestionPool,
         handlePublishQuestionPool,

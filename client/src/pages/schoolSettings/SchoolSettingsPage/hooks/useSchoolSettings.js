@@ -196,6 +196,11 @@ const useSchoolSettings = () => {
   const [classesCreated, setClassesCreated] = useState(null);
   const [deactivateCount, setDeactivateCount] = useState(null);
   const [promoteResult, setPromoteResult] = useState(null);
+  const [promotionScope, setPromotionScope] = useState('all');
+  const [promotionSourceGrade, setPromotionSourceGrade] = useState('');
+  const [promotionStudents, setPromotionStudents] = useState([]);
+  const [promotionStudentsLoading, setPromotionStudentsLoading] = useState(false);
+  const [selectedPromotionStudentIds, setSelectedPromotionStudentIds] = useState([]);
   const [schoolYearStartDate, setSchoolYearStartDate] = useState('');
   const [schoolYearEndDate, setSchoolYearEndDate] = useState('');
   const [schoolYearDatesSaving, setSchoolYearDatesSaving] = useState(false);
@@ -843,6 +848,37 @@ const useSchoolSettings = () => {
     }
   }, [activeTab, canManageSchoolSettings, loadAcademicYearData, loadSchoolWeekConfig]);
 
+  useEffect(() => {
+    if (!canManageSchoolSettings || activeTab !== 'schoolyear' || !fromYear) {
+      setPromotionStudents([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadPromotionStudents = async () => {
+      setPromotionStudentsLoading(true);
+      try {
+        const response = await api.get('/students', {
+          params: { academicYear: fromYear, status: 'active', limit: 'all' }
+        });
+        if (!cancelled) {
+          setPromotionStudents(response.data?.data?.students || []);
+          setSelectedPromotionStudentIds([]);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPromotionStudents([]);
+          toast.error(error.response?.data?.message || 'Could not load students for promotion');
+        }
+      } finally {
+        if (!cancelled) setPromotionStudentsLoading(false);
+      }
+    };
+
+    loadPromotionStudents();
+    return () => { cancelled = true; };
+  }, [activeTab, canManageSchoolSettings, fromYear]);
+
   const handleCopyClasses = useCallback(async () => {
     if (!fromYear || !toYear) {
       toast.error(t('schoolSettings:toast.selectFromAndToYears'));
@@ -896,7 +932,21 @@ const useSchoolSettings = () => {
       toast.error(t('schoolSettings:toast.selectFromAndToYears'));
       return;
     }
-    if (!window.confirm(t('schoolSettings:confirm.promoteStudents', { fromYear, toYear }))) {
+    if (promotionScope === 'grade' && !promotionSourceGrade) {
+      toast.error('Choose the grade level to promote');
+      return;
+    }
+    if (promotionScope === 'selected' && selectedPromotionStudentIds.length === 0) {
+      toast.error('Select at least one student to promote');
+      return;
+    }
+
+    const scopeLabel = promotionScope === 'all'
+      ? 'all eligible students'
+      : promotionScope === 'grade'
+        ? `all Grade ${promotionSourceGrade} students`
+        : `${selectedPromotionStudentIds.length} selected student${selectedPromotionStudentIds.length === 1 ? '' : 's'}`;
+    if (!window.confirm(`Promote ${scopeLabel} from ${fromYear} to ${toYear}? This moves their active enrollment to the next grade.`)) {
       return;
     }
     setRolloverLoading(true);
@@ -905,7 +955,13 @@ const useSchoolSettings = () => {
       const res = await api.post('/schools/me/rollover/promote-students', {
         fromAcademicYear: fromYear,
         toAcademicYear: toYear,
-        options: { graduateGrade: 12, defaultSection: 'A' }
+        options: {
+          graduateGrade: 12,
+          defaultSection: 'A',
+          scope: promotionScope,
+          sourceGrade: promotionScope === 'grade' ? Number(promotionSourceGrade) : undefined,
+          studentIds: promotionScope === 'selected' ? selectedPromotionStudentIds : undefined
+        }
       });
       if (res.data.success) {
         toast.success(res.data.message || t('schoolSettings:toast.promoteSuccess'));
@@ -918,7 +974,7 @@ const useSchoolSettings = () => {
     } finally {
       setRolloverLoading(false);
     }
-  }, [fromYear, t, toYear]);
+  }, [fromYear, promotionScope, promotionSourceGrade, selectedPromotionStudentIds, t, toYear]);
 
   const handleSwitchToNewYear = useCallback(async () => {
     if (!toYear || !isConsecutiveAcademicYear(toYear)) {
@@ -1349,6 +1405,14 @@ const useSchoolSettings = () => {
     classesCreated,
     deactivateCount,
     promoteResult,
+    promotionScope,
+    setPromotionScope,
+    promotionSourceGrade,
+    setPromotionSourceGrade,
+    promotionStudents,
+    promotionStudentsLoading,
+    selectedPromotionStudentIds,
+    setSelectedPromotionStudentIds,
     schoolYearStartDate,
     setSchoolYearStartDate,
     schoolYearEndDate,

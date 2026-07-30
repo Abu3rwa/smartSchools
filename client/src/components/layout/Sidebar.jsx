@@ -294,6 +294,14 @@ const Sidebar = () => {
       section: "assessment",
     },
     {
+      path: "/portal/grammar-assessments",
+      icon: HiOutlineClipboardDocumentCheck,
+      labelKey: "grammarAssessments",
+      roles: ["admin", "teacher", "department_principal"],
+      feature: "standardsPractice",
+      section: "assessment",
+    },
+    {
       path: "/portal/curriculum",
       icon: HiOutlineBookOpen,
       labelKey: "curriculumPlanning",

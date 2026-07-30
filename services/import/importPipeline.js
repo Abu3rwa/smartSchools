@@ -677,7 +677,7 @@ const persistCandidate = async ({ candidate, entityType, preparation, context })
             candidate.action = 'error';
             return base;
         }
-        const academicYear = candidate.normalized.academicYear || classDoc?.academicYear || preparation.defaultAcademicYear || context.academicYear;
+        const academicYear = classDoc?.academicYear || candidate.normalized.academicYear || preparation.defaultAcademicYear || context.academicYear;
         if (!academicYear) {
             candidate.errors.push(createIssue(
                 candidate.rowNumber,

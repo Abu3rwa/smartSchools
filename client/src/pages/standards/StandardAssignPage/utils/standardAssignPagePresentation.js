@@ -1,4 +1,4 @@
-import { DIFFICULTY_OPTIONS, QUESTION_TYPE_OPTIONS } from '../constants';
+import { DIFFICULTY_OPTIONS, QUESTION_TYPE_OPTIONS, GRAMMAR_LEVEL_OPTIONS } from '../constants';
 import { formatStandardLabel } from '../../../../utils/standardLabel';
 
 const translate = (t, key, defaultValue, options = {}) =>
@@ -106,6 +106,15 @@ const normalizeAiLanguages = (value) => {
 };
 
 export const buildAssignmentEditForm = (assignment, selectedSemester) => {
+    const savedGrammarLevels = Array.isArray(assignment?.practiceConfig?.grammarLevels)
+        ? assignment.practiceConfig.grammarLevels
+        : [];
+    const validGrammarLevels = GRAMMAR_LEVEL_OPTIONS.map((item) => item.value);
+    const normalizedGrammarLevels = Array.from(
+        new Set(savedGrammarLevels.filter((level) => validGrammarLevels.includes(level)))
+    );
+    const grammarLevelingEnabled = Boolean(assignment?.practiceConfig?.enableGrammarLeveling);
+
     return {
         title: assignment?.title || '',
         standardId: assignment?.standard?._id || assignment?.standard || '',
@@ -135,6 +144,12 @@ export const buildAssignmentEditForm = (assignment, selectedSemester) => {
             allowedDifficulties: assignment?.practiceConfig?.allowedDifficulties?.length
                 ? assignment.practiceConfig.allowedDifficulties
                 : [...DIFFICULTY_OPTIONS],
+            enableGrammarLeveling: grammarLevelingEnabled,
+            grammarLevels: grammarLevelingEnabled
+                ? (normalizedGrammarLevels.length > 0
+                    ? normalizedGrammarLevels
+                    : [...validGrammarLevels])
+                : [],
             availability: {
                 startAt: toDateTimeLocalInput(assignment?.practiceConfig?.availability?.startAt),
                 endAt: toDateTimeLocalInput(assignment?.practiceConfig?.availability?.endAt)

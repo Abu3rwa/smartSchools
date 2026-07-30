@@ -1,0 +1,15 @@
+{
+  "header": {
+    "title": "Grammar Assessments",
+    "subtitle": "Create level-based grammar tests, regenerate questions, and track progress over time."
+  },
+  "actions": {
+    "newTest": "New Grammar Test",
+    "createTest": "Create Grammar Test",
+    "saveTestChanges": "Save Test Changes"
+  },
+  "modal": {
+    "createTitle": "Create Grammar Test",
+    "editTitle": "Edit Grammar Test"
+  }
+}

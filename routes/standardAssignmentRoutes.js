@@ -7,6 +7,7 @@ import {
     deleteAssignment,
     getAssignmentQuestionPool,
     updateAssignmentQuestionPool,
+    regenerateAssignmentQuestionPoolQuestion,
     reviewAssignmentQuestionPool,
     approveAssignmentQuestionPool,
     publishAssignmentQuestionPool
@@ -37,6 +38,8 @@ router.route('/:id')
 router.route('/:id/question-pool')
     .get(authorize('admin', 'teacher', 'department_principal', 'staff'), validationRules.mongoId, validate, getAssignmentQuestionPool)
     .put(authorize('admin', 'teacher'), validationRules.mongoId, validate, updateAssignmentQuestionPool);
+
+router.post('/:id/question-pool/regenerate', authorize('admin', 'teacher'), validationRules.mongoId, validate, regenerateAssignmentQuestionPoolQuestion);
 
 router.post('/:id/question-pool/review', authorize('admin', 'teacher'), validationRules.mongoId, validate, reviewAssignmentQuestionPool);
 router.post('/:id/question-pool/approve', authorize('admin', 'department_principal', 'staff'), validationRules.mongoId, validate, approveAssignmentQuestionPool);

@@ -6,6 +6,7 @@
     "assigning": "جارٍ الإسناد...",
     "assignStandard": "إسناد المعيار",
     "back": "السابق",
+    "backToGradebook": "العودة إلى سجل الدرجات",
     "cancel": "إلغاء",
     "clear": "مسح",
     "close": "إغلاق",
@@ -29,6 +30,8 @@
     "sbGradebook": "سجل الدرجات SB",
     "selectAllVisible": "تحديد كل الظاهر",
     "showAdvancedSettings": "إظهار الإعدادات المتقدمة",
+    "printReport": "طباعة التقرير",
+    "printStudentResult": "طباعة نتيجة الطالب",
     "submitReview": "إرسال للمراجعة",
     "viewProgress": "عرض التقدم"
   },
@@ -236,6 +239,23 @@
     "released": "متاح",
     "submitted": "مُرسل",
     "under_review": "قيد المراجعة"
+  },
+  "reports": {
+    "classReportTitle": "تقرير تقدم الفصل للتقييم",
+    "studentReportTitle": "نتيجة اختبار الطالب",
+    "generatedAt": "تاريخ الإنشاء",
+    "assignmentId": "الإسناد",
+    "studentAttempts": "محاولات الطالب",
+    "studentAnswer": "إجابة الطالب",
+    "correctAnswer": "الإجابة الصحيحة",
+    "noAttemptRows": "لا توجد محاولات متاحة.",
+    "overallProgress": "التقدم العام",
+    "classProgress": "تقدم الفصل",
+    "completionRate": "نسبة الإكمال",
+    "pendingStudents": "الطلاب المعلّقون",
+    "studentResults": "نتائج اختبار الطلاب",
+    "testSpecificProgress": "تقدم الاختبار المحدد (المحاولات المتكررة)",
+    "tabSwitches": "تبديلات التبويب"
   },
   "questionPool": {
     "changeSummaryPlaceholder": "صف التغييرات (اختياري)",

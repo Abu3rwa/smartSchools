@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import School from '../models/School.js';
@@ -136,6 +137,11 @@ export const promoteStudents = asyncHandler(async (req, res) => {
     const dryRun = req.query.dryRun === 'true';
     const graduateGrade = Math.max(1, Math.min(12, Number(options.graduateGrade) || 12));
     const defaultSection = String(options.defaultSection || 'A').substring(0, 10);
+    const scope = ['all', 'grade', 'selected'].includes(options.scope) ? options.scope : 'all';
+    const sourceGrade = Number(options.sourceGrade);
+    const selectedStudentIds = Array.isArray(options.studentIds)
+        ? Array.from(new Set(options.studentIds.map((value) => String(value || '').trim()).filter(Boolean)))
+        : [];
 
     if (!fromAcademicYear || !toAcademicYear) {
         return res.status(400).json({
@@ -150,15 +156,62 @@ export const promoteStudents = asyncHandler(async (req, res) => {
         });
     }
 
-    const students = await Student.find({
+    if (scope === 'grade' && (!Number.isInteger(sourceGrade) || sourceGrade < 1 || sourceGrade > 12)) {
+        return res.status(400).json({
+            success: false,
+            message: 'A grade between 1 and 12 is required when promotion scope is grade'
+        });
+    }
+    if (scope === 'selected' && selectedStudentIds.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: 'Select at least one student when promotion scope is selected'
+        });
+    }
+    if (scope === 'selected' && selectedStudentIds.some((id) => !mongoose.isValidObjectId(id))) {
+        return res.status(400).json({
+            success: false,
+            message: 'One or more selected student IDs are invalid'
+        });
+    }
+
+    const studentQuery = {
         school: req.schoolId,
         academicYear: fromAcademicYear,
         status: 'active',
         currentClass: { $exists: true, $ne: null }
-    }).populate('currentClass', 'grade section');
+    };
+
+    if (scope === 'grade') {
+        const sourceClasses = await Class.find({
+            school: req.schoolId,
+            academicYear: fromAcademicYear,
+            grade: sourceGrade
+        }).select('_id').lean();
+        studentQuery.currentClass = { $in: sourceClasses.map((item) => item._id) };
+    }
+    if (scope === 'selected') {
+        studentQuery._id = { $in: selectedStudentIds };
+    }
+
+    const students = await Student.find(studentQuery).populate('currentClass', 'grade section');
+
+    if (scope === 'selected' && students.length !== selectedStudentIds.length) {
+        return res.status(400).json({
+            success: false,
+            message: 'One or more selected students are not active in the chosen academic year'
+        });
+    }
 
     if (dryRun) {
-        const preview = { wouldPromote: 0, wouldGraduate: 0, wouldSkip: 0, issues: [] };
+        const preview = {
+            scope,
+            candidateCount: students.length,
+            wouldPromote: 0,
+            wouldGraduate: 0,
+            wouldSkip: 0,
+            issues: []
+        };
         for (const student of students) {
             const currentClass = student.currentClass;
             if (!currentClass) { preview.wouldSkip++; continue; }
@@ -184,7 +237,7 @@ export const promoteStudents = asyncHandler(async (req, res) => {
         });
     }
 
-    const result = { promoted: 0, graduated: 0, skipped: 0, errors: [] };
+    const result = { scope, candidateCount: students.length, promoted: 0, graduated: 0, skipped: 0, errors: [] };
     const leftAt = new Date();
 
     for (const student of students) {
@@ -197,23 +250,20 @@ export const promoteStudents = asyncHandler(async (req, res) => {
             const currentGrade = currentClass.grade;
             const section = currentClass.section || defaultSection;
 
-            // Append current enrollment to history
             const historyEntry = {
                 academicYear: fromAcademicYear,
                 class: student.currentClass._id,
                 leftAt
             };
-            await Student.findByIdAndUpdate(student._id, {
-                $push: {
-                    classEnrollmentHistory: {
-                        $each: [historyEntry],
-                        $position: 0
-                    }
-                }
-            });
 
             if (currentGrade >= graduateGrade) {
                 await Student.findByIdAndUpdate(student._id, {
+                    $push: {
+                        classEnrollmentHistory: {
+                            $each: [historyEntry],
+                            $position: 0
+                        }
+                    },
                     status: 'graduated',
                     academicYear: toAcademicYear
                 });
@@ -237,6 +287,12 @@ export const promoteStudents = asyncHandler(async (req, res) => {
                 });
                 if (fallback) {
                     await Student.findByIdAndUpdate(student._id, {
+                        $push: {
+                            classEnrollmentHistory: {
+                                $each: [historyEntry],
+                                $position: 0
+                            }
+                        },
                         currentClass: fallback._id,
                         academicYear: toAcademicYear,
                         $addToSet: { enrolledClasses: fallback._id }
@@ -250,6 +306,12 @@ export const promoteStudents = asyncHandler(async (req, res) => {
             }
 
             await Student.findByIdAndUpdate(student._id, {
+                $push: {
+                    classEnrollmentHistory: {
+                        $each: [historyEntry],
+                        $position: 0
+                    }
+                },
                 currentClass: nextClass._id,
                 academicYear: toAcademicYear,
                 $addToSet: { enrolledClasses: nextClass._id }

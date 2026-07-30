@@ -4,6 +4,14 @@ export const QUESTION_TYPES = ['multiple_choice', 'true_false'];
 export const DIFFICULTIES = ['easy', 'medium', 'hard'];
 export const SESSION_TYPES = ['assessment', 'homework', 'classwork', 'practice'];
 export const AI_LANGUAGE_CODES = ['en', 'ar', 'fr', 'es', 'pt', 'tr', 'ur'];
+export const GRAMMAR_LEVELS = [
+    'beginner',
+    'elementary',
+    'pre_intermediate',
+    'intermediate',
+    'upper_intermediate',
+    'advanced'
+];
 
 export const practiceConfigSchema = z.object({
     sessionType: z.enum(SESSION_TYPES).optional(),
@@ -11,13 +19,23 @@ export const practiceConfigSchema = z.object({
     timeLimitSeconds: z.number().int().min(60).max(6 * 60 * 60).nullable().optional(),
     allowedQuestionTypes: z.array(z.enum(QUESTION_TYPES)).min(1).optional(),
     allowedDifficulties: z.array(z.enum(DIFFICULTIES)).min(1).optional(),
+    enableGrammarLeveling: z.boolean().optional(),
+    grammarLevels: z.array(z.enum(GRAMMAR_LEVELS)).min(1).optional(),
     aiLanguages: z.array(z.enum(AI_LANGUAGE_CODES)).min(1).max(2).optional(),
     availability: z.object({
         startAt: z.coerce.date().nullable().optional(),
         endAt: z.coerce.date().nullable().optional()
     }).optional(),
     lockStudentOptions: z.boolean().optional()
-}).strict();
+}).strict().superRefine((value, ctx) => {
+    if (value.enableGrammarLeveling && (!Array.isArray(value.grammarLevels) || value.grammarLevels.length === 0)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['grammarLevels'],
+            message: 'grammarLevels is required when enableGrammarLeveling is true'
+        });
+    }
+});
 
 export const assessmentConfigSchema = z.object({
     maxMarks: z.number().min(1).max(1000).optional(),
@@ -117,6 +135,7 @@ export const generateQuestionResponseSchema = z.object({
             text: z.string()
         })).optional(),
         difficulty: z.enum(DIFFICULTIES),
+        grammarLevel: z.enum(GRAMMAR_LEVELS).nullable().optional(),
         skill: z.string().nullable().optional(),
         subskill: z.string().nullable().optional(),
         attemptNumber: z.number()

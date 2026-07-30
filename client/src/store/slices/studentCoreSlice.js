@@ -69,9 +69,9 @@ export const updateStudent = createAsyncThunk(
 
 export const importStudents = createAsyncThunk(
     'students/importStudents',
-    async ({ students, classId }, { rejectWithValue }) => {
+    async ({ students, classId, duplicatePolicy = 'skip' }, { rejectWithValue }) => {
         try {
-            const response = await api.post('/students/import', { students, classId });
+            const response = await api.post('/students/import', { students, classId, duplicatePolicy });
             return response.data;
         } catch (error) {
             return rejectWithValue(error.response?.data || { message: 'Failed to import students' });

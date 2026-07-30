@@ -58,6 +58,14 @@ const SchoolSettingsPage = () => {
     classesCreated,
     deactivateCount,
     promoteResult,
+    promotionScope,
+    setPromotionScope,
+    promotionSourceGrade,
+    setPromotionSourceGrade,
+    promotionStudents,
+    promotionStudentsLoading,
+    selectedPromotionStudentIds,
+    setSelectedPromotionStudentIds,
     schoolYearStartDate,
     setSchoolYearStartDate,
     schoolYearEndDate,
@@ -280,6 +288,14 @@ const SchoolSettingsPage = () => {
               classesCreated={classesCreated}
               deactivateCount={deactivateCount}
               promoteResult={promoteResult}
+              promotionScope={promotionScope}
+              setPromotionScope={setPromotionScope}
+              promotionSourceGrade={promotionSourceGrade}
+              setPromotionSourceGrade={setPromotionSourceGrade}
+              promotionStudents={promotionStudents}
+              promotionStudentsLoading={promotionStudentsLoading}
+              selectedPromotionStudentIds={selectedPromotionStudentIds}
+              setSelectedPromotionStudentIds={setSelectedPromotionStudentIds}
               currentAcademicYear={currentAcademicYear}
               onCopyClasses={handleCopyClasses}
               onDeactivateYear={handleDeactivateYear}

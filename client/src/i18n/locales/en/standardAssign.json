@@ -6,6 +6,7 @@
     "assigning": "Assigning...",
     "assignStandard": "Assign Standard",
     "back": "Back",
+    "backToGradebook": "Back to gradebook",
     "cancel": "Cancel",
     "clear": "Clear",
     "close": "Close",
@@ -29,6 +30,8 @@
     "sbGradebook": "SB Gradebook",
     "selectAllVisible": "Select all visible",
     "showAdvancedSettings": "Show Advanced Settings",
+    "printReport": "Print Report",
+    "printStudentResult": "Print Student Result",
     "submitReview": "Submit Review",
     "viewProgress": "View Progress"
   },
@@ -236,6 +239,23 @@
     "released": "Released",
     "submitted": "Submitted",
     "under_review": "Under Review"
+  },
+  "reports": {
+    "classReportTitle": "Assessment Class Progress Report",
+    "studentReportTitle": "Student Test Result",
+    "generatedAt": "Generated at",
+    "assignmentId": "Assignment",
+    "studentAttempts": "Student Attempts",
+    "studentAnswer": "Student Answer",
+    "correctAnswer": "Correct Answer",
+    "noAttemptRows": "No attempts available.",
+    "overallProgress": "Overall Progress",
+    "classProgress": "Class Progress",
+    "completionRate": "Completion Rate",
+    "pendingStudents": "Pending Students",
+    "studentResults": "Student Test Results",
+    "testSpecificProgress": "Test-Specific Progress (Repeated Attempts)",
+    "tabSwitches": "Tab Switches"
   },
   "questionPool": {
     "changeSummaryPlaceholder": "Describe what changed (optional)",

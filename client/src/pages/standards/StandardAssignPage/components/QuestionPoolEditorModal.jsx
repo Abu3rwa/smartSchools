@@ -6,6 +6,14 @@ import ErrorState from './ErrorState';
 const MC_LABELS = ['A', 'B', 'C', 'D'];
 const QUESTION_TYPES = ['multiple_choice', 'true_false'];
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
+const GRAMMAR_LEVELS = [
+    'beginner',
+    'elementary',
+    'pre_intermediate',
+    'intermediate',
+    'upper_intermediate',
+    'advanced'
+];
 
 const createMcOptions = () =>
     MC_LABELS.map((label) => ({
@@ -19,6 +27,10 @@ const normalizeQuestionType = (value) =>
     QUESTION_TYPES.includes(value) ? value : 'multiple_choice';
 
 const normalizeDifficulty = (value) => (DIFFICULTIES.includes(value) ? value : 'medium');
+const normalizeGrammarLevel = (value) =>
+    GRAMMAR_LEVELS.includes(String(value || '').trim().toLowerCase())
+        ? String(value || '').trim().toLowerCase()
+        : null;
 
 const normalizeIncomingQuestion = (question = {}, index = 0) => {
     const questionType = normalizeQuestionType(question.questionType);
@@ -27,6 +39,7 @@ const normalizeIncomingQuestion = (question = {}, index = 0) => {
         questionText: toNonEmptyString(question.questionText),
         questionType,
         difficulty: normalizeDifficulty(question.difficulty),
+        grammarLevel: normalizeGrammarLevel(question.grammarLevel),
         explanation: toNonEmptyString(question.explanation),
         correctAnswer: toNonEmptyString(question.correctAnswer),
         options: []
@@ -86,8 +99,10 @@ const QuestionPoolEditorModal = ({
     data,
     assignmentId,
     saving,
+    regeneratingQuestionIndex,
     onRetry,
-    onSave
+    onSave,
+    onRegenerateQuestion
 }) => {
     const { t } = useTranslation(['standardAssign']);
     const [questions, setQuestions] = useState([]);
@@ -232,7 +247,8 @@ const QuestionPoolEditorModal = ({
                     options,
                     correctAnswer,
                     explanation,
-                    difficulty
+                    difficulty,
+                    grammarLevel: normalizeGrammarLevel(item.grammarLevel)
                 });
                 continue;
             }
@@ -249,27 +265,11 @@ const QuestionPoolEditorModal = ({
                     ],
                     correctAnswer,
                     explanation,
-                    difficulty
+                    difficulty,
+                    grammarLevel: normalizeGrammarLevel(item.grammarLevel)
                 });
                 continue;
             }
-
-            const correctAnswer = toNonEmptyString(item.correctAnswer);
-            if (!correctAnswer) {
-                return {
-                    errorMessage: t('standardAssign:questionPool.validation.expectedAnswerRequired', {
-                        index: i + 1
-                    })
-                };
-            }
-            normalizedQuestions.push({
-                questionText,
-                questionType,
-                options: [],
-                correctAnswer,
-                explanation,
-                difficulty
-            });
         }
 
         return { questions: normalizedQuestions };
@@ -283,6 +283,17 @@ const QuestionPoolEditorModal = ({
         }
         setLocalError('');
         await onSave(payloadQuestions, changeSummary.trim());
+    };
+
+    const handleRegenerate = async (question, index) => {
+        if (!assignmentId || typeof onRegenerateQuestion !== 'function') return;
+        setLocalError('');
+        await onRegenerateQuestion({
+            questionIndex: index,
+            questionType: normalizeQuestionType(question?.questionType),
+            difficulty: normalizeDifficulty(question?.difficulty),
+            grammarLevel: normalizeGrammarLevel(question?.grammarLevel)
+        });
     };
 
     if (!show) return null;
@@ -340,8 +351,22 @@ const QuestionPoolEditorModal = ({
                                             <button
                                                 type="button"
                                                 className="btn btn-secondary btn-sm"
+                                                onClick={() => handleRegenerate(question, index)}
+                                                disabled={saving || regeneratingQuestionIndex === index}
+                                            >
+                                                {regeneratingQuestionIndex === index
+                                                    ? t('standardAssign:actions.regenerating', {
+                                                        defaultValue: 'Regenerating...'
+                                                    })
+                                                    : t('standardAssign:actions.regenerateQuestion', {
+                                                        defaultValue: 'Regenerate'
+                                                    })}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary btn-sm"
                                                 onClick={() => handleRemoveQuestion(index)}
-                                                disabled={questions.length <= 1 || saving}
+                                                disabled={questions.length <= 1 || saving || regeneratingQuestionIndex === index}
                                             >
                                                 {t('standardAssign:actions.remove')}
                                             </button>
@@ -375,7 +400,6 @@ const QuestionPoolEditorModal = ({
                                                     <option value="multiple_choice">
                                                         {t('standardAssign:questionPool.types.multipleChoice')}
                                                     </option>
-                                                    <option value="short_answer">{t('standardAssign:questionPool.types.shortAnswer')}</option>
                                                     <option value="true_false">{t('standardAssign:questionPool.types.trueFalse')}</option>
                                                 </select>
                                             </div>
@@ -396,6 +420,23 @@ const QuestionPoolEditorModal = ({
                                                     <option value="hard">{t('standardAssign:difficulty.hard')}</option>
                                                 </select>
                                             </div>
+                                            {question.grammarLevel ? (
+                                                <div className="form-group">
+                                                    <label>
+                                                        {t('standardAssign:questionPool.labels.grammarLevel', {
+                                                            defaultValue: 'Grammar Level'
+                                                        })}
+                                                    </label>
+                                                    <input
+                                                        className="form-input"
+                                                        value={question.grammarLevel
+                                                            .split('_')
+                                                            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                                                            .join(' ')}
+                                                        readOnly
+                                                    />
+                                                </div>
+                                            ) : null}
                                         </div>
 
                                         {question.questionType === 'multiple_choice' && (
@@ -463,23 +504,6 @@ const QuestionPoolEditorModal = ({
                                                         ))}
                                                     </select>
                                                 </div>
-                                            </div>
-                                        )}
-
-                                        {question.questionType === 'short_answer' && (
-                                            <div className="form-group">
-                                                <label>{t('standardAssign:questionPool.labels.expectedAnswerRequired')}</label>
-                                                <textarea
-                                                    className="form-input"
-                                                    rows={2}
-                                                    value={question.correctAnswer}
-                                                    onChange={(event) =>
-                                                        updateQuestion(index, (current) => ({
-                                                            ...current,
-                                                            correctAnswer: event.target.value
-                                                        }))
-                                                    }
-                                                />
                                             </div>
                                         )}
 

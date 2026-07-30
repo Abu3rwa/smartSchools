@@ -1,5 +1,6 @@
 import Assignment from '../models/Assignment.js';
 import AssignmentType from '../models/AssignmentType.js';
+import GrammarTest from '../models/GrammarTest.js';
 import Class from '../models/Class.js';
 import Grade from '../models/Grade.js';
 import Notification from '../models/Notification.js';
@@ -179,6 +180,54 @@ const mapAssignmentSummary = (assignment) => {
             : null
     };
 };
+
+const mapGrammarTestSummary = (grammarTest) => ({
+    id: grammarTest._id,
+    title: grammarTest.title || 'Grammar Test',
+    instructions: 'Complete the assigned grammar test in the practice workspace.',
+    assignmentType: {
+        id: '',
+        key: 'grammar_test',
+        name: 'Grammar Test'
+    },
+    assignedDate: grammarTest.questionWorkflow?.publishedAt || grammarTest.createdAt || null,
+    dueDate: grammarTest.practiceConfig?.availability?.endAt || null,
+    status: 'published',
+    scope: Array.isArray(grammarTest.students) && grammarTest.students.length > 0
+        ? 'selected_students'
+        : 'class',
+    studentIds: Array.isArray(grammarTest.students)
+        ? grammarTest.students.map((studentId) => toId(studentId))
+        : [],
+    lessonPlanIds: [],
+    lessonPlans: [],
+    links: [],
+    attachments: [],
+    maxMarks: Number(grammarTest.assessmentConfig?.maxMarks || 100),
+    allowLateSubmission: false,
+    notifyOnAssign: grammarTest.notifyStudents !== false,
+    notifyAudience: grammarTest.notifyParents === false ? 'students' : 'both',
+    notifyOnGrade: false,
+    publishedAt: grammarTest.questionWorkflow?.publishedAt || null,
+    academicYear: grammarTest.academicYear || '',
+    isGrammarTest: true,
+    practiceAssignmentId: toId(grammarTest.linkedAssignment),
+    class: grammarTest.class
+        ? {
+            id: toId(grammarTest.class?._id || grammarTest.class),
+            name: grammarTest.class?.name || '',
+            grade: grammarTest.class?.grade ?? null,
+            section: grammarTest.class?.section || ''
+        }
+        : null,
+    subject: grammarTest.subject
+        ? {
+            id: toId(grammarTest.subject?._id || grammarTest.subject),
+            name: grammarTest.subject?.name || '',
+            code: grammarTest.subject?.code || ''
+        }
+        : null
+});
 
 const resolveTargetStudentsForAssignment = async (assignment) => {
     const query = {
@@ -449,7 +498,9 @@ export const getMyAssignmentsForStudent = asyncHandler(async (req, res) => {
         return res.json({ success: true, data: { items: [] } });
     }
 
-    const rows = await Assignment.find({
+    const now = new Date();
+    const [rows, grammarTests] = await Promise.all([
+        Assignment.find({
         school: req.schoolId,
         academicYear,
         class: classId,
@@ -465,12 +516,50 @@ export const getMyAssignmentsForStudent = asyncHandler(async (req, res) => {
         .populate('subject', 'name code')
         .populate('lessonPlanIds', 'title date')
         .sort({ dueDate: 1, assignedDate: -1, createdAt: -1 })
-        .lean();
+        .lean(),
+        GrammarTest.find({
+            school: req.schoolId,
+            academicYear,
+            class: classId,
+            isActive: true,
+            isEnabled: true,
+            'questionWorkflow.status': 'published',
+            linkedAssignment: { $ne: null },
+            $and: [
+                {
+                    $or: [
+                        { students: { $size: 0 } },
+                        { students: { $exists: false } },
+                        { students: student._id }
+                    ]
+                },
+                {
+                    $or: [
+                        { 'practiceConfig.availability.startAt': null },
+                        { 'practiceConfig.availability.startAt': { $lte: now } }
+                    ]
+                },
+                {
+                    $or: [
+                        { 'practiceConfig.availability.endAt': null },
+                        { 'practiceConfig.availability.endAt': { $gte: now } }
+                    ]
+                }
+            ]
+        })
+            .populate('class', 'name grade section')
+            .populate('subject', 'name code')
+            .sort({ 'practiceConfig.availability.endAt': 1, createdAt: -1 })
+            .lean()
+    ]);
 
     res.json({
         success: true,
         data: {
-            items: rows.map(mapAssignmentSummary)
+            items: [
+                ...rows.map(mapAssignmentSummary),
+                ...grammarTests.map(mapGrammarTestSummary)
+            ]
         }
     });
 });

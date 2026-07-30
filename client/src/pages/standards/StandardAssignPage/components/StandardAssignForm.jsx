@@ -27,7 +27,8 @@ const StandardAssignForm = ({
     students,
     showAdvanced,
     setShowAdvanced,
-    getEntityId
+    getEntityId,
+    grammarOnly = false
 }) => {
     const { t, i18n } = useTranslation(['standardAssign']);
     const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
@@ -59,6 +60,9 @@ const StandardAssignForm = ({
     const selectedAiLanguages = Array.isArray(formData.aiLanguages)
         ? formData.aiLanguages.filter(Boolean).slice(0, 2)
         : ['en'];
+    const selectedGrammarLevels = Array.isArray(formData.practiceConfig?.grammarLevels)
+        ? formData.practiceConfig.grammarLevels.filter(Boolean)
+        : [];
     const primaryAiLanguage = selectedAiLanguages[0] || 'en';
     const secondaryAiLanguage = selectedAiLanguages[1] || '';
     const applyAiLanguages = (primary, secondary = '') => {
@@ -176,7 +180,7 @@ const StandardAssignForm = ({
         String(formData.title || '').trim().length > 0 &&
         Boolean(formData.classId) &&
         Boolean(formData.subjectId) &&
-        Boolean(formData.standardId);
+        (grammarOnly || Boolean(formData.standardId));
 
     const isStep2Valid = studentScope === 'whole' || selectedStudents.length > 0;
 
@@ -220,74 +224,106 @@ const StandardAssignForm = ({
         setCurrentStep(targetStep);
     };
 
-    const summaryItems = useMemo(() => ([
-        {
-            key: 'name',
-            label: t('standardAssign:form.summary.name'),
-            value: String(formData.title || '').trim() || t('standardAssign:form.summary.untitledAssignment')
-        },
-        {
-            key: 'class',
-            label: t('standardAssign:form.summary.class'),
-            value: selectedClass?.name || t('standardAssign:common.notSelected')
-        },
-        {
-            key: 'subject',
-            label: t('standardAssign:form.summary.subject'),
-            value: selectedSubjectName
-        },
-        {
-            key: 'standard',
-            label: t('standardAssign:form.summary.standard'),
-            value: selectedStandardLabel
-        },
-        {
-            key: 'mode',
-            label: t('standardAssign:form.summary.mode'),
-            value: formData.practiceConfig.sessionType === 'assessment'
-                ? t('standardAssign:modes.gradedAssessment')
-                : t('standardAssign:modes.practice')
-        },
-        {
-            key: 'learners',
-            label: t('standardAssign:form.summary.learners'),
-            value: studentScope === 'whole'
-                ? t('standardAssign:form.studentScope.wholeClass', { count: students.length })
-                : t('standardAssign:form.studentScope.selectedCount', { count: selectedStudents.length })
-        },
-        {
-            key: 'dueDate',
-            label: t('standardAssign:form.summary.dueDate'),
-            value: formatDateValue(formData.dueDate, locale, t('standardAssign:common.notSet'))
-        },
-        {
-            key: 'preGenerated',
-            label: t('standardAssign:form.summary.preGenerated'),
-            value: t('standardAssign:form.summary.preGeneratedCount', { count: formData.preGeneratedQuestionCount || 10 })
-        },
-        {
-            key: 'aiLanguages',
-            label: t('standardAssign:form.summary.aiLanguages'),
-            value: selectedAiLanguages.map((code) => getAiLanguageLabel(code)).join(' + ')
-        },
-        {
-            key: 'notifyParents',
-            label: t('standardAssign:form.summary.notifyParents', { defaultValue: 'Notify Parents' }),
-            value: formData.notifyParents !== false
-                ? t('standardAssign:common.yes', { defaultValue: 'Yes' })
-                : t('standardAssign:common.no', { defaultValue: 'No' })
-        },
-        {
-            key: 'notifyStudents',
-            label: t('standardAssign:form.summary.notifyStudents', { defaultValue: 'Notify Students' }),
-            value: formData.notifyStudents !== false
-                ? t('standardAssign:common.yes', { defaultValue: 'Yes' })
-                : t('standardAssign:common.no', { defaultValue: 'No' })
+    const summaryItems = useMemo(() => {
+        const items = [
+            {
+                key: 'name',
+                label: t('standardAssign:form.summary.name'),
+                value: String(formData.title || '').trim() || t('standardAssign:form.summary.untitledAssignment')
+            },
+            {
+                key: 'class',
+                label: t('standardAssign:form.summary.class'),
+                value: selectedClass?.name || t('standardAssign:common.notSelected')
+            },
+            {
+                key: 'subject',
+                label: t('standardAssign:form.summary.subject'),
+                value: selectedSubjectName
+            },
+            {
+                key: 'mode',
+                label: t('standardAssign:form.summary.mode'),
+                value: formData.practiceConfig.sessionType === 'assessment'
+                    ? t('standardAssign:modes.gradedAssessment')
+                    : t('standardAssign:modes.practice')
+            },
+            {
+                key: 'learners',
+                label: t('standardAssign:form.summary.learners'),
+                value: studentScope === 'whole'
+                    ? t('standardAssign:form.studentScope.wholeClass', { count: students.length })
+                    : t('standardAssign:form.studentScope.selectedCount', { count: selectedStudents.length })
+            },
+            {
+                key: 'dueDate',
+                label: t('standardAssign:form.summary.dueDate'),
+                value: formatDateValue(formData.dueDate, locale, t('standardAssign:common.notSet'))
+            },
+            {
+                key: 'preGenerated',
+                label: t('standardAssign:form.summary.preGenerated'),
+                value: t('standardAssign:form.summary.preGeneratedCount', { count: formData.preGeneratedQuestionCount || 10 })
+            },
+            {
+                key: 'grammarLevels',
+                label: t('standardAssign:form.summary.grammarLevels', {
+                    defaultValue: 'Grammar Levels'
+                }),
+                value: formData.practiceConfig.enableGrammarLeveling
+                    ? (selectedGrammarLevels.length > 0
+                        ? selectedGrammarLevels
+                            .map((level) =>
+                                t(`standardAssign:grammarLevels.${level}`, {
+                                    defaultValue: level
+                                        .split('_')
+                                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                                        .join(' ')
+                                })
+                            )
+                            .join(', ')
+                        : t('standardAssign:form.summary.noneSelected', { defaultValue: 'None selected' })
+                    )
+                    : t('standardAssign:form.summary.disabled', { defaultValue: 'Disabled' })
+            }
+        ];
+
+        if (!grammarOnly) {
+            items.splice(3, 0, {
+                key: 'standard',
+                label: t('standardAssign:form.summary.standard'),
+                value: selectedStandardLabel
+            });
+            items.push({
+                key: 'aiLanguages',
+                label: t('standardAssign:form.summary.aiLanguages'),
+                value: selectedAiLanguages.map((code) => getAiLanguageLabel(code)).join(' + ')
+            });
         }
-    ]), [
+
+        items.push(
+            {
+                key: 'notifyParents',
+                label: t('standardAssign:form.summary.notifyParents', { defaultValue: 'Notify Parents' }),
+                value: formData.notifyParents !== false
+                    ? t('standardAssign:common.yes', { defaultValue: 'Yes' })
+                    : t('standardAssign:common.no', { defaultValue: 'No' })
+            },
+            {
+                key: 'notifyStudents',
+                label: t('standardAssign:form.summary.notifyStudents', { defaultValue: 'Notify Students' }),
+                value: formData.notifyStudents !== false
+                    ? t('standardAssign:common.yes', { defaultValue: 'Yes' })
+                    : t('standardAssign:common.no', { defaultValue: 'No' })
+            }
+        );
+
+        return items;
+    }, [
         t,
         formData.title,
         formData.practiceConfig.sessionType,
+        formData.practiceConfig.enableGrammarLeveling,
         formData.dueDate,
         formData.preGeneratedQuestionCount,
         formData.notifyParents,
@@ -299,7 +335,9 @@ const StandardAssignForm = ({
         students.length,
         selectedStudents.length,
         selectedAiLanguages,
-        locale
+        selectedGrammarLevels,
+        locale,
+        grammarOnly
     ]);
 
     return (
@@ -360,6 +398,7 @@ const StandardAssignForm = ({
                     isArabicOrIslamicSubjectName={isArabicOrIslamicSubjectName}
                     showAdvanced={showAdvanced}
                     setShowAdvanced={setShowAdvanced}
+                    grammarOnly={grammarOnly}
                 />
             )}
 
@@ -396,6 +435,7 @@ const StandardAssignForm = ({
                     secondaryAiLanguage={secondaryAiLanguage}
                     applyAiLanguages={applyAiLanguages}
                     formatQuestionType={formatQuestionType}
+                    grammarOnly={grammarOnly}
                 />
             )}
 

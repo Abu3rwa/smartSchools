@@ -33,6 +33,7 @@ import {
     HiOutlineUserAdd
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import api from '../../../config/api';
 import './StudentsPage.css';
 import StudentsTable from './components/StudentsTable';
 import StudentFormModal from './components/StudentFormModal';
@@ -78,6 +79,8 @@ const StudentsPage = () => {
 
     const [searchTerm, setSearchTerm] = useState(searchFromUrl);
     const [filterClass, setFilterClass] = useState('');
+    const [studentAcademicYears, setStudentAcademicYears] = useState([]);
+    const [selectedAcademicYear, setSelectedAcademicYear] = useState(academicYear || '');
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editingStudentId, setEditingStudentId] = useState(null);
@@ -141,8 +144,8 @@ const StudentsPage = () => {
         limit: pageSize,
         search: searchTerm.trim() || undefined,
         classId: filterClass || undefined,
-        academicYear: academicYear || undefined
-    }), [currentPage, pageSize, searchTerm, filterClass, academicYear]);
+        academicYear: selectedAcademicYear || undefined
+    }), [currentPage, pageSize, searchTerm, filterClass, selectedAcademicYear]);
 
     const totalItems = Number.isFinite(Number(pagination?.total))
         ? Number(pagination.total)
@@ -154,10 +157,32 @@ const StudentsPage = () => {
     }, [searchFromUrl]);
 
     useEffect(() => {
-        dispatch(fetchClasses({ limit: 'all', academicYear: academicYear || undefined }));
+        setSelectedAcademicYear(academicYear || '');
+    }, [academicYear]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadAcademicYears = async () => {
+            try {
+                const response = await api.get('/schools/me/academic-years');
+                if (!cancelled && response.data?.success) {
+                    setStudentAcademicYears(response.data?.data?.academicYears || []);
+                }
+            } catch {
+                if (!cancelled) setStudentAcademicYears([]);
+            }
+        };
+
+        loadAcademicYears();
+        return () => { cancelled = true; };
+    }, []);
+
+    useEffect(() => {
+        dispatch(fetchClasses({ limit: 'all', academicYear: selectedAcademicYear || undefined }));
         dispatch(fetchDepartments());
         dispatch(fetchSchoolFeatures());
-    }, [dispatch, academicYear]);
+    }, [dispatch, selectedAcademicYear]);
 
     useEffect(() => {
         dispatch(fetchStudents(studentsQueryParams));
@@ -533,13 +558,30 @@ const StudentsPage = () => {
         }
 
         setImporting(true);
-        const result = await dispatch(importStudents({ students: csvData, classId: importClassId }));
+        const result = await dispatch(importStudents({
+            students: csvData,
+            classId: importClassId,
+            duplicatePolicy: 'update'
+        }));
 
         if (importStudents.fulfilled.match(result)) {
             setImportResult(result.payload);
             if (result.payload.data.imported > 0) {
                 toast.success(result.payload.message);
-                refreshStudents();
+                const importedClass = classes.find((currentClass) => currentClass._id === importClassId);
+                const importedAcademicYear = importedClass?.academicYear || selectedAcademicYear;
+                setSearchTerm('');
+                setSelectedAcademicYear(importedAcademicYear);
+                setFilterClass(importClassId);
+                setCurrentPage(1);
+                setSelectedStudentIds(new Set());
+                dispatch(fetchStudents({
+                    page: 1,
+                    limit: pageSize,
+                    classId: importClassId,
+                    academicYear: importedAcademicYear || undefined
+                }));
+                dispatch(fetchSchoolFeatures());
             }
             if (result.payload.data.failed > 0) {
                 toast.error(t('students:toast.rowsFailed', { count: result.payload.data.failed }));
@@ -685,6 +727,20 @@ const StudentsPage = () => {
                         onChange={(event) => setSearchTerm(event.target.value)}
                     />
                 </div>
+                <select
+                    value={selectedAcademicYear}
+                    onChange={(event) => {
+                        setSelectedAcademicYear(event.target.value);
+                        setFilterClass('');
+                        setCurrentPage(1);
+                        setSelectedStudentIds(new Set());
+                    }}
+                    aria-label="Academic year"
+                >
+                    {[...new Set([academicYear, ...studentAcademicYears].filter(Boolean))]
+                        .sort()
+                        .map((year) => <option key={year} value={year}>{year}</option>)}
+                </select>
                 <select value={filterClass} onChange={(event) => setFilterClass(event.target.value)}>
                     <option value="">{t('students:filters.allClasses')}</option>
                     <option value="unassigned">{t('students:filters.unassignedStudents')}</option>

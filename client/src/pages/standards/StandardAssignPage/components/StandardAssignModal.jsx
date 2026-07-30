@@ -23,9 +23,22 @@ const StandardAssignModal = ({
     students,
     showAdvanced,
     setShowAdvanced,
-    getEntityId
+    getEntityId,
+    grammarOnly = false,
+    modalCreateTitle,
+    modalEditTitle,
+    submitCreateLabel,
+    submitEditLabel
 }) => {
     const { t } = useTranslation(['standardAssign']);
+    const resolvedCreateTitle =
+        modalCreateTitle || t('standardAssign:modal.assignStandardTitle');
+    const resolvedEditTitle =
+        modalEditTitle || t('standardAssign:modal.editAssignmentTitle');
+    const resolvedCreateActionLabel =
+        submitCreateLabel || t('standardAssign:actions.assignStandard');
+    const resolvedEditActionLabel =
+        submitEditLabel || t('standardAssign:actions.saveChanges');
 
     if (!showAssignModal) return null;
 
@@ -35,8 +48,8 @@ const StandardAssignModal = ({
                 <div className="modal-header">
                     <h3>
                         {editingAssignmentId
-                            ? t('standardAssign:modal.editAssignmentTitle')
-                            : t('standardAssign:modal.assignStandardTitle')}
+                            ? resolvedEditTitle
+                            : resolvedCreateTitle}
                     </h3>
                     <button className="modal-close" onClick={onClose}>
                         &times;
@@ -61,6 +74,7 @@ const StandardAssignModal = ({
                         showAdvanced={showAdvanced}
                         setShowAdvanced={setShowAdvanced}
                         getEntityId={getEntityId}
+                        grammarOnly={grammarOnly}
                     />
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>
@@ -72,8 +86,8 @@ const StandardAssignModal = ({
                                     ? t('standardAssign:actions.saving')
                                     : t('standardAssign:actions.assigning')
                                 : editingAssignmentId
-                                  ? t('standardAssign:actions.saveChanges')
-                                  : t('standardAssign:actions.assignStandard')}
+                                  ? resolvedEditActionLabel
+                                  : resolvedCreateActionLabel}
                         </button>
                     </div>
                 </form>

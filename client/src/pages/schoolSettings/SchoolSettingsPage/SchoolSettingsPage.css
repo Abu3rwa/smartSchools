@@ -635,6 +635,89 @@
     margin-bottom: var(--spacing-sm);
 }
 
+.school-settings-page .promotion-scope-control {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-md) 0;
+}
+
+.school-settings-page .promotion-scope-control label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.88rem;
+}
+
+.school-settings-page .promotion-scope-control input {
+    margin: 0;
+}
+
+.school-settings-page .promotion-grade-select {
+    max-width: 260px;
+    margin-bottom: var(--spacing-md);
+}
+
+.school-settings-page .promotion-student-picker {
+    margin: 0 0 var(--spacing-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+.school-settings-page .promotion-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.school-settings-page .promotion-picker-header .btn {
+    white-space: nowrap;
+}
+
+.school-settings-page .promotion-student-list {
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.school-settings-page .promotion-student-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0.65rem var(--spacing-md);
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+    cursor: pointer;
+}
+
+.school-settings-page .promotion-student-row:last-child {
+    border-bottom: 0;
+}
+
+.school-settings-page .promotion-student-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.school-settings-page .promotion-student-row small {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
 .school-settings-page .weekday-chip-group {
     display: flex;
     flex-wrap: wrap;

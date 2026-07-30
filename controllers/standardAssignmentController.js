@@ -21,6 +21,13 @@ import {
     resolvePreGeneratedQuestionCount,
     DEFAULT_PREGENERATED_QUESTION_COUNT
 } from '../services/standardAssignmentService.js';
+import standardsPracticeAIService from '../services/standardsPracticeAIService.js';
+import {
+    generateGrammarQuestion,
+    hasGrammarLevelingEnabled,
+    normalizeGrammarLevel,
+    normalizeGrammarLevels
+} from '../services/grammarAssessmentService.js';
 import notificationService from '../services/notificationService.js';
 import logger from '../utils/logger.js';
 
@@ -65,6 +72,78 @@ const getAssignmentScopedMasteryMinQuestions = (assignment) => {
     }
 
     return 5;
+};
+
+const SUPPORTED_REGEN_QUESTION_TYPES = ['multiple_choice', 'true_false'];
+const SUPPORTED_REGEN_DIFFICULTIES = ['easy', 'medium', 'hard'];
+
+const normalizeRegenQuestionType = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return SUPPORTED_REGEN_QUESTION_TYPES.includes(normalized) ? normalized : 'multiple_choice';
+};
+
+const normalizeRegenDifficulty = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return SUPPORTED_REGEN_DIFFICULTIES.includes(normalized) ? normalized : 'medium';
+};
+
+const GRAMMAR_STANDARD_CATEGORY = 'grammar_assessment';
+
+const resolveGrammarStandardCode = ({ gradeLevel, subjectId }) => {
+    const gradePart = Number.isFinite(Number(gradeLevel)) ? `G${Math.trunc(Number(gradeLevel))}` : 'GX';
+    const subjectPart = String(subjectId || '').slice(-6).toUpperCase();
+    return `GRAMMAR-${gradePart}-${subjectPart}`;
+};
+
+const resolveOrCreateGrammarStandard = async ({
+    schoolId,
+    subjectId,
+    classDoc,
+    subjectDoc,
+    userId
+}) => {
+    const parsedGrade = Math.trunc(Number(classDoc?.grade));
+    const gradeLevel = Number.isFinite(parsedGrade)
+        ? Math.min(12, Math.max(1, parsedGrade))
+        : 1;
+
+    const existing = await Standard.findOne({
+        school: schoolId,
+        subject: subjectId,
+        gradeLevel,
+        category: GRAMMAR_STANDARD_CATEGORY,
+    }).sort({ updatedAt: -1 });
+
+    if (existing) return existing;
+
+    const grammarCode = resolveGrammarStandardCode({ gradeLevel, subjectId });
+    const grammarName = `Grammar Assessment (Grade ${gradeLevel})`;
+    const grammarDescription = `Internal grammar assessment mapping for ${subjectDoc?.name || 'English'} grade ${gradeLevel}.`;
+
+    try {
+        return await Standard.create({
+            school: schoolId,
+            code: grammarCode,
+            name: grammarName,
+            description: grammarDescription,
+            subject: subjectId,
+            gradeLevel,
+            category: GRAMMAR_STANDARD_CATEGORY,
+            masteryThreshold: 80,
+            masteryMinQuestions: 5,
+            isActive: false,
+            createdBy: userId,
+        });
+    } catch (error) {
+        if (error?.code === 11000) {
+            const conflictResolved = await Standard.findOne({
+                school: schoolId,
+                code: grammarCode,
+            });
+            if (conflictResolved) return conflictResolved;
+        }
+        throw error;
+    }
 };
 
 
@@ -272,17 +351,41 @@ export const createAssignment = asyncHandler(async (req, res) => {
     const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const requestedSemester = normalizeSemester(req.body?.semester);
 
-    if (!standardId || !classId || !subjectId) {
-        return res.status(400).json({
-            success: false,
-            message: 'standardId, classId, and subjectId are required'
-        });
+    let parsedConfig = undefined;
+    if (practiceConfig !== undefined) {
+        const parsed = practiceConfigSchema.safeParse(practiceConfig);
+        if (!parsed.success) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid practiceConfig',
+                errors: parsed.error.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+            });
+        }
+        parsedConfig = parsed.data;
     }
 
-    // Verify standard exists
-    const standard = await Standard.findById(standardId);
-    if (!standard) {
-        return res.status(404).json({ success: false, message: 'Standard not found' });
+    let parsedAssessmentConfig = undefined;
+    if (assessmentConfig !== undefined) {
+        const parsed = assessmentConfigSchema.safeParse(assessmentConfig);
+        if (!parsed.success) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid assessmentConfig',
+                errors: parsed.error.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+            });
+        }
+        parsedAssessmentConfig = parsed.data;
+    }
+
+    const grammarAssessmentEnabled = hasGrammarLevelingEnabled(parsedConfig || practiceConfig || {});
+
+    if (!classId || !subjectId || (!standardId && !grammarAssessmentEnabled)) {
+        return res.status(400).json({
+            success: false,
+            message: grammarAssessmentEnabled
+                ? 'classId and subjectId are required'
+                : 'standardId, classId, and subjectId are required'
+        });
     }
 
     // Verify class exists
@@ -297,6 +400,35 @@ export const createAssignment = asyncHandler(async (req, res) => {
         });
     }
 
+    // Ensure subject exists in this class
+    const classSubjectEntry = (classDoc.subjects || []).find(s => s.subject?.toString() === subjectId);
+    if (!classSubjectEntry) {
+        return res.status(400).json({
+            success: false,
+            message: 'This subject is not configured for the selected class'
+        });
+    }
+    const subjectDoc = await Subject.findById(subjectId).select('name code').lean();
+    if (!subjectDoc) {
+        return res.status(404).json({ success: false, message: 'Subject not found' });
+    }
+
+    let standard = null;
+    if (standardId) {
+        standard = await Standard.findById(standardId);
+    } else if (grammarAssessmentEnabled) {
+        standard = await resolveOrCreateGrammarStandard({
+            schoolId: req.schoolId,
+            subjectId,
+            classDoc,
+            subjectDoc,
+            userId: req.user?._id || null,
+        });
+    }
+    if (!standard) {
+        return res.status(404).json({ success: false, message: 'Standard not found' });
+    }
+
     // Ensure the assignment is truly connected to the selected class:
     // - subject must match the standard's subject
     // - grade level must match the class grade
@@ -306,25 +438,13 @@ export const createAssignment = asyncHandler(async (req, res) => {
             message: 'Selected subject does not match the standard subject'
         });
     }
-    if (standard.gradeLevel !== classDoc.grade) {
+    if (Number(standard.gradeLevel) !== Number(classDoc.grade)) {
         return res.status(400).json({
             success: false,
             message: `Standard grade level (Grade ${standard.gradeLevel}) does not match the class grade (Grade ${classDoc.grade})`
         });
     }
 
-    // Ensure subject exists in this class
-    const classSubjectEntry = (classDoc.subjects || []).find(s => s.subject?.toString() === subjectId);
-    if (!classSubjectEntry) {
-        return res.status(400).json({
-            success: false,
-            message: 'This subject is not configured for the selected class'
-        });
-    }
-    const subjectDoc = await Subject.findById(subjectId).select('name').lean();
-    if (!subjectDoc) {
-        return res.status(404).json({ success: false, message: 'Subject not found' });
-    }
     const generationLanguages = resolveRequestedLanguages({
         requestedLanguages: aiLanguages,
         subjectName: subjectDoc?.name || '',
@@ -373,42 +493,20 @@ export const createAssignment = asyncHandler(async (req, res) => {
         }
     }
 
-    let parsedConfig = undefined;
-    if (practiceConfig !== undefined) {
-        const parsed = practiceConfigSchema.safeParse(practiceConfig);
-        if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid practiceConfig',
-                errors: parsed.error.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
-            });
-        }
-        parsedConfig = parsed.data;
-    }
-
-    let parsedAssessmentConfig = undefined;
-    if (assessmentConfig !== undefined) {
-        const parsed = assessmentConfigSchema.safeParse(assessmentConfig);
-        if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid assessmentConfig',
-                errors: parsed.error.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
-            });
-        }
-        parsedAssessmentConfig = parsed.data;
-    }
-
     const resolvedSessionType =
         parsedConfig?.sessionType || practiceConfig?.sessionType || 'practice';
     const requiresReviewedPoolBeforeAccess = resolvedSessionType === 'assessment';
 
     const resolvedTitle = normalizeTitle(req.body?.title)
-        || buildDefaultAssignmentTitle({
-            standard,
-            classDoc,
-            sessionType: resolvedSessionType
-        });
+        || (
+            grammarAssessmentEnabled
+                ? `Grammar Assessment - ${classDoc?.name || `Grade ${classDoc?.grade || ''}`}`.trim()
+                : buildDefaultAssignmentTitle({
+                    standard,
+                    classDoc,
+                    sessionType: resolvedSessionType
+                })
+        );
     const assignmentSemester = requestedSemester
         || resolveSemesterFromDate(dueDate || new Date());
 
@@ -458,7 +556,9 @@ export const createAssignment = asyncHandler(async (req, res) => {
         const notifAssignment = {
             _id: assignment._id,
             title: populated.title || resolvedTitle,
-            assignmentTypeName: resolvedSessionType === 'assessment' ? 'Assessment' : 'Standards Practice',
+            assignmentTypeName: resolvedSessionType === 'assessment'
+                ? (grammarAssessmentEnabled ? 'Grammar Assessment' : 'Assessment')
+                : 'Standards Practice',
             assignmentTypeKey: 'standard_assignment',
             dueDate: assignment.dueDate,
             instructions: assignment.instructions,
@@ -485,8 +585,12 @@ export const createAssignment = asyncHandler(async (req, res) => {
     res.status(201).json({
         success: true,
         message: generationError
-            ? 'Standard assigned, but question pool generation needs manual review'
-            : 'Standard assigned successfully',
+            ? (grammarAssessmentEnabled
+                ? 'Grammar assessment created, but question pool generation needs manual review'
+                : 'Standard assigned, but question pool generation needs manual review')
+            : (grammarAssessmentEnabled
+                ? 'Grammar assessment created successfully'
+                : 'Standard assigned successfully'),
         data: {
             assignment: populated,
             questionPool: {
@@ -523,7 +627,11 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     const requestedStandardId = req.body.standardId;
     const requestedClassId = req.body.classId;
     const requestedSubjectId = req.body.subjectId;
-    const nextStandardId = requestedStandardId || assignment.standard?.toString();
+    const requestedGrammarMode = req.body?.practiceConfig?.enableGrammarLeveling;
+    const grammarAssessmentEnabled = typeof requestedGrammarMode === 'boolean'
+        ? requestedGrammarMode
+        : Boolean(assignment?.practiceConfig?.enableGrammarLeveling);
+    let nextStandardId = requestedStandardId || assignment.standard?.toString();
     const nextClassId = requestedClassId || assignment.class?.toString();
     const nextSubjectId = requestedSubjectId || assignment.subject?.toString();
     const isCoreMappingChanged =
@@ -545,10 +653,6 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         }
     }
 
-    const standard = await Standard.findById(nextStandardId);
-    if (!standard) {
-        return res.status(404).json({ success: false, message: 'Standard not found' });
-    }
     const classDoc = await Class.findById(nextClassId);
     if (!classDoc) {
         return res.status(404).json({ success: false, message: 'Class not found' });
@@ -559,19 +663,6 @@ export const updateAssignment = asyncHandler(async (req, res) => {
             message: `Selected class is not in academic year ${effectiveAcademicYear}`
         });
     }
-    if (standard.subject?.toString() !== nextSubjectId) {
-        return res.status(400).json({
-            success: false,
-            message: 'Selected subject does not match the standard subject'
-        });
-    }
-    if (standard.gradeLevel !== classDoc.grade) {
-        return res.status(400).json({
-            success: false,
-            message: `Standard grade level (Grade ${standard.gradeLevel}) does not match the class grade (Grade ${classDoc.grade})`
-        });
-    }
-
     const classSubjectEntry = (classDoc.subjects || []).find((entry) => entry.subject?.toString() === nextSubjectId);
     if (!classSubjectEntry) {
         return res.status(400).json({
@@ -579,9 +670,37 @@ export const updateAssignment = asyncHandler(async (req, res) => {
             message: 'This subject is not configured for the selected class'
         });
     }
-    const subjectDoc = await Subject.findById(nextSubjectId).select('name').lean();
+    const subjectDoc = await Subject.findById(nextSubjectId).select('name code').lean();
     if (!subjectDoc) {
         return res.status(404).json({ success: false, message: 'Subject not found' });
+    }
+
+    if (grammarAssessmentEnabled && (!nextStandardId || (isCoreMappingChanged && !requestedStandardId))) {
+        const grammarStandard = await resolveOrCreateGrammarStandard({
+            schoolId: req.schoolId,
+            subjectId: nextSubjectId,
+            classDoc,
+            subjectDoc,
+            userId: req.user?._id || null,
+        });
+        nextStandardId = grammarStandard?._id?.toString?.() || nextStandardId;
+    }
+
+    const standard = await Standard.findById(nextStandardId);
+    if (!standard) {
+        return res.status(404).json({ success: false, message: 'Standard not found' });
+    }
+    if (standard.subject?.toString() !== nextSubjectId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Selected subject does not match the standard subject'
+        });
+    }
+    if (Number(standard.gradeLevel) !== Number(classDoc.grade)) {
+        return res.status(400).json({
+            success: false,
+            message: `Standard grade level (Grade ${standard.gradeLevel}) does not match the class grade (Grade ${classDoc.grade})`
+        });
     }
 
     let nextTeacherId = assignment.teacher?.toString();
@@ -759,7 +878,9 @@ export const updateAssignment = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        message: 'Assignment updated successfully',
+        message: hasGrammarLevelingEnabled(updates.practiceConfig || assignment.practiceConfig || {})
+            ? 'Grammar assessment updated successfully'
+            : 'Assignment updated successfully',
         data: { assignment }
     });
 });
@@ -901,6 +1022,190 @@ export const updateAssignmentQuestionPool = asyncHandler(async (req, res) => {
         success: true,
         message: 'Question pool updated successfully',
         data: {
+            questionPool: pool,
+            questionWorkflow: assignment.questionWorkflow,
+        },
+    });
+});
+
+/**
+ * @desc    Regenerate one question inside assignment question pool
+ * @route   POST /api/standard-assignments/:id/question-pool/regenerate
+ * @access  Private (Admin, Teacher)
+ */
+export const regenerateAssignmentQuestionPoolQuestion = asyncHandler(async (req, res) => {
+    const assignment = await StandardAssignment.findById(req.params.id)
+        .populate('standard')
+        .populate('subject', 'name code');
+
+    if (!assignment || !assignment.isActive) {
+        return res.status(404).json({ success: false, message: 'Assignment not found' });
+    }
+
+    const teacherOwnsAssignment = await ensureTeacherOwnsAssignment(req, assignment);
+    if (!teacherOwnsAssignment) {
+        return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
+        return res.status(400).json({
+            success: false,
+            message: 'Question pool workflow is not enabled for this assignment'
+        });
+    }
+
+    const pool = await StandardQuestionPool.findOne({
+        school: req.schoolId,
+        assignment: assignment._id,
+        isActive: true,
+    });
+
+    if (!pool || !Array.isArray(pool.questions) || pool.questions.length === 0) {
+        return res.status(400).json({ success: false, message: 'Question pool is empty' });
+    }
+
+    const questionIndex = Number(req.body?.questionIndex);
+    if (!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex >= pool.questions.length) {
+        return res.status(400).json({
+            success: false,
+            message: 'questionIndex must reference an existing question',
+        });
+    }
+
+    const existingQuestion = pool.questions[questionIndex] || {};
+    const questionType = normalizeRegenQuestionType(
+        req.body?.questionType || existingQuestion.questionType
+    );
+    const difficulty = normalizeRegenDifficulty(
+        req.body?.difficulty || existingQuestion.difficulty
+    );
+
+    let regenerated;
+    const practiceConfig = assignment.practiceConfig?.toObject?.() || assignment.practiceConfig || {};
+    const grammarLevelingEnabled = hasGrammarLevelingEnabled(practiceConfig);
+
+    if (grammarLevelingEnabled) {
+        const grammarLevels = normalizeGrammarLevels(practiceConfig.grammarLevels, { fallbackAll: true });
+        const requestedGrammarLevel = normalizeGrammarLevel(
+            req.body?.grammarLevel || existingQuestion.grammarLevel
+        );
+
+        regenerated = generateGrammarQuestion({
+            levels: grammarLevels,
+            questionType,
+            difficulty,
+            preferredLevel: requestedGrammarLevel,
+            index: Number(pool.currentVersion || 1) + questionIndex,
+            seed: `${assignment._id}|${pool.currentVersion || 1}|${questionIndex}|regen`,
+        });
+    } else {
+        const subjectName = assignment.subject?.name || 'General Studies';
+        const generationLanguages = resolveRequestedLanguages({
+            requestedLanguages: assignment?.questionWorkflow?.aiLanguages,
+            subjectName,
+            max: 2
+        });
+
+        const previousQuestions = pool.questions
+            .filter((_, index) => index !== questionIndex)
+            .map((item) => String(item?.questionText || '').trim())
+            .filter(Boolean)
+            .slice(-25);
+        const previousQuestionFingerprints = previousQuestions.map((text) =>
+            String(text || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+        );
+
+        regenerated = await standardsPracticeAIService.generateQuestion({
+            standard: assignment.standard,
+            subjectName,
+            requestedLanguages: generationLanguages,
+            difficulty,
+            questionType,
+            previousQuestions,
+            previousQuestionFingerprints,
+            recentAttempts: [],
+            studentFirstName: '',
+            contextHints: {
+                recentTopics: [],
+                recentMistakes: [],
+                confidenceHint: 'Focus on the standard objective.',
+            },
+            attemptNumber: Number(pool.currentVersion || 1) + questionIndex + 1,
+        });
+    }
+
+    const regeneratedQuestion = {
+        instruction: regenerated?.instruction || '',
+        questionText: String(regenerated?.questionText || '').trim(),
+        questionType: normalizeRegenQuestionType(regenerated?.questionType || questionType),
+        options: Array.isArray(regenerated?.options) ? regenerated.options : [],
+        correctAnswer: String(regenerated?.correctAnswer || '').trim(),
+        explanation: String(regenerated?.explanation || '').trim(),
+        difficulty: normalizeRegenDifficulty(regenerated?.difficulty || difficulty),
+        grammarLevel: normalizeGrammarLevel(regenerated?.grammarLevel) || null,
+        skill: String(regenerated?.skill || '').trim(),
+        subskill: String(regenerated?.subskill || '').trim(),
+        gradingMode: regenerated?.gradingMode || 'conceptual',
+        acceptableAnswers: Array.isArray(regenerated?.acceptableAnswers)
+            ? regenerated.acceptableAnswers
+            : [],
+        evaluationCriteria: String(regenerated?.evaluationCriteria || '').trim(),
+    };
+
+    if (!regeneratedQuestion.questionText) {
+        return res.status(502).json({
+            success: false,
+            message: 'Question regeneration returned empty content. Please try again.',
+        });
+    }
+    if (!regeneratedQuestion.correctAnswer) {
+        return res.status(502).json({
+            success: false,
+            message: 'Question regeneration returned an invalid answer key. Please try again.',
+        });
+    }
+
+    pool.questions[questionIndex] = regeneratedQuestion;
+
+    const nextVersion = Number(pool.currentVersion || 1) + 1;
+    pool.currentVersion = nextVersion;
+    pool.status = 'draft';
+    pool.reviewedBy = null;
+    pool.reviewedAt = null;
+    pool.approvedBy = null;
+    pool.approvedAt = null;
+    pool.publishedBy = null;
+    pool.publishedAt = null;
+    pool.editHistory.push({
+        version: nextVersion,
+        editedBy: req.user._id,
+        editedAt: new Date(),
+        changeSummary: `Regenerated question ${questionIndex + 1}`,
+    });
+    await pool.save();
+
+    assignment.questionWorkflow = {
+        ...(assignment.questionWorkflow?.toObject?.() || assignment.questionWorkflow || {}),
+        status: 'draft',
+        currentPoolVersion: pool.currentVersion,
+        reviewedBy: null,
+        reviewedAt: null,
+        approvedBy: null,
+        approvedAt: null,
+        publishedBy: null,
+        publishedAt: null,
+    };
+    await assignment.save();
+
+    res.json({
+        success: true,
+        message: 'Question regenerated successfully',
+        data: {
+            questionIndex,
+            regeneratedQuestion,
             questionPool: pool,
             questionWorkflow: assignment.questionWorkflow,
         },

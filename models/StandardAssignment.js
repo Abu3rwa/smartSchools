@@ -90,6 +90,21 @@ const standardAssignmentSchema = new mongoose.Schema({
             type: String,
             enum: ['easy', 'medium', 'hard']
         }],
+        enableGrammarLeveling: {
+            type: Boolean,
+            default: false
+        },
+        grammarLevels: [{
+            type: String,
+            enum: [
+                'beginner',
+                'elementary',
+                'pre_intermediate',
+                'intermediate',
+                'upper_intermediate',
+                'advanced'
+            ]
+        }],
         availability: {
             startAt: { type: Date, default: null },
             endAt: { type: Date, default: null }
