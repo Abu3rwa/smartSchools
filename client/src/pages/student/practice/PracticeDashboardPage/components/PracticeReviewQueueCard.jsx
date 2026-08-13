@@ -77,7 +77,7 @@ const PracticeReviewQueueCard = ({
                   {formatStandardLabel(task.standard) || "Standard"}
                 </div>
                 <div className="text-muted" style={{ fontSize: "0.82rem" }}>
-                  Stage {task.intervalStage} · Due {formatTaskDate(task.scheduledFor)} · Priority {task.priorityScore}
+                  Review round {task.intervalStage} · Due {formatTaskDate(task.scheduledFor)}
                 </div>
               </div>
               <button

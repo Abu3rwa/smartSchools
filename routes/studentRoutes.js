@@ -7,6 +7,7 @@ import {
     uploadStudentPhoto,
     removeStudentPhoto,
     deleteStudent,
+    bulkDeleteStudents,
     getStudentsByClass,
     bulkEnrollStudents,
     enrollStudent,
@@ -58,6 +59,7 @@ router.route('/')
 
 // Additional routes (before /:id to avoid param conflicts)
 router.post('/import', authorize('admin'), importStudents);
+router.post('/bulk-delete', authorize('admin'), bulkDeleteStudents);
 router.post('/bulk-create-login', authorize('admin'), bulkCreateStudentLogin);
 router.post('/bulk-send-login-invites', authorize('admin'), bulkSendStudentLoginInvites);
 router.post('/bulk-send-parent-login-invites', authorize('admin'), bulkSendParentLoginInvites);

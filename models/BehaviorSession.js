@@ -23,8 +23,8 @@ const behaviorSessionSchema = new mongoose.Schema(
         },
         startedAt: {
             type: Date,
-            default: Date.now,
-            index: true
+            default: Date.now
+            // index defined below as TTL index via schema.index()
         },
         endedAt: {
             type: Date,

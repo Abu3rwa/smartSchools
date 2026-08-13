@@ -301,6 +301,16 @@ const Sidebar = () => {
       feature: "standardsPractice",
       section: "assessment",
     },
+    // Social Studies — teacher
+    {
+      path: "/portal/social-studies",
+      icon: HiOutlineBookOpen,
+      labelKey: "socialStudies",
+      roles: ["admin", "teacher", "department_principal"],
+      feature: "socialStudies",
+      section: "teaching",
+    },
+
     {
       path: "/portal/curriculum",
       icon: HiOutlineBookOpen,
@@ -542,6 +552,15 @@ const Sidebar = () => {
       icon: HiOutlineAcademicCap,
       labelKey: "myGrades",
       roles: ["student"],
+      section: "assessment",
+    },
+    // Social Studies — student
+    {
+      path: "/portal/social-studies/student",
+      icon: HiOutlineBookOpen,
+      labelKey: "socialStudiesStudent",
+      roles: ["student"],
+      feature: "socialStudies",
       section: "assessment",
     },
     {

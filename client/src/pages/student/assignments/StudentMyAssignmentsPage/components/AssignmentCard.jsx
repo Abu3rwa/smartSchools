@@ -9,7 +9,7 @@ const AssignmentCard = ({ assignment }) => {
   const destination = practiceAssignmentId
     ? `/portal/practice/${practiceAssignmentId}`
     : `/portal/my-assignments/${id}`;
-  const actionLabel = practiceAssignmentId ? 'Start grammar test' : 'View assignment';
+  const actionLabel = practiceAssignmentId ? 'Start Practice' : 'View assignment';
 
   return (
     <article className="assignment-card">

@@ -13,8 +13,8 @@ const PracticeStatsGrid = ({ assignmentsCount, masteredCount, needsReviewCount, 
       <div className="stat-label">Ready to Start</div>
     </div>
     <div className="practice-stat-card in-progress">
-      <div className="stat-value">{inProgressCount + needsReviewCount}</div>
-      <div className="stat-label">Keep Going</div>
+      <div className="stat-value">{inProgressCount}</div>
+      <div className="stat-label">In Progress</div>
     </div>
     <div className="practice-stat-card not-started">
       <div className="stat-value">{needsReviewCount}</div>

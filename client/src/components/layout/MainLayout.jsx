@@ -87,7 +87,7 @@ const MainLayout = () => {
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
     const isRtl = i18n.dir() === 'rtl';
-    const showSidebarForRole = user?.role !== 'student';
+    const showSidebarForRole = Boolean(user);
     const normalizedStatus = String(subscriptionStatus || '').toLowerCase();
     const isExpired = ['inactive', 'cancelled', 'suspended', 'expired'].includes(normalizedStatus);
     const shouldShowWall = isExpired

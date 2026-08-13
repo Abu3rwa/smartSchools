@@ -40,7 +40,8 @@ const StudentsTable = ({
     sendingStudentInviteFor,
     handleSendParentInvite,
     sendingParentInviteFor,
-    handleEdit
+    handleEdit,
+    onStudentDeleted
 }) => {
     const dispatch = useDispatch();
     const { t } = useTranslation(['students']);
@@ -205,6 +206,9 @@ const StudentsTable = ({
                                                             dispatch(deleteStudent({ id: student._id, permanent: isInactive })).then((result) => {
                                                                 if (deleteStudent.fulfilled.match(result)) {
                                                                     toast.success(isInactive ? t('students:toast.permanentlyDeleted') : t('students:toast.markedInactive'));
+                                                                    if (typeof onStudentDeleted === 'function') {
+                                                                        onStudentDeleted();
+                                                                    }
                                                                 } else {
                                                                     toast.error(result.payload || t('students:toast.deleteFailed'));
                                                                 }

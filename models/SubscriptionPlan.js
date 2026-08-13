@@ -98,7 +98,7 @@ const subscriptionPlanSchema = new mongoose.Schema({
     timestamps: true
 });
 
-subscriptionPlanSchema.index({ key: 1 }, { unique: true });
+// unique: true on the key field definition above already creates this index
 subscriptionPlanSchema.index({ isActive: 1, sortOrder: 1, createdAt: 1 });
 
 subscriptionPlanSchema.statics.getSeedPayloadForDefaultPlan = function(planKey) {

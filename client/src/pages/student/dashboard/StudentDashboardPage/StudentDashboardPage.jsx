@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import StudentDashboardHeader from './components/StudentDashboardHeader';
@@ -21,6 +21,7 @@ import './StudentDashboardPage.css';
 
 const StudentDashboardPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { t } = useTranslation(['layout.sidebar']);
     const schoolFeatures = useSelector(selectSchoolFeatures);
     const {
@@ -69,8 +70,9 @@ const StudentDashboardPage = () => {
                         <button
                             key={item.path}
                             type="button"
-                            className="student-dashboard-nav-btn"
+                            className={`student-dashboard-nav-btn${location.pathname === item.path ? ' active' : ''}`}
                             onClick={() => navigate(item.path)}
+                            aria-current={location.pathname === item.path ? 'page' : undefined}
                         >
                             <Icon size={26} className="student-dashboard-nav-icon" />
                             <span>{t(`layout.sidebar:items.${item.labelKey}`)}</span>

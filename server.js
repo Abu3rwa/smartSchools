@@ -94,6 +94,10 @@ import financeRoutes from "./routes/financeRoutes.js";
 import hrRoutes from "./routes/hrRoutes.js";
 import standardAssessmentFeatureRoutes from "./routes/standardAssessmentRoutes.js";
 import grammarTestRoutes from "./routes/grammarTestRoutes.js";
+import socialStudiesUnitRoutes from "./routes/socialStudiesUnitRoutes.js";
+import socialStudiesLessonRoutes from "./routes/socialStudiesLessonRoutes.js";
+import socialStudiesAssignmentRoutes from "./routes/socialStudiesAssignmentRoutes.js";
+import socialStudiesSubmissionRoutes from "./routes/socialStudiesSubmissionRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
@@ -216,9 +220,9 @@ const authLimiter = rateLimit({
 const isProduction = process.env.NODE_ENV === "production";
 
 // BE-034: Key generator for per-user rate limiting (falls back to IP for unauthenticated requests)
-const userKeyGenerator = (req) => {
+const userKeyGenerator = (req, res) => {
   if (req.user?._id) return `user_${req.user._id}`;
-  return ipKeyGenerator(req.ip);
+  return ipKeyGenerator(req, res);
 };
 
 const apiLimiter = rateLimit({
@@ -351,6 +355,10 @@ app.use("/api/standards", standardRoutes);
 app.use("/api/standard-assignments", standardAssignmentRoutes);
 app.use("/api/grammar-tests", grammarTestRoutes);
 app.use("/api/standard-assessment", standardAssessmentFeatureRoutes);
+app.use("/api/social-studies/units", socialStudiesUnitRoutes);
+app.use("/api/social-studies/lessons", socialStudiesLessonRoutes);
+app.use("/api/social-studies/assignments", socialStudiesAssignmentRoutes);
+app.use("/api/social-studies/submissions", socialStudiesSubmissionRoutes);
 app.use("/api/practice", practiceRoutes);
 app.use("/api/revision", revisionRoutes);
 app.use("/api/reading", readingRoutes);
@@ -459,10 +467,12 @@ const server = httpServer.listen(PORT, () => {
 
   // Optional scheduler: ensure weekly issues exist for all classes (idempotent).
   if (process.env.RUN_NEWSLETTER_ISSUE_SCHEDULER !== "false") {
-    // Run once on startup, then periodically.
-    ensureCurrentWeekIssuesForAllClasses(new Date()).catch((err) => {
-      logger.error("Newsletter issue scheduler startup error:", err?.message || err);
-    });
+    // Delay first run until after MongoDB is reliably connected.
+    setTimeout(() => {
+      ensureCurrentWeekIssuesForAllClasses(new Date()).catch((err) => {
+        logger.error("Newsletter issue scheduler startup error:", err?.message || err);
+      });
+    }, 30 * 1000);
     activeIntervals.push(setInterval(async () => {
       try {
         await ensureCurrentWeekIssuesForAllClasses(new Date());
@@ -473,9 +483,12 @@ const server = httpServer.listen(PORT, () => {
   }
 
   if (process.env.RUN_REVIEW_SCHEDULER_JOB !== "false") {
-    runReviewSchedulerJob().catch((err) => {
-      logger.error("Review scheduler startup error:", err?.message || err);
-    });
+    // Delay first run until after MongoDB is reliably connected.
+    setTimeout(() => {
+      runReviewSchedulerJob().catch((err) => {
+        logger.error("Review scheduler startup error:", err?.message || err);
+      });
+    }, 30 * 1000);
 
     activeIntervals.push(setInterval(async () => {
       try {

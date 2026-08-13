@@ -31,6 +31,13 @@ export const studentNavLinks = [
     section: "learning",
   },
   {
+    path: "/portal/social-studies/student",
+    icon: HiOutlineBookOpen,
+    labelKey: "socialStudiesStudent",
+    feature: "socialStudies",
+    section: "learning",
+  },
+  {
     path: "/portal/my-assignments",
     icon: HiOutlineBookOpen,
     labelKey: "assignments",

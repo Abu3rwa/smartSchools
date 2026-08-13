@@ -3,7 +3,6 @@ import { HiOutlineCheckCircle, HiOutlineXCircle, HiOutlineRefresh } from 'react-
 
 const PracticeResultFeedback = ({ 
     lastResult, 
-    displayName, 
     onNextQuestion, 
     onNavigateToPractice, 
     isGenerating 
@@ -11,7 +10,8 @@ const PracticeResultFeedback = ({
     const resultParts = lastResult?.feedbackParts || {};
     const answerDisplay = resultParts.displayAnswer || lastResult?.correctAnswerDisplay || lastResult?.correctAnswer;
     const quickExplanation = resultParts.explanation || resultParts.reasonSummary || lastResult?.explanation;
-    const resultHeading = resultParts.headline || (lastResult?.isCorrect ? 'Correct!' : 'Keep Going');
+    const resultHeading = lastResult?.isCorrect ? 'Correct!' : 'Incorrect';
+    const conciseFeedback = resultParts.correctionOrConfirmation || lastResult?.feedback;
 
     return (
         <div className={`result-card ${lastResult.isCorrect ? 'correct' : 'incorrect'}`}>
@@ -22,53 +22,27 @@ const PracticeResultFeedback = ({
                 }
             </div>
             <h3>{resultHeading}</h3>
-            <p className="result-greeting">
-                {resultParts.personalGreeting || `${displayName}, ${lastResult.isCorrect ? 'great work on this one.' : 'good attempt. Keep going.'}`}
+            <p className="result-feedback" style={{ marginBottom: 'var(--spacing-sm)' }}>
+                {lastResult?.isCorrect ? 'Your answer is correct.' : 'Your answer is not correct.'}
             </p>
-            <p className="result-feedback">{lastResult.feedback}</p>
 
             <div className="result-details">
-                {resultParts.whatYouDidWell && (
+                <div className="result-section">
+                    <p><span className="label">Best Answer</span></p>
+                    <p>{answerDisplay || 'N/A'}</p>
+                </div>
+
+                {conciseFeedback && (
                     <div className="result-section">
-                        <p><span className="label">What You Did Well</span></p>
-                        <p>{resultParts.whatYouDidWell}</p>
+                        <p>{conciseFeedback}</p>
                     </div>
                 )}
-
-                <div className="result-section">
-                    <p><span className="label">Best Answer and Why</span></p>
-                    <p>{answerDisplay}</p>
-                    {resultParts.correctionOrConfirmation && (
-                        <p>{resultParts.correctionOrConfirmation}</p>
-                    )}
-                </div>
 
                 {quickExplanation && (
                     <div className="result-section">
                         <p><span className="label">Quick Explanation</span></p>
                         <p>{quickExplanation}</p>
                     </div>
-                )}
-
-                {resultParts.nextStep && (
-                    <div className="result-section">
-                        <p><span className="label">Next Step</span></p>
-                        <p>{resultParts.nextStep}</p>
-                    </div>
-                )}
-
-                {resultParts.reviewTag && (
-                    <div className="result-section">
-                        <p><span className="label">Focus for Review</span></p>
-                        <p>
-                            {resultParts.reviewTag}
-                            {resultParts.confidenceLevel ? ` (${resultParts.confidenceLevel} confidence)` : ''}
-                        </p>
-                    </div>
-                )}
-
-                {resultParts.encouragement && (
-                    <p className="encouragement-line">{resultParts.encouragement}</p>
                 )}
 
                 {lastResult.sessionComplete && (

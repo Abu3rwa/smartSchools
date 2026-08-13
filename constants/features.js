@@ -163,6 +163,12 @@ export const FEATURES = {
         label: 'AI Worksheet Checker',
         description: 'Upload physical worksheets for AI-powered OCR extraction, marking, and gradebook integration.',
         plans: ['professional', 'enterprise']
+    },
+    socialStudies: {
+        key: 'socialStudies',
+        label: 'Social Studies',
+        description: 'Standalone Social Studies curriculum with units, block-based lessons, questions, and class assignments that auto-post to the gradebook.',
+        plans: ['starter', 'professional', 'enterprise']
     }
 };
 

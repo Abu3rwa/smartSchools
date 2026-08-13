@@ -24,7 +24,7 @@ const landingPageContentSchema = new mongoose.Schema(
   }
 );
 
-landingPageContentSchema.index({ key: 1 }, { unique: true });
+// unique: true on the field definition above already creates this index
 
 const LandingPageContent = mongoose.model('LandingPageContent', landingPageContentSchema);
 

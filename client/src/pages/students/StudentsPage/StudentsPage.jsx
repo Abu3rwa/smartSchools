@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
     bulkSendParentLoginInvites,
     bulkSendStudentLoginInvites,
+    bulkDeleteStudents,
     createStudent,
     fetchStudents,
     importStudents,
@@ -29,6 +30,7 @@ import {
     HiOutlineMail,
     HiOutlinePlus,
     HiOutlineSearch,
+    HiOutlineTrash,
     HiOutlineUpload,
     HiOutlineUserAdd
 } from 'react-icons/hi';
@@ -45,6 +47,7 @@ import {
     ParentCredentialsModal,
     EmailPromptModal
 } from './components/StudentLoginModals';
+import BulkDeleteModal from './components/BulkDeleteModal';
 import { parseCsvText } from '../../../utils/csvImport';
 import TablePagination from '../../../components/common/TablePagination';
 
@@ -127,6 +130,12 @@ const StudentsPage = () => {
     const [bulkCredentials, setBulkCredentials] = useState(null);
     const [bulkStudentInviteLoading, setBulkStudentInviteLoading] = useState(false);
     const [bulkParentInviteLoading, setBulkParentInviteLoading] = useState(false);
+    const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+    const [bulkDeleteMode, setBulkDeleteMode] = useState('selected'); // 'selected' | 'class' | 'year'
+    const [bulkDeleteClassId, setBulkDeleteClassId] = useState('');
+    const [bulkDeleteYear, setBulkDeleteYear] = useState('');
+    const [bulkDeletePermanent, setBulkDeletePermanent] = useState(false);
+    const [bulkDeleting, setBulkDeleting] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
@@ -250,6 +259,7 @@ const StudentsPage = () => {
             setShowModal(false);
             resetForm();
             refreshStudents();
+            if (!isEditing) dispatch(fetchSchoolFeatures());
         } else {
             toast.error(result.payload || (isEditing ? t('students:toast.updateFailed') : t('students:toast.createFailed')));
         }
@@ -397,6 +407,39 @@ const StudentsPage = () => {
         }).catch(() => {
             toast.error(t('students:toast.copyFailed'));
         });
+    };
+
+    const openBulkDeleteModal = () => {
+        setBulkDeleteMode(selectedStudentIds.size > 0 ? 'selected' : 'class');
+        setBulkDeleteClassId(filterClass && filterClass !== 'unassigned' ? filterClass : '');
+        setBulkDeleteYear(selectedAcademicYear || '');
+        setBulkDeletePermanent(false);
+        setShowBulkDeleteModal(true);
+    };
+
+    const handleBulkDelete = async () => {
+        const payload = { permanent: bulkDeletePermanent };
+        if (bulkDeleteMode === 'selected') {
+            payload.ids = Array.from(selectedStudentIds);
+        } else if (bulkDeleteMode === 'class') {
+            payload.classId = bulkDeleteClassId;
+        } else {
+            payload.academicYear = bulkDeleteYear;
+        }
+
+        setBulkDeleting(true);
+        const result = await dispatch(bulkDeleteStudents(payload));
+        setBulkDeleting(false);
+
+        if (bulkDeleteStudents.fulfilled.match(result)) {
+            toast.success(result.payload.message);
+            setShowBulkDeleteModal(false);
+            setSelectedStudentIds(new Set());
+            refreshStudents();
+            dispatch(fetchSchoolFeatures());
+        } else {
+            toast.error(result.payload || 'Bulk delete failed.');
+        }
     };
 
     const toggleSelectStudent = (id) => {
@@ -690,6 +733,14 @@ const StudentsPage = () => {
                             <HiOutlinePlus size={20} />
                             {t('students:actions.addStudent')}
                         </button>
+                        <button
+                            className="btn btn-danger"
+                            onClick={openBulkDeleteModal}
+                            title="Delete students by selection, class, or academic year"
+                        >
+                            <HiOutlineTrash size={20} />
+                            Delete Students
+                        </button>
                     </div>
                 )}
             </div>
@@ -763,6 +814,7 @@ const StudentsPage = () => {
                 handleSendParentInvite={handleSendParentInvite}
                 sendingParentInviteFor={sendingParentInviteFor}
                 handleEdit={handleEdit}
+                onStudentDeleted={refreshStudents}
             />
             <TablePagination
                 page={currentPage}
@@ -835,6 +887,24 @@ const StudentsPage = () => {
                 loginEmail={loginEmail}
                 setLoginEmail={setLoginEmail}
                 doCreateLogin={doSendStudentInvite}
+            />
+
+            <BulkDeleteModal
+                show={showBulkDeleteModal}
+                onClose={() => setShowBulkDeleteModal(false)}
+                onConfirm={handleBulkDelete}
+                loading={bulkDeleting}
+                selectedCount={selectedStudentIds.size}
+                classes={classes}
+                academicYears={[...new Set([academicYear, ...studentAcademicYears].filter(Boolean))].sort()}
+                mode={bulkDeleteMode}
+                setMode={setBulkDeleteMode}
+                deleteClassId={bulkDeleteClassId}
+                setDeleteClassId={setBulkDeleteClassId}
+                deleteYear={bulkDeleteYear}
+                setDeleteYear={setBulkDeleteYear}
+                permanent={bulkDeletePermanent}
+                setPermanent={setBulkDeletePermanent}
             />
         </div>
     );

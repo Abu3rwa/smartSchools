@@ -141,11 +141,11 @@ const AIPracticeSession = ({ task, studentId, onComplete }) => {
       </div>
 
       {isOpen ? (
-        <div className="ai-practice-modal-overlay" role="dialog" aria-modal="true" aria-label="AI Practice Session">
+        <div className="ai-practice-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ai-practice-session-title">
           <div className="ai-practice-modal">
             <div className="ai-practice-modal-header">
               <div>
-                <h3>{task?.title || "AI Practice Session"}</h3>
+                <h3 id="ai-practice-session-title">{task?.title || "AI Practice Session"}</h3>
                 <p>{task?.objectiveName || "Interactive objective practice"}</p>
               </div>
               <div className="ai-practice-modal-controls">

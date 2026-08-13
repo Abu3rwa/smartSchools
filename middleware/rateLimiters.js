@@ -1,9 +1,10 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
-const userKeyGenerator = (req) => {
+// trust proxy is set in server.js so req.ip already resolves the real client IP;
+// ipKeyGenerator handles IPv6 normalisation required by express-rate-limit v7+.
+const userKeyGenerator = (req, res) => {
     if (req.user?._id) return `user:${req.user._id}`;
-    const forwarded = req.headers['x-forwarded-for'];
-    return forwarded ? forwarded.split(',')[0].trim() : req.ip;
+    return ipKeyGenerator(req, res);
 };
 
 /**

@@ -185,7 +185,7 @@ const sbrReportCardSchema = new mongoose.Schema(
 
 sbrReportCardSchema.index({ school: 1, student: 1, class: 1, 'period.type': 1, academicYear: 1 });
 sbrReportCardSchema.index({ school: 1, class: 1, 'period.type': 1, academicYear: 1 });
-sbrReportCardSchema.index({ reportCardId: 1 }, { unique: true });
+// unique: true on the reportCardId field definition above already creates this index
 
 sbrReportCardSchema.plugin(tenantIsolationPlugin);
 

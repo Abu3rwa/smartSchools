@@ -162,6 +162,18 @@ const PDLogPage = lazy(() => import("./pages/hr/PDLogPage"));
 const MyHRPage = lazy(() => import("./pages/hr/MyHRPage"));
 const HRSettingsPage = lazy(() => import("./pages/hr/HRSettingsPage"));
 
+// Social Studies
+const SocialStudiesShell = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesShell"));
+const SocialStudiesCurriculumPage = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesCurriculumPage"));
+const SocialStudiesUnitDetailPage = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesUnitDetailPage"));
+const SocialStudiesLessonEditorPage = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesLessonEditorPage"));
+const SocialStudiesAssignmentManagerPage = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesAssignmentManagerPage"));
+const SocialStudiesResultsPage = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesResultsPage"));
+const StudentSocialStudiesPage = lazy(() => import("./pages/socialStudies/student/StudentSocialStudiesPage"));
+const StudentSocialStudiesLessonPage = lazy(() => import("./pages/socialStudies/student/StudentSocialStudiesLessonPage"));
+const StudentSocialStudiesAssessmentPage = lazy(() => import("./pages/socialStudies/student/StudentSocialStudiesAssessmentPage"));
+const StudentSocialStudiesResultsPage = lazy(() => import("./pages/socialStudies/student/StudentSocialStudiesResultsPage"));
+
 const RouteLoadingFallback = () => (
   <div className="loading-overlay" role="status" aria-live="polite">
     <div className="spinner"></div>
@@ -913,6 +925,40 @@ function App() {
                   </FeatureGate>
                 </RoleRoute>
               }
+            />
+
+            {/* ── Social Studies (Teacher) — shell with sidebar ── */}
+            <Route
+              path="social-studies"
+              element={
+                <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                  <SocialStudiesShell />
+                </RoleRoute>
+              }
+            >
+              <Route index element={<SocialStudiesCurriculumPage />} />
+              <Route path="units/:unitId" element={<SocialStudiesUnitDetailPage />} />
+              <Route path="lessons/:lessonId/edit" element={<SocialStudiesLessonEditorPage />} />
+              <Route path="assignments/new" element={<SocialStudiesAssignmentManagerPage />} />
+              <Route path="assignments/:assignmentId/results" element={<SocialStudiesResultsPage />} />
+            </Route>
+
+            {/* ── Social Studies (Student) ── */}
+            <Route
+              path="social-studies/student"
+              element={<RoleRoute roles={["student"]}><StudentSocialStudiesPage /></RoleRoute>}
+            />
+            <Route
+              path="social-studies/student/lessons/:lessonId"
+              element={<RoleRoute roles={["student", "parent"]}><StudentSocialStudiesLessonPage /></RoleRoute>}
+            />
+            <Route
+              path="social-studies/student/assignments/:assignmentId"
+              element={<RoleRoute roles={["student"]}><StudentSocialStudiesAssessmentPage /></RoleRoute>}
+            />
+            <Route
+              path="social-studies/student/results/:submissionId"
+              element={<RoleRoute roles={["student"]}><StudentSocialStudiesResultsPage /></RoleRoute>}
             />
             <Route
               path="standards/gradebook"

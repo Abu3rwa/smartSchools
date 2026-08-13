@@ -111,7 +111,7 @@ const Header = () => {
             <ImpersonationBanner />
             <header className={`header${isImpersonating ? ' header-impersonating' : ''}`}>
             <div className="header-left">
-                {!isDesktop && user?.role !== 'student' && (
+                {!isDesktop && (
                     <button
                         className="header-btn hamburger-btn"
                         onClick={handleMenuClick}

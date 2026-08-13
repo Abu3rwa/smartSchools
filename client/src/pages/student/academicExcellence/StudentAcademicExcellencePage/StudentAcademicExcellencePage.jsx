@@ -14,11 +14,11 @@ const PaginationBar = ({ page, total, pageSize, onPage }) => {
   if (totalPages <= 1) return null;
   return (
     <div className="academic-excellence-pagination" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "0.5rem", marginTop: "1rem" }}>
-      <button type="button" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === 1} onClick={() => onPage(1)}>«</button>
-      <button type="button" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
-      <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>{page} / {totalPages}</span>
-      <button type="button" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === totalPages} onClick={() => onPage(page + 1)}>›</button>
-      <button type="button" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === totalPages} onClick={() => onPage(totalPages)}>»</button>
+      <button type="button" aria-label="First page" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === 1} onClick={() => onPage(1)}>«</button>
+      <button type="button" aria-label="Previous page" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === 1} onClick={() => onPage(page - 1)}>‹</button>
+      <span style={{ fontSize: "0.85rem", fontWeight: 500 }} aria-live="polite" aria-atomic="true">Page {page} of {totalPages}</span>
+      <button type="button" aria-label="Next page" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === totalPages} onClick={() => onPage(page + 1)}>›</button>
+      <button type="button" aria-label="Last page" className="academic-excellence-refresh-btn" style={{ padding: "0.2rem 0.5rem", fontSize: "0.85rem", minWidth: 0 }} disabled={page === totalPages} onClick={() => onPage(totalPages)}>»</button>
     </div>
   );
 };

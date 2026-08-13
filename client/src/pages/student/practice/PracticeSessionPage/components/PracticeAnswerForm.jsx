@@ -11,15 +11,29 @@ const PracticeAnswerForm = ({
     onSubmit, 
     textareaRef 
 }) => {
+    const handleOptionKeyDown = (e, idx) => {
+        if (!options?.length) return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            onSelectedAnswerChange(options[(idx + 1) % options.length].label);
+        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            onSelectedAnswerChange(options[(idx - 1 + options.length) % options.length].label);
+        }
+    };
+
     return (
         <>
             {(questionType === 'multiple_choice' || questionType === 'true_false') && (
-                <div className="options-list">
+                <div className="options-list" role="radiogroup" aria-label="Answer options">
                     {options?.map((option, idx) => (
                         <button
                             key={idx}
+                            role="radio"
+                            aria-checked={selectedAnswer === option.label}
                             className={`option-btn ${selectedAnswer === option.label ? 'selected' : ''}`}
                             onClick={() => onSelectedAnswerChange(option.label)}
+                            onKeyDown={(e) => handleOptionKeyDown(e, idx)}
                             disabled={submittingAnswer}
                         >
                             <span

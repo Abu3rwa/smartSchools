@@ -100,6 +100,18 @@ export const deleteStudent = createAsyncThunk(
     }
 );
 
+export const bulkDeleteStudents = createAsyncThunk(
+    'students/bulkDeleteStudents',
+    async (payload, { rejectWithValue }) => {
+        try {
+            const response = await api.post('/students/bulk-delete', payload);
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to bulk delete students');
+        }
+    }
+);
+
 // ─── Photo Thunks ───
 
 export const uploadStudentPhoto = createAsyncThunk(
@@ -223,6 +235,15 @@ const studentCoreSlice = createSlice({
                     state.classStudents = state.classStudents.filter((s) => s._id !== id);
                     if (state.currentStudent?._id === id) {
                         state.currentStudent = null;
+                    }
+                    if (state.pagination && Number.isFinite(Number(state.pagination.total))) {
+                        const nextTotal = Math.max(0, Number(state.pagination.total) - 1);
+                        state.pagination.total = nextTotal;
+                        if (Number.isFinite(Number(state.pagination.limit)) && Number(state.pagination.limit) > 0) {
+                            const nextPages = Math.max(1, Math.ceil(nextTotal / Number(state.pagination.limit)));
+                            state.pagination.pages = nextPages;
+                            state.pagination.totalPages = nextPages;
+                        }
                     }
                     return;
                 }

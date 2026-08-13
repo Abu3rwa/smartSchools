@@ -34,6 +34,8 @@ const parseBooleanParam = (value) => {
     return normalized === 'true' || normalized === '1' || normalized === 'yes';
 };
 
+const normalizeStudentStatus = (value) => String(value || '').trim().toLowerCase();
+
 const normalizeEmail = (value) => {
     if (typeof value !== 'string') return null;
     const normalized = value.trim().toLowerCase();
@@ -653,7 +655,7 @@ export const deleteStudent = asyncHandler(async (req, res) => {
     }
 
     if (shouldPermanentlyDelete) {
-        if (String(student.status || '').toLowerCase() !== 'inactive') {
+        if (normalizeStudentStatus(student.status) !== 'inactive') {
             return res.status(400).json({
                 success: false,
                 message: 'Only inactive students can be permanently deleted'
@@ -708,6 +710,116 @@ export const deleteStudent = asyncHandler(async (req, res) => {
         success: true,
         message: 'Student marked inactive successfully',
         data: { student }
+    });
+});
+
+/**
+ * @desc    Bulk delete students (soft-deactivate or permanent)
+ * @route   POST /api/students/bulk-delete
+ * @access  Private (Admin)
+ */
+export const bulkDeleteStudents = asyncHandler(async (req, res) => {
+    const { ids, classId, academicYear, permanent = false } = req.body;
+
+    const hasIds = Array.isArray(ids) && ids.length > 0;
+    const hasClass = Boolean(classId);
+    const hasYear = Boolean(academicYear);
+
+    if (!hasIds && !hasClass && !hasYear) {
+        return res.status(400).json({
+            success: false,
+            message: 'Provide at least one filter: ids, classId, or academicYear.'
+        });
+    }
+
+    // Build tenant-scoped query
+    const query = { school: req.schoolId };
+
+    if (hasIds) {
+        const mongoose = (await import('mongoose')).default;
+        const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+        if (validIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'No valid student IDs provided.' });
+        }
+        query._id = { $in: validIds };
+    } else if (hasClass) {
+        query.currentClass = classId;
+        if (hasYear) query.academicYear = academicYear;
+    } else {
+        query.academicYear = academicYear;
+    }
+
+    const BULK_LIMIT = 500;
+    const total = await Student.countDocuments(query);
+
+    if (total === 0) {
+        return res.status(404).json({ success: false, message: 'No students matched the given filters.' });
+    }
+
+    if (total > BULK_LIMIT) {
+        return res.status(400).json({
+            success: false,
+            message: `Operation would affect ${total} students, exceeding the safety limit of ${BULK_LIMIT}. Use more specific filters.`
+        });
+    }
+
+    if (permanent) {
+        // Only permanently remove students that are already inactive.
+        // Normalize status in memory to handle legacy values with inconsistent casing/whitespace.
+        const candidates = await Student.find(query).select('_id user photoUrl status');
+        const students = candidates.filter((student) => normalizeStudentStatus(student.status) === 'inactive');
+        const skipped = total - students.length;
+        let deleted = 0;
+        let failed = 0;
+
+        for (const student of students) {
+            try {
+                if (student.photoUrl && student.photoUrl.includes('storage.googleapis.com')) {
+                    try { await deleteFile(student.photoUrl); } catch { /* non-fatal */ }
+                }
+
+                if (student.user) {
+                    const linkedUser = await User.findById(student.user)
+                        .setOptions({ skipTenantFilter: true })
+                        .select('role roles school');
+
+                    if (linkedUser) {
+                        const roles = Array.isArray(linkedUser.roles) && linkedUser.roles.length > 0
+                            ? linkedUser.roles : [linkedUser.role].filter(Boolean);
+                        const isStudentOnly = roles.length > 0 && roles.every((r) => r === 'student');
+                        const sameSchool = !linkedUser.school || linkedUser.school.toString() === req.schoolId.toString();
+
+                        if (isStudentOnly && sameSchool) {
+                            await User.findByIdAndDelete(linkedUser._id).setOptions({ skipTenantFilter: true });
+                        }
+                    }
+                }
+
+                await student.deleteOne();
+                deleted++;
+            } catch {
+                failed++;
+            }
+        }
+
+        const parts = [`Permanently deleted ${deleted} student(s).`];
+        if (skipped > 0) parts.push(`${skipped} active student(s) were skipped — deactivate them first.`);
+        if (failed > 0) parts.push(`${failed} deletion(s) failed.`);
+
+        return res.json({
+            success: true,
+            message: parts.join(' '),
+            data: { deleted, skipped, failed, total }
+        });
+    }
+
+    // Soft delete — mark matching students as inactive
+    const result = await Student.updateMany(query, { $set: { status: 'inactive' } });
+
+    return res.json({
+        success: true,
+        message: `${result.modifiedCount} student(s) marked as inactive.`,
+        data: { markedInactive: result.modifiedCount, total }
     });
 });
 
