@@ -11,6 +11,8 @@ import {
     listAssignments,
     updateAssignment,
     deleteAssignment,
+    bulkUpdateAssignmentDates,
+    migrateAssignmentsYear,
     getMyTimetable,
     getStudentTimetable
 } from '../controllers/timetableController.js';
@@ -34,6 +36,8 @@ router.delete('/periods/:id', authorize('admin', 'department_principal'), delete
 
 // Assignments (admins and principals can CRUD)
 router.get('/assignments', authorize('admin', 'department_principal'), listAssignments);
+router.put('/assignments/bulk-dates', authorize('admin', 'department_principal'), bulkUpdateAssignmentDates);
+router.post('/assignments/migrate-year', authorize('admin', 'department_principal'), migrateAssignmentsYear);
 router.post('/assignments', authorize('admin', 'department_principal'), createAssignment);
 router.put('/assignments/:id', authorize('admin', 'department_principal'), updateAssignment);
 router.delete('/assignments/:id', authorize('admin', 'department_principal'), deleteAssignment);

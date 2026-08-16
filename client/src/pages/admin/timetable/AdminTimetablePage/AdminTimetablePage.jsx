@@ -126,6 +126,17 @@ const AdminTimetablePage = () => {
     const [newRoom, setNewRoom] = useState(createDefaultRoom);
     const [savingRoom, setSavingRoom] = useState(false);
 
+    const [bulkDates, setBulkDates] = useState({ startDate: '', endDate: '' });
+    const [savingBulkDates, setSavingBulkDates] = useState(false);
+    const [currentAcademicYear, setCurrentAcademicYear] = useState('');
+    const [migrationForm, setMigrationForm] = useState({
+        sourceAcademicYear: '',
+        targetAcademicYear: '',
+        overwriteMode: 'skip_conflicts',
+        dateMode: 'clamp_to_target_year'
+    });
+    const [savingMigration, setSavingMigration] = useState(false);
+
     const periodImportInputRef = useRef(null);
     const roomImportInputRef = useRef(null);
     const subjectImportInputRef = useRef(null);
@@ -230,8 +241,14 @@ const AdminTimetablePage = () => {
             setPeriods(periodResponse?.data?.periods || []);
             const responseWorkingDays = normalizeDays(assignmentResponse?.data?.workingDays, DEFAULT_WEEK_WORKING_DAYS);
             const responseAssignments = assignmentResponse?.data?.assignments || [];
+            const responseAcademicYear = assignmentResponse?.data?.academicYear || '';
             setWeekWorkingDays(responseWorkingDays);
             setAssignments(responseAssignments);
+            setCurrentAcademicYear(responseAcademicYear);
+            setMigrationForm((previousForm) => ({
+                ...previousForm,
+                sourceAcademicYear: previousForm.sourceAcademicYear || responseAcademicYear
+            }));
             setRooms(roomResponse?.data?.rooms || []);
             setNewAssignment((previousAssignment) => {
                 const selectedDays = normalizeDays(previousAssignment.daysOfWeek, []);
@@ -380,6 +397,67 @@ const AdminTimetablePage = () => {
     const cancelAssignmentEdit = () => {
         setEditingAssignmentId(null);
         setNewAssignment(createDefaultAssignment(undefined, weekWorkingDays));
+    };
+
+    const applyBulkDates = async () => {
+        if (!bulkDates.startDate || !bulkDates.endDate) {
+            toast.error(t('adminTimetable:toast.bulkDatesRequired', 'Both start and end dates are required'));
+            return;
+        }
+        if (!window.confirm(t('adminTimetable:confirm.bulkDates', `Update ALL assignments to ${bulkDates.startDate} – ${bulkDates.endDate}? Individual dates can still be changed afterwards.`))) return;
+        try {
+            setSavingBulkDates(true);
+            const result = await timetableService.bulkUpdateAssignmentDates(bulkDates.startDate, bulkDates.endDate);
+            toast.success(result.message || t('adminTimetable:toast.bulkDatesUpdated', 'Dates updated'));
+            await fetchTimetableData();
+        } catch (requestError) {
+            toast.error(requestError?.response?.data?.message || requestError.message);
+        } finally {
+            setSavingBulkDates(false);
+        }
+    };
+
+    const applyYearMigration = async () => {
+        const payload = {
+            sourceAcademicYear: migrationForm.sourceAcademicYear.trim(),
+            targetAcademicYear: migrationForm.targetAcademicYear.trim(),
+            overwriteMode: migrationForm.overwriteMode,
+            dateMode: migrationForm.dateMode
+        };
+
+        if (!payload.sourceAcademicYear || !payload.targetAcademicYear) {
+            toast.error(t('adminTimetable:migration.requiredYears', 'Source and target academic year are required'));
+            return;
+        }
+        if (payload.sourceAcademicYear === payload.targetAcademicYear) {
+            toast.error(t('adminTimetable:migration.yearsMustDiffer', 'Source and target academic year must be different'));
+            return;
+        }
+
+        const confirmed = window.confirm(
+            t(
+                'adminTimetable:migration.confirm',
+                `Migrate timetable assignments from ${payload.sourceAcademicYear} to ${payload.targetAcademicYear}?`
+            )
+        );
+        if (!confirmed) return;
+
+        try {
+            setSavingMigration(true);
+            const response = await timetableService.migrateAssignmentsYear(payload);
+            const summary = response?.data || {};
+            toast.success(
+                t(
+                    'adminTimetable:migration.success',
+                    `Done. Created: ${summary.createdCount || 0}, replaced: ${summary.updatedCount || 0}, skipped: ${summary.skippedCount || 0}, conflicts: ${summary.conflictCount || 0}`
+                )
+            );
+            await fetchTimetableData();
+        } catch (requestError) {
+            toast.error(requestError?.response?.data?.message || requestError.message);
+        } finally {
+            setSavingMigration(false);
+        }
     };
 
     const fillAssignmentFormForEdit = (assignment) => {
@@ -750,7 +828,7 @@ const AdminTimetablePage = () => {
                                 >
                                     <option value="">{t('adminTimetable:assignmentForm.teacherPlaceholder')}</option>
                                     {teachers.map((teacher) => (
-                                        <option key={teacher._id} value={teacher.user?._id || ''}>
+                                        <option key={teacher._id} value={teacher.user?._id || teacher.user || ''}>
                                             {teacher.user?.firstName} {teacher.user?.lastName}
                                         </option>
                                     ))}
@@ -919,6 +997,109 @@ const AdminTimetablePage = () => {
                             </div>
                             <span className="results-badge">
                                 {t('adminTimetable:assignments.resultsShown', { count: filteredAssignments.length })}
+                            </span>
+                        </div>
+
+                        {/* Bulk date updater */}
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', padding: '0 0 16px', borderBottom: '1px solid var(--border-color)', marginBottom: 16 }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    {t('adminTimetable:migration.sourceYear', 'Source year')}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={migrationForm.sourceAcademicYear}
+                                    onChange={(e) => setMigrationForm((prev) => ({ ...prev, sourceAcademicYear: e.target.value }))}
+                                    placeholder={currentAcademicYear || '2026-2027'}
+                                    style={{ padding: '6px 10px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    {t('adminTimetable:migration.targetYear', 'Target year')}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={migrationForm.targetAcademicYear}
+                                    onChange={(e) => setMigrationForm((prev) => ({ ...prev, targetAcademicYear: e.target.value }))}
+                                    placeholder="2027-2028"
+                                    style={{ padding: '6px 10px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    {t('adminTimetable:migration.overwriteMode', 'When conflicts happen')}
+                                </label>
+                                <select
+                                    value={migrationForm.overwriteMode}
+                                    onChange={(e) => setMigrationForm((prev) => ({ ...prev, overwriteMode: e.target.value }))}
+                                    style={{ padding: '6px 10px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                >
+                                    <option value="skip_conflicts">{t('adminTimetable:migration.skipConflicts', 'Skip conflicts')}</option>
+                                    <option value="replace_conflicts">{t('adminTimetable:migration.replaceConflicts', 'Replace conflicts')}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    {t('adminTimetable:migration.dateMode', 'Date strategy')}
+                                </label>
+                                <select
+                                    value={migrationForm.dateMode}
+                                    onChange={(e) => setMigrationForm((prev) => ({ ...prev, dateMode: e.target.value }))}
+                                    style={{ padding: '6px 10px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                >
+                                    <option value="clamp_to_target_year">{t('adminTimetable:migration.clampDates', 'Clamp into target year')}</option>
+                                    <option value="keep_relative">{t('adminTimetable:migration.keepRelativeDates', 'Keep relative offset')}</option>
+                                </select>
+                            </div>
+                            <button
+                                className="btn btn-primary btn-sm"
+                                onClick={applyYearMigration}
+                                disabled={savingMigration || !migrationForm.sourceAcademicYear || !migrationForm.targetAcademicYear}
+                            >
+                                {savingMigration
+                                    ? t('adminTimetable:migration.migrating', 'Migrating...')
+                                    : t('adminTimetable:migration.action', 'Migrate year in one click')}
+                            </button>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                                {t('adminTimetable:migration.hint', 'Copies assignments from source year classes to matching target year classes.')}
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', padding: '0 0 16px', borderBottom: '1px solid var(--border-color)', marginBottom: 16 }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    {t('adminTimetable:bulkDates.startLabel', 'Year start (all assignments)')}
+                                </label>
+                                <input
+                                    type="date"
+                                    value={bulkDates.startDate}
+                                    onChange={(e) => setBulkDates((prev) => ({ ...prev, startDate: e.target.value }))}
+                                    style={{ padding: '6px 10px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                    {t('adminTimetable:bulkDates.endLabel', 'Year end (all assignments)')}
+                                </label>
+                                <input
+                                    type="date"
+                                    value={bulkDates.endDate}
+                                    onChange={(e) => setBulkDates((prev) => ({ ...prev, endDate: e.target.value }))}
+                                    style={{ padding: '6px 10px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                />
+                            </div>
+                            <button
+                                className="btn btn-primary btn-sm"
+                                onClick={applyBulkDates}
+                                disabled={savingBulkDates || !bulkDates.startDate || !bulkDates.endDate}
+                            >
+                                {savingBulkDates
+                                    ? t('adminTimetable:bulkDates.saving', 'Updating…')
+                                    : t('adminTimetable:bulkDates.apply', 'Apply to all')}
+                            </button>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                                {t('adminTimetable:bulkDates.hint', 'Updates every assignment. You can still edit individual dates in the table.')}
                             </span>
                         </div>
 

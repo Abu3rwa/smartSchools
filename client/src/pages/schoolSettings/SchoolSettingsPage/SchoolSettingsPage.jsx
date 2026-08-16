@@ -71,6 +71,8 @@ const SchoolSettingsPage = () => {
     setSchoolYearStartDate,
     schoolYearEndDate,
     setSchoolYearEndDate,
+    schoolYearDatesAcademicYear,
+    setSchoolYearDatesAcademicYear,
     schoolYearDatesSaving,
     schoolWeekConfigLoading,
     schoolWeekConfigSaving,
@@ -307,6 +309,8 @@ const SchoolSettingsPage = () => {
               schoolYearEndDate={schoolYearEndDate}
               setSchoolYearStartDate={setSchoolYearStartDate}
               setSchoolYearEndDate={setSchoolYearEndDate}
+              schoolYearDatesAcademicYear={schoolYearDatesAcademicYear}
+              setSchoolYearDatesAcademicYear={setSchoolYearDatesAcademicYear}
               schoolYearDatesSaving={schoolYearDatesSaving}
               schoolWeekConfigLoading={schoolWeekConfigLoading}
               schoolWeekConfigSaving={schoolWeekConfigSaving}

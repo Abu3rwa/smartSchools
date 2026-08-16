@@ -65,10 +65,28 @@ export const getAcademicYearDateRange = (academicYear, schoolStartMonth = DEFAUL
 };
 
 export const resolveAcademicYearDateRange = (academicYear, school) => {
+    const normalizedYear = normalizeAcademicYear(academicYear);
+    const overrides = school?.settings?.academicYearDateOverrides;
+    const explicitOverride = overrides instanceof Map
+        ? overrides.get(normalizedYear)
+        : overrides?.[normalizedYear];
+
+    const overrideStart = explicitOverride?.startDate ? new Date(explicitOverride.startDate) : null;
+    const overrideEnd = explicitOverride?.endDate ? new Date(explicitOverride.endDate) : null;
+    if (
+        overrideStart &&
+        overrideEnd &&
+        !Number.isNaN(overrideStart.getTime()) &&
+        !Number.isNaN(overrideEnd.getTime()) &&
+        overrideStart <= overrideEnd
+    ) {
+        return { startDate: overrideStart, endDate: overrideEnd };
+    }
+
     const explicitStart = school?.settings?.academicYearStartDate;
     const explicitEnd = school?.settings?.academicYearEndDate;
 
-    if (explicitStart && explicitEnd) {
+    if (explicitStart && explicitEnd && resolveSchoolAcademicYear(school) === normalizedYear) {
         const startDate = new Date(explicitStart);
         const endDate = new Date(explicitEnd);
         if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && startDate <= endDate) {

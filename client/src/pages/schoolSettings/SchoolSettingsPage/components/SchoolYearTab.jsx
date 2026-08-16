@@ -38,6 +38,8 @@ const SchoolYearTab = ({
   schoolYearEndDate,
   setSchoolYearStartDate,
   setSchoolYearEndDate,
+  schoolYearDatesAcademicYear,
+  setSchoolYearDatesAcademicYear,
   schoolYearDatesSaving,
   schoolWeekConfigLoading,
   schoolWeekConfigSaving,
@@ -65,6 +67,11 @@ const SchoolYearTab = ({
     if (inferredToYear) options.add(inferredToYear);
     return [...options].sort();
   }, [inferredToYear, sortedYears]);
+  const yearDateOptions = useMemo(() => {
+    const options = new Set(sortedYears.filter(Boolean));
+    if (currentAcademicYear) options.add(currentAcademicYear);
+    return [...options].sort();
+  }, [currentAcademicYear, sortedYears]);
   const weekendLabels = weekendDays
     .map((day) => WEEKDAY_OPTIONS.find((option) => option.value === day))
     .filter(Boolean)
@@ -101,6 +108,15 @@ const SchoolYearTab = ({
           <p className="text-muted">{t('schoolSettings:schoolYear.step0.subtitle')}</p>
           <div className="form-row">
             <div className="form-group">
+              <label>{t('schoolSettings:schoolYear.step0.yearLabel', 'Academic year')}</label>
+              <select value={schoolYearDatesAcademicYear} onChange={(event) => setSchoolYearDatesAcademicYear(event.target.value)}>
+                <option value="">{t('schoolSettings:schoolYear.selectPlaceholder')}</option>
+                {yearDateOptions.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
               <label>{t('schoolSettings:schoolYear.step0.startDate')}</label>
               <input type="date" value={schoolYearStartDate} onChange={(event) => setSchoolYearStartDate(event.target.value)} />
             </div>
@@ -112,7 +128,7 @@ const SchoolYearTab = ({
           <button
             className="btn btn-primary"
             onClick={onSaveSchoolYearDates}
-            disabled={schoolYearDatesSaving || !schoolYearStartDate || !schoolYearEndDate}
+            disabled={schoolYearDatesSaving || !schoolYearDatesAcademicYear || !schoolYearStartDate || !schoolYearEndDate}
           >
             {schoolYearDatesSaving ? t('schoolSettings:common.saving') : t('schoolSettings:schoolYear.step0.saveDates')}
           </button>

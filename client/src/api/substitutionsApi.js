@@ -2,15 +2,25 @@ import api from '../config/api';
 
 const BASE = '/substitutions';
 
+const resolveApiErrorMessage = (error, fallbackMessage) => {
+  const serverMessage = error?.response?.data?.message;
+  if (serverMessage) return serverMessage;
+  return error?.message || fallbackMessage;
+};
+
 /**
  * Fetch substitution candidates for an absent teacher on a date.
  * @param {{ absentTeacherId: string, date: string }} payload
  * @returns {Promise<{ date, absentTeacherId, targetPeriods, candidatesAllPeriods, candidatesByPeriod }>}
  */
 export async function fetchCandidates({ absentTeacherId, date }) {
-  const { data } = await api.post(`${BASE}/candidates`, { absentTeacherId, date });
-  if (!data.success) throw new Error(data.message || 'Failed to fetch candidates');
-  return data.data;
+  try {
+    const { data } = await api.post(`${BASE}/candidates`, { absentTeacherId, date });
+    if (!data.success) throw new Error(data.message || 'Failed to fetch candidates');
+    return data.data;
+  } catch (error) {
+    throw new Error(resolveApiErrorMessage(error, 'Failed to fetch candidates'));
+  }
 }
 
 /**
@@ -19,9 +29,13 @@ export async function fetchCandidates({ absentTeacherId, date }) {
  * @returns {Promise<{ _id, status, ... }>}
  */
 export async function createSubRequest(payload) {
-  const { data } = await api.post(BASE, payload);
-  if (!data.success) throw new Error(data.message || 'Failed to create request');
-  return data.data;
+  try {
+    const { data } = await api.post(BASE, payload);
+    if (!data.success) throw new Error(data.message || 'Failed to create request');
+    return data.data;
+  } catch (error) {
+    throw new Error(resolveApiErrorMessage(error, 'Failed to create request'));
+  }
 }
 
 /**

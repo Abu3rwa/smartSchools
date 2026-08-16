@@ -37,6 +37,49 @@ export const closePlpMonthConfig = createAsyncThunk('plp/closeMonthConfig', asyn
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to close config'); }
 });
 
+// ─── Trait Config ────────────────────────────────────────────────────────────
+export const fetchPlpTraits = createAsyncThunk('plp/fetchTraits', async (_, { rejectWithValue }) => {
+    try {
+        const res = await api.get('/plp/traits');
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to fetch traits'); }
+});
+
+export const fetchPlpTrait = createAsyncThunk('plp/fetchTrait', async (id, { rejectWithValue }) => {
+    try {
+        const res = await api.get(`/plp/traits/${id}`);
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to fetch trait'); }
+});
+
+export const createPlpTrait = createAsyncThunk('plp/createTrait', async (data, { rejectWithValue }) => {
+    try {
+        const res = await api.post('/plp/traits', data);
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create trait'); }
+});
+
+export const updatePlpTrait = createAsyncThunk('plp/updateTrait', async ({ id, data }, { rejectWithValue }) => {
+    try {
+        const res = await api.put(`/plp/traits/${id}`, data);
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update trait'); }
+});
+
+export const setPlpTraitActive = createAsyncThunk('plp/setTraitActive', async ({ id, isActive }, { rejectWithValue }) => {
+    try {
+        const res = await api.post(`/plp/traits/${id}/activate`, { isActive });
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update trait'); }
+});
+
+export const seedPlpTraits = createAsyncThunk('plp/seedTraits', async (_, { rejectWithValue }) => {
+    try {
+        const res = await api.post('/plp/traits/seed');
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to seed traits'); }
+});
+
 // ─── Records ─────────────────────────────────────────────────────────────────
 export const fetchPlpRecords = createAsyncThunk('plp/fetchRecords', async (params = {}, { rejectWithValue }) => {
     try {
@@ -151,16 +194,22 @@ const plpSlice = createSlice({
         awardCandidates: [],
         supervisorAssignments: [],
         supervisorTeachers: [],
+        traits: [],
+        traitLoading: false,
+        traitError: null,
         loading: false,
         error: null,
     },
     reducers: {
         clearPlpError: (state) => { state.error = null; },
+        clearPlpTraitError: (state) => { state.traitError = null; },
         clearSelectedRecord: (state) => { state.selectedRecord = null; },
     },
     extraReducers: (builder) => {
         const pending = (state) => { state.loading = true; state.error = null; };
         const failed = (state, action) => { state.loading = false; state.error = action.payload; };
+        const traitPending = (state) => { state.traitLoading = true; state.traitError = null; };
+        const traitFailed = (state, action) => { state.traitLoading = false; state.traitError = action.payload; };
 
         builder
             .addCase(fetchPlpMonthConfigs.pending, pending)
@@ -225,11 +274,31 @@ const plpSlice = createSlice({
                 state.supervisorAssignments = state.supervisorAssignments.filter((a) => a._id !== action.payload);
             })
 
-            .addCase(fetchSupervisorTeachers.fulfilled, (state, action) => { state.supervisorTeachers = action.payload; });
+            .addCase(fetchSupervisorTeachers.fulfilled, (state, action) => { state.supervisorTeachers = action.payload; })
+
+            .addCase(fetchPlpTraits.pending, traitPending)
+            .addCase(fetchPlpTraits.fulfilled, (state, action) => { state.traitLoading = false; state.traits = action.payload; })
+            .addCase(fetchPlpTraits.rejected, traitFailed)
+
+            .addCase(fetchPlpTrait.fulfilled, (state, action) => {
+                const idx = state.traits.findIndex((t) => t._id === action.payload._id);
+                if (idx !== -1) state.traits[idx] = action.payload;
+            })
+
+            .addCase(createPlpTrait.fulfilled, (state, action) => { state.traits.unshift(action.payload); })
+            .addCase(updatePlpTrait.fulfilled, (state, action) => {
+                const idx = state.traits.findIndex((t) => t._id === action.payload._id);
+                if (idx !== -1) state.traits[idx] = action.payload;
+            })
+            .addCase(setPlpTraitActive.fulfilled, (state, action) => {
+                const idx = state.traits.findIndex((t) => t._id === action.payload._id);
+                if (idx !== -1) state.traits[idx] = action.payload;
+            })
+            .addCase(seedPlpTraits.fulfilled, (state, action) => { state.traits = action.payload; });
     },
 });
 
-export const { clearPlpError, clearSelectedRecord } = plpSlice.actions;
+export const { clearPlpError, clearPlpTraitError, clearSelectedRecord } = plpSlice.actions;
 
 export const selectPlpConfigs = (s) => s.plp.configs;
 export const selectPlpRecords = (s) => s.plp.records;
@@ -240,5 +309,9 @@ export const selectPlpSupervisorAssignments = (s) => s.plp.supervisorAssignments
 export const selectSupervisorTeachers = (s) => s.plp.supervisorTeachers;
 export const selectPlpLoading = (s) => s.plp.loading;
 export const selectPlpError = (s) => s.plp.error;
+export const selectPlpTraits = (s) => s.plp.traits;
+export const selectPlpTraitLoading = (s) => s.plp.traitLoading;
+export const selectPlpTraitError = (s) => s.plp.traitError;
+export const selectPlpActiveTraits = (s) => s.plp.traits.filter((t) => t.isActive);
 
 export default plpSlice.reducer;

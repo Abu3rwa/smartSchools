@@ -15,17 +15,24 @@ export const isPastDate = (dateValue) => {
 
 export const buildTeacherOptions = (teachers) =>
   teachers
-    .filter((t) => t.user?.firstName || t.user?.lastName)
+    .filter((t) => {
+      const user = t.user;
+      if (typeof user === 'string') return Boolean(user);
+      return Boolean(user?.firstName || user?.lastName || user?._id);
+    })
     .map((t) => {
-      const first = t.user?.firstName || '';
-      const last = t.user?.lastName || '';
+      const user = t.user;
+      const first = typeof user === 'object' ? user?.firstName || '' : '';
+      const last = typeof user === 'object' ? user?.lastName || '' : '';
       const name = `${first} ${last}`.trim() || t.employeeId || 'Unknown';
+      const id = typeof user === 'string' ? user : user?._id;
       return {
-        id: t.user?._id,
+        id,
         label: name,
         name
       };
-    });
+    })
+    .filter((option) => Boolean(option.id));
 
 export const getPeriodLabel = (period, fallback) => {
   if (!period) return fallback;

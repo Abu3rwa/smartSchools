@@ -3,7 +3,11 @@ import PlpStudentRecord from '../models/PlpStudentRecord.js';
 import PlpEvidence from '../models/PlpEvidence.js';
 import PlpSupervisorAssignment from '../models/PlpSupervisorAssignment.js';
 import PlpAuditLog from '../models/PlpAuditLog.js';
+import PlpTraitConfig from '../models/PlpTraitConfig.js';
 import Student from '../models/Student.js';
+import Teacher from '../models/Teacher.js';
+import Subject from '../models/Subject.js';
+import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 const THEME_TRAITS = {
@@ -105,6 +109,119 @@ const generateActivities = (theme, level) => {
 const audit = (school, actor, action, targetType, targetId, meta) =>
     PlpAuditLog.create({ school, actor, action, targetType, targetId, meta }).catch(() => {});
 
+const HOMEROOM_SUBJECT_MATCHERS = ['homeroom', 'home room', 'advisory', 'advisor'];
+
+const isHomeroomSubject = (subject) => {
+    const name = String(subject?.name || '').toLowerCase();
+    const code = String(subject?.code || '').toLowerCase();
+    return HOMEROOM_SUBJECT_MATCHERS.some((term) => name.includes(term) || code.includes(term));
+};
+
+const getTeacherHomeroomClassIds = async (schoolId, teacherUserId, academicYear = null) => {
+    const teacherProfile = await Teacher.findOne({ school: schoolId, user: teacherUserId, isActive: true })
+        .select('_id')
+        .lean();
+    if (!teacherProfile) return [];
+
+    const subjects = await Subject.find({ school: schoolId, isActive: true })
+        .select('_id name code')
+        .lean();
+    const homeroomSubjectIds = subjects.filter(isHomeroomSubject).map((s) => s._id.toString());
+    if (homeroomSubjectIds.length === 0) return [];
+
+    const classQuery = {
+        school: schoolId,
+        isActive: true,
+        subjects: {
+            $elemMatch: {
+                teacher: teacherProfile._id,
+                subject: { $in: homeroomSubjectIds }
+            }
+        }
+    };
+    if (academicYear) classQuery.academicYear = academicYear;
+
+    const classes = await Class.find(classQuery).select('_id').lean();
+    return classes.map((row) => row._id.toString());
+};
+
+const assertTeacherHomeroomClassAccess = async (user, classId, academicYear = null) => {
+    if (user.role !== 'teacher') return;
+    const allowedClassIds = await getTeacherHomeroomClassIds(user.school, user._id, academicYear);
+    if (!allowedClassIds.some((id) => id === String(classId))) {
+        throw Object.assign(new Error('PLP is only available for your homeroom class assignments'), { statusCode: 403 });
+    }
+};
+
+const buildThemeTraitMap = (traits = []) => {
+    const byTheme = {};
+    for (const t of traits) {
+        if (!t.themeCode) continue;
+        if (!byTheme[t.themeCode]) byTheme[t.themeCode] = [];
+        byTheme[t.themeCode].push({ code: t.code, name: t.name });
+    }
+    for (const theme of Object.keys(byTheme)) {
+        byTheme[theme].sort((a, b) => a.code.localeCompare(b.code));
+    }
+    return byTheme;
+};
+
+const resolveThemeLabels = async (schoolId) => {
+    const traits = await PlpTraitConfig.find({ school: schoolId }).lean();
+    const byTheme = buildThemeTraitMap(traits);
+    const result = {};
+    for (const theme of Object.keys(THEME_TRAITS)) {
+        const configured = byTheme[theme] || [];
+        if (configured.length >= 4) {
+            result[theme] = {
+                core: configured[0].name,
+                s1: configured[1].name,
+                s2: configured[2].name,
+                s3: configured[3].name,
+            };
+        } else if (configured.length > 0) {
+            const fallback = { ...THEME_TRAITS[theme] };
+            for (let i = 0; i < Math.min(configured.length, 4); i++) {
+                const keys = ['core', 's1', 's2', 's3'];
+                fallback[keys[i]] = configured[i].name;
+            }
+            result[theme] = fallback;
+        } else {
+            result[theme] = THEME_TRAITS[theme];
+        }
+    }
+    return result;
+};
+
+const SEED_TRAITS = [
+    { name: 'Confidence', code: 'CONFIDENCE', description: 'Believing in oneself and one\'s abilities.', selSkills: ['self_awareness', 'self_management'], themeCode: 'confidence' },
+    { name: 'Hope', code: 'HOPE', description: 'Looking forward to the future with optimism.', selSkills: ['self_awareness', 'relationship_skills'], themeCode: 'hope' },
+    { name: 'Wisdom', code: 'WISDOM', description: 'Using good judgment and deep understanding.', selSkills: ['responsible_decision_making', 'self_awareness'], themeCode: 'wisdom' },
+    { name: 'Humility', code: 'HUMILITY', description: 'Recognizing one\'s limitations and valuing others.', selSkills: ['self_awareness', 'social_awareness'], themeCode: 'confidence' },
+    { name: 'Purpose', code: 'PURPOSE', description: 'Having clear goals and a sense of direction.', selSkills: ['responsible_decision_making', 'self_management'], themeCode: 'confidence' },
+    { name: 'Courage', code: 'COURAGE', description: 'Facing difficulty with bravery and resilience.', selSkills: ['self_management', 'responsible_decision_making'], themeCode: 'confidence' },
+    { name: 'Persistence', code: 'PERSISTENCE', description: 'Continuing steadily toward a goal despite obstacles.', selSkills: ['self_management', 'responsible_decision_making'], themeCode: 'hope' },
+    { name: 'Compassion', code: 'COMPASSION', description: 'Caring about others and acting with kindness.', selSkills: ['social_awareness', 'relationship_skills'], themeCode: 'hope' },
+    { name: 'Service', code: 'SERVICE', description: 'Contributing to the well-being of others.', selSkills: ['relationship_skills', 'responsible_decision_making'], themeCode: 'hope' },
+];
+
+const seedStarterTraits = async (schoolId, actorId) => {
+    const existing = await PlpTraitConfig.find({ school: schoolId }).lean();
+    if (existing.length > 0) return existing;
+    const docs = SEED_TRAITS.map((t, idx) => ({
+        school: schoolId,
+        name: t.name,
+        code: t.code,
+        description: t.description,
+        selSkills: t.selSkills,
+        themeCode: t.themeCode,
+        displayOrder: idx + 1,
+        isActive: true,
+        createdBy: actorId,
+    }));
+    return await PlpTraitConfig.insertMany(docs);
+};
+
 // ─── Month Config ───────────────────────────────────────────────────────────────
 
 export const getMonthConfigs = asyncHandler(async (req, res) => {
@@ -203,6 +320,14 @@ export const getRecords = asyncHandler(async (req, res) => {
             filter.teacher = teacherId ? teacherId : { $in: teacherIds };
         } else {
             filter.teacher = req.user._id;
+            const allowedClassIds = await getTeacherHomeroomClassIds(req.user.school, req.user._id, academicYear || null);
+            if (allowedClassIds.length === 0) {
+                return res.json({ success: true, data: [] });
+            }
+            if (classId && !allowedClassIds.includes(String(classId))) {
+                return res.json({ success: true, data: [] });
+            }
+            filter.class = classId || { $in: allowedClassIds };
         }
     } else if (teacherId) {
         filter.teacher = teacherId;
@@ -230,7 +355,10 @@ export const getRecord = asyncHandler(async (req, res) => {
 
 const assertRecordAccess = async (user, record) => {
     if (['admin'].includes(user.role)) return;
-    if (record.teacher.toString() === user._id.toString()) return;
+    if (record.teacher.toString() === user._id.toString()) {
+        await assertTeacherHomeroomClassAccess(user, record.class, record.academicYear);
+        return;
+    }
     if (user.role === 'department_principal') {
         const assignment = await PlpSupervisorAssignment.findOne({
             school: user.school,
@@ -245,6 +373,7 @@ const assertRecordAccess = async (user, record) => {
 
 export const createRecord = asyncHandler(async (req, res) => {
     const { academicYear, month, theme, classId, studentId, scores } = req.body;
+    await assertTeacherHomeroomClassAccess(req.user, classId, academicYear);
     const config = await PlpMonthConfig.findOne({
         school: req.user.school, academicYear, month, status: 'published',
     });
@@ -319,6 +448,9 @@ export const submitRecord = asyncHandler(async (req, res) => {
 
 export const getEvidence = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const record = await PlpStudentRecord.findOne({ _id: id, school: req.user.school }).select('_id teacher class academicYear');
+    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    await assertRecordAccess(req.user, record);
     const evidence = await PlpEvidence.find({ school: req.user.school, plpRecord: id })
         .populate('teacher', 'firstName lastName')
         .sort({ createdAt: -1 });
@@ -402,6 +534,7 @@ export const getRecommendations = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const record = await PlpStudentRecord.findOne({ _id: id, school: req.user.school });
     if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    await assertRecordAccess(req.user, record);
     res.json({ success: true, data: record.recommendedActivities });
 });
 
@@ -409,6 +542,7 @@ export const regenerateRecommendations = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const record = await PlpStudentRecord.findOne({ _id: id, school: req.user.school });
     if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    await assertRecordAccess(req.user, record);
     const activities = generateActivities(record.theme, record.level);
     record.recommendedActivities = activities;
     await record.save();
@@ -469,5 +603,97 @@ export const getAuditLogs = asyncHandler(async (req, res) => {
 // ─── Theme labels (public helper) ────────────────────────────────────────────────
 
 export const getThemeLabels = asyncHandler(async (req, res) => {
-    res.json({ success: true, data: THEME_TRAITS });
+    const labels = await resolveThemeLabels(req.user.school);
+    res.json({ success: true, data: labels });
+});
+
+// ─── Trait Config ────────────────────────────────────────────────────────────────
+
+export const getTraits = asyncHandler(async (req, res) => {
+    const traits = await PlpTraitConfig.find({ school: req.user.school }).sort({ displayOrder: 1, name: 1 });
+    res.json({ success: true, data: traits });
+});
+
+export const getTrait = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const trait = await PlpTraitConfig.findOne({ _id: id, school: req.user.school });
+    if (!trait) return res.status(404).json({ success: false, message: 'Trait not found' });
+    res.json({ success: true, data: trait });
+});
+
+export const createTrait = asyncHandler(async (req, res) => {
+    const { name, code, description, selSkills, isActive, displayOrder, themeCode } = req.body;
+    if (!name || !code) return res.status(400).json({ success: false, message: 'Name and code are required' });
+    const cleanCode = String(code).trim().toUpperCase();
+    const cleanName = String(name).trim();
+    const dup = await PlpTraitConfig.findOne({ school: req.user.school, code: cleanCode });
+    if (dup) return res.status(400).json({ success: false, message: 'Duplicate trait code' });
+    const dupName = await PlpTraitConfig.findOne({ school: req.user.school, name: cleanName });
+    if (dupName) return res.status(400).json({ success: false, message: 'Duplicate trait name' });
+    const cleanedSkills = Array.isArray(selSkills)
+        ? selSkills.map((s) => String(s).trim()).filter((s) => s.length > 0)
+        : [];
+    const trait = await PlpTraitConfig.create({
+        school: req.user.school,
+        name: cleanName,
+        code: cleanCode,
+        description: description || '',
+        selSkills: cleanedSkills,
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
+        displayOrder: Number(displayOrder) || 0,
+        themeCode: themeCode || '',
+        createdBy: req.user._id,
+    });
+    audit(req.user.school, req.user._id, 'trait_created', 'PlpTraitConfig', trait._id, { code: trait.code });
+    res.status(201).json({ success: true, data: trait });
+});
+
+export const updateTrait = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { name, code, description, selSkills, isActive, displayOrder, themeCode } = req.body;
+    const trait = await PlpTraitConfig.findOne({ _id: id, school: req.user.school });
+    if (!trait) return res.status(404).json({ success: false, message: 'Trait not found' });
+    if (code) {
+        const cleanCode = String(code).trim().toUpperCase();
+        if (cleanCode !== trait.code) {
+            const dup = await PlpTraitConfig.findOne({ school: req.user.school, code: cleanCode, _id: { $ne: id } });
+            if (dup) return res.status(400).json({ success: false, message: 'Duplicate trait code' });
+        }
+    }
+    if (name) {
+        const cleanName = String(name).trim();
+        const dup = await PlpTraitConfig.findOne({ school: req.user.school, name: cleanName, _id: { $ne: id } });
+        if (dup) return res.status(400).json({ success: false, message: 'Duplicate trait name' });
+    }
+    const cleanedSkills = Array.isArray(selSkills)
+        ? selSkills.map((s) => String(s).trim()).filter((s) => s.length > 0)
+        : trait.selSkills;
+    trait.name = name ? String(name).trim() : trait.name;
+    trait.code = code ? String(code).trim().toUpperCase() : trait.code;
+    trait.description = description !== undefined ? description : trait.description;
+    trait.selSkills = cleanedSkills;
+    trait.isActive = isActive !== undefined ? Boolean(isActive) : trait.isActive;
+    trait.displayOrder = displayOrder !== undefined ? Number(displayOrder) : trait.displayOrder;
+    trait.themeCode = themeCode !== undefined ? themeCode : trait.themeCode;
+    trait.updatedBy = req.user._id;
+    await trait.save();
+    audit(req.user.school, req.user._id, 'trait_updated', 'PlpTraitConfig', trait._id, { code: trait.code });
+    res.json({ success: true, data: trait });
+});
+
+export const setTraitActive = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { isActive } = req.body;
+    const trait = await PlpTraitConfig.findOne({ _id: id, school: req.user.school });
+    if (!trait) return res.status(404).json({ success: false, message: 'Trait not found' });
+    trait.isActive = Boolean(isActive);
+    trait.updatedBy = req.user._id;
+    await trait.save();
+    audit(req.user.school, req.user._id, isActive ? 'trait_activated' : 'trait_deactivated', 'PlpTraitConfig', trait._id, {});
+    res.json({ success: true, data: trait });
+});
+
+export const seedTraits = asyncHandler(async (req, res) => {
+    const traits = await seedStarterTraits(req.user.school, req.user._id);
+    res.json({ success: true, data: traits });
 });

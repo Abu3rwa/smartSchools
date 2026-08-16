@@ -90,6 +90,14 @@ const schoolSchema = new mongoose.Schema({
         academicYearEndDate: {
             type: Date
         },
+        academicYearDateOverrides: {
+            type: Map,
+            of: new mongoose.Schema({
+                startDate: { type: Date },
+                endDate: { type: Date }
+            }, { _id: false }),
+            default: () => ({})
+        },
         maxStudents: {
             type: Number,
             default: 50

@@ -55,6 +55,16 @@ const timetableService = {
     deleteAssignment: async (id) => {
         const response = await api.delete(`/timetable/assignments/${id}`);
         return response.data;
+    },
+
+    bulkUpdateAssignmentDates: async (startDate, endDate) => {
+        const response = await api.put('/timetable/assignments/bulk-dates', { startDate, endDate });
+        return response.data;
+    },
+
+    migrateAssignmentsYear: async (payload) => {
+        const response = await api.post('/timetable/assignments/migrate-year', payload);
+        return response.data;
     }
 };
 

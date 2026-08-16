@@ -24,7 +24,9 @@ import {
 import {
     isValidAcademicYear,
     normalizeAcademicYear,
-    resolveSchoolAcademicYear
+    parseAcademicYear,
+    resolveSchoolAcademicYear,
+    resolveAcademicYearDateRange
 } from '../utils/academicYear.js';
 import {
     createDefaultAdmissionsPromotionSettings,
@@ -232,19 +234,25 @@ router.get('/me/subscription', requireSchoolContext, authorize('admin'), asyncHa
  * @access  Private (Admin)
  */
 router.get('/me/academic-year-dates', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const requestedYear = normalizeAcademicYear(req.query?.academicYear || '');
     const school = await School.findById(req.schoolId).select(
-        'settings.academicYearStartDate settings.academicYearEndDate settings.currentAcademicYear'
+        'settings.academicYearStartDate settings.academicYearEndDate settings.academicYearDateOverrides settings.currentAcademicYear'
     );
     if (!school) {
         return res.status(404).json({ success: false, message: 'School not found' });
     }
 
+    const targetYear = isValidAcademicYear(requestedYear)
+        ? requestedYear
+        : resolveSchoolAcademicYear(school);
+    const resolvedRange = resolveAcademicYearDateRange(targetYear, school);
+
     res.json({
         success: true,
         data: {
-            academicYear: school.settings?.currentAcademicYear || null,
-            startDate: school.settings?.academicYearStartDate || null,
-            endDate: school.settings?.academicYearEndDate || null
+            academicYear: targetYear,
+            startDate: resolvedRange?.startDate || null,
+            endDate: resolvedRange?.endDate || null
         }
     });
 }));
@@ -255,7 +263,15 @@ router.get('/me/academic-year-dates', requireSchoolContext, authorize('admin'), 
  * @access  Private (Admin)
  */
 router.put('/me/academic-year-dates', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const inputYear = normalizeAcademicYear(req.body?.academicYear);
     const { startDate, endDate } = req.body || {};
+
+    if (!isValidAcademicYear(inputYear)) {
+        return res.status(400).json({
+            success: false,
+            message: 'academicYear must be in YYYY-YYYY format (consecutive years)'
+        });
+    }
     if (!startDate || !endDate) {
         return res.status(400).json({
             success: false,
@@ -278,28 +294,52 @@ router.put('/me/academic-year-dates', requireSchoolContext, authorize('admin'), 
         });
     }
 
+    const parsedYear = parseAcademicYear(inputYear);
+    if (!parsedYear) {
+        return res.status(400).json({ success: false, message: 'Invalid academicYear format' });
+    }
+    if (parsedStart.getUTCFullYear() !== parsedYear.startYear || parsedEnd.getUTCFullYear() !== parsedYear.endYear) {
+        return res.status(400).json({
+            success: false,
+            message: `Date range must align to academic year ${inputYear}`
+        });
+    }
+
+    const schoolBefore = await School.findById(req.schoolId).select('settings.currentAcademicYear');
+    if (!schoolBefore) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    const updateSet = {
+        [`settings.academicYearDateOverrides.${inputYear}.startDate`]: parsedStart,
+        [`settings.academicYearDateOverrides.${inputYear}.endDate`]: parsedEnd
+    };
+    if ((schoolBefore.settings?.currentAcademicYear || '') === inputYear) {
+        updateSet['settings.academicYearStartDate'] = parsedStart;
+        updateSet['settings.academicYearEndDate'] = parsedEnd;
+    }
+
     const school = await School.findByIdAndUpdate(
         req.schoolId,
         {
-            $set: {
-                'settings.academicYearStartDate': parsedStart,
-                'settings.academicYearEndDate': parsedEnd
-            }
+            $set: updateSet
         },
         { new: true, runValidators: true }
-    ).select('settings.academicYearStartDate settings.academicYearEndDate settings.currentAcademicYear');
+    ).select('settings.academicYearStartDate settings.academicYearEndDate settings.academicYearDateOverrides settings.currentAcademicYear');
 
     if (!school) {
         return res.status(404).json({ success: false, message: 'School not found' });
     }
 
+    const resolvedRange = resolveAcademicYearDateRange(inputYear, school);
+
     res.json({
         success: true,
-        message: 'Academic year dates updated',
+        message: `Academic year dates updated for ${inputYear}`,
         data: {
-            academicYear: school.settings?.currentAcademicYear || null,
-            startDate: school.settings?.academicYearStartDate || null,
-            endDate: school.settings?.academicYearEndDate || null
+            academicYear: inputYear,
+            startDate: resolvedRange?.startDate || null,
+            endDate: resolvedRange?.endDate || null
         }
     });
 }));

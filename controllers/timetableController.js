@@ -11,6 +11,7 @@ import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import { getClassIdsForAcademicYear, resolveAcademicYearForRequest } from '../helpers/academicYearScope.js';
 import { evaluateRoomOperationalState } from '../helpers/roomAvailability.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
+import { resolveAcademicYearDateRange } from '../utils/academicYear.js';
 import {
     DEFAULT_WEEK_WORKING_DAYS,
     getInvalidWeekWorkingDayValues,
@@ -157,6 +158,113 @@ const hasDayOutsideSchoolWorkingDays = (daysOfWeek, schoolWeekWorkingDays) => {
     return invalidDays.length > 0;
 };
 
+async function resolveTeacherUserForAssignment(schoolId, rawTeacherId) {
+    if (!rawTeacherId) {
+        return { error: 'Teacher is required' };
+    }
+
+    const candidateId = String(rawTeacherId).trim();
+    if (!candidateId) {
+        return { error: 'Teacher is required' };
+    }
+
+    const teacherUser = await User.findById(candidateId).setOptions({ skipTenantFilter: true });
+    if (teacherUser) {
+        if (teacherUser.school?.toString() !== schoolId.toString()) {
+            return { error: 'Teacher does not belong to this school' };
+        }
+        if (teacherUser.role !== 'teacher') {
+            return { error: 'Selected user is not a teacher' };
+        }
+        if (teacherUser.isActive === false) {
+            return { error: 'Teacher account is inactive' };
+        }
+
+        const teacherProfile = await findActiveTeacherProfileForUser(teacherUser._id);
+        if (!teacherProfile) {
+            return { error: 'Teacher profile is missing or inactive' };
+        }
+
+        return { teacherUserId: teacherUser._id, teacherUser, teacherProfile };
+    }
+
+    const teacherProfile = await Teacher.findById(candidateId)
+        .select('_id user school isActive')
+        .lean();
+    if (!teacherProfile) {
+        return { error: 'Teacher not found' };
+    }
+    if (teacherProfile.school?.toString() !== schoolId.toString()) {
+        return { error: 'Teacher does not belong to this school' };
+    }
+    if (teacherProfile.isActive === false) {
+        return { error: 'Teacher profile is inactive' };
+    }
+
+    const userFromProfile = await User.findById(teacherProfile.user).setOptions({ skipTenantFilter: true });
+    if (!userFromProfile) {
+        return { error: 'Teacher user account is missing' };
+    }
+    if (userFromProfile.school?.toString() !== schoolId.toString()) {
+        return { error: 'Teacher does not belong to this school' };
+    }
+    if (userFromProfile.role !== 'teacher') {
+        return { error: 'Selected user is not a teacher' };
+    }
+    if (userFromProfile.isActive === false) {
+        return { error: 'Teacher account is inactive' };
+    }
+
+    return { teacherUserId: userFromProfile._id, teacherUser: userFromProfile, teacherProfile };
+}
+
+const normalizeYearClassKey = (classDoc) => {
+    const name = String(classDoc?.name || '').trim().toLowerCase();
+    const section = String(classDoc?.section || '').trim().toLowerCase();
+    const grade = String(classDoc?.grade || '');
+    return `${name}|${section}|${grade}`;
+};
+
+const normalizeLooseClassKey = (classDoc) => {
+    const name = String(classDoc?.name || '').trim().toLowerCase();
+    const grade = String(classDoc?.grade || '');
+    return `${name}|${grade}`;
+};
+
+const toStartOfDay = (value) => {
+    const date = new Date(value);
+    date.setHours(0, 0, 0, 0);
+    return date;
+};
+
+const toEndOfDay = (value) => {
+    const date = new Date(value);
+    date.setHours(23, 59, 59, 999);
+    return date;
+};
+
+const buildMigratedDateWindow = ({ sourceStartDate, sourceEndDate, sourceRange, targetRange, dateMode }) => {
+    const sourceStart = toStartOfDay(sourceStartDate);
+    const sourceEnd = toEndOfDay(sourceEndDate);
+
+    const startDelta = sourceStart.getTime() - sourceRange.startDate.getTime();
+    const endDelta = sourceEnd.getTime() - sourceRange.startDate.getTime();
+
+    let nextStart = new Date(targetRange.startDate.getTime() + startDelta);
+    let nextEnd = new Date(targetRange.startDate.getTime() + endDelta);
+
+    if (dateMode === 'clamp_to_target_year') {
+        if (nextStart < targetRange.startDate) nextStart = toStartOfDay(targetRange.startDate);
+        if (nextEnd > targetRange.endDate) nextEnd = toEndOfDay(targetRange.endDate);
+    }
+
+    if (nextEnd <= nextStart) {
+        nextEnd = toEndOfDay(nextStart);
+    }
+
+    return { startDate: nextStart, endDate: nextEnd };
+};
+
 /**
  * Check for teacher/class/room conflicts in the same period with overlapping dates and days.
  * @param {string} schoolId
@@ -273,20 +381,11 @@ export const createAssignment = asyncHandler(async (req, res) => {
         });
     }
 
-    const [teacherUser, teacherProfile] = await Promise.all([
-        User.findById(teacher).setOptions({ skipTenantFilter: true }),
-        findActiveTeacherProfileForUser(teacher)
-    ]);
-
-    if (
-        !teacherUser ||
-        teacherUser.school?.toString() !== req.schoolId.toString() ||
-        teacherUser.role !== 'teacher' ||
-        teacherUser.isActive === false ||
-        !teacherProfile
-    ) {
-        return res.status(400).json({ success: false, message: 'Invalid teacher' });
+    const teacherResolution = await resolveTeacherUserForAssignment(req.schoolId, teacher);
+    if (teacherResolution.error) {
+        return res.status(400).json({ success: false, message: teacherResolution.error });
     }
+    const teacherUserId = teacherResolution.teacherUserId;
 
     const classDoc = await Class.findById(classId);
     if (!classDoc || classDoc.school.toString() !== req.schoolId.toString()) {
@@ -339,7 +438,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
 
     const candidate = {
         school: req.schoolId,
-        teacher,
+        teacher: teacherUserId,
         class: classId,
         grade: classDoc.grade,
         subject,
@@ -353,7 +452,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
     };
 
     const { hasConflict, conflicts } = await checkAssignmentConflicts(req.schoolId, {
-        teacher,
+        teacher: teacherUserId,
         class: classId,
         room,
         period,
@@ -604,22 +703,11 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     }
 
     if (bodyTeacher !== undefined) {
-        const [teacherUser, teacherProfile] = await Promise.all([
-            User.findById(bodyTeacher).setOptions({ skipTenantFilter: true }),
-            findActiveTeacherProfileForUser(bodyTeacher)
-        ]);
-
-        if (
-            !teacherUser ||
-            teacherUser.school?.toString() !== req.schoolId.toString() ||
-            teacherUser.role !== 'teacher' ||
-            teacherUser.isActive === false ||
-            !teacherProfile
-        ) {
-            return res.status(400).json({ success: false, message: 'Invalid teacher' });
+        const teacherResolution = await resolveTeacherUserForAssignment(req.schoolId, bodyTeacher);
+        if (teacherResolution.error) {
+            return res.status(400).json({ success: false, message: teacherResolution.error });
         }
-
-        assignment.teacher = bodyTeacher;
+        assignment.teacher = teacherResolution.teacherUserId;
     }
     if (classId !== undefined) {
         const classDoc = await Class.findById(classId);
@@ -721,6 +809,293 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
     await assignment.deleteOne();
 
     res.json({ success: true, message: 'Assignment deleted' });
+});
+
+// @desc    Bulk-update startDate / endDate for all assignments in the current academic year
+// @route   PUT /api/timetable/assignments/bulk-dates
+// @access  Private (Admin, Department Principal)
+export const bulkUpdateAssignmentDates = asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.body;
+    if (!startDate || !endDate) {
+        return res.status(400).json({ success: false, message: 'startDate and endDate are required' });
+    }
+
+    const normalizedStart = new Date(startDate);
+    const normalizedEnd = new Date(endDate);
+    if (Number.isNaN(normalizedStart.getTime()) || Number.isNaN(normalizedEnd.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid date format' });
+    }
+    if (normalizedEnd <= normalizedStart) {
+        return res.status(400).json({ success: false, message: 'endDate must be after startDate' });
+    }
+
+    const effectiveAcademicYear = resolveAcademicYearForRequest(req);
+    const classIds = await getClassIdsForAcademicYear({
+        schoolId: req.schoolId,
+        academicYear: effectiveAcademicYear
+    });
+
+    const result = await TeacherPeriodAssignment.updateMany(
+        { school: req.schoolId, class: { $in: classIds } },
+        { $set: { startDate: normalizedStart, endDate: normalizedEnd } }
+    );
+
+    res.json({
+        success: true,
+        message: `Updated ${result.modifiedCount} assignment${result.modifiedCount !== 1 ? 's' : ''}`,
+        data: { modifiedCount: result.modifiedCount, academicYear: effectiveAcademicYear }
+    });
+});
+
+// @desc    Migrate timetable assignments from one academic year to another
+// @route   POST /api/timetable/assignments/migrate-year
+// @access  Private (Admin, Department Principal)
+export const migrateAssignmentsYear = asyncHandler(async (req, res) => {
+    const {
+        sourceAcademicYear,
+        targetAcademicYear,
+        overwriteMode = 'skip_conflicts',
+        dateMode = 'clamp_to_target_year'
+    } = req.body || {};
+
+    if (!sourceAcademicYear || !targetAcademicYear) {
+        return res.status(400).json({ success: false, message: 'sourceAcademicYear and targetAcademicYear are required' });
+    }
+    if (sourceAcademicYear === targetAcademicYear) {
+        return res.status(400).json({ success: false, message: 'Source and target academic year must be different' });
+    }
+    if (!['skip_conflicts', 'replace_conflicts'].includes(overwriteMode)) {
+        return res.status(400).json({ success: false, message: 'Invalid overwriteMode' });
+    }
+    if (!['keep_relative', 'clamp_to_target_year'].includes(dateMode)) {
+        return res.status(400).json({ success: false, message: 'Invalid dateMode' });
+    }
+
+    const sourceRange = resolveAcademicYearDateRange(sourceAcademicYear, req.school);
+    const targetRange = resolveAcademicYearDateRange(targetAcademicYear, req.school);
+    if (!sourceRange || !targetRange) {
+        return res.status(400).json({ success: false, message: 'Invalid academic year range' });
+    }
+
+    const schoolWeekWorkingDays = await resolveSchoolWeekWorkingDays(req.schoolId);
+
+    const [sourceClasses, targetClasses] = await Promise.all([
+        Class.find({ school: req.schoolId, academicYear: sourceAcademicYear })
+            .select('_id name section grade academicYear')
+            .lean(),
+        Class.find({ school: req.schoolId, academicYear: targetAcademicYear })
+            .select('_id name section grade academicYear')
+            .lean()
+    ]);
+
+    if (sourceClasses.length === 0) {
+        return res.json({
+            success: true,
+            message: `No source classes found for ${sourceAcademicYear}`,
+            data: {
+                createdCount: 0,
+                updatedCount: 0,
+                skippedCount: 0,
+                conflictCount: 0,
+                errors: []
+            }
+        });
+    }
+    if (targetClasses.length === 0) {
+        return res.status(400).json({
+            success: false,
+            message: `No classes found for target academic year ${targetAcademicYear}`
+        });
+    }
+
+    const exactTargetClassMap = new Map();
+    const looseTargetClassMap = new Map();
+    const gradeTargetClassMap = new Map();
+    for (const targetClass of targetClasses) {
+        exactTargetClassMap.set(normalizeYearClassKey(targetClass), targetClass);
+        looseTargetClassMap.set(normalizeLooseClassKey(targetClass), targetClass);
+        const gradeKey = String(targetClass.grade || '');
+        if (!gradeTargetClassMap.has(gradeKey)) gradeTargetClassMap.set(gradeKey, []);
+        gradeTargetClassMap.get(gradeKey).push(targetClass);
+    }
+
+    const sourceClassIds = sourceClasses.map((row) => row._id);
+    const sourceAssignments = await TeacherPeriodAssignment.find({
+        school: req.schoolId,
+        class: { $in: sourceClassIds }
+    }).lean();
+
+    const result = {
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        conflictCount: 0,
+        errors: []
+    };
+
+    for (const sourceAssignment of sourceAssignments) {
+        try {
+            const sourceClass = sourceClasses.find((row) => row._id.toString() === sourceAssignment.class.toString());
+            if (!sourceClass) {
+                result.skippedCount += 1;
+                result.errors.push({ assignmentId: sourceAssignment._id, reason: 'source_class_missing' });
+                continue;
+            }
+
+            let targetClass = exactTargetClassMap.get(normalizeYearClassKey(sourceClass));
+            if (!targetClass) targetClass = looseTargetClassMap.get(normalizeLooseClassKey(sourceClass));
+            if (!targetClass) {
+                const candidates = gradeTargetClassMap.get(String(sourceClass.grade || '')) || [];
+                targetClass = candidates[0] || null;
+            }
+
+            if (!targetClass) {
+                result.skippedCount += 1;
+                result.errors.push({
+                    assignmentId: sourceAssignment._id,
+                    reason: 'target_class_not_found',
+                    sourceClass: sourceClass.name
+                });
+                continue;
+            }
+
+            const teacherResolution = await resolveTeacherUserForAssignment(req.schoolId, sourceAssignment.teacher);
+            if (teacherResolution.error) {
+                result.skippedCount += 1;
+                result.errors.push({
+                    assignmentId: sourceAssignment._id,
+                    reason: 'teacher_invalid',
+                    detail: teacherResolution.error
+                });
+                continue;
+            }
+
+            const periodDoc = await TimetablePeriod.findById(sourceAssignment.period).select('_id school').lean();
+            if (!periodDoc || periodDoc.school.toString() !== req.schoolId.toString()) {
+                result.skippedCount += 1;
+                result.errors.push({ assignmentId: sourceAssignment._id, reason: 'period_invalid' });
+                continue;
+            }
+
+            let subjectId = sourceAssignment.subject || undefined;
+            if (subjectId) {
+                const subjectDoc = await Subject.findById(subjectId).select('_id school').lean();
+                if (!subjectDoc || subjectDoc.school.toString() !== req.schoolId.toString()) {
+                    subjectId = undefined;
+                }
+            }
+
+            let roomId = sourceAssignment.room || undefined;
+            if (roomId) {
+                const roomDoc = await Room.findById(roomId).select('_id school status isAvailable').lean();
+                if (!roomDoc || roomDoc.school.toString() !== req.schoolId.toString()) {
+                    roomId = undefined;
+                }
+            }
+
+            const migratedDates = buildMigratedDateWindow({
+                sourceStartDate: sourceAssignment.startDate,
+                sourceEndDate: sourceAssignment.endDate,
+                sourceRange,
+                targetRange,
+                dateMode
+            });
+
+            const candidateDays = resolveAssignmentDays(sourceAssignment.daysOfWeek, schoolWeekWorkingDays);
+            const daysSignature = candidateDays.join(',');
+            const teacherUserId = teacherResolution.teacherUserId;
+
+            const sameWindowAssignments = await TeacherPeriodAssignment.find({
+                school: req.schoolId,
+                teacher: teacherUserId,
+                class: targetClass._id,
+                period: sourceAssignment.period,
+                startDate: migratedDates.startDate,
+                endDate: migratedDates.endDate
+            });
+
+            const exactExisting = sameWindowAssignments.find((item) => {
+                const itemDaysSignature = resolveAssignmentDays(item.daysOfWeek, schoolWeekWorkingDays).join(',');
+                const sameSubject = String(item.subject || '') === String(subjectId || '');
+                const sameRoom = String(item.room || '') === String(roomId || '');
+                return itemDaysSignature === daysSignature && sameSubject && sameRoom;
+            });
+
+            if (exactExisting) {
+                result.skippedCount += 1;
+                continue;
+            }
+
+            const candidatePayload = {
+                teacher: teacherUserId,
+                class: targetClass._id,
+                room: roomId,
+                period: sourceAssignment.period,
+                daysOfWeek: candidateDays,
+                startDate: migratedDates.startDate,
+                endDate: migratedDates.endDate
+            };
+
+            const { hasConflict, conflicts } = await checkAssignmentConflicts(
+                req.schoolId,
+                candidatePayload,
+                null,
+                schoolWeekWorkingDays
+            );
+
+            if (hasConflict) {
+                if (overwriteMode === 'replace_conflicts') {
+                    const conflictIds = conflicts.map((row) => row.id);
+                    if (conflictIds.length > 0) {
+                        await TeacherPeriodAssignment.deleteMany({
+                            _id: { $in: conflictIds },
+                            school: req.schoolId
+                        });
+                        result.updatedCount += conflictIds.length;
+                    }
+                } else {
+                    result.conflictCount += 1;
+                    result.errors.push({
+                        assignmentId: sourceAssignment._id,
+                        reason: 'conflict',
+                        details: conflicts.map((row) => row.reason)
+                    });
+                    continue;
+                }
+            }
+
+            await TeacherPeriodAssignment.create({
+                school: req.schoolId,
+                teacher: teacherUserId,
+                class: targetClass._id,
+                grade: targetClass.grade,
+                subject: subjectId,
+                room: roomId,
+                period: sourceAssignment.period,
+                daysOfWeek: candidateDays,
+                startDate: migratedDates.startDate,
+                endDate: migratedDates.endDate,
+                isActive: sourceAssignment.isActive !== false,
+                createdBy: req.user._id,
+                lastModifiedBy: req.user._id
+            });
+
+            result.createdCount += 1;
+        } catch (error) {
+            result.skippedCount += 1;
+            result.errors.push({
+                assignmentId: sourceAssignment._id,
+                reason: 'unexpected_error',
+                detail: error.message
+            });
+        }
+    }
+
+    res.json({
+        success: true,
+        message: `Migration completed from ${sourceAcademicYear} to ${targetAcademicYear}`,
+        data: result
+    });
 });
 
 //

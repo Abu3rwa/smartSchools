@@ -216,6 +216,7 @@ const useSchoolSettings = () => {
   const [selectedPromotionStudentIds, setSelectedPromotionStudentIds] = useState([]);
   const [schoolYearStartDate, setSchoolYearStartDate] = useState('');
   const [schoolYearEndDate, setSchoolYearEndDate] = useState('');
+  const [schoolYearDatesAcademicYear, setSchoolYearDatesAcademicYear] = useState('');
   const [schoolYearDatesSaving, setSchoolYearDatesSaving] = useState(false);
   const [schoolWeekConfigLoading, setSchoolWeekConfigLoading] = useState(false);
   const [schoolWeekConfigSaving, setSchoolWeekConfigSaving] = useState(false);
@@ -829,6 +830,27 @@ const useSchoolSettings = () => {
     }
   }, [t]);
 
+  const loadSchoolYearDates = useCallback(async (academicYear) => {
+    if (!academicYear) {
+      setSchoolYearStartDate('');
+      setSchoolYearEndDate('');
+      return;
+    }
+
+    try {
+      const res = await api.get('/schools/me/academic-year-dates', { params: { academicYear } });
+      if (res.data.success && res.data.data) {
+        const start = res.data.data.startDate ? new Date(res.data.data.startDate) : null;
+        const end = res.data.data.endDate ? new Date(res.data.data.endDate) : null;
+        setSchoolYearDatesAcademicYear(res.data.data.academicYear || academicYear);
+        setSchoolYearStartDate(start ? start.toISOString().slice(0, 10) : '');
+        setSchoolYearEndDate(end ? end.toISOString().slice(0, 10) : '');
+      }
+    } catch {
+      toast.error(t('schoolSettings:toast.loadSchoolYearDatesFailed'));
+    }
+  }, [t]);
+
   const loadAcademicYearData = useCallback(async () => {
     try {
       const res = await api.get('/schools/me/academic-years');
@@ -836,23 +858,17 @@ const useSchoolSettings = () => {
         const years = res.data.data.academicYears;
         setAcademicYears(years);
         if (!fromYear && years.length) setFromYear(years[years.length - 1]);
+
+        const fallbackYear = years[years.length - 1] || '';
+        const nextDatesYear = schoolYearDatesAcademicYear || currentAcademicYear || fallbackYear;
+        if (nextDatesYear) {
+          setSchoolYearDatesAcademicYear(nextDatesYear);
+        }
       }
     } catch {
       toast.error(t('schoolSettings:toast.loadAcademicYearsFailed'));
     }
-
-    try {
-      const res = await api.get('/schools/me/academic-year-dates');
-      if (res.data.success && res.data.data) {
-        const start = res.data.data.startDate ? new Date(res.data.data.startDate) : null;
-        const end = res.data.data.endDate ? new Date(res.data.data.endDate) : null;
-        setSchoolYearStartDate(start ? start.toISOString().slice(0, 10) : '');
-        setSchoolYearEndDate(end ? end.toISOString().slice(0, 10) : '');
-      }
-    } catch {
-      toast.error(t('schoolSettings:toast.loadSchoolYearDatesFailed'));
-    }
-  }, [fromYear, t]);
+  }, [currentAcademicYear, fromYear, schoolYearDatesAcademicYear, t]);
 
   useEffect(() => {
     if (canManageSchoolSettings && activeTab === 'schoolyear') {
@@ -860,6 +876,12 @@ const useSchoolSettings = () => {
       loadSchoolWeekConfig();
     }
   }, [activeTab, canManageSchoolSettings, loadAcademicYearData, loadSchoolWeekConfig]);
+
+  useEffect(() => {
+    if (canManageSchoolSettings && activeTab === 'schoolyear' && schoolYearDatesAcademicYear) {
+      loadSchoolYearDates(schoolYearDatesAcademicYear);
+    }
+  }, [activeTab, canManageSchoolSettings, loadSchoolYearDates, schoolYearDatesAcademicYear]);
 
   useEffect(() => {
     if (!canManageSchoolSettings || activeTab !== 'schoolyear' || !fromYear) {
@@ -1005,6 +1027,10 @@ const useSchoolSettings = () => {
   }, [dispatch, t, toYear]);
 
   const handleSaveSchoolYearDates = useCallback(async () => {
+    if (!schoolYearDatesAcademicYear) {
+      toast.error(t('schoolSettings:toast.invalidAcademicYear'));
+      return;
+    }
     if (!schoolYearStartDate || !schoolYearEndDate) {
       toast.error(t('schoolSettings:toast.schoolYearDatesRequired'));
       return;
@@ -1014,9 +1040,14 @@ const useSchoolSettings = () => {
       return;
     }
 
+    if (!window.confirm(`Save date range for ${schoolYearDatesAcademicYear}?`)) {
+      return;
+    }
+
     setSchoolYearDatesSaving(true);
     try {
       const res = await api.put('/schools/me/academic-year-dates', {
+        academicYear: schoolYearDatesAcademicYear,
         startDate: schoolYearStartDate,
         endDate: schoolYearEndDate
       });
@@ -1030,7 +1061,7 @@ const useSchoolSettings = () => {
     } finally {
       setSchoolYearDatesSaving(false);
     }
-  }, [schoolYearEndDate, schoolYearStartDate, t]);
+  }, [schoolYearDatesAcademicYear, schoolYearEndDate, schoolYearStartDate, t]);
 
   const handleToggleWeekWorkingDay = useCallback((dayValue) => {
     const day = Number.parseInt(dayValue, 10);
@@ -1431,6 +1462,8 @@ const useSchoolSettings = () => {
     setSchoolYearStartDate,
     schoolYearEndDate,
     setSchoolYearEndDate,
+    schoolYearDatesAcademicYear,
+    setSchoolYearDatesAcademicYear,
     schoolYearDatesSaving,
     schoolWeekConfigLoading,
     schoolWeekConfigSaving,

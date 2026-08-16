@@ -1,6 +1,7 @@
 import express from 'express';
 import { protect } from '../middleware/auth.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
+import { authorize } from '../middleware/auth.js';
 import {
     getMonthConfigs, getMonthConfig, createMonthConfig, updateMonthConfig,
     publishMonthConfig, closeMonthConfig,
@@ -11,6 +12,7 @@ import {
     getSupervisorTeachers,
     getSupervisorAssignments, createSupervisorAssignment, deleteSupervisorAssignment,
     getAuditLogs, getThemeLabels,
+    getTraits, getTrait, createTrait, updateTrait, setTraitActive, seedTraits,
 } from '../controllers/plpController.js';
 
 const router = express.Router();
@@ -53,5 +55,13 @@ router.delete('/supervisor-assignments/:id', deleteSupervisorAssignment);
 
 // ─── Audit ────────────────────────────────────────────────────────────────────────
 router.get('/audit', getAuditLogs);
+
+// ─── Trait Config ────────────────────────────────────────────────────────────────
+router.get('/traits', getTraits);
+router.get('/traits/:id', getTrait);
+router.post('/traits', authorize('admin'), createTrait);
+router.put('/traits/:id', authorize('admin'), updateTrait);
+router.post('/traits/:id/activate', authorize('admin'), setTraitActive);
+router.post('/traits/seed', authorize('admin'), seedTraits);
 
 export default router;

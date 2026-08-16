@@ -1,21 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
     fetchPlpRecord, updatePlpRecord, submitPlpRecord,
     fetchPlpEvidence, createPlpEvidence, deletePlpEvidence,
     selectSelectedPlpRecord, selectPlpEvidence, selectPlpLoading, selectPlpError, clearPlpError,
+    fetchPlpTraits, selectPlpTraits,
 } from '../../store/slices/plpSlice';
 import toast from 'react-hot-toast';
 import './PLP.css';
 
-const TRAIT_LABELS = {
+const LEGACY_TRAIT_LABELS = {
     confidence: { core: 'Confidence', s1: 'Humility', s2: 'Purpose', s3: 'Courage' },
     hope: { core: 'Hope', s1: 'Persistence', s2: 'Compassion', s3: 'Service' },
     wisdom: { core: 'Wisdom', s1: 'Curiosity', s2: 'Connection', s3: 'Discernment' },
 };
 
 const EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
+
+const resolveTraitsForTheme = (traits, theme) => {
+    if (!theme || !Array.isArray(traits) || traits.length === 0) return null;
+    const filtered = traits
+        .filter((t) => t.isActive && t.themeCode === theme)
+        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    if (filtered.length < 4) return null;
+    return {
+        core: filtered[0]?.name || '',
+        s1: filtered[1]?.name || '',
+        s2: filtered[2]?.name || '',
+        s3: filtered[3]?.name || '',
+    };
+};
 
 export default function PlpRecordDetailPage() {
     const { id } = useParams();
@@ -25,6 +40,7 @@ export default function PlpRecordDetailPage() {
     const evidence = useSelector(selectPlpEvidence(id));
     const loading = useSelector(selectPlpLoading);
     const error = useSelector(selectPlpError);
+    const traits = useSelector(selectPlpTraits);
 
     const [scores, setScores] = useState({ coreTrait: 0, secondaryTrait1: 0, secondaryTrait2: 0, secondaryTrait3: 0 });
     const [showEvidenceForm, setShowEvidenceForm] = useState(false);
@@ -33,6 +49,7 @@ export default function PlpRecordDetailPage() {
     useEffect(() => {
         dispatch(fetchPlpRecord(id));
         dispatch(fetchPlpEvidence(id));
+        dispatch(fetchPlpTraits());
     }, [dispatch, id]);
 
     useEffect(() => {
@@ -49,6 +66,13 @@ export default function PlpRecordDetailPage() {
     useEffect(() => {
         if (error) { toast.error(error); dispatch(clearPlpError()); }
     }, [error, dispatch]);
+
+    const traitLabels = useMemo(() => {
+        if (!record?.theme) return LEGACY_TRAIT_LABELS['confidence'] || {};
+        const configured = resolveTraitsForTheme(traits, record.theme);
+        if (configured) return configured;
+        return LEGACY_TRAIT_LABELS[record.theme] || LEGACY_TRAIT_LABELS['confidence'] || {};
+    }, [record?.theme, traits]);
 
     const saveScores = async () => {
         const r = await dispatch(updatePlpRecord({ id, data: { scores } }));
@@ -76,7 +100,6 @@ export default function PlpRecordDetailPage() {
     if (loading && !record) return <div className="plp-loading">Loading…</div>;
     if (!record) return <div className="plp-empty">Record not found.</div>;
 
-    const traits = TRAIT_LABELS[record.theme] || {};
     const locked = record.status === 'locked';
 
     return (
@@ -95,17 +118,16 @@ export default function PlpRecordDetailPage() {
                 )}
             </div>
 
-            {/* Scores */}
             <div className="plp-section">
                 <h2>Trait Scores (0–5)</h2>
                 {[
-                    ['coreTrait', traits.core],
-                    ['secondaryTrait1', traits.s1],
-                    ['secondaryTrait2', traits.s2],
-                    ['secondaryTrait3', traits.s3],
+                    ['coreTrait', traitLabels.core],
+                    ['secondaryTrait1', traitLabels.s1],
+                    ['secondaryTrait2', traitLabels.s2],
+                    ['secondaryTrait3', traitLabels.s3],
                 ].map(([key, label]) => (
                     <div key={key} className="plp-score-row">
-                        <label>{label}</label>
+                        <label>{typeof label === 'string' && label ? label : key}</label>
                         <input type="range" min={0} max={5} step={0.5} value={scores[key]} disabled={locked}
                             onChange={(e) => setScores({ ...scores, [key]: Number(e.target.value) })} />
                         <span className="plp-score-val">{scores[key]}</span>
@@ -120,7 +142,6 @@ export default function PlpRecordDetailPage() {
                 </div>
             </div>
 
-            {/* Recommendations */}
             <div className="plp-section">
                 <h2>Personalized Activities</h2>
                 {record.recommendedActivities?.length ? (
@@ -130,7 +151,6 @@ export default function PlpRecordDetailPage() {
                 ) : <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No activities yet. Save scores to generate.</p>}
             </div>
 
-            {/* Evidence */}
             <div className="plp-section">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <h2 style={{ margin: 0 }}>Evidence ({record.evidenceCount})</h2>
@@ -177,3 +197,4 @@ export default function PlpRecordDetailPage() {
         </div>
     );
 }
+
