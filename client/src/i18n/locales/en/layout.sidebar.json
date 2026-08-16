@@ -14,7 +14,8 @@
     "learning": "Learning",
     "account": "Account",
     "finance": "Finance",
-    "hr": "HR & Staff"
+    "hr": "HR & Staff",
+    "plp": "Character Development"
   },
   "items": {
     "dashboard": "Dashboard",
@@ -86,6 +87,11 @@
     "professionalDevelopment": "Professional Development",
     "myHRProfile": "My HR Profile",
     "hrSettings": "HR Settings",
+    "plp": "Character (PLP)",
+    "plpAwards": "Monthly Awards",
+    "plpSupervisor": "Supervisor View",
+    "plpConfig": "PLP Config",
+    "plpSupervisorAssignments": "Supervisor Assignments",
     "settings": "Settings"
   },
   "actions": {

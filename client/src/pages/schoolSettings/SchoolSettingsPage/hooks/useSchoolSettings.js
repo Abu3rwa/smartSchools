@@ -181,7 +181,7 @@ const useSchoolSettings = () => {
 
   const [academicYears, setAcademicYears] = useState([]);
   const [fromYear, setFromYear] = useState('');
-  const toYear = useMemo(() => {
+  const inferredToYear = useMemo(() => {
     if (!fromYear) return '';
     const parts = fromYear.split('-');
     if (parts.length === 2) {
@@ -192,6 +192,19 @@ const useSchoolSettings = () => {
     }
     return '';
   }, [fromYear]);
+  const [toYear, setToYear] = useState('');
+
+  useEffect(() => {
+    if (!fromYear) {
+      setToYear('');
+      return;
+    }
+
+    setToYear((current) => {
+      if (!current || current === fromYear) return inferredToYear;
+      return current;
+    });
+  }, [fromYear, inferredToYear]);
   const [rolloverLoading, setRolloverLoading] = useState(false);
   const [classesCreated, setClassesCreated] = useState(null);
   const [deactivateCount, setDeactivateCount] = useState(null);
@@ -1401,6 +1414,7 @@ const useSchoolSettings = () => {
     fromYear,
     setFromYear,
     toYear,
+    setToYear,
     rolloverLoading,
     classesCreated,
     deactivateCount,

@@ -36,6 +36,7 @@ import analyticsReducer from './slices/analyticsSlice';
 import worksheetReducer from './slices/worksheetSlice';
 import financeReducer from './slices/financeSlice';
 import hrReducer from './slices/hrSlice';
+import plpReducer from './slices/plpSlice';
 import standardAssessmentReducer from './slices/standardAssessmentSlice';
 import grammarTestReducer from './slices/grammarTestSlice';
 import socialStudiesReducer from './slices/socialStudiesSlice';
@@ -113,6 +114,7 @@ const appReducer = combineReducers({
     worksheets: worksheetReducer,
     finance: financeReducer,
     hr: hrReducer,
+    plp: plpReducer,
     standardAssessment: standardAssessmentReducer,
     grammarTests: grammarTestReducer,
     socialStudies: socialStudiesReducer,

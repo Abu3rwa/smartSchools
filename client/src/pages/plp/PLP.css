@@ -1,0 +1,46 @@
+/* PLP – Character Development pages */
+.plp-page { padding: 24px; max-width: 1100px; margin: 0 auto; }
+.plp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+.plp-header h1 { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+.plp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+.plp-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg, 12px); padding: 18px; }
+.plp-card h3 { font-size: 1rem; font-weight: 700; margin: 0 0 8px; color: var(--text-primary); }
+.plp-card p { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 6px; }
+.plp-badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 9999px; }
+.plp-badge-draft { background: var(--bg-secondary); color: var(--text-muted); }
+.plp-badge-published { background: var(--status-success-bg); color: var(--status-success); }
+.plp-badge-closed { background: var(--bg-card-hover); color: var(--text-secondary); }
+.plp-badge-emerging { background: #fef3c7; color: #92400e; }
+.plp-badge-developing { background: #dbeafe; color: #1e40af; }
+.plp-badge-strong { background: #d1fae5; color: #065f46; }
+.plp-badge-selected { background: var(--status-success-bg); color: var(--status-success); }
+.plp-badge-none { background: var(--bg-secondary); color: var(--text-muted); }
+.plp-badge-not_selected { background: #fee2e2; color: #991b1b; }
+.plp-action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.plp-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.plp-table th { text-align: left; padding: 10px 12px; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
+.plp-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
+.plp-table tr:last-child td { border-bottom: none; }
+.plp-section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg, 12px); padding: 20px; margin-bottom: 20px; }
+.plp-section h2 { font-size: 1rem; font-weight: 700; margin: 0 0 14px; color: var(--text-primary); }
+.plp-score-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.plp-score-row label { flex: 0 0 160px; font-size: 0.85rem; color: var(--text-secondary); }
+.plp-score-row input[type=range] { flex: 1; }
+.plp-score-val { width: 28px; text-align: right; font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+.plp-evidence-item { padding: 10px 0; border-bottom: 1px solid var(--border-color); }
+.plp-evidence-item:last-child { border-bottom: none; }
+.plp-evidence-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+.plp-activity-list { list-style: none; padding: 0; margin: 0; }
+.plp-activity-list li { padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; color: var(--text-secondary); }
+.plp-activity-list li:last-child { border-bottom: none; }
+.plp-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1200; padding: 16px; }
+.plp-modal { background: var(--bg-card); border-radius: var(--radius-lg, 12px); padding: 24px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+.plp-modal h2 { font-size: 1.1rem; font-weight: 700; margin: 0 0 16px; color: var(--text-primary); }
+.plp-form-group { margin-bottom: 14px; }
+.plp-form-group label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--text-secondary); }
+.plp-form-group select, .plp-form-group input, .plp-form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-md, 8px); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.85rem; }
+.plp-form-group textarea { resize: vertical; min-height: 80px; }
+.plp-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.plp-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 0.9rem; }
+.plp-loading { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+.plp-error { background: var(--status-error-bg); color: var(--status-error); padding: 10px 14px; border-radius: var(--radius-md); margin-bottom: 14px; font-size: 0.85rem; }

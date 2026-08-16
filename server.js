@@ -92,6 +92,7 @@ import presentationRoutes from "./routes/presentationRoutes.js";
 import worksheetRoutes from "./routes/worksheetRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
 import hrRoutes from "./routes/hrRoutes.js";
+import plpRoutes from "./routes/plpRoutes.js";
 import standardAssessmentFeatureRoutes from "./routes/standardAssessmentRoutes.js";
 import grammarTestRoutes from "./routes/grammarTestRoutes.js";
 import socialStudiesUnitRoutes from "./routes/socialStudiesUnitRoutes.js";
@@ -392,6 +393,7 @@ app.use("/api/presentations", presentationRoutes);
 app.use("/api/worksheets", worksheetRoutes);
 app.use("/api/finance", financeRoutes);
 app.use("/api/hr", hrRoutes);
+app.use("/api/plp", plpRoutes);
 app.use("/api/docs", apiDocsRoutes);
 
 registerApiDocsRoute(app);

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { HiOutlineCalendar, HiOutlineLockClosed } from 'react-icons/hi';
 import {
     selectCurrentAcademicYear,
@@ -11,7 +12,9 @@ import {
     setCurrentAcademicYear,
     setSelectedSemester,
     fetchAvailableYears,
+    updateSchoolAcademicYear,
 } from '../../../store/slices/uiSlice';
+import { selectUser } from '../../../store/slices/authSlice';
 import './AcademicYearFilter.css';
 
 const AcademicYearFilter = () => {
@@ -22,14 +25,17 @@ const AcademicYearFilter = () => {
     const loading = useSelector(selectAvailableYearsLoading);
     const schoolCurrentYear = useSelector(selectSchoolCurrentYear);
     const selectedSemester = useSelector(selectSelectedSemester);
+    const user = useSelector(selectUser);
 
     const [yearOpen, setYearOpen] = useState(false);
     const [semesterOpen, setSemesterOpen] = useState(false);
+    const [activatingYear, setActivatingYear] = useState('');
     const yearRef = useRef(null);
     const semesterRef = useRef(null);
 
     const isCurrentYear = !schoolCurrentYear || selectedYear === schoolCurrentYear;
     const hasMultipleYears = availableYears.length > 1;
+    const canActivateYearFromTopbar = user?.role === 'admin';
 
     useEffect(() => {
         dispatch(fetchAvailableYears());
@@ -48,6 +54,24 @@ const AcademicYearFilter = () => {
     const handleYearSelect = (year) => {
         dispatch(setCurrentAcademicYear(year));
         setYearOpen(false);
+    };
+
+    const handleActivateYear = async (year) => {
+        if (!year || activatingYear) return;
+        setActivatingYear(year);
+
+        try {
+            const result = await dispatch(updateSchoolAcademicYear(year));
+            if (updateSchoolAcademicYear.fulfilled.match(result)) {
+                dispatch(setCurrentAcademicYear(year));
+                dispatch(fetchAvailableYears());
+                toast.success(t('academicYearActivated', { defaultValue: `Academic year set to ${year}` }));
+            } else {
+                toast.error(result.payload || t('updateAcademicYearFailed', { defaultValue: 'Failed to update academic year' }));
+            }
+        } finally {
+            setActivatingYear('');
+        }
     };
 
     const handleSemesterSelect = (value) => {
@@ -95,6 +119,21 @@ const AcademicYearFilter = () => {
                                 )}
                                 {year !== schoolCurrentYear && (
                                     <HiOutlineLockClosed size={12} className="ay-filter__lock" />
+                                )}
+                                {canActivateYearFromTopbar && year !== schoolCurrentYear && (
+                                    <button
+                                        type="button"
+                                        className="ay-filter__action-btn"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleActivateYear(year);
+                                        }}
+                                        disabled={Boolean(activatingYear)}
+                                    >
+                                        {activatingYear === year
+                                            ? t('saving', 'Saving...')
+                                            : t('activate', 'Activate')}
+                                    </button>
                                 )}
                             </li>
                         ))}

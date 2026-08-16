@@ -181,7 +181,15 @@ export const PERMISSIONS = {
     VIEW_PD_REPORTS: 'view_pd_reports',
     MANAGE_PERFORMANCE_REVIEWS: 'manage_performance_reviews',
     VIEW_OWN_HR_PROFILE: 'view_own_hr_profile',
-    MANAGE_HR_SETTINGS: 'manage_hr_settings'
+    MANAGE_HR_SETTINGS: 'manage_hr_settings',
+
+    // PLP – Character Development
+    PLP_MANAGE_CONFIG: 'plp_manage_config',
+    PLP_MANAGE_RECORDS: 'plp_manage_records',
+    PLP_VIEW_SCOPED: 'plp_view_scoped',
+    PLP_MANAGE_SUPERVISOR_ASSIGNMENTS: 'plp_manage_supervisor_assignments',
+    PLP_FINALIZE_AWARDS: 'plp_finalize_awards',
+    PLP_VIEW_AUDIT: 'plp_view_audit',
 };
 
 // Permission definitions with metadata

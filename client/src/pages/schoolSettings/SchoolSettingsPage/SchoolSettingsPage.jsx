@@ -54,6 +54,7 @@ const SchoolSettingsPage = () => {
     fromYear,
     setFromYear,
     toYear,
+    setToYear,
     rolloverLoading,
     classesCreated,
     deactivateCount,
@@ -284,6 +285,7 @@ const SchoolSettingsPage = () => {
               fromYear={fromYear}
               toYear={toYear}
               setFromYear={setFromYear}
+              setToYear={setToYear}
               rolloverLoading={rolloverLoading}
               classesCreated={classesCreated}
               deactivateCount={deactivateCount}

@@ -1,5 +1,16 @@
 import { Component } from 'react';
 
+const CHUNK_RELOAD_KEY = 'gb_chunk_reload_attempted';
+
+const isChunkLoadError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('loading chunk') ||
+    message.includes('failed to fetch dynamically imported module') ||
+    message.includes('importing a module script failed')
+  );
+};
+
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -13,6 +24,19 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     // Log to console in dev; in production this would go to Sentry/etc
     console.error('[ErrorBoundary]', error, errorInfo);
+
+    // After a new deploy, old cached chunks can fail to load once.
+    // Auto-refresh one time to recover without manual user action.
+    if (isChunkLoadError(error)) {
+      const alreadyRetried = window.sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1';
+      if (!alreadyRetried) {
+        window.sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+        window.location.reload();
+        return;
+      }
+    }
+
+    window.sessionStorage.removeItem(CHUNK_RELOAD_KEY);
   }
 
   handleReset = () => {

@@ -16,6 +16,7 @@ const SchoolYearTab = ({
   fromYear,
   toYear,
   setFromYear,
+  setToYear,
   rolloverLoading,
   classesCreated,
   deactivateCount,
@@ -51,6 +52,19 @@ const SchoolYearTab = ({
 }) => {
   const { t } = useTranslation(['schoolSettings']);
   const sortedYears = useMemo(() => [...academicYears].sort(), [academicYears]);
+  const inferredToYear = useMemo(() => {
+    if (!fromYear) return '';
+    const parts = String(fromYear).split('-');
+    if (parts.length !== 2) return '';
+    const end = Number.parseInt(parts[1], 10);
+    if (!Number.isInteger(end)) return '';
+    return `${end}-${end + 1}`;
+  }, [fromYear]);
+  const toYearOptions = useMemo(() => {
+    const options = new Set(sortedYears.filter(Boolean));
+    if (inferredToYear) options.add(inferredToYear);
+    return [...options].sort();
+  }, [inferredToYear, sortedYears]);
   const weekendLabels = weekendDays
     .map((day) => WEEKDAY_OPTIONS.find((option) => option.value === day))
     .filter(Boolean)
@@ -151,14 +165,12 @@ const SchoolYearTab = ({
             </div>
             <div className="form-group">
               <label>{t('schoolSettings:schoolYear.step1.toYear')}</label>
-              <input
-                type="text"
-                value={toYear}
-                readOnly
-                disabled
-                className="disabled-input"
-                placeholder={t('schoolSettings:schoolYear.step1.toYearPlaceholder')}
-              />
+              <select value={toYear} onChange={(event) => setToYear(event.target.value)}>
+                <option value="">{t('schoolSettings:schoolYear.selectPlaceholder')}</option>
+                {toYearOptions.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

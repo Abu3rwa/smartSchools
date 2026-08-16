@@ -162,6 +162,14 @@ const PDLogPage = lazy(() => import("./pages/hr/PDLogPage"));
 const MyHRPage = lazy(() => import("./pages/hr/MyHRPage"));
 const HRSettingsPage = lazy(() => import("./pages/hr/HRSettingsPage"));
 
+// PLP – Character Development
+const PlpAdminConfigPage = lazy(() => import("./pages/plp/PlpAdminConfigPage"));
+const PlpTeacherClassboardPage = lazy(() => import("./pages/plp/PlpTeacherClassboardPage"));
+const PlpRecordDetailPage = lazy(() => import("./pages/plp/PlpRecordDetailPage"));
+const PlpAwardsPage = lazy(() => import("./pages/plp/PlpAwardsPage"));
+const PlpSupervisorAssignmentsPage = lazy(() => import("./pages/plp/PlpSupervisorAssignmentsPage"));
+const PlpSupervisorDashboard = lazy(() => import("./pages/plp/PlpSupervisorDashboard"));
+
 // Social Studies
 const SocialStudiesShell = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesShell"));
 const SocialStudiesCurriculumPage = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesCurriculumPage"));
@@ -1458,6 +1466,63 @@ function App() {
               element={
                 <RoleRoute roles={["admin"]} permissions={["manage_hr_settings"]}>
                   <HRSettingsPage />
+                </RoleRoute>
+              }
+            />
+            {/* ─── PLP – Character Development ─── */}
+            <Route
+              path="plp"
+              element={
+                <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                  <PlpTeacherClassboardPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="plp/config"
+              element={
+                <RoleRoute roles={["admin"]}>
+                  <PlpAdminConfigPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="plp/records"
+              element={
+                <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                  <PlpTeacherClassboardPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="plp/records/:id"
+              element={
+                <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                  <PlpRecordDetailPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="plp/awards"
+              element={
+                <RoleRoute roles={["admin", "teacher"]}>
+                  <PlpAwardsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="plp/supervisor-assignments"
+              element={
+                <RoleRoute roles={["admin"]}>
+                  <PlpSupervisorAssignmentsPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="plp/supervisor"
+              element={
+                <RoleRoute roles={["admin", "department_principal"]}>
+                  <PlpSupervisorDashboard />
                 </RoleRoute>
               }
             />

@@ -36,6 +36,23 @@ const CalendarEventFormDialog = ({
     t
 }) => {
     const normalizedAudienceOption = (option) => (toAudienceOption ? toAudienceOption(option) : option);
+    const getAudienceLabel = (option) => {
+        const normalized = normalizedAudienceOption(option) || {};
+        if (typeof normalized.label === 'string' && normalized.label.trim()) {
+            return normalized.label;
+        }
+
+        const firstName = String(normalized.firstName || '').trim();
+        const lastName = String(normalized.lastName || '').trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        if (fullName) return fullName;
+
+        const email = String(normalized.email || '').trim();
+        if (email) return email;
+
+        const fallbackId = String(normalized.id || normalized._id || '').trim();
+        return fallbackId || 'User';
+    };
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -217,13 +234,34 @@ const CalendarEventFormDialog = ({
                                 onSetAudienceUserSearch(value);
                             }}
                             filterOptions={(options) => options}
-                            getOptionLabel={(option) => normalizedAudienceOption(option).label}
+                            getOptionLabel={(option) => getAudienceLabel(option)}
                             isOptionEqualToValue={(option, value) => {
                                 const left = normalizedAudienceOption(option);
                                 const right = normalizedAudienceOption(value);
                                 if (left.id && right.id) return left.id === right.id;
                                 return left.email === right.email;
                             }}
+                            renderOption={(props, option) => {
+                                const label = getAudienceLabel(option);
+                                return (
+                                    <li {...props}>
+                                        {label}
+                                    </li>
+                                );
+                            }}
+                            renderTags={(value, getTagProps) =>
+                                value.map((option, index) => {
+                                    const label = getAudienceLabel(option);
+                                    return (
+                                        <Chip
+                                            key={`${label}-${index}`}
+                                            label={label}
+                                            size="small"
+                                            {...getTagProps({ index })}
+                                        />
+                                    );
+                                })
+                            }
                             renderInput={(params) => (
                                 <TextField
                                     {...params}

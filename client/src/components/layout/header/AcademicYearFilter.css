@@ -111,6 +111,27 @@
     letter-spacing: 0.02em;
 }
 
+.ay-filter__action-btn {
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm, 6px);
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    cursor: pointer;
+}
+
+.ay-filter__action-btn:hover:not(:disabled) {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.ay-filter__action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* Mobile: keep compact */
 @media (max-width: 599px) {
     .ay-filter__btn span:first-of-type {

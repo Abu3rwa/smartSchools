@@ -74,8 +74,10 @@ import {
   HiOutlineDocumentCurrencyDollar,
   HiOutlineUserGroup,
   HiOutlineBriefcase,
-} from "react-icons/hi2";
-import "./Sidebar.css";
+  HiOutlineSparkles as HiOutlinePLP,
+  HiOutlineTrophy,
+  HiOutlineCog6Tooth as HiOutlinePLPConfig,
+} from "react-icons/hi2";import "./Sidebar.css";
 
 const Sidebar = () => {
   const dispatch = useDispatch();
@@ -172,6 +174,7 @@ const Sidebar = () => {
     "operations",
     "finance",
     "hr",
+    "plp",
     "insights",
     "admin",
     "account",
@@ -664,8 +667,8 @@ const Sidebar = () => {
       permissions: [PERMISSIONS.VIEW_FINANCE_REPORTS],
       section: "finance",
     },
-    // ── HR & Staff Management ──
-    {
+    /*
+    // ── HR & Staff Management ──    {
       path: "/portal/hr",
       icon: HiOutlineUserGroup,
       labelKey: "hrDashboard",
@@ -737,6 +740,44 @@ const Sidebar = () => {
       permissions: [PERMISSIONS.MANAGE_HR_SETTINGS],
       section: "hr",
     },
+    */
+    // ── PLP – Character Development ──
+    {
+      path: "/portal/plp",
+      icon: HiOutlinePLP,
+      labelKey: "plp",
+      roles: ["admin", "teacher", "department_principal"],
+      section: "plp",
+      end: true,
+    },
+    {
+      path: "/portal/plp/awards",
+      icon: HiOutlineTrophy,
+      labelKey: "plpAwards",
+      roles: ["admin", "teacher"],
+      section: "plp",
+    },
+    {
+      path: "/portal/plp/supervisor",
+      icon: HiOutlineUserGroup,
+      labelKey: "plpSupervisor",
+      roles: ["admin", "department_principal"],
+      section: "plp",
+    },
+    {
+      path: "/portal/plp/config",
+      icon: HiOutlinePLPConfig,
+      labelKey: "plpConfig",
+      roles: ["admin"],
+      section: "plp",
+    },
+    {
+      path: "/portal/plp/supervisor-assignments",
+      icon: HiOutlineIdentification,
+      labelKey: "plpSupervisorAssignments",
+      roles: ["admin"],
+      section: "plp",
+    },
     {
       path: "/portal/settings",
       icon: HiOutlineCog6Tooth,
@@ -746,6 +787,10 @@ const Sidebar = () => {
   ];
 
   const filteredNavItems = navItems.filter((item) => {
+    if ((item.section || "overview") === "finance") {
+      return false;
+    }
+
     // Check role-based access first
     let hasRoleAccess = true;
     if (item.roles) {
