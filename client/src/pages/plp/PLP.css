@@ -21,8 +21,15 @@
 .plp-table th { text-align: left; padding: 10px 12px; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
 .plp-table td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
 .plp-table tr:last-child td { border-bottom: none; }
+.plp-trait-progress-list { display: flex; flex-wrap: wrap; gap: 6px; max-width: 420px; }
+.plp-trait-progress-chip { font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-color); white-space: nowrap; }
 .plp-section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg, 12px); padding: 20px; margin-bottom: 20px; }
 .plp-section h2 { font-size: 1rem; font-weight: 700; margin: 0 0 14px; color: var(--text-primary); }
+.plp-trait-group { border: 1px solid var(--border-color); border-radius: var(--radius-md, 8px); padding: 10px 12px; margin-bottom: 10px; background: var(--bg-secondary); }
+.plp-trait-group-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; border: none; background: transparent; color: var(--text-primary); cursor: pointer; padding: 0; text-align: left; }
+.plp-awards-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.plp-month-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.plp-month-pills .btn { min-width: 54px; justify-content: center; }
 .plp-score-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .plp-score-row label { flex: 0 0 160px; font-size: 0.85rem; color: var(--text-secondary); }
 .plp-score-row input[type=range] { flex: 1; }
@@ -44,3 +51,34 @@
 .plp-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 0.9rem; }
 .plp-loading { text-align: center; padding: 40px 20px; color: var(--text-muted); }
 .plp-error { background: var(--status-error-bg); color: var(--status-error); padding: 10px 14px; border-radius: var(--radius-md); margin-bottom: 14px; font-size: 0.85rem; }
+
+.plp-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 900px) {
+  .plp-page { padding: 16px; }
+  .plp-section { padding: 14px; }
+  .plp-modal { padding: 16px; max-height: 95vh; }
+  .plp-score-row { flex-wrap: wrap; gap: 8px; }
+  .plp-score-row label { flex: 1 0 100%; }
+  .plp-awards-header { align-items: flex-start; }
+}
+
+@media (max-width: 640px) {
+  .plp-page { padding: 12px; }
+  .plp-header { align-items: stretch; }
+  .plp-header > div:last-child { width: 100%; justify-content: space-between; }
+  .plp-section { padding: 12px; border-radius: 10px; }
+  .plp-card { padding: 14px; }
+  .plp-form-group { margin-bottom: 10px; }
+  .plp-form-group select,
+  .plp-form-group input,
+  .plp-form-group textarea { font-size: 16px; }
+  .plp-awards-header { flex-direction: column; align-items: stretch; }
+  .plp-month-pills { overflow-x: auto; padding-bottom: 4px; }
+  .plp-month-pills .btn { flex: 1 0 auto; min-width: 58px; }
+  .plp-modal { padding: 14px; border-radius: 10px; }
+  .plp-modal-actions { flex-direction: column-reverse; }
+  .plp-modal-actions .btn { width: 100%; }
+  .plp-trait-progress-list { max-width: 100%; }
+  .plp-table { min-width: 780px; }
+}

@@ -30,6 +30,14 @@ import api from '../../../config/api';
 import { AI_LANGUAGE_OPTIONS, buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
 import './ClassDetailPage.css';
 
+const HOMEROOM_SUBJECT_MATCHERS = ['homeroom', 'home room', 'advisory', 'advisor', 'hmrm'];
+
+const isHomeroomSubject = (subject) => {
+    const name = String(subject?.name || '').toLowerCase();
+    const code = String(subject?.code || '').toLowerCase();
+    return HOMEROOM_SUBJECT_MATCHERS.some((term) => name.includes(term) || code.includes(term));
+};
+
 const ClassDetailPage = () => {
     const { id } = useParams();
     const dispatch = useDispatch();
@@ -390,6 +398,7 @@ const ClassDetailPage = () => {
                         {currentClass.subjects?.length > 0 ? (
                             currentClass.subjects.map((item, index) => {
                                 const removableSubjectId = item.subject?._id || item.subject || item._id;
+                                const homeroom = isHomeroomSubject(item.subject);
 
                                 return (
                                     <div key={item._id || item.subject?._id || index} className="subject-item">
@@ -403,6 +412,9 @@ const ClassDetailPage = () => {
                                                     ? `${item.teacher?.user?.firstName || ''} ${item.teacher?.user?.lastName || ''}`.trim()
                                                     : 'Unassigned'}
                                             </span>
+                                            {homeroom && (
+                                                <span className="homeroom-badge" title="This assignment controls PLP homeroom access">Homeroom (PLP)</span>
+                                            )}
                                             {isAdmin && removableSubjectId && (
                                                 <button
                                                     type="button"

@@ -6,6 +6,8 @@ const plpTraitConfigSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     code: { type: String, required: true, trim: true, uppercase: true },
     description: { type: String, default: '' },
+    selCompetencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'SelCompetency', default: null },
+    themeId: { type: mongoose.Schema.Types.ObjectId, ref: 'CharacterTheme', default: null },
     selSkills: [{ type: String, trim: true }],
     isActive: { type: Boolean, default: true },
     displayOrder: { type: Number, default: 0 },

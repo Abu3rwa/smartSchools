@@ -3,6 +3,7 @@ import {
     sendGradeUpdateNotification,
     sendDailyReport,
     sendDailyClassworkUpdate,
+    sendGradebookSummaryUpdate,
     sendMonthlyReport,
     getNotificationHistory,
     getNotification,
@@ -25,6 +26,7 @@ router.use(requireSchoolContext);
 router.post('/grade-update', authorize('teacher', 'admin'), sendGradeUpdateNotification);
 router.post('/daily-report/:studentId', authorize('teacher', 'admin'), sendDailyReport);
 router.post('/daily-classwork/:studentId', authorize('teacher', 'admin'), sendDailyClassworkUpdate);
+router.post('/gradebook-summary/:studentId', authorize('teacher', 'admin'), sendGradebookSummaryUpdate);
 router.post('/monthly-report/:studentId', authorize('teacher', 'admin'), sendMonthlyReport);
 router.post('/send-ai-report/:studentId', authorize('teacher', 'admin'), requireFeature('academicIntelligence'), sendAIReport);
 

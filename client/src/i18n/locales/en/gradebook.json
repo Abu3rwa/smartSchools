@@ -179,7 +179,7 @@
     "addedSuccessfully": "{{count}} grades added successfully!",
     "addFailed": "Failed to add grades",
     "noStudents": "No students in this class",
-    "confirmSendReports": "Send daily classwork update to all {{count}} students' parents?\n\nThis will email them a summary of all classwork grades for this month.",
+    "confirmSendReports": "Send monthly gradebook summary to all {{count}} students' parents?\n\nThis will include all grade categories for the selected month, or only the selected category filter if one is chosen.",
     "sentUpdates": "Sent updates to {{success}} parents ({{failed}} failed)",
     "sendNotificationsFailed": "Failed to send notifications",
     "generateFailed": "Failed to generate report",

@@ -169,6 +169,7 @@ const PlpRecordDetailPage = lazy(() => import("./pages/plp/PlpRecordDetailPage")
 const PlpAwardsPage = lazy(() => import("./pages/plp/PlpAwardsPage"));
 const PlpSupervisorAssignmentsPage = lazy(() => import("./pages/plp/PlpSupervisorAssignmentsPage"));
 const PlpSupervisorDashboard = lazy(() => import("./pages/plp/PlpSupervisorDashboard"));
+const PlpMyTasksPage = lazy(() => import("./pages/plp/PlpMyTasksPage"));
 
 // Social Studies
 const SocialStudiesShell = lazy(() => import("./pages/socialStudies/teacher/SocialStudiesShell"));
@@ -1523,6 +1524,14 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal"]}>
                   <PlpSupervisorDashboard />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="plp/my-tasks"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <PlpMyTasksPage />
                 </RoleRoute>
               }
             />

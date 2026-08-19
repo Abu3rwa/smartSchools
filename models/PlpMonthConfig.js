@@ -6,6 +6,7 @@ const plpMonthConfigSchema = new mongoose.Schema({
     academicYear: { type: String, required: true },
     month: { type: Number, required: true, min: 1, max: 12 },
     theme: { type: String, enum: ['confidence', 'hope', 'wisdom'], required: true },
+    secondaryTrait: { type: mongoose.Schema.Types.ObjectId, ref: 'PlpTraitConfig', default: null },
     status: { type: String, enum: ['draft', 'published', 'closed'], default: 'draft' },
     weights: {
         coreTrait: { type: Number, default: 60 },

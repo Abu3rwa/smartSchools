@@ -150,7 +150,7 @@ const GradebookPage = ({
         handleOpenAddModal,
         handleCloseAddModal,
         handleAddGrades,
-        handleSendClassworkUpdate,
+        handleSendGradebookSummaryUpdate,
         handleOpenAIModal,
         handleCloseAIModal,
         handleGenerateAIReport,
@@ -223,7 +223,7 @@ const GradebookPage = ({
                 academicYear={academicYear}
                 selectedCategoryFilter={selectedCategoryFilter}
                 onCategoryFilterChange={setSelectedCategoryFilter}
-                onSendReports={handleSendClassworkUpdate}
+                onSendReports={handleSendGradebookSummaryUpdate}
                 notificationSending={notificationSending}
                 hasStudents={students.length > 0}
                 onOpenAddModal={handleOpenAddModal}

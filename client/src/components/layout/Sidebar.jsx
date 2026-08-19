@@ -751,6 +751,13 @@ const Sidebar = () => {
       end: true,
     },
     {
+      path: "/portal/plp/my-tasks",
+      icon: HiOutlineCheckCircle,
+      labelKey: "plpMyTasks",
+      roles: ["student"],
+      section: "plp",
+    },
+    {
       path: "/portal/plp/awards",
       icon: HiOutlineTrophy,
       labelKey: "plpAwards",

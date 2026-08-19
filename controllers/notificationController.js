@@ -175,6 +175,49 @@ export const sendDailyClassworkUpdate = asyncHandler(async (req, res) => {
     });
 });
 
+/**
+ * @desc    Send gradebook summary update for a student (monthly summary, all or selected categories)
+ * @route   POST /api/notifications/gradebook-summary/:studentId
+ * @access  Private (Teacher)
+ */
+export const sendGradebookSummaryUpdate = asyncHandler(async (req, res) => {
+    const { studentId } = req.params;
+    const date = req.body.date ? new Date(req.body.date) : new Date();
+    const { subject, category } = req.body;
+
+    if (!(await verifyTeacherStudentAccess(req, studentId))) {
+        return res.status(403).json({ success: false, message: 'Not authorized for this student' });
+    }
+
+    const notification = await notificationService.sendGradebookSummaryUpdate(
+        studentId,
+        date,
+        req.user._id,
+        { subject, category }
+    );
+
+    if (!notification) {
+        const periodLabel = date.toLocaleDateString('en-US', {
+            month: 'long',
+            year: 'numeric'
+        });
+        const categoryLabel = String(category || '').trim();
+        const categoryHint = categoryLabel && categoryLabel.toLowerCase() !== 'all'
+            ? ` for category "${categoryLabel}"`
+            : '';
+        return res.status(400).json({
+            success: false,
+            message: `No grade entries found${categoryHint} for ${periodLabel}. Add grades for this month or choose a different date range.`
+        });
+    }
+
+    res.json({
+        success: true,
+        message: 'Gradebook summary update sent successfully',
+        data: { notification }
+    });
+});
+
 
 
 /**

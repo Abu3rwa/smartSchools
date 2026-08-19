@@ -164,23 +164,12 @@ export const login = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
     // Find user and include password (skip tenant filter - no school context yet)
-    const user = await User.findOne({ email }).select('+password +failedLoginAttempts +lockedUntil').setOptions({ skipTenantFilter: true }).populate('school');
+    const user = await User.findOne({ email }).select('+password').setOptions({ skipTenantFilter: true }).populate('school');
 
     if (!user) {
         return res.status(401).json({
             success: false,
             message: 'Invalid email or password'
-        });
-    }
-
-    // Check if account is locked
-    const MAX_FAILED_ATTEMPTS = 5;
-    const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-        const minutesLeft = Math.ceil((user.lockedUntil - new Date()) / 60000);
-        return res.status(423).json({
-            success: false,
-            message: `Account is temporarily locked. Try again in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`
         });
     }
 
@@ -195,23 +184,10 @@ export const login = asyncHandler(async (req, res) => {
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-        // Increment failed login attempts
-        const attempts = (user.failedLoginAttempts || 0) + 1;
-        const update = { failedLoginAttempts: attempts };
-        if (attempts >= MAX_FAILED_ATTEMPTS) {
-            update.lockedUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
-        }
-        await User.updateOne({ _id: user._id }, { $set: update });
-
         return res.status(401).json({
             success: false,
             message: 'Invalid email or password'
         });
-    }
-
-    // Reset failed login attempts on successful login
-    if (user.failedLoginAttempts > 0 || user.lockedUntil) {
-        await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, lockedUntil: null } });
     }
 
     // Update last login

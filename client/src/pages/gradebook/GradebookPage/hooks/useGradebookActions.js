@@ -2,7 +2,7 @@ import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import api from '../../../../config/api';
-import { sendDailyClassworkUpdate } from '../../../../store/slices/notificationSlice';
+import { sendGradebookSummaryUpdate } from '../../../../store/slices/notificationSlice';
 import { MONTHS } from '../constants';
 import {
     buildPeriodLabel,
@@ -101,7 +101,7 @@ const useGradebookActions = ({
         }
     };
 
-    const handleSendClassworkUpdate = async () => {
+    const handleSendGradebookSummaryUpdate = async () => {
         if (!students.length) {
             toast.error(t('gradebook:toasts.noStudents'));
             return;
@@ -118,15 +118,24 @@ const useGradebookActions = ({
         const reportDate = getReportDateForAcademicMonth({ academicYear, selectedMonth });
         let successCount = 0;
         let failCount = 0;
+        const normalizedCategory = (() => {
+            const raw = String(selectedCategoryFilter || '').trim();
+            const normalized = raw.toLowerCase();
+            if (!normalized) return undefined;
+            if (normalized === 'all') return undefined;
+            if (normalized === 'all categories') return undefined;
+            if (normalized.startsWith('all ')) return undefined;
+            return normalized;
+        })();
 
         const notifications = students.map((student) => {
-            return dispatch(sendDailyClassworkUpdate({
+            return dispatch(sendGradebookSummaryUpdate({
                 studentId: student._id,
                 date: reportDate.toISOString(),
                 subject: selectedSubject || undefined,
-                category: selectedCategoryFilter === 'All' ? undefined : selectedCategoryFilter
+                category: normalizedCategory
             })).then((result) => {
-                if (sendDailyClassworkUpdate.fulfilled.match(result)) {
+                if (sendGradebookSummaryUpdate.fulfilled.match(result)) {
                     successCount += 1;
                 } else {
                     failCount += 1;
@@ -253,7 +262,7 @@ const useGradebookActions = ({
         handleOpenAddModal,
         handleCloseAddModal,
         handleAddGrades,
-        handleSendClassworkUpdate,
+        handleSendGradebookSummaryUpdate,
         handleOpenAIModal,
         handleCloseAIModal,
         handleGenerateAIReport,

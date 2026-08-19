@@ -62,6 +62,18 @@ export const sendDailyClassworkUpdate = createAsyncThunk(
     }
 );
 
+export const sendGradebookSummaryUpdate = createAsyncThunk(
+    'notifications/sendGradebookSummary',
+    async ({ studentId, date, subject, category }, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/notifications/gradebook-summary/${studentId}`, { date, subject, category });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send gradebook summary update');
+        }
+    }
+);
+
 
 
 export const fetchNotificationHistory = createAsyncThunk(
@@ -150,6 +162,17 @@ const notificationSlice = createSlice({
                 state.lastSent = action.payload.notification;
             })
             .addCase(sendDailyClassworkUpdate.rejected, (state, action) => {
+                state.sending = false;
+                state.error = action.payload;
+            })
+            .addCase(sendGradebookSummaryUpdate.pending, (state) => {
+                state.sending = true;
+            })
+            .addCase(sendGradebookSummaryUpdate.fulfilled, (state, action) => {
+                state.sending = false;
+                state.lastSent = action.payload.notification;
+            })
+            .addCase(sendGradebookSummaryUpdate.rejected, (state, action) => {
                 state.sending = false;
                 state.error = action.payload;
             })

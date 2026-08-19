@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { NOTIFICATION_TYPES } from "../constants/notificationTypes.js";
 import Notification from "../models/Notification.js";
 import ParentSetting from "../models/ParentSetting.js";
 import School from "../models/School.js";
@@ -1717,7 +1718,8 @@ class NotificationService {
 
     const normalizedFilters = {
       subject: String(filters.subject ?? "").trim() || undefined,
-      category: String(filters.category ?? "").trim() || undefined,
+      category:
+        String(filters.category ?? "").trim().toLowerCase() || undefined,
     };
 
     // Get all classwork grades for the current month up to today, with optional filters
@@ -1729,14 +1731,6 @@ class NotificationService {
         category: normalizedFilters.category,
       },
     );
-
-    // UX fallback: if a narrow filter yields nothing, try unfiltered monthly grades.
-    if (
-      grades.length === 0 &&
-      (normalizedFilters.subject || normalizedFilters.category)
-    ) {
-      grades = await gradeService.getMonthlyClassworkGrades(studentId, date, {});
-    }
 
     if (grades.length === 0) return null;
 
@@ -1797,6 +1791,134 @@ class NotificationService {
         year,
         gradesCount: grades.length,
         filterCategory: normalizedFilters.category,
+      },
+      createdBy,
+    });
+
+    await notification.save();
+    await this._dispatchParentUpdatePush({
+      notification,
+      student,
+      recipientEmails: recipients,
+    });
+    await this.sendEmail(notification, createdBy);
+
+    return notification;
+  }
+
+  /**
+   * Send gradebook summary update - cumulative monthly report
+   * Includes all grade categories for the selected month, with optional subject/category filters
+   */
+  async sendGradebookSummaryUpdate(studentId, date, createdBy, filters = {}) {
+    const student = await Student.findById(studentId)
+      .populate("currentClass")
+      .populate("user", "email");
+    if (!student) throw new Error("Student not found");
+
+    const contactEntries = student.getAllContactEmailEntries();
+    const recipientSet = new Set();
+    contactEntries.forEach((entry) => {
+      if (!entry?.email) return;
+      recipientSet.add(String(entry.email).trim().toLowerCase());
+    });
+
+    // Ensure student also receives the message when a linked user email exists.
+    const directStudentEmails = [student.studentEmail, student.email, student?.user?.email]
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter(Boolean);
+    directStudentEmails.forEach((email) => recipientSet.add(email));
+
+    const recipients = Array.from(recipientSet);
+    if (recipients.length === 0) return null;
+
+    const normalizeCategoryFilter = (value) => {
+      const normalized = String(value ?? "").trim().toLowerCase();
+      if (!normalized) return undefined;
+      if (normalized === "all") return undefined;
+      if (normalized === "all categories") return undefined;
+      if (normalized.startsWith("all ")) return undefined;
+      return normalized;
+    };
+
+    const normalizedFilters = {
+      subject: String(filters.subject ?? "").trim() || undefined,
+      category: normalizeCategoryFilter(filters.category),
+    };
+
+    const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    endOfMonth.setHours(23, 59, 59, 999);
+
+    const buildGradeFilters = (includeNarrowFilters = true) => ({
+      startDate: startOfMonth,
+      endDate: endOfMonth,
+      ...(includeNarrowFilters && normalizedFilters.subject
+        ? { subject: normalizedFilters.subject }
+        : {}),
+      ...(includeNarrowFilters && normalizedFilters.category
+        ? { category: normalizedFilters.category }
+        : {}),
+    });
+
+    let grades = await gradeService.getStudentGrades(
+      studentId,
+      buildGradeFilters(true),
+    );
+
+    if (grades.length === 0) return null;
+
+    const monthName = date.toLocaleString("default", { month: "long" });
+    const dayName = date.toLocaleString("default", { weekday: "long" });
+    const todayDate = date.getDate();
+    const year = date.getFullYear();
+    const today = `${dayName}, ${monthName} ${todayDate}, ${year}`;
+
+    let reportTitle = "Monthly Gradebook Summary";
+    if (normalizedFilters.category && normalizedFilters.category.toLowerCase() !== "all") {
+      const categoryTitle =
+        normalizedFilters.category.charAt(0).toUpperCase() +
+        normalizedFilters.category.slice(1);
+      reportTitle = `${categoryTitle} Summary`;
+    }
+
+    const subject = `${reportTitle} - ${student.fullName} (${today})`;
+    const message = await this.formatGradebookSummaryMessage(
+      student,
+      grades,
+      date,
+      monthName,
+      year,
+      reportTitle,
+      createdBy,
+    );
+    const htmlContent = await this.formatGradebookSummaryHtml(
+      student,
+      grades,
+      date,
+      monthName,
+      year,
+      reportTitle,
+      createdBy,
+    );
+
+    const notification = new Notification({
+      school: student.school,
+      recipientEmail: recipients.join(","),
+      student: studentId,
+      type: NOTIFICATION_TYPES.GRADEBOOK_SUMMARY,
+      subject,
+      message,
+      htmlContent,
+      channels: ["email"],
+      metadata: {
+        month: date.getMonth() + 1,
+        year,
+        gradesCount: grades.length,
+        filterCategory: normalizedFilters.category,
+        filterSubject: normalizedFilters.subject,
+        source: "gradebook_summary",
       },
       createdBy,
     });
@@ -2214,6 +2336,7 @@ Best regards,
     year,
     title = "Class Update",
     createdBy = null,
+    summaryLabel = "Classwork Summary",
   ) {
     const todayStr = date.toLocaleDateString("en-US", {
       weekday: "long",
@@ -2239,7 +2362,7 @@ Best regards,
     let message = `${title} for ${student.fullName}\n`;
     message += `Report Date: ${todayStr}\n`;
     message += `Month: ${monthName} ${year}\n\n`;
-    message += `Classwork Summary (${grades.length} entries this month) by ${authenticatedTeacherName}:\n`;
+    message += `${summaryLabel} (${grades.length} entries this month) by ${authenticatedTeacherName}:\n`;
     message += "─".repeat(50) + "\n";
 
     // Group grades by subject and category
@@ -2369,6 +2492,174 @@ Best regards,
       .join("");
 
     return renderTemplate("dailyClassworkUpdate", {
+      title,
+      todayStr,
+      groupedSectionsHtml,
+      teacherFirstName: teacherInfo.firstName,
+      teacherEmail: teacherInfo.email,
+      schoolName,
+    });
+  }
+
+  async formatGradebookSummaryMessage(
+    student,
+    grades,
+    date,
+    monthName,
+    year,
+    title = "Monthly Gradebook Summary",
+    createdBy = null,
+  ) {
+    const todayStr = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    let authenticatedTeacherName = "Unknown Teacher";
+    if (createdBy) {
+      try {
+        const authenticatedUser =
+          await User.findById(createdBy).select("firstName lastName");
+        if (authenticatedUser) {
+          authenticatedTeacherName = authenticatedUser.firstName;
+        }
+      } catch (error) {
+        logger.error("Error fetching authenticated user:", error);
+      }
+    }
+
+    let message = `${title} for ${student.fullName}\n`;
+    message += `Report Date: ${todayStr}\n`;
+    message += `Month: ${monthName} ${year}\n\n`;
+    message += `Gradebook Summary (${grades.length} entries this month) by ${authenticatedTeacherName}:\n`;
+    message += "─".repeat(50) + "\n";
+
+    const grouped = {};
+    grades.forEach((grade) => {
+      const subjectName = grade.subject?.name || "Unknown Subject";
+      const category = grade.category || grade.gradeType || "Classwork";
+      if (!grouped[subjectName]) {
+        grouped[subjectName] = {};
+      }
+      if (!grouped[subjectName][category]) {
+        grouped[subjectName][category] = [];
+      }
+      grouped[subjectName][category].push(grade);
+    });
+
+    Object.entries(grouped).forEach(([subjectName, categories]) => {
+      message += `\n${subjectName}\n`;
+      Object.entries(categories).forEach(([category, subjectGrades]) => {
+        message += `  ${category}:\n`;
+        subjectGrades.forEach((grade) => {
+          const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          });
+          const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(0);
+          message += `    ${gradeDate} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
+          const observation = getGradeObservation(grade);
+          if (observation) {
+            message += ` | ${observation}`;
+          }
+          message += "\n";
+        });
+      });
+      message += "─".repeat(50) + "\n";
+    });
+
+    const totalMarks = grades.reduce((sum, g) => sum + g.marks, 0);
+    const totalMaxMarks = grades.reduce((sum, g) => sum + g.maxMarks, 0);
+    const overallPercentage =
+      totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : 0;
+
+    message += "─".repeat(50) + "\n";
+    message += `Monthly Average: ${overallPercentage}%\n\n`;
+    message += "Best regards,\n" + authenticatedTeacherName;
+
+    return message;
+  }
+
+  async formatGradebookSummaryHtml(
+    student,
+    grades,
+    date,
+    monthName,
+    year,
+    title = "Monthly Gradebook Summary",
+    createdBy = null,
+  ) {
+    const todayStr = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    const teacherInfo = await this._resolveTeacherInfo(createdBy);
+    const teacherName = teacherInfo.firstName || "Unknown Teacher";
+    const schoolName = await this._resolveSchoolName(student?.school);
+
+    const grouped = {};
+    grades.forEach((grade) => {
+      const subjectName = grade.subject?.name || "Unknown Subject";
+      const category = grade.category || grade.gradeType || "Classwork";
+      if (!grouped[subjectName]) {
+        grouped[subjectName] = { teacher: teacherName, categories: {} };
+      }
+      if (!grouped[subjectName].categories[category]) {
+        grouped[subjectName].categories[category] = [];
+      }
+      grouped[subjectName].categories[category].push(grade);
+    });
+
+    const groupedSectionsHtml = Object.entries(grouped)
+      .map(([subjectName, subjectData]) => {
+        const { teacher, categories } = subjectData;
+
+        const categorySections = Object.entries(categories)
+          .map(([category, subjectGrades]) => {
+            const catTotal = subjectGrades.reduce((s, g) => s + g.marks, 0);
+            const catMax = subjectGrades.reduce((s, g) => s + g.maxMarks, 0);
+            const categoryAverage = catMax > 0 ? ((catTotal / catMax) * 10).toFixed(1) : 0;
+
+            const gradeRows = subjectGrades
+              .map((grade) => {
+                const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
+                  weekday: "short", month: "short", day: "numeric",
+                });
+
+                const notesText = getGradeObservation(grade);
+                const notesLine = notesText
+                  ? `<div class="row-notes">${escapeHtml(notesText)}</div>`
+                  : "";
+
+                return renderTemplate("gradebookGradeRow", {
+                  gradeDate,
+                  scoreClass: "",
+                  marks: grade.marks, maxMarks: grade.maxMarks,
+                  notesLine,
+                });
+              })
+              .join("");
+
+            return renderTemplate("gradebookCategorySection", {
+              categoryName: category.charAt(0).toUpperCase() + category.slice(1),
+              gradeRows,
+              categoryAverage,
+            });
+          })
+          .join("");
+
+        return renderTemplate("gradebookSubjectSection", {
+          subjectName, teacher, categorySections,
+        });
+      })
+      .join("");
+
+    return renderTemplate("gradebookSummary", {
       title,
       todayStr,
       groupedSectionsHtml,

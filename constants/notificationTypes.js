@@ -8,6 +8,7 @@ export const NOTIFICATION_TYPES = {
     ANNOUNCEMENT: 'announcement',
     CUSTOM: 'custom',
     AI_REPORT: 'ai_report',
+    GRADEBOOK_SUMMARY: 'gradebook_summary',
     ATTENDANCE_REQUEST: 'attendance_request',
     ATTENDANCE_REQUEST_STATUS: 'attendance_request_status',
     ASSIGNMENT_POSTED: 'assignment_posted',

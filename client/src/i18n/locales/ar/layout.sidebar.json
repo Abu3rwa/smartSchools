@@ -14,7 +14,8 @@
     "learning": "التعلم",
     "account": "الحساب",
     "finance": "المالية",
-    "hr": "الموارد البشرية"
+    "hr": "الموارد البشرية",
+    "plp": "تنمية الشخصية"
   },
   "items": {
     "dashboard": "لوحة التحكم",
@@ -86,6 +87,12 @@
     "professionalDevelopment": "التطوير المهني",
     "myHRProfile": "ملفي الوظيفي",
     "hrSettings": "إعدادات الموارد البشرية",
+    "plp": "الشخصية (PLP)",
+    "plpMyTasks": "مهام PLP الخاصة بي",
+    "plpAwards": "جوائز الشهر",
+    "plpSupervisor": "عرض المشرف",
+    "plpConfig": "إعدادات PLP",
+    "plpSupervisorAssignments": "تعيينات المشرفين",
     "settings": "الإعدادات"
   },
   "actions": {
