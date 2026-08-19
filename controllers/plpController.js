@@ -390,15 +390,15 @@ const resolveThemeLabels = async (schoolId) => {
 };
 
 const SEED_TRAITS = [
-    { name: 'Confidence', code: 'CONFIDENCE', description: 'Believing in oneself and one\'s abilities.', selSkills: ['self_awareness', 'self_management'], themeCode: 'confidence' },
-    { name: 'Hope', code: 'HOPE', description: 'Looking forward to the future with optimism.', selSkills: ['self_awareness', 'relationship_skills'], themeCode: 'hope' },
-    { name: 'Wisdom', code: 'WISDOM', description: 'Using good judgment and deep understanding.', selSkills: ['responsible_decision_making', 'self_awareness'], themeCode: 'wisdom' },
-    { name: 'Humility', code: 'HUMILITY', description: 'Recognizing one\'s limitations and valuing others.', selSkills: ['self_awareness', 'social_awareness'], themeCode: 'confidence' },
-    { name: 'Purpose', code: 'PURPOSE', description: 'Having clear goals and a sense of direction.', selSkills: ['responsible_decision_making', 'self_management'], themeCode: 'confidence' },
-    { name: 'Courage', code: 'COURAGE', description: 'Facing difficulty with bravery and resilience.', selSkills: ['self_management', 'responsible_decision_making'], themeCode: 'confidence' },
-    { name: 'Persistence', code: 'PERSISTENCE', description: 'Continuing steadily toward a goal despite obstacles.', selSkills: ['self_management', 'responsible_decision_making'], themeCode: 'hope' },
-    { name: 'Compassion', code: 'COMPASSION', description: 'Caring about others and acting with kindness.', selSkills: ['social_awareness', 'relationship_skills'], themeCode: 'hope' },
-    { name: 'Service', code: 'SERVICE', description: 'Contributing to the well-being of others.', selSkills: ['relationship_skills', 'responsible_decision_making'], themeCode: 'hope' },
+    { name: 'Confidence', code: 'CONFIDENCE', description: 'Believing in oneself and one\'s abilities.', month: 8 },
+    { name: 'Hope', code: 'HOPE', description: 'Looking forward to the future with optimism.', month: 9 },
+    { name: 'Wisdom', code: 'WISDOM', description: 'Using good judgment and deep understanding.', month: 10 },
+    { name: 'Humility', code: 'HUMILITY', description: 'Recognizing one\'s limitations and valuing others.', month: 11 },
+    { name: 'Purpose', code: 'PURPOSE', description: 'Having clear goals and a sense of direction.', month: 12 },
+    { name: 'Courage', code: 'COURAGE', description: 'Facing difficulty with bravery and resilience.', month: 1 },
+    { name: 'Persistence', code: 'PERSISTENCE', description: 'Continuing steadily toward a goal despite obstacles.', month: 2 },
+    { name: 'Compassion', code: 'COMPASSION', description: 'Caring about others and acting with kindness.', month: 3 },
+    { name: 'Service', code: 'SERVICE', description: 'Contributing to the well-being of others.', month: 4 },
 ];
 
 const SEED_SEL_COMPETENCIES = [
@@ -438,8 +438,7 @@ const seedStarterTraits = async (schoolId, actorId) => {
         name: t.name,
         code: t.code,
         description: t.description,
-        selSkills: t.selSkills,
-        themeCode: t.themeCode,
+        month: t.month,
         displayOrder: idx + 1,
         isActive: true,
         createdBy: actorId,
@@ -1059,7 +1058,7 @@ export const getTraitScoreSuggestions = asyncHandler(async (req, res) => {
 
     const activeTraits = await PlpTraitConfig.find({ school: req.user.school, isActive: true })
         .populate('themeId', 'code title active')
-        .select('_id name code themeCode themeId displayOrder')
+        .select('_id name code month themeCode themeId displayOrder')
         .sort({ displayOrder: 1, name: 1 })
         .lean();
 
@@ -1107,6 +1106,7 @@ export const getTraitScoreSuggestions = asyncHandler(async (req, res) => {
                 _id: trait._id,
                 name: trait.name,
                 code: trait.code,
+                month: trait.month || null,
                 themeCode: trait.themeCode,
                 themeId: trait.themeId || null,
                 displayOrder: trait.displayOrder,
@@ -1201,7 +1201,7 @@ export const classifyObservationDraft = asyncHandler(async (req, res) => {
     await assertTeacherHomeroomClassAccess(req.user, effectiveClassId, student.academicYear || req.academicYear || null);
 
     const availableTraits = await PlpTraitConfig.find({ school: req.user.school, isActive: true })
-        .select('_id name code description themeCode displayOrder')
+        .select('_id name code description month themeCode displayOrder')
         .sort({ displayOrder: 1, name: 1 })
         .lean();
 
@@ -1252,14 +1252,14 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid capturedAt date' });
     }
 
-    const month = observationDate.getMonth() + 1;
+    const observationMonth = observationDate.getMonth() + 1;
     const academicYear = String(req.body?.academicYear || student.academicYear || req.academicYear || '').trim();
     if (!academicYear) {
         return res.status(400).json({ success: false, message: 'Academic year is required for observation capture' });
     }
 
     const availableTraits = await PlpTraitConfig.find({ school: req.user.school, isActive: true })
-        .select('_id name code description themeCode displayOrder')
+        .select('_id name code description month themeCode displayOrder')
         .sort({ displayOrder: 1, name: 1 })
         .lean();
 
@@ -1314,10 +1314,14 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         resolvedConfidence = 'low';
     }
 
+    const resolvedMonth = resolvedTrait?.month !== undefined && resolvedTrait?.month !== null && Number.isInteger(Number(resolvedTrait.month))
+        ? Number(resolvedTrait.month)
+        : observationMonth;
+
     const resolvedTheme = await resolveObservationRecordTheme(
         req.user.school,
         academicYear,
-        month,
+        resolvedMonth,
         resolvedTrait?.themeCode || ''
     );
 
@@ -1326,7 +1330,7 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         studentId: student._id,
         classId: effectiveClassId,
         academicYear,
-        month,
+        month: resolvedMonth,
         theme: resolvedTheme,
     });
 
@@ -1384,6 +1388,8 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         success: true,
         data: {
             recordId: record._id,
+            recordMonth: record.month,
+            traitMonth: resolvedTrait?.month || null,
             evidence: populatedEvidence,
         },
     });
@@ -1649,8 +1655,6 @@ export const getThemeLabels = asyncHandler(async (req, res) => {
 
 export const getTraits = asyncHandler(async (req, res) => {
     const traits = await PlpTraitConfig.find({ school: req.user.school })
-        .populate('selCompetencyId', 'code title active')
-        .populate('themeId', 'code title active')
         .sort({ displayOrder: 1, name: 1 });
     res.json({ success: true, data: traits });
 });
@@ -1663,28 +1667,31 @@ export const getTrait = asyncHandler(async (req, res) => {
 });
 
 export const createTrait = asyncHandler(async (req, res) => {
-    const { name, code, description, selSkills, isActive, displayOrder, themeCode, selCompetencyId, themeId } = req.body;
+    const { name, code, description, month, isActive, displayOrder } = req.body;
     if (!name || !code) return res.status(400).json({ success: false, message: 'Name and code are required' });
     const cleanCode = String(code).trim().toUpperCase();
     const cleanName = String(name).trim();
+    if (month === undefined || month === null || month === '') {
+        return res.status(400).json({ success: false, message: 'Month is required' });
+    }
+    const cleanMonth = month === undefined || month === null || month === ''
+        ? null
+        : Number(month);
+    if (cleanMonth !== null && (!Number.isInteger(cleanMonth) || cleanMonth < 1 || cleanMonth > 12)) {
+        return res.status(400).json({ success: false, message: 'Month must be between 1 and 12' });
+    }
     const dup = await PlpTraitConfig.findOne({ school: req.user.school, code: cleanCode });
     if (dup) return res.status(400).json({ success: false, message: 'Duplicate trait code' });
     const dupName = await PlpTraitConfig.findOne({ school: req.user.school, name: cleanName });
     if (dupName) return res.status(400).json({ success: false, message: 'Duplicate trait name' });
-    const cleanedSkills = Array.isArray(selSkills)
-        ? selSkills.map((s) => String(s).trim()).filter((s) => s.length > 0)
-        : [];
     const trait = await PlpTraitConfig.create({
         school: req.user.school,
         name: cleanName,
         code: cleanCode,
         description: description || '',
-        selCompetencyId: selCompetencyId || null,
-        themeId: themeId || null,
-        selSkills: cleanedSkills,
+        month: cleanMonth,
         isActive: isActive !== undefined ? Boolean(isActive) : true,
         displayOrder: Number(displayOrder) || 0,
-        themeCode: themeCode || '',
         createdBy: req.user._id,
     });
     audit(req.user.school, req.user._id, 'trait_created', 'PlpTraitConfig', trait._id, { code: trait.code });
@@ -1693,9 +1700,15 @@ export const createTrait = asyncHandler(async (req, res) => {
 
 export const updateTrait = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { name, code, description, selSkills, isActive, displayOrder, themeCode, selCompetencyId, themeId } = req.body;
+    const { name, code, description, month, isActive, displayOrder } = req.body;
     const trait = await PlpTraitConfig.findOne({ _id: id, school: req.user.school });
     if (!trait) return res.status(404).json({ success: false, message: 'Trait not found' });
+    const cleanMonth = month === undefined
+        ? trait.month
+        : (month === null || month === '' ? null : Number(month));
+    if (cleanMonth !== null && (!Number.isInteger(cleanMonth) || cleanMonth < 1 || cleanMonth > 12)) {
+        return res.status(400).json({ success: false, message: 'Month must be between 1 and 12' });
+    }
     if (code) {
         const cleanCode = String(code).trim().toUpperCase();
         if (cleanCode !== trait.code) {
@@ -1708,18 +1721,12 @@ export const updateTrait = asyncHandler(async (req, res) => {
         const dup = await PlpTraitConfig.findOne({ school: req.user.school, name: cleanName, _id: { $ne: id } });
         if (dup) return res.status(400).json({ success: false, message: 'Duplicate trait name' });
     }
-    const cleanedSkills = Array.isArray(selSkills)
-        ? selSkills.map((s) => String(s).trim()).filter((s) => s.length > 0)
-        : trait.selSkills;
     trait.name = name ? String(name).trim() : trait.name;
     trait.code = code ? String(code).trim().toUpperCase() : trait.code;
     trait.description = description !== undefined ? description : trait.description;
-    trait.selCompetencyId = selCompetencyId !== undefined ? (selCompetencyId || null) : trait.selCompetencyId;
-    trait.themeId = themeId !== undefined ? (themeId || null) : trait.themeId;
-    trait.selSkills = cleanedSkills;
+    trait.month = cleanMonth;
     trait.isActive = isActive !== undefined ? Boolean(isActive) : trait.isActive;
     trait.displayOrder = displayOrder !== undefined ? Number(displayOrder) : trait.displayOrder;
-    trait.themeCode = themeCode !== undefined ? themeCode : trait.themeCode;
     trait.updatedBy = req.user._id;
     await trait.save();
     audit(req.user.school, req.user._id, 'trait_updated', 'PlpTraitConfig', trait._id, { code: trait.code });

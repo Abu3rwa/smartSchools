@@ -6,6 +6,7 @@ const plpTraitConfigSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     code: { type: String, required: true, trim: true, uppercase: true },
     description: { type: String, default: '' },
+    month: { type: Number, min: 1, max: 12, default: null },
     selCompetencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'SelCompetency', default: null },
     themeId: { type: mongoose.Schema.Types.ObjectId, ref: 'CharacterTheme', default: null },
     selSkills: [{ type: String, trim: true }],
@@ -18,6 +19,7 @@ const plpTraitConfigSchema = new mongoose.Schema({
 
 plpTraitConfigSchema.plugin(tenantIsolationPlugin);
 plpTraitConfigSchema.index({ school: 1, code: 1 }, { unique: true });
+plpTraitConfigSchema.index({ school: 1, month: 1 });
 plpTraitConfigSchema.index({ school: 1, displayOrder: 1 });
 plpTraitConfigSchema.index({ school: 1, isActive: 1 });
 

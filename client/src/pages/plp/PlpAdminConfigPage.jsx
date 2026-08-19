@@ -5,19 +5,18 @@ import {
     publishPlpMonthConfig, closePlpMonthConfig,
     selectPlpConfigs, selectPlpLoading, selectPlpError, clearPlpError,
     fetchPlpTraits, createPlpTrait, updatePlpTrait, setPlpTraitActive, seedPlpTraits,
-    fetchSelCompetencies, seedSelCompetencies, selectSelCompetencies,
-    fetchCharacterThemes, seedCharacterThemes, selectCharacterThemes,
     selectPlpTraits, selectPlpTraitLoading, selectPlpTraitError, clearPlpTraitError,
 } from '../../store/slices/plpSlice';
 import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import toast from 'react-hot-toast';
 import './PLP.css';
 
-const FALLBACK_THEMES = ['confidence', 'hope', 'wisdom'];
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
+const THEME_OPTIONS = ['confidence', 'hope', 'wisdom'];
 
 const blank = { month: '', theme: 'confidence', secondaryTrait: '', minEvidenceCount: 2 };
 
@@ -25,12 +24,9 @@ const blankTrait = {
     name: '',
     code: '',
     description: '',
-    selSkills: [],
+    month: '',
     isActive: true,
     displayOrder: 0,
-    themeCode: '',
-    themeId: '',
-    selCompetencyId: '',
 };
 
 export default function PlpAdminConfigPage() {
@@ -43,8 +39,6 @@ export default function PlpAdminConfigPage() {
     const traits = useSelector(selectPlpTraits);
     const traitLoading = useSelector(selectPlpTraitLoading);
     const traitError = useSelector(selectPlpTraitError);
-    const selCompetencies = useSelector(selectSelCompetencies);
-    const characterThemes = useSelector(selectCharacterThemes);
 
     const [showModal, setShowModal] = useState(false);
     const [editConfigId, setEditConfigId] = useState(null);
@@ -52,28 +46,18 @@ export default function PlpAdminConfigPage() {
     const [form, setForm] = useState({ ...blank });
     const [traitForm, setTraitForm] = useState({ ...blankTrait });
     const [showTraitModal, setShowTraitModal] = useState(false);
-    const [skillInput, setSkillInput] = useState('');
 
     useEffect(() => { dispatch(fetchPlpMonthConfigs({ academicYear })); }, [dispatch, academicYear]);
     useEffect(() => { dispatch(fetchPlpTraits()); }, [dispatch]);
-    useEffect(() => { dispatch(fetchSelCompetencies({ academicYear })); }, [dispatch, academicYear]);
-    useEffect(() => { dispatch(fetchCharacterThemes({ academicYear })); }, [dispatch, academicYear]);
     useEffect(() => { if (error) { toast.error(error); dispatch(clearPlpError()); } }, [error, dispatch]);
-    useEffect(() => { if (traitError) { toast.error(traitError); dispatch(clearPlpTraitError()); } }, [traitError, dispatch]);
+    useEffect(() => { if (traitError) { toast.error(traitError); dispatch(clearPlpTraitError()); } }, [traitError, dispatch]);;
 
-    const themeOptions = characterThemes.length > 0
-        ? characterThemes.map((theme) => theme.code)
-        : FALLBACK_THEMES;
-
-    const themeLookup = characterThemes.reduce((acc, theme) => {
-        acc[theme.code] = theme;
+    const themeLookup = THEME_OPTIONS.reduce((acc, value) => {
+        acc[value] = { title: value.charAt(0).toUpperCase() + value.slice(1) };
         return acc;
     }, {});
 
-    const secondaryTraitOptions = traits.filter((trait) => {
-        if (!form.theme) return false;
-        return trait.isActive && trait.themeCode === form.theme;
-    });
+    const secondaryTraitOptions = traits.filter((trait) => trait.isActive);
 
     const open = (cfg = null) => {
         setEditConfigId(cfg?._id || null);
@@ -116,14 +100,10 @@ export default function PlpAdminConfigPage() {
             name: trait.name,
             code: trait.code,
             description: trait.description || '',
-            selSkills: trait.selSkills || [],
+            month: trait.month || '',
             isActive: trait.isActive,
             displayOrder: trait.displayOrder || 0,
-            themeCode: trait.themeCode || '',
-            themeId: trait.themeId?._id || trait.themeId || '',
-            selCompetencyId: trait.selCompetencyId?._id || trait.selCompetencyId || '',
         } : { ...blankTrait });
-        setSkillInput('');
         setShowTraitModal(true);
     };
 
@@ -132,16 +112,17 @@ export default function PlpAdminConfigPage() {
             toast.error('Name and code are required');
             return;
         }
+        if (!traitForm.month) {
+            toast.error('Month is required');
+            return;
+        }
         const payload = {
             name: traitForm.name.trim(),
             code: traitForm.code.trim().toUpperCase(),
             description: traitForm.description.trim(),
-            selSkills: traitForm.selSkills,
+            month: Number(traitForm.month),
             isActive: traitForm.isActive,
             displayOrder: Number(traitForm.displayOrder) || 0,
-            themeCode: traitForm.themeCode.trim(),
-            themeId: traitForm.themeId || null,
-            selCompetencyId: traitForm.selCompetencyId || null,
         };
         const action = editTraitId
             ? await dispatch(updatePlpTrait({ id: editTraitId, data: payload }))
@@ -157,35 +138,6 @@ export default function PlpAdminConfigPage() {
     const handleSeed = async () => {
         const r = await dispatch(seedPlpTraits());
         if (!r.error) toast.success('Starter traits seeded');
-    };
-
-    const handleSeedSelCompetencies = async () => {
-        const r = await dispatch(seedSelCompetencies(academicYear));
-        if (!r.error) toast.success('SEL competencies seeded');
-    };
-
-    const handleSeedCharacterThemes = async () => {
-        const r = await dispatch(seedCharacterThemes(academicYear));
-        if (!r.error) toast.success('Character themes seeded');
-    };
-
-    const addSkill = () => {
-        const val = skillInput.trim();
-        if (!val) return;
-        if (traitForm.selSkills.includes(val)) { setSkillInput(''); return; }
-        setTraitForm({ ...traitForm, selSkills: [...traitForm.selSkills, val] });
-        setSkillInput('');
-    };
-
-    const removeSkill = (skill) => {
-        setTraitForm({ ...traitForm, selSkills: traitForm.selSkills.filter((s) => s !== skill) });
-    };
-
-    const handleSkillKeyDown = (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); addSkill(); }
-        if (e.key === 'Backspace' && !skillInput && traitForm.selSkills.length > 0) {
-            setTraitForm({ ...traitForm, selSkills: traitForm.selSkills.slice(0, -1) });
-        }
     };
 
     return (
@@ -227,16 +179,6 @@ export default function PlpAdminConfigPage() {
                 <div className="plp-header" style={{ marginBottom: 12 }}>
                     <h1>PLP – Character Trait Management</h1>
                     <div style={{ display: 'flex', gap: 8 }}>
-                                {characterThemes.length === 0 && (
-                                    <button className="btn btn-secondary" onClick={handleSeedCharacterThemes} disabled={traitLoading}>
-                                        {traitLoading ? 'Seeding…' : 'Seed Character Themes'}
-                                    </button>
-                                )}
-                                {selCompetencies.length === 0 && (
-                                    <button className="btn btn-secondary" onClick={handleSeedSelCompetencies} disabled={traitLoading}>
-                                        {traitLoading ? 'Seeding…' : 'Seed SEL Competencies'}
-                                    </button>
-                                )}
                         {traits.length === 0 && (
                             <button className="btn btn-secondary" onClick={handleSeed} disabled={traitLoading}>
                                 {traitLoading ? 'Seeding…' : 'Seed Starter Traits'}
@@ -256,9 +198,7 @@ export default function PlpAdminConfigPage() {
                                 <th>Order</th>
                                 <th>Name</th>
                                 <th>Code</th>
-                                <th>Theme</th>
-                                <th>SEL Competency</th>
-                                <th>SEL Skills</th>
+                                <th>Month</th>
                                 <th>Status</th>
                                 <th style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
@@ -269,17 +209,7 @@ export default function PlpAdminConfigPage() {
                                     <td>{t.displayOrder}</td>
                                     <td>{t.name}</td>
                                     <td><code>{t.code}</code></td>
-                                    <td>{t.themeId?.title || (t.themeCode ? t.themeCode.charAt(0).toUpperCase() + t.themeCode.slice(1) : '—')}</td>
-                                    <td>{t.selCompetencyId?.title || '—'}</td>
-                                    <td>
-                                        {t.selSkills?.length
-                                            ? t.selSkills.map((s) => (
-                                                <span key={s} style={{ display: 'inline-block', background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: 4, fontSize: '0.75rem', marginRight: 4, marginBottom: 2 }}>
-                                                    {s.replace(/_/g, ' ')}
-                                                </span>
-                                            ))
-                                            : '—'}
-                                    </td>
+                                    <td>{t.month ? MONTHS[t.month - 1] : '—'}</td>
                                     <td>
                                         <span className={`plp-badge ${t.isActive ? 'plp-badge-published' : 'plp-badge-closed'}`}>
                                             {t.isActive ? 'Active' : 'Inactive'}
@@ -312,7 +242,7 @@ export default function PlpAdminConfigPage() {
                         <div className="plp-form-group">
                             <label>Award Theme</label>
                             <select value={form.theme} onChange={(e) => setForm({ ...form, theme: e.target.value, secondaryTrait: '' })}>
-                                {themeOptions.map((t) => <option key={t} value={t}>{themeLookup[t]?.title || (t.charAt(0).toUpperCase() + t.slice(1))}</option>)}
+                                {THEME_OPTIONS.map((t) => <option key={t} value={t}>{themeLookup[t]?.title || (t.charAt(0).toUpperCase() + t.slice(1))}</option>)}
                             </select>
                         </div>
                         <div className="plp-form-group">
@@ -320,7 +250,7 @@ export default function PlpAdminConfigPage() {
                             <select value={form.secondaryTrait} onChange={(e) => setForm({ ...form, secondaryTrait: e.target.value })}>
                                 <option value="">None</option>
                                 {secondaryTraitOptions.map((t) => (
-                                    <option key={t._id} value={t._id}>{t.name}</option>
+                                    <option key={t._id} value={t._id}>{t.name}{t.month ? ` (${MONTHS[t.month - 1]})` : ''}</option>
                                 ))}
                             </select>
                         </div>
@@ -356,54 +286,15 @@ export default function PlpAdminConfigPage() {
                             <textarea value={traitForm.description} onChange={(e) => setTraitForm({ ...traitForm, description: e.target.value })} placeholder="Optional description" />
                         </div>
                         <div className="plp-form-group">
-                            <label>Theme</label>
-                            <select value={traitForm.themeCode} onChange={(e) => setTraitForm({ ...traitForm, themeCode: e.target.value })}>
-                                <option value="">—</option>
-                                {themeOptions.map((t) => <option key={t} value={t}>{themeLookup[t]?.title || (t.charAt(0).toUpperCase() + t.slice(1))}</option>)}
-                            </select>
-                        </div>
-                        <div className="plp-form-group">
-                            <label>Theme Link (optional)</label>
-                            <select value={traitForm.themeId} onChange={(e) => setTraitForm({ ...traitForm, themeId: e.target.value })}>
-                                <option value="">—</option>
-                                {characterThemes.map((theme) => (
-                                    <option key={theme._id} value={theme._id}>{theme.title}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="plp-form-group">
-                            <label>SEL Competency (optional)</label>
-                            <select value={traitForm.selCompetencyId} onChange={(e) => setTraitForm({ ...traitForm, selCompetencyId: e.target.value })}>
-                                <option value="">—</option>
-                                {selCompetencies.map((competency) => (
-                                    <option key={competency._id} value={competency._id}>{competency.title}</option>
-                                ))}
+                            <label>Month</label>
+                            <select value={traitForm.month} onChange={(e) => setTraitForm({ ...traitForm, month: e.target.value })}>
+                                <option value="">Select month</option>
+                                {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
                             </select>
                         </div>
                         <div className="plp-form-group">
                             <label>Display Order</label>
                             <input type="number" value={traitForm.displayOrder} onChange={(e) => setTraitForm({ ...traitForm, displayOrder: Number(e.target.value) })} />
-                        </div>
-                        <div className="plp-form-group">
-                            <label>SEL Skills</label>
-                            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                                <input
-                                    value={skillInput}
-                                    onChange={(e) => setSkillInput(e.target.value)}
-                                    onKeyDown={handleSkillKeyDown}
-                                    placeholder="Type skill and press Enter"
-                                    style={{ flex: 1 }}
-                                />
-                                <button className="btn btn-secondary btn-sm" onClick={addSkill} type="button">Add</button>
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {traitForm.selSkills.map((s) => (
-                                    <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: 4, fontSize: '0.75rem' }}>
-                                        {s.replace(/_/g, ' ')}
-                                        <button onClick={() => removeSkill(s)} type="button" style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1 }}>×</button>
-                                    </span>
-                                ))}
-                            </div>
                         </div>
                         <div className="plp-form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <input type="checkbox" id="trait-active" checked={traitForm.isActive} onChange={(e) => setTraitForm({ ...traitForm, isActive: e.target.checked })} />

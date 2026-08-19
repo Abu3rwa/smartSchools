@@ -362,7 +362,10 @@ export default function PlpTeacherClassboardPage() {
 
             const result = await api.post('/plp/observations', payload);
             if (result?.data?.success) {
-                toast.success('Observation saved');
+                const savedMonth = Number(result?.data?.data?.recordMonth || 0);
+                toast.success(savedMonth && savedMonth !== month
+                    ? `Observation saved under ${MONTHS[savedMonth - 1]}`
+                    : 'Observation saved');
                 await Promise.all([
                     dispatch(fetchPlpRecords({ academicYear, month })),
                     loadNeedsReviewQueue(),
@@ -448,29 +451,27 @@ export default function PlpTeacherClassboardPage() {
         return map;
     }, [allActiveTraits]);
     const traitOptions = useMemo(() => {
-        return traits
-            .filter((trait) => trait.isActive && trait.themeCode === form.theme)
-            .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-    }, [traits, form.theme]);
-    const themeTraitsByTheme = useMemo(() => {
+        return allActiveTraits;
+    }, [allActiveTraits]);
+    const traitsByMonth = useMemo(() => {
         return allActiveTraits.reduce((acc, trait) => {
-            const themeCode = String(trait.themeCode || '').trim().toLowerCase();
-            if (!themeCode) return acc;
-            if (!acc[themeCode]) acc[themeCode] = [];
-            acc[themeCode].push(trait);
+            const monthKey = String(trait.month || '').trim();
+            if (!monthKey) return acc;
+            if (!acc[monthKey]) acc[monthKey] = [];
+            acc[monthKey].push(trait);
             return acc;
         }, {});
     }, [allActiveTraits]);
 
     const getRecordTraitProgressRows = (record) => {
-        const themeCode = String(record?.theme || '').trim().toLowerCase();
-        const themeTraits = [...(themeTraitsByTheme[themeCode] || [])].sort((a, b) => {
+        const monthKey = String(record?.month || '').trim();
+        const monthTraits = [...(traitsByMonth[monthKey] || [])].sort((a, b) => {
             const displayOrderDiff = Number(a.displayOrder || 0) - Number(b.displayOrder || 0);
             if (displayOrderDiff !== 0) return displayOrderDiff;
             return String(a.name || '').localeCompare(String(b.name || ''));
         });
 
-        return themeTraits.map((trait, index) => {
+        return monthTraits.map((trait, index) => {
             const scoreField = SCORE_SLOT_BY_ORDER[index] || null;
             const scoreValue = scoreField ? Number(record?.scores?.[scoreField] || 0) : null;
             return {
@@ -582,9 +583,9 @@ export default function PlpTeacherClassboardPage() {
                                     required={traitOptions.length > 0}
                                     disabled={traitOptions.length === 0}
                                 >
-                                    {traitOptions.length === 0 && <option value="">No traits found for this theme</option>}
+                                    {traitOptions.length === 0 && <option value="">No active traits found</option>}
                                     {traitOptions.map((trait) => (
-                                        <option key={trait._id} value={trait._id}>{trait.name}</option>
+                                        <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
                                     ))}
                                 </select>
                             </div>
@@ -615,7 +616,7 @@ export default function PlpTeacherClassboardPage() {
                             <tr>
                                 <th>Student</th>
                                 <th>Class</th>
-                                <th>Theme</th>
+                                <th>Month</th>
                                 <th>Trait Progress</th>
                                 <th>Level</th>
                                 <th>Score</th>
@@ -630,7 +631,7 @@ export default function PlpTeacherClassboardPage() {
                                 <tr key={r._id}>
                                     <td>{r.student?.firstName} {r.student?.lastName}</td>
                                     <td>{r.class?.name}</td>
-                                    <td style={{ textTransform: 'capitalize' }}>{r.theme}</td>
+                                <td>{r.month ? MONTHS[r.month - 1] : '—'}</td>
                                     <td>
                                         <div className="plp-trait-progress-list">
                                             {getRecordTraitProgressRows(r).map((item) => (
@@ -677,7 +678,7 @@ export default function PlpTeacherClassboardPage() {
                         >
                             <option value="all">All Traits</option>
                             {allActiveTraits.map((trait) => (
-                                <option key={trait._id} value={trait._id}>{trait.name} ({trait.themeCode})</option>
+                                <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
                             ))}
                         </select>
                     </div>
@@ -685,7 +686,8 @@ export default function PlpTeacherClassboardPage() {
 
                 {leaderboardMode === 'trait' && leaderboardSelectedTrait && (
                     <p style={{ margin: '0 0 10px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                        Showing students for theme <strong style={{ textTransform: 'capitalize' }}>{leaderboardSelectedTrait.themeCode}</strong> ranked by evidence tagged to <strong>{leaderboardSelectedTrait.name}</strong>.
+                        Showing students ranked by evidence tagged to <strong>{leaderboardSelectedTrait.name}</strong>
+                        {leaderboardSelectedTrait.month ? ` (${MONTHS[leaderboardSelectedTrait.month - 1]})` : ''}.
                     </p>
                 )}
 
@@ -760,7 +762,7 @@ export default function PlpTeacherClassboardPage() {
                                 <tr>
                                     <th>Student</th>
                                     <th>Class</th>
-                                    <th>Theme</th>
+                                    <th>Month</th>
                                     <th>Level</th>
                                     <th>Score</th>
                                     <th>Decision</th>
@@ -773,7 +775,7 @@ export default function PlpTeacherClassboardPage() {
                                     <tr key={record._id}>
                                         <td>{record.student?.firstName} {record.student?.lastName}</td>
                                         <td>{record.class?.name}</td>
-                                        <td style={{ textTransform: 'capitalize' }}>{record.theme}</td>
+                                        <td>{record.month ? MONTHS[record.month - 1] : '—'}</td>
                                         <td><span className={`plp-badge plp-badge-${record.level}`}>{record.level}</span></td>
                                         <td>{Number(record.weightedScore || 0).toFixed(1)}</td>
                                         <td><span className={`plp-badge plp-badge-${record.awardDecision}`}>{record.awardDecision?.replace('_', ' ')}</span></td>
@@ -898,7 +900,7 @@ export default function PlpTeacherClassboardPage() {
                                         <option value="">Auto-classify with AI</option>
                                         {allActiveTraits.map((trait) => (
                                             <option key={trait._id} value={trait._id}>
-                                                {trait.name} {trait.themeCode ? `(${trait.themeCode})` : ''}
+                                                {trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}
                                             </option>
                                         ))}
                                     </select>
@@ -916,7 +918,7 @@ export default function PlpTeacherClassboardPage() {
                             <div style={{ display: 'grid', gap: 10 }}>
                                 <p style={{ margin: 0 }}>
                                     Filed under <strong>{confirmedTraitId ? (traitById.get(String(confirmedTraitId))?.name || 'Selected trait') : 'Needs review'}</strong>
-                                    {confirmedTraitId && traitById.get(String(confirmedTraitId))?.themeCode ? ` (${traitById.get(String(confirmedTraitId))?.themeCode})` : ''}.
+                                    {confirmedTraitId && traitById.get(String(confirmedTraitId))?.month ? ` (${MONTHS[traitById.get(String(confirmedTraitId))?.month - 1]})` : ''}.
                                 </p>
                                 <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                                     Confidence: {classificationDraft.confidence} · Type: {classificationDraft.evidenceType.replace('_', ' ')}
@@ -930,7 +932,7 @@ export default function PlpTeacherClassboardPage() {
                                         <option value="">No clear trait (Needs review)</option>
                                         {allActiveTraits.map((trait) => (
                                             <option key={trait._id} value={trait._id}>
-                                                {trait.name} {trait.themeCode ? `(${trait.themeCode})` : ''}
+                                                {trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}
                                             </option>
                                         ))}
                                     </select>
@@ -959,5 +961,3 @@ export default function PlpTeacherClassboardPage() {
         </div>
     );
 }
-
-

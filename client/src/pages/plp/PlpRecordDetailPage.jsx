@@ -18,6 +18,7 @@ import './PLP.css';
 const EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
 const GOAL_TYPES = ['character', 'academic'];
 const SCORE_SOURCES = ['ai_suggested', 'teacher_override', 'teacher_manual'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export default function PlpRecordDetailPage() {
     const { id } = useParams();
@@ -82,7 +83,7 @@ export default function PlpRecordDetailPage() {
             setExpandedThemes((prev) => {
                 const next = { ...prev };
                 rows.forEach((row) => {
-                    const key = String(row?.trait?.themeId?._id || row?.trait?.themeCode || 'other');
+                    const key = String(row?.trait?.month || 'other');
                     if (next[key] === undefined) next[key] = true;
                 });
                 return next;
@@ -125,11 +126,11 @@ export default function PlpRecordDetailPage() {
 
     const groupedTraitSuggestions = useMemo(() => {
         return traitSuggestionRows.reduce((acc, row) => {
-            const key = String(row?.trait?.themeId?._id || row?.trait?.themeCode || 'other');
+            const key = String(row?.trait?.month || 'other');
             if (!acc[key]) {
                 acc[key] = {
                     key,
-                    themeTitle: row?.trait?.themeId?.title || row?.trait?.themeCode || 'Other',
+                    monthTitle: row?.trait?.month ? MONTHS[Number(row.trait.month) - 1] : 'Other',
                     rows: [],
                 };
             }
@@ -308,7 +309,7 @@ export default function PlpRecordDetailPage() {
             <div className="plp-header">
                 <div>
                     <button className="btn btn-secondary btn-sm" onClick={() => navigate(-1)} style={{ marginBottom: 8 }}>← Back</button>
-                    <h1>{record.student?.firstName} {record.student?.lastName} — {record.theme?.charAt(0).toUpperCase() + record.theme?.slice(1)}</h1>
+                    <h1>{record.student?.firstName} {record.student?.lastName} — {record.month ? MONTHS[record.month - 1] : 'Month'}</h1>
                     <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                         <span className={`plp-badge plp-badge-${record.level}`}>{record.level}</span>
                         <span className={`plp-badge plp-badge-${record.status}`}>{record.status}</span>
@@ -335,7 +336,7 @@ export default function PlpRecordDetailPage() {
                             className="plp-trait-group-toggle"
                             onClick={() => setExpandedThemes((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
                         >
-                            <strong>{group.themeTitle}</strong>
+                            <strong>{group.monthTitle}</strong>
                             <span>{expandedThemes[group.key] ? 'Hide' : 'Show'}</span>
                         </button>
                         {expandedThemes[group.key] && (
