@@ -140,7 +140,7 @@ export const getCycles = asyncHandler(async (req, res) => {
 });
 
 export const createCycle = asyncHandler(async (req, res) => {
-    const { academicYear, cycleCode, title, startDate, endDate, requiredSections, printOrder } = req.body;
+    const { academicYear, cycleCode, title, startDate, endDate, requiredSections, printOrder, spotlightTraits, minEvidenceCount } = req.body;
     if (!academicYear || !cycleCode || !title || !startDate || !endDate) {
         return res.status(400).json({ success: false, message: 'academicYear, cycleCode, title, startDate, and endDate are required' });
     }
@@ -158,6 +158,8 @@ export const createCycle = asyncHandler(async (req, res) => {
         title: String(title).trim(),
         startDate: start,
         endDate: end,
+        spotlightTraits: Array.isArray(spotlightTraits) ? spotlightTraits : [],
+        minEvidenceCount: Number.isFinite(Number(minEvidenceCount)) ? Number(minEvidenceCount) : 2,
         requiredSections: requiredSections || undefined,
         printOrder: Number(printOrder) || 0,
         createdBy: req.user._id,
@@ -169,6 +171,13 @@ export const createCycle = asyncHandler(async (req, res) => {
 export const updateCycle = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const updates = { ...req.body, updatedBy: req.user._id };
+    if (updates.spotlightTraits !== undefined) {
+        updates.spotlightTraits = Array.isArray(updates.spotlightTraits) ? updates.spotlightTraits : [];
+    }
+    if (updates.minEvidenceCount !== undefined) {
+        const parsedMinEvidence = Number(updates.minEvidenceCount);
+        updates.minEvidenceCount = Number.isFinite(parsedMinEvidence) && parsedMinEvidence > 0 ? parsedMinEvidence : 2;
+    }
 
     if (updates.startDate || updates.endDate) {
         const existing = await PlpCycle.findOne({ _id: id, school: req.user.school }).lean();

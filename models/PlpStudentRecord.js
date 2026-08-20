@@ -18,6 +18,7 @@ const traitScoreEntrySchema = new mongoose.Schema({
 const plpStudentRecordSchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     academicYear: { type: String, required: true },
+    cycle: { type: mongoose.Schema.Types.ObjectId, ref: 'PlpCycle', default: null },
     month: { type: Number, required: true, min: 1, max: 12 },
     theme: { type: String, enum: ['confidence', 'hope', 'wisdom'], required: true },
     focusTrait: { type: mongoose.Schema.Types.ObjectId, ref: 'PlpTraitConfig', default: null },
@@ -38,7 +39,15 @@ const plpStudentRecordSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 plpStudentRecordSchema.plugin(tenantIsolationPlugin);
-plpStudentRecordSchema.index({ school: 1, academicYear: 1, month: 1, teacher: 1, student: 1 }, { unique: true });
+plpStudentRecordSchema.index(
+    { school: 1, academicYear: 1, cycle: 1, teacher: 1, student: 1 },
+    { unique: true, partialFilterExpression: { cycle: { $type: 'objectId' } } }
+);
+plpStudentRecordSchema.index(
+    { school: 1, academicYear: 1, month: 1, teacher: 1, student: 1 },
+    { unique: true, partialFilterExpression: { cycle: null } }
+);
+plpStudentRecordSchema.index({ school: 1, academicYear: 1, cycle: 1, class: 1 });
 plpStudentRecordSchema.index({ school: 1, academicYear: 1, month: 1, class: 1 });
 
 export default mongoose.model('PlpStudentRecord', plpStudentRecordSchema);

@@ -17,7 +17,6 @@ import './PLP.css';
 
 const EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
 const GOAL_TYPES = ['character', 'academic'];
-const SCORE_SOURCES = ['ai_suggested', 'teacher_override', 'teacher_manual'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export default function PlpRecordDetailPage() {
@@ -35,12 +34,10 @@ export default function PlpRecordDetailPage() {
     const tasks = useSelector(selectPlpTasks(selectedGoalId));
 
     const [traitSuggestionRows, setTraitSuggestionRows] = useState([]);
-    const [traitScoreDraft, setTraitScoreDraft] = useState({});
-    const [traitOverrideReasons, setTraitOverrideReasons] = useState({});
     const [expandedThemes, setExpandedThemes] = useState({});
     const [loadingTraitSuggestions, setLoadingTraitSuggestions] = useState(false);
     const [showEvidenceForm, setShowEvidenceForm] = useState(false);
-    const [evForm, setEvForm] = useState({ type: 'observation', note: '', taggedTraits: [] });
+    const [evForm, setEvForm] = useState({ type: 'observation', note: '', taggedTraits: [], traitId: '' });
     const [showGoalForm, setShowGoalForm] = useState(false);
     const [goalForm, setGoalForm] = useState({ goalType: 'character', title: '', description: '', successCriteria: '', targetDate: '' });
     const [showTaskForm, setShowTaskForm] = useState(false);
@@ -88,28 +85,6 @@ export default function PlpRecordDetailPage() {
                 });
                 return next;
             });
-            setTraitScoreDraft((prev) => {
-                const next = { ...prev };
-                rows.forEach((row) => {
-                    const traitId = String(row?.trait?._id || '');
-                    if (!traitId || next[traitId] !== undefined) return;
-                    const savedScore = row?.saved?.score;
-                    const suggestedScore = row?.suggestion?.suggestedScore;
-                    if (savedScore !== null && savedScore !== undefined) next[traitId] = String(savedScore);
-                    else if (suggestedScore !== null && suggestedScore !== undefined) next[traitId] = String(suggestedScore);
-                    else next[traitId] = '';
-                });
-                return next;
-            });
-            setTraitOverrideReasons((prev) => {
-                const next = { ...prev };
-                rows.forEach((row) => {
-                    const traitId = String(row?.trait?._id || '');
-                    if (!traitId || next[traitId] !== undefined) return;
-                    next[traitId] = row?.saved?.overrideReason || '';
-                });
-                return next;
-            });
         } catch (requestError) {
             toast.error(requestError?.response?.data?.message || 'Failed to load trait score suggestions');
             setTraitSuggestionRows([]);
@@ -145,37 +120,35 @@ export default function PlpRecordDetailPage() {
 
     const saveScores = async () => {
         const traitScoreEntries = {};
+        let savedCount = 0;
         traitSuggestionRows.forEach((row) => {
             const traitId = String(row?.trait?._id || '');
             if (!traitId) return;
-            const rawValue = String(traitScoreDraft[traitId] ?? '').trim();
-            if (!rawValue) return;
-            const score = Number(rawValue);
-            if (!Number.isFinite(score) || score < 0 || score > 5) return;
-
             const suggestedScore = row?.suggestion?.suggestedScore;
             const evidenceCount = Number(row?.suggestion?.evidenceCount || 0);
-            let scoreSource = 'teacher_manual';
-            if (suggestedScore !== null && suggestedScore !== undefined) {
-                scoreSource = Number(suggestedScore) === score ? 'ai_suggested' : 'teacher_override';
-            } else if (evidenceCount > 0) {
-                scoreSource = 'teacher_override';
-            }
-            if (!SCORE_SOURCES.includes(scoreSource)) scoreSource = 'teacher_manual';
-
+            if (suggestedScore === null || suggestedScore === undefined || evidenceCount <= 0) return;
+            const score = Number(suggestedScore);
             traitScoreEntries[traitId] = {
                 score,
-                scoreSource,
+                scoreSource: 'ai_suggested',
                 aiSuggestedScore: suggestedScore ?? null,
-                overrideReason: String(traitOverrideReasons[traitId] || '').trim(),
+                overrideReason: '',
             };
+            savedCount += 1;
         });
+
+        if (savedCount === 0) {
+            toast.error('Add trait-linked observation evidence first. Scores can only be saved from observation records.');
+            return;
+        }
 
         const r = await dispatch(updatePlpRecord({ id, data: { traitScoreEntries } }));
         if (!r.error) {
-            toast.success('Scores saved');
+            toast.success('Evidence-based scores saved');
             dispatch(fetchPlpRecord(id));
             loadTraitScoreSuggestions();
+        } else {
+            toast.error(r.payload || 'Failed to save scores');
         }
     };
 
@@ -186,13 +159,17 @@ export default function PlpRecordDetailPage() {
     };
 
     const addEvidence = async () => {
+        if (!evForm.traitId) {
+            toast.error('Select a character trait for this observation');
+            return;
+        }
         if (!evForm.note.trim()) {
             toast.error('Evidence note is required');
             return;
         }
         const r = await dispatch(createPlpEvidence({ recordId: id, data: evForm }));
         if (!r.error) {
-            setEvForm({ type: 'observation', note: '', taggedTraits: [] });
+            setEvForm({ type: 'observation', note: '', taggedTraits: [], traitId: '' });
             setShowEvidenceForm(false);
             toast.success('Evidence added');
             dispatch(fetchPlpRecord(id));
@@ -323,7 +300,7 @@ export default function PlpRecordDetailPage() {
             <div className="plp-section">
                 <h2>Trait Scores (0–5)</h2>
                 <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                    AI suggests a score from evidence for each trait. You can keep it or override before saving.
+                    Scores are generated only from trait-linked observation records. Add or update observations to change the score, then save the evidence-based suggestion.
                 </p>
                 {loadingTraitSuggestions && <div className="plp-loading" style={{ padding: 8 }}>Loading score suggestions…</div>}
                 {!loadingTraitSuggestions && groupedTraitSuggestionList.length === 0 && (
@@ -346,8 +323,7 @@ export default function PlpRecordDetailPage() {
                                     const suggestion = row?.suggestion || {};
                                     const suggestedScore = suggestion?.suggestedScore;
                                     const evidenceCount = Number(suggestion?.evidenceCount || 0);
-                                    const value = String(traitScoreDraft[traitId] ?? '');
-                                    const normalizedReason = String(traitOverrideReasons[traitId] || '');
+                                    const savedScore = row?.saved?.score;
                                     return (
                                         <div key={traitId} className="plp-evidence-item" style={{ padding: '8px 0' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
@@ -365,27 +341,24 @@ export default function PlpRecordDetailPage() {
                                             )}
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
                                                 <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                                                    <label>Final score (0–5)</label>
+                                                    <label>Evidence-based score</label>
                                                     <input
-                                                        type="number"
-                                                        min={0}
-                                                        max={5}
-                                                        step={0.5}
-                                                        value={value}
-                                                        disabled={!canWrite}
-                                                        onChange={(event) => setTraitScoreDraft((prev) => ({ ...prev, [traitId]: event.target.value }))}
-                                                        placeholder={suggestedScore === null || suggestedScore === undefined ? 'Leave blank' : String(suggestedScore)}
+                                                        type="text"
+                                                        value={
+                                                            suggestedScore !== null && suggestedScore !== undefined
+                                                                ? String(suggestedScore)
+                                                                : 'No score until observation evidence exists'
+                                                        }
+                                                        disabled
+                                                        readOnly
                                                     />
                                                 </div>
-                                                <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                                                    <label>Override reason (optional)</label>
-                                                    <input
-                                                        value={normalizedReason}
-                                                        disabled={!canWrite}
-                                                        onChange={(event) => setTraitOverrideReasons((prev) => ({ ...prev, [traitId]: event.target.value }))}
-                                                        placeholder="Optional note if your final score differs from AI suggestion"
-                                                    />
-                                                </div>
+                                                {savedScore !== null && savedScore !== undefined && (
+                                                    <div className="plp-form-group" style={{ marginBottom: 0 }}>
+                                                        <label>Saved score</label>
+                                                        <input type="text" value={String(savedScore)} disabled readOnly />
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -395,7 +368,7 @@ export default function PlpRecordDetailPage() {
                     </div>
                 ))}
                 {canWrite && (
-                    <button className="btn btn-primary btn-sm" onClick={saveScores} style={{ marginTop: 8 }}>Save Scores</button>
+                    <button className="btn btn-primary btn-sm" onClick={saveScores} style={{ marginTop: 8 }}>Save Evidence-Based Scores</button>
                 )}
                 <div style={{ marginTop: 12 }}>
                     <strong>Weighted score:</strong> {record.weightedScore?.toFixed(1)}&nbsp;
@@ -547,6 +520,15 @@ export default function PlpRecordDetailPage() {
                 {showEvidenceForm && canWrite && (
                     <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 14, marginBottom: 14 }}>
                         <div className="plp-form-group">
+                            <label>Character Trait</label>
+                            <select value={evForm.traitId} onChange={(e) => setEvForm({ ...evForm, traitId: e.target.value })}>
+                                <option value="">Select trait</option>
+                                {traitSuggestionRows.map((row) => (
+                                    <option key={row.trait._id} value={row.trait._id}>{row.trait.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="plp-form-group">
                             <label>Type</label>
                             <select value={evForm.type} onChange={(e) => setEvForm({ ...evForm, type: e.target.value })}>
                                 {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
@@ -557,7 +539,7 @@ export default function PlpRecordDetailPage() {
                             <textarea value={evForm.note} onChange={(e) => setEvForm({ ...evForm, note: e.target.value })} placeholder="Describe what you observed…" />
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn btn-primary btn-sm" onClick={addEvidence}>Save</button>
+                            <button className="btn btn-primary btn-sm" onClick={addEvidence}>Save Observation</button>
                             <button className="btn btn-secondary btn-sm" onClick={() => setShowEvidenceForm(false)}>Cancel</button>
                         </div>
                     </div>
@@ -575,6 +557,7 @@ export default function PlpRecordDetailPage() {
                             )}
                         </div>
                         <div className="plp-evidence-meta">
+                            {ev.traitId?.name ? `${ev.traitId.name} · ` : ''}
                             {ev.teacher?.firstName} {ev.teacher?.lastName} · {new Date(ev.createdAt).toLocaleDateString()}
                         </div>
                     </div>

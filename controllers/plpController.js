@@ -5,6 +5,7 @@ import PlpSupervisorAssignment from '../models/PlpSupervisorAssignment.js';
 import PlpAuditLog from '../models/PlpAuditLog.js';
 import PlpTraitConfig from '../models/PlpTraitConfig.js';
 import PlpInteraction from '../models/PlpInteraction.js';
+import PlpCycle from '../models/PlpCycle.js';
 import SelCompetency from '../models/SelCompetency.js';
 import CharacterTheme from '../models/CharacterTheme.js';
 import Notification from '../models/Notification.js';
@@ -188,6 +189,61 @@ const sanitizeTraitScoreEntries = (entries = {}) => {
         };
     }
     return next;
+};
+
+const buildEvidenceBackedTraitScoreEntries = async ({ schoolId, record, rawEntries = {} }) => {
+    const entries = sanitizeTraitScoreEntries(rawEntries);
+    if (!entries || Object.keys(entries).length === 0) return {};
+
+    const traitIds = Object.keys(entries).filter((traitId) => mongoose.isValidObjectId(traitId));
+    if (traitIds.length === 0) return {};
+
+    const evidenceRows = await PlpEvidence.find({
+        school: schoolId,
+        plpRecord: record._id,
+        traitId: { $in: traitIds },
+    })
+        .select('traitId type note aiConfidence createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
+
+    const evidenceByTraitId = evidenceRows.reduce((acc, item) => {
+        const key = String(item?.traitId || '');
+        if (!key) return acc;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+    }, {});
+
+    const normalized = {};
+    for (const traitId of traitIds) {
+        const evidenceList = evidenceByTraitId[traitId] || [];
+        const suggestion = await plpAiService.suggestTraitScore(traitId, evidenceList, {
+            academicYear: record.academicYear,
+            month: record.month,
+            cycleId: record.cycle ? String(record.cycle) : null,
+            recordId: String(record._id),
+        });
+        const suggestedScore = clampTraitScore(suggestion?.suggestedScore);
+        if (suggestedScore === null || evidenceList.length === 0) {
+            throw Object.assign(new Error('Trait scores can only be saved when trait-linked observation evidence exists'), { statusCode: 400 });
+        }
+
+        const requested = entries[traitId] || {};
+        const requestedScore = clampTraitScore(requested?.score);
+        if (requestedScore === null || requestedScore !== suggestedScore) {
+            throw Object.assign(new Error('Trait scores must match the evidence-based suggested score'), { statusCode: 400 });
+        }
+
+        normalized[traitId] = {
+            score: suggestedScore,
+            scoreSource: 'ai_suggested',
+            aiSuggestedScore: suggestedScore,
+            overrideReason: '',
+        };
+    }
+
+    return normalized;
 };
 
 const toPlainTraitScoreEntries = (entries) => {
@@ -617,10 +673,14 @@ export const closeMonthConfig = asyncHandler(async (req, res) => {
 // ─── Student Records ────────────────────────────────────────────────────────────
 
 export const getRecords = asyncHandler(async (req, res) => {
-    const { academicYear, month, classId, teacherId } = req.query;
+    const { academicYear, month, cycleId, classId, teacherId } = req.query;
     const filter = { school: req.user.school };
     if (academicYear) filter.academicYear = academicYear;
-    if (month) filter.month = Number(month);
+    if (cycleId && mongoose.isValidObjectId(cycleId)) {
+        filter.cycle = cycleId;
+    } else if (month) {
+        filter.month = Number(month);
+    }
     if (classId) filter.class = classId;
 
     const isAdmin = ['admin', 'department_principal'].includes(req.user.role);
@@ -656,6 +716,7 @@ export const getRecords = asyncHandler(async (req, res) => {
         .populate('student', 'firstName lastName studentId')
         .populate('teacher', 'firstName lastName')
         .populate('focusTrait', 'name code themeCode')
+        .populate('cycle', 'title cycleCode startDate endDate status')
         .populate('class', 'name grade')
         .sort({ createdAt: -1 });
 
@@ -663,10 +724,14 @@ export const getRecords = asyncHandler(async (req, res) => {
 });
 
 export const getLeaderboard = asyncHandler(async (req, res) => {
-    const { academicYear, month, classId, teacherId, traitId, limit } = req.query;
+    const { academicYear, month, cycleId, classId, teacherId, traitId, limit } = req.query;
     const filter = { school: req.user.school };
     if (academicYear) filter.academicYear = academicYear;
-    if (month) filter.month = Number(month);
+    if (cycleId && mongoose.isValidObjectId(cycleId)) {
+        filter.cycle = cycleId;
+    } else if (month) {
+        filter.month = Number(month);
+    }
     if (classId) filter.class = classId;
 
     const isAdmin = ['admin', 'department_principal'].includes(req.user.role);
@@ -702,6 +767,7 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
         .populate('student', 'firstName lastName studentId')
         .populate('teacher', 'firstName lastName')
         .populate('focusTrait', 'name code themeCode')
+        .populate('cycle', 'title cycleCode')
         .populate('class', 'name grade')
         .sort({ createdAt: -1 });
 
@@ -812,6 +878,7 @@ export const getRecord = asyncHandler(async (req, res) => {
         .populate('student', 'firstName lastName studentId')
         .populate('teacher', 'firstName lastName')
         .populate('focusTrait', 'name code themeCode')
+        .populate('cycle', 'title cycleCode startDate endDate status')
         .populate('class', 'name grade');
     if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
     await assertRecordAccess(req.user, record);
@@ -843,6 +910,26 @@ const assertRecordWriteAccess = async (user, record) => {
     await assertRecordAccess(user, record);
 };
 
+const resolveCycleById = async ({ schoolId, academicYear, cycleId }) => {
+    if (!cycleId || !mongoose.isValidObjectId(cycleId)) return null;
+    return PlpCycle.findOne({
+        _id: cycleId,
+        school: schoolId,
+        academicYear,
+    }).select('_id title startDate endDate status spotlightTraits minEvidenceCount').lean();
+};
+
+const resolveCycleForDate = async ({ schoolId, academicYear, date }) => {
+    if (!academicYear || !(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+    return PlpCycle.findOne({
+        school: schoolId,
+        academicYear,
+        status: { $in: ['published', 'draft'] },
+        startDate: { $lte: date },
+        endDate: { $gte: date },
+    }).select('_id title startDate endDate status spotlightTraits minEvidenceCount').sort({ status: 1, printOrder: 1, startDate: 1 }).lean();
+};
+
 const resolveObservationRecordTheme = async (schoolId, academicYear, month, preferredTheme = '') => {
     const cleanedPreferredTheme = String(preferredTheme || '').trim().toLowerCase();
     if (cleanedPreferredTheme) {
@@ -871,10 +958,31 @@ const findOrCreateObservationRecord = async ({
     studentId,
     classId,
     academicYear,
+    cycleId = null,
     month,
     theme,
 }) => {
-    let record = await PlpStudentRecord.findOne({
+    let record = cycleId ? await PlpStudentRecord.findOne({
+        school: user.school,
+        academicYear,
+        cycle: cycleId,
+        class: classId,
+        student: studentId,
+        teacher: user._id,
+    }) : null;
+
+    if (!record) {
+        record = cycleId ? await PlpStudentRecord.findOne({
+            school: user.school,
+            academicYear,
+            cycle: cycleId,
+            class: classId,
+            student: studentId,
+        }).sort({ createdAt: -1 }) : null;
+    }
+
+    if (!record) {
+        record = await PlpStudentRecord.findOne({
         school: user.school,
         academicYear,
         month,
@@ -882,6 +990,7 @@ const findOrCreateObservationRecord = async ({
         student: studentId,
         teacher: user._id,
     });
+    }
 
     if (!record) {
         record = await PlpStudentRecord.findOne({
@@ -899,6 +1008,7 @@ const findOrCreateObservationRecord = async ({
     return PlpStudentRecord.create({
         school: user.school,
         academicYear,
+        cycle: cycleId,
         month,
         theme,
         teacher: user._id,
@@ -917,7 +1027,7 @@ const findOrCreateObservationRecord = async ({
 };
 
 export const createRecord = asyncHandler(async (req, res) => {
-    const { academicYear, month, theme, classId, studentId, scores, focusTrait } = req.body;
+    const { academicYear, month, cycleId, theme, classId, studentId, scores, focusTrait } = req.body;
     await assertTeacherHomeroomClassAccess(req.user, classId, academicYear);
 
     if (focusTrait) {
@@ -930,20 +1040,32 @@ export const createRecord = asyncHandler(async (req, res) => {
         }
     }
 
-    const config = await PlpMonthConfig.findOne({
-        school: req.user.school, academicYear, month, status: 'published',
+    const cycle = await resolveCycleById({
+        schoolId: req.user.school,
+        academicYear,
+        cycleId,
     });
-    if (!config) return res.status(400).json({ success: false, message: 'Month config not published yet' });
+    if (cycleId && !cycle) {
+        return res.status(400).json({ success: false, message: 'Selected PLP round is invalid' });
+    }
+    const resolvedMonth = cycle?.startDate
+        ? (new Date(cycle.startDate).getMonth() + 1)
+        : (Number.isInteger(Number(month)) ? Number(month) : ((new Date()).getMonth() + 1));
+    const config = await PlpMonthConfig.findOne({
+        school: req.user.school, academicYear, month: resolvedMonth, status: 'published',
+    });
+    const weights = config?.weights || { coreTrait: 60, secondaryTrait1: 15, secondaryTrait2: 15, secondaryTrait3: 10 };
 
     const computedScores = scores || {};
-    const weighted = computeWeightedScore(computedScores, config.weights);
+    const weighted = computeWeightedScore(computedScores, weights);
     const level = resolveLevel(weighted);
     const activities = generateActivities(theme, level);
 
     const record = await PlpStudentRecord.create({
         school: req.user.school,
         academicYear,
-        month,
+        cycle: cycle?._id || null,
+        month: resolvedMonth,
         theme,
         focusTrait: focusTrait || null,
         teacher: req.user._id,
@@ -969,6 +1091,9 @@ export const updateRecord = asyncHandler(async (req, res) => {
     delete updateData.traitScoreEntries;
     const hasDirectScores = !!scores;
     const hasTraitScoreEntries = traitScoreEntries && typeof traitScoreEntries === 'object';
+    if (hasDirectScores) {
+        return res.status(400).json({ success: false, message: 'Direct score entry is disabled. Save scores from observation-backed trait suggestions instead.' });
+    }
     if (hasDirectScores || hasTraitScoreEntries) {
         const config = await PlpMonthConfig.findOne({
             school: req.user.school, academicYear: existing.academicYear, month: existing.month,
@@ -979,7 +1104,13 @@ export const updateRecord = asyncHandler(async (req, res) => {
             .lean();
         const scoreFieldByTraitId = buildRecordScoreFieldByTraitId({ record: existing, activeTraits });
         const existingEntries = toPlainTraitScoreEntries(existing.traitScoreEntries);
-        const sanitizedEntries = hasTraitScoreEntries ? sanitizeTraitScoreEntries(traitScoreEntries) : null;
+        const sanitizedEntries = hasTraitScoreEntries
+            ? await buildEvidenceBackedTraitScoreEntries({
+                schoolId: req.user.school,
+                record: existing,
+                rawEntries: traitScoreEntries,
+            })
+            : null;
 
         const nextScores = hasDirectScores
             ? { ...scores }
@@ -1314,9 +1445,12 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         resolvedConfidence = 'low';
     }
 
-    const resolvedMonth = resolvedTrait?.month !== undefined && resolvedTrait?.month !== null && Number.isInteger(Number(resolvedTrait.month))
-        ? Number(resolvedTrait.month)
-        : observationMonth;
+    const resolvedMonth = observationMonth;
+    const resolvedCycle = await resolveCycleForDate({
+        schoolId: req.user.school,
+        academicYear,
+        date: observationDate,
+    });
 
     const resolvedTheme = await resolveObservationRecordTheme(
         req.user.school,
@@ -1330,6 +1464,7 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         studentId: student._id,
         classId: effectiveClassId,
         academicYear,
+        cycleId: resolvedCycle?._id || null,
         month: resolvedMonth,
         theme: resolvedTheme,
     });
@@ -1389,6 +1524,8 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         data: {
             recordId: record._id,
             recordMonth: record.month,
+            recordCycleId: record.cycle || null,
+            recordCycleTitle: resolvedCycle?.title || null,
             traitMonth: resolvedTrait?.month || null,
             evidence: populatedEvidence,
         },
@@ -1407,10 +1544,11 @@ export const getNeedsReviewObservations = asyncHandler(async (req, res) => {
         .populate('traitId', 'name code themeCode')
         .populate({
             path: 'plpRecord',
-            select: 'student class month academicYear',
+            select: 'student class cycle month academicYear',
             populate: [
                 { path: 'student', select: 'firstName lastName studentId' },
                 { path: 'class', select: 'name grade section' },
+                { path: 'cycle', select: 'title cycleCode' },
             ],
         })
         .sort({ createdAt: -1 })
@@ -1520,40 +1658,80 @@ export const addSupervisorNote = asyncHandler(async (req, res) => {
 // ─── Awards ─────────────────────────────────────────────────────────────────────
 
 export const getAwardCandidates = asyncHandler(async (req, res) => {
-    const { academicYear, month, classId } = req.query;
-    const numericMonth = Number(month);
-    if (!academicYear || !Number.isFinite(numericMonth) || numericMonth < 1 || numericMonth > 12) {
-        return res.status(400).json({ success: false, message: 'academicYear and valid month are required' });
+    const { academicYear, cycleId, traitId, classId } = req.query;
+    if (!academicYear) {
+        return res.status(400).json({ success: false, message: 'academicYear is required' });
     }
 
-    const config = await PlpMonthConfig.findOne({
-        school: req.user.school,
-        academicYear,
-        month: numericMonth,
-    }).select('secondaryTrait minEvidenceCount').lean();
-
-    if (!config?.secondaryTrait) {
-        return res.json({ success: true, data: [] });
-    }
-
-    await refreshAwardCandidatesForMonth({
+    const cycle = await resolveCycleById({
         schoolId: req.user.school,
         academicYear,
-        month: numericMonth,
-        configOverride: config,
+        cycleId,
     });
+    if (cycleId && !cycle) {
+        return res.status(400).json({ success: false, message: 'Invalid PLP round selection' });
+    }
 
-    const filter = {
+    const recordsFilter = {
         school: req.user.school,
         academicYear,
-        month: numericMonth,
-        awardCandidate: true,
     };
-    if (classId) filter.class = classId;
-    const candidates = await PlpStudentRecord.find(filter)
+    if (cycle?._id) recordsFilter.cycle = cycle._id;
+    if (classId) recordsFilter.class = classId;
+
+    const records = await PlpStudentRecord.find(recordsFilter)
         .populate('student', 'firstName lastName studentId')
         .populate('class', 'name')
-        .sort({ weightedScore: -1 });
+        .populate('cycle', 'title cycleCode')
+        .sort({ weightedScore: -1 })
+        .lean();
+    if (records.length === 0) return res.json({ success: true, data: [] });
+
+    const activeTraits = await PlpTraitConfig.find({ school: req.user.school, isActive: true })
+        .select('_id')
+        .lean();
+    if (activeTraits.length === 0) return res.json({ success: true, data: [] });
+
+    const cycleSpotlightTraitIds = Array.isArray(cycle?.spotlightTraits)
+        ? cycle.spotlightTraits.map((id) => String(id))
+        : [];
+    let selectedTraitIds = [];
+    if (traitId && mongoose.isValidObjectId(traitId)) {
+        selectedTraitIds = [String(traitId)];
+    } else if (cycleSpotlightTraitIds.length > 0) {
+        selectedTraitIds = cycleSpotlightTraitIds;
+    } else {
+        selectedTraitIds = activeTraits.map((trait) => String(trait._id));
+    }
+    if (selectedTraitIds.length === 0) return res.json({ success: true, data: [] });
+
+    const evidenceCounts = await PlpEvidence.aggregate([
+        {
+            $match: {
+                school: req.user.school,
+                plpRecord: { $in: records.map((record) => record._id) },
+                traitId: { $in: selectedTraitIds.map((id) => new mongoose.Types.ObjectId(id)) },
+            },
+        },
+        { $group: { _id: '$plpRecord', count: { $sum: 1 } } },
+    ]);
+    const evidenceCountByRecordId = new Map(
+        evidenceCounts.map((row) => [String(row._id), Number(row.count || 0)])
+    );
+
+    const minEvidenceCount = resolveMinEvidenceCount(cycle?.minEvidenceCount);
+    const candidates = records
+        .map((record) => ({
+            ...record,
+            matchedEvidenceCount: evidenceCountByRecordId.get(String(record._id)) || 0,
+        }))
+        .filter((record) => record.matchedEvidenceCount >= minEvidenceCount)
+        .sort((a, b) => {
+            const evidenceDiff = Number(b.matchedEvidenceCount || 0) - Number(a.matchedEvidenceCount || 0);
+            if (evidenceDiff !== 0) return evidenceDiff;
+            return Number(b.weightedScore || 0) - Number(a.weightedScore || 0);
+        });
+
     res.json({ success: true, data: candidates });
 });
 

@@ -9,6 +9,8 @@ const plpCycleSchema = new mongoose.Schema({
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
     status: { type: String, enum: ['draft', 'published', 'closed'], default: 'draft' },
+    spotlightTraits: [{ type: mongoose.Schema.Types.ObjectId, ref: 'PlpTraitConfig' }],
+    minEvidenceCount: { type: Number, default: 2, min: 1 },
     requiredSections: {
         character: { type: Boolean, default: true },
         academics: { type: Boolean, default: true },
