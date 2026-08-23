@@ -2,13 +2,15 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-    fetchPlpRecord, updatePlpRecord, submitPlpRecord,
+    fetchPlpRecord, updatePlpRecord, deletePlpRecord, submitPlpRecord,
+    fetchPlpCycles, selectPlpCycles,
     fetchPlpEvidence, createPlpEvidence, deletePlpEvidence,
     fetchPlpGoals, createPlpGoal, updatePlpGoal,
+    fetchPlpActivities, createPlpActivity, updatePlpActivity, deletePlpActivity,
     fetchPlpTasks, createPlpTask, updatePlpTask, reviewPlpTask,
     fetchPlpRecordInteractions, addSupervisorNote,
     selectSelectedPlpRecord, selectPlpEvidence, selectPlpLoading, selectPlpError, clearPlpError,
-    selectPlpGoals, selectPlpTasks, selectPlpInteractions,
+    selectPlpGoals, selectPlpActivities, selectPlpTasks, selectPlpInteractions,
 } from '../../store/slices/plpSlice';
 import { selectUser } from '../../store/slices/authSlice';
 import toast from 'react-hot-toast';
@@ -16,8 +18,51 @@ import api from '../../config/api';
 import './PLP.css';
 
 const EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
-const GOAL_TYPES = ['character', 'academic'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function ActivityGroups({ activities, canWrite, onEdit, onDelete, onAssign }) {
+    const groups = [
+        ['suggested_from_observations', 'Suggested from observations'],
+        ['added_by_teacher', 'Added by teacher'],
+    ];
+    return (
+        <div style={{ display: 'grid', gap: 14, marginTop: 14 }}>
+            {groups.map(([source, label]) => {
+                const items = activities.filter((activity) => activity.source === source);
+                return (
+                    <div key={source}>
+                        <h3 style={{ margin: '0 0 8px' }}>{label}</h3>
+                        {items.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No activities in this group.</p>}
+                        <div style={{ display: 'grid', gap: 8 }}>
+                            {items.map((activity, index) => (
+                                <div key={activity._id || `${source}-${index}`} className="plp-evidence-item">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                                        <div>
+                                            <strong>{activity.title}</strong>
+                                            <div className="plp-evidence-meta">
+                                                {activity.traitId?.name ? `Trait: ${activity.traitId.name}` : 'Trait: not linked'}
+                                                {` · Status: ${activity.task?.status || activity.taskStatus || 'not assigned'}`}
+                                            </div>
+                                            {activity.rationale && <p style={{ margin: '5px 0 0' }}>{activity.rationale}</p>}
+                                            {activity.instructions && <p style={{ margin: '5px 0 0' }}>{activity.instructions}</p>}
+                                        </div>
+                                        {canWrite && (
+                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                <button className="btn btn-primary btn-sm" onClick={() => onAssign(activity)}>Assign Task</button>
+                                                {source === 'added_by_teacher' && !activity.isVirtual && <button className="btn btn-secondary btn-sm" onClick={() => onEdit(activity)}>Edit</button>}
+                                                {source === 'added_by_teacher' && !activity.isVirtual && <button className="btn btn-secondary btn-sm" onClick={() => onDelete(activity)}>Delete</button>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
 
 export default function PlpRecordDetailPage() {
     const { id } = useParams();
@@ -25,8 +70,10 @@ export default function PlpRecordDetailPage() {
     const dispatch = useDispatch();
     const user = useSelector(selectUser);
     const record = useSelector(selectSelectedPlpRecord);
+    const cycles = useSelector(selectPlpCycles);
     const evidence = useSelector(selectPlpEvidence(id));
     const goals = useSelector(selectPlpGoals(id));
+    const activities = useSelector(selectPlpActivities(id));
     const interactions = useSelector(selectPlpInteractions(id));
     const loading = useSelector(selectPlpLoading);
     const error = useSelector(selectPlpError);
@@ -42,24 +89,42 @@ export default function PlpRecordDetailPage() {
     const [goalForm, setGoalForm] = useState({ goalType: 'character', title: '', description: '', successCriteria: '', targetDate: '' });
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [taskForm, setTaskForm] = useState({ title: '', instructions: '', dueDate: '' });
+    const [selectedActivityId, setSelectedActivityId] = useState('');
     const [supervisorNote, setSupervisorNote] = useState('');
+    const [selectedCycleId, setSelectedCycleId] = useState('');
+    const [activeTab, setActiveTab] = useState('character');
+    const [exportingDocx, setExportingDocx] = useState(false);
+    const [activityForm, setActivityForm] = useState({ title: '', instructions: '', traitId: '', goal: '', dueDate: '' });
+    const [editingActivityId, setEditingActivityId] = useState('');
+    const [showActivityForm, setShowActivityForm] = useState(false);
+    const activeGoalType = activeTab === 'academic' ? 'academic' : 'character';
+    const visibleGoals = useMemo(
+        () => goals.filter((goal) => goal.goalType === activeGoalType),
+        [goals, activeGoalType]
+    );
 
     useEffect(() => {
         dispatch(fetchPlpRecord(id));
+        dispatch(fetchPlpCycles());
         dispatch(fetchPlpEvidence(id));
         dispatch(fetchPlpGoals(id));
+        dispatch(fetchPlpActivities(id));
         dispatch(fetchPlpRecordInteractions(id));
     }, [dispatch, id]);
 
     useEffect(() => {
-        if (goals.length > 0) {
-            if (!selectedGoalId || !goals.some((goal) => goal._id === selectedGoalId)) {
-                setSelectedGoalId(goals[0]._id);
+        setSelectedCycleId(record?.cycle?._id || record?.cycle || '');
+    }, [record?.cycle]);
+
+    useEffect(() => {
+        if (visibleGoals.length > 0) {
+            if (!selectedGoalId || !visibleGoals.some((goal) => goal._id === selectedGoalId)) {
+                setSelectedGoalId(visibleGoals[0]._id);
             }
         } else {
             setSelectedGoalId('');
         }
-    }, [goals, selectedGoalId]);
+    }, [visibleGoals, selectedGoalId]);
 
     useEffect(() => {
         if (selectedGoalId) {
@@ -81,7 +146,7 @@ export default function PlpRecordDetailPage() {
                 const next = { ...prev };
                 rows.forEach((row) => {
                     const key = String(row?.trait?.month || 'other');
-                    if (next[key] === undefined) next[key] = true;
+                    if (next[key] === undefined) next[key] = false;
                 });
                 return next;
             });
@@ -158,6 +223,27 @@ export default function PlpRecordDetailPage() {
         else toast.error(r.payload);
     };
 
+    const saveRoundAssignment = async () => {
+        const r = await dispatch(updatePlpRecord({ id, data: { cycleId: selectedCycleId || null } }));
+        if (!r.error) {
+            toast.success(selectedCycleId ? 'Round assigned' : 'Round removed');
+            dispatch(fetchPlpRecord(id));
+        } else {
+            toast.error(r.payload || 'Failed to update Round');
+        }
+    };
+
+    const deleteRecord = async () => {
+        if (!window.confirm('Delete this student PLP record and its evidence, goals, and tasks?')) return;
+        const r = await dispatch(deletePlpRecord(id));
+        if (!r.error) {
+            toast.success('PLP record deleted');
+            navigate(-1);
+        } else {
+            toast.error(r.payload || 'Failed to delete record');
+        }
+    };
+
     const addEvidence = async () => {
         if (!evForm.traitId) {
             toast.error('Select a character trait for this observation');
@@ -196,11 +282,12 @@ export default function PlpRecordDetailPage() {
         }
         const payload = {
             ...goalForm,
+            goalType: activeGoalType,
             targetDate: goalForm.targetDate || null,
         };
         const r = await dispatch(createPlpGoal({ recordId: id, data: payload }));
         if (!r.error) {
-            setGoalForm({ goalType: 'character', title: '', description: '', successCriteria: '', targetDate: '' });
+            setGoalForm({ goalType: activeGoalType, title: '', description: '', successCriteria: '', targetDate: '' });
             setShowGoalForm(false);
             dispatch(fetchPlpGoals(id));
             toast.success('Goal created');
@@ -214,6 +301,59 @@ export default function PlpRecordDetailPage() {
             dispatch(fetchPlpRecordInteractions(id));
             toast.success('Goal updated');
         }
+    };
+
+    const updateGoalProgressNote = async (goalId, teacherProgressNote) => {
+        const r = await dispatch(updatePlpGoal({ goalId, data: { teacherProgressNote } }));
+        if (!r.error) {
+            dispatch(fetchPlpGoals(id));
+            toast.success('Goal progress note saved');
+        } else {
+            toast.error(r.payload || 'Failed to save goal progress note');
+        }
+    };
+
+    const handleActivityForTask = (activity) => {
+        const goalId = activity.goal?._id || activity.goal || selectedGoalId;
+        if (!goalId) {
+            toast.error('Select a goal before preparing an activity task');
+            return;
+        }
+        setSelectedGoalId(goalId);
+        setSelectedActivityId(activity._id || '');
+        setTaskForm({ title: activity.title || activity, instructions: activity.instructions || '', dueDate: activity.dueDate ? String(activity.dueDate).slice(0, 10) : '' });
+        setShowTaskForm(true);
+    };
+
+    const saveActivity = async () => {
+        if (!activityForm.title.trim() || !activityForm.traitId) {
+            toast.error('Activity title and character trait are required');
+            return;
+        }
+        const data = { ...activityForm, goal: activityForm.goal || null, dueDate: activityForm.dueDate || null };
+        const result = editingActivityId
+            ? await dispatch(updatePlpActivity({ activityId: editingActivityId, data }))
+            : await dispatch(createPlpActivity({ recordId: id, data }));
+        if (!result.error) {
+            setActivityForm({ title: '', instructions: '', traitId: '', goal: '', dueDate: '' });
+            setEditingActivityId('');
+            setShowActivityForm(false);
+            dispatch(fetchPlpActivities(id));
+            toast.success(editingActivityId ? 'Activity updated' : 'Activity added');
+        } else toast.error(result.payload || 'Failed to save activity');
+    };
+
+    const editActivity = (activity) => {
+        setEditingActivityId(activity._id);
+        setActivityForm({ title: activity.title || '', instructions: activity.instructions || '', traitId: activity.traitId?._id || activity.traitId || '', goal: activity.goal?._id || activity.goal || '', dueDate: activity.dueDate ? String(activity.dueDate).slice(0, 10) : '' });
+        setShowActivityForm(true);
+    };
+
+    const removeActivity = async (activity) => {
+        if (!window.confirm(`Delete activity "${activity.title}"?`)) return;
+        const result = await dispatch(deletePlpActivity(activity._id));
+        if (!result.error) toast.success('Activity deleted');
+        else toast.error(result.payload || 'Failed to delete activity');
     };
 
     const createTaskHandler = async () => {
@@ -233,8 +373,13 @@ export default function PlpRecordDetailPage() {
             },
         }));
         if (!r.error) {
+            if (selectedActivityId && r.payload?.task?._id) {
+                await dispatch(updatePlpActivity({ activityId: selectedActivityId, data: { task: r.payload.task._id, taskStatus: r.payload.task.status || 'assigned' } }));
+                dispatch(fetchPlpActivities(id));
+            }
             setTaskForm({ title: '', instructions: '', dueDate: '' });
             setShowTaskForm(false);
+            setSelectedActivityId('');
             dispatch(fetchPlpTasks(selectedGoalId));
             dispatch(fetchPlpRecordInteractions(id));
             toast.success('Task assigned');
@@ -274,12 +419,37 @@ export default function PlpRecordDetailPage() {
         }
     };
 
+    const exportRecordDocx = async () => {
+        setExportingDocx(true);
+        try {
+            const response = await api.get(`/plp/records/${id}/export-docx`, { responseType: 'blob' });
+            const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            const url = window.URL.createObjectURL(blob);
+            const safeStudentName = `${record.student?.firstName || 'student'}-${record.student?.lastName || 'record'}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `plp-${safeStudentName}-${record.academicYear}.docx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success('DOCX downloaded');
+        } catch (requestError) {
+            toast.error(requestError?.response?.data?.message || 'Failed to export DOCX');
+        } finally {
+            setExportingDocx(false);
+        }
+    };
+
     if (loading && !record) return <div className="plp-loading">Loading…</div>;
     if (!record) return <div className="plp-empty">Record not found.</div>;
 
     const locked = record.status === 'locked';
     const canWrite = !locked && ['teacher', 'admin'].includes(user?.role);
     const isSupervisor = user?.role === 'department_principal';
+    const publishedCycles = cycles
+        .filter((cycle) => cycle.status === 'published' && cycle.academicYear === record.academicYear)
+        .sort((a, b) => Number(a.printOrder || 0) - Number(b.printOrder || 0));
 
     return (
         <div className="plp-page">
@@ -292,9 +462,64 @@ export default function PlpRecordDetailPage() {
                         <span className={`plp-badge plp-badge-${record.status}`}>{record.status}</span>
                     </div>
                 </div>
-                {canWrite && record.status === 'in_progress' && (
-                    <button className="btn btn-primary" onClick={handleSubmit}>Submit Record</button>
-                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {['teacher', 'admin'].includes(user?.role) && (
+                        <button className="btn btn-secondary" onClick={exportRecordDocx} disabled={exportingDocx}>
+                            {exportingDocx ? 'Exporting...' : 'Download DOCX'}
+                        </button>
+                    )}
+                    {canWrite && record.status === 'in_progress' && (
+                        <button className="btn btn-primary" onClick={handleSubmit}>Submit Record</button>
+                    )}
+                </div>
+            </div>
+
+            <div className="plp-record-tabs" role="tablist" aria-label="Student record sections">
+                {[
+                    { id: 'character', label: 'Character' },
+                    { id: 'academic', label: 'Academic' },
+                    { id: 'activity', label: 'Activity' },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === tab.id}
+                        className={`plp-record-tab${activeTab === tab.id ? ' is-active' : ''}`}
+                        onClick={() => {
+                            setActiveTab(tab.id);
+                            setShowGoalForm(false);
+                            setShowTaskForm(false);
+                            if (tab.id !== 'activity') {
+                                setGoalForm((prev) => ({ ...prev, goalType: tab.id === 'academic' ? 'academic' : 'character' }));
+                            }
+                        }}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {activeTab === 'character' && (
+                <>
+            <div className="plp-section">
+                <h2>Student Record Round</h2>
+                <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                    Assign this existing student record to a published Round. Legacy records can remain unassigned.
+                </p>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 280 }}>
+                        <label>PLP Round</label>
+                        <select value={selectedCycleId} onChange={(event) => setSelectedCycleId(event.target.value)} disabled={!canWrite}>
+                            <option value="">Unassigned Round</option>
+                            {publishedCycles.map((cycle) => (
+                                <option key={cycle._id} value={cycle._id}>{cycle.title} ({cycle.cycleCode})</option>
+                            ))}
+                        </select>
+                    </div>
+                    {canWrite && <button className="btn btn-primary btn-sm" onClick={saveRoundAssignment}>Save Round</button>}
+                    {canWrite && <button className="btn btn-secondary btn-sm" onClick={deleteRecord}>Delete Record</button>}
+                </div>
             </div>
 
             <div className="plp-section">
@@ -375,13 +600,17 @@ export default function PlpRecordDetailPage() {
                     <span className={`plp-badge plp-badge-${record.level}`}>{record.level}</span>
                 </div>
             </div>
+                </>
+            )}
 
+            {(activeTab === 'character' || activeTab === 'academic') && (
+                <>
             <div className="plp-section">
-                <h2>Goals</h2>
+                <h2>{activeTab === 'academic' ? 'Academic Goals' : 'Character Goals'}</h2>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
                     <select value={selectedGoalId} onChange={(e) => setSelectedGoalId(e.target.value)} style={{ minWidth: 280 }}>
                         <option value="">Select goal</option>
-                        {goals.map((goal) => (
+                        {visibleGoals.map((goal) => (
                             <option key={goal._id} value={goal._id}>{goal.goalType}: {goal.title}</option>
                         ))}
                     </select>
@@ -394,12 +623,6 @@ export default function PlpRecordDetailPage() {
 
                 {showGoalForm && canWrite && (
                     <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-                        <div className="plp-form-group">
-                            <label>Type</label>
-                            <select value={goalForm.goalType} onChange={(e) => setGoalForm({ ...goalForm, goalType: e.target.value })}>
-                                {GOAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                        </div>
                         <div className="plp-form-group">
                             <label>Title</label>
                             <input value={goalForm.title} onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })} />
@@ -421,7 +644,7 @@ export default function PlpRecordDetailPage() {
                 )}
 
                 <div style={{ display: 'grid', gap: 10 }}>
-                    {goals.map((goal) => (
+                    {visibleGoals.map((goal) => (
                         <div key={goal._id} className="plp-evidence-item">
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                                 <div>
@@ -437,9 +660,25 @@ export default function PlpRecordDetailPage() {
                                     </select>
                                 )}
                             </div>
+                            {canWrite && (
+                                <div style={{ marginTop: 10 }}>
+                                    <label className="plp-form-group" style={{ display: 'block', marginBottom: 6 }}>
+                                        <span>Teacher progress note</span>
+                                        <textarea
+                                            defaultValue={goal.teacherProgressNote || ''}
+                                            placeholder="How far did the student apply this goal?"
+                                            onBlur={(event) => {
+                                                if (event.target.value !== (goal.teacherProgressNote || '')) {
+                                                    updateGoalProgressNote(goal._id, event.target.value);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                            )}
                         </div>
                     ))}
-                    {goals.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No goals yet.</p>}
+                    {visibleGoals.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No {activeGoalType} goals yet.</p>}
                 </div>
             </div>
 
@@ -501,14 +740,29 @@ export default function PlpRecordDetailPage() {
                     {!selectedGoalId && <p style={{ color: 'var(--text-muted)' }}>Select a goal to view tasks.</p>}
                 </div>
             </div>
+                </>
+            )}
 
+            {activeTab === 'character' && (
+                <>
             <div className="plp-section">
-                <h2>Personalized Activities</h2>
-                {record.recommendedActivities?.length ? (
-                    <ul className="plp-activity-list">
-                        {record.recommendedActivities.map((a, i) => <li key={i}>{a}</li>)}
-                    </ul>
-                ) : <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No activities yet. Save scores to generate.</p>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <h2 style={{ margin: 0 }}>Personalized Activities</h2>
+                    {canWrite && <button className="btn btn-primary btn-sm" onClick={() => { setEditingActivityId(''); setActivityForm({ title: '', instructions: '', traitId: '', goal: '', dueDate: '' }); setShowActivityForm((value) => !value); }}>Add Activity</button>}
+                </div>
+                {showActivityForm && canWrite && (
+                    <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: 14, margin: '14px 0' }}>
+                        <div className="plp-form-group"><label>Activity title</label><input value={activityForm.title} onChange={(event) => setActivityForm({ ...activityForm, title: event.target.value })} /></div>
+                        <div className="plp-form-group"><label>Instructions</label><textarea value={activityForm.instructions} onChange={(event) => setActivityForm({ ...activityForm, instructions: event.target.value })} /></div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+                            <div className="plp-form-group"><label>Character trait</label><select value={activityForm.traitId} onChange={(event) => setActivityForm({ ...activityForm, traitId: event.target.value })}><option value="">Select trait</option>{traitSuggestionRows.map((row) => <option key={row.trait._id} value={row.trait._id}>{row.trait.name}</option>)}</select></div>
+                            <div className="plp-form-group"><label>Goal (optional)</label><select value={activityForm.goal} onChange={(event) => setActivityForm({ ...activityForm, goal: event.target.value })}><option value="">No linked goal</option>{goals.map((goal) => <option key={goal._id} value={goal._id}>{goal.title}</option>)}</select></div>
+                            <div className="plp-form-group"><label>Due date (optional)</label><input type="date" value={activityForm.dueDate} onChange={(event) => setActivityForm({ ...activityForm, dueDate: event.target.value })} /></div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn btn-primary btn-sm" onClick={saveActivity}>{editingActivityId ? 'Save Activity' : 'Add Activity'}</button><button className="btn btn-secondary btn-sm" onClick={() => setShowActivityForm(false)}>Cancel</button></div>
+                    </div>
+                )}
+                <ActivityGroups activities={activities} canWrite={canWrite} onEdit={editActivity} onDelete={removeActivity} onAssign={handleActivityForTask} />
             </div>
 
             <div className="plp-section">
@@ -564,7 +818,11 @@ export default function PlpRecordDetailPage() {
                 ))}
                 {evidence.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No evidence recorded yet.</p>}
             </div>
+                </>
+            )}
 
+            {activeTab === 'activity' && (
+                <>
             <div className="plp-section">
                 <h2>Timeline and Internal Notes</h2>
                 {isSupervisor && (
@@ -599,6 +857,8 @@ export default function PlpRecordDetailPage() {
                     {interactions.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No timeline activity yet.</p>}
                 </div>
             </div>
+                </>
+            )}
         </div>
     );
 }

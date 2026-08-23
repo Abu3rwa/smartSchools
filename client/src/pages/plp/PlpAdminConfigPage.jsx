@@ -3,7 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
     fetchPlpMonthConfigs, createPlpMonthConfig, updatePlpMonthConfig,
     publishPlpMonthConfig, closePlpMonthConfig,
-    selectPlpConfigs, selectPlpLoading, selectPlpError, clearPlpError,
+    fetchPlpCycles, createPlpCycle, updatePlpCycle, publishPlpCycle, closePlpCycle,
+    selectPlpCycles, selectPlpConfigs, selectPlpLoading, selectPlpError, clearPlpError,
     fetchPlpTraits, createPlpTrait, updatePlpTrait, setPlpTraitActive, seedPlpTraits,
     selectPlpTraits, selectPlpTraitLoading, selectPlpTraitError, clearPlpTraitError,
 } from '../../store/slices/plpSlice';
@@ -20,6 +21,16 @@ const THEME_OPTIONS = ['confidence', 'hope', 'wisdom'];
 
 const blank = { month: '', theme: 'confidence', secondaryTrait: '', minEvidenceCount: 2 };
 
+const blankCycle = {
+    cycleCode: '',
+    title: '',
+    startDate: '',
+    endDate: '',
+    printOrder: 0,
+    spotlightTraits: [],
+    minEvidenceCount: 2,
+};
+
 const blankTrait = {
     name: '',
     code: '',
@@ -32,6 +43,7 @@ const blankTrait = {
 export default function PlpAdminConfigPage() {
     const dispatch = useDispatch();
     const configs = useSelector(selectPlpConfigs);
+    const cycles = useSelector(selectPlpCycles);
     const loading = useSelector(selectPlpLoading);
     const error = useSelector(selectPlpError);
     const academicYear = useSelector(selectCurrentAcademicYear);
@@ -46,8 +58,12 @@ export default function PlpAdminConfigPage() {
     const [form, setForm] = useState({ ...blank });
     const [traitForm, setTraitForm] = useState({ ...blankTrait });
     const [showTraitModal, setShowTraitModal] = useState(false);
+    const [showCycleModal, setShowCycleModal] = useState(false);
+    const [editCycleId, setEditCycleId] = useState(null);
+    const [cycleForm, setCycleForm] = useState({ ...blankCycle });
 
     useEffect(() => { dispatch(fetchPlpMonthConfigs({ academicYear })); }, [dispatch, academicYear]);
+    useEffect(() => { dispatch(fetchPlpCycles({ academicYear })); }, [dispatch, academicYear]);
     useEffect(() => { dispatch(fetchPlpTraits()); }, [dispatch]);
     useEffect(() => { if (error) { toast.error(error); dispatch(clearPlpError()); } }, [error, dispatch]);
     useEffect(() => { if (traitError) { toast.error(traitError); dispatch(clearPlpTraitError()); } }, [traitError, dispatch]);;
@@ -92,6 +108,57 @@ export default function PlpAdminConfigPage() {
         if (!window.confirm('Close this month? Records will be locked.')) return;
         const r = await dispatch(closePlpMonthConfig(id));
         if (!r.error) toast.success('Month closed');
+    };
+
+    const openCycle = (cycle = null) => {
+        setEditCycleId(cycle?._id || null);
+        setCycleForm(cycle ? {
+            cycleCode: cycle.cycleCode || '',
+            title: cycle.title || '',
+            startDate: cycle.startDate ? String(cycle.startDate).slice(0, 10) : '',
+            endDate: cycle.endDate ? String(cycle.endDate).slice(0, 10) : '',
+            printOrder: cycle.printOrder || 0,
+            spotlightTraits: (cycle.spotlightTraits || []).map((trait) => trait._id || trait),
+            minEvidenceCount: cycle.minEvidenceCount || 2,
+        } : { ...blankCycle });
+        setShowCycleModal(true);
+    };
+
+    const saveCycle = async () => {
+        if (!cycleForm.cycleCode.trim() || !cycleForm.title.trim() || !cycleForm.startDate || !cycleForm.endDate) {
+            toast.error('Round code, title, start date, and end date are required');
+            return;
+        }
+        if (cycleForm.startDate > cycleForm.endDate) {
+            toast.error('Round start date must be before its end date');
+            return;
+        }
+        const payload = {
+            ...cycleForm,
+            academicYear,
+            cycleCode: cycleForm.cycleCode.trim().toUpperCase(),
+            title: cycleForm.title.trim(),
+            printOrder: Number(cycleForm.printOrder) || 0,
+            minEvidenceCount: Number(cycleForm.minEvidenceCount) || 2,
+        };
+        const action = editCycleId
+            ? await dispatch(updatePlpCycle({ id: editCycleId, data: payload }))
+            : await dispatch(createPlpCycle(payload));
+        if (!action.error) {
+            setShowCycleModal(false);
+            toast.success(`Round ${editCycleId ? 'updated' : 'created'}`);
+        }
+    };
+
+    const publishCycle = async (id) => {
+        const result = await dispatch(publishPlpCycle(id));
+        if (!result.error) toast.success('Round published');
+    };
+
+    const closeCycle = async (id) => {
+        if (!window.confirm('Close this Round? New records cannot use it.')) return;
+        const result = await dispatch(closePlpCycle(id));
+        if (!result.error) toast.success('Round closed');
     };
 
     const openTrait = (trait = null) => {
@@ -142,6 +209,35 @@ export default function PlpAdminConfigPage() {
 
     return (
         <div className="plp-page">
+            <div className="plp-header">
+                <h1>PLP Rounds</h1>
+                <button className="btn btn-primary" onClick={() => openCycle()}>+ New Round</button>
+            </div>
+            {cycles.length === 0 && <div className="plp-empty">No PLP Rounds configured for {academicYear}.</div>}
+            <div className="plp-grid">
+                {cycles.map((cycle) => (
+                    <div key={cycle._id} className="plp-card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                            <h3>{cycle.title}</h3>
+                            <span className={`plp-badge plp-badge-${cycle.status}`}>{cycle.status}</span>
+                        </div>
+                        <p>{cycle.cycleCode} · {cycle.academicYear}</p>
+                        <p>{new Date(cycle.startDate).toLocaleDateString()} – {new Date(cycle.endDate).toLocaleDateString()}</p>
+                        <div className="plp-action-row">
+                            {cycle.status === 'draft' && (
+                                <>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => openCycle(cycle)}>Edit</button>
+                                    <button className="btn btn-primary btn-sm" onClick={() => publishCycle(cycle._id)}>Publish</button>
+                                </>
+                            )}
+                            {cycle.status === 'published' && (
+                                <button className="btn btn-secondary btn-sm" onClick={() => closeCycle(cycle._id)}>Close Round</button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
             <div className="plp-header">
                 <h1>PLP – Monthly Award Config</h1>
                 <button className="btn btn-primary" onClick={() => open()}>+ New Month</button>
@@ -264,6 +360,64 @@ export default function PlpAdminConfigPage() {
                         <div className="plp-modal-actions">
                             <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
                             <button className="btn btn-primary" onClick={save}>Save</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showCycleModal && (
+                <div className="plp-modal-overlay" onClick={() => setShowCycleModal(false)}>
+                    <div className="plp-modal" onClick={(e) => e.stopPropagation()}>
+                        <h2>{editCycleId ? 'Edit' : 'New'} PLP Round</h2>
+                        <div className="plp-form-group">
+                            <label>Round Code</label>
+                            <input value={cycleForm.cycleCode} onChange={(e) => setCycleForm({ ...cycleForm, cycleCode: e.target.value })} placeholder="e.g. R1" />
+                        </div>
+                        <div className="plp-form-group">
+                            <label>Title</label>
+                            <input value={cycleForm.title} onChange={(e) => setCycleForm({ ...cycleForm, title: e.target.value })} placeholder="e.g. First Character Round" />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div className="plp-form-group">
+                                <label>Start Date</label>
+                                <input type="date" value={cycleForm.startDate} onChange={(e) => setCycleForm({ ...cycleForm, startDate: e.target.value })} />
+                            </div>
+                            <div className="plp-form-group">
+                                <label>End Date</label>
+                                <input type="date" value={cycleForm.endDate} onChange={(e) => setCycleForm({ ...cycleForm, endDate: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="plp-form-group">
+                            <label>Spotlight Traits</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+                                {secondaryTraitOptions.map((trait) => {
+                                    const traitId = String(trait._id);
+                                    const checked = cycleForm.spotlightTraits.includes(traitId);
+                                    return (
+                                        <label key={traitId} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => setCycleForm((prev) => ({
+                                                    ...prev,
+                                                    spotlightTraits: checked
+                                                        ? prev.spotlightTraits.filter((id) => id !== traitId)
+                                                        : [...prev.spotlightTraits, traitId],
+                                                }))}
+                                            />
+                                            <span>{trait.name}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div className="plp-form-group">
+                            <label>Minimum Evidence Count</label>
+                            <input type="number" min={1} max={10} value={cycleForm.minEvidenceCount} onChange={(e) => setCycleForm({ ...cycleForm, minEvidenceCount: e.target.value })} />
+                        </div>
+                        <div className="plp-modal-actions">
+                            <button className="btn btn-secondary" onClick={() => setShowCycleModal(false)}>Cancel</button>
+                            <button className="btn btn-primary" onClick={saveCycle}>Save Round</button>
                         </div>
                     </div>
                 </div>

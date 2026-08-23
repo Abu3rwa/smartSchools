@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import {
-    fetchPlpRecords, submitPlpRecord, createPlpRecord,
+    fetchPlpRecords, createPlpRecord, initializePlpRoundRecords, deletePlpRecord,
     fetchPlpTraits,
     fetchPlpCycles, selectPlpCycles,
     fetchPlpAwardCandidates, setPlpAwardDecision,
@@ -34,6 +34,7 @@ export default function PlpTeacherClassboardPage() {
 
     const [selectedCycleId, setSelectedCycleId] = useState('');
     const [creating, setCreating] = useState(false);
+    const [initializingRound, setInitializingRound] = useState(false);
     const [classes, setClasses] = useState([]);
     const [studentsByClass, setStudentsByClass] = useState({});
     const [form, setForm] = useState({ classId: '', studentId: '', focusTrait: '' });
@@ -50,6 +51,9 @@ export default function PlpTeacherClassboardPage() {
     const [leaderboardLoading, setLeaderboardLoading] = useState(false);
     const [leaderboardMode, setLeaderboardMode] = useState('all');
     const [leaderboardSelectedTrait, setLeaderboardSelectedTrait] = useState(null);
+    const [leaderboardRankBy, setLeaderboardRankBy] = useState('evidence');
+    const [exportTraitId, setExportTraitId] = useState('');
+    const [exporting, setExporting] = useState(false);
     const recognitionRef = useRef(null);
     const [observationForm, setObservationForm] = useState({
         classId: '',
@@ -96,6 +100,7 @@ export default function PlpTeacherClassboardPage() {
                     academicYear,
                     ...(selectedCycleId ? { cycleId: selectedCycleId } : {}),
                     traitId: leaderboardFilterTrait,
+                    rankBy: leaderboardRankBy,
                     limit: 100,
                 }
             });
@@ -109,6 +114,50 @@ export default function PlpTeacherClassboardPage() {
             setLeaderboardSelectedTrait(null);
         } finally {
             setLeaderboardLoading(false);
+        }
+    };
+
+    const exportObservationsCsv = async () => {
+        if (!exportTraitId) {
+            toast.error('Select a trait to export');
+            return;
+        }
+        setExporting(true);
+        try {
+            const response = await api.get('/plp/observations/export', {
+                params: {
+                    traitId: exportTraitId,
+                    academicYear,
+                    ...(selectedCycleId ? { cycleId: selectedCycleId } : {}),
+                },
+                responseType: 'blob',
+            });
+            const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const traitName = allActiveTraits.find((trait) => trait._id === exportTraitId)?.name || 'trait';
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `plp-observations-${traitName}-${academicYear}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success('CSV downloaded');
+        } catch (requestError) {
+            let message = 'Failed to export observations';
+            try {
+                const data = requestError?.response?.data;
+                const text = typeof data?.text === 'function' ? await data.text() : '';
+                if (text) {
+                    const parsed = JSON.parse(text);
+                    if (parsed?.message) message = parsed.message;
+                }
+            } catch (_parseError) {
+                // Keep the default message for non-JSON error responses.
+            }
+            toast.error(message);
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -179,7 +228,7 @@ export default function PlpTeacherClassboardPage() {
 
     useEffect(() => {
         loadLeaderboard();
-    }, [user?.role, academicYear, selectedCycleId, leaderboardFilterTrait]);
+    }, [user?.role, academicYear, selectedCycleId, leaderboardFilterTrait, leaderboardRankBy]);
 
     const openAwardDecision = (record, decision) => {
         setAwardDecisionModal({ record, decision });
@@ -208,10 +257,15 @@ export default function PlpTeacherClassboardPage() {
         }
     };
 
-    const handleSubmit = async (id) => {
-        const r = await dispatch(submitPlpRecord(id));
-        if (!r.error) toast.success('Record submitted');
-        else toast.error(r.payload);
+    const handleDeleteRecord = async (record) => {
+        if (record.status === 'locked') {
+            toast.error('Locked records cannot be deleted');
+            return;
+        }
+        if (!window.confirm(`Delete the PLP record for ${record.student?.firstName || ''} ${record.student?.lastName || ''}?`)) return;
+        const result = await dispatch(deletePlpRecord(record._id));
+        if (!result.error) toast.success('PLP record deleted');
+        else toast.error(result.payload || 'Failed to delete PLP record');
     };
 
     const handleCreateRecord = async (event) => {
@@ -226,7 +280,9 @@ export default function PlpTeacherClassboardPage() {
             const result = await dispatch(createPlpRecord({
                 academicYear,
                 cycleId: selectedCycleId,
-                theme: traitById.get(String(form.focusTrait))?.themeCode || 'confidence',
+                theme: traitById.get(String(form.focusTrait))?.themeCode
+                    || traitById.get(String(cycleOptions.find((cycle) => String(cycle._id) === String(selectedCycleId))?.spotlightTraits?.[0]))?.themeCode
+                    || 'confidence',
                 focusTrait: form.focusTrait || undefined,
                 classId: form.classId,
                 studentId: form.studentId,
@@ -246,6 +302,33 @@ export default function PlpTeacherClassboardPage() {
             }
         } finally {
             setCreating(false);
+        }
+    };
+
+    const handleInitializeRoundRecords = async () => {
+        if (!selectedCycleId || !form.classId) {
+            toast.error('Please select a Round and class first');
+            return;
+        }
+        const selectedClass = classes.find((classItem) => String(classItem._id) === String(form.classId));
+        if (!window.confirm(`Initialize PLP records for every active student in ${selectedClass?.name || 'this class'} for the selected Round? Existing records will be skipped.`)) return;
+
+        setInitializingRound(true);
+        try {
+            const result = await dispatch(initializePlpRoundRecords({
+                academicYear,
+                cycleId: selectedCycleId,
+                classId: form.classId,
+                focusTrait: form.focusTrait || undefined,
+            }));
+            if (!result.error) {
+                toast.success(`${result.payload.created} records initialized; ${result.payload.skipped} already existed`);
+                dispatch(fetchPlpRecords({ academicYear, cycleId: selectedCycleId }));
+            } else {
+                toast.error(result.payload || 'Failed to initialize Round records');
+            }
+        } finally {
+            setInitializingRound(false);
         }
     };
 
@@ -430,7 +513,6 @@ export default function PlpTeacherClassboardPage() {
         });
     };
 
-    const isAdmin = ['admin', 'department_principal'].includes(user?.role);
     const canCreateRecord = user?.role === 'teacher' || user?.role === 'admin';
     const classStudents = studentsByClass[form.classId] || [];
     const observationStudents = studentsByClass[observationForm.classId] || [];
@@ -455,7 +537,7 @@ export default function PlpTeacherClassboardPage() {
     }, [allActiveTraits]);
     const cycleOptions = useMemo(() => {
         return cycles
-            .filter((cycle) => cycle.academicYear === academicYear)
+            .filter((cycle) => cycle.academicYear === academicYear && cycle.status === 'published')
             .sort((a, b) => (Number(a.printOrder || 0) - Number(b.printOrder || 0)));
     }, [cycles, academicYear]);
 
@@ -470,14 +552,24 @@ export default function PlpTeacherClassboardPage() {
     }, [cycleOptions, selectedCycleId]);
 
     const getRecordTraitProgressRows = (record) => {
-        const rankedTraits = [...allActiveTraits].sort((a, b) => {
+        const themeTraits = allActiveTraits.filter((trait) => trait.themeCode === record?.theme).sort((a, b) => {
             const displayOrderDiff = Number(a.displayOrder || 0) - Number(b.displayOrder || 0);
             if (displayOrderDiff !== 0) return displayOrderDiff;
             return String(a.name || '').localeCompare(String(b.name || ''));
         });
+        const spotlightTraitIds = Array.isArray(record?.cycle?.spotlightTraits)
+            ? record.cycle.spotlightTraits.map((trait) => String(trait?._id || trait))
+            : [];
+        const rankedTraits = spotlightTraitIds.length > 0
+            ? spotlightTraitIds.map((traitId) => allActiveTraits.find((trait) => String(trait._id) === traitId)).filter(Boolean)
+            : record?.focusTrait?._id
+                ? [allActiveTraits.find((trait) => String(trait._id) === String(record.focusTrait._id))].filter(Boolean)
+                : themeTraits;
 
-        return rankedTraits.slice(0, 4).map((trait, index) => {
-            const scoreField = SCORE_SLOT_BY_ORDER[index] || null;
+        return rankedTraits.slice(0, 4).map((trait) => {
+            const scoreField = themeTraits.some((item) => String(item._id) === String(trait._id))
+                ? SCORE_SLOT_BY_ORDER[themeTraits.findIndex((item) => String(item._id) === String(trait._id))]
+                : null;
             const scoreValue = scoreField ? Number(record?.scores?.[scoreField] || 0) : null;
             return {
                 id: String(trait._id),
@@ -487,14 +579,8 @@ export default function PlpTeacherClassboardPage() {
         });
     };
     useEffect(() => {
-        if (traitOptions.length === 0) {
-            if (form.focusTrait) {
-                setForm((prev) => ({ ...prev, focusTrait: '' }));
-            }
-            return;
-        }
-        if (!traitOptions.some((option) => option._id === form.focusTrait)) {
-            setForm((prev) => ({ ...prev, focusTrait: traitOptions[0]._id }));
+        if (form.focusTrait && !traitOptions.some((option) => option._id === form.focusTrait)) {
+            setForm((prev) => ({ ...prev, focusTrait: '' }));
         }
     }, [traitOptions, form.focusTrait]);
 
@@ -556,13 +642,13 @@ export default function PlpTeacherClassboardPage() {
                                 </select>
                             </div>
                             <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                                <label>Character Trait</label>
+                                <label>Primary Character Trait (optional)</label>
                                 <select
                                     value={form.focusTrait}
                                     onChange={(e) => setForm((prev) => ({ ...prev, focusTrait: e.target.value }))}
-                                    required={traitOptions.length > 0}
                                     disabled={traitOptions.length === 0}
                                 >
+                                    <option value="">No primary trait</option>
                                     {traitOptions.length === 0 && <option value="">No active traits found</option>}
                                     {traitOptions.map((trait) => (
                                         <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
@@ -576,6 +662,14 @@ export default function PlpTeacherClassboardPage() {
                             </p>
                             <button type="submit" className="btn btn-primary" disabled={creating || !selectedCycleId || !form.classId || !form.studentId}>
                                 {creating ? 'Creating...' : 'Create Record'}
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={handleInitializeRoundRecords}
+                                disabled={initializingRound || creating || !selectedCycleId || !form.classId}
+                            >
+                                {initializingRound ? 'Initializing...' : 'Initialize All Students'}
                             </button>
                         </div>
                     </form>
@@ -609,7 +703,11 @@ export default function PlpTeacherClassboardPage() {
                         <tbody>
                             {records.map((r) => (
                                 <tr key={r._id}>
-                                    <td>{r.student?.firstName} {r.student?.lastName}</td>
+                                    <td>
+                                        <Link to={`/portal/plp/records/${r._id}`}>
+                                            {r.student?.firstName} {r.student?.lastName}
+                                        </Link>
+                                    </td>
                                     <td>{r.class?.name}</td>
                                 <td>{r.cycle?.title || 'Unassigned Round'}</td>
                                     <td>
@@ -627,10 +725,10 @@ export default function PlpTeacherClassboardPage() {
                                     <td><span className={`plp-badge plp-badge-${r.awardDecision}`}>{r.awardDecision?.replace('_', ' ')}</span></td>
                                     <td><span className={`plp-badge plp-badge-${r.status}`}>{r.status}</span></td>
                                     <td>
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                            <Link to={`/portal/plp/records/${r._id}`} className="btn btn-secondary btn-sm">Manage Goals & Tasks</Link>
-                                            {r.status === 'in_progress' && !isAdmin && (
-                                                <button className="btn btn-primary btn-sm" onClick={() => handleSubmit(r._id)}>Submit</button>
+                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                            <Link to={`/portal/plp/records/${r._id}`} className="btn btn-primary btn-sm">View Details</Link>
+                                            {canCreateRecord && r.status !== 'locked' && (
+                                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteRecord(r)}>Delete</button>
                                             )}
                                         </div>
                                     </td>
@@ -647,7 +745,7 @@ export default function PlpTeacherClassboardPage() {
                     <div>
                         <h2 style={{ marginBottom: 4 }}>Evidence Leaderboard</h2>
                         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                            Students with the strongest evidence appear first. Filter by all traits or a single character trait.
+                            Filter students by trait, then rank them by evidence or their overall score.
                         </p>
                     </div>
                     <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 250 }}>
@@ -660,6 +758,16 @@ export default function PlpTeacherClassboardPage() {
                             {allActiveTraits.map((trait) => (
                                 <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
                             ))}
+                        </select>
+                    </div>
+                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 190 }}>
+                        <label style={{ marginBottom: 6 }}>Rank by</label>
+                        <select
+                            value={leaderboardRankBy}
+                            onChange={(event) => setLeaderboardRankBy(event.target.value)}
+                        >
+                            <option value="evidence">Evidence</option>
+                            <option value="overallScore">Overall Score</option>
                         </select>
                     </div>
                 </div>
@@ -708,6 +816,32 @@ export default function PlpTeacherClassboardPage() {
                         </table>
                     </div>
                 )}
+            </div>
+
+            <div className="plp-section">
+                <h2>Export Observations by Trait</h2>
+                <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                    Download a CSV of every student's recorded observations for one character trait, for the current Round and academic year.
+                </p>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 240 }}>
+                        <label>Trait</label>
+                        <select value={exportTraitId} onChange={(event) => setExportTraitId(event.target.value)}>
+                            <option value="">Select a trait...</option>
+                            {allActiveTraits.map((trait) => (
+                                <option key={trait._id} value={trait._id}>{trait.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={exportObservationsCsv}
+                        disabled={!exportTraitId || exporting}
+                    >
+                        {exporting ? 'Exporting...' : 'Export CSV'}
+                    </button>
+                </div>
             </div>
 
             <div className="plp-section">

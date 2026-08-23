@@ -75,8 +75,6 @@ import {
   HiOutlineUserGroup,
   HiOutlineBriefcase,
   HiOutlineSparkles as HiOutlinePLP,
-  HiOutlineTrophy,
-  HiOutlineCog6Tooth as HiOutlinePLPConfig,
 } from "react-icons/hi2";import "./Sidebar.css";
 
 const Sidebar = () => {
@@ -755,34 +753,6 @@ const Sidebar = () => {
       icon: HiOutlineCheckCircle,
       labelKey: "plpMyTasks",
       roles: ["student"],
-      section: "plp",
-    },
-    {
-      path: "/portal/plp/awards",
-      icon: HiOutlineTrophy,
-      labelKey: "plpAwards",
-      roles: ["admin", "teacher"],
-      section: "plp",
-    },
-    {
-      path: "/portal/plp/supervisor",
-      icon: HiOutlineUserGroup,
-      labelKey: "plpSupervisor",
-      roles: ["admin", "department_principal"],
-      section: "plp",
-    },
-    {
-      path: "/portal/plp/config",
-      icon: HiOutlinePLPConfig,
-      labelKey: "plpConfig",
-      roles: ["admin"],
-      section: "plp",
-    },
-    {
-      path: "/portal/plp/supervisor-assignments",
-      icon: HiOutlineIdentification,
-      labelKey: "plpSupervisorAssignments",
-      roles: ["admin"],
       section: "plp",
     },
     {

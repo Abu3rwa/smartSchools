@@ -12,6 +12,7 @@ const plpGoalSchema = new mongoose.Schema({
     linkedStandardIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Standard' }],
     baselineNote: { type: String, default: '', trim: true, maxlength: 2000 },
     successCriteria: { type: String, default: '', trim: true, maxlength: 2000 },
+    teacherProgressNote: { type: String, default: '', trim: true, maxlength: 2000 },
     targetDate: { type: Date, default: null },
     status: { type: String, enum: ['active', 'completed', 'carried_forward', 'archived'], default: 'active' },
     aiSuggested: { type: Boolean, default: false },

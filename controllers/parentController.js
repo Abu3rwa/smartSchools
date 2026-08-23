@@ -11,6 +11,7 @@ import {
     getParentChildReports,
     getParentChildSbrReportById,
     getParentChildSbrReports,
+    getParentChildPlpReport,
     getParentChildSubjectAcademicStats,
     getParentChildTimetable,
     getParentChildren,
@@ -479,6 +480,18 @@ export const getParentChildSbrReportByIdController = asyncHandler(async (req, re
         success: true,
         data
     });
+});
+
+export const getParentChildPlpReportController = asyncHandler(async (req, res) => {
+    const { academicYear } = resolveAcademicYearDateRangeForRequest(req);
+    const data = await getParentChildPlpReport({
+        schoolId: req.schoolId,
+        parentUser: req.user,
+        academicYear,
+        childId: req.params.childId,
+    });
+    if (!data) return res.status(404).json({ success: false, message: 'Child not found' });
+    res.status(200).json({ success: true, data });
 });
 
 /**

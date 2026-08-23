@@ -9,6 +9,7 @@ import {
     getParentChildReportsController,
     getParentChildSbrReportByIdController,
     getParentChildSbrReportsController,
+    getParentChildPlpReportController,
     getParentChildSubjectAcademicStatsController,
     getParentChildTimetableController,
     getParentChildrenController,
@@ -86,6 +87,12 @@ router.get(
     param('childId').isMongoId().withMessage('Invalid childId format'),
     validate,
     getParentChildSbrReportsController
+);
+router.get(
+    '/children/:childId/plp-report',
+    param('childId').isMongoId().withMessage('Invalid childId format'),
+    validate,
+    getParentChildPlpReportController
 );
 router.get(
     '/children/:childId/sbr-report-cards/:reportId',

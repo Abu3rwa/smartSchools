@@ -1,0 +1,48 @@
+.parent-plp-report {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 28px;
+    color: #1f2937;
+    background: #fff;
+    font-family: Georgia, 'Times New Roman', serif;
+    line-height: 1.45;
+}
+
+.report-heading {
+    text-align: center;
+    border-bottom: 2px solid #1f3c88;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+}
+
+.report-heading h1 { margin: 4px 0; font-size: 28px; color: #1f3c88; }
+.report-heading p { margin: 0; color: #4b5563; }
+.report-kicker { font-family: Arial, sans-serif; text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+
+.student-information, .trait-table, .goal-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+.student-information th, .student-information td, .trait-table th, .trait-table td, .goal-table th, .goal-table td { border: 1px solid #9ca3af; padding: 9px 10px; text-align: left; vertical-align: top; }
+.student-information th, .trait-table th, .goal-table th { background: #eef2f7; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; color: #374151; }
+.student-information th { width: 17%; }
+
+.report-section { margin-top: 22px; page-break-inside: avoid; }
+.report-section h2 { margin: 0 0 10px; color: #1f3c88; font-size: 19px; border-bottom: 1px solid #9ca3af; padding-bottom: 4px; }
+.report-section h3 { margin: 12px 0 5px; color: #374151; font-size: 15px; }
+.report-section p { margin: 6px 0; }
+.report-section ul { margin: 0; padding-left: 20px; }
+.empty-copy { color: #6b7280; font-style: italic; }
+.report-footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #9ca3af; text-align: center; color: #6b7280; font-size: 12px; }
+.report-state { max-width: 700px; margin: 40px auto; text-align: center; font-family: Arial, sans-serif; }
+.report-error { color: #991b1b; }
+
+@media print {
+    .parent-plp-report { padding: 0; max-width: none; }
+    .report-section { break-inside: avoid; }
+}
+
+@media (max-width: 700px) {
+    .parent-plp-report { padding: 14px; }
+    .report-heading h1 { font-size: 23px; }
+    .student-information, .trait-table, .goal-table { display: block; overflow-x: auto; }
+    .student-information { min-width: 620px; }
+    .trait-table, .goal-table { min-width: 680px; }
+}

@@ -3,6 +3,9 @@ import PlpCycle from '../models/PlpCycle.js';
 import PlpStudentRecord from '../models/PlpStudentRecord.js';
 import PlpGoal from '../models/PlpGoal.js';
 import PlpTask from '../models/PlpTask.js';
+import PlpActivity from '../models/PlpActivity.js';
+import PlpEvidence from '../models/PlpEvidence.js';
+import PlpTraitConfig from '../models/PlpTraitConfig.js';
 import PlpInteraction from '../models/PlpInteraction.js';
 import PlpSupervisorAssignment from '../models/PlpSupervisorAssignment.js';
 import Student from '../models/Student.js';
@@ -32,6 +35,75 @@ const assertMaxWords = (label, text, maxWords) => {
     if (words > maxWords) {
         throw Object.assign(new Error(`${label} must be ${maxWords} words or fewer`), { statusCode: 400 });
     }
+};
+
+export const buildTaskDraftSuggestions = ({ goalType, linkedSubjectId, studentName, priorGoals = [], priorTasks = [] }) => {
+    const subjectLabel = linkedSubjectId ? String(linkedSubjectId) : (goalType === 'academic' ? 'core academic work' : 'classroom character growth');
+    const goalHistory = priorGoals
+        .filter((goal) => goal && typeof goal.title === 'string' && goal.title.trim())
+        .slice(0, 3)
+        .map((goal) => goal.title.trim());
+    const taskHistory = priorTasks
+        .filter((task) => task && typeof task.title === 'string' && task.title.trim())
+        .slice(0, 3)
+        .map((task) => task.title.trim());
+
+    const historicalKeywords = [...goalHistory, ...taskHistory]
+        .join(' ')
+        .toLowerCase();
+    const academicFocus = /\b(multiplication|division|fractions|addition|subtraction|reading|writing|science|math|literacy|comprehension|problem solving|essay|research)\b/.exec(historicalKeywords);
+    const focusPhrase = academicFocus ? academicFocus[0].trim() : null;
+
+    const templates = goalType === 'academic'
+        ? [
+            {
+                title: focusPhrase ? `Practice ${focusPhrase} with a short ${subjectLabel} challenge` : `Complete a ${subjectLabel} practice set`,
+                reason: 'Builds on prior academic goals and reinforces current skill work.'
+            },
+            {
+                title: focusPhrase ? `Explain one ${focusPhrase} strategy in writing` : `Explain one ${subjectLabel} strategy in writing`,
+                reason: 'Uses prior task history to strengthen reflection and academic communication.'
+            },
+            {
+                title: focusPhrase ? `Review and improve one previous ${focusPhrase} mistake` : `Review and improve one previous ${subjectLabel} mistake`,
+                reason: 'Targets a common growth area from recent learning history.'
+            },
+        ]
+        : [
+            { title: `Practice a classroom leadership action`, reason: 'Supports ongoing character growth and confidence-building habits.' },
+            { title: `Reflect on one respectful choice and its impact`, reason: 'Builds on prior reflection habits and social-emotional learning goals.' },
+            { title: `Take initiative in a team or peer-support task`, reason: 'Encourages steady progress in collaboration and responsibility.' },
+        ];
+
+    const historyPicks = [];
+    if (goalHistory.length > 0) {
+        historyPicks.push({
+            title: focusPhrase ? `Connect recent ${focusPhrase} goals to today's ${subjectLabel} work` : `Connect a recent goal to today's ${subjectLabel} work`,
+            reason: `Builds on the student’s recent goal history: ${goalHistory.slice(0, 2).join(' • ')}`,
+        });
+    }
+    if (taskHistory.length > 0) {
+        historyPicks.push({
+            title: `Finish a short follow-up on ${taskHistory[0]}`,
+            reason: `Uses prior task history to strengthen progress and keep momentum going for ${studentName || 'the student'}.`,
+        });
+    }
+
+    const suggestions = [...templates, ...historyPicks]
+        .filter((item) => item && item.title)
+        .slice(0, 4)
+        .map((item) => ({
+            title: String(item.title).trim(),
+            instructions: String(item.reason || 'Suggested follow-up for the student.').trim(),
+            reason: String(item.reason || 'Suggested based on current goal context.').trim(),
+        }));
+
+    if (suggestions.length >= 2) return suggestions;
+
+    return [
+        { title: 'Review one current goal and identify the next small step', instructions: 'Write a short plan for how the student will make progress this week.', reason: 'Used as a fallback because no prior goal data was available.' },
+        { title: 'Check progress against the success criteria', instructions: 'List one success indicator and one action the student will take next.', reason: 'Supports accountability and measurable growth.' },
+    ];
 };
 
 const getTeacherHomeroomClassIds = async (schoolId, teacherUserId, academicYear = null) => {
@@ -342,7 +414,7 @@ export const updateGoal = asyncHandler(async (req, res) => {
     const previousStatus = goal.status;
     const allowedUpdates = [
         'goalType', 'title', 'description', 'linkedTraitCodes', 'linkedSubjectId', 'linkedStandardIds',
-        'baselineNote', 'successCriteria', 'targetDate', 'status', 'aiSuggested'
+        'baselineNote', 'successCriteria', 'teacherProgressNote', 'targetDate', 'status', 'aiSuggested'
     ];
 
     for (const key of allowedUpdates) {
@@ -393,6 +465,118 @@ export const getGoalTasks = asyncHandler(async (req, res) => {
     res.json({ success: true, data: tasks });
 });
 
+const getActivityRecord = async (activityId, schoolId) => {
+    const activity = await PlpActivity.findOne({ _id: activityId, school: schoolId })
+        .populate('traitId', 'name code themeCode')
+        .populate('goal', 'title goalType status')
+        .populate('createdBy', 'firstName lastName')
+        .populate('task', 'title status')
+        .lean();
+    if (!activity) return null;
+    const record = await PlpStudentRecord.findOne({ _id: activity.plpRecord, school: schoolId })
+        .select('_id school teacher class academicYear student status')
+        .lean();
+    return { activity, record };
+};
+
+export const getRecordActivities = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const record = await PlpStudentRecord.findOne({ _id: id, school: req.user.school })
+        .select('_id school teacher class academicYear student status recommendedActivities');
+    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    await assertRecordAccess(req.user, record);
+
+    const activities = await PlpActivity.find({ school: req.user.school, plpRecord: id })
+        .populate('traitId', 'name code themeCode')
+        .populate('goal', 'title goalType status')
+        .populate('createdBy', 'firstName lastName')
+        .populate('task', 'title status')
+        .sort({ source: 1, createdAt: -1 })
+        .lean();
+
+    const positiveEvidence = await PlpEvidence.find({
+        school: req.user.school,
+        plpRecord: id,
+        type: { $in: ['observation', 'positive_example', 'reflection'] },
+        traitId: { $ne: null },
+    }).populate('traitId', 'name code themeCode').sort({ createdAt: -1 }).lean();
+    const evidenceByTrait = positiveEvidence.reduce((groups, item) => {
+        const key = String(item.traitId?._id || '');
+        if (!key) return groups;
+        if (!groups[key]) groups[key] = { trait: item.traitId, evidence: [] };
+        groups[key].evidence.push(item);
+        return groups;
+    }, {});
+    const existingSuggestionTitles = new Set(activities.filter((item) => item.source === 'suggested_from_observations').map((item) => item.title));
+    const observationSuggestions = Object.values(evidenceByTrait).map(({ trait, evidence }) => ({
+        source: 'suggested_from_observations',
+        title: `Practice ${trait.name} through a focused classroom action`,
+        instructions: `Choose one small action that demonstrates ${trait.name}, then reflect on what happened.`,
+        traitId: trait,
+        rationale: `Suggested from ${evidence.length} observation${evidence.length === 1 ? '' : 's'} linked to ${trait.name}: ${String(evidence[0].note || '').slice(0, 180)}`,
+        status: 'suggested',
+        isVirtual: true,
+    })).filter((item) => !existingSuggestionTitles.has(item.title));
+    const legacySuggestions = (record.recommendedActivities || [])
+        .filter((title) => !existingSuggestionTitles.has(title))
+        .map((title) => ({ source: 'suggested_from_observations', title, instructions: '', traitId: null, rationale: 'Legacy recommendation retained for compatibility.', status: 'suggested', isVirtual: true }));
+
+    res.json({ success: true, data: [...activities, ...observationSuggestions, ...legacySuggestions] });
+});
+
+export const createActivity = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const record = await PlpStudentRecord.findOne({ _id: id, school: req.user.school });
+    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    if (record.status === 'locked') return res.status(400).json({ success: false, message: 'Record is locked' });
+    await assertTeacherRecordWriteAccess(req.user, record);
+    const { title, instructions, traitId, goal, dueDate } = req.body;
+    if (!String(title || '').trim()) return res.status(400).json({ success: false, message: 'Activity title is required' });
+    if (traitId) {
+        const trait = await PlpTraitConfig.findOne({ _id: traitId, school: req.user.school, isActive: true }).select('_id').lean();
+        if (!trait) return res.status(400).json({ success: false, message: 'Selected trait is invalid' });
+    }
+    if (goal) {
+        const validGoal = await PlpGoal.exists({ _id: goal, school: req.user.school, plpRecord: id });
+        if (!validGoal) return res.status(400).json({ success: false, message: 'Selected goal does not belong to this record' });
+    }
+    const activity = await PlpActivity.create({ school: req.user.school, plpRecord: id, source: 'added_by_teacher', title: String(title).trim(), instructions: instructions || '', traitId: traitId || null, goal: goal || null, dueDate: dueDate || null, createdBy: req.user._id });
+    res.status(201).json({ success: true, data: activity });
+});
+
+export const updateActivity = asyncHandler(async (req, res) => {
+    const result = await getActivityRecord(req.params.activityId, req.user.school);
+    if (!result) return res.status(404).json({ success: false, message: 'Activity not found' });
+    const { activity, record } = result;
+    if (record.status === 'locked') return res.status(400).json({ success: false, message: 'Record is locked' });
+    await assertTeacherRecordWriteAccess(req.user, record);
+    if (activity.source !== 'added_by_teacher') return res.status(400).json({ success: false, message: 'Suggested activities cannot be edited' });
+    const allowed = ['title', 'instructions', 'traitId', 'goal', 'dueDate', 'task', 'taskStatus'];
+    const updates = Object.fromEntries(allowed.filter((key) => req.body[key] !== undefined).map((key) => [key, req.body[key]]));
+    if (updates.traitId) {
+        const trait = await PlpTraitConfig.findOne({ _id: updates.traitId, school: req.user.school, isActive: true }).select('_id').lean();
+        if (!trait) return res.status(400).json({ success: false, message: 'Selected trait is invalid' });
+    }
+    if (updates.goal) {
+        const validGoal = await PlpGoal.exists({ _id: updates.goal, school: req.user.school, plpRecord: record._id });
+        if (!validGoal) return res.status(400).json({ success: false, message: 'Selected goal does not belong to this record' });
+    }
+    Object.assign(activity, updates, { updatedBy: req.user._id });
+    await PlpActivity.findByIdAndUpdate(activity._id, updates, { runValidators: true });
+    const populated = await getActivityRecord(activity._id, req.user.school);
+    res.json({ success: true, data: populated.activity });
+});
+
+export const deleteActivity = asyncHandler(async (req, res) => {
+    const result = await getActivityRecord(req.params.activityId, req.user.school);
+    if (!result) return res.status(404).json({ success: false, message: 'Activity not found' });
+    if (result.record.status === 'locked') return res.status(400).json({ success: false, message: 'Record is locked' });
+    await assertTeacherRecordWriteAccess(req.user, result.record);
+    if (result.activity.source !== 'added_by_teacher') return res.status(400).json({ success: false, message: 'Suggested activities cannot be deleted' });
+    await PlpActivity.deleteOne({ _id: req.params.activityId, school: req.user.school });
+    res.json({ success: true, data: { _id: req.params.activityId } });
+});
+
 export const createTask = asyncHandler(async (req, res) => {
     const { goalId } = req.params;
     const goal = await PlpGoal.findOne({ _id: goalId, school: req.user.school });
@@ -409,9 +593,40 @@ export const createTask = asyncHandler(async (req, res) => {
     }
     await assertTeacherRecordWriteAccess(req.user, record);
 
-    const { title, instructions, dueDate, completionEvidenceLinks } = req.body;
-    if (!title) {
+    const { title, instructions, dueDate, completionEvidenceLinks, aiDraft } = req.body;
+    if (!title && aiDraft !== true) {
         return res.status(400).json({ success: false, message: 'Task title is required' });
+    }
+
+    if (aiDraft === true) {
+        const studentNameDoc = await Student.findById(record.student).select('firstName lastName').lean();
+        const studentRecordIds = await PlpStudentRecord.find({
+            school: req.user.school,
+            student: record.student,
+            _id: { $ne: record._id },
+        }).select('_id').lean();
+
+        const priorGoals = await PlpGoal.find({
+            school: req.user.school,
+            plpRecord: { $in: studentRecordIds.map((item) => item._id) },
+            goalType: goal.goalType,
+            status: { $in: ['active', 'completed', 'carried_forward'] },
+        }).sort({ createdAt: -1 }).limit(5).lean();
+        const priorTasks = await PlpTask.find({
+            school: req.user.school,
+            student: record.student,
+            status: { $in: ['completed', 'reviewed', 'needs_revision', 'submitted_by_student'] },
+        }).sort({ createdAt: -1 }).limit(5).lean();
+
+        const suggestions = buildTaskDraftSuggestions({
+            goalType: goal.goalType,
+            linkedSubjectId: goal.linkedSubjectId ? String(goal.linkedSubjectId) : null,
+            studentName: studentNameDoc ? `${studentNameDoc.firstName || ''} ${studentNameDoc.lastName || ''}`.trim() : 'the student',
+            priorGoals,
+            priorTasks,
+        });
+
+        return res.json({ success: true, data: { suggestions } });
     }
 
     const task = await PlpTask.create({

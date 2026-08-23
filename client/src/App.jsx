@@ -52,6 +52,7 @@ const GradebookPage = lazy(() => import("./pages/gradebook/GradebookPage"));
 const GradebookRedirectPage = lazy(() => import("./pages/gradebook/GradebookRedirectPage"));
 const ReportCardManagerPage = lazy(() => import("./pages/reportCards/ReportCardManagerPage"));
 const ParentGradebookPage = lazy(() => import("./pages/parentGradebook/ParentGradebookPage"));
+const ParentPlpReportPage = lazy(() => import("./pages/parentPlp/ParentPlpReportPage"));
 const GradeAnalyticsDashboardPage = lazy(() => import("./pages/gradebook/GradebookPage/components/GradeAnalyticsDashboard"));
 const TeachersPage = lazy(() => import("./pages/teachers/TeachersPage"));
 const TeacherDetailsPage = lazy(() => import("./pages/teachers/TeacherDetailsPage"));
@@ -163,9 +164,11 @@ const MyHRPage = lazy(() => import("./pages/hr/MyHRPage"));
 const HRSettingsPage = lazy(() => import("./pages/hr/HRSettingsPage"));
 
 // PLP – Character Development
+const PlpHubPage = lazy(() => import("./pages/plp/PlpHubPage"));
 const PlpAdminConfigPage = lazy(() => import("./pages/plp/PlpAdminConfigPage"));
 const PlpTeacherClassboardPage = lazy(() => import("./pages/plp/PlpTeacherClassboardPage"));
 const PlpRecordDetailPage = lazy(() => import("./pages/plp/PlpRecordDetailPage"));
+const PlpStudentEvidencePage = lazy(() => import("./pages/plp/PlpStudentEvidencePage"));
 const PlpAwardsPage = lazy(() => import("./pages/plp/PlpAwardsPage"));
 const PlpSupervisorAssignmentsPage = lazy(() => import("./pages/plp/PlpSupervisorAssignmentsPage"));
 const PlpSupervisorDashboard = lazy(() => import("./pages/plp/PlpSupervisorDashboard"));
@@ -494,6 +497,14 @@ function App() {
                   <FeatureGate feature="parentGradebook" showUpgradePrompt>
                     <ParentGradebookPage />
                   </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="parent-plp-report/:childId"
+              element={
+                <RoleRoute roles={["parent"]}>
+                  <ParentPlpReportPage />
                 </RoleRoute>
               }
             />
@@ -1475,7 +1486,7 @@ function App() {
               path="plp"
               element={
                 <RoleRoute roles={["admin", "teacher", "department_principal"]}>
-                  <PlpTeacherClassboardPage />
+                  <PlpHubPage />
                 </RoleRoute>
               }
             />
@@ -1483,7 +1494,7 @@ function App() {
               path="plp/config"
               element={
                 <RoleRoute roles={["admin"]}>
-                  <PlpAdminConfigPage />
+                  <Navigate to="/portal/plp?tab=config" replace />
                 </RoleRoute>
               }
             />
@@ -1504,10 +1515,18 @@ function App() {
               }
             />
             <Route
+              path="plp/students/:studentId/evidence"
+              element={
+                <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                  <PlpStudentEvidencePage />
+                </RoleRoute>
+              }
+            />
+            <Route
               path="plp/awards"
               element={
                 <RoleRoute roles={["admin", "teacher"]}>
-                  <PlpAwardsPage />
+                  <Navigate to="/portal/plp?tab=awards" replace />
                 </RoleRoute>
               }
             />
@@ -1515,7 +1534,7 @@ function App() {
               path="plp/supervisor-assignments"
               element={
                 <RoleRoute roles={["admin"]}>
-                  <PlpSupervisorAssignmentsPage />
+                  <Navigate to="/portal/plp?tab=assignments" replace />
                 </RoleRoute>
               }
             />
@@ -1523,7 +1542,7 @@ function App() {
               path="plp/supervisor"
               element={
                 <RoleRoute roles={["admin", "department_principal"]}>
-                  <PlpSupervisorDashboard />
+                  <Navigate to="/portal/plp?tab=supervisor" replace />
                 </RoleRoute>
               }
             />

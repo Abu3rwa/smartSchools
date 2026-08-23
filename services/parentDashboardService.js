@@ -7,6 +7,10 @@ import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
 import SBRReportCard from '../models/SBRReportCard.js';
 import Student from '../models/Student.js';
 import TeacherPeriodAssignment from '../models/TeacherPeriodAssignment.js';
+import PlpStudentRecord from '../models/PlpStudentRecord.js';
+import PlpEvidence from '../models/PlpEvidence.js';
+import PlpGoal from '../models/PlpGoal.js';
+import PlpTask from '../models/PlpTask.js';
 import { DEFAULT_WEEK_WORKING_DAYS, normalizeWeekWorkingDays } from '../utils/schoolWeekWorkingDays.js';
 import { normalizePeriod } from './sbrService.js';
 
@@ -208,6 +212,83 @@ export const getParentChildren = async ({ schoolId, parentUser, academicYear }) 
         ...mapStudentCore(student),
         academicYear
     }));
+};
+
+export const getParentChildPlpReport = async ({ schoolId, parentUser, academicYear, childId }) => {
+    const student = await getParentLinkedStudentById({ schoolId, parentUser, academicYear, childId });
+    if (!student) return null;
+
+    const records = await PlpStudentRecord.find({ school: schoolId, student: student._id, academicYear })
+        .select('_id class cycle month theme status')
+        .populate('class', 'name grade section')
+        .populate('cycle', 'title cycleCode status')
+        .lean();
+    const recordIds = records.map((record) => record._id);
+    if (recordIds.length === 0) {
+        return { student: mapStudentCore(student), academicYear, traits: [], teacherFeedback: [], academicEffort: [], support: [] };
+    }
+
+    const [evidence, goals, tasks] = await Promise.all([
+        PlpEvidence.find({ school: schoolId, plpRecord: { $in: recordIds }, type: { $in: ['observation', 'positive_example', 'reflection'] } })
+            .select('plpRecord traitId type note createdAt')
+            .populate('traitId', 'name code themeCode')
+            .sort({ createdAt: -1 })
+            .lean(),
+        PlpGoal.find({ school: schoolId, plpRecord: { $in: recordIds } })
+            .select('plpRecord goalType title description successCriteria teacherProgressNote status targetDate linkedTraitCodes linkedSubjectId')
+            .populate('linkedSubjectId', 'name code')
+            .sort({ createdAt: -1 })
+            .lean(),
+        PlpTask.find({ school: schoolId, plpRecord: { $in: recordIds } })
+            .select('plpGoal title status teacherFeedback completedAt')
+            .lean(),
+    ]);
+
+    const traitGroups = new Map();
+    evidence.forEach((item) => {
+        if (!item.traitId) return;
+        const key = String(item.traitId._id);
+        if (!traitGroups.has(key)) traitGroups.set(key, { trait: item.traitId.name, indicators: [], count: 0 });
+        const group = traitGroups.get(key);
+        group.count += 1;
+        const note = String(item.note || '').trim();
+        if (note && group.indicators.length < 4 && !group.indicators.includes(note)) group.indicators.push(note);
+    });
+    const tasksByGoal = tasks.reduce((map, task) => {
+        const key = String(task.plpGoal);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push({ title: task.title, status: task.status, teacherFeedback: task.teacherFeedback || '', completedAt: task.completedAt || null });
+        return map;
+    }, new Map());
+
+    const characterGoals = goals.filter((goal) => goal.goalType === 'character').map((goal) => ({
+        title: goal.title,
+        description: goal.description,
+        successCriteria: goal.successCriteria,
+        status: goal.status,
+        teacherComment: goal.teacherProgressNote,
+        tasks: tasksByGoal.get(String(goal._id)) || [],
+    }));
+    const academicEffort = goals.filter((goal) => goal.goalType === 'academic').map((goal) => ({
+        subject: goal.linkedSubjectId?.name || 'Academic Skills',
+        observedStrength: goal.description || '',
+        growthGoal: goal.successCriteria || goal.title,
+        previousGoalComment: goal.teacherProgressNote || '',
+        status: goal.status,
+        tasks: tasksByGoal.get(String(goal._id)) || [],
+    }));
+
+    return {
+        student: mapStudentCore(student),
+        academicYear,
+        className: student.currentClass?.name || records[0]?.class?.name || '',
+        traits: Array.from(traitGroups.values()),
+        teacherFeedback: characterGoals.filter((goal) => goal.teacherComment).map((goal) => ({ title: goal.title, comment: goal.teacherComment })),
+        characterGoals,
+        academicEffort,
+        support: [],
+        records: records.map((record) => ({ month: record.month, round: record.cycle?.title || '', theme: record.theme })),
+    };
 };
 
 const buildChildSummary = async ({ schoolId, parentUser, student, dateFilter }) => {

@@ -5,8 +5,8 @@ import { authorize } from '../middleware/auth.js';
 import {
     getMonthConfigs, getMonthConfig, createMonthConfig, updateMonthConfig,
     publishMonthConfig, closeMonthConfig,
-    getRecords, getLeaderboard, getRecord, createRecord, updateRecord, submitRecord,
-    getEvidence, getTraitScoreSuggestions, createEvidence, deleteEvidence,
+    getRecords, getLeaderboard, getRecord, exportRecordDocx, createRecord, initializeRoundRecords, updateRecord, deleteRecord, submitRecord,
+    getEvidence, getStudentEvidence, exportObservationsByTrait, getTraitScoreSuggestions, createEvidence, deleteEvidence,
     classifyObservationDraft, createQuickObservation, getNeedsReviewObservations,
     getRecordInteractions, addSupervisorNote,
     getAwardCandidates, setAwardDecision,
@@ -22,6 +22,7 @@ import {
     getCycles, createCycle, updateCycle, publishCycle, closeCycle,
     getRecordGoals, createGoal, updateGoal,
     getGoalTasks, createTask, updateTask,
+    getRecordActivities, createActivity, updateActivity, deleteActivity,
     getMyStudentTasks, submitTaskByStudent, reviewTaskByTeacher,
 } from '../controllers/plpV2Controller.js';
 
@@ -40,8 +41,11 @@ router.post('/config/month/:id/close', closeMonthConfig);
 
 // ─── Records ──────────────────────────────────────────────────────────────────────
 router.route('/records').get(getRecords).post(createRecord);
+router.post('/records/initialize-round', authorize('teacher', 'admin'), initializeRoundRecords);
 router.get('/leaderboard', getLeaderboard);
 router.route('/records/:id').get(getRecord).put(updateRecord);
+router.get('/records/:id/export-docx', exportRecordDocx);
+router.delete('/records/:id', deleteRecord);
 router.post('/records/:id/submit', submitRecord);
 router.get('/records/:id/trait-score-suggestions', getTraitScoreSuggestions);
 router.get('/records/:id/interactions', getRecordInteractions);
@@ -49,6 +53,8 @@ router.post('/records/:id/supervisor-note', authorize('department_principal'), a
 
 // ─── Evidence ─────────────────────────────────────────────────────────────────────
 router.get('/records/:id/evidence', getEvidence);
+router.get('/students/:studentId/evidence', getStudentEvidence);
+router.get('/observations/export', exportObservationsByTrait);
 router.post('/records/:id/evidence', createEvidence);
 router.delete('/evidence/:id', deleteEvidence);
 router.post('/observations/classify', authorize('teacher', 'admin'), classifyObservationDraft);
@@ -104,6 +110,12 @@ router.post('/cycles/:id/close', authorize('admin'), closeCycle);
 router.get('/records/:id/goals', getRecordGoals);
 router.post('/records/:id/goals', authorize('teacher', 'admin'), createGoal);
 router.put('/goals/:goalId', authorize('teacher', 'admin'), updateGoal);
+
+// ─── PLP Activities ─────────────────────────────────────────────────────────
+router.get('/records/:id/activities', getRecordActivities);
+router.post('/records/:id/activities', authorize('teacher', 'admin'), createActivity);
+router.put('/activities/:activityId', authorize('teacher', 'admin'), updateActivity);
+router.delete('/activities/:activityId', authorize('teacher', 'admin'), deleteActivity);
 
 // ─── PLP V2 Tasks ─────────────────────────────────────────────────────────────
 router.get('/goals/:goalId/tasks', getGoalTasks);

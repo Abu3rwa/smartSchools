@@ -1,7 +1,22 @@
 /* PLP – Character Development pages */
+.plp-hub { min-height: 100%; background: var(--bg-secondary); }
+.plp-hub-header { max-width: 1180px; margin: 0 auto; padding: 28px 24px 18px; }
+.plp-hub-eyebrow { margin: 0 0 6px; color: var(--status-success); font-size: 0.74rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.plp-hub-header h1 { margin: 0; color: var(--text-primary); font-size: clamp(1.5rem, 3vw, 2.1rem); }
+.plp-hub-subtitle { margin: 8px 0 0; color: var(--text-muted); font-size: 0.9rem; }
+.plp-hub-tabs { display: flex; gap: 4px; max-width: 1180px; margin: 0 auto; padding: 0 24px; border-bottom: 1px solid var(--border-color); overflow-x: auto; }
+.plp-hub-tab { flex: 0 0 auto; border: 0; border-bottom: 3px solid transparent; padding: 12px 14px 10px; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 0.86rem; font-weight: 700; white-space: nowrap; }
+.plp-hub-tab:hover, .plp-hub-tab.is-active { border-bottom-color: var(--status-success); color: var(--text-primary); }
+.plp-hub-content { max-width: 1180px; margin: 0 auto; }
+.plp-hub-content > .plp-page { max-width: none; padding: 24px 0; }
+
 .plp-page { padding: 24px; max-width: 1100px; margin: 0 auto; }
 .plp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
 .plp-header h1 { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+.plp-record-tabs { display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid var(--border-color); overflow-x: auto; scrollbar-width: thin; }
+.plp-record-tab { flex: 0 0 auto; border: 0; border-bottom: 3px solid transparent; padding: 11px 16px 9px; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; font-size: 0.9rem; font-weight: 700; white-space: nowrap; }
+.plp-record-tab:hover, .plp-record-tab.is-active { border-bottom-color: var(--status-success); color: var(--text-primary); }
+.plp-record-tab:focus-visible { outline: 2px solid var(--status-success); outline-offset: -2px; border-radius: var(--radius-sm, 4px); }
 .plp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
 .plp-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg, 12px); padding: 18px; }
 .plp-card h3 { font-size: 1rem; font-weight: 700; margin: 0 0 8px; color: var(--text-primary); }
@@ -64,9 +79,16 @@
 }
 
 @media (max-width: 640px) {
+  .plp-hub-header { padding: 20px 12px 14px; }
+  .plp-hub-tabs { padding: 0 8px; }
+  .plp-hub-tab { padding-left: 10px; padding-right: 10px; }
+  .plp-hub-content { width: 100%; }
+  .plp-hub-content > .plp-page { padding: 16px 12px; }
   .plp-page { padding: 12px; }
   .plp-header { align-items: stretch; }
   .plp-header > div:last-child { width: 100%; justify-content: space-between; }
+  .plp-record-tabs { margin-bottom: 16px; }
+  .plp-record-tab { min-height: 44px; padding: 11px 14px 9px; }
   .plp-section { padding: 12px; border-radius: 10px; }
   .plp-card { padding: 14px; }
   .plp-form-group { margin-bottom: 10px; }

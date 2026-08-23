@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import {
@@ -121,6 +122,11 @@ const ParentGradebookPage = () => {
                         <option value="1">Semester 1</option>
                         <option value="2">Semester 2</option>
                     </select>
+                    {selectedStudent && (
+                        <Link className="btn-primary" to={`/portal/parent-plp-report/${selectedStudent}`}>
+                            Character Development Report
+                        </Link>
+                    )}
                 </div>
             </div>
 

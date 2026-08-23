@@ -4,6 +4,7 @@ import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 const plpEvidenceSchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     plpRecord: { type: mongoose.Schema.Types.ObjectId, ref: 'PlpStudentRecord', required: true },
+    student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', default: null },
     teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     traitId: { type: mongoose.Schema.Types.ObjectId, ref: 'PlpTraitConfig', default: null },
     type: { type: String, enum: ['observation', 'incident', 'positive_example', 'reflection'], required: true },
@@ -17,5 +18,6 @@ const plpEvidenceSchema = new mongoose.Schema({
 
 plpEvidenceSchema.plugin(tenantIsolationPlugin);
 plpEvidenceSchema.index({ school: 1, plpRecord: 1 });
+plpEvidenceSchema.index({ school: 1, student: 1, createdAt: -1 });
 
 export default mongoose.model('PlpEvidence', plpEvidenceSchema);
