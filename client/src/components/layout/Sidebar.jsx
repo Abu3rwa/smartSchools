@@ -744,7 +744,7 @@ const Sidebar = () => {
       path: "/portal/plp",
       icon: HiOutlinePLP,
       labelKey: "plp",
-      roles: ["admin", "teacher", "department_principal"],
+      roles: ["admin", "teacher", "department_principal", "student"],
       section: "plp",
       end: true,
     },

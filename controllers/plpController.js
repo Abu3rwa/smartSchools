@@ -590,6 +590,9 @@ export const getMonthConfigs = asyncHandler(async (req, res) => {
     const configs = await PlpMonthConfig.find(filter)
         .populate('secondaryTrait', 'name code themeCode themeId')
         .sort({ academicYear: 1, month: 1 });
+    // Re-sort in-memory by school-year order: Sep(9)→Oct→…→Aug(8)
+    const schoolYearOrder = (m) => (m >= 9 ? m - 9 : m + 3);
+    configs.sort((a, b) => schoolYearOrder(a.month) - schoolYearOrder(b.month));
     res.json({ success: true, data: configs });
 });
 
@@ -602,24 +605,25 @@ export const getMonthConfig = asyncHandler(async (req, res) => {
 });
 
 export const createMonthConfig = asyncHandler(async (req, res) => {
-    const { academicYear, month, theme, secondaryTrait, weights, minEvidenceCount } = req.body;
+    const { academicYear, month, secondaryTrait } = req.body;
+    if (!month) {
+        return res.status(400).json({ success: false, message: 'Month is required' });
+    }
+    let resolvedTheme = 'confidence';
     if (secondaryTrait) {
         const trait = await PlpTraitConfig.findOne({ _id: secondaryTrait, school: req.user.school });
         if (!trait) {
-            return res.status(400).json({ success: false, message: 'Invalid spotlight trait' });
+            return res.status(400).json({ success: false, message: 'Invalid character trait' });
         }
-        if (trait.themeCode && trait.themeCode !== theme) {
-            return res.status(400).json({ success: false, message: 'Selected trait does not belong to the selected theme' });
-        }
+        resolvedTheme = trait.themeCode || 'confidence';
     }
     const config = await PlpMonthConfig.create({
         school: req.user.school,
         academicYear,
         month,
-        theme,
+        theme: resolvedTheme,
         secondaryTrait: secondaryTrait || null,
-        weights,
-        minEvidenceCount,
+        minEvidenceCount: 2,
         createdBy: req.user._id,
     });
     await refreshAwardCandidatesForMonth({
@@ -628,25 +632,30 @@ export const createMonthConfig = asyncHandler(async (req, res) => {
         month: config.month,
         configOverride: config.toObject(),
     });
-    audit(req.user.school, req.user._id, 'config_created', 'PlpMonthConfig', config._id, { month, theme });
+    audit(req.user.school, req.user._id, 'config_created', 'PlpMonthConfig', config._id, { month });
     res.status(201).json({ success: true, data: config });
 });
 
 export const updateMonthConfig = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { theme, secondaryTrait } = req.body;
-    if (secondaryTrait) {
-        const trait = await PlpTraitConfig.findOne({ _id: secondaryTrait, school: req.user.school });
-        if (!trait) {
-            return res.status(400).json({ success: false, message: 'Invalid spotlight trait' });
-        }
-        if (theme && trait.themeCode && trait.themeCode !== theme) {
-            return res.status(400).json({ success: false, message: 'Selected trait does not belong to the selected theme' });
+    const { secondaryTrait } = req.body;
+    const updateData = { updatedBy: req.user._id };
+    if (req.body.month !== undefined) updateData.month = req.body.month;
+    if (secondaryTrait !== undefined) {
+        if (secondaryTrait) {
+            const trait = await PlpTraitConfig.findOne({ _id: secondaryTrait, school: req.user.school });
+            if (!trait) {
+                return res.status(400).json({ success: false, message: 'Invalid character trait' });
+            }
+            updateData.theme = trait.themeCode || 'confidence';
+            updateData.secondaryTrait = secondaryTrait;
+        } else {
+            updateData.secondaryTrait = null;
         }
     }
     const config = await PlpMonthConfig.findOneAndUpdate(
         { _id: id, school: req.user.school, status: { $ne: 'closed' } },
-        { ...req.body, updatedBy: req.user._id },
+        updateData,
         { new: true, runValidators: true }
     );
     if (!config) return res.status(404).json({ success: false, message: 'Config not found or closed' });
@@ -724,13 +733,22 @@ export const getRecords = asyncHandler(async (req, res) => {
             filter.teacher = teacherId ? teacherId : { $in: teacherIds };
         } else {
             const allowedClassIds = await getTeacherHomeroomClassIds(req.user.school, req.user._id, academicYear || null);
-            if (allowedClassIds.length === 0) {
-                return res.json({ success: true, data: [] });
+            if (classId) {
+                if (!allowedClassIds.includes(String(classId))) {
+                    return res.json({ success: true, data: [] });
+                }
+                filter.class = classId;
+            } else if (allowedClassIds.length === 0) {
+                // No recognized homeroom classes; still surface records this teacher personally created.
+                filter.teacher = req.user._id;
+            } else {
+                // Include records the teacher authored even if the record's class is no longer
+                // in their current homeroom scope (e.g. student/class reassignment since creation).
+                filter.$or = [
+                    { class: { $in: allowedClassIds } },
+                    { teacher: req.user._id },
+                ];
             }
-            if (classId && !allowedClassIds.includes(String(classId))) {
-                return res.json({ success: true, data: [] });
-            }
-            filter.class = classId || { $in: allowedClassIds };
         }
     } else if (teacherId) {
         filter.teacher = teacherId;
@@ -775,13 +793,19 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
             filter.teacher = teacherId ? teacherId : { $in: teacherIds };
         } else {
             const allowedClassIds = await getTeacherHomeroomClassIds(req.user.school, req.user._id, academicYear || null);
-            if (allowedClassIds.length === 0) {
-                return res.json({ success: true, data: { rows: [], mode: 'all' } });
+            if (classId) {
+                if (!allowedClassIds.includes(String(classId))) {
+                    return res.json({ success: true, data: { rows: [], mode: 'all' } });
+                }
+                filter.class = classId;
+            } else if (allowedClassIds.length === 0) {
+                filter.teacher = req.user._id;
+            } else {
+                filter.$or = [
+                    { class: { $in: allowedClassIds } },
+                    { teacher: req.user._id },
+                ];
             }
-            if (classId && !allowedClassIds.includes(String(classId))) {
-                return res.json({ success: true, data: { rows: [], mode: 'all' } });
-            }
-            filter.class = classId || { $in: allowedClassIds };
         }
     } else if (teacherId) {
         filter.teacher = teacherId;
@@ -1182,21 +1206,57 @@ export const createRecord = asyncHandler(async (req, res) => {
     const level = resolveLevel(weighted);
     const activities = generateActivities(theme, level);
 
-    const record = await PlpStudentRecord.create({
-        school: req.user.school,
-        academicYear,
-        cycle: cycle?._id || null,
-        month: resolvedMonth,
-        theme,
-        focusTrait: focusTrait || null,
-        teacher: req.user._id,
-        class: classId,
-        student: studentId,
-        scores: computedScores,
-        weightedScore: weighted,
-        level,
-        recommendedActivities: activities,
-    });
+    // The uniqueness constraint is scoped by (school, academicYear, cycle/month, teacher, student) — not by class.
+    // Look up any existing match first so a stale/reassigned class doesn't surface a confusing duplicate-key error.
+    const duplicateMatch = cycle?._id
+        ? { school: req.user.school, academicYear, cycle: cycle._id, teacher: req.user._id, student: studentId }
+        : { school: req.user.school, academicYear, cycle: null, month: resolvedMonth, teacher: req.user._id, student: studentId };
+    const existingRecord = await PlpStudentRecord.findOne(duplicateMatch)
+        .populate('student', 'firstName lastName studentId')
+        .populate('class', 'name grade');
+    if (existingRecord) {
+        return res.status(200).json({
+            success: true,
+            alreadyExists: true,
+            message: 'A PLP record already exists for this student in the selected Round/Month.',
+            data: existingRecord,
+        });
+    }
+
+    let record;
+    try {
+        record = await PlpStudentRecord.create({
+            school: req.user.school,
+            academicYear,
+            cycle: cycle?._id || null,
+            month: resolvedMonth,
+            theme,
+            focusTrait: focusTrait || null,
+            teacher: req.user._id,
+            class: classId,
+            student: studentId,
+            scores: computedScores,
+            weightedScore: weighted,
+            level,
+            recommendedActivities: activities,
+        });
+    } catch (createError) {
+        if (createError?.code === 11000) {
+            const raceRecord = await PlpStudentRecord.findOne(duplicateMatch)
+                .populate('student', 'firstName lastName studentId')
+                .populate('class', 'name grade');
+            if (raceRecord) {
+                return res.status(200).json({
+                    success: true,
+                    alreadyExists: true,
+                    message: 'A PLP record already exists for this student in the selected Round/Month.',
+                    data: raceRecord,
+                });
+            }
+        }
+        throw createError;
+    }
+    audit(req.user.school, req.user._id, 'record_created', 'PlpStudentRecord', record._id, { classId, studentId });
     res.status(201).json({ success: true, data: record });
 });
 
@@ -1224,11 +1284,13 @@ export const initializeRoundRecords = asyncHandler(async (req, res) => {
     const students = await Student.find({ school: req.user.school, currentClass: classId, status: 'active' }).select('_id').lean();
     if (students.length === 0) return res.json({ success: true, data: { created: 0, skipped: 0, total: 0 } });
 
+    // Match the unique index scope (school, academicYear, cycle, teacher, student) — omit class so a
+    // student whose class changed since an earlier record was created is still correctly skipped.
     const existing = await PlpStudentRecord.find({
         school: req.user.school,
         academicYear,
         cycle: cycle._id,
-        class: classId,
+        teacher: req.user._id,
         student: { $in: students.map((student) => student._id) },
     }).select('student').lean();
     const existingStudentIds = new Set(existing.map((record) => String(record.student)));
@@ -1389,6 +1451,26 @@ export const submitRecord = asyncHandler(async (req, res) => {
     record.awardCandidate = eligible;
     await record.save();
     audit(req.user.school, req.user._id, 'record_submitted', 'PlpStudentRecord', record._id, {});
+    res.json({ success: true, data: record });
+});
+
+export const unlockRecord = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const reason = String(req.body?.reason || '').trim();
+    if (!reason) {
+        return res.status(400).json({ success: false, message: 'A reason is required to unlock a record' });
+    }
+    if (reason.length > 500) {
+        return res.status(400).json({ success: false, message: 'Reason must be 500 characters or fewer' });
+    }
+    const record = await PlpStudentRecord.findOne({ _id: id, school: req.user.school });
+    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    if (record.status !== 'locked') {
+        return res.status(400).json({ success: false, message: 'Only locked records can be unlocked' });
+    }
+    record.status = record.submittedAt ? 'submitted' : 'in_progress';
+    await record.save();
+    audit(req.user.school, req.user._id, 'record_unlocked', 'PlpStudentRecord', record._id, { reason });
     res.json({ success: true, data: record });
 });
 
@@ -1668,6 +1750,13 @@ export const createEvidence = asyncHandler(async (req, res) => {
     await assertRecordWriteAccess(req.user, record);
 
     const { type, note, taggedTraits, traitId, source, aiConfidence, aiRationale, reviewStatus } = req.body;
+    const cleanNote = String(note || '').trim();
+    if (!cleanNote) {
+        return res.status(400).json({ success: false, message: 'Evidence note is required' });
+    }
+    if (cleanNote.length > 1000) {
+        return res.status(400).json({ success: false, message: 'Evidence note must be 1000 characters or fewer' });
+    }
     const evidence = await PlpEvidence.create({
         school: req.user.school,
         plpRecord: id,
@@ -1675,13 +1764,14 @@ export const createEvidence = asyncHandler(async (req, res) => {
         teacher: req.user._id,
         traitId: traitId || null,
         type,
-        note,
+        note: cleanNote,
         taggedTraits: taggedTraits || [],
         source: source || 'manual',
         aiConfidence: aiConfidence || null,
         aiRationale: aiRationale || null,
         reviewStatus: reviewStatus || 'confirmed',
     });
+    audit(req.user.school, req.user._id, 'evidence_created', 'PlpEvidence', evidence._id, { recordId: id, type: evidence.type });
 
     const newCount = (record.evidenceCount || 0) + 1;
     const config = await PlpMonthConfig.findOne({
@@ -1965,6 +2055,77 @@ export const getNeedsReviewObservations = asyncHandler(async (req, res) => {
     res.json({ success: true, data: list });
 });
 
+export const updateEvidence = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const evidence = await PlpEvidence.findOne({ _id: id, school: req.user.school });
+    if (!evidence) return res.status(404).json({ success: false, message: 'Evidence not found' });
+    if (evidence.source === 'ai_classified') {
+        return res.status(400).json({ success: false, message: 'AI-classified evidence cannot be edited. Delete it and add a manual entry instead.' });
+    }
+
+    const record = await PlpStudentRecord.findOne({ _id: evidence.plpRecord, school: req.user.school });
+    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    if (record.status === 'locked') return res.status(400).json({ success: false, message: 'Record is locked' });
+    await assertRecordWriteAccess(req.user, record);
+
+    const { type, note, traitId } = req.body;
+    const updates = {};
+    if (note !== undefined) {
+        const cleanNote = String(note || '').trim();
+        if (!cleanNote) return res.status(400).json({ success: false, message: 'Evidence note is required' });
+        if (cleanNote.length > 1000) return res.status(400).json({ success: false, message: 'Evidence note must be 1000 characters or fewer' });
+        updates.note = cleanNote;
+    }
+    if (type !== undefined) {
+        const allowedTypes = ['observation', 'incident', 'positive_example', 'reflection'];
+        if (!allowedTypes.includes(type)) return res.status(400).json({ success: false, message: 'Invalid evidence type' });
+        updates.type = type;
+    }
+
+    const previousTraitId = evidence.traitId ? String(evidence.traitId) : null;
+    let nextTraitId = previousTraitId;
+    if (traitId !== undefined) {
+        if (traitId) {
+            const trait = await PlpTraitConfig.findOne({ _id: traitId, school: req.user.school, isActive: true }).select('_id').lean();
+            if (!trait) return res.status(400).json({ success: false, message: 'Selected trait is invalid' });
+        }
+        updates.traitId = traitId || null;
+        nextTraitId = traitId ? String(traitId) : null;
+    }
+
+    Object.assign(evidence, updates);
+    await evidence.save();
+
+    if (nextTraitId !== previousTraitId) {
+        const config = await PlpMonthConfig.findOne({
+            school: req.user.school,
+            academicYear: record.academicYear,
+            month: record.month,
+        }).lean();
+        const themeTraits = await getThemeTraits({ schoolId: req.user.school, themeCode: record.theme });
+        let scoreChanged = false;
+        if (previousTraitId) {
+            const oldScoreField = resolveScoreFieldFromThemeTraits(themeTraits, previousTraitId);
+            if (applyScoreDelta({ record, scoreField: oldScoreField, delta: -EVIDENCE_SCORE_DELTA })) scoreChanged = true;
+        }
+        if (nextTraitId) {
+            const newScoreField = resolveScoreFieldFromThemeTraits(themeTraits, nextTraitId);
+            if (applyScoreDelta({ record, scoreField: newScoreField, delta: EVIDENCE_SCORE_DELTA })) scoreChanged = true;
+        }
+        if (scoreChanged) recomputeRecordScores({ record, config });
+        await recomputeAwardCandidateForRecord({ record, config, schoolId: req.user.school });
+        await record.save();
+    }
+
+    audit(req.user.school, req.user._id, 'evidence_updated', 'PlpEvidence', evidence._id, { recordId: String(record._id) });
+
+    const populated = await PlpEvidence.findById(evidence._id)
+        .populate('teacher', 'firstName lastName')
+        .populate('traitId', 'name code themeCode')
+        .lean();
+    res.json({ success: true, data: populated });
+});
+
 export const deleteEvidence = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const evidence = await PlpEvidence.findOne({ _id: id, school: req.user.school });
@@ -2006,6 +2167,7 @@ export const deleteEvidence = asyncHandler(async (req, res) => {
         await record.save();
     }
     await evidence.deleteOne();
+    audit(req.user.school, req.user._id, 'evidence_deleted', 'PlpEvidence', id, { recordId: record?._id });
     res.json({ success: true, message: 'Evidence deleted' });
 });
 
@@ -2099,7 +2261,7 @@ export const getAwardCandidates = asyncHandler(async (req, res) => {
     if (records.length === 0) return res.json({ success: true, data: [] });
 
     const activeTraits = await PlpTraitConfig.find({ school: req.user.school, isActive: true })
-        .select('_id')
+        .select('_id month name')
         .lean();
     if (activeTraits.length === 0) return res.json({ success: true, data: [] });
 
@@ -2112,7 +2274,14 @@ export const getAwardCandidates = asyncHandler(async (req, res) => {
     } else if (cycleSpotlightTraitIds.length > 0) {
         selectedTraitIds = cycleSpotlightTraitIds;
     } else {
-        selectedTraitIds = activeTraits.map((trait) => String(trait._id));
+        const parsedMonth = Number(month);
+        if (Number.isInteger(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12) {
+            selectedTraitIds = activeTraits
+                .filter((trait) => Number(trait.month) === parsedMonth)
+                .map((trait) => String(trait._id));
+        } else {
+            selectedTraitIds = activeTraits.map((trait) => String(trait._id));
+        }
     }
     if (selectedTraitIds.length === 0) return res.json({ success: true, data: [] });
 

@@ -6,10 +6,11 @@ const mapKnownErrors = (err) => {
     }
 
     if (err.code === 11000) {
-        const field = Object.keys(err.keyValue || {})[0] || 'value';
+        const fields = Object.keys(err.keyValue || {});
+        const summary = fields.length > 0 ? fields.join(', ') : 'value';
         return {
             ...err,
-            message: `Duplicate field value: ${field}. Please use another value`,
+            message: `A record with this ${summary} combination already exists. Please use another value or check for an existing entry.`,
             statusCode: 400
         };
     }

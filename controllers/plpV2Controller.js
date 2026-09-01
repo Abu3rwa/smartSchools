@@ -8,10 +8,34 @@ import PlpEvidence from '../models/PlpEvidence.js';
 import PlpTraitConfig from '../models/PlpTraitConfig.js';
 import PlpInteraction from '../models/PlpInteraction.js';
 import PlpSupervisorAssignment from '../models/PlpSupervisorAssignment.js';
+import PlpAuditLog from '../models/PlpAuditLog.js';
+import Notification from '../models/Notification.js';
+import { NOTIFICATION_TYPES } from '../constants/notificationTypes.js';
 import Student from '../models/Student.js';
 import Teacher from '../models/Teacher.js';
 import Subject from '../models/Subject.js';
 import Class from '../models/Class.js';
+
+const audit = (school, actor, action, targetType, targetId, meta) =>
+    PlpAuditLog.create({ school, actor, action, targetType, targetId, meta }).catch(() => {});
+
+const notifyStudentForTask = async ({ schoolId, task, type, subject, message, actorId }) => {
+    const student = await Student.findOne({ school: schoolId, _id: task.student }).select('_id user email studentEmail').lean();
+    const recipientEmail = student?.email || student?.studentEmail || 'internal-notification@system.local';
+    if (!student?.user) return;
+    await Notification.create({
+        school: schoolId,
+        recipient: student.user,
+        recipientEmail,
+        student: student._id,
+        type,
+        subject,
+        message,
+        channels: ['push'],
+        metadata: { source: 'plp_task', taskId: task._id, plpRecordId: task.plpRecord },
+        createdBy: actorId,
+    }).catch(() => {});
+};
 
 const HOMEROOM_SUBJECT_MATCHERS = ['homeroom', 'home room', 'advisory', 'advisor', 'hmrm'];
 
@@ -312,6 +336,24 @@ export const closeCycle = asyncHandler(async (req, res) => {
     res.json({ success: true, data: cycle });
 });
 
+export const deleteCycle = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const cycle = await PlpCycle.findOne({ _id: id, school: req.user.school });
+    if (!cycle) {
+        return res.status(404).json({ success: false, message: 'Cycle not found' });
+    }
+    if (cycle.status !== 'draft') {
+        return res.status(400).json({ success: false, message: 'Only draft Rounds can be deleted' });
+    }
+    const hasRecords = await PlpStudentRecord.exists({ school: req.user.school, cycle: cycle._id });
+    if (hasRecords) {
+        return res.status(400).json({ success: false, message: 'This Round has student records and cannot be deleted' });
+    }
+    await cycle.deleteOne();
+    audit(req.user.school, req.user._id, 'cycle_deleted', 'PlpCycle', id, { cycleCode: cycle.cycleCode });
+    res.json({ success: true, data: { _id: id } });
+});
+
 // ─── Goals ─────────────────────────────────────────────────────────────────────
 
 export const getRecordGoals = asyncHandler(async (req, res) => {
@@ -440,6 +482,33 @@ export const updateGoal = asyncHandler(async (req, res) => {
 
     const populated = await PlpGoal.findById(goal._id).populate('linkedSubjectId', 'name code');
     res.json({ success: true, data: populated });
+});
+
+export const deleteGoal = asyncHandler(async (req, res) => {
+    const { goalId } = req.params;
+    const goal = await PlpGoal.findOne({ _id: goalId, school: req.user.school });
+    if (!goal) {
+        return res.status(404).json({ success: false, message: 'Goal not found' });
+    }
+
+    const record = await PlpStudentRecord.findOne({ _id: goal.plpRecord, school: req.user.school }).select('_id school teacher class academicYear student status');
+    if (!record) {
+        return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+    if (record.status !== 'in_progress') {
+        return res.status(400).json({ success: false, message: 'Goals can only be deleted while the record is in progress' });
+    }
+    await assertTeacherRecordWriteAccess(req.user, record);
+
+    const hasTasks = await PlpTask.exists({ school: req.user.school, plpGoal: goal._id });
+    if (hasTasks) {
+        return res.status(400).json({ success: false, message: 'This goal has tasks assigned to it and cannot be deleted' });
+    }
+
+    await PlpInteraction.deleteMany({ school: req.user.school, plpGoal: goal._id });
+    await goal.deleteOne();
+    audit(req.user.school, req.user._id, 'goal_deleted', 'PlpGoal', goalId, { plpRecordId: record._id });
+    res.json({ success: true, data: { _id: goalId } });
 });
 
 // ─── Tasks ─────────────────────────────────────────────────────────────────────
@@ -655,6 +724,15 @@ export const createTask = asyncHandler(async (req, res) => {
         payload: { from: null, to: task.status, title: task.title },
     });
 
+    await notifyStudentForTask({
+        schoolId: req.user.school,
+        task,
+        type: NOTIFICATION_TYPES.PLP_TASK_ASSIGNED,
+        subject: 'New PLP task assigned',
+        message: `A new task "${task.title}" has been assigned to you.`,
+        actorId: req.user._id,
+    });
+
     const populated = await PlpTask.findById(task._id)
         .populate('student', 'firstName lastName studentId')
         .populate('assignedByTeacher', 'firstName lastName');
@@ -727,6 +805,70 @@ export const updateTask = asyncHandler(async (req, res) => {
         .populate('assignedByTeacher', 'firstName lastName');
 
     res.json({ success: true, data: populated });
+});
+
+export const deleteTask = asyncHandler(async (req, res) => {
+    const { taskId } = req.params;
+    const task = await PlpTask.findOne({ _id: taskId, school: req.user.school });
+    if (!task) {
+        return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+    if (task.status !== 'assigned') {
+        return res.status(400).json({ success: false, message: 'Only tasks that have not been started by the student can be deleted' });
+    }
+
+    const record = await PlpStudentRecord.findOne({ _id: task.plpRecord, school: req.user.school }).select('_id school teacher class academicYear student status');
+    if (!record) {
+        return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+    if (record.status === 'locked') {
+        return res.status(400).json({ success: false, message: 'Record is locked' });
+    }
+    await assertTeacherRecordWriteAccess(req.user, record);
+
+    await PlpInteraction.deleteMany({ school: req.user.school, plpTask: task._id });
+    await task.deleteOne();
+    audit(req.user.school, req.user._id, 'task_deleted', 'PlpTask', taskId, { plpRecordId: record._id });
+    res.json({ success: true, data: { _id: taskId } });
+});
+
+export const getMyStudentRecord = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'student') {
+        return res.status(403).json({ success: false, message: 'Only students can access this route' });
+    }
+
+    const studentProfile = await getStudentProfileFromUser(req.user);
+    if (!studentProfile) {
+        return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const record = await PlpStudentRecord.findOne({ school: req.user.school, student: studentProfile._id })
+        .populate('teacher', 'firstName lastName')
+        .populate('focusTrait', 'name code themeCode')
+        .populate('cycle', 'title cycleCode startDate endDate status')
+        .populate('class', 'name grade')
+        .sort({ createdAt: -1 })
+        .lean();
+
+    if (!record) {
+        return res.json({ success: true, data: null });
+    }
+
+    // Incident evidence is internal-only and never exposed to the student.
+    const [evidence, goals, tasks] = await Promise.all([
+        PlpEvidence.find({
+            school: req.user.school,
+            plpRecord: record._id,
+            type: { $in: ['observation', 'positive_example', 'reflection'] },
+        }).populate('traitId', 'name code themeCode').sort({ createdAt: -1 }).lean(),
+        PlpGoal.find({ school: req.user.school, plpRecord: record._id }).sort({ createdAt: -1 }).lean(),
+        PlpTask.find({ school: req.user.school, student: studentProfile._id, plpRecord: record._id })
+            .populate('assignedByTeacher', 'firstName lastName')
+            .sort({ dueDate: 1, createdAt: -1 })
+            .lean(),
+    ]);
+
+    res.json({ success: true, data: { record, evidence, goals, tasks } });
 });
 
 export const getMyStudentTasks = asyncHandler(async (req, res) => {
@@ -854,6 +996,17 @@ export const reviewTaskByTeacher = asyncHandler(async (req, res) => {
             actionType: 'feedback',
             visibility: 'student_visible',
             payload: { feedback: task.teacherFeedback, followUp: task.teacherFollowUpAction || '' },
+        });
+    }
+
+    if (previousStatus !== task.status) {
+        await notifyStudentForTask({
+            schoolId: req.user.school,
+            task,
+            type: NOTIFICATION_TYPES.PLP_TASK_REVIEWED,
+            subject: 'Your PLP task was reviewed',
+            message: `Your task "${task.title}" was marked as ${task.status.replace('_', ' ')}.`,
+            actorId: req.user._id,
         });
     }
 

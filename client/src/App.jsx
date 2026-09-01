@@ -1485,7 +1485,7 @@ function App() {
             <Route
               path="plp"
               element={
-                <RoleRoute roles={["admin", "teacher", "department_principal"]}>
+                <RoleRoute roles={["admin", "teacher", "department_principal", "student"]}>
                   <PlpHubPage />
                 </RoleRoute>
               }

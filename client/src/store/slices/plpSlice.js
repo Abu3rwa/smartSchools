@@ -146,6 +146,13 @@ export const closePlpCycle = createAsyncThunk('plp/closeCycle', async (id, { rej
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to close cycle'); }
 });
 
+export const deletePlpCycle = createAsyncThunk('plp/deleteCycle', async (id, { rejectWithValue }) => {
+    try {
+        await api.delete(`/plp/cycles/${id}`);
+        return id;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to delete cycle'); }
+});
+
 // ─── PLP V2 Goals ───────────────────────────────────────────────────────────
 export const fetchPlpGoals = createAsyncThunk('plp/fetchGoals', async (recordId, { rejectWithValue }) => {
     try {
@@ -166,6 +173,13 @@ export const updatePlpGoal = createAsyncThunk('plp/updateGoal', async ({ goalId,
         const res = await api.put(`/plp/goals/${goalId}`, data);
         return res.data.data;
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update goal'); }
+});
+
+export const deletePlpGoal = createAsyncThunk('plp/deleteGoal', async (goalId, { rejectWithValue }) => {
+    try {
+        await api.delete(`/plp/goals/${goalId}`);
+        return goalId;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to delete goal'); }
 });
 
 export const fetchPlpActivities = createAsyncThunk('plp/fetchActivities', async (recordId, { rejectWithValue }) => {
@@ -226,11 +240,25 @@ export const updatePlpTask = createAsyncThunk('plp/updateTask', async ({ taskId,
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update task'); }
 });
 
+export const deletePlpTask = createAsyncThunk('plp/deleteTask', async (taskId, { rejectWithValue }) => {
+    try {
+        await api.delete(`/plp/tasks/${taskId}`);
+        return taskId;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to delete task'); }
+});
+
 export const fetchMyPlpStudentTasks = createAsyncThunk('plp/fetchMyStudentTasks', async (_, { rejectWithValue }) => {
     try {
         const res = await api.get('/plp/students/me/tasks');
         return res.data.data;
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to fetch my tasks'); }
+});
+
+export const fetchMyPlpRecord = createAsyncThunk('plp/fetchMyRecord', async (_, { rejectWithValue }) => {
+    try {
+        const res = await api.get('/plp/students/me/record');
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to fetch my PLP record'); }
 });
 
 export const submitMyPlpTask = createAsyncThunk('plp/submitMyTask', async ({ taskId, data }, { rejectWithValue }) => {
@@ -265,7 +293,7 @@ export const fetchPlpRecord = createAsyncThunk('plp/fetchRecord', async (id, { r
 export const createPlpRecord = createAsyncThunk('plp/createRecord', async (data, { rejectWithValue }) => {
     try {
         const res = await api.post('/plp/records', data);
-        return res.data.data;
+        return { record: res.data.data, alreadyExists: Boolean(res.data.alreadyExists), message: res.data.message };
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create record'); }
 });
 
@@ -297,6 +325,13 @@ export const submitPlpRecord = createAsyncThunk('plp/submitRecord', async (id, {
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to submit record'); }
 });
 
+export const unlockPlpRecord = createAsyncThunk('plp/unlockRecord', async ({ id, reason }, { rejectWithValue }) => {
+    try {
+        const res = await api.post(`/plp/records/${id}/unlock`, { reason });
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to unlock record'); }
+});
+
 // ─── Evidence ────────────────────────────────────────────────────────────────
 export const fetchPlpEvidence = createAsyncThunk('plp/fetchEvidence', async (recordId, { rejectWithValue }) => {
     try {
@@ -310,6 +345,13 @@ export const createPlpEvidence = createAsyncThunk('plp/createEvidence', async ({
         const res = await api.post(`/plp/records/${recordId}/evidence`, data);
         return { recordId, evidence: res.data.data };
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to add evidence'); }
+});
+
+export const updatePlpEvidence = createAsyncThunk('plp/updateEvidence', async ({ id, data }, { rejectWithValue }) => {
+    try {
+        const res = await api.put(`/plp/evidence/${id}`, data);
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update evidence'); }
 });
 
 export const deletePlpEvidence = createAsyncThunk('plp/deleteEvidence', async (id, { rejectWithValue }) => {
@@ -404,6 +446,7 @@ const plpSlice = createSlice({
         tasksByGoal: {},
         taskDraftsByGoal: {},
         myStudentTasks: [],
+        myRecord: null,
         selCompetencies: [],
         characterThemes: [],
         interactions: {},
@@ -449,7 +492,12 @@ const plpSlice = createSlice({
 
             .addCase(fetchPlpRecord.fulfilled, (state, action) => { state.selectedRecord = action.payload; })
 
-            .addCase(createPlpRecord.fulfilled, (state, action) => { state.records.unshift(action.payload); })
+            .addCase(createPlpRecord.fulfilled, (state, action) => {
+                const { record } = action.payload;
+                const idx = state.records.findIndex((r) => r._id === record._id);
+                if (idx !== -1) state.records[idx] = record;
+                else state.records.unshift(record);
+            })
             .addCase(updatePlpRecord.fulfilled, (state, action) => {
                 const idx = state.records.findIndex((r) => r._id === action.payload._id);
                 if (idx !== -1) state.records[idx] = action.payload;
@@ -467,6 +515,11 @@ const plpSlice = createSlice({
                 if (idx !== -1) state.records[idx] = action.payload;
                 if (state.selectedRecord?._id === action.payload._id) state.selectedRecord = action.payload;
             })
+            .addCase(unlockPlpRecord.fulfilled, (state, action) => {
+                const idx = state.records.findIndex((r) => r._id === action.payload._id);
+                if (idx !== -1) state.records[idx] = action.payload;
+                if (state.selectedRecord?._id === action.payload._id) state.selectedRecord = action.payload;
+            })
 
             .addCase(fetchPlpEvidence.fulfilled, (state, action) => {
                 state.evidence[action.payload.recordId] = action.payload.evidence;
@@ -475,6 +528,14 @@ const plpSlice = createSlice({
                 const { recordId, evidence } = action.payload;
                 if (!state.evidence[recordId]) state.evidence[recordId] = [];
                 state.evidence[recordId].unshift(evidence);
+            })
+            .addCase(updatePlpEvidence.fulfilled, (state, action) => {
+                const nextEvidence = action.payload;
+                Object.keys(state.evidence).forEach((recordId) => {
+                    state.evidence[recordId] = state.evidence[recordId].map((item) => (
+                        item._id === nextEvidence._id ? nextEvidence : item
+                    ));
+                });
             })
             .addCase(deletePlpEvidence.fulfilled, (state, action) => {
                 Object.keys(state.evidence).forEach((recordId) => {
@@ -511,6 +572,9 @@ const plpSlice = createSlice({
                 const idx = state.cycles.findIndex((c) => c._id === action.payload._id);
                 if (idx !== -1) state.cycles[idx] = action.payload;
             })
+            .addCase(deletePlpCycle.fulfilled, (state, action) => {
+                state.cycles = state.cycles.filter((c) => c._id !== action.payload);
+            })
 
             .addCase(fetchPlpGoals.fulfilled, (state, action) => {
                 state.goalsByRecord[action.payload.recordId] = action.payload.goals;
@@ -526,6 +590,11 @@ const plpSlice = createSlice({
                     state.goalsByRecord[recordId] = state.goalsByRecord[recordId].map((goal) => (
                         goal._id === nextGoal._id ? nextGoal : goal
                     ));
+                });
+            })
+            .addCase(deletePlpGoal.fulfilled, (state, action) => {
+                Object.keys(state.goalsByRecord).forEach((recordId) => {
+                    state.goalsByRecord[recordId] = state.goalsByRecord[recordId].filter((goal) => goal._id !== action.payload);
                 });
             })
             .addCase(fetchPlpActivities.fulfilled, (state, action) => {
@@ -567,8 +636,16 @@ const plpSlice = createSlice({
                     ));
                 });
             })
+            .addCase(deletePlpTask.fulfilled, (state, action) => {
+                Object.keys(state.tasksByGoal).forEach((goalId) => {
+                    state.tasksByGoal[goalId] = state.tasksByGoal[goalId].filter((task) => task._id !== action.payload);
+                });
+            })
             .addCase(fetchMyPlpStudentTasks.fulfilled, (state, action) => {
                 state.myStudentTasks = action.payload;
+            })
+            .addCase(fetchMyPlpRecord.fulfilled, (state, action) => {
+                state.myRecord = action.payload;
             })
             .addCase(submitMyPlpTask.fulfilled, (state, action) => {
                 const nextTask = action.payload;
@@ -649,6 +726,7 @@ export const selectPlpActivities = (recordId) => (s) => s.plp.activitiesByRecord
 export const selectPlpTasks = (goalId) => (s) => s.plp.tasksByGoal[goalId] || [];
 export const selectPlpTaskDrafts = (goalId) => (s) => s.plp.taskDraftsByGoal[goalId] || [];
 export const selectMyPlpStudentTasks = (s) => s.plp.myStudentTasks;
+export const selectMyPlpRecord = (s) => s.plp.myRecord;
 export const selectPlpLoading = (s) => s.plp.loading;
 export const selectPlpError = (s) => s.plp.error;
 export const selectPlpTraits = (s) => s.plp.traits;

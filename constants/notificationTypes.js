@@ -39,6 +39,9 @@ export const NOTIFICATION_TYPES = {
     WORKSHEET_PARENT_RESULT: 'worksheet_parent_result',
     // Assignment Reminders
     ASSIGNMENT_REMINDER: 'assignment_reminder',
+    // PLP / Character Development
+    PLP_TASK_ASSIGNED: 'plp_task_assigned',
+    PLP_TASK_REVIEWED: 'plp_task_reviewed',
 };
 
 export const NOTIFICATION_TYPE_VALUES = Object.freeze(Object.values(NOTIFICATION_TYPES));

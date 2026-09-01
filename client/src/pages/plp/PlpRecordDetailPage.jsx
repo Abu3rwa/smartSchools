@@ -2,12 +2,12 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-    fetchPlpRecord, updatePlpRecord, deletePlpRecord, submitPlpRecord,
+    fetchPlpRecord, updatePlpRecord, deletePlpRecord, submitPlpRecord, unlockPlpRecord,
     fetchPlpCycles, selectPlpCycles,
-    fetchPlpEvidence, createPlpEvidence, deletePlpEvidence,
-    fetchPlpGoals, createPlpGoal, updatePlpGoal,
+    fetchPlpEvidence, createPlpEvidence, updatePlpEvidence, deletePlpEvidence,
+    fetchPlpGoals, createPlpGoal, updatePlpGoal, deletePlpGoal,
     fetchPlpActivities, createPlpActivity, updatePlpActivity, deletePlpActivity,
-    fetchPlpTasks, createPlpTask, updatePlpTask, reviewPlpTask,
+    fetchPlpTasks, createPlpTask, updatePlpTask, deletePlpTask, reviewPlpTask,
     fetchPlpRecordInteractions, addSupervisorNote,
     selectSelectedPlpRecord, selectPlpEvidence, selectPlpLoading, selectPlpError, clearPlpError,
     selectPlpGoals, selectPlpActivities, selectPlpTasks, selectPlpInteractions,
@@ -97,6 +97,8 @@ export default function PlpRecordDetailPage() {
     const [activityForm, setActivityForm] = useState({ title: '', instructions: '', traitId: '', goal: '', dueDate: '' });
     const [editingActivityId, setEditingActivityId] = useState('');
     const [showActivityForm, setShowActivityForm] = useState(false);
+    const [editingEvidenceId, setEditingEvidenceId] = useState('');
+    const [editEvidenceNote, setEditEvidenceNote] = useState('');
     const activeGoalType = activeTab === 'academic' ? 'academic' : 'character';
     const visibleGoals = useMemo(
         () => goals.filter((goal) => goal.goalType === activeGoalType),
@@ -244,6 +246,17 @@ export default function PlpRecordDetailPage() {
         }
     };
 
+    const unlockRecordHandler = async () => {
+        const reason = window.prompt('Reason for unlocking this record:', '');
+        if (!reason || !reason.trim()) {
+            toast.error('A reason is required to unlock a record');
+            return;
+        }
+        const r = await dispatch(unlockPlpRecord({ id, reason: reason.trim() }));
+        if (!r.error) toast.success('Record unlocked');
+        else toast.error(r.payload || 'Failed to unlock record');
+    };
+
     const addEvidence = async () => {
         if (!evForm.traitId) {
             toast.error('Select a character trait for this observation');
@@ -272,6 +285,31 @@ export default function PlpRecordDetailPage() {
             dispatch(fetchPlpEvidence(id));
             loadTraitScoreSuggestions();
             toast.success('Evidence deleted');
+        }
+    };
+
+    const startEditEvidence = (ev) => {
+        setEditingEvidenceId(ev._id);
+        setEditEvidenceNote(ev.note || '');
+    };
+
+    const cancelEditEvidence = () => {
+        setEditingEvidenceId('');
+        setEditEvidenceNote('');
+    };
+
+    const saveEditEvidence = async (evId) => {
+        if (!editEvidenceNote.trim()) {
+            toast.error('Evidence note is required');
+            return;
+        }
+        const r = await dispatch(updatePlpEvidence({ id: evId, data: { note: editEvidenceNote.trim() } }));
+        if (!r.error) {
+            toast.success('Evidence updated');
+            cancelEditEvidence();
+            dispatch(fetchPlpEvidence(id));
+        } else {
+            toast.error(r.payload || 'Failed to update evidence');
         }
     };
 
@@ -311,6 +349,13 @@ export default function PlpRecordDetailPage() {
         } else {
             toast.error(r.payload || 'Failed to save goal progress note');
         }
+    };
+
+    const removeGoal = async (goal) => {
+        if (!window.confirm(`Delete goal "${goal.title}"? Goals with tasks assigned cannot be deleted.`)) return;
+        const r = await dispatch(deletePlpGoal(goal._id));
+        if (!r.error) toast.success('Goal deleted');
+        else toast.error(r.payload || 'Failed to delete goal');
     };
 
     const handleActivityForTask = (activity) => {
@@ -395,6 +440,13 @@ export default function PlpRecordDetailPage() {
         }
     };
 
+    const removeTask = async (task) => {
+        if (!window.confirm(`Delete task "${task.title}"? Only tasks not yet started by the student can be deleted.`)) return;
+        const r = await dispatch(deletePlpTask(task._id));
+        if (!r.error) toast.success('Task deleted');
+        else toast.error(r.payload || 'Failed to delete task');
+    };
+
     const reviewTaskHandler = async (taskId, status) => {
         const feedback = window.prompt('Teacher feedback (optional):', '') || '';
         const r = await dispatch(reviewPlpTask({ taskId, data: { status, teacherFeedback: feedback } }));
@@ -470,6 +522,9 @@ export default function PlpRecordDetailPage() {
                     )}
                     {canWrite && record.status === 'in_progress' && (
                         <button className="btn btn-primary" onClick={handleSubmit}>Submit Record</button>
+                    )}
+                    {user?.role === 'admin' && record.status === 'locked' && (
+                        <button className="btn btn-secondary" onClick={unlockRecordHandler}>Unlock Record</button>
                     )}
                 </div>
             </div>
@@ -652,12 +707,15 @@ export default function PlpRecordDetailPage() {
                                     <div className="plp-evidence-meta">{goal.goalType} · status: {goal.status}</div>
                                 </div>
                                 {canWrite && (
-                                    <select value={goal.status} onChange={(e) => updateGoalStatus(goal._id, e.target.value)}>
-                                        <option value="active">active</option>
-                                        <option value="completed">completed</option>
-                                        <option value="carried_forward">carried_forward</option>
-                                        <option value="archived">archived</option>
-                                    </select>
+                                    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                                        <select value={goal.status} onChange={(e) => updateGoalStatus(goal._id, e.target.value)}>
+                                            <option value="active">active</option>
+                                            <option value="completed">completed</option>
+                                            <option value="carried_forward">carried_forward</option>
+                                            <option value="archived">archived</option>
+                                        </select>
+                                        <button className="btn btn-secondary btn-sm" onClick={() => removeGoal(goal)}>Delete</button>
+                                    </div>
                                 )}
                             </div>
                             {canWrite && (
@@ -731,6 +789,9 @@ export default function PlpRecordDetailPage() {
                                         <button className="btn btn-secondary btn-sm" onClick={() => reviewTaskHandler(task._id, 'reviewed')}>Review</button>
                                         <button className="btn btn-primary btn-sm" onClick={() => reviewTaskHandler(task._id, 'completed')}>Complete</button>
                                         <button className="btn btn-secondary btn-sm" onClick={() => reviewTaskHandler(task._id, 'needs_revision')}>Needs Revision</button>
+                                        {task.status === 'assigned' && (
+                                            <button className="btn btn-secondary btn-sm" onClick={() => removeTask(task)}>Delete</button>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -801,19 +862,40 @@ export default function PlpRecordDetailPage() {
 
                 {evidence.map((ev) => (
                     <div key={ev._id} className="plp-evidence-item">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        {editingEvidenceId === ev._id ? (
                             <div>
-                                <span className={`plp-badge plp-badge-draft`} style={{ marginBottom: 4 }}>{ev.type?.replace('_', ' ')}</span>
-                                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{ev.note}</p>
+                                <textarea
+                                    value={editEvidenceNote}
+                                    onChange={(event) => setEditEvidenceNote(event.target.value)}
+                                    maxLength={1000}
+                                />
+                                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                                    <button className="btn btn-primary btn-sm" onClick={() => saveEditEvidence(ev._id)}>Save</button>
+                                    <button className="btn btn-secondary btn-sm" onClick={cancelEditEvidence}>Cancel</button>
+                                </div>
                             </div>
-                            {canWrite && (
-                                <button className="btn btn-secondary btn-sm" onClick={() => removeEvidence(ev._id)}>×</button>
-                            )}
-                        </div>
-                        <div className="plp-evidence-meta">
-                            {ev.traitId?.name ? `${ev.traitId.name} · ` : ''}
-                            {ev.teacher?.firstName} {ev.teacher?.lastName} · {new Date(ev.createdAt).toLocaleDateString()}
-                        </div>
+                        ) : (
+                            <>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                        <span className={`plp-badge plp-badge-draft`} style={{ marginBottom: 4 }}>{ev.type?.replace('_', ' ')}</span>
+                                        <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{ev.note}</p>
+                                    </div>
+                                    {canWrite && (
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            {ev.source !== 'ai_classified' && (
+                                                <button className="btn btn-secondary btn-sm" onClick={() => startEditEvidence(ev)}>Edit</button>
+                                            )}
+                                            <button className="btn btn-secondary btn-sm" onClick={() => removeEvidence(ev._id)}>×</button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="plp-evidence-meta">
+                                    {ev.traitId?.name ? `${ev.traitId.name} · ` : ''}
+                                    {ev.teacher?.firstName} {ev.teacher?.lastName} · {new Date(ev.createdAt).toLocaleDateString()}
+                                </div>
+                            </>
+                        )}
                     </div>
                 ))}
                 {evidence.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No evidence recorded yet.</p>}

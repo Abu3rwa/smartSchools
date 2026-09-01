@@ -295,7 +295,12 @@ export default function PlpTeacherClassboardPage() {
             }));
 
             if (createPlpRecord.fulfilled.match(result)) {
-                toast.success('PLP record created');
+                const { record, alreadyExists } = result.payload;
+                if (alreadyExists) {
+                    toast(`A PLP record already exists for ${record?.student?.firstName || 'this student'} in this Round — showing the existing record.`, { icon: 'ℹ️' });
+                } else {
+                    toast.success('PLP record created');
+                }
                 dispatch(fetchPlpRecords(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear }));
             } else {
                 toast.error(result.payload || 'Failed to create PLP record');

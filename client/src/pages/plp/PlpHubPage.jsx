@@ -7,6 +7,7 @@ import PlpAwardsPage from './PlpAwardsPage';
 import PlpSupervisorDashboard from './PlpSupervisorDashboard';
 import PlpAdminConfigPage from './PlpAdminConfigPage';
 import PlpSupervisorAssignmentsPage from './PlpSupervisorAssignmentsPage';
+import PlpMyRecordPage from './PlpMyRecordPage';
 import './PLP.css';
 
 const TAB_DEFINITIONS = [
@@ -15,6 +16,7 @@ const TAB_DEFINITIONS = [
     { id: 'supervisor', label: 'Supervisor View', roles: ['admin', 'department_principal'], component: PlpSupervisorDashboard },
     { id: 'config', label: 'PLP Config', roles: ['admin'], component: PlpAdminConfigPage },
     { id: 'assignments', label: 'Supervisor Assignments', roles: ['admin'], component: PlpSupervisorAssignmentsPage },
+    { id: 'my-portfolio', label: 'My Portfolio', roles: ['student'], component: PlpMyRecordPage },
 ];
 
 export default function PlpHubPage() {

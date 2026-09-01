@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
     fetchPlpMonthConfigs, createPlpMonthConfig, updatePlpMonthConfig,
     publishPlpMonthConfig, closePlpMonthConfig,
-    fetchPlpCycles, createPlpCycle, updatePlpCycle, publishPlpCycle, closePlpCycle,
+    fetchPlpCycles, createPlpCycle, updatePlpCycle, publishPlpCycle, closePlpCycle, deletePlpCycle,
     selectPlpCycles, selectPlpConfigs, selectPlpLoading, selectPlpError, clearPlpError,
     fetchPlpTraits, createPlpTrait, updatePlpTrait, setPlpTraitActive, seedPlpTraits,
     selectPlpTraits, selectPlpTraitLoading, selectPlpTraitError, clearPlpTraitError,
@@ -17,9 +17,7 @@ const MONTHS = [
     'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-const THEME_OPTIONS = ['confidence', 'hope', 'wisdom'];
-
-const blank = { month: '', theme: 'confidence', secondaryTrait: '', minEvidenceCount: 2 };
+const blank = { secondaryTrait: '' };
 
 const blankCycle = {
     cycleCode: '',
@@ -56,7 +54,7 @@ export default function PlpAdminConfigPage() {
     const [editConfigId, setEditConfigId] = useState(null);
     const [editTraitId, setEditTraitId] = useState(null);
     const [form, setForm] = useState({ ...blank });
-    const [traitForm, setTraitForm] = useState({ ...blankTrait });
+    const [traitForm, setTraitForm] = useState({ name: '', month: '' });
     const [showTraitModal, setShowTraitModal] = useState(false);
     const [showCycleModal, setShowCycleModal] = useState(false);
     const [editCycleId, setEditCycleId] = useState(null);
@@ -68,31 +66,26 @@ export default function PlpAdminConfigPage() {
     useEffect(() => { if (error) { toast.error(error); dispatch(clearPlpError()); } }, [error, dispatch]);
     useEffect(() => { if (traitError) { toast.error(traitError); dispatch(clearPlpTraitError()); } }, [traitError, dispatch]);;
 
-    const themeLookup = THEME_OPTIONS.reduce((acc, value) => {
-        acc[value] = { title: value.charAt(0).toUpperCase() + value.slice(1) };
-        return acc;
-    }, {});
-
-    const secondaryTraitOptions = traits.filter((trait) => trait.isActive);
+    const secondaryTraitOptions = traits.filter((t) => t.isActive);
+    const traitById = new Map(traits.map((t) => [String(t._id), t]));
+    // Sep-first school-year order
+    const schoolYearOrder = (m) => (m >= 9 ? m - 9 : m + 3);
+    const sortedConfigs = [...configs].sort((a, b) => schoolYearOrder(a.month) - schoolYearOrder(b.month));
+    const sortedTraits = [...traits].sort((a, b) => schoolYearOrder(a.month || 0) - schoolYearOrder(b.month || 0));
 
     const open = (cfg = null) => {
         setEditConfigId(cfg?._id || null);
         setForm(cfg ? {
-            month: cfg.month,
-            theme: cfg.theme,
             secondaryTrait: cfg.secondaryTrait?._id || cfg.secondaryTrait || '',
-            minEvidenceCount: cfg.minEvidenceCount,
         } : { ...blank });
         setShowModal(true);
     };
 
     const save = async () => {
-        const payload = {
-            ...form,
-            academicYear,
-            month: Number(form.month),
-            secondaryTrait: form.secondaryTrait || null,
-        };
+        if (!form.secondaryTrait) { toast.error('Select a character trait'); return; }
+        const trait = traitById.get(String(form.secondaryTrait));
+        if (!trait?.month) { toast.error('The selected trait has no month assigned. Edit the trait first.'); return; }
+        const payload = { academicYear, month: Number(trait.month), secondaryTrait: form.secondaryTrait };
         const action = editConfigId
             ? await dispatch(updatePlpMonthConfig({ id: editConfigId, data: payload }))
             : await dispatch(createPlpMonthConfig(payload));
@@ -161,36 +154,24 @@ export default function PlpAdminConfigPage() {
         if (!result.error) toast.success('Round closed');
     };
 
+    const removeCycle = async (id) => {
+        if (!window.confirm('Delete this draft Round? This cannot be undone.')) return;
+        const result = await dispatch(deletePlpCycle(id));
+        if (!result.error) toast.success('Round deleted');
+        else toast.error(result.payload || 'Failed to delete Round');
+    };
+
     const openTrait = (trait = null) => {
         setEditTraitId(trait?._id || null);
-        setTraitForm(trait ? {
-            name: trait.name,
-            code: trait.code,
-            description: trait.description || '',
-            month: trait.month || '',
-            isActive: trait.isActive,
-            displayOrder: trait.displayOrder || 0,
-        } : { ...blankTrait });
+        setTraitForm(trait ? { name: trait.name, month: trait.month || '' } : { name: '', month: '' });
         setShowTraitModal(true);
     };
 
     const saveTrait = async () => {
-        if (!traitForm.name.trim() || !traitForm.code.trim()) {
-            toast.error('Name and code are required');
-            return;
-        }
-        if (!traitForm.month) {
-            toast.error('Month is required');
-            return;
-        }
-        const payload = {
-            name: traitForm.name.trim(),
-            code: traitForm.code.trim().toUpperCase(),
-            description: traitForm.description.trim(),
-            month: Number(traitForm.month),
-            isActive: traitForm.isActive,
-            displayOrder: Number(traitForm.displayOrder) || 0,
-        };
+        if (!traitForm.name.trim()) { toast.error('Trait name is required'); return; }
+        if (!traitForm.month) { toast.error('Month is required'); return; }
+        const code = traitForm.name.trim().toUpperCase().replace(/\s+/g, '_');
+        const payload = { name: traitForm.name.trim(), code, month: Number(traitForm.month), isActive: true, displayOrder: 0 };
         const action = editTraitId
             ? await dispatch(updatePlpTrait({ id: editTraitId, data: payload }))
             : await dispatch(createPlpTrait(payload));
@@ -228,6 +209,7 @@ export default function PlpAdminConfigPage() {
                                 <>
                                     <button className="btn btn-secondary btn-sm" onClick={() => openCycle(cycle)}>Edit</button>
                                     <button className="btn btn-primary btn-sm" onClick={() => publishCycle(cycle._id)}>Publish</button>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => removeCycle(cycle._id)}>Delete</button>
                                 </>
                             )}
                             {cycle.status === 'published' && (
@@ -246,16 +228,15 @@ export default function PlpAdminConfigPage() {
             {loading && <div className="plp-loading">Loading…</div>}
             {configs.length === 0 && !loading && <div className="plp-empty">No monthly configs yet for {academicYear}.</div>}
             <div className="plp-grid">
-                {configs.map((c) => (
+                {sortedConfigs.map((c) => {
+                    const traitName = c.secondaryTrait?.name || traitById.get(String(c.secondaryTrait || ''))?.name || '—';
+                    return (
                     <div key={c._id} className="plp-card">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <h3>{MONTHS[c.month - 1]} – {(themeLookup[c.theme]?.title || c.theme).toString()}</h3>
+                            <h3>{MONTHS[c.month - 1]} – {traitName}</h3>
                             <span className={`plp-badge plp-badge-${c.status}`}>{c.status}</span>
                         </div>
-                        <p>
-                            {c.academicYear} · Min evidence (spotlight trait): {c.minEvidenceCount}
-                            {c.secondaryTrait?.name ? ` · Spotlight trait: ${c.secondaryTrait.name}` : ''}
-                        </p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{c.academicYear}</p>
                         <div className="plp-action-row">
                             {c.status === 'draft' && (
                                 <>
@@ -268,7 +249,8 @@ export default function PlpAdminConfigPage() {
                             )}
                         </div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
 
             <div style={{ marginTop: 40, borderTop: '1px solid var(--border-color)', paddingTop: 28 }}>
@@ -300,7 +282,7 @@ export default function PlpAdminConfigPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {traits.map((t) => (
+                            {sortedTraits.map((t) => (
                                 <tr key={t._id}>
                                     <td>{t.displayOrder}</td>
                                     <td>{t.name}</td>
@@ -329,33 +311,22 @@ export default function PlpAdminConfigPage() {
                     <div className="plp-modal" onClick={(e) => e.stopPropagation()}>
                         <h2>{editConfigId ? 'Edit' : 'New'} Monthly Config</h2>
                         <div className="plp-form-group">
-                            <label>Month</label>
-                            <select value={form.month} onChange={(e) => setForm({ ...form, month: e.target.value })}>
-                                <option value="">Select month</option>
-                                {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-                            </select>
-                        </div>
-                        <div className="plp-form-group">
-                            <label>Award Theme</label>
-                            <select value={form.theme} onChange={(e) => setForm({ ...form, theme: e.target.value, secondaryTrait: '' })}>
-                                {THEME_OPTIONS.map((t) => <option key={t} value={t}>{themeLookup[t]?.title || (t.charAt(0).toUpperCase() + t.slice(1))}</option>)}
-                            </select>
-                        </div>
-                        <div className="plp-form-group">
-                            <label>Spotlight Trait (Award Focus)</label>
-                            <select value={form.secondaryTrait} onChange={(e) => setForm({ ...form, secondaryTrait: e.target.value })}>
-                                <option value="">None</option>
-                                {secondaryTraitOptions.map((t) => (
-                                    <option key={t._id} value={t._id}>{t.name}{t.month ? ` (${MONTHS[t.month - 1]})` : ''}</option>
+                            <label>Character Trait <span style={{ color: 'var(--error)' }}>*</span></label>
+                            <select
+                                value={form.secondaryTrait}
+                                onChange={(e) => setForm({ ...form, secondaryTrait: e.target.value })}
+                            >
+                                <option value="">Select trait</option>
+                                {sortedTraits.filter((t) => t.isActive).map((t) => (
+                                    <option key={t._id} value={t._id}>{t.name}{t.month ? ` – ${MONTHS[t.month - 1]}` : ''}</option>
                                 ))}
                             </select>
-                        </div>
-                        <div className="plp-form-group">
-                            <label>Min Evidence Count (for Spotlight Trait Award)</label>
-                            <input type="number" min={1} max={10} value={form.minEvidenceCount} onChange={(e) => setForm({ ...form, minEvidenceCount: Number(e.target.value) })} />
-                            <small style={{ color: 'var(--text-muted)' }}>
-                                Students qualify only when they meet this evidence count for the spotlight trait in this month.
-                            </small>
+                            {form.secondaryTrait && (() => {
+                                const t = traitById.get(String(form.secondaryTrait));
+                                return t?.month
+                                    ? <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '0.82rem' }}>This will configure {MONTHS[t.month - 1]} awards.</p>
+                                    : <p style={{ margin: '6px 0 0', color: 'var(--warning)', fontSize: '0.82rem' }}>⚠ This trait has no month assigned. Edit the trait first.</p>;
+                            })()}
                         </div>
                         <div className="plp-modal-actions">
                             <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
@@ -426,33 +397,21 @@ export default function PlpAdminConfigPage() {
             {showTraitModal && (
                 <div className="plp-modal-overlay" onClick={() => setShowTraitModal(false)}>
                     <div className="plp-modal" onClick={(e) => e.stopPropagation()}>
-                        <h2>{editTraitId ? 'Edit' : 'New'} Trait</h2>
+                        <h2>{editTraitId ? 'Edit' : 'New'} Character Trait</h2>
                         <div className="plp-form-group">
-                            <label>Name</label>
-                            <input value={traitForm.name} onChange={(e) => setTraitForm({ ...traitForm, name: e.target.value })} placeholder="e.g. Confidence" />
+                            <label>Trait Name <span style={{ color: 'var(--error)' }}>*</span></label>
+                            <input
+                                value={traitForm.name}
+                                onChange={(e) => setTraitForm({ ...traitForm, name: e.target.value })}
+                                placeholder="e.g. Curiosity"
+                            />
                         </div>
                         <div className="plp-form-group">
-                            <label>Code</label>
-                            <input value={traitForm.code} onChange={(e) => setTraitForm({ ...traitForm, code: e.target.value.toUpperCase() })} placeholder="e.g. CONFIDENCE" />
-                        </div>
-                        <div className="plp-form-group">
-                            <label>Description</label>
-                            <textarea value={traitForm.description} onChange={(e) => setTraitForm({ ...traitForm, description: e.target.value })} placeholder="Optional description" />
-                        </div>
-                        <div className="plp-form-group">
-                            <label>Month</label>
+                            <label>Month <span style={{ color: 'var(--error)' }}>*</span></label>
                             <select value={traitForm.month} onChange={(e) => setTraitForm({ ...traitForm, month: e.target.value })}>
                                 <option value="">Select month</option>
                                 {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
                             </select>
-                        </div>
-                        <div className="plp-form-group">
-                            <label>Display Order</label>
-                            <input type="number" value={traitForm.displayOrder} onChange={(e) => setTraitForm({ ...traitForm, displayOrder: Number(e.target.value) })} />
-                        </div>
-                        <div className="plp-form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <input type="checkbox" id="trait-active" checked={traitForm.isActive} onChange={(e) => setTraitForm({ ...traitForm, isActive: e.target.checked })} />
-                            <label htmlFor="trait-active" style={{ margin: 0, cursor: 'pointer' }}>Active</label>
                         </div>
                         <div className="plp-modal-actions">
                             <button className="btn btn-secondary" onClick={() => setShowTraitModal(false)}>Cancel</button>

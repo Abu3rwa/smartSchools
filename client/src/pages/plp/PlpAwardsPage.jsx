@@ -26,22 +26,21 @@ export default function PlpAwardsPage() {
     const now = new Date();
     const [month, setMonth] = useState(now.getMonth() + 1);
     const [selectedCycleId, setSelectedCycleId] = useState('');
-    const [selectedTraitId, setSelectedTraitId] = useState('all');
     const [selectedClassId, setSelectedClassId] = useState('all');
     const [classes, setClasses] = useState([]);
     const [decisionModal, setDecisionModal] = useState(null);
     const [reason, setReason] = useState('');
     const monthTraits = traits.filter((trait) => trait.isActive && Number(trait.month) === Number(month));
+    const monthTraitNames = monthTraits.map((trait) => trait.name).join(', ');
     const handleMonthChange = (event) => {
         setMonth(Number(event.target.value));
-        setSelectedTraitId('all');
     };
 
     useEffect(() => { dispatch(fetchPlpTraits()); dispatch(fetchPlpCycles({ academicYear })); }, [dispatch, academicYear]);
     useEffect(() => {
-        const params = { academicYear, month, ...(selectedCycleId ? { cycleId: selectedCycleId } : {}), ...(selectedTraitId !== 'all' ? { traitId: selectedTraitId } : {}), ...(selectedClassId !== 'all' ? { classId: selectedClassId } : {}) };
+        const params = { academicYear, month, ...(selectedCycleId ? { cycleId: selectedCycleId } : {}), ...(selectedClassId !== 'all' ? { classId: selectedClassId } : {}) };
         dispatch(fetchPlpAwardCandidates(params));
-    }, [dispatch, academicYear, month, selectedCycleId, selectedTraitId, selectedClassId]);
+    }, [dispatch, academicYear, month, selectedCycleId, selectedClassId]);
     useEffect(() => { if (error) { toast.error(error); dispatch(clearPlpError()); } }, [error, dispatch]);
     useEffect(() => {
         const loadClasses = async () => {
@@ -96,16 +95,12 @@ export default function PlpAwardsPage() {
                         {classes.map((cls) => <option key={cls._id} value={cls._id}>{cls.name}</option>)}
                     </select>
                 </div>
-                <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                    <label>Trait</label>
-                    <select value={selectedTraitId} onChange={(e) => setSelectedTraitId(e.target.value)}>
-                        <option value="all">All traits</option>
-                        {monthTraits.map((trait) => (
-                            <option key={trait._id} value={trait._id}>{trait.name}</option>
-                        ))}
-                    </select>
-                </div>
             </div>
+            <p style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                {monthTraits.length > 0
+                    ? `Ranking is based on the selected month's trait(s): ${monthTraitNames}.`
+                    : `No active character trait is assigned to ${MONTHS[month - 1]} yet.`}
+            </p>
             {loading && <div className="plp-loading">Loading…</div>}
             {!loading && candidates.length === 0 && <div className="plp-empty">No award candidates for this month.</div>}
             {candidates.length > 0 && (
