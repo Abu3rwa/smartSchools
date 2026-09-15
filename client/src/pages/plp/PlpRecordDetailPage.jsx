@@ -92,6 +92,7 @@ export default function PlpRecordDetailPage() {
     const [selectedActivityId, setSelectedActivityId] = useState('');
     const [supervisorNote, setSupervisorNote] = useState('');
     const [selectedCycleId, setSelectedCycleId] = useState('');
+    const [selectedMonth, setSelectedMonth] = useState('');
     const [activeTab, setActiveTab] = useState('character');
     const [exportingDocx, setExportingDocx] = useState(false);
     const [activityForm, setActivityForm] = useState({ title: '', instructions: '', traitId: '', goal: '', dueDate: '' });
@@ -116,7 +117,8 @@ export default function PlpRecordDetailPage() {
 
     useEffect(() => {
         setSelectedCycleId(record?.cycle?._id || record?.cycle || '');
-    }, [record?.cycle]);
+        setSelectedMonth(record?.month ? String(record.month) : '');
+    }, [record?.cycle, record?.month]);
 
     useEffect(() => {
         if (visibleGoals.length > 0) {
@@ -226,12 +228,16 @@ export default function PlpRecordDetailPage() {
     };
 
     const saveRoundAssignment = async () => {
-        const r = await dispatch(updatePlpRecord({ id, data: { cycleId: selectedCycleId || null } }));
+        const payload = {
+            cycleId: selectedCycleId || null,
+            month: selectedMonth ? Number(selectedMonth) : record?.month,
+        };
+        const r = await dispatch(updatePlpRecord({ id, data: payload }));
         if (!r.error) {
-            toast.success(selectedCycleId ? 'Round assigned' : 'Round removed');
+            toast.success(selectedCycleId ? 'Round and date saved' : 'Date saved');
             dispatch(fetchPlpRecord(id));
         } else {
-            toast.error(r.payload || 'Failed to update Round');
+            toast.error(r.payload || 'Failed to update Round/date');
         }
     };
 
@@ -558,9 +564,9 @@ export default function PlpRecordDetailPage() {
             {activeTab === 'character' && (
                 <>
             <div className="plp-section">
-                <h2>Student Record Round</h2>
+                <h2>Student Record Round & Month</h2>
                 <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                    Assign this existing student record to a published Round. Legacy records can remain unassigned.
+                    Assign this record to a published Round and adjust the month/date for the current academic year. Admins and teachers with write access can update both.
                 </p>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                     <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 280 }}>
@@ -572,7 +578,15 @@ export default function PlpRecordDetailPage() {
                             ))}
                         </select>
                     </div>
-                    {canWrite && <button className="btn btn-primary btn-sm" onClick={saveRoundAssignment}>Save Round</button>}
+                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 180 }}>
+                        <label>Month</label>
+                        <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} disabled={!canWrite}>
+                            {MONTHS.map((monthName, index) => (
+                                <option key={monthName} value={String(index + 1)}>{monthName}</option>
+                            ))}
+                        </select>
+                    </div>
+                    {canWrite && <button className="btn btn-primary btn-sm" onClick={saveRoundAssignment}>Save Round & Month</button>}
                     {canWrite && <button className="btn btn-secondary btn-sm" onClick={deleteRecord}>Delete Record</button>}
                 </div>
             </div>

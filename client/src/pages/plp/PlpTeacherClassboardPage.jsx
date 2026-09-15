@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import {
     fetchPlpRecords, createPlpRecord, initializePlpRoundRecords, deletePlpRecord,
     fetchPlpTraits,
     fetchPlpCycles, selectPlpCycles,
-    fetchPlpAwardCandidates, setPlpAwardDecision,
-    selectPlpRecords, selectPlpLoading, selectPlpError, clearPlpError, selectPlpTraits, selectPlpAwardCandidates,
+    selectPlpRecords, selectPlpLoading, selectPlpError, clearPlpError, selectPlpTraits,
 } from '../../store/slices/plpSlice';
 import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import { selectUser } from '../../store/slices/authSlice';
@@ -19,12 +18,9 @@ const MONTHS = [
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-const SCORE_SLOT_BY_ORDER = ['coreTrait', 'secondaryTrait1', 'secondaryTrait2', 'secondaryTrait3'];
-
 export default function PlpTeacherClassboardPage() {
     const dispatch = useDispatch();
     const records = useSelector(selectPlpRecords);
-    const awardCandidates = useSelector(selectPlpAwardCandidates);
     const loading = useSelector(selectPlpLoading);
     const error = useSelector(selectPlpError);
     const academicYear = useSelector(selectCurrentAcademicYear);
@@ -43,15 +39,11 @@ export default function PlpTeacherClassboardPage() {
     const [observationSubmitting, setObservationSubmitting] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [needsReviewQueue, setNeedsReviewQueue] = useState([]);
-    const [awardDecisionModal, setAwardDecisionModal] = useState(null);
-    const [awardDecisionReason, setAwardDecisionReason] = useState('');
-    const [awardFilterTrait, setAwardFilterTrait] = useState('all');
     const [leaderboardFilterTrait, setLeaderboardFilterTrait] = useState('all');
     const [leaderboardRows, setLeaderboardRows] = useState([]);
     const [leaderboardLoading, setLeaderboardLoading] = useState(false);
     const [leaderboardMode, setLeaderboardMode] = useState('all');
     const [leaderboardSelectedTrait, setLeaderboardSelectedTrait] = useState(null);
-    const [leaderboardRankBy, setLeaderboardRankBy] = useState('evidence');
     const [exportTraitId, setExportTraitId] = useState('');
     const [exporting, setExporting] = useState(false);
     const recognitionRef = useRef(null);
@@ -66,12 +58,8 @@ export default function PlpTeacherClassboardPage() {
     const [confirmedTraitId, setConfirmedTraitId] = useState('');
 
     useEffect(() => {
-        const params = { academicYear };
-        if (selectedCycleId) params.cycleId = selectedCycleId;
-        if (awardFilterTrait !== 'all') params.traitId = awardFilterTrait;
         dispatch(fetchPlpRecords(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear }));
-        dispatch(fetchPlpAwardCandidates(params));
-    }, [dispatch, academicYear, selectedCycleId, awardFilterTrait]);
+    }, [dispatch, academicYear, selectedCycleId]);
 
     useEffect(() => {
         dispatch(fetchPlpTraits());
@@ -100,7 +88,6 @@ export default function PlpTeacherClassboardPage() {
                     academicYear,
                     ...(selectedCycleId ? { cycleId: selectedCycleId } : {}),
                     traitId: leaderboardFilterTrait,
-                    rankBy: leaderboardRankBy,
                     limit: 100,
                 }
             });
@@ -228,34 +215,7 @@ export default function PlpTeacherClassboardPage() {
 
     useEffect(() => {
         loadLeaderboard();
-    }, [user?.role, academicYear, selectedCycleId, leaderboardFilterTrait, leaderboardRankBy]);
-
-    const openAwardDecision = (record, decision) => {
-        setAwardDecisionModal({ record, decision });
-        setAwardDecisionReason('');
-    };
-
-    const confirmAwardDecision = async () => {
-        if (!awardDecisionModal) return;
-        if (awardDecisionModal.decision === 'not_selected' && !awardDecisionReason.trim()) {
-            toast.error('Reason required when not selecting');
-            return;
-        }
-
-        const result = await dispatch(setPlpAwardDecision({
-            recordId: awardDecisionModal.record._id,
-            decision: awardDecisionModal.decision,
-            reason: awardDecisionReason,
-        }));
-
-        if (!result.error) {
-            setAwardDecisionModal(null);
-            setAwardDecisionReason('');
-            toast.success('Decision saved');
-        } else {
-            toast.error(result.payload || 'Failed to save award decision');
-        }
-    };
+    }, [user?.role, academicYear, selectedCycleId, leaderboardFilterTrait]);
 
     const handleDeleteRecord = async (record) => {
         if (record.status === 'locked') {
@@ -442,6 +402,7 @@ export default function PlpTeacherClassboardPage() {
                 rawText: observationForm.rawText,
                 capturedAt: observationForm.capturedAt,
                 academicYear,
+                ...(selectedCycleId ? { cycleId: selectedCycleId } : {}),
                 ...(traitIdOverride ? { traitId: traitIdOverride } : {}),
                 ...(source ? { source } : {}),
                 ...(aiConfidenceValue ? { aiConfidence: aiConfidenceValue } : {}),
@@ -457,6 +418,7 @@ export default function PlpTeacherClassboardPage() {
                 await Promise.all([
                     dispatch(fetchPlpRecords(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear })),
                     loadNeedsReviewQueue(),
+                    loadLeaderboard(),
                 ]);
                 closeObservationModal();
             } else {
@@ -551,37 +513,25 @@ export default function PlpTeacherClassboardPage() {
             if (selectedCycleId) setSelectedCycleId('');
             return;
         }
-        if (!selectedCycleId || !cycleOptions.some((cycle) => String(cycle._id) === String(selectedCycleId))) {
-            setSelectedCycleId(String(cycleOptions[0]._id));
+        if (selectedCycleId && !cycleOptions.some((cycle) => String(cycle._id) === String(selectedCycleId))) {
+            setSelectedCycleId('');
         }
     }, [cycleOptions, selectedCycleId]);
 
     const getRecordTraitProgressRows = (record) => {
-        const themeTraits = allActiveTraits.filter((trait) => trait.themeCode === record?.theme).sort((a, b) => {
-            const displayOrderDiff = Number(a.displayOrder || 0) - Number(b.displayOrder || 0);
-            if (displayOrderDiff !== 0) return displayOrderDiff;
-            return String(a.name || '').localeCompare(String(b.name || ''));
-        });
-        const spotlightTraitIds = Array.isArray(record?.cycle?.spotlightTraits)
-            ? record.cycle.spotlightTraits.map((trait) => String(trait?._id || trait))
-            : [];
-        const rankedTraits = spotlightTraitIds.length > 0
-            ? spotlightTraitIds.map((traitId) => allActiveTraits.find((trait) => String(trait._id) === traitId)).filter(Boolean)
-            : record?.focusTrait?._id
-                ? [allActiveTraits.find((trait) => String(trait._id) === String(record.focusTrait._id))].filter(Boolean)
-                : themeTraits;
+        if (!record) return [];
 
-        return rankedTraits.slice(0, 4).map((trait) => {
-            const scoreField = themeTraits.some((item) => String(item._id) === String(trait._id))
-                ? SCORE_SLOT_BY_ORDER[themeTraits.findIndex((item) => String(item._id) === String(trait._id))]
-                : null;
-            const scoreValue = scoreField ? Number(record?.scores?.[scoreField] || 0) : null;
-            return {
-                id: String(trait._id),
-                label: trait.name,
-                scoreValue,
-            };
-        });
+        const observedTraitIds = Array.isArray(record?.observedTraitIds)
+            ? record.observedTraitIds.map((traitId) => String(traitId))
+            : [];
+        if (observedTraitIds.length === 0) return [];
+
+        const uniqueObservedTraitIds = Array.from(new Set(observedTraitIds));
+        return uniqueObservedTraitIds
+            .map((traitId) => allActiveTraits.find((trait) => String(trait._id) === String(traitId)))
+            .filter(Boolean)
+            .slice(0, 4)
+            .map((trait) => ({ id: String(trait._id), label: trait.name }));
     };
     useEffect(() => {
         if (form.focusTrait && !traitOptions.some((option) => option._id === form.focusTrait)) {
@@ -602,6 +552,7 @@ export default function PlpTeacherClassboardPage() {
                     <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 220 }}>
                         <label style={{ marginBottom: 6 }}>PLP Round</label>
                         <select value={selectedCycleId} onChange={(event) => setSelectedCycleId(event.target.value)}>
+                            {cycleOptions.length > 0 && <option value="">All rounds</option>}
                             {cycleOptions.length === 0 && <option value="">No rounds configured</option>}
                             {cycleOptions.map((cycle) => (
                                 <option key={cycle._id} value={cycle._id}>{cycle.title}</option>
@@ -696,49 +647,54 @@ export default function PlpTeacherClassboardPage() {
                                 <th>Student</th>
                                 <th>Class</th>
                                 <th>Round</th>
-                                <th>Trait Progress</th>
-                                <th>Level</th>
-                                <th>Score</th>
-                                <th>Evidence</th>
+                                <th>Observed Traits</th>
+                                <th>Observation Count</th>
                                 <th>Award</th>
                                 <th>Status</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {records.map((r) => (
-                                <tr key={r._id}>
-                                    <td>
-                                        <Link to={`/portal/plp/records/${r._id}`}>
-                                            {r.student?.firstName} {r.student?.lastName}
-                                        </Link>
-                                    </td>
-                                    <td>{r.class?.name}</td>
-                                <td>{r.cycle?.title || 'Unassigned Round'}</td>
-                                    <td>
-                                        <div className="plp-trait-progress-list">
-                                            {getRecordTraitProgressRows(r).map((item) => (
-                                                <span key={item.id} className="plp-trait-progress-chip">
-                                                    {item.label}: {item.scoreValue !== null ? item.scoreValue.toFixed(1) : 'n/a'}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td><span className={`plp-badge plp-badge-${r.level}`}>{r.level}</span></td>
-                                    <td>{r.weightedScore?.toFixed(1)}</td>
-                                    <td>{r.evidenceCount}</td>
-                                    <td><span className={`plp-badge plp-badge-${r.awardDecision}`}>{r.awardDecision?.replace('_', ' ')}</span></td>
-                                    <td><span className={`plp-badge plp-badge-${r.status}`}>{r.status}</span></td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                            <Link to={`/portal/plp/records/${r._id}`} className="btn btn-primary btn-sm">View Details</Link>
-                                            {canCreateRecord && r.status !== 'locked' && (
-                                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteRecord(r)}>Delete</button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            {records.map((r) => {
+                                const observedTraits = getRecordTraitProgressRows(r);
+                                return (
+                                    <tr key={r._id}>
+                                        <td>
+                                            <Link to={`/portal/plp/records/${r._id}`}>
+                                                {r.student?.firstName} {r.student?.lastName}
+                                            </Link>
+                                        </td>
+                                        <td>{r.class?.name}</td>
+                                    <td>{r.cycle?.title || 'Unassigned Round'}</td>
+                                        <td>
+                                            <div className="plp-trait-progress-list">
+                                                {observedTraits.map((item) => (
+                                                    <span key={item.id} className="plp-trait-progress-chip">
+                                                        {item.label}
+                                                    </span>
+                                                ))}
+                                                {observedTraits.length === 0 && Number(r.evidenceCount || 0) > 0 && (
+                                                    <span style={{ color: 'var(--text-muted)' }}>Observation saved (trait not tagged yet)</span>
+                                                )}
+                                                {observedTraits.length === 0 && Number(r.evidenceCount || 0) === 0 && (
+                                                    <span style={{ color: 'var(--text-muted)' }}>No observations</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td>{r.evidenceCount}</td>
+                                        <td><span className={`plp-badge plp-badge-${r.awardDecision}`}>{r.awardDecision?.replace('_', ' ')}</span></td>
+                                        <td><span className={`plp-badge plp-badge-${r.status}`}>{r.status}</span></td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                <Link to={`/portal/plp/records/${r._id}`} className="btn btn-primary btn-sm">View Details</Link>
+                                                {canCreateRecord && r.status !== 'locked' && (
+                                                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDeleteRecord(r)}>Delete</button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                         </table>
                     </div>
@@ -750,7 +706,7 @@ export default function PlpTeacherClassboardPage() {
                     <div>
                         <h2 style={{ marginBottom: 4 }}>Evidence Leaderboard</h2>
                         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                            Filter students by trait, then rank them by evidence or their overall score.
+                            Filter students by trait and rank them by the number of saved observation records for that trait.
                         </p>
                     </div>
                     <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 250 }}>
@@ -763,16 +719,6 @@ export default function PlpTeacherClassboardPage() {
                             {allActiveTraits.map((trait) => (
                                 <option key={trait._id} value={trait._id}>{trait.name}{trait.month ? ` (${MONTHS[trait.month - 1]})` : ''}</option>
                             ))}
-                        </select>
-                    </div>
-                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 190 }}>
-                        <label style={{ marginBottom: 6 }}>Rank by</label>
-                        <select
-                            value={leaderboardRankBy}
-                            onChange={(event) => setLeaderboardRankBy(event.target.value)}
-                        >
-                            <option value="evidence">Evidence</option>
-                            <option value="overallScore">Overall Score</option>
                         </select>
                     </div>
                 </div>
@@ -796,10 +742,7 @@ export default function PlpTeacherClassboardPage() {
                                     <th>Rank</th>
                                     <th>Student</th>
                                     <th>Class</th>
-                                    <th>Evidence</th>
-                                    {leaderboardMode === 'trait' && <th>Trait Score</th>}
-                                    <th>Overall Score</th>
-                                    <th>Level</th>
+                                    <th>Observation Count</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -811,9 +754,6 @@ export default function PlpTeacherClassboardPage() {
                                             <td>{r.student?.firstName} {r.student?.lastName}</td>
                                             <td>{r.class?.name || '-'}</td>
                                             <td>{row.matchedEvidenceCount}</td>
-                                            {leaderboardMode === 'trait' && <td>{row.selectedTraitScore === null ? '-' : Number(row.selectedTraitScore).toFixed(1)}</td>}
-                                            <td>{Number(r.weightedScore || 0).toFixed(1)}</td>
-                                            <td><span className={`plp-badge plp-badge-${r.level}`}>{r.level}</span></td>
                                         </tr>
                                     );
                                 })}
@@ -849,64 +789,6 @@ export default function PlpTeacherClassboardPage() {
                 </div>
             </div>
 
-            <div className="plp-section">
-                <div className="plp-awards-header">
-                    <h2>Award Decisions</h2>
-                    <div className="plp-form-group" style={{ marginBottom: 0, minWidth: 250 }}>
-                        <label style={{ marginBottom: 6 }}>Award Trait Filter</label>
-                        <select value={awardFilterTrait} onChange={(event) => setAwardFilterTrait(event.target.value)}>
-                            <option value="all">All Active Traits</option>
-                            {allActiveTraits.map((trait) => (
-                                <option key={trait._id} value={trait._id}>{trait.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {!loading && awardCandidates.length === 0 && (
-                    <div className="plp-empty" style={{ padding: 18 }}>No award candidates for this trait filter.</div>
-                )}
-                {awardCandidates.length > 0 && (
-                    <div className="plp-table-wrap">
-                        <table className="plp-table">
-                            <thead>
-                                <tr>
-                                    <th>Student</th>
-                                    <th>Class</th>
-                                    <th>Round</th>
-                                    <th>Level</th>
-                                    <th>Score</th>
-                                    <th>Matched Evidence</th>
-                                    <th>Decision</th>
-                                    <th>Reason</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {awardCandidates.map((record) => (
-                                    <tr key={record._id}>
-                                        <td>{record.student?.firstName} {record.student?.lastName}</td>
-                                        <td>{record.class?.name}</td>
-                                        <td>{record.cycle?.title || 'Unassigned Round'}</td>
-                                        <td><span className={`plp-badge plp-badge-${record.level}`}>{record.level}</span></td>
-                                        <td>{Number(record.weightedScore || 0).toFixed(1)}</td>
-                                        <td>{Number(record.matchedEvidenceCount || 0)}</td>
-                                        <td><span className={`plp-badge plp-badge-${record.awardDecision}`}>{record.awardDecision?.replace('_', ' ')}</span></td>
-                                        <td style={{ maxWidth: 200, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{record.awardDecisionReason || '—'}</td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                                <button className="btn btn-primary btn-sm" onClick={() => openAwardDecision(record, 'selected')}>Select</button>
-                                                <button className="btn btn-secondary btn-sm" onClick={() => openAwardDecision(record, 'not_selected')}>Not Select</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-
             {needsReviewQueue.length > 0 && (
                 <div className="plp-section">
                     <h2>Needs Review</h2>
@@ -925,33 +807,6 @@ export default function PlpTeacherClassboardPage() {
                                 <p style={{ margin: '6px 0 0' }}>{item.note}</p>
                             </div>
                         ))}
-                    </div>
-                </div>
-            )}
-
-            {awardDecisionModal && (
-                <div className="plp-modal-overlay" onClick={() => setAwardDecisionModal(null)}>
-                    <div className="plp-modal" onClick={(event) => event.stopPropagation()}>
-                        <h2>{awardDecisionModal.decision === 'selected' ? 'Select Award' : 'Not Selecting'}</h2>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-                            {awardDecisionModal.record.student?.firstName} {awardDecisionModal.record.student?.lastName}
-                        </p>
-                        {awardDecisionModal.decision === 'not_selected' && (
-                            <div className="plp-form-group">
-                                <label>Reason (required)</label>
-                                <textarea value={awardDecisionReason} onChange={(event) => setAwardDecisionReason(event.target.value)} placeholder="Why was this student not selected?" />
-                            </div>
-                        )}
-                        {awardDecisionModal.decision === 'selected' && (
-                            <div className="plp-form-group">
-                                <label>Note (optional)</label>
-                                <textarea value={awardDecisionReason} onChange={(event) => setAwardDecisionReason(event.target.value)} placeholder="Any note about this selection…" />
-                            </div>
-                        )}
-                        <div className="plp-modal-actions">
-                            <button className="btn btn-secondary" onClick={() => setAwardDecisionModal(null)}>Cancel</button>
-                            <button className="btn btn-primary" onClick={confirmAwardDecision}>Confirm</button>
-                        </div>
                     </div>
                 </div>
             )}

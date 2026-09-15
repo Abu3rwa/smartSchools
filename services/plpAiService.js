@@ -102,7 +102,7 @@ Required JSON schema:
                 maxRetries: 1,
             });
             parsed = aiResult?.parsed || null;
-        } catch (_error) {
+        } catch {
             return {
                 traitId: null,
                 confidence: 'low',
@@ -180,7 +180,7 @@ Required JSON schema:
                 rationale: String(parsed?.rationale || '').trim().slice(0, 300) || 'Score suggested from available evidence.',
                 evidenceCount: entries.length,
             };
-        } catch (_error) {
+        } catch {
             const confidenceWeights = { high: 1, medium: 0.7, low: 0.4 };
             const evidenceTypeWeights = {
                 positive_example: 1.3,

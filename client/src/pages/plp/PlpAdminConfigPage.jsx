@@ -205,12 +205,14 @@ export default function PlpAdminConfigPage() {
                         <p>{cycle.cycleCode} · {cycle.academicYear}</p>
                         <p>{new Date(cycle.startDate).toLocaleDateString()} – {new Date(cycle.endDate).toLocaleDateString()}</p>
                         <div className="plp-action-row">
+                            {cycle.status !== 'closed' && (
+                                <button className="btn btn-secondary btn-sm" onClick={() => openCycle(cycle)}>Edit</button>
+                            )}
                             {cycle.status === 'draft' && (
-                                <>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => openCycle(cycle)}>Edit</button>
-                                    <button className="btn btn-primary btn-sm" onClick={() => publishCycle(cycle._id)}>Publish</button>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => removeCycle(cycle._id)}>Delete</button>
-                                </>
+                                <button className="btn btn-primary btn-sm" onClick={() => publishCycle(cycle._id)}>Publish</button>
+                            )}
+                            {cycle.status === 'draft' && (
+                                <button className="btn btn-secondary btn-sm" onClick={() => removeCycle(cycle._id)}>Delete</button>
                             )}
                             {cycle.status === 'published' && (
                                 <button className="btn btn-secondary btn-sm" onClick={() => closeCycle(cycle._id)}>Close Round</button>

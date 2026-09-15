@@ -65,6 +65,15 @@ const timetableService = {
     migrateAssignmentsYear: async (payload) => {
         const response = await api.post('/timetable/assignments/migrate-year', payload);
         return response.data;
+    },
+
+    // Bulk import teacher timetables (CSV: teacher email + day + period + class + subject + room)
+    importAssignments: async (rows, options = {}) => {
+        const response = await api.post('/timetable/assignments/import', {
+            rows,
+            ...options
+        });
+        return response.data;
     }
 };
 

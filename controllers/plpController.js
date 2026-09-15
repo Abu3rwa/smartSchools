@@ -121,6 +121,7 @@ const generateActivities = (theme, level) => {
 const SCORE_SLOT_BY_ORDER = ['coreTrait', 'secondaryTrait1', 'secondaryTrait2', 'secondaryTrait3'];
 const EVIDENCE_SCORE_DELTA = 1;
 const POSITIVE_EVIDENCE_TYPES = ['observation', 'positive_example', 'reflection'];
+const ALL_EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
 
 const normalizeThemeCode = (value) => String(value || '').trim().toLowerCase();
 const normalizeTraitName = (value) => String(value || '')
@@ -762,11 +763,27 @@ export const getRecords = asyncHandler(async (req, res) => {
         .populate('class', 'name grade')
         .sort({ createdAt: -1 });
 
-    res.json({ success: true, data: records });
+    const recordIds = records.map((record) => record._id);
+    const observedTraitSet = recordIds.length > 0
+        ? await PlpEvidence.aggregate([
+            { $match: { school: req.user.school, plpRecord: { $in: recordIds }, traitId: { $ne: null } } },
+            { $group: { _id: '$plpRecord', traitIds: { $addToSet: '$traitId' } } },
+        ])
+        : [];
+    const observedTraitMap = new Map(
+        observedTraitSet.map((row) => [String(row._id), (row.traitIds || []).map((traitId) => String(traitId))])
+    );
+
+    const enrichedRecords = records.map((record) => ({
+        ...record.toObject(),
+        observedTraitIds: observedTraitMap.get(String(record._id)) || [],
+    }));
+
+    res.json({ success: true, data: enrichedRecords });
 });
 
 export const getLeaderboard = asyncHandler(async (req, res) => {
-    const { academicYear, month, cycleId, classId, teacherId, traitId, rankBy, limit } = req.query;
+    const { academicYear, month, cycleId, classId, teacherId, traitId, limit } = req.query;
     const filter = { school: req.user.school };
     if (academicYear) filter.academicYear = academicYear;
     if (cycleId && mongoose.isValidObjectId(cycleId)) {
@@ -824,7 +841,6 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
     }
 
     const normalizedTraitId = String(traitId || '').trim();
-    const ranking = rankBy === 'overallScore' ? 'overallScore' : 'evidence';
     let mode = 'all';
     let selectedTrait = null;
     if (normalizedTraitId && normalizedTraitId.toLowerCase() !== 'all' && mongoose.isValidObjectId(normalizedTraitId)) {
@@ -855,45 +871,18 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
         evidenceCounts.map((row) => [String(row._id), Number(row.count || 0)])
     );
 
-    const selectedTraitScoreField = mode === 'trait'
-        ? resolveScoreFieldFromThemeTraits(
-            await getThemeTraits({ schoolId: req.user.school, themeCode: selectedTrait.themeCode }),
-            selectedTrait._id
-        )
-        : null;
-
     const leaderboardRows = records
         .map((record) => {
             const recordId = String(record._id);
-            const traitEvidenceCount = evidenceCountByRecordId.get(recordId) || 0;
-            // Use the aggregate for both modes so the displayed and ranked evidence
-            // always reflects the same filtered evidence set.
-            const matchedEvidenceCount = traitEvidenceCount;
-            const selectedTraitScore = mode === 'trait' && record.theme === selectedTrait.themeCode
-                ? Number(record.scores?.[selectedTraitScoreField] || 0)
-                : null;
+            const matchedEvidenceCount = evidenceCountByRecordId.get(recordId) || 0;
             return {
                 record,
                 matchedEvidenceCount,
-                selectedTraitScore,
             };
         })
-        .filter((row) => {
-            if (mode !== 'trait') return true;
-            // A trait filter must be driven by evidence actually tagged to that trait,
-            // not by the theme assigned to the student's record.
-            return row.matchedEvidenceCount > 0;
-        })
         .sort((a, b) => {
-            const weightedDiff = Number(b.record.weightedScore || 0) - Number(a.record.weightedScore || 0);
             const evidenceDiff = b.matchedEvidenceCount - a.matchedEvidenceCount;
-            if (ranking === 'overallScore') {
-                if (weightedDiff !== 0) return weightedDiff;
-                if (evidenceDiff !== 0) return evidenceDiff;
-            } else {
-                if (evidenceDiff !== 0) return evidenceDiff;
-                if (weightedDiff !== 0) return weightedDiff;
-            }
+            if (evidenceDiff !== 0) return evidenceDiff;
 
             const studentA = `${a.record.student?.firstName || ''} ${a.record.student?.lastName || ''}`.trim();
             const studentB = `${b.record.student?.firstName || ''} ${b.record.student?.lastName || ''}`.trim();
@@ -905,7 +894,6 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
     const rows = leaderboardRows.slice(0, safeLimit).map((row, index) => ({
         rank: index + 1,
         matchedEvidenceCount: row.matchedEvidenceCount,
-        selectedTraitScore: row.selectedTraitScore,
         record: row.record,
     }));
 
@@ -913,7 +901,7 @@ export const getLeaderboard = asyncHandler(async (req, res) => {
         success: true,
         data: {
             mode,
-            rankBy: ranking,
+            rankBy: 'evidence',
             selectedTrait,
             rows,
         },
@@ -1541,11 +1529,39 @@ export const getStudentEvidence = asyncHandler(async (req, res) => {
         if (!mongoose.isValidObjectId(traitId)) return res.status(400).json({ success: false, message: 'Invalid trait selection' });
         evidenceFilter.traitId = traitId;
     }
-    if (type) evidenceFilter.type = type;
+    if (type) {
+        const normalizedType = String(type).trim().toLowerCase();
+        if (!ALL_EVIDENCE_TYPES.includes(normalizedType)) {
+            return res.status(400).json({ success: false, message: 'Invalid evidence type selection' });
+        }
+        evidenceFilter.type = normalizedType;
+    }
     if (from || to) {
+        const parsedFromDate = from ? new Date(from) : null;
+        const parsedToDate = to ? new Date(to) : null;
+        if (parsedFromDate && Number.isNaN(parsedFromDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'Invalid from date' });
+        }
+        if (parsedToDate && Number.isNaN(parsedToDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'Invalid to date' });
+        }
+        if (parsedFromDate && parsedToDate && parsedFromDate > parsedToDate) {
+            return res.status(400).json({ success: false, message: 'From date cannot be after to date' });
+        }
+
         evidenceFilter.createdAt = {};
-        if (from) evidenceFilter.createdAt.$gte = new Date(from);
-        if (to) evidenceFilter.createdAt.$lte = new Date(to);
+        if (parsedFromDate) evidenceFilter.createdAt.$gte = parsedFromDate;
+        if (parsedToDate) {
+            const toValue = String(to);
+            const hasExplicitTime = /\dT\d|\d:\d/.test(toValue);
+            if (hasExplicitTime) {
+                evidenceFilter.createdAt.$lte = parsedToDate;
+            } else {
+                const inclusiveToDate = new Date(parsedToDate);
+                inclusiveToDate.setDate(inclusiveToDate.getDate() + 1);
+                evidenceFilter.createdAt.$lt = inclusiveToDate;
+            }
+        }
     }
 
     const evidence = records.length === 0 ? [] : await PlpEvidence.find(evidenceFilter)
@@ -1854,7 +1870,7 @@ export const classifyObservationDraft = asyncHandler(async (req, res) => {
 });
 
 export const createQuickObservation = asyncHandler(async (req, res) => {
-    const { studentId, rawText, traitId, capturedAt, classId, evidenceType, structuredNote, aiConfidence, aiRationale, source: requestedSource, reviewStatus: requestedReviewStatus } = req.body || {};
+    const { studentId, rawText, traitId, capturedAt, classId, cycleId: requestedCycleId, evidenceType, structuredNote, aiConfidence, aiRationale, source: requestedSource, reviewStatus: requestedReviewStatus } = req.body || {};
     const noteInput = String(rawText || '').trim();
     if (!studentId || !noteInput) {
         return res.status(400).json({ success: false, message: 'studentId and rawText are required' });
@@ -1942,11 +1958,16 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
     }
 
     const resolvedMonth = observationMonth;
-    const resolvedCycle = await resolveCycleForDate({
-        schoolId: req.user.school,
-        academicYear,
-        date: observationDate,
-    });
+    // Prefer the Round the teacher is actively working in over date-based auto-detection,
+    // so observations logged after a Round's date window has passed still attach to it
+    // instead of spawning a duplicate "Unassigned Round" record.
+    const resolvedCycle = requestedCycleId
+        ? await resolveCycleById({ schoolId: req.user.school, academicYear, cycleId: requestedCycleId })
+        : await resolveCycleForDate({
+            schoolId: req.user.school,
+            academicYear,
+            date: observationDate,
+        });
 
     const resolvedTheme = await resolveObservationRecordTheme(
         req.user.school,
@@ -2227,36 +2248,25 @@ export const addSupervisorNote = asyncHandler(async (req, res) => {
 // ─── Awards ─────────────────────────────────────────────────────────────────────
 
 export const getAwardCandidates = asyncHandler(async (req, res) => {
-    const { academicYear, cycleId, month, traitId, classId } = req.query;
+    const { academicYear, month, traitId } = req.query;
     if (!academicYear) {
         return res.status(400).json({ success: false, message: 'academicYear is required' });
-    }
-
-    const cycle = await resolveCycleById({
-        schoolId: req.user.school,
-        academicYear,
-        cycleId,
-    });
-    if (cycleId && !cycle) {
-        return res.status(400).json({ success: false, message: 'Invalid PLP round selection' });
     }
 
     const recordsFilter = {
         school: req.user.school,
         academicYear,
     };
-    if (cycle?._id) {
-        recordsFilter.cycle = cycle._id;
-    } else if (month !== undefined && month !== '' && month !== null) {
+    if (month !== undefined && month !== '' && month !== null) {
         recordsFilter.month = Number(month);
     }
-    if (classId) recordsFilter.class = classId;
 
     const records = await PlpStudentRecord.find(recordsFilter)
         .populate('student', 'firstName lastName studentId')
         .populate('class', 'name')
         .populate('cycle', 'title cycleCode')
-        .sort({ weightedScore: -1 })
+        .populate('focusTrait', 'name code themeCode')
+        .sort({ createdAt: -1 })
         .lean();
     if (records.length === 0) return res.json({ success: true, data: [] });
 
@@ -2265,14 +2275,9 @@ export const getAwardCandidates = asyncHandler(async (req, res) => {
         .lean();
     if (activeTraits.length === 0) return res.json({ success: true, data: [] });
 
-    const cycleSpotlightTraitIds = Array.isArray(cycle?.spotlightTraits)
-        ? cycle.spotlightTraits.map((id) => String(id))
-        : [];
     let selectedTraitIds = [];
     if (traitId && mongoose.isValidObjectId(traitId)) {
         selectedTraitIds = [String(traitId)];
-    } else if (cycleSpotlightTraitIds.length > 0) {
-        selectedTraitIds = cycleSpotlightTraitIds;
     } else {
         const parsedMonth = Number(month);
         if (Number.isInteger(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12) {
@@ -2299,17 +2304,18 @@ export const getAwardCandidates = asyncHandler(async (req, res) => {
         evidenceCounts.map((row) => [String(row._id), Number(row.count || 0)])
     );
 
-    const minEvidenceCount = resolveMinEvidenceCount(cycle?.minEvidenceCount);
     const candidates = records
         .map((record) => ({
             ...record,
             matchedEvidenceCount: evidenceCountByRecordId.get(String(record._id)) || 0,
         }))
-        .filter((record) => record.matchedEvidenceCount >= minEvidenceCount)
         .sort((a, b) => {
             const evidenceDiff = Number(b.matchedEvidenceCount || 0) - Number(a.matchedEvidenceCount || 0);
             if (evidenceDiff !== 0) return evidenceDiff;
-            return Number(b.weightedScore || 0) - Number(a.weightedScore || 0);
+
+            const studentA = `${a.student?.firstName || ''} ${a.student?.lastName || ''}`.trim();
+            const studentB = `${b.student?.firstName || ''} ${b.student?.lastName || ''}`.trim();
+            return studentA.localeCompare(studentB);
         });
 
     res.json({ success: true, data: candidates });
@@ -2317,17 +2323,37 @@ export const getAwardCandidates = asyncHandler(async (req, res) => {
 
 export const setAwardDecision = asyncHandler(async (req, res) => {
     const { recordId, decision, reason } = req.body;
+    if (!mongoose.isValidObjectId(recordId)) {
+        return res.status(400).json({ success: false, message: 'Invalid record selection' });
+    }
+
+    const allowedDecisions = ['none', 'selected', 'not_selected'];
+    if (!allowedDecisions.includes(String(decision || '').trim())) {
+        return res.status(400).json({ success: false, message: 'Invalid award decision' });
+    }
     if (decision === 'not_selected' && !reason?.trim()) {
         return res.status(400).json({ success: false, message: 'Reason required when not selecting a candidate' });
     }
-    const record = await PlpStudentRecord.findOneAndUpdate(
-        { _id: recordId, school: req.user.school },
-        { awardDecision: decision, awardDecisionReason: reason || '' },
-        { new: true }
-    );
+
+    const record = await PlpStudentRecord.findOne({ _id: recordId, school: req.user.school })
+        .select('_id teacher class academicYear');
     if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+
+    await assertRecordAccess(req.user, record);
+
+    record.awardDecision = decision;
+    record.awardDecisionReason = String(reason || '').trim();
+    await record.save();
+
+    const responseRecord = await PlpStudentRecord.findOne({ _id: recordId, school: req.user.school })
+        .populate('student', 'firstName lastName studentId')
+        .populate('class', 'name')
+        .populate('cycle', 'title cycleCode')
+        .populate('focusTrait', 'name code themeCode')
+        .lean();
+
     audit(req.user.school, req.user._id, 'award_decision', 'PlpStudentRecord', record._id, { decision, reason });
-    res.json({ success: true, data: record });
+    res.json({ success: true, data: responseRecord });
 });
 
 // ─── Recommendations ────────────────────────────────────────────────────────────

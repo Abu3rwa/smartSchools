@@ -87,6 +87,8 @@ const SchoolSettingsPage = () => {
     handleToggleAiEmailDraft,
     handleAttendanceReminderSettingsChange,
     handleSaveAttendanceReminderSettings,
+    handleTeacherEmailDomainChange,
+    handleSaveTeacherEmailDomain,
     handleAdmissionsPromotionSettingsChange,
     handleSaveAdmissionsPromotionSettings,
     standardsGradebookSettings,
@@ -230,9 +232,13 @@ const SchoolSettingsPage = () => {
               aiEmailDraftEnabled={communicationSettings.aiEmailDraftEnabled}
               attendanceRemindersEnabled={communicationSettings.attendanceRemindersEnabled}
               attendanceReminderDelayMinutes={communicationSettings.attendanceReminderDelayMinutes}
+              teacherEmailDomain={communicationSettings.teacherEmailDomain}
+              savingTeacherEmailDomain={communicationSettings.savingTeacherEmailDomain}
               onToggleAiEmailDraft={handleToggleAiEmailDraft}
               onAttendanceReminderSettingsChange={handleAttendanceReminderSettingsChange}
               onSaveAttendanceReminderSettings={handleSaveAttendanceReminderSettings}
+              onTeacherEmailDomainChange={handleTeacherEmailDomainChange}
+              onSaveTeacherEmailDomain={handleSaveTeacherEmailDomain}
             />
           )}
 

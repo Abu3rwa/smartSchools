@@ -9,8 +9,9 @@ import Class from '../../models/Class.js';
 import Room from '../../models/Room.js';
 import Department from '../../models/Department.js';
 import TimetablePeriod from '../../models/TimetablePeriod.js';
+import TeacherPeriodAssignment from '../../models/TeacherPeriodAssignment.js';
 import ImportRun from '../../models/ImportRun.js';
-import { resolveSchoolAcademicYear } from '../../utils/academicYear.js';
+import { resolveSchoolAcademicYear, resolveAcademicYearDateRange } from '../../utils/academicYear.js';
 import { resolveSchoolFeatureContext } from '../../middleware/featureGate.js';
 import {
     MAX_IMPORT_ROWS,
@@ -421,6 +422,65 @@ const buildPreparation = async ({ entityType, normalizedRows, context, payload }
         return prep;
     }
 
+    if (entityType === 'teacher_timetable_assignments') {
+        const emails = [...new Set(normalizedRows.map((row) => row.normalized.teacherEmail).filter(Boolean))];
+        const users = emails.length
+            ? await User.find({ email: { $in: emails } })
+                .select('_id email role school')
+                .setOptions({ skipTenantFilter: true })
+                .lean()
+            : [];
+        prep.userByEmail = new Map(users.map((item) => [String(item.email).toLowerCase(), item]));
+
+        const userIds = users.map((item) => item._id);
+        const teachers = userIds.length
+            ? await Teacher.find({ user: { $in: userIds } }).select('_id user').lean()
+            : [];
+        prep.teacherByUserId = new Map(teachers.map((item) => [toId(item.user), item]));
+        const year = new Date().getFullYear().toString().slice(-2);
+        const prefix = `TCH${year}`;
+        const existingEmployeeIds = await Teacher.find({ employeeId: new RegExp(`^${prefix}`) }).select('employeeId').lean();
+        const maxSeq = existingEmployeeIds.length
+            ? Math.max(...existingEmployeeIds.map((item) => Number.parseInt(String(item.employeeId).slice(-4), 10) || 0))
+            : 0;
+        prep.teacherEmployeeCounter = { value: maxSeq };
+
+        const academicYear = context.academicYear;
+        const grades = [...new Set(normalizedRows.map((row) => row.normalized.grade).filter((g) => g !== null))];
+        const classes = grades.length
+            ? await Class.find({ grade: { $in: grades }, academicYear }).select('_id grade section').lean()
+            : [];
+        prep.classByKey = new Map(classes.map((item) => [`${item.grade}|${String(item.section || '').toUpperCase()}`, item]));
+        prep.academicYear = academicYear;
+        prep.academicYearDateRange = resolveAcademicYearDateRange(academicYear, context.school);
+
+        prep.subjectLookup = await buildSubjectLookup();
+
+        const roomNumbers = [...new Set(normalizedRows.map((row) => row.normalized.roomNumber).filter(Boolean))];
+        const rooms = roomNumbers.length
+            ? await Room.find({ number: { $in: roomNumbers } }).select('_id number').lean()
+            : [];
+        prep.roomByNumber = new Map(rooms.map((item) => [String(item.number), item]));
+
+        const periods = await TimetablePeriod.find({ isActive: true }).select('_id startTime endTime').lean();
+        prep.periodByTimeRange = new Map(periods.map((item) => [`${item.startTime}-${item.endTime}`, item]));
+
+        // TeacherPeriodAssignment.teacher references the User (not the Teacher profile) — match on userIds
+        const existingAssignments = userIds.length
+            ? await TeacherPeriodAssignment.find({ teacher: { $in: userIds } })
+                .select('_id teacher class subject period daysOfWeek')
+                .lean()
+            : [];
+        prep.assignmentByKey = new Map();
+        for (const item of existingAssignments) {
+            const key = `${toId(item.teacher)}|${toId(item.class)}|${toId(item.subject)}|${toId(item.period)}`;
+            if (!prep.assignmentByKey.has(key)) {
+                prep.assignmentByKey.set(key, { id: item._id, daysOfWeek: new Set(item.daysOfWeek || []) });
+            }
+        }
+        return prep;
+    }
+
     return prep;
 };
 
@@ -543,6 +603,87 @@ const resolveExistingAndAction = ({ candidate, entityType, options, preparation 
 
     if (entityType === 'timetable_periods') {
         existing = preparation.periodByName.get(String(candidate.normalized.name || '').toLowerCase()) || null;
+    }
+
+    if (entityType === 'teacher_timetable_assignments') {
+        if (candidate.normalized.sessionType === 'admin') {
+            candidate.action = 'skip';
+            candidate.warnings.push(createIssue(
+                candidate.rowNumber,
+                'sessionType',
+                'ADMIN_SESSION_SKIPPED',
+                'Admin/meeting period skipped — no attendance-tracked assignment created',
+                candidate.sourceRow
+            ));
+            return;
+        }
+
+        const user = preparation.userByEmail.get(candidate.normalized.teacherEmail) || null;
+        const teacher = user ? preparation.teacherByUserId.get(toId(user._id)) : null;
+        candidate.resolvedUser = user;
+        candidate.resolvedTeacher = teacher;
+
+        const classKey = `${candidate.normalized.grade}|${candidate.normalized.section}`;
+        const classDoc = preparation.classByKey.get(classKey) || null;
+        if (!classDoc) {
+            candidate.errors.push(createIssue(
+                candidate.rowNumber,
+                'grade',
+                'NOT_FOUND',
+                `No class found for grade ${candidate.normalized.grade} section "${candidate.normalized.section}" in academic year ${preparation.academicYear}`,
+                candidate.sourceRow
+            ));
+        }
+        candidate.resolvedClass = classDoc;
+
+        const subject = resolveSubjectByRef(candidate.normalized.courseName, preparation.subjectLookup);
+        if (!subject) {
+            candidate.errors.push(createIssue(
+                candidate.rowNumber,
+                'courseName',
+                'NOT_FOUND',
+                `No subject found matching "${candidate.normalized.courseName}"`,
+                candidate.sourceRow
+            ));
+        }
+        candidate.resolvedSubject = subject;
+
+        const period = preparation.periodByTimeRange.get(`${candidate.normalized.startTime}-${candidate.normalized.endTime}`) || null;
+        if (!period) {
+            candidate.errors.push(createIssue(
+                candidate.rowNumber,
+                'startTime',
+                'NOT_FOUND',
+                `No timetable period found for ${candidate.normalized.startTime}-${candidate.normalized.endTime}`,
+                candidate.sourceRow
+            ));
+        }
+        candidate.resolvedPeriod = period;
+
+        let room = null;
+        if (candidate.normalized.roomNumber) {
+            // Room is often just a label (e.g. a class code like "HMRM 5R") rather than a real Room record at import
+            // time, so an unmatched value is left unset (not an error) — the admin can pick the actual room later in the grid.
+            room = preparation.roomByNumber.get(candidate.normalized.roomNumber) || null;
+            if (!room) {
+                candidate.warnings.push(createIssue(
+                    candidate.rowNumber,
+                    'room',
+                    'ROOM_NOT_MATCHED',
+                    `No room found matching "${candidate.normalized.roomNumber}" — assignment created without a room; set it later in the timetable grid`,
+                    candidate.sourceRow
+                ));
+            }
+        }
+        candidate.resolvedRoom = room;
+
+        if (candidate.errors.length > 0) {
+            candidate.action = 'error';
+            return;
+        }
+
+        candidate.action = 'pending';
+        return;
     }
 
     if (candidate.errors.length > 0) {
@@ -988,6 +1129,78 @@ const persistCandidate = async ({ candidate, entityType, preparation, context })
         return { ...base, updated: true, documentId: candidate.existing._id };
     }
 
+    if (entityType === 'teacher_timetable_assignments') {
+        let teacherDoc = candidate.resolvedTeacher;
+        let userId = candidate.resolvedUser?._id || null;
+        if (!teacherDoc) {
+            let user = userId
+                ? await User.findById(userId).setOptions({ skipTenantFilter: true })
+                : null;
+            if (!user) {
+                user = await User.create({
+                    email: candidate.normalized.teacherEmail,
+                    password: 'Teacher@123',
+                    firstName: candidate.normalized.teacherFirstName,
+                    lastName: candidate.normalized.teacherLastName,
+                    role: 'teacher',
+                    school: context.schoolId,
+                    isActive: true,
+                    mustChangePassword: true
+                });
+            }
+            userId = user._id;
+            teacherDoc = await Teacher.findOne({ user: user._id });
+            if (!teacherDoc) {
+                teacherDoc = await Teacher.create({
+                    school: context.schoolId,
+                    user: user._id,
+                    employeeId: nextTeacherEmployeeId(preparation.teacherEmployeeCounter),
+                    isActive: true
+                });
+            }
+            // Cache so subsequent rows for the same teacher in this batch reuse it instead of re-creating
+            preparation.teacherByUserId.set(toId(user._id), teacherDoc);
+            preparation.userByEmail.set(candidate.normalized.teacherEmail, user);
+        }
+
+        const classDoc = candidate.resolvedClass;
+        const subject = candidate.resolvedSubject;
+        const period = candidate.resolvedPeriod;
+        const room = candidate.resolvedRoom;
+
+        // TeacherPeriodAssignment.teacher references the User document, not the Teacher profile
+        const key = `${toId(userId)}|${toId(classDoc._id)}|${toId(subject._id)}|${toId(period._id)}`;
+        const mergeEntry = preparation.assignmentByKey.get(key);
+
+        if (mergeEntry) {
+            mergeEntry.daysOfWeek.add(candidate.normalized.dayOfWeek);
+            await TeacherPeriodAssignment.findByIdAndUpdate(mergeEntry.id, {
+                daysOfWeek: [...mergeEntry.daysOfWeek].sort((a, b) => a - b),
+                room: room?._id || undefined,
+                lastModifiedBy: context.userId
+            }, { runValidators: true });
+            return { ...base, updated: true, documentId: mergeEntry.id };
+        }
+
+        const dateRange = preparation.academicYearDateRange || {};
+        const created = await TeacherPeriodAssignment.create({
+            school: context.schoolId,
+            teacher: userId,
+            class: classDoc._id,
+            grade: candidate.normalized.grade,
+            subject: subject._id,
+            room: room?._id || undefined,
+            period: period._id,
+            daysOfWeek: [candidate.normalized.dayOfWeek],
+            startDate: dateRange.startDate || new Date(),
+            endDate: dateRange.endDate || new Date(new Date().getFullYear() + 1, 5, 30),
+            isActive: true,
+            createdBy: context.userId
+        });
+        preparation.assignmentByKey.set(key, { id: created._id, daysOfWeek: new Set([candidate.normalized.dayOfWeek]) });
+        return { ...base, created: true, documentId: created._id };
+    }
+
     return base;
 };
 
@@ -1066,7 +1279,10 @@ export const runImportPipeline = async ({
         const rowNumber = index + 1;
         const parsed = normalizeRowByEntity(normalizedEntityType, sourceRow, {
             rowNumber,
-            context: { academicYear: requestAcademicYear }
+            context: {
+                academicYear: requestAcademicYear,
+                teacherEmailDomain: context.school?.settings?.timetableImport?.teacherEmailDomain
+            }
         });
         return {
             rowNumber,

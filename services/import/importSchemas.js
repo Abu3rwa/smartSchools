@@ -9,7 +9,8 @@ export const ENTITY_TYPES = [
     'teachers',
     'classes',
     'rooms',
-    'timetable_periods'
+    'timetable_periods',
+    'teacher_timetable_assignments'
 ];
 
 export const ENTITY_DISPLAY_NAMES = {
@@ -19,7 +20,8 @@ export const ENTITY_DISPLAY_NAMES = {
     teachers: 'teachers',
     classes: 'classes',
     rooms: 'rooms',
-    timetable_periods: 'timetable periods'
+    timetable_periods: 'timetable periods',
+    teacher_timetable_assignments: 'teacher timetable assignments'
 };
 
 export const IMPORT_TEMPLATE_DEFINITIONS = {
@@ -57,6 +59,11 @@ export const IMPORT_TEMPLATE_DEFINITIONS = {
         displayName: 'Timetable Periods',
         headers: ['name', 'startTime', 'endTime', 'order', 'isActive'],
         sampleRow: ['Period 1', '08:00', '08:45', '1', 'true']
+    },
+    teacher_timetable_assignments: {
+        displayName: 'Teacher Timetable Assignments',
+        headers: ['teacherFirstName', 'teacherLastName', 'teacherEmail', 'day', 'period', 'startTime', 'endTime', 'sessionType', 'courseName', 'classCode', 'grade', 'section', 'room'],
+        sampleRow: ['Abdulhafeez', 'Alameen', 'abdulhafeez.alameen@amly.us', 'Sunday', 'Period 6', '12:45', '13:35', 'class', 'English Language Arts 5', 'ELA 5R', '5', 'R', '202']
     }
 };
 
@@ -70,7 +77,11 @@ const ENTITY_ALIASES = {
     timetable_periods: 'timetable_periods',
     'timetable-periods': 'timetable_periods',
     periods: 'timetable_periods',
-    timetableperiods: 'timetable_periods'
+    timetableperiods: 'timetable_periods',
+    teacher_timetable_assignments: 'teacher_timetable_assignments',
+    'teacher-timetable-assignments': 'teacher_timetable_assignments',
+    timetableassignments: 'teacher_timetable_assignments',
+    assignments: 'teacher_timetable_assignments'
 };
 
 const LEGACY_ROW_KEYS = {
@@ -80,7 +91,8 @@ const LEGACY_ROW_KEYS = {
     teachers: ['teachers'],
     classes: ['classes'],
     rooms: ['rooms'],
-    timetable_periods: ['periods', 'timetablePeriods', 'timetable_periods']
+    timetable_periods: ['periods', 'timetablePeriods', 'timetable_periods'],
+    teacher_timetable_assignments: ['assignments', 'timetableAssignments', 'teacher_timetable_assignments']
 };
 
 const toTrimmedString = (value) => {
@@ -488,6 +500,117 @@ const normalizeTimetablePeriodsRow = (row, rowNumber) => {
     };
 };
 
+const DAY_NAME_TO_NUMBER = {
+    sunday: 0, sun: 0,
+    monday: 1, mon: 1,
+    tuesday: 2, tue: 2, tues: 2,
+    wednesday: 3, wed: 3,
+    thursday: 4, thu: 4, thur: 4, thurs: 4,
+    friday: 5, fri: 5,
+    saturday: 6, sat: 6
+};
+
+const parseDayOfWeek = (value) => {
+    const raw = toTrimmedString(value);
+    if (!raw) return null;
+    const numeric = parseInteger(raw);
+    if (numeric !== null && numeric >= 0 && numeric <= 6) return numeric;
+    const key = raw.toLowerCase();
+    return Object.prototype.hasOwnProperty.call(DAY_NAME_TO_NUMBER, key) ? DAY_NAME_TO_NUMBER[key] : null;
+};
+
+const deriveTeacherEmail = (firstName, lastName, domain) => {
+    if (!domain) return null;
+    const first = firstName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const last = lastName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!first || !last) return null;
+    return `${first}.${last}@${domain}`;
+};
+
+const normalizeTeacherTimetableAssignmentsRow = (row, rowNumber, context) => {
+    const errors = [];
+    const warnings = [];
+
+    const teacherFirstName = toTrimmedString(row.teacherFirstName);
+    const teacherLastName = toTrimmedString(row.teacherLastName);
+    let teacherEmail = toLowerCase(row.teacherEmail);
+    const dayOfWeek = parseDayOfWeek(row.day);
+    const periodName = toTrimmedString(row.period);
+    const startTime = parseTimeHHMM(row.startTime);
+    const endTime = parseTimeHHMM(row.endTime);
+    const sessionType = toLowerCase(row.sessionType) || 'class';
+    const courseName = toTrimmedString(row.courseName);
+    const classCode = toTrimmedString(row.classCode);
+    const grade = parseInteger(row.grade);
+    const section = toUpperCase(row.section);
+    const roomNumber = toTrimmedString(row.room);
+
+    if (!teacherFirstName) errors.push(buildIssue(rowNumber, 'teacherFirstName', 'REQUIRED_FIELD', 'teacherFirstName is required', row));
+    if (!teacherLastName) errors.push(buildIssue(rowNumber, 'teacherLastName', 'REQUIRED_FIELD', 'teacherLastName is required', row));
+
+    if (!teacherEmail) {
+        const derived = teacherFirstName && teacherLastName
+            ? deriveTeacherEmail(teacherFirstName, teacherLastName, context?.teacherEmailDomain)
+            : null;
+        if (derived) {
+            teacherEmail = derived;
+            warnings.push(buildIssue(rowNumber, 'teacherEmail', 'AUTO_DERIVED', `teacherEmail auto-derived as "${derived}"`, row));
+        } else {
+            errors.push(buildIssue(rowNumber, 'teacherEmail', 'REQUIRED_FIELD', 'teacherEmail is required (no school teacherEmailDomain configured to auto-derive it)', row));
+        }
+    } else if (!EMAIL_PATTERN.test(teacherEmail)) {
+        errors.push(buildIssue(rowNumber, 'teacherEmail', 'INVALID_EMAIL', 'teacherEmail format is invalid', row));
+    }
+
+    if (dayOfWeek === null) errors.push(buildIssue(rowNumber, 'day', 'INVALID_ENUM', 'day must be a weekday name (e.g. Monday) or a number 0-6', row));
+    if (!startTime) errors.push(buildIssue(rowNumber, 'startTime', 'INVALID_TIME', 'startTime must be in HH:MM format', row));
+    if (!endTime) errors.push(buildIssue(rowNumber, 'endTime', 'INVALID_TIME', 'endTime must be in HH:MM format', row));
+    if (startTime && endTime) {
+        const [sh, sm] = startTime.split(':').map(Number);
+        const [eh, em] = endTime.split(':').map(Number);
+        if (sh * 60 + sm >= eh * 60 + em) {
+            errors.push(buildIssue(rowNumber, 'endTime', 'INVALID_TIME_RANGE', 'endTime must be after startTime', row));
+        }
+    }
+    if (!['class', 'admin'].includes(sessionType)) {
+        errors.push(buildIssue(rowNumber, 'sessionType', 'INVALID_ENUM', 'sessionType must be "class" or "admin"', row));
+    }
+
+    if (sessionType === 'class') {
+        if (!courseName) errors.push(buildIssue(rowNumber, 'courseName', 'REQUIRED_FIELD', 'courseName is required for class sessions', row));
+        if (grade === null) errors.push(buildIssue(rowNumber, 'grade', 'REQUIRED_FIELD', 'grade is required for class sessions', row));
+        if (grade !== null && (grade < 1 || grade > 12)) {
+            errors.push(buildIssue(rowNumber, 'grade', 'INVALID_RANGE', 'grade must be between 1 and 12', row));
+        }
+        if (!section) errors.push(buildIssue(rowNumber, 'section', 'REQUIRED_FIELD', 'section is required for class sessions', row));
+    }
+
+    const duplicateSignatures = teacherEmail && dayOfWeek !== null && startTime && endTime
+        ? [`assignment:${teacherEmail}|${dayOfWeek}|${startTime}|${endTime}|${grade ?? ''}|${section || ''}`]
+        : [];
+
+    return {
+        normalized: {
+            teacherFirstName,
+            teacherLastName,
+            teacherEmail: teacherEmail || null,
+            dayOfWeek,
+            periodName,
+            startTime,
+            endTime,
+            sessionType,
+            courseName,
+            classCode,
+            grade,
+            section,
+            roomNumber
+        },
+        duplicateSignatures,
+        errors,
+        warnings
+    };
+};
+
 export const normalizeEntityType = (value) => {
     const normalized = toLowerCase(value).replace(/\s+/g, '_');
     return ENTITY_ALIASES[normalized] || null;
@@ -555,6 +678,8 @@ export const normalizeRowByEntity = (entityType, row, { rowNumber, context = {} 
             return normalizeRoomsRow(row, rowNumber);
         case 'timetable_periods':
             return normalizeTimetablePeriodsRow(row, rowNumber);
+        case 'teacher_timetable_assignments':
+            return normalizeTeacherTimetableAssignmentsRow(row, rowNumber, context);
         default:
             return {
                 normalized: {},

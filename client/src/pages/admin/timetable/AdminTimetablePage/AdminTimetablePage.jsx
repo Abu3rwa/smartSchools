@@ -140,6 +140,7 @@ const AdminTimetablePage = () => {
     const periodImportInputRef = useRef(null);
     const roomImportInputRef = useRef(null);
     const subjectImportInputRef = useRef(null);
+    const assignmentImportInputRef = useRef(null);
     const subjectsSectionRef = useRef(null);
 
     const {
@@ -554,6 +555,10 @@ const AdminTimetablePage = () => {
         subjectImportInputRef.current?.click();
     };
 
+    const triggerAssignmentImport = () => {
+        assignmentImportInputRef.current?.click();
+    };
+
     const handlePeriodImportFileChange = async (event) => {
         const file = event.target.files?.[0];
         event.target.value = '';
@@ -620,6 +625,61 @@ const AdminTimetablePage = () => {
             setRooms(roomResponse?.data?.rooms || []);
         } catch (importError) {
             toast.error(importError?.response?.data?.message || t('adminTimetable:toast.importRoomsFailed'));
+        }
+    };
+
+    const handleAssignmentImportFileChange = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            toast.error(t('adminTimetable:toast.selectCsv'));
+            return;
+        }
+
+        const { rows, errors } = await parseCsvFile(file, {
+            requiredColumns: ['teacherFirstName', 'teacherLastName', 'day', 'startTime', 'endTime', 'sessionType']
+        });
+        if (errors.length > 0) {
+            toast.error(errors[0]);
+            return;
+        }
+        if (rows.length === 0) {
+            toast.error(t('adminTimetable:toast.noValidAssignmentRows'));
+            return;
+        }
+
+        try {
+            const response = await timetableService.importAssignments(rows, { duplicatePolicy: 'update' });
+            const imported = response?.summary?.importedRows ?? response?.data?.imported ?? 0;
+            const failed = response?.summary?.failedRows ?? response?.data?.failed ?? 0;
+            const skipped = response?.summary?.skippedRows ?? response?.data?.skipped ?? 0;
+            toast.success(response?.message || t('adminTimetable:toast.importedAssignments', { count: imported }));
+            if (failed > 0) toast.error(t('adminTimetable:toast.failedAssignmentRows', { count: failed }));
+            else if (skipped > 0) toast(t('adminTimetable:toast.skippedAssignmentRows', { count: skipped }));
+
+            // Surface the first few row-level reasons since the summary count alone doesn't explain why rows failed;
+            // a 200/201 response with failedRows > 0 still lands here (only 0-imported requests return 4xx)
+            const rowErrors = response?.errors || response?.data?.errors || [];
+            if (rowErrors.length > 0) {
+                console.error('Teacher timetable import row errors:', rowErrors);
+                rowErrors.slice(0, 5).forEach((issue) => {
+                    toast.error(`Row ${issue.row}: ${issue.message}`);
+                });
+            }
+
+            await fetchTimetableData();
+        } catch (importError) {
+            const responseData = importError?.response?.data;
+            toast.error(responseData?.message || t('adminTimetable:toast.importAssignmentsFailed'));
+            const rowErrors = responseData?.errors || responseData?.data?.errors || [];
+            if (rowErrors.length > 0) {
+                console.error('Teacher timetable import row errors:', rowErrors);
+                rowErrors.slice(0, 5).forEach((issue) => {
+                    toast.error(`Row ${issue.row}: ${issue.message}`);
+                });
+            }
         }
     };
 
@@ -748,6 +808,13 @@ const AdminTimetablePage = () => {
                 style={{ display: 'none' }}
                 onChange={handleSubjectImportFileChange}
             />
+            <input
+                ref={assignmentImportInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handleAssignmentImportFileChange}
+            />
 
             <section className="timetable-hero">
                 <div className="page-header">
@@ -770,6 +837,10 @@ const AdminTimetablePage = () => {
                         <button className="btn btn-secondary" onClick={triggerRoomImport} disabled={saving}>
                             <HiOutlineOfficeBuilding size={18} />
                             {t('adminTimetable:actions.importRoomsCsv')}
+                        </button>
+                        <button className="btn btn-secondary" onClick={triggerAssignmentImport} disabled={saving}>
+                            <HiOutlineUpload size={18} />
+                            {t('adminTimetable:actions.importAssignmentsCsv')}
                         </button>
                         <button className="btn btn-primary" onClick={fetchTimetableData} disabled={saving}>
                             <HiOutlineRefresh size={18} />

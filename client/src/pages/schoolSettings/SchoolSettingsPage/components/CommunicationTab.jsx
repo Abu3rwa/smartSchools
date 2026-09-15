@@ -8,9 +8,13 @@ const CommunicationTab = ({
   aiEmailDraftEnabled,
   attendanceRemindersEnabled,
   attendanceReminderDelayMinutes,
+  teacherEmailDomain,
+  savingTeacherEmailDomain,
   onToggleAiEmailDraft,
   onAttendanceReminderSettingsChange,
-  onSaveAttendanceReminderSettings
+  onSaveAttendanceReminderSettings,
+  onTeacherEmailDomainChange,
+  onSaveTeacherEmailDomain
 }) => {
   const { t } = useTranslation(['schoolSettings']);
 
@@ -102,6 +106,40 @@ const CommunicationTab = ({
           {saving
             ? t('schoolSettings:common.saving')
             : t('schoolSettings:communication.saveAttendanceReminderSettings')}
+        </button>
+
+        <hr style={{ margin: '1rem 0', borderColor: 'var(--border-color)' }} />
+
+        <h4 style={{ marginBottom: '0.5rem' }}>
+          {t('schoolSettings:communication.teacherEmailDomainTitle')}
+        </h4>
+        <p className="text-muted">
+          {t('schoolSettings:communication.teacherEmailDomainHelpText')}
+        </p>
+
+        <div className="form-group" style={{ marginTop: '0.75rem' }}>
+          <label htmlFor="teacher-email-domain">
+            {t('schoolSettings:communication.teacherEmailDomainLabel')}
+          </label>
+          <input
+            id="teacher-email-domain"
+            type="text"
+            placeholder="school.edu"
+            value={teacherEmailDomain}
+            onChange={(event) => onTeacherEmailDomainChange(event.target.value)}
+            disabled={savingTeacherEmailDomain}
+          />
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={onSaveTeacherEmailDomain}
+          disabled={savingTeacherEmailDomain}
+        >
+          {savingTeacherEmailDomain
+            ? t('schoolSettings:common.saving')
+            : t('schoolSettings:communication.saveTeacherEmailDomain')}
         </button>
       </div>
     </div>

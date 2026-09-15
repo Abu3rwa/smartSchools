@@ -229,7 +229,9 @@ const useSchoolSettings = () => {
     featureAvailable: false,
     aiEmailDraftEnabled: true,
     attendanceRemindersEnabled: true,
-    attendanceReminderDelayMinutes: 60
+    attendanceReminderDelayMinutes: 60,
+    teacherEmailDomain: '',
+    savingTeacherEmailDomain: false
   });
   const [admissionsPromotionSettings, setAdmissionsPromotionSettings] = useState({
     loading: false,
@@ -377,9 +379,10 @@ const useSchoolSettings = () => {
     if (!canManageCommunicationSettings) return;
     setCommunicationSettings((prev) => ({ ...prev, loading: true }));
     try {
-      const [communicationResponse, attendanceReminderResponse] = await Promise.all([
+      const [communicationResponse, attendanceReminderResponse, timetableImportResponse] = await Promise.all([
         api.get('/schools/me/communication-settings'),
-        api.get('/schools/me/attendance-reminder-settings')
+        api.get('/schools/me/attendance-reminder-settings'),
+        api.get('/schools/me/timetable-import-settings')
       ]);
 
       if (communicationResponse.data?.success && attendanceReminderResponse.data?.success) {
@@ -389,7 +392,8 @@ const useSchoolSettings = () => {
           featureAvailable: Boolean(communicationResponse.data.data?.featureAvailable),
           aiEmailDraftEnabled: communicationResponse.data.data?.aiEmailDraftEnabled !== false,
           attendanceRemindersEnabled: attendanceReminderResponse.data.data?.enabled !== false,
-          attendanceReminderDelayMinutes: Number(attendanceReminderResponse.data.data?.delayMinutes || 60)
+          attendanceReminderDelayMinutes: Number(attendanceReminderResponse.data.data?.delayMinutes || 60),
+          teacherEmailDomain: timetableImportResponse.data?.data?.teacherEmailDomain || ''
         }));
       } else {
         setCommunicationSettings((prev) => ({ ...prev, loading: false }));
@@ -812,6 +816,35 @@ const useSchoolSettings = () => {
       toast.error(error.response?.data?.message || t('schoolSettings:toast.attendanceReminderSettingsUpdateFailed'));
     }
   }, [canManageCommunicationSettings, communicationSettings.attendanceReminderDelayMinutes, communicationSettings.attendanceRemindersEnabled, t]);
+
+  const handleTeacherEmailDomainChange = useCallback((value) => {
+    setCommunicationSettings((prev) => ({ ...prev, teacherEmailDomain: value }));
+  }, []);
+
+  const handleSaveTeacherEmailDomain = useCallback(async () => {
+    if (!canManageCommunicationSettings) return;
+
+    setCommunicationSettings((prev) => ({ ...prev, savingTeacherEmailDomain: true }));
+    try {
+      const response = await api.patch('/schools/me/timetable-import-settings', {
+        teacherEmailDomain: communicationSettings.teacherEmailDomain
+      });
+      if (response.data?.success) {
+        setCommunicationSettings((prev) => ({
+          ...prev,
+          savingTeacherEmailDomain: false,
+          teacherEmailDomain: response.data.data?.teacherEmailDomain || ''
+        }));
+        toast.success(t('schoolSettings:toast.teacherEmailDomainUpdated'));
+      } else {
+        setCommunicationSettings((prev) => ({ ...prev, savingTeacherEmailDomain: false }));
+        toast.error(response.data?.message || t('schoolSettings:toast.teacherEmailDomainUpdateFailed'));
+      }
+    } catch (error) {
+      setCommunicationSettings((prev) => ({ ...prev, savingTeacherEmailDomain: false }));
+      toast.error(error.response?.data?.message || t('schoolSettings:toast.teacherEmailDomainUpdateFailed'));
+    }
+  }, [canManageCommunicationSettings, communicationSettings.teacherEmailDomain, t]);
 
   const loadSchoolWeekConfig = useCallback(async () => {
     setSchoolWeekConfigLoading(true);
@@ -1478,6 +1511,8 @@ const useSchoolSettings = () => {
     handleToggleAiEmailDraft,
     handleAttendanceReminderSettingsChange,
     handleSaveAttendanceReminderSettings,
+    handleTeacherEmailDomainChange,
+    handleSaveTeacherEmailDomain,
     handleAdmissionsPromotionSettingsChange,
     handleSaveAdmissionsPromotionSettings,
     standardsGradebookSettings,

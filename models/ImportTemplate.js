@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const importTemplateSchema = new mongoose.Schema({
     entityType: {
         type: String,
-        enum: ['students', 'standards', 'subjects', 'teachers', 'classes', 'rooms', 'timetable_periods'],
+        enum: ['students', 'standards', 'subjects', 'teachers', 'classes', 'rooms', 'timetable_periods', 'teacher_timetable_assignments'],
         required: true,
         index: true
     },

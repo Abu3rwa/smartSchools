@@ -53,9 +53,8 @@ export default function PlpMyRecordPage() {
                     </p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                    <span className={`plp-badge plp-badge-${record.level}`}>{record.level}</span>
                     <div className="plp-evidence-meta" style={{ marginTop: 6 }}>
-                        Overall score: {Number(record.weightedScore || 0).toFixed(1)}
+                        Observation count: {Number(record.evidenceCount || 0)}
                     </div>
                 </div>
             </div>

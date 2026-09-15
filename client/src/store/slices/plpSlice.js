@@ -547,7 +547,25 @@ const plpSlice = createSlice({
             .addCase(fetchPlpAwardCandidates.fulfilled, (state, action) => { state.awardCandidates = action.payload; })
             .addCase(setPlpAwardDecision.fulfilled, (state, action) => {
                 const idx = state.awardCandidates.findIndex((r) => r._id === action.payload._id);
-                if (idx !== -1) state.awardCandidates[idx] = action.payload;
+                if (idx !== -1) {
+                    state.awardCandidates[idx] = {
+                        ...state.awardCandidates[idx],
+                        ...action.payload,
+                    };
+                }
+
+                const recordIdx = state.records.findIndex((r) => r._id === action.payload._id);
+                if (recordIdx !== -1) {
+                    state.records[recordIdx].awardDecision = action.payload.awardDecision;
+                    state.records[recordIdx].awardDecisionReason = action.payload.awardDecisionReason;
+                }
+                if (state.selectedRecord?._id === action.payload._id) {
+                    state.selectedRecord = {
+                        ...state.selectedRecord,
+                        awardDecision: action.payload.awardDecision,
+                        awardDecisionReason: action.payload.awardDecisionReason,
+                    };
+                }
             })
 
             .addCase(fetchPlpSupervisorAssignments.fulfilled, (state, action) => { state.supervisorAssignments = action.payload; })

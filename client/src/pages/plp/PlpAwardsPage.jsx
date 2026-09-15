@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
     fetchPlpAwardCandidates, setPlpAwardDecision,
     selectPlpAwardCandidates, selectPlpLoading, selectPlpError, clearPlpError,
-    fetchPlpTraits, selectPlpTraits, fetchPlpCycles, selectPlpCycles,
+    fetchPlpTraits, selectPlpTraits,
 } from '../../store/slices/plpSlice';
 import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import toast from 'react-hot-toast';
@@ -21,38 +21,22 @@ export default function PlpAwardsPage() {
     const loading = useSelector(selectPlpLoading);
     const error = useSelector(selectPlpError);
     const traits = useSelector(selectPlpTraits);
-    const cycles = useSelector(selectPlpCycles);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const now = new Date();
     const [month, setMonth] = useState(now.getMonth() + 1);
-    const [selectedCycleId, setSelectedCycleId] = useState('');
-    const [selectedClassId, setSelectedClassId] = useState('all');
-    const [classes, setClasses] = useState([]);
     const [decisionModal, setDecisionModal] = useState(null);
     const [reason, setReason] = useState('');
     const monthTraits = traits.filter((trait) => trait.isActive && Number(trait.month) === Number(month));
-    const monthTraitNames = monthTraits.map((trait) => trait.name).join(', ');
+    const monthTraitNames = monthTraits.map((trait) => trait.name).join(', ') || '—';
     const handleMonthChange = (event) => {
         setMonth(Number(event.target.value));
     };
 
-    useEffect(() => { dispatch(fetchPlpTraits()); dispatch(fetchPlpCycles({ academicYear })); }, [dispatch, academicYear]);
+    useEffect(() => { dispatch(fetchPlpTraits()); }, [dispatch]);
     useEffect(() => {
-        const params = { academicYear, month, ...(selectedCycleId ? { cycleId: selectedCycleId } : {}), ...(selectedClassId !== 'all' ? { classId: selectedClassId } : {}) };
-        dispatch(fetchPlpAwardCandidates(params));
-    }, [dispatch, academicYear, month, selectedCycleId, selectedClassId]);
+        dispatch(fetchPlpAwardCandidates({ academicYear, month }));
+    }, [dispatch, academicYear, month]);
     useEffect(() => { if (error) { toast.error(error); dispatch(clearPlpError()); } }, [error, dispatch]);
-    useEffect(() => {
-        const loadClasses = async () => {
-            try {
-                const response = await api.get('/classes', { params: { academicYear, limit: 200 } });
-                setClasses(response?.data?.data?.classes || []);
-            } catch (_error) {
-                setClasses([]);
-            }
-        };
-        loadClasses();
-    }, [academicYear]);
 
     const openDecision = (record, decision) => {
         setDecisionModal({ record, decision });
@@ -79,44 +63,28 @@ export default function PlpAwardsPage() {
                         {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
                     </select>
                 </div>
-                <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                    <label>Round</label>
-                    <select value={selectedCycleId} onChange={(e) => setSelectedCycleId(e.target.value)}>
-                        <option value="">All rounds</option>
-                        {cycles.filter((cycle) => cycle.academicYear === academicYear).map((cycle) => (
-                            <option key={cycle._id} value={cycle._id}>{cycle.title}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="plp-form-group" style={{ marginBottom: 0 }}>
-                    <label>Class</label>
-                    <select value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)}>
-                        <option value="all">All classes</option>
-                        {classes.map((cls) => <option key={cls._id} value={cls._id}>{cls.name}</option>)}
-                    </select>
-                </div>
             </div>
             <p style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                 {monthTraits.length > 0
-                    ? `Ranking is based on the selected month's trait(s): ${monthTraitNames}.`
+                    ? `Students for ${MONTHS[month - 1]}, ranked from most to least observations for: ${monthTraitNames}.`
                     : `No active character trait is assigned to ${MONTHS[month - 1]} yet.`}
             </p>
             {loading && <div className="plp-loading">Loading…</div>}
-            {!loading && candidates.length === 0 && <div className="plp-empty">No award candidates for this month.</div>}
+            {!loading && candidates.length === 0 && <div className="plp-empty">No students found for this month.</div>}
             {candidates.length > 0 && (
                 <div className="plp-section" style={{ padding: 0 }}>
                     <table className="plp-table">
                         <thead>
-                            <tr><th>Student</th><th>Class</th><th>Theme</th><th>Level</th><th>Score</th><th>Decision</th><th>Reason</th><th></th></tr>
+                            <tr><th>Student</th><th>Class</th><th>Round</th><th>Trait</th><th>Observation Count</th><th>Decision</th><th>Reason</th><th></th></tr>
                         </thead>
                         <tbody>
                             {candidates.map((r) => (
                                 <tr key={r._id}>
                                     <td>{r.student?.firstName} {r.student?.lastName}</td>
                                     <td>{r.class?.name}</td>
-                                    <td style={{ textTransform: 'capitalize' }}>{r.theme}</td>
-                                    <td><span className={`plp-badge plp-badge-${r.level}`}>{r.level}</span></td>
-                                    <td>{r.weightedScore?.toFixed(1)}</td>
+                                    <td>{r.cycle?.title || 'Unassigned Round'}</td>
+                                    <td>{r.focusTrait?.name || '—'}</td>
+                                    <td>{Number(r.matchedEvidenceCount || 0)}</td>
                                     <td><span className={`plp-badge plp-badge-${r.awardDecision}`}>{r.awardDecision?.replace('_', ' ')}</span></td>
                                     <td style={{ maxWidth: 200, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.awardDecisionReason || '—'}</td>
                                     <td>

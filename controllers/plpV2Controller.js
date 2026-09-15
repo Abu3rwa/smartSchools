@@ -288,7 +288,7 @@ export const updateCycle = asyncHandler(async (req, res) => {
     }
 
     const cycle = await PlpCycle.findOneAndUpdate(
-        { _id: id, school: req.user.school, status: { $ne: 'closed' } },
+        { _id: id, school: req.user.school },
         updates,
         { new: true, runValidators: true }
     );
@@ -326,9 +326,8 @@ export const closeCycle = asyncHandler(async (req, res) => {
     await PlpStudentRecord.updateMany(
         {
             school: req.user.school,
-            academicYear: cycle.academicYear,
+            cycle: cycle._id,
             status: { $in: ['in_progress', 'submitted'] },
-            createdAt: { $gte: cycle.startDate, $lte: cycle.endDate },
         },
         { status: 'locked' }
     );

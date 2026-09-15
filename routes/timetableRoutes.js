@@ -13,6 +13,7 @@ import {
     deleteAssignment,
     bulkUpdateAssignmentDates,
     migrateAssignmentsYear,
+    importTimetableAssignments,
     getMyTimetable,
     getStudentTimetable
 } from '../controllers/timetableController.js';
@@ -38,6 +39,7 @@ router.delete('/periods/:id', authorize('admin', 'department_principal'), delete
 router.get('/assignments', authorize('admin', 'department_principal'), listAssignments);
 router.put('/assignments/bulk-dates', authorize('admin', 'department_principal'), bulkUpdateAssignmentDates);
 router.post('/assignments/migrate-year', authorize('admin', 'department_principal'), migrateAssignmentsYear);
+router.post('/assignments/import', authorize('admin', 'department_principal'), importTimetableAssignments);
 router.post('/assignments', authorize('admin', 'department_principal'), createAssignment);
 router.put('/assignments/:id', authorize('admin', 'department_principal'), updateAssignment);
 router.delete('/assignments/:id', authorize('admin', 'department_principal'), deleteAssignment);

@@ -365,6 +365,14 @@ const schoolSchema = new mongoose.Schema({
                 max: MAX_ATTENDANCE_REMINDER_DELAY_MINUTES
             }
         },
+        timetableImport: {
+            // Used to auto-derive teacher emails (first.last@domain) during timetable CSV import when the email column is blank
+            teacherEmailDomain: {
+                type: String,
+                trim: true,
+                lowercase: true
+            }
+        },
         academicIntelligence: {
             thresholds: {
                 objectiveWeakThreshold: {

@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, Link } from 'react-router-dom';
 import {
-    fetchPlpStudentEvidence, fetchPlpTraits, selectPlpTraits,
+    fetchPlpStudentEvidence, fetchPlpTraits, fetchPlpCycles,
+    selectPlpTraits, selectPlpCycles,
     selectPlpStudentEvidence, selectPlpLoading, selectPlpError, clearPlpError,
 } from '../../store/slices/plpSlice';
+import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import toast from 'react-hot-toast';
 import './PLP.css';
 
@@ -14,17 +16,30 @@ export default function PlpStudentEvidencePage() {
     const { studentId } = useParams();
     const dispatch = useDispatch();
     const traits = useSelector(selectPlpTraits);
+    const cycles = useSelector(selectPlpCycles);
+    const currentAcademicYear = useSelector(selectCurrentAcademicYear);
     const loading = useSelector(selectPlpLoading);
     const error = useSelector(selectPlpError);
-    const [filters, setFilters] = useState({ traitId: '', type: '', academicYear: '', month: '', from: '', to: '' });
+    const [filters, setFilters] = useState({ traitId: '', type: '', academicYear: '', cycleId: '', month: '', from: '', to: '' });
     const data = useSelector(selectPlpStudentEvidence);
 
     const loadEvidence = async () => {
-        await dispatch(fetchPlpStudentEvidence({ studentId, params: filters }));
+        const nextFilters = { ...filters };
+        if (nextFilters.cycleId) nextFilters.month = '';
+        if (nextFilters.month) nextFilters.cycleId = '';
+        await dispatch(fetchPlpStudentEvidence({ studentId, params: nextFilters }));
     };
 
-    useEffect(() => { dispatch(fetchPlpTraits()); }, [dispatch]);
+    useEffect(() => {
+        dispatch(fetchPlpTraits());
+        dispatch(fetchPlpCycles({ academicYear: currentAcademicYear }));
+    }, [dispatch, currentAcademicYear]);
     useEffect(() => { dispatch(fetchPlpStudentEvidence({ studentId })); }, [dispatch, studentId]);
+    useEffect(() => {
+        if (!filters.academicYear && currentAcademicYear) {
+            setFilters((previous) => ({ ...previous, academicYear: currentAcademicYear }));
+        }
+    }, [currentAcademicYear, filters.academicYear]);
     useEffect(() => {
         if (error) { toast.error(error); dispatch(clearPlpError()); }
     }, [error, dispatch]);
@@ -56,7 +71,24 @@ export default function PlpStudentEvidencePage() {
                         {EVIDENCE_TYPES.map((type) => <option key={type} value={type}>{type.replace('_', ' ')}</option>)}
                     </select>
                     <input placeholder="Academic year" value={filters.academicYear} onChange={(event) => updateFilter('academicYear', event.target.value)} />
-                    <input type="number" min="1" max="12" placeholder="Month" value={filters.month} onChange={(event) => updateFilter('month', event.target.value)} />
+                    <select
+                        value={filters.cycleId}
+                        onChange={(event) => setFilters((previous) => ({ ...previous, cycleId: event.target.value, month: '' }))}
+                    >
+                        <option value="">All rounds</option>
+                        {cycles
+                            .filter((cycle) => !filters.academicYear || cycle.academicYear === filters.academicYear)
+                            .map((cycle) => <option key={cycle._id} value={cycle._id}>{cycle.title}</option>)}
+                    </select>
+                    <input
+                        type="number"
+                        min="1"
+                        max="12"
+                        placeholder="Month"
+                        value={filters.month}
+                        onChange={(event) => setFilters((previous) => ({ ...previous, month: event.target.value, cycleId: '' }))}
+                        disabled={Boolean(filters.cycleId)}
+                    />
                     <input type="date" value={filters.from} onChange={(event) => updateFilter('from', event.target.value)} />
                     <input type="date" value={filters.to} onChange={(event) => updateFilter('to', event.target.value)} />
                 </div>

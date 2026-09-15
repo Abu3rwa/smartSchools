@@ -517,6 +517,52 @@ router.patch('/me/attendance-reminder-settings', requireSchoolContext, authorize
 }));
 
 /**
+ * @desc    Get school timetable import settings (used to auto-derive teacher emails on CSV import)
+ * @route   GET /api/schools/me/timetable-import-settings
+ * @access  Private (Admin)
+ */
+router.get('/me/timetable-import-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.timetableImport');
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    res.json({
+        success: true,
+        data: {
+            teacherEmailDomain: school.settings?.timetableImport?.teacherEmailDomain || ''
+        }
+    });
+}));
+
+/**
+ * @desc    Update school timetable import settings
+ * @route   PATCH /api/schools/me/timetable-import-settings
+ * @access  Private (Admin)
+ */
+router.patch('/me/timetable-import-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const teacherEmailDomain = String(req.body?.teacherEmailDomain || '').trim().toLowerCase();
+    if (teacherEmailDomain && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(teacherEmailDomain)) {
+        return res.status(400).json({ success: false, message: 'teacherEmailDomain must be a valid domain (e.g. "school.edu")' });
+    }
+
+    const school = await School.findById(req.schoolId);
+    if (!school) {
+        return res.status(404).json({ success: false, message: 'School not found' });
+    }
+
+    school.settings = school.settings || {};
+    school.settings.timetableImport = { teacherEmailDomain };
+    await school.save();
+
+    res.json({
+        success: true,
+        message: 'Timetable import settings updated',
+        data: { teacherEmailDomain: school.settings.timetableImport.teacherEmailDomain }
+    });
+}));
+
+/**
  * @desc    Get school admissions and promotion settings
  * @route   GET /api/schools/me/admissions-promotion-settings
  * @access  Private (Admin)

@@ -8,6 +8,7 @@
     "importSubjectsCsv": "Import Subjects CSV",
     "importPeriodsCsv": "Import Periods CSV",
     "importRoomsCsv": "Import Rooms CSV",
+    "importAssignmentsCsv": "Import Teacher Timetable CSV",
     "refresh": "Refresh",
     "addRoom": "Add room",
     "saving": "Saving..."
@@ -161,6 +162,11 @@
     "importedRooms": "Imported {{count}} rooms",
     "failedRoomRows": "{{count}} room rows failed",
     "importRoomsFailed": "Failed to import rooms",
-    "noValidSubjectRows": "No valid subject rows found in CSV"
+    "noValidSubjectRows": "No valid subject rows found in CSV",
+    "noValidAssignmentRows": "No valid teacher timetable rows found in CSV",
+    "importedAssignments": "Imported {{count}} teacher timetable assignments",
+    "failedAssignmentRows": "{{count}} timetable rows failed",
+    "skippedAssignmentRows": "{{count}} rows skipped (admin/meeting periods)",
+    "importAssignmentsFailed": "Failed to import teacher timetable"
   }
 }

@@ -8,6 +8,7 @@
     "importSubjectsCsv": "استيراد CSV المواد",
     "importPeriodsCsv": "استيراد CSV الحصص",
     "importRoomsCsv": "استيراد CSV القاعات",
+    "importAssignmentsCsv": "استيراد CSV جدول المعلمين",
     "refresh": "تحديث",
     "addRoom": "إضافة قاعة",
     "saving": "جارٍ الحفظ..."
@@ -161,6 +162,11 @@
     "importedRooms": "تم استيراد {{count}} قاعات",
     "failedRoomRows": "فشل {{count}} من صفوف القاعات",
     "importRoomsFailed": "فشل استيراد القاعات",
-    "noValidSubjectRows": "لا توجد صفوف مواد صالحة في CSV"
+    "noValidSubjectRows": "لا توجد صفوف مواد صالحة في CSV",
+    "noValidAssignmentRows": "لا توجد صفوف جدول معلمين صالحة في CSV",
+    "importedAssignments": "تم استيراد {{count}} من تعيينات جدول المعلمين",
+    "failedAssignmentRows": "فشل {{count}} من صفوف الجدول",
+    "skippedAssignmentRows": "تم تخطي {{count}} من الصفوف (حصص إدارية/اجتماعات)",
+    "importAssignmentsFailed": "فشل استيراد جدول المعلمين"
   }
 }

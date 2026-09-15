@@ -78,6 +78,39 @@ export const importPeriods = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Import teacher timetable assignments (bulk CSV: teacher + day + period + class + subject + room)
+// @route   POST /api/timetable/assignments/import
+// @access  Private (Admin, Department Principal)
+export const importTimetableAssignments = asyncHandler(async (req, res) => {
+    const result = await runImportPipeline({
+        entityType: 'teacher_timetable_assignments',
+        mode: 'commit',
+        payload: req.body,
+        context: {
+            schoolId: req.schoolId,
+            school: req.school,
+            userId: req.user?._id,
+            academicYear: req.academicYear
+        }
+    });
+
+    res.status(result.statusCode).json({
+        success: result.success,
+        message: result.message,
+        data: {
+            imported: result.summary.importedRows,
+            failed: result.summary.failedRows,
+            skipped: result.summary.skippedRows,
+            total: result.summary.totalRows,
+            importRunId: result.importRunId,
+            errorReportUrl: result.errorReportUrl,
+            errors: result.errors
+        },
+        summary: result.summary,
+        warnings: result.warnings
+    });
+});
+
 // @desc    Update period
 // @route   PUT /api/timetable/periods/:id
 // @access  Private (Admin)
