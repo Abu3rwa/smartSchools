@@ -100,6 +100,7 @@ export default function PlpRecordDetailPage() {
     const [showActivityForm, setShowActivityForm] = useState(false);
     const [editingEvidenceId, setEditingEvidenceId] = useState('');
     const [editEvidenceNote, setEditEvidenceNote] = useState('');
+    const [taskFeedbackDrafts, setTaskFeedbackDrafts] = useState({});
     const activeGoalType = activeTab === 'academic' ? 'academic' : 'character';
     const visibleGoals = useMemo(
         () => goals.filter((goal) => goal.goalType === activeGoalType),
@@ -438,11 +439,35 @@ export default function PlpRecordDetailPage() {
     };
 
     const updateTaskStatus = async (taskId, status) => {
-        const r = await dispatch(updatePlpTask({ taskId, data: { status } }));
+        const existingTask = tasks.find((task) => task._id === taskId);
+        const currentFeedback = String(existingTask?.teacherFeedback || '');
+        const draftFeedback = String(taskFeedbackDrafts[taskId] ?? currentFeedback).trim();
+        const payload = { status };
+        if (draftFeedback !== currentFeedback.trim()) {
+            payload.teacherFeedback = draftFeedback;
+        }
+        const r = await dispatch(updatePlpTask({ taskId, data: payload }));
         if (!r.error) {
             dispatch(fetchPlpTasks(selectedGoalId));
             dispatch(fetchPlpRecordInteractions(id));
             toast.success('Task updated');
+        }
+    };
+
+    const saveTaskComment = async (task) => {
+        const currentFeedback = String(task?.teacherFeedback || '');
+        const draftFeedback = String(taskFeedbackDrafts[task._id] ?? currentFeedback).trim();
+        if (draftFeedback === currentFeedback.trim()) {
+            toast.success('No comment changes to save');
+            return;
+        }
+        const r = await dispatch(updatePlpTask({ taskId: task._id, data: { teacherFeedback: draftFeedback } }));
+        if (!r.error) {
+            dispatch(fetchPlpTasks(selectedGoalId));
+            dispatch(fetchPlpRecordInteractions(id));
+            toast.success('Task comment saved');
+        } else {
+            toast.error(r.payload || 'Failed to save task comment');
         }
     };
 
@@ -454,12 +479,20 @@ export default function PlpRecordDetailPage() {
     };
 
     const reviewTaskHandler = async (taskId, status) => {
-        const feedback = window.prompt('Teacher feedback (optional):', '') || '';
-        const r = await dispatch(reviewPlpTask({ taskId, data: { status, teacherFeedback: feedback } }));
+        const existingTask = tasks.find((task) => task._id === taskId);
+        const currentFeedback = String(existingTask?.teacherFeedback || '');
+        const draftFeedback = String(taskFeedbackDrafts[taskId] ?? currentFeedback).trim();
+        const payload = { status };
+        if (draftFeedback !== currentFeedback.trim()) {
+            payload.teacherFeedback = draftFeedback;
+        }
+        const r = await dispatch(reviewPlpTask({ taskId, data: payload }));
         if (!r.error) {
             dispatch(fetchPlpTasks(selectedGoalId));
             dispatch(fetchPlpRecordInteractions(id));
             toast.success('Task reviewed');
+        } else {
+            toast.error(r.payload || 'Failed to review task');
         }
     };
 
@@ -796,9 +829,26 @@ export default function PlpRecordDetailPage() {
                                     {task.studentCompletionNote && <p style={{ margin: '6px 0 0' }}><strong>Student note:</strong> {task.studentCompletionNote}</p>}
                                     {task.studentComment && <p style={{ margin: '4px 0 0' }}><strong>Student comment:</strong> {task.studentComment}</p>}
                                     {task.teacherFeedback && <p style={{ margin: '4px 0 0' }}><strong>Teacher feedback:</strong> {task.teacherFeedback}</p>}
+                                    {canWrite && (
+                                        <label className="plp-form-group" style={{ display: 'block', marginTop: 8, marginBottom: 0 }}>
+                                            <span>Teacher comment</span>
+                                            <textarea
+                                                value={taskFeedbackDrafts[task._id] ?? task.teacherFeedback ?? ''}
+                                                placeholder="Add a teacher comment for this task"
+                                                onChange={(event) => {
+                                                    const nextValue = event.target.value;
+                                                    setTaskFeedbackDrafts((prev) => ({
+                                                        ...prev,
+                                                        [task._id]: nextValue,
+                                                    }));
+                                                }}
+                                            />
+                                        </label>
+                                    )}
                                 </div>
                                 {canWrite && (
                                     <div style={{ display: 'grid', gap: 6 }}>
+                                        <button className="btn btn-secondary btn-sm" onClick={() => saveTaskComment(task)}>Save Comment</button>
                                         <button className="btn btn-secondary btn-sm" onClick={() => updateTaskStatus(task._id, 'in_progress')}>Mark In Progress</button>
                                         <button className="btn btn-secondary btn-sm" onClick={() => reviewTaskHandler(task._id, 'reviewed')}>Review</button>
                                         <button className="btn btn-primary btn-sm" onClick={() => reviewTaskHandler(task._id, 'completed')}>Complete</button>

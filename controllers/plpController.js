@@ -17,7 +17,7 @@ import Subject from '../models/Subject.js';
 import Class from '../models/Class.js';
 import School from '../models/School.js';
 import mongoose from 'mongoose';
-import { AlignmentType, BorderStyle, Document, Footer, Header, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType, PageNumber } from 'docx';
+import { AlignmentType, BorderStyle, Document, Footer, Header, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType, PageNumber, TableLayoutType } from 'docx';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import plpAiService from '../services/plpAiService.js';
 import logger from '../utils/logger.js';
@@ -130,6 +130,13 @@ const normalizeTraitName = (value) => String(value || '')
     .toLowerCase()
     .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 
+const proofreadEvidenceNote = async (value) => {
+    const cleanInput = String(value || '').trim();
+    if (!cleanInput) return '';
+    const proofread = await plpAiService.proofreadObservationText(cleanInput);
+    return String(proofread || cleanInput).trim().slice(0, 1000);
+};
+
 const resolveScoreFieldFromThemeTraits = (themeTraits = [], traitId) => {
     const idx = themeTraits.findIndex((trait) => String(trait._id) === String(traitId));
     if (idx < 0 || idx >= SCORE_SLOT_BY_ORDER.length) return null;
@@ -166,6 +173,12 @@ const getThemeTraits = async ({ schoolId, themeCode }) => {
 const resolveMinEvidenceCount = (value) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
+};
+
+const normalizeMonthOrFallback = (value, fallback = null) => {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 12) return parsed;
+    return fallback;
 };
 
 const clampTraitScore = (value) => {
@@ -932,34 +945,98 @@ export const exportRecordDocx = asyncHandler(async (req, res) => {
         if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
         await assertRecordAccess(req.user, record);
 
-        const [school, evidence, goals, traits] = await Promise.all([
+        const [school, evidence, goals, tasks, traits] = await Promise.all([
             School.findById(req.user.school).select('name settings.branding.logoUrl').lean(),
             PlpEvidence.find({ school: req.user.school, plpRecord: record._id }).populate('traitId', 'name').sort({ createdAt: -1 }).lean(),
             PlpGoal.find({ school: req.user.school, plpRecord: record._id }).sort({ createdAt: -1 }).lean(),
+            PlpTask.find({ school: req.user.school, plpRecord: record._id }).populate('plpGoal', 'title goalType').sort({ dueDate: 1, createdAt: -1 }).lean(),
             PlpTraitConfig.find({ school: req.user.school, isActive: true }).select('_id name themeCode displayOrder').sort({ displayOrder: 1, name: 1 }).lean(),
         ]);
         const text = (value, fallback = '-') => String(value || '').trim() || fallback;
         const titleCase = (value) => text(value, 'Unlinked').replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+        const statusLabel = (value) => titleCase(value).replace(/_/g, ' ');
         const date = (value) => {
             if (!value) return 'No due date';
             const parsedDate = new Date(value);
             return Number.isNaN(parsedDate.getTime()) ? 'No due date' : new Intl.DateTimeFormat('en-GB').format(parsedDate);
         };
+        const DOCX_PAGE_WIDTH_TWIP = 12240;
+        const DOCX_SIDE_MARGIN_TWIP = 1440;
+        const DOCX_CONTENT_WIDTH_TWIP = DOCX_PAGE_WIDTH_TWIP - (DOCX_SIDE_MARGIN_TWIP * 2);
         const border = { style: BorderStyle.SINGLE, size: 4, color: 'B8C4CE' };
-        const cell = (value, header = false) => new TableCell({
+        const normalizeColumnWidths = (headers, units = []) => {
+            if (!Array.isArray(units) || units.length !== headers.length) {
+                const even = Math.max(1, Math.floor(DOCX_CONTENT_WIDTH_TWIP / Math.max(headers.length, 1)));
+                return headers.map(() => even);
+            }
+            const numericUnits = units.map((unit) => Math.max(0, Number(unit) || 0));
+            const totalUnits = numericUnits.reduce((sum, unit) => sum + unit, 0);
+            if (totalUnits <= 0) {
+                const even = Math.max(1, Math.floor(DOCX_CONTENT_WIDTH_TWIP / Math.max(headers.length, 1)));
+                return headers.map(() => even);
+            }
+            return numericUnits.map((unit) => Math.max(720, Math.floor((DOCX_CONTENT_WIDTH_TWIP * unit) / totalUnits)));
+        };
+        const cell = (value, header = false, widthTwip = null) => new TableCell({
+            width: widthTwip ? { size: widthTwip, type: WidthType.DXA } : undefined,
             shading: header ? { fill: '1F4E78' } : undefined,
             margins: { top: 90, bottom: 90, left: 100, right: 100 },
             children: String(value || '-').split('\n').map((line) => new Paragraph({ children: [new TextRun({ text: line || '-', bold: header, color: header ? 'FFFFFF' : '000000', size: 20 })] })),
         });
-        const table = (headers, rows) => new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+        const table = (headers, rows, columnUnits = []) => {
+            const widths = normalizeColumnWidths(headers, columnUnits);
+            return new Table({
+            width: { size: DOCX_CONTENT_WIDTH_TWIP, type: WidthType.DXA },
+            layout: TableLayoutType.FIXED,
+            columnWidths: widths,
             borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border },
             rows: [
-                new TableRow({ tableHeader: true, children: headers.map((header) => cell(header, true)) }),
-                ...rows.map((row) => new TableRow({ children: row.map((value) => cell(value)) })),
+                new TableRow({ tableHeader: true, children: headers.map((header, index) => cell(header, true, widths[index])) }),
+                ...rows.map((row) => new TableRow({ children: row.map((value, index) => cell(value, false, widths[index])) })),
             ],
+            });
+        };
+        const styledCell = (value, { widthTwip = null, fill = null, bold = false, leftMargin = 100, indentLeft = 0 } = {}) => new TableCell({
+            width: widthTwip ? { size: widthTwip, type: WidthType.DXA } : undefined,
+            shading: fill ? { fill } : undefined,
+            margins: { top: 90, bottom: 90, left: leftMargin, right: 100 },
+            children: String(value || '-').split('\n').map((line) => new Paragraph({
+                indent: indentLeft ? { left: indentLeft } : undefined,
+                children: [new TextRun({ text: line || '-', bold, color: '000000', size: 20 })],
+            })),
         });
+        const academicHierarchyTable = (rows, columnUnits = []) => {
+            const headers = ['Type', 'Name and Description', 'Status', 'Due Date', 'Teacher Feedback'];
+            const widths = normalizeColumnWidths(headers, columnUnits);
+            return new Table({
+                width: { size: DOCX_CONTENT_WIDTH_TWIP, type: WidthType.DXA },
+                layout: TableLayoutType.FIXED,
+                columnWidths: widths,
+                borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border },
+                rows: [
+                    new TableRow({ tableHeader: true, children: headers.map((header, index) => cell(header, true, widths[index])) }),
+                    ...rows.map((row) => {
+                        const isTaskRow = row.level === 'task';
+                        const isGroupRow = row.level === 'group';
+                        const fill = isTaskRow ? 'F4F7FB' : (isGroupRow ? 'E6EEF7' : null);
+                        return new TableRow({
+                            children: row.values.map((value, index) => styledCell(value, {
+                                widthTwip: widths[index],
+                                fill,
+                                bold: isGroupRow || (!isTaskRow && index === 0),
+                                leftMargin: isTaskRow && index === 1 ? 200 : 100,
+                                indentLeft: isTaskRow && index === 1 ? 240 : 0,
+                            })),
+                        });
+                    }),
+                ],
+            });
+        };
         const heading = (value, level = HeadingLevel.HEADING_1) => new Paragraph({ text: value, heading: level, spacing: { before: 240, after: 120 } });
+        const divider = () => new Paragraph({
+            border: { top: { style: BorderStyle.SINGLE, size: 6, color: 'B8C4CE' } },
+            spacing: { before: 180, after: 180 },
+        });
         const studentName = `${text(record.student?.firstName, '')} ${text(record.student?.lastName, '')}`.trim() || 'Student';
         const teacherName = `${text(record.teacher?.firstName, '')} ${text(record.teacher?.lastName, '')}`.trim() || 'Not recorded';
         const positiveEvidence = evidence.filter((item) => POSITIVE_EVIDENCE_TYPES.includes(item.type));
@@ -968,6 +1045,77 @@ export const exportRecordDocx = asyncHandler(async (req, res) => {
             counts[name] = (counts[name] || 0) + 1;
             return counts;
         }, {});
+
+        const taskRowsByGoalId = tasks.reduce((acc, task) => {
+            const goalId = String(task?.plpGoal?._id || task?.plpGoal || '').trim();
+            if (!goalId) return acc;
+            if (!acc.has(goalId)) acc.set(goalId, []);
+            acc.get(goalId).push(task);
+            return acc;
+        }, new Map());
+
+        const usedGoalIds = new Set();
+        const academicHierarchyRows = [];
+
+        goals.forEach((goal) => {
+            const goalId = String(goal?._id || '').trim();
+            if (goalId) usedGoalIds.add(goalId);
+
+            const goalTextParts = [text(goal.title), text(goal.description, '')].filter(Boolean);
+            academicHierarchyRows.push({
+                level: 'goal',
+                values: [
+                    'Goal',
+                    goalTextParts.join('\n'),
+                    statusLabel(goal.status),
+                    date(goal.targetDate),
+                    text(goal.teacherProgressNote, 'No feedback recorded this round'),
+                ],
+            });
+
+            const linkedTasks = goalId ? (taskRowsByGoalId.get(goalId) || []) : [];
+            linkedTasks.forEach((task) => {
+                const taskTextParts = [text(task.title), text(task.instructions, '')].filter(Boolean);
+                const taskFeedback = [text(task.teacherFeedback, ''), text(task.teacherFollowUpAction, '')].filter(Boolean).join('\n');
+                academicHierarchyRows.push({
+                    level: 'task',
+                    values: [
+                        'Task',
+                        taskTextParts.join('\n'),
+                        statusLabel(task.status),
+                        date(task.dueDate),
+                        taskFeedback || 'No feedback recorded this round',
+                    ],
+                });
+            });
+        });
+
+        const unassignedTaskRows = [];
+        tasks.forEach((task) => {
+            const goalId = String(task?.plpGoal?._id || task?.plpGoal || '').trim();
+            if (goalId && usedGoalIds.has(goalId)) return;
+            const taskTextParts = [text(task.title), text(task.instructions, '')].filter(Boolean);
+            const taskFeedback = [text(task.teacherFeedback, ''), text(task.teacherFollowUpAction, '')].filter(Boolean).join('\n');
+            unassignedTaskRows.push({
+                level: 'task',
+                values: [
+                    'Task',
+                    taskTextParts.join('\n'),
+                    statusLabel(task.status),
+                    date(task.dueDate),
+                    taskFeedback || 'No feedback recorded this round',
+                ],
+            });
+        });
+
+        if (unassignedTaskRows.length > 0) {
+            academicHierarchyRows.push({
+                level: 'group',
+                values: ['Group', 'Unassigned Tasks', '-', '-', 'No goal is linked for these tasks'],
+            });
+            academicHierarchyRows.push(...unassignedTaskRows);
+        }
+
         const storedScores = toPlainTraitScoreEntries(record.traitScoreEntries);
         const legacyFields = buildRecordScoreFieldByTraitId({ record, activeTraits: traits });
         const scoreRows = traits.map((trait) => {
@@ -976,27 +1124,22 @@ export const exportRecordDocx = asyncHandler(async (req, res) => {
             return [titleCase(trait.name), saved ?? legacy];
         }).filter(([, score]) => score !== null && score !== undefined);
         const sections = [
-            new Paragraph({ text: text(school?.name, 'School'), heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }),
-            new Paragraph({ text: 'Personal Learning Portfolio Report', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, spacing: { after: 240 } }),
+            // new Paragraph({ text: text(school?.name, 'School'), heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }),
+            new Paragraph({ text: 'PLP Report', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, spacing: { after: 240 } }),
             heading('Student Information'),
-            table(['Field', 'Value'], [['Student', studentName], ['Student ID', record.student?.studentId], ['Class', record.class?.name], ['Academic Year', record.academicYear], ['Round', record.cycle?.title || `Month ${record.month}`], ['Teacher', teacherName]]),
-            heading('Social-Emotional Development'),
-            table(['Character Trait', 'Observed Indicators'], Object.keys(traitTallies).length ? Object.entries(traitTallies).map(([trait, count]) => [trait, `${count} positive observation${count === 1 ? '' : 's'} recorded`]) : [['No evidence recorded this round.', 'No positive observations recorded.']]),
-            table(['Trait', 'Type', 'Observable Indicator', 'Date'], evidence.length ? evidence.map((item) => [titleCase(item.traitId?.name), String(item.type || 'observation').replace('_', ' '), text(item.note), date(item.createdAt)]) : [['No evidence recorded this round.', '-', '-', '-']]),
+            table(['Field', 'Value'], [['Student', studentName], ['Student ID', record.student?.studentId], ['Class', record.class?.name], ['Academic Year', record.academicYear], ['Round', record.cycle?.title || `Month ${record.month}`], ['Teacher', teacherName]], [30, 70]),
+            heading('Character / Social-Emotional Development'),
+            table(['Character Trait', 'Observed Indicators'], Object.keys(traitTallies).length ? Object.entries(traitTallies).map(([trait, count]) => [trait, `${count} positive observation${count === 1 ? '' : 's'} recorded`]) : [['No evidence recorded this round.', 'No positive observations recorded.']], [35, 65]),
+            table(['Trait', 'Type', 'Observable Indicator', 'Date'], evidence.length ? evidence.map((item) => [titleCase(item.traitId?.name), String(item.type || 'observation').replace('_', ' '), text(item.note), date(item.createdAt)]) : [['No evidence recorded this round.', '-', '-', '-']], [18, 14, 48, 20]),
             heading('Trait Score Breakdown'),
-            table(['Trait', 'Score'], scoreRows.length ? scoreRows.map(([trait, score]) => [trait, Number(score).toFixed(1)]) : [['No trait scores saved this round.', '-']]),
-            heading('Teacher Feedback'),
-            table(['Affirmation', 'Challenge'], [[positiveEvidence.slice(0, 3).map((item) => text(item.note)).join('\n') || 'Progress has been noted in the student portfolio.', goals.map((goal) => text(goal.teacherProgressNote, '') || text(goal.successCriteria, '') || `Continue working toward: ${text(goal.title)}`).filter(Boolean).join('\n') || 'Continue working toward the active goals.']]),
-            heading('Goals and Teacher Feedback'),
-            table(['Category', 'Goal', 'Status', 'Due Date'], goals.length ? goals.map((goal) => [titleCase(goal.goalType), text(goal.title), titleCase(goal.status).replace('_', ' '), date(goal.targetDate)]) : [['No goals recorded this round.', '-', '-', 'No due date']]),
-            heading('Academic Effort'),
-            table(['Current Level', 'Overall Score'], [[titleCase(record.level), Number(record.weightedScore || 0).toFixed(1)]]),
+            table(['Trait', 'Score'], scoreRows.length ? scoreRows.map(([trait, score]) => [trait, Number(score).toFixed(1)]) : [['No trait scores saved this round.', '-']], [72, 28]),
+            divider(),
+            heading('Academic Goals & Tasks'),
+            academicHierarchyTable(academicHierarchyRows.length ? academicHierarchyRows : [{
+                level: 'group',
+                values: ['Group', 'No goals or tasks recorded this round.', '-', '-', 'No feedback recorded this round'],
+            }], [10, 42, 14, 14, 20]),
         ];
-        const academicGoals = goals.filter((goal) => goal.goalType === 'academic');
-        if (academicGoals.length) {
-            sections.push(heading('Academic Goals', HeadingLevel.HEADING_2));
-            sections.push(table(['Observed Strength', 'Growth Goal', 'Comment on Previous Goal'], academicGoals.map((goal) => [text(goal.teacherProgressNote, 'Progress is being monitored.'), text(goal.title), text(goal.successCriteria, 'No previous-goal comment recorded.')] )));
-        }
         const doc = new Document({
             styles: { default: { document: { run: { font: 'Aptos', size: 20 } }, heading1: { run: { font: 'Aptos Display', color: '1F4E78', bold: true } } } },
             sections: [{
@@ -1181,9 +1324,12 @@ export const createRecord = asyncHandler(async (req, res) => {
     if (cycleId && !cycle) {
         return res.status(400).json({ success: false, message: 'Selected PLP round is invalid' });
     }
-    const resolvedMonth = cycle?.startDate
-        ? (new Date(cycle.startDate).getMonth() + 1)
-        : (Number.isInteger(Number(month)) ? Number(month) : ((new Date()).getMonth() + 1));
+    const cycleStartMonth = cycle?.startDate ? (new Date(cycle.startDate).getMonth() + 1) : null;
+    const defaultMonth = cycleStartMonth || ((new Date()).getMonth() + 1);
+    const resolvedMonth = normalizeMonthOrFallback(month, defaultMonth);
+    if (month !== undefined && month !== null && month !== '' && !normalizeMonthOrFallback(month, null)) {
+        return res.status(400).json({ success: false, message: 'Month must be between 1 and 12' });
+    }
     const config = await PlpMonthConfig.findOne({
         school: req.user.school, academicYear, month: resolvedMonth, status: 'published',
     });
@@ -1333,11 +1479,16 @@ export const updateRecord = asyncHandler(async (req, res) => {
             return res.status(400).json({ success: false, message: 'Only published PLP rounds can be assigned to a record' });
         }
         updateData.cycle = cycle?._id || null;
-        updateData.month = cycle?.startDate
-            ? new Date(cycle.startDate).getMonth() + 1
-            : (Number.isInteger(Number(month)) ? Number(month) : existing.month);
+        if (month !== undefined && month !== null && month !== '' && !normalizeMonthOrFallback(month, null)) {
+            return res.status(400).json({ success: false, message: 'Month must be between 1 and 12' });
+        }
+        updateData.month = normalizeMonthOrFallback(month, existing.month);
     } else if (month !== undefined) {
-        updateData.month = Number(month);
+        const normalizedMonth = normalizeMonthOrFallback(month, null);
+        if (!normalizedMonth) {
+            return res.status(400).json({ success: false, message: 'Month must be between 1 and 12' });
+        }
+        updateData.month = normalizedMonth;
     }
 
     if (theme !== undefined) updateData.theme = theme;
@@ -1766,13 +1917,14 @@ export const createEvidence = asyncHandler(async (req, res) => {
     await assertRecordWriteAccess(req.user, record);
 
     const { type, note, taggedTraits, traitId, source, aiConfidence, aiRationale, reviewStatus } = req.body;
-    const cleanNote = String(note || '').trim();
-    if (!cleanNote) {
+    const noteInput = String(note || '').trim();
+    if (!noteInput) {
         return res.status(400).json({ success: false, message: 'Evidence note is required' });
     }
-    if (cleanNote.length > 1000) {
+    if (noteInput.length > 1000) {
         return res.status(400).json({ success: false, message: 'Evidence note must be 1000 characters or fewer' });
     }
+    const cleanNote = await proofreadEvidenceNote(noteInput);
     const evidence = await PlpEvidence.create({
         school: req.user.school,
         plpRecord: id,
@@ -1949,6 +2101,11 @@ export const createQuickObservation = asyncHandler(async (req, res) => {
         reviewStatus = resolvedTrait ? 'confirmed' : 'needs_review';
     }
 
+    resolvedNote = await proofreadEvidenceNote(resolvedNote || noteInput);
+    if (!resolvedNote) {
+        return res.status(400).json({ success: false, message: 'Evidence note is required' });
+    }
+
     const allowedEvidenceTypes = ['observation', 'incident', 'positive_example', 'reflection'];
     if (!allowedEvidenceTypes.includes(resolvedEvidenceType)) {
         resolvedEvidenceType = 'observation';
@@ -2092,10 +2249,10 @@ export const updateEvidence = asyncHandler(async (req, res) => {
     const { type, note, traitId } = req.body;
     const updates = {};
     if (note !== undefined) {
-        const cleanNote = String(note || '').trim();
-        if (!cleanNote) return res.status(400).json({ success: false, message: 'Evidence note is required' });
-        if (cleanNote.length > 1000) return res.status(400).json({ success: false, message: 'Evidence note must be 1000 characters or fewer' });
-        updates.note = cleanNote;
+        const noteInput = String(note || '').trim();
+        if (!noteInput) return res.status(400).json({ success: false, message: 'Evidence note is required' });
+        if (noteInput.length > 1000) return res.status(400).json({ success: false, message: 'Evidence note must be 1000 characters or fewer' });
+        updates.note = await proofreadEvidenceNote(noteInput);
     }
     if (type !== undefined) {
         const allowedTypes = ['observation', 'incident', 'positive_example', 'reflection'];

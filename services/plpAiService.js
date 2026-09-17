@@ -34,6 +34,34 @@ const clampScore = (value) => {
     return Math.max(0, Math.min(5, rounded));
 };
 
+const formatObservationTextFallback = (value) => {
+    const compact = String(value || '')
+        .replace(/\s+/g, ' ')
+        .replace(/\s+([,.;:!?])/g, '$1')
+        .trim();
+    if (!compact) return '';
+
+    const typoRules = [
+        [/\becouraging\b/gi, 'encouraging'],
+        [/\byouo\b/gi, 'you'],
+        [/\byour did\b/gi, 'you did'],
+        [/\bteh\b/gi, 'the'],
+        [/\brecieve\b/gi, 'receive'],
+        [/\bseperate\b/gi, 'separate'],
+        [/\bstudnets\b/gi, 'students'],
+        [/\bwich\b/gi, 'which'],
+        [/\bthier\b/gi, 'their'],
+    ];
+
+    let corrected = compact;
+    for (const [pattern, replacement] of typoRules) {
+        corrected = corrected.replace(pattern, replacement);
+    }
+
+    const sentenceCased = corrected.replace(/(^|[.!?]\s+)([a-z])/g, (match, prefix, letter) => `${prefix}${letter.toUpperCase()}`);
+    return sentenceCased;
+};
+
 const toEvidenceEntry = (item) => ({
     evidenceType: normalizeEvidenceType(item?.evidenceType || item?.type),
     structuredNote: String(item?.structuredNote || item?.note || '').trim().slice(0, 600),
@@ -42,6 +70,45 @@ const toEvidenceEntry = (item) => ({
 });
 
 class PlpAiService {
+    async proofreadObservationText(rawText) {
+        const cleanText = String(rawText || '').trim();
+        if (!cleanText) return '';
+
+        const prompt = `You are proofreading a teacher observation note.
+
+Original note:
+"""
+${cleanText}
+"""
+
+Rules:
+1) Return STRICT JSON only.
+2) Fix grammar, spelling, capitalization, and punctuation.
+3) Preserve the original meaning and details; do not invent new facts.
+4) Keep the same point of view and classroom context.
+5) Keep the note concise and professional.
+
+Required JSON schema:
+{
+  "proofreadText": "string"
+}`;
+
+        try {
+            const aiResult = await aiService.generateStructuredJson({
+                prompt,
+                modelName: process.env.PLP_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+                maxRetries: 1,
+            });
+            const proofreadText = String(aiResult?.parsed?.proofreadText || '').trim();
+            if (!proofreadText) {
+                return formatObservationTextFallback(cleanText).slice(0, 1000);
+            }
+            return formatObservationTextFallback(proofreadText).slice(0, 1000);
+        } catch {
+            return formatObservationTextFallback(cleanText).slice(0, 1000);
+        }
+    }
+
     async classifyObservation(rawText, availableTraits = [], studentContext = {}) {
         const cleanText = String(rawText || '').trim();
         if (!cleanText) {
