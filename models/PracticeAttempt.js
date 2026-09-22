@@ -28,7 +28,7 @@ const practiceAttemptSchema = new mongoose.Schema(
       ref: "PracticeSession",
       default: null,
     },
-    // Question details (AI-generated)
+    // Question details
     instruction: {
       type: String,
       default: null,
@@ -66,7 +66,7 @@ const practiceAttemptSchema = new mongoose.Schema(
       type: Boolean,
       default: null,
     },
-    // AI evaluation feedback
+    // Automated or teacher-review feedback
     explanation: {
       type: String,
     },
@@ -132,7 +132,7 @@ const practiceAttemptSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    // Teacher override — allows teacher to correct AI grading mistakes
+    // Teacher override — allows teachers to score manually reviewed responses
     teacherOverride: {
       isCorrect: { type: Boolean, default: null },
       overriddenBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -160,7 +160,7 @@ const practiceAttemptSchema = new mongoose.Schema(
     // Status
     status: {
       type: String,
-      enum: ["pending", "answered", "skipped"],
+      enum: ["pending", "pending_review", "answered", "skipped"],
       default: "pending",
     },
   },

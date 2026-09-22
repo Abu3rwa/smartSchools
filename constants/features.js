@@ -169,6 +169,12 @@ export const FEATURES = {
         label: 'Social Studies',
         description: 'Standalone Social Studies curriculum with units, block-based lessons, questions, and class assignments that auto-post to the gradebook.',
         plans: ['starter', 'professional', 'enterprise']
+    },
+    mapTestPrep: {
+        key: 'mapTestPrep',
+        label: 'MAP Test Prep',
+        description: 'Use MAP PDF results to build teacher-reviewed preparation plans and practice rounds.',
+        plans: ['professional', 'enterprise']
     }
 };
 

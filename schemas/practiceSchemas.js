@@ -144,7 +144,8 @@ export const generateQuestionResponseSchema = z.object({
 });
 
 export const submitAnswerResponseSchema = z.object({
-    isCorrect: z.boolean(),
+    isCorrect: z.boolean().nullable(),
+    requiresTeacherReview: z.boolean().optional(),
     correctAnswer: z.string(),
     correctAnswerDisplay: z.string().nullable().optional(),
     explanation: z.string().nullable().optional(),

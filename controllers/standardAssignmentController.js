@@ -4,6 +4,14 @@ import Standard from '../models/Standard.js';
 import Subject from '../models/Subject.js';
 import Student from '../models/Student.js';
 import PracticeAttempt from '../models/PracticeAttempt.js';
+import PracticeSession from '../models/PracticeSession.js';
+import PracticeIntegrityEvent from '../models/PracticeIntegrityEvent.js';
+import StandardsGradebookEntry from '../models/StandardsGradebookEntry.js';
+import ReviewTask from '../models/ReviewTask.js';
+import InterventionCase from '../models/InterventionCase.js';
+import AssessmentAuditLog from '../models/AssessmentAuditLog.js';
+import AssessmentRevision from '../models/AssessmentRevision.js';
+import GrammarTest from '../models/GrammarTest.js';
 import Class from '../models/Class.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { resolveTeacherProfile, isTeacherAuthorizedForClassSubject, getTeacherClassIds } from '../helpers/teacherScoping.js';
@@ -860,12 +868,24 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         updates.practiceConfig?.sessionType
         || assignment.practiceConfig?.sessionType
         || 'practice';
+    const previousSessionType = assignment.practiceConfig?.sessionType || 'practice';
     const requiresReviewedPoolBeforeAccess = effectiveSessionType === 'assessment';
     updates.questionWorkflow = {
         ...(assignment.questionWorkflow?.toObject?.() || assignment.questionWorkflow || {}),
         ...(updates.questionWorkflow || {}),
         requireApprovalBeforeStudentAccess: requiresReviewedPoolBeforeAccess
     };
+
+    if (updates.practiceConfig?.sessionType && updates.practiceConfig.sessionType !== previousSessionType) {
+        await PracticeSession.updateMany(
+            {
+                school: req.schoolId,
+                assignment: assignment._id,
+                status: 'active'
+            },
+            { $set: { sessionType: updates.practiceConfig.sessionType } }
+        );
+    }
 
     assignment = await StandardAssignment.findByIdAndUpdate(req.params.id, updates, {
         new: true,
@@ -1417,7 +1437,7 @@ export const publishAssignmentQuestionPool = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Delete assignment (soft delete)
+ * @desc    Permanently delete an assignment and its dependent records
  * @route   DELETE /api/standard-assignments/:id
  * @access  Private (Admin, Teacher)
  */
@@ -1443,11 +1463,27 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
         }
     }
 
-    assignment.isActive = false;
-    await assignment.save();
+    const assignmentFilter = {
+        school: req.schoolId,
+        assignment: assignment._id
+    };
+
+    await Promise.all([
+        StandardQuestionPool.deleteMany(assignmentFilter),
+        PracticeAttempt.deleteMany(assignmentFilter),
+        PracticeSession.deleteMany(assignmentFilter),
+        PracticeIntegrityEvent.deleteMany(assignmentFilter),
+        StandardsGradebookEntry.deleteMany(assignmentFilter),
+        ReviewTask.deleteMany(assignmentFilter),
+        InterventionCase.deleteMany(assignmentFilter),
+        AssessmentAuditLog.deleteMany(assignmentFilter),
+        AssessmentRevision.deleteMany(assignmentFilter),
+        GrammarTest.deleteMany({ school: req.schoolId, linkedAssignment: assignment._id }),
+        StandardAssignment.deleteOne({ _id: assignment._id, school: req.schoolId })
+    ]);
 
     res.json({
         success: true,
-        message: 'Assignment removed successfully'
+        message: 'Assignment and related records permanently deleted'
     });
 });

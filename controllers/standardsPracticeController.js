@@ -16,7 +16,6 @@ import { scheduleFromAttempt } from "../services/reviewSchedulerService.js";
 import { upsertInterventionCase } from "../services/interventionQueueService.js";
 import notificationService from "../services/notificationService.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
-import { logAIUsage } from "../utils/aiUsageTracker.js";
 import logger from "../utils/logger.js";
 import { percentageToScaleLevel, isValidManualScore, computeEffectiveScore, SCALE_LEVELS } from "../utils/sbrScaleUtils.js";
 import {
@@ -30,7 +29,6 @@ import {
   isTeacherAuthorizedForClassSubject,
   resolveTeacherProfile,
 } from "../helpers/teacherScoping.js";
-import { resolveRequestedLanguages } from "../utils/aiLanguageUtils.js";
 import {
   QUESTION_TYPES,
   DIFFICULTIES,
@@ -1457,12 +1455,6 @@ export const generateQuestion = asyncHandler(async (req, res) => {
     recentAttempts: recentAttempts.slice(0, ACCURACY_WINDOW),
   });
 
-  const subjectName = assignment.subject?.name || "General Studies";
-  const generationLanguages = resolveRequestedLanguages({
-    requestedLanguages: assignment?.questionWorkflow?.aiLanguages,
-    subjectName,
-    max: 2,
-  });
   const grammarLevelingEnabled = Boolean(practiceConfig.enableGrammarLeveling);
   const grammarLevels = grammarLevelingEnabled
     ? normalizeGrammarLevels(practiceConfig.grammarLevels, { fallbackAll: true })
@@ -1500,14 +1492,6 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       seed: `${assignment._id}|${attemptCount + 1}|pool`,
     });
   } else {
-    const preferredTrueFalseAnswer =
-      effectiveQuestionType === "true_false"
-        ? resolvePreferredTrueFalseAnswer(
-            recentAttempts.slice(0, ACCURACY_WINDOW),
-            attemptCount + 1
-          )
-        : null;
-
     if (grammarLevelingEnabled) {
       const preferredLevel =
         grammarLevels.length > 0
@@ -1522,43 +1506,10 @@ export const generateQuestion = asyncHandler(async (req, res) => {
         seed: `${assignment._id}|${student._id}|${attemptCount + 1}|runtime`,
       });
     } else {
-      // Legacy fallback path for older assignments without question workflow.
-      const generationQuestions = [...previousQuestions];
-      const generationFingerprints = [...previousQuestionFingerprints];
-      for (let generationAttempt = 0; generationAttempt < 3; generationAttempt += 1) {
-        const candidate = await standardsPracticeAIService.generateQuestion({
-          standard: assignment.standard,
-          subjectName,
-          requestedLanguages: generationLanguages,
-          difficulty: effectiveDifficulty,
-          questionType: effectiveQuestionType,
-          trueFalseTargetAnswer: preferredTrueFalseAnswer,
-          previousQuestions: generationQuestions,
-          previousQuestionFingerprints: generationFingerprints,
-          recentAttempts: sessionAttempts.slice(0, 12),
-          studentFirstName: student.firstName || "",
-          contextHints: {
-            recentTopics: sessionContext.recentTopics,
-            recentMistakes: sessionContext.recentMistakes,
-            confidenceHint: sessionContext.confidenceHint,
-          },
-          attemptNumber: attemptCount + 1 + generationAttempt,
-        });
-
-        if (!hasDuplicateMultipleChoiceOptions(candidate)) {
-          question = candidate;
-          break;
-        }
-
-        generationQuestions.push(candidate.questionText || "");
-        generationFingerprints.push(buildQuestionFingerprint(candidate.questionText || ""));
-        logger.warn("practice_duplicate_mcq_options_regenerated", {
-          schoolId: req.schoolId,
-          assignmentId: assignment._id,
-          studentId: student._id,
-          generationAttempt: generationAttempt + 1,
-        });
-      }
+      return res.status(403).json({
+        success: false,
+        message: "This practice requires a teacher-published question pool.",
+      });
     }
 
     if (!question) {
@@ -1568,29 +1519,6 @@ export const generateQuestion = asyncHandler(async (req, res) => {
       });
     }
 
-    if (question.tokenUsage && question.tokenUsage.total > 0) {
-      await logAIUsage({
-        model: "gemini-2.5-flash-lite",
-        feature: "practice_question",
-        schoolId: req.schoolId,
-        userId: req.user._id,
-        studentId: student._id,
-        entityType: "StandardAssignment",
-        entityId: assignment._id,
-        metadata: {
-          questionType: effectiveQuestionType,
-          difficulty: effectiveDifficulty,
-          standardId: assignment.standard._id,
-          trueFalseTargetAnswer: preferredTrueFalseAnswer,
-          generationLanguages,
-        },
-        response: {
-          inputtokenCount: question.tokenUsage.input,
-          outputtokenCount: question.tokenUsage.output,
-          totalTokenCount: question.tokenUsage.total,
-        },
-      });
-    }
   }
 
   question = sanitizeServedMultipleChoiceQuestion(question, {
@@ -1760,52 +1688,30 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     .lean();
   const recentPerformance = computeRecentPerformance(recentAnsweredAttempts);
 
-  // Evaluate the answer
-  const evaluation = await standardsPracticeAIService.evaluateAnswer({
-    questionText: attempt.questionText,
-    correctAnswer: attempt.correctAnswer,
-    studentAnswer: answer,
-    questionType: attempt.questionType,
-    standard: attempt.standard,
-    questionOptions: attempt.options || [],
-    studentFirstName: student.firstName || "",
-    subjectName: attempt.assignment?.subject?.name || "",
-    requestedLanguages: resolveRequestedLanguages({
-      requestedLanguages: attempt.assignment?.questionWorkflow?.aiLanguages,
-      subjectName: attempt.assignment?.subject?.name || "",
-      max: 2,
-    }),
-    gradeLevel: attempt.standard?.gradeLevel || null,
-    difficulty: attempt.difficulty || "medium",
-    attemptNumber: attempt.attemptNumber || 1,
-    recentPerformance,
-    gradingMode: attempt.gradingMode || "conceptual",
-    acceptableAnswers: attempt.acceptableAnswers || [],
-    evaluationCriteria: attempt.evaluationCriteria || "",
-  });
-
-  if (evaluation.tokenUsage && evaluation.tokenUsage.total > 0) {
-    await logAIUsage({
-      model: "gemini-2.5-flash-lite",
-      feature: "practice_evaluate_answer",
-      schoolId: req.schoolId,
-      userId: req.user._id,
-      studentId: student._id,
-      entityType: "PracticeAttempt",
-      entityId: attempt._id,
-      metadata: {
+  const requiresTeacherReview = attempt.questionType === "short_answer";
+  const evaluation = requiresTeacherReview
+    ? {
+        isCorrect: null,
+        feedback: "Your answer has been submitted for teacher review.",
+        feedbackParts: null,
+      }
+    : await standardsPracticeAIService.evaluateAnswer({
+        questionText: attempt.questionText,
+        correctAnswer: attempt.correctAnswer,
+        studentAnswer: answer,
         questionType: attempt.questionType,
-        difficulty: attempt.difficulty,
-        isCorrect: evaluation.isCorrect,
-        standardId: attempt.standard._id,
-      },
-      response: {
-        inputtokenCount: evaluation.tokenUsage.input,
-        outputtokenCount: evaluation.tokenUsage.output,
-        totalTokenCount: evaluation.tokenUsage.total,
-      },
-    });
-  }
+        standard: attempt.standard,
+        questionOptions: attempt.options || [],
+        studentFirstName: student.firstName || "",
+        subjectName: attempt.assignment?.subject?.name || "",
+        gradeLevel: attempt.standard?.gradeLevel || null,
+        difficulty: attempt.difficulty || "medium",
+        attemptNumber: attempt.attemptNumber || 1,
+        recentPerformance,
+        gradingMode: attempt.gradingMode || "conceptual",
+        acceptableAnswers: attempt.acceptableAnswers || [],
+        evaluationCriteria: attempt.evaluationCriteria || "",
+      });
 
   // Update the attempt
   attempt.studentAnswer = answer;
@@ -1815,7 +1721,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
   attempt.answeredAt = new Date();
   attempt.timeSpentSeconds = timeSpentSeconds || 0;
   attempt.hintsUsed = hintsUsed != null ? Math.max(0, Number(hintsUsed)) : 0;
-  attempt.status = "answered";
+  attempt.status = requiresTeacherReview ? "pending_review" : "answered";
   await attempt.save();
 
   // Recalculate mastery and persist (sticky mastery, lifetime stats)
@@ -1954,6 +1860,7 @@ export const submitAnswer = asyncHandler(async (req, res) => {
 
   const payload = submitAnswerResponseSchema.parse({
     isCorrect: evaluation.isCorrect,
+    requiresTeacherReview,
     correctAnswer: attempt.correctAnswer,
     correctAnswerDisplay,
     explanation: attempt.explanation || null,
@@ -4347,6 +4254,10 @@ export const overrideAttemptGrading = asyncHandler(async (req, res) => {
     overriddenAt: new Date(),
     reason: reason || "",
   };
+  if (attempt.status === "pending_review") {
+    attempt.isCorrect = isCorrect;
+    attempt.status = "answered";
+  }
   await attempt.save();
 
   // If the override changed the correctness, recalculate mastery for this student+standard
@@ -4420,7 +4331,7 @@ export const getStudentAssessmentAttempts = asyncHandler(async (req, res) => {
     school: req.schoolId,
     student: studentId,
     assignment: assignmentId,
-    status: "answered",
+    status: { $in: ["answered", "pending_review"] },
   })
     .select("questionText questionType options correctAnswer studentAnswer isCorrect feedback feedbackParts difficulty skill attemptNumber timeSpentSeconds answeredAt teacherOverride gradingMode")
     .sort({ attemptNumber: 1 })

@@ -144,6 +144,18 @@ const schoolSchema = new mongoose.Schema({
                 onTaskAssigned: { type: Boolean, default: true },
             }
         },
+        mapTestPrep: {
+            enabled: { type: Boolean, default: false },
+            teacherPdfUploadEnabled: { type: Boolean, default: true },
+            requireExtractionReview: { type: Boolean, default: true },
+            requireQuestionApproval: { type: Boolean, default: true },
+            allowTeacherAiGrading: { type: Boolean, default: true },
+            defaultQuestionCount: { type: Number, min: 1, max: 50, default: 10 },
+            maxQuestionCount: { type: Number, min: 1, max: 100, default: 50 },
+            maxPdfSizeMb: { type: Number, min: 1, max: 50, default: 15 },
+            showPercentilesToStudents: { type: Boolean, default: false },
+            retentionDays: { type: Number, min: 30, max: 3650, default: 730 }
+        },
         curriculum: {
             enabled: {
                 type: Boolean,

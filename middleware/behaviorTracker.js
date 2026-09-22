@@ -258,7 +258,7 @@ const logBehaviorEvent = async (req, additionalData = {}) => {
         
         // Determine event type and action based on request
         let eventType = 'api_request';
-        let action = `${method} ${path}`;
+        let action = `${method} ${path}`.slice(0, 100);
         let resourceType = null;
         let resourceId = null;
         

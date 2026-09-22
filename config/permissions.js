@@ -152,6 +152,22 @@ export const PERMISSIONS = {
     VIEW_ASSESSMENT_AUDIT_LOGS: 'view_assessment_audit_logs',
     EXPORT_ASSESSMENT_AUDIT_LOGS: 'export_assessment_audit_logs',
 
+    // MAP Test Prep
+    VIEW_MAP_TEST_PREP: 'view_map_test_prep',
+    CREATE_MAP_PREP_PLAN: 'create_map_prep_plan',
+    UPLOAD_MAP_PDF_DATA: 'upload_map_pdf_data',
+    ANALYZE_MAP_PREP_DATA: 'analyze_map_prep_data',
+    GENERATE_MAP_PREP_QUESTIONS: 'generate_map_prep_questions',
+    APPROVE_MAP_PREP_CONTENT: 'approve_map_prep_content',
+    PUBLISH_MAP_PREP_QUIZ: 'publish_map_prep_quiz',
+    VIEW_MAP_PREP_PROGRESS: 'view_map_prep_progress',
+    GRADE_MAP_SHORT_ANSWERS: 'grade_map_short_answers',
+    GRADE_MAP_SHORT_ANSWERS_WITH_AI: 'grade_map_short_answers_with_ai',
+    OVERRIDE_MAP_GRADING: 'override_map_grading',
+    RELEASE_MAP_REPORTS: 'release_map_reports',
+    VIEW_MAP_AI_AUDIT: 'view_map_ai_audit',
+    EXPORT_MAP_REPORTS: 'export_map_reports',
+
     // Finance & Fee Management
     MANAGE_FEE_STRUCTURES: 'manage_fee_structures',
     VIEW_FEE_STRUCTURES: 'view_fee_structures',
@@ -726,6 +742,36 @@ export const PERMISSION_DEFINITIONS = {
         description: 'Export assessment audit logs as CSV/PDF for compliance reporting',
         category: 'standards_assessment'
     },
+    [PERMISSIONS.VIEW_MAP_TEST_PREP]: {
+        label: 'View MAP Test Prep',
+        description: 'Open MAP Test Prep classes, students, and plans',
+        category: 'map_test_prep'
+    },
+    [PERMISSIONS.CREATE_MAP_PREP_PLAN]: {
+        label: 'Create MAP Preparation Plans',
+        description: 'Create and manage MAP preparation plans',
+        category: 'map_test_prep'
+    },
+    [PERMISSIONS.UPLOAD_MAP_PDF_DATA]: {
+        label: 'Upload MAP PDF Data',
+        description: 'Upload and confirm MAP PDF data for a selected student',
+        category: 'map_test_prep'
+    },
+    [PERMISSIONS.VIEW_MAP_PREP_PROGRESS]: {
+        label: 'View MAP Preparation Progress',
+        description: 'View MAP rounds, quizzes, and student progress',
+        category: 'map_test_prep'
+    },
+    [PERMISSIONS.GENERATE_MAP_PREP_QUESTIONS]: {
+        label: 'Generate MAP Preparation Questions',
+        description: 'Generate teacher-reviewable MAP practice question drafts',
+        category: 'map_test_prep'
+    },
+    [PERMISSIONS.GRADE_MAP_SHORT_ANSWERS_WITH_AI]: {
+        label: 'Grade MAP Short Answers With AI',
+        description: 'Request post-quiz AI grading suggestions for short answers',
+        category: 'map_test_prep'
+    },
 
     // Finance & Fee Management
     [PERMISSIONS.MANAGE_FEE_STRUCTURES]: {
@@ -935,6 +981,18 @@ export const ROLE_TO_PERMISSIONS = {
         PERMISSIONS.SEND_COMMUNICATION_EMAILS,
         PERMISSIONS.MESSAGE_OWN_STUDENTS,
         PERMISSIONS.MESSAGE_OWN_STUDENT_PARENTS,
+        PERMISSIONS.VIEW_MAP_TEST_PREP,
+        PERMISSIONS.CREATE_MAP_PREP_PLAN,
+        PERMISSIONS.UPLOAD_MAP_PDF_DATA,
+        PERMISSIONS.ANALYZE_MAP_PREP_DATA,
+        PERMISSIONS.GENERATE_MAP_PREP_QUESTIONS,
+        PERMISSIONS.APPROVE_MAP_PREP_CONTENT,
+        PERMISSIONS.PUBLISH_MAP_PREP_QUIZ,
+        PERMISSIONS.VIEW_MAP_PREP_PROGRESS,
+        PERMISSIONS.GRADE_MAP_SHORT_ANSWERS,
+        PERMISSIONS.GRADE_MAP_SHORT_ANSWERS_WITH_AI,
+        PERMISSIONS.OVERRIDE_MAP_GRADING,
+        PERMISSIONS.EXPORT_MAP_REPORTS,
         PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_STUDENT,
         PERMISSIONS.VIEW_ACADEMIC_EXCELLENCE_CLASS,
         PERMISSIONS.ASSIGN_ACADEMIC_EXCELLENCE_TASKS,

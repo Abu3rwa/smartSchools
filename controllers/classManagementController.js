@@ -18,7 +18,7 @@ import InterventionCase from '../models/InterventionCase.js';
 import AcademicExcellenceTask from '../models/AcademicExcellenceTask.js';
 import Grade from '../models/Grade.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { resolveTeacherProfile, getTeacherClassIds, getTeacherProfile } from '../helpers/teacherScoping.js';
+import { resolveTeacherProfile, getTeacherAssignments, getTeacherClassIds, getTeacherProfile } from '../helpers/teacherScoping.js';
 import { applyDepartmentScope, enforceDepartmentOnWrite } from '../helpers/departmentScope.js';
 import { runImportPipeline } from '../services/import/importPipeline.js';
 
@@ -191,7 +191,10 @@ export const getClass = asyncHandler(async (req, res) => {
         if (!teacherProfile) {
             return res.status(403).json({ success: false, message: 'Teacher profile not found' });
         }
-        const classIds = await getTeacherClassIds(teacherProfile._id);
+        const [classIds, teacherAssignments] = await Promise.all([
+            getTeacherClassIds(teacherProfile._id),
+            getTeacherAssignments(teacherProfile._id)
+        ]);
         if (!classIds.some(id => id.toString() === req.params.id)) {
             return res.status(403).json({
                 success: false,
@@ -199,11 +202,22 @@ export const getClass = asyncHandler(async (req, res) => {
             });
         }
 
-        // Filter subjects to only those assigned to this teacher
-        classData = classData.toObject();
-        classData.subjects = classData.subjects.filter(
-            s => s.teacher?._id?.toString() === teacherProfile._id.toString()
+        const isClassTeacher = classData.classTeacher?._id?.toString() === teacherProfile._id.toString();
+        const assignedSubjectIds = new Set(
+            teacherAssignments
+                .filter((assignment) => assignment.classId?.toString() === req.params.id)
+                .map((assignment) => assignment.subjectId?.toString())
+                .filter(Boolean)
         );
+
+        // Filter subjects to the teacher's assigned subjects, unless they lead the class.
+        classData = classData.toObject();
+        if (!isClassTeacher) {
+            classData.subjects = classData.subjects.filter((subjectAssignment) => (
+                subjectAssignment.teacher?._id?.toString() === teacherProfile._id.toString()
+                || assignedSubjectIds.has(subjectAssignment.subject?._id?.toString())
+            ));
+        }
     }
 
     // Get students in this class

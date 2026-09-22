@@ -16,6 +16,7 @@ import attendanceRequestTypeRoutes from './attendanceRequestTypeRoutes.js';
 import attendanceRequestRoutes from './attendanceRequestRoutes.js';
 import assignmentRoutes from './assignmentRoutes.js';
 import assignmentTypeRoutes from './assignmentTypeRoutes.js';
+import mapPrepRoutes from './mapPrepRoutes.js';
 
 export {
     authRoutes,
@@ -35,5 +36,6 @@ export {
     attendanceRequestTypeRoutes,
     attendanceRequestRoutes,
     assignmentRoutes,
-    assignmentTypeRoutes
+    assignmentTypeRoutes,
+    mapPrepRoutes
 };

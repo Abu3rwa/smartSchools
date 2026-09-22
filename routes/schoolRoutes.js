@@ -94,6 +94,21 @@ router.get('/me/current-academic-year', requireSchoolContext, asyncHandler(async
     });
 }));
 
+router.get('/me/map-test-prep-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.mapTestPrep');
+    if (!school) return res.status(404).json({ success: false, message: 'School not found' });
+    res.json({ success: true, data: { settings: school.settings?.mapTestPrep || {} } });
+}));
+
+router.put('/me/map-test-prep-settings', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const allowed = ['enabled', 'teacherPdfUploadEnabled', 'requireExtractionReview', 'requireQuestionApproval', 'allowTeacherAiGrading', 'defaultQuestionCount', 'maxQuestionCount', 'maxPdfSizeMb', 'showPercentilesToStudents', 'retentionDays'];
+    const updates = {};
+    allowed.forEach((key) => { if (req.body?.[key] !== undefined) updates[`settings.mapTestPrep.${key}`] = req.body[key]; });
+    const school = await School.findByIdAndUpdate(req.schoolId, { $set: updates }, { new: true, runValidators: true }).select('settings.mapTestPrep');
+    if (!school) return res.status(404).json({ success: false, message: 'School not found' });
+    res.json({ success: true, data: { settings: school.settings.mapTestPrep } });
+}));
+
 /**
  * @desc    Update school-wide academic year
  * @route   PUT /api/schools/me/current-academic-year
