@@ -14,8 +14,19 @@ const escapeHtml = (value) =>
         .replace(/'/g, '&#39;');
 
 const openPrintDocument = ({ title, htmlBody, isRtl = false }) => {
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=900');
-    if (!printWindow) return;
+    const printWindow = window.open('', '_blank', 'width=1200,height=900');
+    if (!printWindow || printWindow.closed) {
+        window.alert('Please allow pop-ups to print this report.');
+        return;
+    }
+    let hasPrinted = false;
+
+    const print = () => {
+        if (hasPrinted || printWindow.closed) return;
+        hasPrinted = true;
+        printWindow.focus();
+        printWindow.print();
+    };
 
     printWindow.document.write(`
         <!DOCTYPE html>
@@ -123,10 +134,10 @@ const openPrintDocument = ({ title, htmlBody, isRtl = false }) => {
     `);
 
     printWindow.document.close();
-    printWindow.focus();
+    printWindow.addEventListener('load', print, { once: true });
     setTimeout(() => {
-        printWindow.print();
-    }, 150);
+        print();
+    }, 500);
 };
 
 const EditableScale4Cell = ({ value, isManual, onSave }) => {

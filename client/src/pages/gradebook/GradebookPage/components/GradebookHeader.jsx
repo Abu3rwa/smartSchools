@@ -70,7 +70,9 @@ const GradebookHeader = ({
 
     const filteredClasses = useMemo(() => {
         if (!isEmbedded) return [];
-        let result = availableClasses;
+        let result = Array.from(
+            new Map(availableClasses.map((classItem) => [String(classItem._id), classItem])).values()
+        );
         if (selectedGrade) {
             result = result.filter((c) => c.grade === Number(selectedGrade));
         }

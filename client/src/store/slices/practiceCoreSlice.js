@@ -121,6 +121,9 @@ const practiceCoreSlice = createSlice({
                 state.submitting = false;
                 state.lastResult = action.payload;
                 state.currentQuestion = null;
+                if (action.payload.sessionComplete) {
+                    state.practiceStatus = 'session_complete';
+                }
                 state.sessionInfo = action.payload.session || state.sessionInfo;
                 state.sessionContext = action.payload.sessionContext || state.sessionContext;
                 state.studentFirstName = action.payload.studentFirstName || state.studentFirstName;

@@ -46,7 +46,7 @@ const PracticeInitialState = ({
                 style={{ width: '100%' }}
             >
                 <HiOutlineLightningBolt size={18} style={{ marginRight: 6 }} />
-                {isGenerating ? 'Loading...' : 'Start Question'}
+                Start Question
             </button>
 
             {/* {isAssessmentSession && combinedAsked > 0 && (

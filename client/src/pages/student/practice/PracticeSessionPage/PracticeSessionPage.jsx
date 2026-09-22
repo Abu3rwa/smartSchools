@@ -5,11 +5,9 @@ import PracticeSessionStats from './components/PracticeSessionStats';
 import StudentGuidanceCard from './components/StudentGuidanceCard';
 import PracticeErrorState from './components/PracticeErrorState';
 import PracticeInitialState from './components/PracticeInitialState';
-import PracticeLoadingState from './components/PracticeLoadingState';
 import PracticeSessionComplete from './components/PracticeSessionComplete';
 import PracticeQuestionCard from './components/PracticeQuestionCard';
 import PracticeAnswerForm from './components/PracticeAnswerForm';
-import PracticeResultFeedback from './components/PracticeResultFeedback';
 import './PracticeSessionPage.css';
 
 const PracticeSessionPage = () => {
@@ -106,8 +104,6 @@ const PracticeSessionPage = () => {
                 />
             )}
 
-            {generating && <PracticeLoadingState />}
-
             {(isMasteredResult || isSessionComplete) && !lastResult && !generating && (
                 <PracticeSessionComplete
                     isMastered={isMasteredResult}
@@ -147,15 +143,6 @@ const PracticeSessionPage = () => {
                 </PracticeQuestionCard>
             )}
 
-            {lastResult && (
-                <PracticeResultFeedback
-                    lastResult={lastResult}
-                    displayName={displayName}
-                    onNextQuestion={handleGenerate}
-                    onNavigateToPractice={() => navigate('/portal/practice')}
-                    isGenerating={generating}
-                />
-            )}
         </div>
     );
 };

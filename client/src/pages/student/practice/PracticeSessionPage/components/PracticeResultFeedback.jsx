@@ -10,23 +10,28 @@ const PracticeResultFeedback = ({
     const resultParts = lastResult?.feedbackParts || {};
     const answerDisplay = resultParts.displayAnswer || lastResult?.correctAnswerDisplay || lastResult?.correctAnswer;
     const quickExplanation = resultParts.explanation || resultParts.reasonSummary || lastResult?.explanation;
-    const resultHeading = lastResult?.isCorrect ? 'Correct!' : 'Incorrect';
+    const requiresTeacherReview = Boolean(lastResult?.requiresTeacherReview);
+    const resultHeading = requiresTeacherReview ? 'Submitted for Review' : lastResult?.isCorrect ? 'Correct!' : 'Incorrect';
     const conciseFeedback = resultParts.correctionOrConfirmation || lastResult?.feedback;
 
     return (
-        <div className={`result-card ${lastResult.isCorrect ? 'correct' : 'incorrect'}`}>
+        <div className={`result-card ${requiresTeacherReview ? '' : lastResult.isCorrect ? 'correct' : 'incorrect'}`}>
             <div className="result-icon">
-                {lastResult.isCorrect
+                {requiresTeacherReview
+                    ? <HiOutlineRefresh size={40} />
+                    : lastResult.isCorrect
                     ? <HiOutlineCheckCircle size={40} />
                     : <HiOutlineXCircle size={40} />
                 }
             </div>
             <h3>{resultHeading}</h3>
             <p className="result-feedback" style={{ marginBottom: 'var(--spacing-sm)' }}>
-                {lastResult?.isCorrect ? 'Your answer is correct.' : 'Your answer is not correct.'}
+                {requiresTeacherReview
+                    ? 'Your teacher will review and score your answer.'
+                    : lastResult?.isCorrect ? 'Your answer is correct.' : 'Your answer is not correct.'}
             </p>
 
-            <div className="result-details">
+            {!requiresTeacherReview && <div className="result-details">
                 <div className="result-section">
                     <p><span className="label">Best Answer</span></p>
                     <p>{answerDisplay || 'N/A'}</p>
@@ -50,7 +55,7 @@ const PracticeResultFeedback = ({
                         Session complete. Great work!
                     </p>
                 )}
-            </div>
+            </div>}
 
             {lastResult.mastery && (
                 <div style={{ marginBottom: 'var(--spacing-md)' }}>

@@ -100,6 +100,8 @@ const AssessmentProgressPage = lazy(() => import("./pages/standards/AssessmentPr
 const AssessmentNarrativePage = lazy(() => import("./pages/standards/AssessmentNarrativePage/AssessmentNarrativePage"));
 const AssessmentLiveEditPage = lazy(() => import("./pages/standards/AssessmentLiveEditPage/AssessmentLiveEditPage"));
 const AssessmentAuditPage = lazy(() => import("./pages/standards/AssessmentAuditPage/AssessmentAuditPage"));
+const MapTestPrepPage = lazy(() => import("./pages/mapTestPrep/MapTestPrepPage"));
+const StudentMapTestPrepPage = lazy(() => import("./pages/student/mapTestPrep/StudentMapTestPrepPage"));
 const CurriculumPage = lazy(() => import("./pages/curriculum/CurriculumPage"));
 const PracticeDashboardPage = lazy(() => import("./pages/student/practice/PracticeDashboardPage"));
 const PracticeSessionPage = lazy(() => import("./pages/student/practice/PracticeSessionPage"));
@@ -191,6 +193,16 @@ const RouteLoadingFallback = () => (
     <div className="spinner"></div>
   </div>
 );
+
+const MapTestPrepRoute = () => {
+  const user = useSelector(selectUser);
+  if (user?.role === 'admin') return <MapTestPrepPage />;
+  return (
+    <FeatureGate feature="mapTestPrep">
+      <MapTestPrepPage />
+    </FeatureGate>
+  );
+};
 
 // Protected Route - requires authentication
 const ProtectedRoute = ({ children }) => {
@@ -459,6 +471,24 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal", "teacher"]}>
                   <GradebookRedirectPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="map-test-prep"
+              element={
+                <RoleRoute roles={["admin", "teacher"]}>
+                  <MapTestPrepRoute />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="map-test-prep/student"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <FeatureGate feature="mapTestPrep">
+                    <StudentMapTestPrepPage />
+                  </FeatureGate>
                 </RoleRoute>
               }
             />

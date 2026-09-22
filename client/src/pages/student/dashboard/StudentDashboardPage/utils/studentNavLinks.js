@@ -1,11 +1,8 @@
 import {
-  HiOutlineAcademicCap,
   HiOutlineBell,
   HiOutlineBookOpen,
   HiOutlineChartBar,
-  HiOutlineClipboardCheck,
   HiOutlineClipboardList,
-  HiOutlineCog,
   HiOutlineHome,
   HiOutlineLightningBolt,
 } from "react-icons/hi";
@@ -44,12 +41,6 @@ export const studentNavLinks = [
     section: "learning",
   },
   {
-    path: "/portal/student-attendance",
-    icon: HiOutlineClipboardCheck,
-    labelKey: "myAttendance",
-    section: "learning",
-  },
-  {
     path: "/portal/practice",
     icon: HiOutlineLightningBolt,
     labelKey: "practice",
@@ -59,13 +50,6 @@ export const studentNavLinks = [
     path: "/portal/practice/sb-results",
     icon: HiOutlineChartBar,
     labelKey: "sbResults",
-    section: "learning",
-  },
-  {
-    path: "/portal/academic-excellence",
-    icon: HiOutlineAcademicCap,
-    labelKey: "academicExcellence",
-    feature: "academicIntelligence",
     section: "learning",
   },
   // {

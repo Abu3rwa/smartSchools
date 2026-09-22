@@ -2,6 +2,8 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import classService from '../../services/classService';
 import api from '../../config/api';
 
+const EMPTY_STUDENTS = [];
+
 const normalizeClassesPayload = (payload) => {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.classes)) return payload.classes;
@@ -270,7 +272,7 @@ export const selectClasses = (state) =>
 export const selectClassesPagination = (state) => state.classes.pagination;
 
 export const selectCurrentClass = (state) => state.classes.selectedClass;
-export const selectClassStudents = (state) => state.classes.selectedClass?.students || [];
+export const selectClassStudents = (state) => state.classes.selectedClass?.students || EMPTY_STUDENTS;
 export const selectClassesLoading = (state) => state.classes.status === 'loading';
 export const selectClassesError = (state) => state.classes.error;
 

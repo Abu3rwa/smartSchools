@@ -145,6 +145,22 @@ export const PERMISSIONS = {
     VIEW_ASSESSMENT_AUDIT_LOGS: 'view_assessment_audit_logs',
     EXPORT_ASSESSMENT_AUDIT_LOGS: 'export_assessment_audit_logs',
 
+    // MAP Test Prep
+    VIEW_MAP_TEST_PREP: 'view_map_test_prep',
+    CREATE_MAP_PREP_PLAN: 'create_map_prep_plan',
+    UPLOAD_MAP_PDF_DATA: 'upload_map_pdf_data',
+    ANALYZE_MAP_PREP_DATA: 'analyze_map_prep_data',
+    GENERATE_MAP_PREP_QUESTIONS: 'generate_map_prep_questions',
+    APPROVE_MAP_PREP_CONTENT: 'approve_map_prep_content',
+    PUBLISH_MAP_PREP_QUIZ: 'publish_map_prep_quiz',
+    VIEW_MAP_PREP_PROGRESS: 'view_map_prep_progress',
+    GRADE_MAP_SHORT_ANSWERS: 'grade_map_short_answers',
+    GRADE_MAP_SHORT_ANSWERS_WITH_AI: 'grade_map_short_answers_with_ai',
+    OVERRIDE_MAP_GRADING: 'override_map_grading',
+    RELEASE_MAP_REPORTS: 'release_map_reports',
+    VIEW_MAP_AI_AUDIT: 'view_map_ai_audit',
+    EXPORT_MAP_REPORTS: 'export_map_reports',
+
     // Finance
     MANAGE_FEE_STRUCTURES: 'manage_fee_structures',
     VIEW_FEE_STRUCTURES: 'view_fee_structures',

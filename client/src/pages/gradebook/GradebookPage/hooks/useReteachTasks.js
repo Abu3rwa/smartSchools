@@ -9,7 +9,7 @@ const useReteachTasks = ({ classId, subjectId }) => {
     const [saving, setSaving] = useState(false);
 
     const fetchTasks = useCallback(async () => {
-        if (!classId) {
+        if (!classId || !subjectId) {
             setTasks([]);
             setError('');
             return;

@@ -152,6 +152,11 @@ const usePracticeSessionData = () => {
                 asked: prev.asked + 1,
                 correct: prev.correct + (result.payload.isCorrect ? 1 : 0)
             }));
+            if (result.payload.sessionComplete) {
+                dispatch(clearLastResult());
+                return;
+            }
+            await handleGenerate();
         } else {
             toast.error(result.payload || 'Failed to submit answer');
         }

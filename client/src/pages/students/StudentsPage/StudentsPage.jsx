@@ -679,8 +679,31 @@ const StudentsPage = () => {
 
     return (
         <div className="students-page">
+            {showCapacityBanner && (
+                <div className={`students-capacity-banner ${studentCapacity.isFull ? 'full' : ''}`}>
+                    {studentCapacity.isLimited ? (
+                        <>
+                            <strong>{t('students:capacity.title')}</strong>
+                            <span>
+                                {t('students:capacity.summary', {
+                                    current: studentCapacity.currentStudents,
+                                    max: studentCapacity.maxStudents,
+                                    remaining: studentCapacity.remainingSeats
+                                })}
+                            </span>
+                        </>
+                    ) : (
+                        <span>
+                            {t('students:capacity.unlimitedSummary', {
+                                current: studentCapacity.currentStudents
+                            })}
+                        </span>
+                    )}
+                </div>
+            )}
+
             <div className="page-header">
-                <div>
+                <div className="student-header-text">
                     <h1>{t('students:page.title')}</h1>
                     <p className="text-muted">{t('students:page.subtitle')}</p>
                 </div>
@@ -744,29 +767,6 @@ const StudentsPage = () => {
                     </div>
                 )}
             </div>
-
-            {showCapacityBanner && (
-                <div className={`students-capacity-banner ${studentCapacity.isFull ? 'full' : ''}`}>
-                    {studentCapacity.isLimited ? (
-                        <>
-                            <strong>{t('students:capacity.title')}</strong>
-                            <span>
-                                {t('students:capacity.summary', {
-                                    current: studentCapacity.currentStudents,
-                                    max: studentCapacity.maxStudents,
-                                    remaining: studentCapacity.remainingSeats
-                                })}
-                            </span>
-                        </>
-                    ) : (
-                        <span>
-                            {t('students:capacity.unlimitedSummary', {
-                                current: studentCapacity.currentStudents
-                            })}
-                        </span>
-                    )}
-                </div>
-            )}
 
             <div className="filters-bar">
                 <div className="search-bar">
