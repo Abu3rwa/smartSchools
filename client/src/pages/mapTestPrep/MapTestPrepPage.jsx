@@ -18,6 +18,7 @@ const MapTestPrepPage = () => {
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [detailsLoading, setDetailsLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
     const [roundLoading, setRoundLoading] = useState(null);
@@ -49,6 +50,7 @@ const MapTestPrepPage = () => {
         setSelectedClass(classItem);
         setSelectedStudent(null);
         setRecords(null);
+        setError('');
         try {
             const response = await api.get(`/map-test-prep/classes/${classItem._id}/students`);
             setStudents(response.data?.data?.students || []);
@@ -59,6 +61,8 @@ const MapTestPrepPage = () => {
 
     const openStudentDetails = async (student) => {
         setSelectedStudent(student);
+        setDetailsLoading(true);
+        setError('');
         try {
             const response = await api.get(`/map-test-prep/students/${student._id}/map-records`);
             const loadedRecords = response.data?.data?.records || [];
@@ -83,6 +87,8 @@ const MapTestPrepPage = () => {
             setRecords(loadedRecords);
         } catch (requestError) {
             setError(requestError.response?.data?.message || 'Unable to load MAP details.');
+        } finally {
+            setDetailsLoading(false);
         }
     };
 
@@ -290,17 +296,22 @@ const MapTestPrepPage = () => {
         <div className="map-prep-page">
             <header className="map-prep-header">
                 <div>
-                    <p className="map-prep-eyebrow">Active academic year: {academicYear || 'Current year'}</p>
+                    <p className="map-prep-eyebrow">Academic year {academicYear || 'Current year'}</p>
                     <h1>MAP Test Prep</h1>
-                    <p className="text-muted">Use MAP results to build focused, teacher-reviewed practice.</p>
+                    <p className="map-prep-subtitle">Turn MAP evidence into focused, teacher-reviewed practice.</p>
                 </div>
                 {isAdmin && <button type="button" className="btn btn-outline" onClick={() => setSettingsOpen(true)}>MAP Settings</button>}
             </header>
+            <nav className="map-prep-progress" aria-label="MAP test prep workflow">
+                <span className={!selectedClass ? 'active' : 'complete'}><b>1</b> Choose a class</span>
+                <span className={selectedClass && !selectedStudent ? 'active' : selectedStudent ? 'complete' : ''}><b>2</b> Select a student</span>
+                <span className={selectedStudent ? 'active' : ''}><b>3</b> Upload and review</span>
+            </nav>
             {error && <div className="map-prep-error">{error}</div>}
             {isAdmin && settingsOpen && settings && <div className="map-settings-overlay" role="dialog" aria-modal="true"><section className="map-settings-modal map-prep-section"><div className="map-settings-modal-header"><h2>MAP Settings</h2><button type="button" className="map-back-button" onClick={() => setSettingsOpen(false)}>Close</button></div><label><input type="checkbox" checked={settings.enabled !== false} onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })} /> Enable MAP Test Prep</label><label><input type="checkbox" checked={settings.requireExtractionReview !== false} onChange={(event) => setSettings({ ...settings, requireExtractionReview: event.target.checked })} /> Require PDF extraction review</label><label><input type="checkbox" checked={settings.requireQuestionApproval !== false} onChange={(event) => setSettings({ ...settings, requireQuestionApproval: event.target.checked })} /> Require question approval</label><label><input type="checkbox" checked={settings.allowTeacherAiGrading !== false} onChange={(event) => setSettings({ ...settings, allowTeacherAiGrading: event.target.checked })} /> Allow post-quiz AI grading suggestions</label><button type="button" className="btn btn-primary" onClick={async () => { await saveSettings(); setSettingsOpen(false); }}>Save MAP Settings</button></section></div>}
             {!selectedClass ? (
                 <section className="map-prep-section">
-                    <h2>My Classes</h2>
+                    <div className="map-section-heading"><div><p className="map-section-kicker">Start here</p><h2>Choose a class</h2><p className="text-muted">Open a class to view students and their MAP history.</p></div><span className="map-section-count">{classes.length} {classes.length === 1 ? 'class' : 'classes'}</span></div>
                     <div className="map-class-grid">
                         {classes.map((classItem) => (
                             <button type="button" className="map-class-card" key={classItem._id} onClick={() => openClass(classItem)}>
@@ -309,12 +320,12 @@ const MapTestPrepPage = () => {
                             </button>
                         ))}
                     </div>
-                    {classes.length === 0 && <div className="map-prep-state">No classes are available for the active academic year.</div>}
+                    {classes.length === 0 && <div className="map-prep-empty"><strong>No classes available</strong><span>No classes are available for the active academic year.</span></div>}
                 </section>
             ) : !selectedStudent ? (
                 <section className="map-prep-section">
                     <button type="button" className="map-back-button" onClick={() => setSelectedClass(null)}><HiOutlineArrowLeft /> My Classes</button>
-                    <h2>{selectedClass.name} Students</h2>
+                    <div className="map-section-heading"><div><p className="map-section-kicker">Class roster</p><h2>{selectedClass.name} students</h2><p className="text-muted">Select a student to upload results or continue an existing prep plan.</p></div><span className="map-section-count">{students.length} {students.length === 1 ? 'student' : 'students'}</span></div>
                     <div className="map-table-wrap">
                         <table>
                             <thead><tr><th>Student</th><th>Student ID</th><th>Actions</th></tr></thead>
@@ -328,18 +339,20 @@ const MapTestPrepPage = () => {
                             </tr>)}</tbody>
                         </table>
                     </div>
+                    {students.length === 0 && <div className="map-prep-empty"><strong>No students found</strong><span>This class has no students for the active academic year.</span></div>}
                 </section>
             ) : (
                 <section className="map-prep-section">
                     <button type="button" className="map-back-button" onClick={() => setSelectedStudent(null)}><HiOutlineArrowLeft /> {selectedClass.name} Students</button>
-                    <h2>{selectedStudent.firstName} {selectedStudent.lastName}</h2>
+                    <div className="map-section-heading"><div><p className="map-section-kicker">Student workspace</p><h2>{selectedStudent.firstName} {selectedStudent.lastName}</h2><p className="text-muted">Upload the latest MAP CSV, confirm the evidence, then build the next practice round.</p></div></div>
                     <form className="map-upload-form" onSubmit={uploadMapData}>
-                        <label htmlFor="map-pdf">Upload MAP CSV</label>
+                        <div className="map-upload-copy"><strong>Import MAP results</strong><span>Use the CSV exported from your MAP assessment system.</span></div>
+                        <label htmlFor="map-pdf">Choose CSV file</label>
                         <input id="map-pdf" type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] || null)} required />
                         <button className="btn btn-primary" type="submit" disabled={!file || uploading}>{uploading ? 'Uploading...' : 'Upload MAP Data'}</button>
                     </form>
-                    <h3>MAP Test History</h3>
-                    {records?.length ? <div className="map-record-list">{records.map((record) => <article className="map-record-card" key={record._id}>
+                    <div className="map-section-heading map-history-heading"><div><p className="map-section-kicker">Evidence and practice plans</p><h3>MAP test history</h3></div></div>
+                    {detailsLoading ? <div className="map-prep-state">Loading MAP history...</div> : records?.length ? <div className="map-record-list">{records.map((record) => <article className="map-record-card" key={record._id}>
                         <div className="map-record-header">
                             <strong>{record.testWindow || 'MAP Test'} {record.academicYear}</strong>
                             <span className={`map-status map-status-${record.extractionStatus}`}>{record.extractionStatus}</span>
@@ -364,7 +377,7 @@ const MapTestPrepPage = () => {
                             {record.extractionStatus === 'confirmed' && record.preparationPlan && <><button type="button" className="btn btn-outline" disabled={roundLoading === record._id} onClick={() => createNextRound(record)}>{roundLoading === record._id ? 'Creating Round...' : `Create Next Practice Round ${record.preparationPlan.currentRoundNumber ? `(after ${record.preparationPlan.currentRoundNumber})` : ''}`}</button><button type="button" className="btn btn-outline" onClick={() => openQuestionReview(record)}>Review Questions</button><button type="button" className="btn btn-outline" onClick={() => loadPlanReport(record.preparationPlan._id)}>View Report</button><button type="button" className="btn btn-outline" onClick={() => exportPlanReport(record.preparationPlan._id)}>Export CSV</button>{roundCounts[String(record.preparationPlan?._id || record.preparationPlan)] > 0 && <button type="button" className="btn btn-danger-outline" onClick={() => deleteLatestRound(record)}>Delete Round</button>}</>}
                             <button type="button" className="btn btn-danger-outline" onClick={() => deleteMapImport(record)}>Delete MAP Import</button>
                         </div>
-                    </article>)}</div> : <p className="text-muted">No MAP uploads for this student in the active academic year.</p>}
+                    </article>)}</div> : <div className="map-prep-empty"><strong>No MAP uploads yet</strong><span>Upload a CSV above to begin this student’s preparation plan.</span></div>}
                     {analysisReview && <div className="map-question-review">
                         <div className="map-question-review-header">
                             <div>

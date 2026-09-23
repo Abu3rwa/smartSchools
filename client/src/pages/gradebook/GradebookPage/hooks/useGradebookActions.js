@@ -187,6 +187,8 @@ const useGradebookActions = ({
                 secondaryLanguage: aiSecondaryLanguage,
                 sendEmail: aiSendEmail,
                 recipients: aiRecipients
+            }, {
+                timeout: 120000
             });
 
             if (response.data?.success) {

@@ -1,16 +1,31 @@
-.map-prep-page { padding: 24px; animation: fadeIn 0.3s ease; }
-.map-prep-header { display: flex; justify-content: space-between; margin-bottom: 24px; }
-.map-prep-eyebrow { margin: 0 0 6px; color: var(--primary-600, #2563eb); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
-.map-prep-section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; }
+.map-prep-page { max-width: 1440px; margin: 0 auto; padding: clamp(18px, 3vw, 36px); animation: fadeIn 0.3s ease; }
+.map-prep-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.map-prep-header h1 { margin: 0; font-size: clamp(1.65rem, 2.5vw, 2.25rem); letter-spacing: 0; }
+.map-prep-eyebrow, .map-section-kicker { margin: 0 0 6px; color: var(--primary-600, #0d9488); font-size: 0.72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.map-prep-subtitle { max-width: 620px; margin: 8px 0 0; color: var(--text-muted); }
+.map-prep-progress { display: flex; align-items: center; gap: 8px; margin: 0 0 22px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); overflow-x: auto; }
+.map-prep-progress span { display: inline-flex; align-items: center; gap: 8px; min-width: max-content; padding: 7px 12px; color: var(--text-muted); font-size: .82rem; font-weight: 700; }
+.map-prep-progress span + span::before { content: '/'; margin-right: 4px; color: var(--border-color); }
+.map-prep-progress b { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--bg-card); color: var(--text-muted); font-size: .75rem; }
+.map-prep-progress .active { color: var(--text-primary); }
+.map-prep-progress .active b { background: var(--primary); color: #fff; }
+.map-prep-progress .complete { color: var(--success, #15803d); }
+.map-prep-progress .complete b { background: color-mix(in srgb, var(--success, #15803d) 14%, var(--bg-card)); color: var(--success, #15803d); }
+.map-prep-section { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: clamp(18px, 2.5vw, 28px); box-shadow: 0 8px 24px rgba(15, 23, 42, .06); }
 .map-settings-panel { display: grid; gap: 12px; margin-bottom: 20px; }
 .map-settings-panel label { display: flex; gap: 8px; align-items: center; }
 .map-settings-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .45); }
 .map-settings-modal { width: min(520px, 100%); display: grid; gap: 14px; box-shadow: var(--shadow-lg, 0 20px 50px rgba(15, 23, 42, .2)); }
 .map-settings-modal-header { display: flex; align-items: center; justify-content: space-between; }
-.map-prep-section h2 { margin-top: 0; }
+.map-prep-section h2 { margin: 0; font-size: 1.35rem; }
+.map-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.map-section-heading h3 { margin: 0; font-size: 1.05rem; }
+.map-section-heading .text-muted { margin: 5px 0 0; }
+.map-section-count { flex: 0 0 auto; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-muted); font-size: .78rem; font-weight: 700; }
+.map-history-heading { margin: 26px 0 12px; }
 .map-class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
-.map-class-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 18px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; text-align: left; }
-.map-class-card:hover { border-color: var(--primary); }
+.map-class-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 104px; padding: 18px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; text-align: left; transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease; }
+.map-class-card:hover, .map-class-card:focus-visible { border-color: var(--primary); box-shadow: 0 8px 18px rgba(15, 23, 42, .08); transform: translateY(-2px); }
 .map-class-card span { color: var(--text-muted); font-size: 0.85rem; }
 .map-table-wrap { overflow-x: auto; }
 .map-table-wrap table { width: 100%; border-collapse: collapse; }
@@ -18,11 +33,13 @@
 .map-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .map-actions .btn, .map-back-button { display: inline-flex; align-items: center; gap: 6px; }
 .map-back-button { border: 0; background: transparent; color: var(--primary); cursor: pointer; padding: 0; margin-bottom: 16px; font-weight: 600; }
-.map-upload-form { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 16px; margin: 16px 0 24px; border: 1px dashed var(--border-color); border-radius: 8px; }
-.map-upload-form label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.map-upload-form { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; padding: 18px; margin: 20px 0 24px; border: 1px dashed color-mix(in srgb, var(--primary) 35%, var(--border-color)); border-radius: 8px; background: color-mix(in srgb, var(--primary) 4%, var(--bg-secondary)); }
+.map-upload-copy { display: grid; flex: 1 1 220px; gap: 4px; }
+.map-upload-copy span { color: var(--text-muted); font-size: .82rem; }
+.map-upload-form label { display: flex; flex-direction: column; gap: 6px; font-size: .78rem; font-weight: 700; }
 .map-upload-form input { max-width: 320px; }
 .map-record-list { display: grid; gap: 10px; }
-.map-record-card { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); }
+.map-record-card { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); }
 .map-record-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .map-record-header strong { color: var(--text-primary); font-size: 0.95rem; }
 .map-record-meta { display: grid; grid-template-columns: minmax(90px, 0.35fr) minmax(220px, 1fr); gap: 12px; color: var(--text-primary); font-size: 0.88rem; }
@@ -65,6 +82,8 @@
 .map-question-options { display: grid; gap: 6px; }
 .map-question-options strong { font-size: .85rem; }
 .map-question-tags { display: flex; gap: 14px; flex-wrap: wrap; }
-.map-prep-error { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--error-200, #fecaca); color: var(--error-700, #b91c1c); border-radius: 8px; }
+.map-prep-error { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 16px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--danger, #b91c1c) 30%, var(--border-color)); border-radius: 8px; background: color-mix(in srgb, var(--danger, #b91c1c) 7%, var(--bg-card)); color: var(--danger, #b91c1c); }
+.map-prep-empty { display: grid; gap: 5px; padding: 28px 18px; border: 1px dashed var(--border-color); border-radius: 8px; color: var(--text-muted); text-align: center; }
+.map-prep-empty strong { color: var(--text-primary); }
 .map-prep-state { padding: 32px; text-align: center; color: var(--text-muted); }
-@media (max-width: 700px) { .map-prep-page { padding: 16px; } .map-actions { flex-direction: column; align-items: flex-start; } .map-record-header { align-items: flex-start; flex-direction: column; gap: 6px; } .map-record-meta { grid-template-columns: 1fr; gap: 8px; } .map-record-actions .btn { white-space: normal; } .map-evidence-row { grid-template-columns: 1fr; } .map-evidence-row p { grid-column: auto; } }
+@media (max-width: 700px) { .map-prep-page { padding: 16px; } .map-prep-header { flex-direction: column; gap: 14px; } .map-prep-header .btn { width: 100%; } .map-prep-progress { margin-right: -4px; } .map-section-heading { flex-direction: column; gap: 10px; } .map-actions { flex-direction: column; align-items: stretch; } .map-actions .btn, .map-record-actions .btn { width: 100%; } .map-record-header { align-items: flex-start; flex-direction: column; gap: 8px; } .map-record-meta { grid-template-columns: 1fr; gap: 10px; } .map-record-actions .btn { white-space: normal; } .map-evidence-row { grid-template-columns: 1fr; } .map-evidence-row p { grid-column: auto; } .map-upload-form { align-items: stretch; } .map-upload-form input, .map-upload-form .btn { max-width: none; width: 100%; } }

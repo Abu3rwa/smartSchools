@@ -1,11 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 import logger from "./logger.js";
 
-const DEFAULT_MODEL_NAME = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+const DEFAULT_MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const FALLBACK_MODELS = [
   process.env.GEMINI_FALLBACK_MODEL,
-  "gemini-3.6-flash",
-  "gemini-2.5-flash-lite",
+  "gemini-3.1-pro-preview",
 ].filter(Boolean);
 
 const isRetryableAiError = (error) => {
