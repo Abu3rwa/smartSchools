@@ -37,7 +37,8 @@ export const sendTransactionalEmail = async ({
     text,
     html,
     schoolId = null,
-    preferredUserId = null
+    preferredUserId = null,
+    allowSmtp = true
 }) => {
     const recipientEmail = normalizeRecipientList(to);
 
@@ -96,6 +97,12 @@ export const sendTransactionalEmail = async ({
                 // Try next admin sender.
             }
         }
+    }
+
+    // SMTP is retained for legacy transactional callers, but individual features
+    // can disable it when delivery must use an approved OAuth sender.
+    if (!allowSmtp) {
+        throw new Error('No configured Gmail OAuth transport available');
     }
 
     // 3. SMTP — last-resort fallback

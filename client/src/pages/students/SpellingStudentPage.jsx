@@ -101,6 +101,18 @@ const SpellingStudentPage = () => {
             {!session && <Button variant="contained" onClick={startSession} disabled={loading}>{t('startStudentSession')}</Button>}
             {session && <Card sx={{ mb: 3 }}><CardContent><Stack spacing={2} alignItems="center">
                 <Stack direction="row" justifyContent="space-between" sx={{ width: '100%' }}><Typography>{t('correctCount', { count: session.correctCount })} | {t('mistakeCount', { count: session.mistakeCount })}</Typography>{session.status === 'in-progress' && <Button color="error" variant="outlined" onClick={endSession} disabled={loading}>{t('endSession')}</Button>}</Stack>
+                {session.attempts?.length > 0 && <Box sx={{ width: '100%' }}>
+                    <Typography variant="subtitle1">Previous words</Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                        {session.attempts.map((attempt) => <Chip
+                            key={attempt._id || attempt.sequence}
+                            label={attempt.wordSnapshot}
+                            color={attempt.correct ? 'success' : 'error'}
+                            variant="outlined"
+                            title={attempt.correct ? 'Correct' : 'Incorrect'}
+                        />)}
+                    </Stack>
+                </Box>}
                 {feedback && <Alert severity={feedback.correct ? 'success' : 'error'}>{feedback.correct ? 'Correct' : `Correct spelling: ${feedback.answer}`}</Alert>}
                 {session.status !== 'in-progress' ? <Stack spacing={2} alignItems="center"><Alert severity="success">{t('sessionCompleted')}</Alert><Button variant="contained" onClick={startSession} disabled={loading}>{t('startNewSession')}</Button></Stack> : session.mode === 'teacher-led' ? <Alert severity="info">{t('teacherLedActive')}</Alert> : currentItem ? <form onSubmit={submitAnswer} style={{ width: '100%' }}><Stack spacing={2}>
                     <Typography variant="h2" textAlign="center">{t('spellWord')}</Typography>
@@ -109,7 +121,7 @@ const SpellingStudentPage = () => {
                         label="Your answer"
                         value={input}
                         name="spelling-answer"
-                        autoComplete="new-password"
+                        autoComplete="off"
                         spellCheck={false}
                         onChange={(event) => setInput(event.target.value)}
                         onPaste={(event) => event.preventDefault()}

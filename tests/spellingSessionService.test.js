@@ -31,6 +31,20 @@ test('startSpellingSession rejects invalid mistake limits before database access
     );
 });
 
+test('startSpellingSession rejects invalid email audiences before database access', async () => {
+    await assert.rejects(
+        () => startSpellingSession({
+            schoolId: 'school-1',
+            studentId: 'student-1',
+            userId: 'user-1',
+            mode: 'self-serve',
+            maxMistakesAllowed: 3,
+            emailNotification: 'teachers-only'
+        }),
+        (error) => error.statusCode === 400 && /Invalid spelling email audience/.test(error.message)
+    );
+});
+
 test('startSpellingSession rejects invalid or past deadlines before database access', async () => {
     await assert.rejects(
         () => startSpellingSession({

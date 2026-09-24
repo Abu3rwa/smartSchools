@@ -22,7 +22,7 @@ export async function listSpellingSessions({ schoolId, studentId, limit = 50 }) 
     return SpellingSession.find(query)
         .sort({ startedAt: -1 })
         .limit(Math.min(Math.max(Number(limit) || 50, 1), 100))
-        .select('student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts')
+        .select('student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts emailNotification emailStatus emailSentAt emailAttempts emailError')
         .lean();
 }
 

@@ -19,6 +19,7 @@ import AIReportModal from '../../../components/reports/AIReportModal';
 import StudentOverviewHeader from './components/StudentOverviewHeader';
 import StudentInformationGrid from './components/StudentInformationGrid';
 import StudentInsightsSection from './components/StudentInsightsSection';
+import StudentSpellingDetailsSection from './components/StudentSpellingDetailsSection';
 import useStudentAcademicInsights from './hooks/useStudentAcademicInsights';
 import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
 import './StudentDetailPage.css';
@@ -233,6 +234,8 @@ const StudentDetailPage = () => {
                     onSchoolYearChange={setSchoolYearFilter}
                     onSemesterChange={setSemesterFilter}
                 />
+
+                <StudentSpellingDetailsSection studentId={id} />
 
                 <StudentInformationGrid student={student} />
             </div>

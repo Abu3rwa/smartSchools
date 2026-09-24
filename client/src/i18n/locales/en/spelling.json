@@ -62,7 +62,8 @@
   "sessionError": "Unable to start the session.",
   "attemptError": "Unable to record the attempt.",
   "classCreated": "Created sessions for {{count}} students in {{className}}.",
-  "classStopped": "Created {{count}} sessions before the class operation stopped."
+  "classStopped": "Created {{count}} sessions before the class operation stopped.",
+  "allStudentsOverview": "All students overview"
   ,"wordListTitle": "Curriculum word list"
   ,"grade": "Grade"
   ,"week": "Week"
@@ -73,6 +74,26 @@
   ,"allWeeks": "All weeks"
   ,"allCategories": "All categories"
   ,"loadingWords": "Loading words..."
-  ,"wordCount": "{{count}} words"
-  ,"noWords": "No words match these filters."
+  ,"wordCount": "{{count}} words",
+  "studentSpellingDetails": "Spelling details",
+  "notSet": "Not set",
+  "originalAttempts": "Original attempts",
+  "originalCorrect": "Original correct",
+  "originalIncorrect": "Original incorrect",
+  "originalAccuracy": "Original accuracy",
+  "uniqueWordsEverMissed": "Unique words ever missed",
+  "retestAttempts": "Retest attempts",
+  "retestCorrect": "Retest correct",
+  "retestRecoveryRate": "Retest recovery",
+  "gradePerformance": "Performance by grade",
+  "progressOverTime": "Progress over time",
+  "missedWords": "Missed words",
+  "pending": "Pending",
+  "resolved": "Resolved",
+  "noMissedWords": "No original spelling mistakes recorded.",
+  "viewDetailsCharts": "View details and charts",
+  "exportReport": "Export spelling report",
+  "exporting": "Exporting...",
+  "exportError": "Unable to export the spelling report.",
+  "noWords": "No words match these filters."
 }

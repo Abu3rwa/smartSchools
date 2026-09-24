@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogContent, Divider, Fade, FormControl, IconButton, InputLabel, MenuItem, Select, Stack, Tab, Tabs, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogContent, Fade, FormControl, IconButton, InputLabel, MenuItem, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Tab, Typography } from '@mui/material';
 import { HiOutlineCheck, HiOutlineXMark, HiOutlineArrowLeft, HiOutlineClock } from 'react-icons/hi2';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import api from '../../config/api';
 import { fetchClass, fetchClasses, selectClassStudents, selectClasses, selectClassesLoading, selectCurrentClass } from '../../store/slices/classSlice';
 import { updateStudent } from '../../store/slices/studentSlice';
 import {
     fetchSpellingCurrentItem,
     fetchSpellingHistory,
-    fetchSpellingRetests,
     fetchSpellingWords,
     selectSpelling,
     endSpellingSession,
@@ -19,6 +19,7 @@ import {
 
 const SpellingTeacherPage = () => {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     const { t } = useTranslation('spelling');
     const classes = useSelector(selectClasses);
     const classStudents = useSelector(selectClassStudents);
@@ -26,24 +27,26 @@ const SpellingTeacherPage = () => {
     const classesLoading = useSelector(selectClassesLoading);
     const spelling = useSelector(selectSpelling);
     const [classId, setClassId] = useState('');
+    const [activeTab, setActiveTab] = useState(0);
     const [studentId, setStudentId] = useState('');
-    const [detailTab, setDetailTab] = useState(0);
-    const [sessions, setSessions] = useState([]);
-    const [retests, setRetests] = useState([]);
     const [activeSession, setActiveSession] = useState(null);
     const [currentItem, setCurrentItem] = useState(null);
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const [classStarting, setClassStarting] = useState(false);
     const [assessmentMode, setAssessmentMode] = useState('self-serve');
+    const [emailNotification, setEmailNotification] = useState('student-and-parents');
     const [importFile, setImportFile] = useState(null);
     const [importPreview, setImportPreview] = useState(null);
     const [importing, setImporting] = useState(false);
     const [gradingFeedback, setGradingFeedback] = useState(null);
     const [wordFilters, setWordFilters] = useState({ grade: 'KG', week: '1', category: '' });
-    const [studentSpellingGrade, setStudentSpellingGrade] = useState('');
-    const [studentSpellingWeek, setStudentSpellingWeek] = useState('');
-    const [savingStudentLevel, setSavingStudentLevel] = useState(false);
+    const [rowLevels, setRowLevels] = useState({});
+    const [savingRowId, setSavingRowId] = useState(null);
+    const [exportingRowId, setExportingRowId] = useState(null);
+    const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
+    const [studentHistoryMap, setStudentHistoryMap] = useState({});
+    const [overviewLoading, setOverviewLoading] = useState(false);
     const wordList = spelling.words;
     const wordCategories = spelling.categories;
     const wordsLoading = spelling.loading;
@@ -52,60 +55,85 @@ const SpellingTeacherPage = () => {
         () => classStudents.find((student) => String(student._id) === String(studentId)),
         [classStudents, studentId]
     );
-    const activeStudentSession = sessions.find((session) => session.status === 'in-progress');
 
     useEffect(() => {
         dispatch(fetchClasses({ limit: 100 }));
     }, [dispatch]);
 
     useEffect(() => {
+        if (!classId) return;
         dispatch(fetchSpellingWords(wordFilters));
-    }, [dispatch, wordFilters]);
+    }, [classId, dispatch, wordFilters]);
 
     useEffect(() => {
         if (!classId) return;
         dispatch(fetchClass(classId));
         setStudentId('');
-        setSessions([]);
-        setRetests([]);
+        setRowLevels({});
     }, [classId, dispatch]);
 
     useEffect(() => {
-        if (!studentId) return;
-        const student = classStudents.find((item) => String(item._id) === String(studentId));
-        setStudentSpellingGrade(student?.spelling?.currentGrade || '');
-        setStudentSpellingWeek(student?.spelling?.currentWeek ? String(student.spelling.currentWeek) : '');
-        const loadStudentDetail = async () => {
-            try {
-                const [sessionResult, retestResult] = await Promise.all([
-                    dispatch(fetchSpellingHistory({ studentId })),
-                    dispatch(fetchSpellingRetests({ studentId, includeResolved: true }))
-                ]);
-                if (fetchSpellingHistory.fulfilled.match(sessionResult)) setSessions(sessionResult.payload);
-                if (fetchSpellingRetests.fulfilled.match(retestResult)) setRetests(retestResult.payload);
-            } catch (error) {
-                setMessage(error.response?.data?.message || 'Unable to load spelling details.');
-            }
-        };
-        loadStudentDetail();
-    }, [classStudents, dispatch, studentId]);
+        if (!classStudents.length) return;
+        setRowLevels((current) => {
+            const next = { ...current };
+            classStudents.forEach((student) => {
+                if (!next[student._id]) {
+                    next[student._id] = {
+                        grade: student.spelling?.currentGrade || '',
+                        week: student.spelling?.currentWeek ? String(student.spelling.currentWeek) : ''
+                    };
+                }
+            });
+            return next;
+        });
+    }, [classStudents]);
 
-    const saveStudentSpellingLevel = async () => {
-        if (!studentId || !studentSpellingGrade || !studentSpellingWeek) return;
-        setSavingStudentLevel(true);
-        setMessage('');
+    const refreshStudentHistory = useCallback(async (targetStudentId) => {
+        const result = await dispatch(fetchSpellingHistory({ studentId: targetStudentId }));
+        if (fetchSpellingHistory.fulfilled.match(result)) {
+            setStudentHistoryMap((current) => ({ ...current, [targetStudentId]: result.payload }));
+        }
+    }, [dispatch]);
+
+    const loadAllHistories = useCallback(async () => {
+        if (!classStudents.length) return;
+        setOverviewLoading(true);
+        try {
+            const entries = await Promise.all(classStudents.map(async (student) => {
+                const result = await dispatch(fetchSpellingHistory({ studentId: student._id }));
+                return [student._id, fetchSpellingHistory.fulfilled.match(result) ? result.payload : []];
+            }));
+            setStudentHistoryMap(Object.fromEntries(entries));
+        } finally {
+            setOverviewLoading(false);
+        }
+    }, [classStudents, dispatch]);
+
+    useEffect(() => {
+        if (!classId || !classStudents.length) {
+            setStudentHistoryMap({});
+            return;
+        }
+        loadAllHistories();
+    }, [classId, classStudents, loadAllHistories]);
+
+    const updateRowLevel = async (student, field, value) => {
+        const nextLevel = { ...(rowLevels[student._id] || {}), [field]: value };
+        setRowLevels((current) => ({ ...current, [student._id]: nextLevel }));
+        if (!nextLevel.grade || !nextLevel.week) return;
+        setSavingRowId(student._id);
         const result = await dispatch(updateStudent({
-            id: studentId,
+            id: student._id,
             data: {
                 spelling: {
-                    ...(selectedStudent?.spelling || {}),
-                    currentGrade: studentSpellingGrade,
-                    currentWeek: Number(studentSpellingWeek)
+                    ...(student.spelling || {}),
+                    currentGrade: nextLevel.grade,
+                    currentWeek: Number(nextLevel.week)
                 }
             }
         }));
         setMessage(updateStudent.fulfilled.match(result) ? t('studentLevelSaved') : (result.payload || t('studentLevelSaveError')));
-        setSavingStudentLevel(false);
+        setSavingRowId(null);
     };
 
     const loadCurrentItem = useCallback(async (sessionId) => {
@@ -116,43 +144,60 @@ const SpellingTeacherPage = () => {
         }
     }, [dispatch]);
 
-    const startStudentSession = async (targetStudentId = studentId) => {
-        if (!targetStudentId) return;
-        setLoading(true);
+    const startStudentSession = async (student) => {
+        const level = rowLevels[student._id] || {};
+        if (!student._id || !level.grade || !level.week) return;
+        setRowActionLoadingId(student._id);
         setMessage('');
         try {
             const result = await dispatch(startTeacherSpellingSession({
-                studentId: targetStudentId,
-                curriculumGrade: studentSpellingGrade,
-                curriculumWeek: studentSpellingWeek,
-                mode: assessmentMode
+                studentId: student._id,
+                curriculumGrade: level.grade,
+                curriculumWeek: level.week,
+                mode: assessmentMode,
+                emailNotification
             }));
             if (startTeacherSpellingSession.fulfilled.match(result)) {
+                setStudentId(student._id);
                 await loadCurrentItem(result.payload._id);
             } else {
                 setMessage(result.payload || t('sessionError'));
-                const sessionResult = await dispatch(fetchSpellingHistory({ studentId: targetStudentId }));
-                if (fetchSpellingHistory.fulfilled.match(sessionResult)) setSessions(sessionResult.payload);
             }
+            await refreshStudentHistory(student._id);
         } catch (error) {
             setMessage(error.response?.data?.message || 'Unable to start the session.');
         } finally {
-            setLoading(false);
+            setRowActionLoadingId(null);
         }
     };
 
-    const endActiveStudentSession = async () => {
-        if (!activeStudentSession) return;
-        setLoading(true);
-        const result = await dispatch(endSpellingSession({ sessionId: activeStudentSession._id, reason: 'teacher-ended' }));
-        if (endSpellingSession.fulfilled.match(result)) {
-            setMessage(t('activeSessionEnded'));
-            const sessionResult = await dispatch(fetchSpellingHistory({ studentId }));
-            if (fetchSpellingHistory.fulfilled.match(sessionResult)) setSessions(sessionResult.payload);
-        } else {
-            setMessage(result.payload || t('sessionError'));
+    const endRowActiveSession = async (student) => {
+        const rowActiveSession = (studentHistoryMap[student._id] || []).find((session) => session.status === 'in-progress');
+        if (!rowActiveSession) return;
+        setRowActionLoadingId(student._id);
+        const result = await dispatch(endSpellingSession({ sessionId: rowActiveSession._id, reason: 'teacher-ended' }));
+        setMessage(endSpellingSession.fulfilled.match(result) ? t('activeSessionEnded') : (result.payload || t('sessionError')));
+        await refreshStudentHistory(student._id);
+        setRowActionLoadingId(null);
+    };
+
+    const exportStudentReport = async (student) => {
+        setExportingRowId(student._id);
+        try {
+            const response = await api.get(`/spelling/reports/student/${student._id}/docx`, { responseType: 'blob' });
+            const blobUrl = window.URL.createObjectURL(response.data);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `spelling-${student.firstName || 'student'}-${student.lastName || 'report'}.docx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            setMessage(error.response?.data?.message || t('exportError'));
+        } finally {
+            setExportingRowId(null);
         }
-        setLoading(false);
     };
 
     const startClassSession = async () => {
@@ -167,15 +212,13 @@ const SpellingTeacherPage = () => {
                     mode: assessmentMode,
                     maxMistakesAllowed: 3,
                     curriculumGrade: wordFilters.grade,
-                    curriculumWeek: wordFilters.week
+                    curriculumWeek: wordFilters.week,
+                    emailNotification
                 });
                 started += 1;
             }
             setMessage(t('classCreated', { count: started, className: selectedClass?.name || t('class') }));
-            if (studentId) {
-                const response = await api.get('/spelling/sessions', { params: { studentId } });
-                setSessions(response.data.data || []);
-            }
+            await loadAllHistories();
         } catch (error) {
             setMessage(error.response?.data?.message || t('classStopped', { count: started }));
         } finally {
@@ -197,8 +240,7 @@ const SpellingTeacherPage = () => {
                 } else {
                     setActiveSession(result.payload.session);
                     setCurrentItem(null);
-                    const sessionResult = await dispatch(fetchSpellingHistory({ studentId }));
-                    if (fetchSpellingHistory.fulfilled.match(sessionResult)) setSessions(sessionResult.payload);
+                    await refreshStudentHistory(studentId);
                 }
             }
         } catch (error) {
@@ -206,7 +248,7 @@ const SpellingTeacherPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [activeSession, currentItem, dispatch, gradingFeedback, loadCurrentItem, loading, studentId]);
+    }, [activeSession, currentItem, dispatch, gradingFeedback, loadCurrentItem, loading, refreshStudentHistory, studentId]);
 
     const exitTeacherSession = async () => {
         if (!activeSession) return;
@@ -303,6 +345,20 @@ const SpellingTeacherPage = () => {
                     </Box>
                 </DialogContent>
             </Dialog>
+            <Card sx={{ mb: 3 }}><CardContent>
+                <FormControl fullWidth>
+                    <InputLabel>{t('class')}</InputLabel>
+                    <Select value={classId} label={t('class')} onChange={(event) => { setClassId(event.target.value); setActiveTab(0); }} disabled={classesLoading}>
+                        {classes.map((schoolClass) => <MenuItem key={schoolClass._id} value={schoolClass._id}>{schoolClass.name}{schoolClass.section ? ` - ${schoolClass.section}` : ''}</MenuItem>)}
+                    </Select>
+                </FormControl>
+            </CardContent></Card>
+            {classId && <>
+            <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} sx={{ mb: 3 }}>
+                <Tab label="Assessments" />
+                <Tab label="Curriculum & import" />
+            </Tabs>
+            {activeTab === 1 && <>
             <Card sx={{ mb: 3 }}><CardContent><Stack spacing={2}>
                 <Typography variant="h6">{t('wordListTitle')}</Typography>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -336,29 +392,65 @@ const SpellingTeacherPage = () => {
                 </Stack>
                 {importPreview && <Box><Typography variant="body2">{t('rows')}: {importPreview.summary.totalRows} | {t('valid')}: {importPreview.summary.validRows}</Typography>{importPreview.errors?.length > 0 ? <Alert severity="error" sx={{ mt: 1 }}>{importPreview.errors.length} validation errors must be fixed before import.</Alert> : <Button sx={{ mt: 1 }} variant="contained" onClick={commitWordList} disabled={importing}>{t('commitImport')}</Button>}</Box>}
             </Stack></CardContent></Card>
+            </>}
+            {activeTab === 0 && <>
             <Card sx={{ mb: 3 }}><CardContent><Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <FormControl fullWidth>
-                    <InputLabel>{t('class')}</InputLabel>
-                    <Select value={classId} label={t('class')} onChange={(event) => setClassId(event.target.value)} disabled={classesLoading}>
-                        {classes.map((schoolClass) => <MenuItem key={schoolClass._id} value={schoolClass._id}>{schoolClass.name}{schoolClass.section ? ` - ${schoolClass.section}` : ''}</MenuItem>)}
-                    </Select>
-                </FormControl>
                 <FormControl sx={{ minWidth: 180 }}><InputLabel>{t('assessmentMode')}</InputLabel><Select value={assessmentMode} label={t('assessmentMode')} onChange={(event) => setAssessmentMode(event.target.value)}><MenuItem value="teacher-led">{t('teacherLed')}</MenuItem><MenuItem value="self-serve">{t('selfServe')}</MenuItem></Select></FormControl>
+                <FormControl sx={{ minWidth: 240 }}><InputLabel>Email results</InputLabel><Select value={emailNotification} label="Email results" onChange={(event) => setEmailNotification(event.target.value)}><MenuItem value="none">Do not send</MenuItem><MenuItem value="student-only">Student only</MenuItem><MenuItem value="parents-only">Parents/guardians only</MenuItem><MenuItem value="student-and-parents">Student and parents/guardians</MenuItem></Select></FormControl>
                 <Button variant="outlined" onClick={startClassSession} disabled={!classId || !classStudents.length || classStarting}>{classStarting ? t('creating') : t('createClassSession')}</Button>
             </Stack></CardContent></Card>
-            {classId && <Card sx={{ mb: 3 }}><CardContent><Typography variant="h6" gutterBottom>{selectedClass?.name || 'Class students'}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {classStudents.map((student) => <Button key={student._id} variant={String(student._id) === String(studentId) ? 'contained' : 'outlined'} onClick={() => setStudentId(student._id)}>{student.firstName} {student.lastName}</Button>)}
-            </Stack></CardContent></Card>}
-            {selectedStudent && <Card sx={{ mb: 3 }}><CardContent><Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}><Box><Typography variant="h5">{selectedStudent.firstName} {selectedStudent.lastName}</Typography><Typography color="text.secondary">Student ID: {selectedStudent.studentId}</Typography></Box><Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}><Button variant="contained" onClick={() => startStudentSession()} disabled={loading || !studentSpellingGrade || !studentSpellingWeek}>{t('startStudentSession')}</Button>{activeStudentSession && <Button color="error" variant="outlined" onClick={endActiveStudentSession} disabled={loading}>{t('endActiveSession')}</Button>}</Stack></Stack>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }} alignItems={{ sm: 'center' }}>
-                    <FormControl sx={{ minWidth: 150 }}><InputLabel>{t('spellingGrade')}</InputLabel><Select value={studentSpellingGrade} label={t('spellingGrade')} onChange={(event) => setStudentSpellingGrade(event.target.value)}><MenuItem value="">{t('selectGrade')}</MenuItem>{['KG', 'G1', 'G2', 'G3', 'G4', 'G5'].map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}</Select></FormControl>
-                    <FormControl sx={{ minWidth: 150 }}><InputLabel>{t('spellingWeek')}</InputLabel><Select value={studentSpellingWeek} label={t('spellingWeek')} onChange={(event) => setStudentSpellingWeek(event.target.value)}><MenuItem value="">{t('selectWeek')}</MenuItem>{Array.from({ length: 52 }, (_, index) => index + 1).map((week) => <MenuItem key={week} value={week}>{week}</MenuItem>)}</Select></FormControl>
-                    <Button variant="outlined" onClick={saveStudentSpellingLevel} disabled={savingStudentLevel || !studentSpellingGrade || !studentSpellingWeek}>{savingStudentLevel ? t('saving') : t('saveStudentLevel')}</Button>
-                </Stack>
-                <Tabs value={detailTab} onChange={(_, value) => setDetailTab(value)} sx={{ mt: 2 }}><Tab label={t('previousTests', { count: sessions.length })} /><Tab label={t('retests', { count: retests.filter((item) => item.status === 'pending').length })} /></Tabs>
-                {detailTab === 0 && <Stack spacing={1} sx={{ mt: 2 }}>{sessions.length ? sessions.map((session) => <Typography key={session._id}>{new Date(session.startedAt).toLocaleDateString()} - {session.correctCount} {t('correct').toLowerCase()}, {session.mistakeCount} {t('incorrect').toLowerCase()} - {session.status}</Typography>) : <Typography color="text.secondary">{t('noTests')}</Typography>}</Stack>}
-                {detailTab === 1 && <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>{retests.length ? retests.map((item) => <Chip key={item._id} label={`${item.wordSnapshot} - ${item.status}`} color={item.status === 'pending' ? 'warning' : 'default'} />) : <Typography color="text.secondary">{t('noRetests')}</Typography>}</Stack>}
+            {classId && <Card sx={{ mb: 3 }}><CardContent>
+                <Typography variant="h6" gutterBottom>{selectedClass?.name || t('allStudentsOverview')}</Typography>
+                {overviewLoading && <Typography color="text.secondary">{t('loadingWords')}</Typography>}
+                {!classStudents.length ? <Typography color="text.secondary">{t('noWords')}</Typography> : <TableContainer><Table size="small">
+                    <TableHead><TableRow>
+                        <TableCell>{t('student')}</TableCell>
+                        <TableCell>{t('spellingGrade')}</TableCell>
+                        <TableCell>{t('spellingWeek')}</TableCell>
+                        <TableCell align="right">{t('viewDetails')}</TableCell>
+                    </TableRow></TableHead>
+                    <TableBody>
+                        {classStudents.map((student) => {
+                            const level = rowLevels[student._id] || { grade: '', week: '' };
+                            const rowActiveSession = (studentHistoryMap[student._id] || []).find((session) => session.status === 'in-progress');
+                            const rowBusy = rowActionLoadingId === student._id;
+                            return (
+                                <TableRow key={student._id}>
+                                    <TableCell>
+                                        <Typography variant="body2">{student.firstName} {student.lastName}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{t('studentId', { id: student.studentId })}</Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                        <FormControl size="small" sx={{ minWidth: 110 }}>
+                                            <Select displayEmpty value={level.grade} onChange={(event) => updateRowLevel(student, 'grade', event.target.value)} disabled={savingRowId === student._id}>
+                                                <MenuItem value="">{t('selectGrade')}</MenuItem>
+                                                {['KG', 'G1', 'G2', 'G3', 'G4', 'G5'].map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}
+                                            </Select>
+                                        </FormControl>
+                                    </TableCell>
+                                    <TableCell>
+                                        <FormControl size="small" sx={{ minWidth: 110 }}>
+                                            <Select displayEmpty value={level.week} onChange={(event) => updateRowLevel(student, 'week', event.target.value)} disabled={savingRowId === student._id}>
+                                                <MenuItem value="">{t('selectWeek')}</MenuItem>
+                                                {Array.from({ length: 52 }, (_, index) => index + 1).map((week) => <MenuItem key={week} value={week}>{week}</MenuItem>)}
+                                            </Select>
+                                        </FormControl>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
+                                            {rowActiveSession ? <Button size="small" color="error" variant="outlined" onClick={() => endRowActiveSession(student)} disabled={rowBusy}>{t('endActiveSession')}</Button> : <Button size="small" variant="contained" onClick={() => startStudentSession(student)} disabled={rowBusy || !level.grade || !level.week}>{t('startStudentSession')}</Button>}
+                                            <Button size="small" variant="outlined" onClick={() => exportStudentReport(student)} disabled={exportingRowId === student._id}>{exportingRowId === student._id ? t('exporting') : t('exportReport')}</Button>
+                                            <Button size="small" variant="outlined" onClick={() => navigate(`/portal/students/${student._id}`)}>{t('viewDetailsCharts')}</Button>
+                                        </Stack>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table></TableContainer>}
             </CardContent></Card>}
+            </>}
+            </>}
         </Box>
     );
 };

@@ -25,12 +25,14 @@ import {
     studentSpellingDocx
 } from '../controllers/spellingReportController.js';
 import { listSpellingWords } from '../controllers/spellingWordController.js';
+import { getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 
 const router = express.Router();
 
 router.use(protect, requireSchoolContext);
 router.use('/word-lists', authorize('admin', 'department_principal', 'teacher'));
 router.get('/word-lists', listSpellingWords);
+router.get('/students/:studentId/details', authorize('admin', 'department_principal', 'teacher'), getStudentSpellingDetails);
 router.post('/word-lists/import/preview', uploadImportTemplate.single('file'), previewSpellingWords);
 router.post('/word-lists/import/commit', express.json(), commitSpellingWords);
 router.use('/sessions', authorize('admin', 'department_principal', 'teacher', 'student'));

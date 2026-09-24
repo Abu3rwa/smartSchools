@@ -30,9 +30,18 @@ export const fetchSpellingWords = createAsyncThunk('spelling/fetchWords', async 
     }
 });
 
-export const startTeacherSpellingSession = createAsyncThunk('spelling/startTeacherSession', async ({ studentId, curriculumGrade, curriculumWeek, mode = 'teacher-led' }, { rejectWithValue }) => {
+export const fetchStudentSpellingDetails = createAsyncThunk('spelling/fetchStudentDetails', async ({ studentId, params = {} }, { rejectWithValue }) => {
     try {
-        const response = await api.post('/spelling/sessions', { studentId, mode, maxMistakesAllowed: 3, curriculumGrade, curriculumWeek });
+        const response = await api.get(`/spelling/students/${studentId}/details`, { params });
+        return response.data.data;
+    } catch (error) {
+        return rejectWithValue(requestError(error, 'Unable to load student spelling details.'));
+    }
+});
+
+export const startTeacherSpellingSession = createAsyncThunk('spelling/startTeacherSession', async ({ studentId, curriculumGrade, curriculumWeek, emailNotification, mode = 'teacher-led' }, { rejectWithValue }) => {
+    try {
+        const response = await api.post('/spelling/sessions', { studentId, mode, maxMistakesAllowed: 3, curriculumGrade, curriculumWeek, emailNotification });
         return response.data.data;
     } catch (error) {
         return rejectWithValue(requestError(error, 'Unable to start the teacher session.'));
@@ -108,6 +117,7 @@ const spellingSlice = createSlice({
         retests: [],
         words: [],
         categories: [],
+        studentDetails: null,
         session: null,
         currentItem: null,
         feedback: null,
@@ -132,6 +142,9 @@ const spellingSlice = createSlice({
                 state.categories = action.payload.categories || [];
             })
             .addCase(fetchSpellingWords.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+            .addCase(fetchStudentSpellingDetails.pending, (state) => { state.loading = true; state.error = null; })
+            .addCase(fetchStudentSpellingDetails.fulfilled, (state, action) => { state.loading = false; state.studentDetails = action.payload; })
+            .addCase(fetchStudentSpellingDetails.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
             .addCase(startSelfServeSpellingSession.pending, (state) => { state.loading = true; state.error = null; })
             .addCase(startSelfServeSpellingSession.fulfilled, (state, action) => { state.loading = false; state.session = action.payload; })
             .addCase(startSelfServeSpellingSession.rejected, (state, action) => { state.loading = false; state.error = action.payload; })

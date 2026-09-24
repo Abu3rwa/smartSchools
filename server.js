@@ -421,6 +421,7 @@ const NEWSLETTER_ISSUE_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const REVIEW_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const SUBSCRIPTION_LIFECYCLE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
+const SPELLING_EMAIL_SCHEDULER_INTERVAL_MS = 60 * 1000; // 1 minute
 const ATTENDANCE_REMINDER_SCHEDULER_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const CURRICULUM_AI_IMPORT_SCHEDULER_INTERVAL_MS = 15 * 1000; // 15 seconds
 const ACADEMIC_EXCELLENCE_NIGHTLY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -526,12 +527,8 @@ const server = httpServer.listen(PORT, () => {
     const runCommunicationEmailScheduler = async () => {
       try {
         const result = await processDueScheduledCommunicationEmails();
-        const spellingResult = await processDueSpellingEmails();
         if ((result?.claimed || 0) > 0) {
           logger.info("Communication email scheduler run", result);
-        }
-        if ((spellingResult?.claimed || 0) > 0) {
-          logger.info("Spelling email scheduler run", spellingResult);
         }
       } catch (err) {
         logger.error("Communication email scheduler error:", err?.message || err);
@@ -539,6 +536,26 @@ const server = httpServer.listen(PORT, () => {
     };
     setTimeout(runCommunicationEmailScheduler, 30 * 1000);
     activeIntervals.push(setInterval(runCommunicationEmailScheduler, COMMUNICATION_EMAIL_SCHEDULER_INTERVAL_MS));
+  }
+
+  if (process.env.RUN_SPELLING_EMAIL_SCHEDULER !== "false") {
+    let spellingEmailJobRunning = false;
+    const runSpellingEmailScheduler = async () => {
+      if (spellingEmailJobRunning) return;
+      spellingEmailJobRunning = true;
+      try {
+        const result = await processDueSpellingEmails();
+        if ((result?.claimed || 0) > 0 || (result?.failed || 0) > 0) {
+          logger.info("Spelling email scheduler run", result);
+        }
+      } catch (err) {
+        logger.error("Spelling email scheduler error:", err?.message || err);
+      } finally {
+        spellingEmailJobRunning = false;
+      }
+    };
+    setTimeout(runSpellingEmailScheduler, 5 * 1000);
+    activeIntervals.push(setInterval(runSpellingEmailScheduler, SPELLING_EMAIL_SCHEDULER_INTERVAL_MS));
   }
 
   if (process.env.RUN_CURRICULUM_AI_IMPORT_RUNNER !== "false") {

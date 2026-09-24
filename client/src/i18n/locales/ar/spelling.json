@@ -38,6 +38,7 @@
   "selectGrade": "اختر الصف",
   "selectWeek": "اختر الأسبوع",
   "saveStudentLevel": "حفظ مستوى الطالب",
+  "allStudentsOverview": "نظرة عامة على جميع الطلاب",
   "studentLevelSaved": "تم حفظ صف وأسبوع إملاء الطالب.",
   "studentLevelSaveError": "تعذر حفظ مستوى إملاء الطالب.",
   "saving": "جارٍ الحفظ...",
@@ -73,6 +74,26 @@
   ,"allWeeks": "كل الأسابيع"
   ,"allCategories": "كل الفئات"
   ,"loadingWords": "جارٍ تحميل الكلمات..."
-  ,"wordCount": "{{count}} كلمة"
-  ,"noWords": "لا توجد كلمات تطابق هذه المرشحات."
+  ,"wordCount": "{{count}} كلمة",
+  "studentSpellingDetails": "تفاصيل الإملاء",
+  "notSet": "غير محدد",
+  "originalAttempts": "المحاولات الأصلية",
+  "originalCorrect": "الصحيح الأصلي",
+  "originalIncorrect": "الخطأ الأصلي",
+  "originalAccuracy": "دقة المحاولات الأصلية",
+  "uniqueWordsEverMissed": "الكلمات التي أُخطئ فيها",
+  "retestAttempts": "محاولات الإعادة",
+  "retestCorrect": "الصحيح في الإعادة",
+  "retestRecoveryRate": "معدل التعافي في الإعادة",
+  "gradePerformance": "الأداء حسب الصف",
+  "progressOverTime": "التقدم مع الوقت",
+  "missedWords": "الكلمات التي أُخطئ فيها",
+  "pending": "معلقة",
+  "resolved": "تمت المعالجة",
+  "noMissedWords": "لا توجد أخطاء إملائية أصلية مسجلة.",
+  "viewDetailsCharts": "عرض التفاصيل والمخططات",
+  "exportReport": "تصدير تقرير الإملاء",
+  "exporting": "جارٍ التصدير...",
+  "exportError": "تعذر تصدير تقرير الإملاء.",
+  "noWords": "لا توجد كلمات تطابق هذه المرشحات."
 }

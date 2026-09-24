@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
+import { DEFAULT_SPELLING_EMAIL_AUDIENCE, SPELLING_EMAIL_AUDIENCES } from '../utils/spellingEmailSettings.js';
 
 const spellingAttemptSchema = new mongoose.Schema({
     sequence: { type: Number, required: true, min: 1 },
@@ -75,6 +76,11 @@ const spellingSessionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         default: null
+    },
+    emailNotification: {
+        type: String,
+        enum: SPELLING_EMAIL_AUDIENCES,
+        default: DEFAULT_SPELLING_EMAIL_AUDIENCE
     },
     completionReason: {
         type: String,

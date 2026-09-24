@@ -4,6 +4,7 @@ import SpellingEmailDelivery from '../models/SpellingEmailDelivery.js';
 import SpellingSession from '../models/SpellingSession.js';
 import { sendTransactionalEmail } from './transactionalEmailService.js';
 import logger from '../utils/logger.js';
+import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
 
 const MAX_ATTEMPTS = 3;
 const escapeHtml = (value) => String(value ?? '')
@@ -13,18 +14,37 @@ const escapeHtml = (value) => String(value ?? '')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const recipientList = (student) => [...new Set([
-    student.email,
-    student.studentEmail,
-    student.parentInfo?.fatherEmail,
-    student.parentInfo?.motherEmail,
-    student.parentInfo?.guardianEmail
-].map((email) => String(email || '').trim().toLowerCase()).filter(Boolean))];
+export const resolveSpellingCompletionRecipients = (student, audience) => {
+    if (audience === 'none') return [];
+    const entries = typeof student.getAllContactEmailEntries === 'function'
+        ? student.getAllContactEmailEntries()
+        : [];
+    return [...new Set(entries
+        .filter((entry) => audience === 'student-and-parents'
+            || (audience === 'student-only' && entry.type === 'student')
+            || (audience === 'parents-only' && ['father', 'mother', 'guardian'].includes(entry.type)))
+        .map((entry) => String(entry.email || '').trim().toLowerCase())
+        .filter(Boolean))];
+};
 
 export async function queueSpellingCompletionEmail({ session, dbSession }) {
-    const student = await Student.findOne({ _id: session.student, school: session.school }).session(dbSession).lean();
+    const audience = isSpellingEmailAudience(session.emailNotification)
+        ? session.emailNotification
+        : DEFAULT_SPELLING_EMAIL_AUDIENCE;
+    if (audience === 'none') {
+        await SpellingSession.updateOne(
+            { _id: session._id, school: session.school },
+            { $set: { emailStatus: 'not-applicable', emailError: 'Spelling completion email sending is disabled' } },
+            { session: dbSession }
+        );
+        return null;
+    }
+
+    const student = await Student.findOne({ _id: session.student, school: session.school })
+        .populate('user', 'email')
+        .session(dbSession);
     if (!student) return null;
-    const recipients = recipientList(student);
+    const recipients = resolveSpellingCompletionRecipients(student, audience);
     if (recipients.length === 0) {
         await SpellingSession.updateOne(
             { _id: session._id, school: session.school },
@@ -72,13 +92,18 @@ export async function processDueSpellingEmails({ now = new Date(), limit = 25 } 
         );
         if (!delivery) break;
         stats.claimed += 1;
+        await SpellingSession.updateOne(
+            { _id: delivery.session, school: delivery.school },
+            { $inc: { emailAttempts: 1 }, $set: { emailStatus: 'pending' } }
+        );
         try {
             await sendTransactionalEmail({
                 to: delivery.recipients,
                 subject: delivery.subject,
                 text: delivery.text,
                 html: delivery.html,
-                schoolId: delivery.school
+                schoolId: delivery.school,
+                allowSmtp: false
             });
             await SpellingEmailDelivery.updateOne({ _id: delivery._id, status: 'processing' }, { $set: { status: 'sent', sentAt: new Date(), lastError: '' } });
             await SpellingSession.updateOne({ _id: delivery.session, school: delivery.school }, { $set: { emailStatus: 'sent', emailSentAt: new Date(), emailError: null } });

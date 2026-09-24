@@ -5,6 +5,7 @@ import SpellingSession from '../models/SpellingSession.js';
 import { withTransaction } from '../utils/withTransaction.js';
 import { isCorrect, normalizeForGrading } from '../utils/spellingGrading.js';
 import { queueSpellingCompletionEmail } from './spellingEmailService.js';
+import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -72,9 +73,10 @@ const getCurrentItemData = async (session, dbSession) => {
     return null;
 };
 
-export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, curriculumGrade, curriculumWeek }) {
+export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, curriculumGrade, curriculumWeek, emailNotification = DEFAULT_SPELLING_EMAIL_AUDIENCE }) {
     if (!['teacher-led', 'self-serve'].includes(mode)) throw badRequest('Invalid spelling session mode');
     if (!Number.isInteger(maxMistakesAllowed) || maxMistakesAllowed < 1) throw badRequest('maxMistakesAllowed must be a positive integer');
+    if (!isSpellingEmailAudience(emailNotification)) throw badRequest('Invalid spelling email audience');
 
     const startedAt = new Date();
     const deadline = retestDeadline ? new Date(retestDeadline) : new Date(startedAt.getTime() + (7 * DAY_MS));
@@ -115,6 +117,7 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         retestDeadline: deadline,
         curriculumGrade: selectedGrade,
         curriculumWeek: selectedWeek,
+        emailNotification,
         startedAt,
         createdBy: userId,
         administeredBy: mode === 'teacher-led' ? userId : null
