@@ -116,6 +116,8 @@ const AdminAcademicExcellenceDashboard = lazy(() => import("./pages/admin/academ
 const InterventionQueuePage = lazy(() => import("./pages/interventions/InterventionQueuePage"));
 const StudentGradesPage = lazy(() => import("./pages/student/academics/StudentGradesPage"));
 const StudentAttendancePage = lazy(() => import("./pages/student/attendance/StudentAttendancePage"));
+const SpellingTeacherPage = lazy(() => import("./pages/spelling/SpellingTeacherPage"));
+const SpellingStudentPage = lazy(() => import("./pages/students/SpellingStudentPage"));
 const AttendanceRequestFormPage = lazy(() => import("./pages/attendance/AttendanceRequestFormPage"));
 const MyAttendanceRequestsPage = lazy(() => import("./pages/attendance/MyAttendanceRequestsPage"));
 const RevisionPlansListPage = lazy(() => import("./pages/revisionPlans/RevisionPlansListPage"));
@@ -489,6 +491,22 @@ function App() {
                   <FeatureGate feature="mapTestPrep">
                     <StudentMapTestPrepPage />
                   </FeatureGate>
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="spelling"
+              element={
+                <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                  <SpellingTeacherPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="spelling/student"
+              element={
+                <RoleRoute roles={["student"]}>
+                  <SpellingStudentPage />
                 </RoleRoute>
               }
             />

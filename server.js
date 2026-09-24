@@ -50,6 +50,7 @@ import schoolCalendarRoutes from "./routes/schoolCalendarRoutes.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
 import importRoutes from "./routes/importRoutes.js";
+import spellingRoutes from "./routes/spellingRoutes.js";
 import advancedReportRoutes from "./routes/advancedReportRoutes.js";
 import { registerApiDocsRoute } from "./routes/apiDocsRoute.js";
 import { behaviorTracker } from "./middleware/behaviorTracker.js";
@@ -105,6 +106,7 @@ import { expireStaleSubstitutionRequests } from "./services/substitutionExpirySe
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
 import { runSubscriptionLifecycleJob } from "./jobs/subscriptionLifecycleJob.js";
 import { processDueScheduledCommunicationEmails } from "./services/communicationEmailSchedulerService.js";
+import { processDueSpellingEmails } from "./services/spellingEmailService.js";
 import { processAttendanceRemindersForEnabledSchools } from "./controllers/attendanceReminderController.js";
 import { runCurriculumImportJobCycle } from "./jobs/curriculumAiImportJobRunner.js";
 import { runAcademicExcellenceNightlyJob } from "./jobs/academicExcellenceSyncJob.js";
@@ -351,6 +353,7 @@ app.use("/api/timetable", timetableRoutes);
 app.use("/api/rooms", roomRoutes);
 // BE-032: larger limit for import routes that handle CSV bulk data
 app.use("/api/import", express.json({ limit: "5mb" }), importRoutes);
+app.use("/api/spelling", spellingRoutes);
 app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/newsletter-templates", newsletterTemplateRoutes);
 app.use("/api/standards", standardRoutes);
@@ -523,8 +526,12 @@ const server = httpServer.listen(PORT, () => {
     const runCommunicationEmailScheduler = async () => {
       try {
         const result = await processDueScheduledCommunicationEmails();
+        const spellingResult = await processDueSpellingEmails();
         if ((result?.claimed || 0) > 0) {
           logger.info("Communication email scheduler run", result);
+        }
+        if ((spellingResult?.claimed || 0) > 0) {
+          logger.info("Spelling email scheduler run", spellingResult);
         }
       } catch (err) {
         logger.error("Communication email scheduler error:", err?.message || err);

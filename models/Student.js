@@ -131,6 +131,28 @@ const studentSchema = new mongoose.Schema({
         trim: true,
         lowercase: true
     },
+    spelling: {
+        currentGrade: {
+            type: String,
+            enum: ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'],
+            default: null
+        },
+        currentWeek: {
+            type: Number,
+            min: 1,
+            default: null
+        },
+        lastWordIndex: {
+            type: Number,
+            min: 0,
+            default: 0
+        },
+        defaultMaxMistakes: {
+            type: Number,
+            min: 1,
+            default: 3
+        }
+    },
     // Report preferences for AI reporting system
     reportPreferences: {
         language: {

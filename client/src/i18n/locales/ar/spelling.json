@@ -1,0 +1,77 @@
+{
+  "teacherTitle": "اختبارات الإملاء",
+  "teacherDescription": "اختر فصلاً، وراجع سجل إملاء الطالب، أو أنشئ الاختبار التالي.",
+  "class": "الفصل",
+  "student": "الطالب",
+  "mySpelling": "إملائي",
+  "spellWord": "اكتب الكلمة",
+  "submitAnswer": "إرسال الإجابة",
+  "endSession": "إنهاء الاختبار",
+  "endActiveSession": "إنهاء الاختبار النشط",
+  "activeSessionEnded": "تم إنهاء اختبار الإملاء النشط.",
+  "pendingRetests": "إعادات الاختبار المعلقة",
+  "sessionHistory": "سجل الاختبارات",
+  "backToMain": "العودة إلى الصفحة الرئيسية",
+  "viewDetails": "عرض التفاصيل",
+  "sessionDetails": "تفاصيل الاختبار",
+  "correctWords": "الكلمات الصحيحة",
+  "incorrectWords": "الكلمات غير الصحيحة",
+  "none": "لا يوجد",
+  "close": "إغلاق",
+  "selectClass": "اختر فصلاً",
+  "selectStudent": "اختر طالباً",
+  "importTitle": "استيراد كلمات الإملاء",
+  "csvColumns": "أعمدة CSV: الصف، الأسبوع، الفئة، الكلمة، الترتيب",
+  "downloadTemplate": "تنزيل نموذج CSV",
+  "preview": "معاينة",
+  "commitImport": "تأكيد الاستيراد",
+  "rows": "الصفوف",
+  "valid": "صالحة",
+  "importedWords": "تم استيراد {{count}} كلمة إملائية.",
+  "createClassSession": "إنشاء اختبار للفصل",
+  "creating": "جارٍ الإنشاء...",
+  "studentId": "معرّف الطالب: {{id}}",
+  "startStudentSession": "بدء اختبار الطالب",
+  "spellingGrade": "صف الإملاء",
+  "spellingWeek": "أسبوع الإملاء",
+  "selectGrade": "اختر الصف",
+  "selectWeek": "اختر الأسبوع",
+  "saveStudentLevel": "حفظ مستوى الطالب",
+  "studentLevelSaved": "تم حفظ صف وأسبوع إملاء الطالب.",
+  "studentLevelSaveError": "تعذر حفظ مستوى إملاء الطالب.",
+  "saving": "جارٍ الحفظ...",
+  "assessmentMode": "وضع الاختبار",
+  "teacherLed": "بإشراف المعلم",
+  "teacherLedActive": "يوجد اختبار بإشراف المعلم نشط. أنهِه قبل بدء اختبار ذاتي.",
+  "selfServe": "اختبار الطالب الذاتي",
+  "currentWeek": "{{grade}} - الأسبوع {{week}}",
+  "previousTests": "الاختبارات السابقة ({{count}})",
+  "retests": "إعادات الاختبار ({{count}})",
+  "noTests": "لا توجد اختبارات إملاء بعد.",
+  "noRetests": "لا توجد إعادات اختبار لهذا الطالب.",
+  "activeAssessment": "الاختبار الحالي لـ {{name}}",
+  "correctCount": "الصحيح: {{count}}",
+  "mistakeCount": "الأخطاء: {{count}}",
+  "correct": "صحيح",
+  "incorrect": "غير صحيح",
+  "sessionCompleted": "اكتمل الاختبار.",
+  "loadingNextWord": "جارٍ تحميل الكلمة التالية...",
+  "previewError": "تعذرت معاينة قائمة الكلمات.",
+  "importError": "تعذر استيراد قائمة الكلمات.",
+  "sessionError": "تعذر بدء الاختبار.",
+  "attemptError": "تعذر تسجيل المحاولة.",
+  "classCreated": "تم إنشاء اختبارات لـ {{count}} طلاب في {{className}}.",
+  "classStopped": "تم إنشاء {{count}} اختبارات قبل توقف عملية الفصل."
+  ,"wordListTitle": "قائمة كلمات المنهج"
+  ,"grade": "الصف"
+  ,"week": "الأسبوع"
+  ,"category": "الفئة"
+  ,"word": "الكلمة"
+  ,"order": "الترتيب"
+  ,"allGrades": "كل الصفوف"
+  ,"allWeeks": "كل الأسابيع"
+  ,"allCategories": "كل الفئات"
+  ,"loadingWords": "جارٍ تحميل الكلمات..."
+  ,"wordCount": "{{count}} كلمة"
+  ,"noWords": "لا توجد كلمات تطابق هذه المرشحات."
+}

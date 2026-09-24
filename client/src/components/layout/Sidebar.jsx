@@ -302,6 +302,20 @@ const Sidebar = () => {
       section: "assessment",
     },
     {
+      path: "/portal/spelling",
+      icon: HiOutlinePencilSquare,
+      labelKey: "spelling",
+      roles: ["admin", "department_principal", "teacher"],
+      section: "assessment",
+    },
+    {
+      path: "/portal/spelling/student",
+      icon: HiOutlinePencilSquare,
+      labelKey: "spelling",
+      roles: ["student"],
+      section: "assessment",
+    },
+    {
       path: "/portal/standards",
       icon: HiOutlineCheckBadge,
       labelKey: "standards",

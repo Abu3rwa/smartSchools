@@ -374,16 +374,9 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.teacherProfile = action.payload.profile;
       })
-      .addCase(fetchCurrentUser.rejected, (state) => {
+      .addCase(fetchCurrentUser.rejected, (state, action) => {
         state.loading = false;
-        state.user = null;
-        state.token = null;
-        state.refreshToken = null;
-        state.isAuthenticated = false;
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        localStorage.removeItem('behavior_session_id');
+        state.error = action.payload || 'Unable to refresh the current user right now';
       })
       // Update profile
       .addCase(updateProfile.fulfilled, (state, action) => {

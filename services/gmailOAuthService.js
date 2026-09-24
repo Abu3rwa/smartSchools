@@ -179,6 +179,12 @@ class GmailOAuthService {
             return user;
         } catch (error) {
             logger.error('Error refreshing token:', error.message);
+            const isInvalidGrant = error?.response?.data?.error === 'invalid_grant'
+                || String(error?.message || '').includes('invalid_grant');
+            if (isInvalidGrant) {
+                await user.clearGmailTokens();
+                logger.warn(`Cleared revoked Gmail tokens for user ${user._id}`);
+            }
             throw error;
         }
     }

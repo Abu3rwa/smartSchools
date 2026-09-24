@@ -40,6 +40,7 @@ import plpReducer from './slices/plpSlice';
 import standardAssessmentReducer from './slices/standardAssessmentSlice';
 import grammarTestReducer from './slices/grammarTestSlice';
 import socialStudiesReducer from './slices/socialStudiesSlice';
+import spellingReducer from './slices/spellingSlice';
 import uiReducer, {
     fetchSchoolAcademicYear,
     updateSchoolAcademicYear
@@ -64,6 +65,7 @@ const YEAR_SCOPED_SLICE_KEYS = [
     'standardAssignments',
     'sbGradebook',
     'practiceHistory',
+    'spelling',
     'presentations',
     'gradebookConfig',
     'gradebookColumns',
@@ -118,6 +120,7 @@ const appReducer = combineReducers({
     standardAssessment: standardAssessmentReducer,
     grammarTests: grammarTestReducer,
     socialStudies: socialStudiesReducer,
+    spelling: spellingReducer,
 });
 
 const hasAcademicYearChanged = (state, action) => {

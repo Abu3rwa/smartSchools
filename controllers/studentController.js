@@ -562,7 +562,7 @@ export const updateStudent = asyncHandler(async (req, res) => {
     const allowedFields = [
         'firstName', 'lastName', 'dateOfBirth', 'email', 'gender', 'department', 'currentClass',
         'academicYear', 'enrollmentDate', 'parentInfo', 'address', 'medicalInfo',
-        'previousSchool', 'studentEmail', 'reportPreferences', 'status', 'notes'
+        'previousSchool', 'studentEmail', 'reportPreferences', 'status', 'notes', 'spelling'
     ];
     const updates = {};
     allowedFields.forEach((field) => {
@@ -665,7 +665,7 @@ export const deleteStudent = asyncHandler(async (req, res) => {
         if (student.photoUrl && student.photoUrl.includes('storage.googleapis.com')) {
             try {
                 await deleteFile(student.photoUrl);
-            } catch (error) {
+            } catch {
                 // Continue with deletion even if file cleanup fails.
             }
         }

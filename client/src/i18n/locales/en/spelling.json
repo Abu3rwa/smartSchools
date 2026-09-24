@@ -1,0 +1,77 @@
+{
+  "teacherTitle": "Spelling assessments",
+  "teacherDescription": "Choose a class, review a student's spelling history, or create the next assessment.",
+  "class": "Class",
+  "student": "Student",
+  "mySpelling": "My spelling",
+  "spellWord": "Spell the word",
+  "submitAnswer": "Submit answer",
+  "endSession": "End assessment",
+  "endActiveSession": "End active session",
+  "activeSessionEnded": "Active spelling session ended.",
+  "pendingRetests": "Pending retests",
+  "sessionHistory": "Session history",
+  "backToMain": "Back to main page",
+  "viewDetails": "View details",
+  "sessionDetails": "Session details",
+  "correctWords": "Correct words",
+  "incorrectWords": "Incorrect words",
+  "none": "None",
+  "close": "Close",
+  "selectClass": "Select a class",
+  "selectStudent": "Select a student",
+  "importTitle": "Import spelling words",
+  "csvColumns": "CSV columns: grade, week, category, word, order",
+  "downloadTemplate": "Download CSV template",
+  "preview": "Preview",
+  "commitImport": "Commit import",
+  "rows": "Rows",
+  "valid": "Valid",
+  "importedWords": "Imported {{count}} spelling words.",
+  "createClassSession": "Create class session",
+  "creating": "Creating...",
+  "studentId": "Student ID: {{id}}",
+  "startStudentSession": "Start student session",
+  "spellingGrade": "Spelling grade",
+  "spellingWeek": "Spelling week",
+  "selectGrade": "Select grade",
+  "selectWeek": "Select week",
+  "saveStudentLevel": "Save student level",
+  "studentLevelSaved": "Student spelling grade and week saved.",
+  "studentLevelSaveError": "Unable to save the student's spelling level.",
+  "saving": "Saving...",
+  "assessmentMode": "Assessment mode",
+  "teacherLed": "Teacher-led",
+  "teacherLedActive": "A teacher-led assessment is active. End it before starting a self-serve assessment.",
+  "selfServe": "Student self-serve",
+  "currentWeek": "{{grade}} - Week {{week}}",
+  "previousTests": "Previous tests ({{count}})",
+  "retests": "Retests ({{count}})",
+  "noTests": "No spelling tests yet.",
+  "noRetests": "No retests for this student.",
+  "activeAssessment": "Active assessment for {{name}}",
+  "correctCount": "Correct: {{count}}",
+  "mistakeCount": "Mistakes: {{count}}",
+  "correct": "Correct",
+  "incorrect": "Incorrect",
+  "sessionCompleted": "Session completed.",
+  "loadingNextWord": "Loading next word...",
+  "previewError": "Unable to preview the word list.",
+  "importError": "Unable to import the word list.",
+  "sessionError": "Unable to start the session.",
+  "attemptError": "Unable to record the attempt.",
+  "classCreated": "Created sessions for {{count}} students in {{className}}.",
+  "classStopped": "Created {{count}} sessions before the class operation stopped."
+  ,"wordListTitle": "Curriculum word list"
+  ,"grade": "Grade"
+  ,"week": "Week"
+  ,"category": "Category"
+  ,"word": "Word"
+  ,"order": "Order"
+  ,"allGrades": "All grades"
+  ,"allWeeks": "All weeks"
+  ,"allCategories": "All categories"
+  ,"loadingWords": "Loading words..."
+  ,"wordCount": "{{count}} words"
+  ,"noWords": "No words match these filters."
+}

@@ -33,12 +33,33 @@ const migrateDeviceTokenIndex = async () => {
   }
 };
 
+const migrateSpellingSessionIndexes = async () => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return;
+
+    const collection = db.collection('spellingsessions');
+    const indexes = await collection.indexes();
+    const invalidIndex = indexes.find(
+      (idx) => idx.name === 'school_1_attempts.idempotencyKey_1'
+    );
+
+    if (invalidIndex) {
+      await collection.dropIndex(invalidIndex.name);
+      logger.success('Dropped invalid spelling session idempotency index');
+    }
+  } catch (err) {
+    logger.warn(`Spelling session index migration skipped: ${err.message}`);
+  }
+};
+
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
     logger.success('MongoDB Connected');
     // Run migrations after connection is established.
     await migrateDeviceTokenIndex();
+    await migrateSpellingSessionIndexes();
   } catch (error) {
     logger.error(`❌ MongoDB Connection Error: ${error.message}`);
     process.exit(1);
