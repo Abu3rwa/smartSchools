@@ -7,6 +7,7 @@
   "spellWord": "Spell the word",
   "submitAnswer": "Submit answer",
   "endSession": "End assessment",
+  "startNewSession": "Start new session",
   "endActiveSession": "End active session",
   "activeSessionEnded": "Active spelling session ended.",
   "pendingRetests": "Pending retests",

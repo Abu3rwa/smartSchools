@@ -7,6 +7,7 @@
   "spellWord": "اكتب الكلمة",
   "submitAnswer": "إرسال الإجابة",
   "endSession": "إنهاء الاختبار",
+  "startNewSession": "بدء اختبار جديد",
   "endActiveSession": "إنهاء الاختبار النشط",
   "activeSessionEnded": "تم إنهاء اختبار الإملاء النشط.",
   "pendingRetests": "إعادات الاختبار المعلقة",

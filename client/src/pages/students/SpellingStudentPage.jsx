@@ -102,9 +102,20 @@ const SpellingStudentPage = () => {
             {session && <Card sx={{ mb: 3 }}><CardContent><Stack spacing={2} alignItems="center">
                 <Stack direction="row" justifyContent="space-between" sx={{ width: '100%' }}><Typography>{t('correctCount', { count: session.correctCount })} | {t('mistakeCount', { count: session.mistakeCount })}</Typography>{session.status === 'in-progress' && <Button color="error" variant="outlined" onClick={endSession} disabled={loading}>{t('endSession')}</Button>}</Stack>
                 {feedback && <Alert severity={feedback.correct ? 'success' : 'error'}>{feedback.correct ? 'Correct' : `Correct spelling: ${feedback.answer}`}</Alert>}
-                {session.mode === 'teacher-led' ? <Alert severity="info">{t('teacherLedActive')}</Alert> : currentItem ? <form onSubmit={submitAnswer} style={{ width: '100%' }}><Stack spacing={2}>
+                {session.status !== 'in-progress' ? <Stack spacing={2} alignItems="center"><Alert severity="success">{t('sessionCompleted')}</Alert><Button variant="contained" onClick={startSession} disabled={loading}>{t('startNewSession')}</Button></Stack> : session.mode === 'teacher-led' ? <Alert severity="info">{t('teacherLedActive')}</Alert> : currentItem ? <form onSubmit={submitAnswer} style={{ width: '100%' }}><Stack spacing={2}>
                     <Typography variant="h2" textAlign="center">{t('spellWord')}</Typography>
-                    <TextField autoFocus label="Your answer" value={input} onChange={(event) => setInput(event.target.value)} />
+                    <TextField
+                        autoFocus
+                        label="Your answer"
+                        value={input}
+                        name="spelling-answer"
+                        autoComplete="new-password"
+                        spellCheck={false}
+                        onChange={(event) => setInput(event.target.value)}
+                        onPaste={(event) => event.preventDefault()}
+                        onDrop={(event) => event.preventDefault()}
+                        onContextMenu={(event) => event.preventDefault()}
+                    />
                     <Button type="submit" variant="contained" disabled={loading || !input.trim()}>{t('submitAnswer')}</Button>
                 </Stack></form> : <Typography>{t('sessionCompleted')}</Typography>}
             </Stack></CardContent></Card>}
