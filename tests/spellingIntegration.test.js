@@ -6,7 +6,9 @@ import Student from '../models/Student.js';
 import SpellingWord from '../models/SpellingWord.js';
 import SpellingSession from '../models/SpellingSession.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
+import SpellingIntegrityEvent from '../models/SpellingIntegrityEvent.js';
 import { getCurrentSpellingItem, recordSpellingAttempt, startSpellingSession } from '../services/spellingSessionService.js';
+import { listSpellingIntegrityEvents, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
 
 const enabled = process.env.RUN_SPELLING_INTEGRATION === 'true' && Boolean(process.env.MONGODB_URI);
 const integrationTest = enabled ? test : test.skip;
@@ -48,6 +50,19 @@ integrationTest('session transitions are stable and concurrent duplicate answers
     assert.equal(first.item.word, 'otter');
     assert.equal(second.item.sequence, first.item.sequence);
 
+    const integrityEvent = {
+        schoolId,
+        studentId,
+        sessionId: session._id,
+        eventId: '6ab939b2-b1cd-4ea1-8031-bd40aa222222',
+        sequence: first.item.sequence,
+        occurredAt: new Date()
+    };
+    await recordSpellingIntegrityEvent(integrityEvent);
+    await recordSpellingIntegrityEvent(integrityEvent);
+    const integrityHistory = await listSpellingIntegrityEvents({ schoolId, sessionId: session._id });
+    assert.equal(integrityHistory.count, 1);
+
     const results = await Promise.allSettled([
         recordSpellingAttempt({ schoolId, sessionId: session._id, userId, sequence: 1, studentInput: 'oter', idempotencyKey: 'integration-a' }),
         recordSpellingAttempt({ schoolId, sessionId: session._id, userId, sequence: 1, studentInput: 'otter', idempotencyKey: 'integration-b' })
@@ -59,6 +74,7 @@ integrationTest('session transitions are stable and concurrent duplicate answers
     assert.equal(savedSession.status, 'completed');
     assert.equal(savedSession.attempts.length, 1);
     assert.equal(await SpellingRetestItem.countDocuments({ school: schoolId, student: studentId, status: 'pending' }), 1);
+    await assert.rejects(() => recordSpellingIntegrityEvent(integrityEvent), /Active spelling session not found/);
 }, { timeout: 30000 });
 
 test.after(async () => {
@@ -68,7 +84,8 @@ test.after(async () => {
             Student.deleteOne({ _id: studentId, school: schoolId }).setOptions({ skipTenantFilter: true }),
             SpellingWord.deleteMany({ school: schoolId }).setOptions({ skipTenantFilter: true }),
             SpellingSession.deleteMany({ school: schoolId }).setOptions({ skipTenantFilter: true }),
-            SpellingRetestItem.deleteMany({ school: schoolId }).setOptions({ skipTenantFilter: true })
+                SpellingRetestItem.deleteMany({ school: schoolId }).setOptions({ skipTenantFilter: true }),
+                SpellingIntegrityEvent.deleteMany({ school: schoolId, student: studentId }).setOptions({ skipTenantFilter: true })
         ]);
     }
     await mongoose.disconnect();

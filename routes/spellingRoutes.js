@@ -9,6 +9,8 @@ import {
 import {
     abandonSession,
     completeSession,
+    createSpellingIntegrityEvent,
+    getSpellingIntegrityEvents,
     getCurrentItem,
     recordAttempt,
     startSession
@@ -46,6 +48,8 @@ router.post('/sessions', startSession);
 router.get('/sessions', listSessions);
 router.get('/sessions/active', getActiveSession);
 router.get('/sessions/:id/current-item', getCurrentItem);
+router.post('/sessions/:id/integrity-events', authorize('student'), createSpellingIntegrityEvent);
+router.get('/sessions/:id/integrity-events', authorize('admin', 'department_principal', 'teacher'), getSpellingIntegrityEvents);
 router.patch('/sessions/:id/attempt', recordAttempt);
 router.post('/sessions/:id/complete', completeSession);
 router.post('/sessions/:id/abandon', abandonSession);

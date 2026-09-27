@@ -31,8 +31,13 @@ const SpellingStudentPage = () => {
     const [revealedAttempt, setRevealedAttempt] = useState(null);
     const [audioPlaying, setAudioPlaying] = useState(false);
     const [sessionViewOpen, setSessionViewOpen] = useState(false);
+    const [integrityNotice, setIntegrityNotice] = useState(false);
     const autoPlayedSequence = useRef(null);
     const activeAudioRef = useRef(null);
+    const wasPageHiddenRef = useRef(false);
+    const pendingIntegrityEventRef = useRef(null);
+    const currentSequenceRef = useRef(null);
+    currentSequenceRef.current = currentItem?.sequence || null;
 
     // Open the full-screen session view automatically whenever a session
     // (new or resumed) becomes available. Closing it later is just a UI
@@ -73,6 +78,48 @@ const SpellingStudentPage = () => {
         });
         return () => { cancelled = true; };
     }, [currentItem?.word, dispatch]);
+
+    useEffect(() => {
+        if (!session?._id || session.status !== 'in-progress') return undefined;
+        const sessionId = session._id;
+
+        const postIntegrityEvent = async (event) => {
+            pendingIntegrityEventRef.current = event;
+            try {
+                await api.post(`/spelling/sessions/${sessionId}/integrity-events`, event);
+                if (pendingIntegrityEventRef.current?.eventId === event.eventId) pendingIntegrityEventRef.current = null;
+            } catch {
+                return;
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                if (wasPageHiddenRef.current) return;
+                wasPageHiddenRef.current = true;
+                const event = {
+                    eventId: crypto.randomUUID(),
+                    eventType: 'page_hidden',
+                    sequence: currentSequenceRef.current,
+                    occurredAt: new Date().toISOString()
+                };
+                postIntegrityEvent(event);
+                return;
+            }
+
+            if (!wasPageHiddenRef.current) return;
+            wasPageHiddenRef.current = false;
+            setIntegrityNotice(true);
+            if (pendingIntegrityEventRef.current) postIntegrityEvent(pendingIntegrityEventRef.current);
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            wasPageHiddenRef.current = false;
+            pendingIntegrityEventRef.current = null;
+        };
+    }, [session?._id, session?.status]);
 
     // A new word has loaded — clear any leftover reveal card from the
     // previous word so it never overlaps the next listening prompt.
@@ -196,7 +243,12 @@ const SpellingStudentPage = () => {
             </Stack>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
             {localError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setLocalError('')}>{localError}</Alert>}
-            {!session && <Button variant="contained" onClick={startSession} disabled={loading}>{t('startStudentSession')}</Button>}
+            {!session && <>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                    During a spelling session, when this page becomes hidden, the event is recorded for your teacher. This can happen when switching tabs or minimizing the browser.
+                </Alert>
+                <Button variant="contained" onClick={startSession} disabled={loading}>{t('startStudentSession')}</Button>
+            </>}
 
             {session && !sessionViewOpen && <Card sx={{ mb: 3 }}><CardContent>
                 <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2}>
@@ -212,6 +264,9 @@ const SpellingStudentPage = () => {
 
             <Dialog fullScreen open={Boolean(session) && sessionViewOpen} onClose={closeSessionView}>
                 <DialogContent sx={{ display: 'flex', flexDirection: 'column', bgcolor: 'background.default', p: { xs: 2, md: 5 } }}>
+                    {integrityNotice && <Alert severity="info" role="status" onClose={() => setIntegrityNotice(false)} sx={{ mb: 2 }}>
+                        Leaving this spelling session page was recorded.
+                    </Alert>}
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
                         <Stack direction="row" spacing={2} alignItems="center">
                             <IconButton aria-label="Close" onClick={closeSessionView}><HiOutlineArrowLeft /></IconButton>

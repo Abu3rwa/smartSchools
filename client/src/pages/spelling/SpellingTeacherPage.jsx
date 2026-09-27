@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Fade, FormControl, IconButton, InputLabel, MenuItem, Select, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Tab, TextField, Typography } from '@mui/material';
 import { HiOutlineCheck, HiOutlineXMark, HiOutlineArrowLeft, HiOutlineClock } from 'react-icons/hi2';
 import { useDispatch, useSelector } from 'react-redux';
@@ -35,6 +35,7 @@ const SpellingTeacherPage = () => {
     const [studentId, setStudentId] = useState('');
     const [activeSession, setActiveSession] = useState(null);
     const [currentItem, setCurrentItem] = useState(null);
+    const [integrityEvents, setIntegrityEvents] = useState({ count: 0, events: [], error: '' });
     const [message, setMessage] = useState('');
     const [messageSeverity, setMessageSeverity] = useState('info');
     const [loading, setLoading] = useState(false);
@@ -67,6 +68,8 @@ const SpellingTeacherPage = () => {
     const [exportingRowId, setExportingRowId] = useState(null);
     const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
     const [studentHistoryMap, setStudentHistoryMap] = useState({});
+    const studentHistoryMapRef = useRef(studentHistoryMap);
+    studentHistoryMapRef.current = studentHistoryMap;
     const [overviewLoading, setOverviewLoading] = useState(false);
     const wordList = spelling.words;
     const wordCategories = spelling.categories;
@@ -142,9 +145,9 @@ const SpellingTeacherPage = () => {
         }
     }, [dispatch]);
 
-    const loadAllHistories = useCallback(async () => {
+    const loadAllHistories = useCallback(async ({ showLoading = true } = {}) => {
         if (!classStudents.length) return;
-        setOverviewLoading(true);
+        if (showLoading) setOverviewLoading(true);
         try {
             const entries = await Promise.all(classStudents.map(async (student) => {
                 const result = await dispatch(fetchSpellingHistory({ studentId: student._id }));
@@ -152,7 +155,7 @@ const SpellingTeacherPage = () => {
             }));
             setStudentHistoryMap(Object.fromEntries(entries));
         } finally {
-            setOverviewLoading(false);
+            if (showLoading) setOverviewLoading(false);
         }
     }, [classStudents, dispatch]);
 
@@ -163,6 +166,25 @@ const SpellingTeacherPage = () => {
         }
         loadAllHistories();
     }, [classId, classStudents, loadAllHistories]);
+
+    useEffect(() => {
+        if (!classId || !classStudents.length) return undefined;
+        const intervalId = window.setInterval(() => {
+            classStudents.forEach((student) => {
+                const sessions = studentHistoryMapRef.current[student._id] || [];
+                if (sessions.some((session) => session.status === 'in-progress')) {
+                    refreshStudentHistory(student._id);
+                }
+            });
+        }, 2500);
+        return () => window.clearInterval(intervalId);
+    }, [classId, classStudents, refreshStudentHistory]);
+
+    useEffect(() => {
+        if (!classId || !classStudents.length) return undefined;
+        const intervalId = window.setInterval(() => loadAllHistories({ showLoading: false }), 10000);
+        return () => window.clearInterval(intervalId);
+    }, [classId, classStudents.length, loadAllHistories]);
 
     const updateRowLevel = async (student, field, value) => {
         const nextLevel = { ...(rowLevels[student._id] || {}), [field]: value };
@@ -207,6 +229,18 @@ const SpellingTeacherPage = () => {
             setCurrentItem(result.payload.item);
         }
     }, [dispatch]);
+
+    const loadIntegrityEvents = useCallback(async (sessionId) => {
+        try {
+            const response = await api.get(`/spelling/sessions/${sessionId}/integrity-events`);
+            setIntegrityEvents(response.data.data);
+        } catch (error) {
+            setIntegrityEvents((current) => ({
+                ...current,
+                error: error.response?.data?.message || 'Unable to load page visibility events.'
+            }));
+        }
+    }, []);
 
     const startStudentSession = async (student) => {
         const level = rowLevels[student._id] || {};
@@ -360,6 +394,7 @@ const SpellingTeacherPage = () => {
         setActiveSession(session);
         setCurrentItem(null);
         setGradingFeedback(null);
+        setIntegrityEvents({ count: 0, events: [], error: '' });
         if (session.status === 'in-progress') {
             await loadCurrentItem(session._id);
         }
@@ -454,11 +489,18 @@ const SpellingTeacherPage = () => {
     }, [activeSession, currentItem, gradeAttempt, gradingFeedback, loading]);
 
     useEffect(() => {
-        if (activeSession?.mode !== 'self-serve' || activeSession.status !== 'in-progress') return undefined;
-        const refreshMonitor = () => loadCurrentItem(activeSession._id);
-        const intervalId = window.setInterval(refreshMonitor, 1500);
+        if (!activeSession?._id) return undefined;
+        const sessionId = activeSession._id;
+        setIntegrityEvents({ count: 0, events: [], error: '' });
+        loadIntegrityEvents(sessionId);
+        if (activeSession.status !== 'in-progress') return undefined;
+        const refreshLiveSession = () => {
+            loadIntegrityEvents(sessionId);
+            if (activeSession.mode === 'self-serve') loadCurrentItem(sessionId);
+        };
+        const intervalId = window.setInterval(refreshLiveSession, 1500);
         return () => window.clearInterval(intervalId);
-    }, [activeSession?.mode, activeSession?.status, activeSession?._id, loadCurrentItem]);
+    }, [activeSession?._id, activeSession?.mode, activeSession?.status, loadCurrentItem, loadIntegrityEvents]);
 
     const missedWords = activeSession?.attempts?.filter((attempt) => !attempt.correct) || [];
     const mistakesAllowed = activeSession?.maxMistakesAllowed || 3;
@@ -576,6 +618,22 @@ const SpellingTeacherPage = () => {
                         </Stack>
                         <Stack direction="row" spacing={1} alignItems="center"><HiOutlineClock /><Typography>{t('wordCount', { count: activeSession?.attempts?.length || 0 })}</Typography></Stack>
                     </Stack>
+                    <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto', mb: 2 }}>
+                        <Alert severity="info">
+                            Page left view: {integrityEvents.count} {integrityEvents.count === 1 ? 'time' : 'times'}
+                        </Alert>
+                        {integrityEvents.error && <Alert severity="warning" sx={{ mt: 1 }}>{integrityEvents.error}</Alert>}
+                        {integrityEvents.events.length > 0 && (
+                            <Stack spacing={0.5} sx={{ mt: 1, maxHeight: 120, overflowY: 'auto' }} aria-label="Page visibility event details">
+                                {integrityEvents.events.map((event) => (
+                                    <Typography key={event.eventId} variant="body2" color="text.secondary">
+                                        {new Date(event.receivedAt).toLocaleString()}
+                                        {event.sequence ? ` - During word ${event.sequence}` : ''}
+                                    </Typography>
+                                ))}
+                            </Stack>
+                        )}
+                    </Box>
                     <Box sx={{ maxWidth: 900, width: '100%', mx: 'auto', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {activeSession?.status !== 'in-progress' ? (
                             <Card sx={{ width: '100%', maxWidth: 700, p: { xs: 2, md: 5 } }}>
@@ -840,13 +898,30 @@ const SpellingTeacherPage = () => {
                             const level = rowLevels[student._id] || { grade: '', week: '' };
                             const studentSessions = studentHistoryMap[student._id] || [];
                             const rowActiveSession = studentSessions.find((session) => session.status === 'in-progress');
+                            const currentWord = rowActiveSession?.currentWord;
                             const passageSession = studentSessions.find((session) => session.practicePassage);
                             const latestPassage = passageSession?.practicePassage;
                             const rowBusy = rowActionLoadingId === student._id;
                             return (
                                 <TableRow key={student._id}>
                                     <TableCell>
-                                        <Typography variant="body2">{student.firstName} {student.lastName}</Typography>
+                                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                            <Typography variant="body2">{student.firstName} {student.lastName}</Typography>
+                                            {currentWord && (
+                                                <Chip
+                                                    size="small"
+                                                    label={currentWord}
+                                                    color="warning"
+                                                    sx={{
+                                                        fontWeight: 700,
+                                                        backgroundColor: 'warning.light',
+                                                        color: 'warning.contrastText',
+                                                        border: '1px solid',
+                                                        borderColor: 'warning.main'
+                                                    }}
+                                                />
+                                            )}
+                                        </Stack>
                                         <Typography variant="caption" color="text.secondary">{t('studentId', { id: student.studentId })}</Typography>
                                     </TableCell>
                                     <TableCell>

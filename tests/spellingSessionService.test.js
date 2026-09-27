@@ -4,6 +4,26 @@ import {
     recordSpellingAttempt,
     startSpellingSession
 } from '../services/spellingSessionService.js';
+import { validateSpellingIntegrityEvent } from '../utils/spellingIntegrity.js';
+
+test('validateSpellingIntegrityEvent accepts a page-hidden event and normalizes optional fields', () => {
+    const event = validateSpellingIntegrityEvent({
+        eventId: '6ab939b2-b1cd-4ea1-8031-bd40aa111111',
+        eventType: 'page_hidden',
+        occurredAt: '2026-09-27T12:00:00.000Z'
+    });
+
+    assert.equal(event.sequence, null);
+    assert.equal(event.occurredAt.toISOString(), '2026-09-27T12:00:00.000Z');
+});
+
+test('validateSpellingIntegrityEvent rejects malformed payloads', () => {
+    const eventId = '6ab939b2-b1cd-4ea1-8031-bd40aa111111';
+    assert.throws(() => validateSpellingIntegrityEvent({ eventId: 'invalid', eventType: 'page_hidden' }), /valid eventId/);
+    assert.throws(() => validateSpellingIntegrityEvent({ eventId, eventType: 'window_blur' }), /Invalid spelling integrity event type/);
+    assert.throws(() => validateSpellingIntegrityEvent({ eventId, eventType: 'page_hidden', sequence: 0 }), /positive integer/);
+    assert.throws(() => validateSpellingIntegrityEvent({ eventId, eventType: 'page_hidden', occurredAt: 'invalid-date' }), /valid date/);
+});
 
 test('startSpellingSession rejects invalid modes before database access', async () => {
     await assert.rejects(
