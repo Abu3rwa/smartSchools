@@ -15,7 +15,7 @@ const studentIdForRequest = (req) => resolveSpellingStudentId({
 
 export const listSessions = asyncHandler(async (req, res) => {
     const studentId = await studentIdForRequest(req);
-    const sessions = await listSpellingSessions({ schoolId: req.schoolId, studentId, limit: req.query.limit });
+    const sessions = await listSpellingSessions({ schoolId: req.schoolId, studentId, limit: req.query.limit, viewerRole: req.user?.role });
     return res.json({ success: true, data: sessions });
 });
 

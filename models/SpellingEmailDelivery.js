@@ -3,7 +3,8 @@ import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 
 const spellingEmailDeliverySchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
-    session: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingSession', required: true, unique: true },
+    session: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingSession', required: true },
+    kind: { type: String, enum: ['results', 'passage'], default: 'results' },
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
     recipients: { type: [String], default: [] },
     subject: { type: String, required: true, maxlength: 220 },
@@ -17,6 +18,7 @@ const spellingEmailDeliverySchema = new mongoose.Schema({
 }, { timestamps: true, suppressReservedKeysWarning: true });
 
 spellingEmailDeliverySchema.index({ school: 1, status: 1, nextAttemptAt: 1 });
+spellingEmailDeliverySchema.index({ session: 1, kind: 1 }, { unique: true });
 spellingEmailDeliverySchema.plugin(tenantIsolationPlugin);
 
 const SpellingEmailDelivery = mongoose.model('SpellingEmailDelivery', spellingEmailDeliverySchema);

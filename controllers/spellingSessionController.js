@@ -29,7 +29,9 @@ export const startSession = asyncHandler(async (req, res) => {
         retestDeadline: req.body.retestDeadline,
         curriculumGrade: req.body.curriculumGrade,
         curriculumWeek: req.body.curriculumWeek ? Number(req.body.curriculumWeek) : undefined,
-        emailNotification: req.body.emailNotification
+        emailNotification: req.body.emailNotification,
+        passageEmailAudience: req.body.passageEmailAudience ?? null
+        ,passageGeneration: req.body.passageGeneration || {}
     });
     return res.status(201).json({ success: true, data: session });
 });

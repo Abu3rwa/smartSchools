@@ -26,12 +26,16 @@ import {
 } from '../controllers/spellingReportController.js';
 import { listSpellingWords } from '../controllers/spellingWordController.js';
 import { getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
+import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
+import { approvePassage, discardPassage, generatePassage, getPassage, sendPassage, updatePassage } from '../controllers/spellingPassageController.js';
 
 const router = express.Router();
 
 router.use(protect, requireSchoolContext);
 router.use('/word-lists', authorize('admin', 'department_principal', 'teacher'));
 router.get('/word-lists', listSpellingWords);
+router.get('/classes/:classId/settings', authorize('admin', 'department_principal', 'teacher'), getClassSettings);
+router.patch('/classes/:classId/settings', express.json(), authorize('admin', 'department_principal', 'teacher'), updateClassSettings);
 router.get('/students/:studentId/details', authorize('admin', 'department_principal', 'teacher'), getStudentSpellingDetails);
 router.post('/word-lists/import/preview', uploadImportTemplate.single('file'), previewSpellingWords);
 router.post('/word-lists/import/commit', express.json(), commitSpellingWords);
@@ -44,6 +48,12 @@ router.patch('/sessions/:id/attempt', recordAttempt);
 router.post('/sessions/:id/complete', completeSession);
 router.post('/sessions/:id/abandon', abandonSession);
 router.get('/sessions/:id', getSession);
+router.get('/sessions/:id/passage', getPassage);
+router.post('/sessions/:id/passage/generate', express.json(), generatePassage);
+router.patch('/sessions/:id/passage', express.json(), updatePassage);
+router.post('/sessions/:id/passage/approve', approvePassage);
+router.post('/sessions/:id/passage/send', sendPassage);
+router.post('/sessions/:id/passage/discard', discardPassage);
 router.get('/retest-queue', listRetests);
 router.use('/reports', authorize('admin', 'department_principal', 'teacher'));
 router.get('/reports/student/:studentId/docx', studentSpellingDocx);

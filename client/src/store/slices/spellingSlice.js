@@ -39,9 +39,9 @@ export const fetchStudentSpellingDetails = createAsyncThunk('spelling/fetchStude
     }
 });
 
-export const startTeacherSpellingSession = createAsyncThunk('spelling/startTeacherSession', async ({ studentId, curriculumGrade, curriculumWeek, emailNotification, mode = 'teacher-led' }, { rejectWithValue }) => {
+export const startTeacherSpellingSession = createAsyncThunk('spelling/startTeacherSession', async ({ studentId, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration, maxMistakesAllowed = 3, mode = 'teacher-led' }, { rejectWithValue }) => {
     try {
-        const response = await api.post('/spelling/sessions', { studentId, mode, maxMistakesAllowed: 3, curriculumGrade, curriculumWeek, emailNotification });
+        const response = await api.post('/spelling/sessions', { studentId, mode, maxMistakesAllowed, curriculumGrade, curriculumWeek, emailNotification, passageEmailAudience, passageGeneration });
         return response.data.data;
     } catch (error) {
         return rejectWithValue(requestError(error, 'Unable to start the teacher session.'));

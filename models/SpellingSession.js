@@ -43,7 +43,8 @@ const spellingSessionSchema = new mongoose.Schema({
     maxMistakesAllowed: {
         type: Number,
         required: true,
-        min: 1
+        min: 1,
+        max: 50
     },
     retestDeadline: {
         type: Date,
@@ -81,6 +82,17 @@ const spellingSessionSchema = new mongoose.Schema({
         type: String,
         enum: SPELLING_EMAIL_AUDIENCES,
         default: DEFAULT_SPELLING_EMAIL_AUDIENCE
+    },
+    passageEmailAudience: {
+        type: String,
+        enum: [...SPELLING_EMAIL_AUDIENCES, null],
+        default: null
+    },
+    passageGeneration: {
+        enabled: { type: Boolean, default: false },
+        trigger: { type: String, enum: ['manual', 'automatic'], default: 'manual' },
+        style: { type: String, enum: ['passage', 'sentence-list'], default: 'sentence-list' },
+        requireTeacherApproval: { type: Boolean, default: true }
     },
     completionReason: {
         type: String,

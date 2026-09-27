@@ -1,6 +1,7 @@
 import Student from '../models/Student.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
+import SpellingPassage from '../models/SpellingPassage.js';
 
 const notFound = (message) => Object.assign(new Error(message), { statusCode: 404 });
 
@@ -10,7 +11,7 @@ export async function resolveSpellingStudentId({ schoolId, requestedStudentId, u
     return student?._id || null;
 }
 
-export async function listSpellingSessions({ schoolId, studentId, limit = 50 }) {
+export async function listSpellingSessions({ schoolId, studentId, limit = 50, viewerRole = 'student' }) {
     const query = {
         school: schoolId,
         $or: [
@@ -19,11 +20,18 @@ export async function listSpellingSessions({ schoolId, studentId, limit = 50 }) 
         ]
     };
     if (studentId) query.student = studentId;
-    return SpellingSession.find(query)
+    const sessions = await SpellingSession.find(query)
         .sort({ startedAt: -1 })
         .limit(Math.min(Math.max(Number(limit) || 50, 1), 100))
-        .select('student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts emailNotification emailStatus emailSentAt emailAttempts emailError')
+        .select('student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError')
         .lean();
+    const passages = await SpellingPassage.find({
+        school: schoolId,
+        session: { $in: sessions.map((session) => session._id) },
+        ...(viewerRole === 'student' ? { status: { $in: ['approved', 'sent'] } } : {})
+    }).select('session style missedWords content status generatedAt sentAt').lean();
+    const passageBySession = new Map(passages.map((passage) => [String(passage.session), passage]));
+    return sessions.map((session) => ({ ...session, practicePassage: passageBySession.get(String(session._id)) || null }));
 }
 
 export async function getActiveSpellingSession({ schoolId, studentId }) {

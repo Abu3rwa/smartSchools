@@ -53,6 +53,29 @@ const migrateSpellingSessionIndexes = async () => {
   }
 };
 
+const migrateSpellingEmailDeliveryIndexes = async () => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return;
+
+    const collection = db.collection('spellingemaildeliveries');
+    const indexes = await collection.indexes();
+    const legacySessionIndex = indexes.find((index) => index.name === 'session_1');
+    if (legacySessionIndex) {
+      await collection.dropIndex(legacySessionIndex.name);
+      logger.success('Dropped legacy unique spelling email session index');
+    }
+
+    const compoundIndex = indexes.find((index) => index.name === 'session_1_kind_1');
+    if (!compoundIndex) {
+      await collection.createIndex({ session: 1, kind: 1 }, { unique: true, name: 'session_1_kind_1' });
+      logger.success('Created spelling email session and kind index');
+    }
+  } catch (err) {
+    logger.warn(`Spelling email delivery index migration skipped: ${err.message}`);
+  }
+};
+
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
@@ -60,6 +83,7 @@ const connectDB = async () => {
     // Run migrations after connection is established.
     await migrateDeviceTokenIndex();
     await migrateSpellingSessionIndexes();
+    await migrateSpellingEmailDeliveryIndexes();
   } catch (error) {
     logger.error(`❌ MongoDB Connection Error: ${error.message}`);
     process.exit(1);

@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, Dia
 import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import api from '../../config/api';
 import {
     fetchSpellingCurrentItem,
     fetchActiveSpellingSession,
@@ -21,6 +22,7 @@ const SpellingStudentPage = () => {
     const { history, retests, session, currentItem, feedback, loading, error } = useSelector(selectSpelling);
     const [input, setInput] = useState('');
     const [selectedHistorySession, setSelectedHistorySession] = useState(null);
+    const [practicePassage, setPracticePassage] = useState(null);
 
     useEffect(() => {
         dispatch(fetchSpellingHistory());
@@ -87,6 +89,17 @@ const SpellingStudentPage = () => {
         }
     };
 
+    const openHistorySession = async (entry) => {
+        setSelectedHistorySession(entry);
+        setPracticePassage(null);
+        try {
+            const response = await api.get(`/spelling/sessions/${entry._id}/passage`);
+            setPracticePassage(response.data.data);
+        } catch {
+            setPracticePassage(null);
+        }
+    };
+
     const selectedAttempts = selectedHistorySession?.attempts || [];
     const correctWords = selectedAttempts.filter((attempt) => attempt.correct);
     const incorrectWords = selectedAttempts.filter((attempt) => !attempt.correct);
@@ -135,7 +148,7 @@ const SpellingStudentPage = () => {
             <Stack spacing={1} sx={{ my: 1 }}>{retests.map((retest) => <Chip key={retest._id} label={`${retest.wordSnapshot} - due ${new Date(retest.dueAt).toLocaleDateString()}`} color={new Date(retest.dueAt) < new Date() ? 'error' : 'warning'} />)}</Stack>
             <Divider sx={{ my: 2 }} />
             <Typography variant="h6">{t('sessionHistory')}</Typography>
-            <Stack spacing={1} sx={{ mt: 1 }}>{history.map((entry) => <Stack key={entry._id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}><Typography>{new Date(entry.startedAt).toLocaleDateString()} - {entry.correctCount} correct, {entry.mistakeCount} incorrect</Typography><Button size="small" variant="outlined" onClick={() => setSelectedHistorySession(entry)}>{t('viewDetails')}</Button></Stack>)}</Stack>
+            <Stack spacing={1} sx={{ mt: 1 }}>{history.map((entry) => <Stack key={entry._id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}><Box><Typography>{new Date(entry.startedAt).toLocaleDateString()} - {entry.correctCount} correct, {entry.mistakeCount} incorrect</Typography>{entry.practicePassage && <Typography variant="caption" color="success.main">Practice passage available</Typography>}</Box><Button size="small" variant="outlined" onClick={() => openHistorySession(entry)}>{t('viewDetails')}</Button></Stack>)}</Stack>
             <Dialog open={Boolean(selectedHistorySession)} onClose={() => setSelectedHistorySession(null)} fullWidth maxWidth="sm">
                 <DialogTitle>{t('sessionDetails')}</DialogTitle>
                 <DialogContent dividers>
@@ -143,6 +156,7 @@ const SpellingStudentPage = () => {
                         <Typography color="text.secondary">{selectedHistorySession && new Date(selectedHistorySession.startedAt).toLocaleDateString()}</Typography>
                         <Box><Typography variant="subtitle1">{t('correctWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{correctWords.length ? correctWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="success" icon={<span aria-hidden="true">✓</span>} />) : <Typography color="text.secondary">{t('none')}</Typography>}</Stack></Box>
                         <Box><Typography variant="subtitle1">{t('incorrectWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{incorrectWords.length ? incorrectWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="error" icon={<span aria-hidden="true">×</span>} />) : <Typography color="text.secondary">{t('none')}</Typography>}</Stack></Box>
+                        {practicePassage && <Box><Typography variant="subtitle1">Practice passage</Typography><Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>These are the target words to practice. This is practice material, not a grade.</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>{(practicePassage.missedWords || []).map((word) => <Chip key={word} label={word} color="warning" variant="outlined" />)}</Stack><Typography sx={{ whiteSpace: 'pre-wrap' }}>{practicePassage.content}</Typography></Box>}
                     </Stack>
                 </DialogContent>
                 <DialogActions><Button onClick={() => setSelectedHistorySession(null)}>{t('close')}</Button></DialogActions>

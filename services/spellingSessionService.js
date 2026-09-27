@@ -73,10 +73,11 @@ const getCurrentItemData = async (session, dbSession) => {
     return null;
 };
 
-export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, curriculumGrade, curriculumWeek, emailNotification = DEFAULT_SPELLING_EMAIL_AUDIENCE }) {
+export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, curriculumGrade, curriculumWeek, emailNotification = DEFAULT_SPELLING_EMAIL_AUDIENCE, passageEmailAudience = null, passageGeneration = {} }) {
     if (!['teacher-led', 'self-serve'].includes(mode)) throw badRequest('Invalid spelling session mode');
-    if (!Number.isInteger(maxMistakesAllowed) || maxMistakesAllowed < 1) throw badRequest('maxMistakesAllowed must be a positive integer');
+    if (!Number.isInteger(maxMistakesAllowed) || maxMistakesAllowed < 1 || maxMistakesAllowed > 50) throw badRequest('maxMistakesAllowed must be a positive integer between 1 and 50');
     if (!isSpellingEmailAudience(emailNotification)) throw badRequest('Invalid spelling email audience');
+    if (passageEmailAudience !== null && !isSpellingEmailAudience(passageEmailAudience)) throw badRequest('Invalid passage email audience');
 
     const startedAt = new Date();
     const deadline = retestDeadline ? new Date(retestDeadline) : new Date(startedAt.getTime() + (7 * DAY_MS));
@@ -118,6 +119,13 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         curriculumGrade: selectedGrade,
         curriculumWeek: selectedWeek,
         emailNotification,
+        passageEmailAudience: passageEmailAudience || emailNotification,
+        passageGeneration: {
+            enabled: passageGeneration.enabled === true,
+            trigger: passageGeneration.trigger === 'automatic' ? 'automatic' : 'manual',
+            style: passageGeneration.style === 'passage' ? 'passage' : 'sentence-list',
+            requireTeacherApproval: passageGeneration.requireTeacherApproval !== false
+        },
         startedAt,
         createdBy: userId,
         administeredBy: mode === 'teacher-led' ? userId : null
