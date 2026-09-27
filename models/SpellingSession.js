@@ -94,6 +94,10 @@ const spellingSessionSchema = new mongoose.Schema({
         style: { type: String, enum: ['passage', 'sentence-list'], default: 'sentence-list' },
         requireTeacherApproval: { type: Boolean, default: true }
     },
+    dictationMode: {
+        enabled: { type: Boolean, default: false },
+        autoPlayOnShow: { type: Boolean, default: true }
+    },
     completionReason: {
         type: String,
         enum: ['mistake-limit', 'curriculum-exhausted', 'teacher-ended', 'manual-complete'],

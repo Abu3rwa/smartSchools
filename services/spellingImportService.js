@@ -5,6 +5,7 @@ import SpellingWord from '../models/SpellingWord.js';
 import { normalizeForGrading } from '../utils/spellingGrading.js';
 
 const REQUIRED_HEADERS = ['grade', 'week', 'category', 'word', 'order'];
+const DEFINITION_HEADER = 'definition';
 const VALID_GRADES = new Set(['KG', 'G1', 'G2', 'G3', 'G4', 'G5']);
 
 const parseCsvLine = (line, rowNumber) => {
@@ -41,17 +42,21 @@ export const parseSpellingCsv = (content) => {
     if (lines.length < 2) throw new Error('CSV must contain a header and at least one data row');
 
     const headers = parseCsvLine(lines[0], 1).map((header) => header.trim().toLowerCase());
-    if (headers.length !== REQUIRED_HEADERS.length || headers.some((header, index) => header !== REQUIRED_HEADERS[index])) {
-        throw new Error(`CSV headers must exactly match: ${REQUIRED_HEADERS.join(',')}`);
-    }
+    const hasDefinition = headers.length === REQUIRED_HEADERS.length + 1
+        && headers.at(-1) === DEFINITION_HEADER;
+    const validHeaders = headers.length === REQUIRED_HEADERS.length
+        ? headers.every((header, index) => header === REQUIRED_HEADERS[index])
+        : hasDefinition && REQUIRED_HEADERS.every((header, index) => headers[index] === header);
+    if (!validHeaders) throw new Error(`CSV headers must match: ${[...REQUIRED_HEADERS, DEFINITION_HEADER].join(',')}`);
 
     return lines.slice(1).map((line, index) => {
         const rowNumber = index + 2;
         const values = parseCsvLine(line, rowNumber);
-        if (values.length !== REQUIRED_HEADERS.length) {
-            throw new Error(`Row ${rowNumber}: expected ${REQUIRED_HEADERS.length} columns`);
+        const expectedColumns = hasDefinition ? REQUIRED_HEADERS.length + 1 : REQUIRED_HEADERS.length;
+        if (values.length !== expectedColumns) {
+            throw new Error(`Row ${rowNumber}: expected ${expectedColumns} columns`);
         }
-        return {
+        const row = {
             rowNumber,
             grade: values[0].trim().toUpperCase(),
             week: values[1].trim(),
@@ -59,6 +64,8 @@ export const parseSpellingCsv = (content) => {
             word: values[3].trim(),
             order: values[4].trim()
         };
+        if (hasDefinition) row.definition = values[5].trim();
+        return row;
     });
 };
 
@@ -77,6 +84,7 @@ export const validateSpellingRows = (rows) => {
         if (!Number.isInteger(week) || week < 1) rowErrors.push('week must be a positive integer');
         if (!row.category || row.category.length > 120) rowErrors.push('category is required and must be at most 120 characters');
         if (!row.word || row.word.length > 200) rowErrors.push('word is required and must be at most 200 characters');
+        if (row.definition && row.definition.length > 2000) rowErrors.push('definition must be at most 2000 characters');
         if (!Number.isInteger(order) || order < 1) rowErrors.push('order must be a positive integer');
         if (seenPositions.has(position)) rowErrors.push('duplicate grade/week/order in file');
 
@@ -84,14 +92,16 @@ export const validateSpellingRows = (rows) => {
             errors.push(...rowErrors.map((message) => ({ row: row.rowNumber, field: 'row', message })));
         } else {
             seenPositions.add(position);
-            validRows.push({
+            const validRow = {
                 grade: row.grade,
                 week,
                 category: row.category,
                 word: row.word,
                 normalizedWord: normalizeForGrading(row.word),
                 order
-            });
+            };
+            if (Object.hasOwn(row, 'definition')) validRow.definition = row.definition.trim();
+            validRows.push(validRow);
         }
     }
 
@@ -141,12 +151,18 @@ export async function commitSpellingImport({ schoolId, importId }) {
                 upsert: true
             }
         }));
-        if (operations.length > 0) await SpellingWord.bulkWrite(operations, { session, ordered: true });
+        const result = operations.length > 0
+            ? await SpellingWord.bulkWrite(operations, { session, ordered: true })
+            : { matchedCount: 0, upsertedCount: 0 };
         job.status = 'committed';
         job.committedAt = new Date();
         await job.save({ session });
-        return operations.length;
+        return {
+            importedRows: operations.length,
+            updatedRows: result.matchedCount || 0,
+            insertedRows: result.upsertedCount || 0
+        };
     });
 
-    return { importId: job._id, idempotent: false, importedRows };
+    return { importId: job._id, idempotent: false, ...importedRows };
 }

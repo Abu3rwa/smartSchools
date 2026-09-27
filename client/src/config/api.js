@@ -222,7 +222,7 @@ api.interceptors.response.use(
         } else if (!error.response) {
             showRateLimitedErrorToast(
                 'network-offline',
-                'Connection lost. Please check your internet connection.',
+                'Unable to reach the school server. Please try again in a moment.',
                 TOAST_COOLDOWN_MS.network,
                 'network-offline'
             );

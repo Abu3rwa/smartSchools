@@ -10,6 +10,7 @@ import { fetchClass, fetchClasses, selectClassStudents, selectClasses, selectCla
 import { updateStudent } from '../../store/slices/studentSlice';
 import {
     fetchSpellingCurrentItem,
+    fetchSpellingDictionaryEntry,
     fetchSpellingHistory,
     fetchSpellingWords,
     selectSpelling,
@@ -46,12 +47,15 @@ const SpellingTeacherPage = () => {
     const [passageTrigger, setPassageTrigger] = useState('manual');
     const [passageStyle, setPassageStyle] = useState('sentence-list');
     const [passageApproval, setPassageApproval] = useState(true);
+    const [dictationEnabled, setDictationEnabled] = useState(false);
+    const [dictationAutoPlay, setDictationAutoPlay] = useState(true);
     const [classDefaults, setClassDefaults] = useState(null);
     const [sessionOverrideOpen, setSessionOverrideOpen] = useState(false);
     const [importFile, setImportFile] = useState(null);
     const [importPreview, setImportPreview] = useState(null);
     const [importing, setImporting] = useState(false);
     const [gradingFeedback, setGradingFeedback] = useState(null);
+    const [dictionaryEntry, setDictionaryEntry] = useState(null);
     const [passage, setPassage] = useState(null);
     const [passageContent, setPassageContent] = useState('');
     const [passageLoading, setPassageLoading] = useState(false);
@@ -89,6 +93,8 @@ const SpellingTeacherPage = () => {
         setPassageStyle(settings?.passageGeneration?.style || 'sentence-list');
         setPassageApproval(settings?.passageGeneration?.requireTeacherApproval !== false);
         setPassageEmailAudience(settings?.passageGeneration?.passageEmailAudience || 'none');
+        setDictationEnabled(settings?.dictationMode?.enabled === true);
+        setDictationAutoPlay(settings?.dictationMode?.autoPlayOnShow !== false);
     }, []);
 
     useEffect(() => {
@@ -179,6 +185,20 @@ const SpellingTeacherPage = () => {
         );
         setSavingRowId(null);
     };
+
+    useEffect(() => {
+        if (!currentItem?.word) {
+            setDictionaryEntry(null);
+            return;
+        }
+        let cancelled = false;
+        dispatch(fetchSpellingDictionaryEntry(currentItem.word)).then((result) => {
+            if (!cancelled && fetchSpellingDictionaryEntry.fulfilled.match(result)) {
+                setDictionaryEntry(result.payload);
+            }
+        });
+        return () => { cancelled = true; };
+    }, [currentItem?.word, dispatch]);
 
     const loadCurrentItem = useCallback(async (sessionId) => {
         const result = await dispatch(fetchSpellingCurrentItem(sessionId));
@@ -335,11 +355,14 @@ const SpellingTeacherPage = () => {
         }
     };
 
-    const openSessionReview = (student, session) => {
+    const openSessionReview = async (student, session) => {
         setStudentId(student._id);
         setActiveSession(session);
         setCurrentItem(null);
         setGradingFeedback(null);
+        if (session.status === 'in-progress') {
+            await loadCurrentItem(session._id);
+        }
         if (session.practicePassage) {
             setPassage(session.practicePassage);
             setPassageContent(session.practicePassage.content || '');
@@ -464,7 +487,12 @@ const SpellingTeacherPage = () => {
         setImporting(true);
         try {
             const response = await api.post('/spelling/word-lists/import/commit', { importId: importPreview.importId });
-            notify(`Imported ${response.data.data.importedRows} spelling words.`, 'success');
+            const result = response.data.data;
+            if (result.idempotent) {
+                notify(t('importAlreadyApplied'), 'success');
+            } else {
+                notify(t('importedWords', { inserted: result.insertedRows || 0, updated: result.updatedRows || 0 }), 'success');
+            }
             setImportPreview(null);
             setImportFile(null);
         } catch (error) {
@@ -481,6 +509,7 @@ const SpellingTeacherPage = () => {
                 defaultMaxMistakes: maxMistakesAllowed,
                 defaultEmailAudience: emailNotification,
                 passageGeneration: { enabled: passageEnabled, trigger: passageTrigger, style: passageStyle, requireTeacherApproval: passageApproval, passageEmailAudience }
+                ,dictationMode: { enabled: dictationEnabled, autoPlayOnShow: dictationAutoPlay }
             };
             await api.patch(`/spelling/classes/${classId}/settings`, payload);
             setClassDefaults(payload);
@@ -621,7 +650,18 @@ const SpellingTeacherPage = () => {
                                                     <Typography variant="h4">{gradingFeedback.correct ? t('correct') : t('incorrect')}</Typography>
                                                 </Stack>
                                             ) : (
-                                                <Typography variant="h1" className="spelling-active-word">{currentItem?.word || t('loadingNextWord')}</Typography>
+                                                <Stack spacing={1} alignItems="center">
+                                                    <Typography variant="h1" className="spelling-active-word">{currentItem?.word || t('loadingNextWord')}</Typography>
+                                                    {dictionaryEntry?.definitions?.length > 0 && (
+                                                        <Box sx={{ maxWidth: 520, textAlign: 'center' }}>
+                                                            {dictionaryEntry.definitions.slice(0, 2).map((definition, index) => (
+                                                                <Typography key={`${definition.partOfSpeech || 'def'}-${index}`} variant="body1" color="text.secondary" sx={{ mb: 0.5 }}>
+                                                                    {definition.partOfSpeech ? `${definition.partOfSpeech}: ` : ''}{definition.definition}
+                                                                </Typography>
+                                                            ))}
+                                                        </Box>
+                                                    )}
+                                                </Stack>
                                             )}
                                         </CardContent>
                                     </Card>
@@ -838,7 +878,10 @@ const SpellingTeacherPage = () => {
                                     <TableCell align="right">
                                         <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
                                             {rowActiveSession
-                                                ? <Button size="small" color="error" variant="outlined" onClick={() => endRowActiveSession(student)} disabled={rowBusy}>{t('endActiveSession')}</Button>
+                                                ? <>
+                                                    <Button size="small" variant="contained" onClick={() => openSessionReview(student, rowActiveSession)} disabled={rowBusy}>Open session</Button>
+                                                    <Button size="small" color="error" variant="outlined" onClick={() => endRowActiveSession(student)} disabled={rowBusy}>{t('endActiveSession')}</Button>
+                                                  </>
                                                 : <Button size="small" variant="contained" onClick={() => startStudentSession(student)} disabled={rowBusy || !level.grade || !level.week}>{t('startStudentSession')}</Button>}
                                             <Button size="small" variant="outlined" onClick={() => exportStudentReport(student)} disabled={exportingRowId === student._id}>{exportingRowId === student._id ? t('exporting') : t('exportReport')}</Button>
                                             <Button size="small" variant="outlined" onClick={() => navigate(`/portal/students/${student._id}`)}>{t('viewDetailsCharts')}</Button>
@@ -864,6 +907,8 @@ const SpellingTeacherPage = () => {
                 {passageEnabled && <FormControl fullWidth><InputLabel>Passage trigger</InputLabel><Select value={passageTrigger} label="Passage trigger" onChange={(event) => setPassageTrigger(event.target.value)}><MenuItem value="manual">Manual</MenuItem><MenuItem value="automatic">Automatic</MenuItem></Select></FormControl>}
                 {passageEnabled && <FormControl fullWidth><InputLabel>Passage style</InputLabel><Select value={passageStyle} label="Passage style" onChange={(event) => setPassageStyle(event.target.value)}><MenuItem value="sentence-list">Sentence list</MenuItem><MenuItem value="passage">Paragraph</MenuItem></Select></FormControl>}
                 {passageEnabled && <FormControl fullWidth><InputLabel>Passage approval</InputLabel><Select value={passageApproval ? 'required' : 'automatic'} label="Passage approval" onChange={(event) => setPassageApproval(event.target.value === 'required')}><MenuItem value="required">Teacher approval required</MenuItem><MenuItem value="automatic">Approve automatically</MenuItem></Select></FormControl>}
+                <FormControl fullWidth><InputLabel>Dictation mode</InputLabel><Select value={dictationEnabled ? 'on' : 'off'} label="Dictation mode" onChange={(event) => setDictationEnabled(event.target.value === 'on')}><MenuItem value="off">Off - show the word</MenuItem><MenuItem value="on">On - hear the word</MenuItem></Select></FormControl>
+                {dictationEnabled && <FormControl fullWidth><InputLabel>Auto-play pronunciation</InputLabel><Select value={dictationAutoPlay ? 'on' : 'off'} label="Auto-play pronunciation" onChange={(event) => setDictationAutoPlay(event.target.value === 'on')}><MenuItem value="on">On</MenuItem><MenuItem value="off">Off - use Play sound</MenuItem></Select></FormControl>}
                 <Button variant="contained" onClick={saveClassSettings}>Save class settings</Button>
             </Stack></CardContent></Card>}
             </>}

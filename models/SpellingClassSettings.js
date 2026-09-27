@@ -8,6 +8,10 @@ const spellingClassSettingsSchema = new mongoose.Schema({
     teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     defaultMaxMistakes: { type: Number, min: 1, max: 50, default: 3 },
     defaultEmailAudience: { type: String, enum: SPELLING_EMAIL_AUDIENCES, default: DEFAULT_SPELLING_EMAIL_AUDIENCE },
+    dictationMode: {
+        enabled: { type: Boolean, default: false },
+        autoPlayOnShow: { type: Boolean, default: true }
+    },
     passageGeneration: {
         enabled: { type: Boolean, default: false },
         trigger: { type: String, enum: ['manual', 'automatic'], default: 'manual' },

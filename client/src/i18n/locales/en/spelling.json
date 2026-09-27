@@ -22,13 +22,14 @@
   "selectClass": "Select a class",
   "selectStudent": "Select a student",
   "importTitle": "Import spelling words",
-  "csvColumns": "CSV columns: grade, week, category, word, order",
+  "csvColumns": "CSV columns: grade, week, category, word, order, definition",
   "downloadTemplate": "Download CSV template",
   "preview": "Preview",
   "commitImport": "Commit import",
   "rows": "Rows",
   "valid": "Valid",
-  "importedWords": "Imported {{count}} spelling words.",
+  "importedWords": "Added {{inserted}} new words and updated {{updated}} existing words.",
+  "importAlreadyApplied": "This spelling word import was already applied.",
   "createClassSession": "Create class session",
   "creating": "Creating...",
   "studentId": "Student ID: {{id}}",
@@ -96,4 +97,7 @@
   "exporting": "Exporting...",
   "exportError": "Unable to export the spelling report.",
   "noWords": "No words match these filters."
+  ,"hearWord": "Hear the word"
+  ,"listenCarefully": "Listen carefully and type the word you hear."
+  ,"playSound": "Play sound"
 }

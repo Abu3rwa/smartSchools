@@ -11,6 +11,10 @@ const normalize = (input = {}) => {
     return {
         defaultMaxMistakes,
         defaultEmailAudience,
+        dictationMode: {
+            enabled: input.dictationMode?.enabled === true,
+            autoPlayOnShow: input.dictationMode?.autoPlayOnShow !== false
+        },
         passageGeneration: {
             enabled: input.passageGeneration?.enabled === true,
             trigger: input.passageGeneration?.trigger === 'automatic' ? 'automatic' : 'manual',

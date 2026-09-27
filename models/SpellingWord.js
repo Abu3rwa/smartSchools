@@ -31,6 +31,12 @@ const spellingWordSchema = new mongoose.Schema({
         trim: true,
         maxlength: 200
     },
+    definition: {
+        type: String,
+        default: '',
+        trim: true,
+        maxlength: 2000
+    },
     normalizedWord: {
         type: String,
         required: true,

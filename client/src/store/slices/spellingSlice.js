@@ -88,6 +88,23 @@ export const fetchSpellingCurrentItem = createAsyncThunk('spelling/fetchCurrentI
     }
 });
 
+export const fetchSpellingDictionaryEntry = createAsyncThunk('spelling/fetchDictionaryEntry', async (word, { rejectWithValue }) => {
+    try {
+        const encodedWord = encodeURIComponent(String(word || '').trim());
+        if (!encodedWord || encodedWord === 'undefined' || encodedWord === 'null') {
+            return null;
+        }
+
+        const response = await api.get(`/spelling/dictionary/${encodedWord}`, { timeout: 35000 });
+        console.log('Spelling dictionary response data:', response.data);
+        const entry = response.data?.data || null;
+        console.log('Fetched spelling dictionary entry:', entry);
+        return entry || null;
+    } catch (error) {
+        return rejectWithValue(requestError(error, 'Unable to load pronunciation.'));
+    }
+});
+
 export const submitSpellingAnswer = createAsyncThunk('spelling/submitAnswer', async ({ sessionId, sequence, studentInput }, { rejectWithValue }) => {
     try {
         const response = await api.patch(`/spelling/sessions/${sessionId}/attempt`, {

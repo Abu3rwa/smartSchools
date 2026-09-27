@@ -22,13 +22,14 @@
   "selectClass": "اختر فصلاً",
   "selectStudent": "اختر طالباً",
   "importTitle": "استيراد كلمات الإملاء",
-  "csvColumns": "أعمدة CSV: الصف، الأسبوع، الفئة، الكلمة، الترتيب",
+  "csvColumns": "أعمدة CSV: الصف، الأسبوع، الفئة، الكلمة، الترتيب، التعريف",
   "downloadTemplate": "تنزيل نموذج CSV",
   "preview": "معاينة",
   "commitImport": "تأكيد الاستيراد",
   "rows": "الصفوف",
   "valid": "صالحة",
-  "importedWords": "تم استيراد {{count}} كلمة إملائية.",
+  "importedWords": "تمت إضافة {{inserted}} كلمة جديدة وتحديث {{updated}} كلمة موجودة.",
+  "importAlreadyApplied": "تم تطبيق استيراد كلمات الإملاء هذا من قبل.",
   "createClassSession": "إنشاء اختبار للفصل",
   "creating": "جارٍ الإنشاء...",
   "studentId": "معرّف الطالب: {{id}}",
@@ -96,4 +97,7 @@
   "exporting": "جارٍ التصدير...",
   "exportError": "تعذر تصدير تقرير الإملاء.",
   "noWords": "لا توجد كلمات تطابق هذه المرشحات."
+  ,"hearWord": "استمع إلى الكلمة"
+  ,"listenCarefully": "استمع بعناية واكتب الكلمة التي تسمعها."
+  ,"playSound": "تشغيل الصوت"
 }

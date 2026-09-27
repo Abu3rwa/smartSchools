@@ -6,6 +6,7 @@ import { withTransaction } from '../utils/withTransaction.js';
 import { isCorrect, normalizeForGrading } from '../utils/spellingGrading.js';
 import { queueSpellingCompletionEmail } from './spellingEmailService.js';
 import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
+import SpellingClassSettings from '../models/SpellingClassSettings.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -37,11 +38,15 @@ const getCurrentItemData = async (session, dbSession) => {
             status: 'pending'
         }).session(dbSession).lean();
         if (retestItem) {
+            const sourceWord = retestItem.sourceWord
+                ? await SpellingWord.findOne({ _id: retestItem.sourceWord, school: session.school }).session(dbSession).lean()
+                : null;
             return {
                 wordId: retestItem.sourceWord,
                 retestItemId: retestItem._id,
                 sequence: session.currentItem.sequence,
                 word: retestItem.wordSnapshot,
+                definition: sourceWord?.definition || '',
                 grade: retestItem.grade,
                 week: retestItem.week,
                 category: retestItem.category,
@@ -61,6 +66,7 @@ const getCurrentItemData = async (session, dbSession) => {
                 retestItemId: null,
                 sequence: session.currentItem.sequence,
                 word: word.word,
+                definition: word.definition || '',
                 grade: word.grade,
                 week: word.week,
                 category: word.category,
@@ -109,6 +115,13 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
     if (wordCount === 0) {
         throw badRequest(`No spelling words are imported for ${selectedGrade}, week ${selectedWeek}`);
     }
+    const classSettings = student.currentClass
+        ? await SpellingClassSettings.findOne({ school: schoolId, class: student.currentClass }).lean()
+        : null;
+    const dictationMode = {
+        enabled: classSettings?.dictationMode?.enabled === true,
+        autoPlayOnShow: classSettings?.dictationMode?.autoPlayOnShow !== false
+    };
 
     const session = await SpellingSession.create({
         school: schoolId,
@@ -126,6 +139,7 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
             style: passageGeneration.style === 'passage' ? 'passage' : 'sentence-list',
             requireTeacherApproval: passageGeneration.requireTeacherApproval !== false
         },
+        dictationMode,
         startedAt,
         createdBy: userId,
         administeredBy: mode === 'teacher-led' ? userId : null
@@ -163,11 +177,15 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
 
         let item;
         if (retestItem) {
+            const sourceWord = retestItem.sourceWord
+                ? await SpellingWord.findOne({ _id: retestItem.sourceWord, school: schoolId }).session(dbSession).lean()
+                : null;
             item = {
                 wordId: retestItem.sourceWord,
                 retestItemId: retestItem._id,
                 sequence: session.nextSequence,
                 word: retestItem.wordSnapshot,
+                definition: sourceWord?.definition || '',
                 grade: retestItem.grade,
                 week: retestItem.week,
                 category: retestItem.category,
@@ -206,6 +224,7 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
                 retestItemId: null,
                 sequence: session.nextSequence,
                 word: word.word,
+                definition: word.definition || '',
                 grade: word.grade,
                 week: word.week,
                 category: word.category,
