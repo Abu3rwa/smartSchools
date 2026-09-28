@@ -105,11 +105,12 @@ export const fetchSpellingDictionaryEntry = createAsyncThunk('spelling/fetchDict
     }
 });
 
-export const submitSpellingAnswer = createAsyncThunk('spelling/submitAnswer', async ({ sessionId, sequence, studentInput }, { rejectWithValue }) => {
+export const submitSpellingAnswer = createAsyncThunk('spelling/submitAnswer', async ({ sessionId, sequence, studentInput, skipped = false }, { rejectWithValue }) => {
     try {
         const response = await api.patch(`/spelling/sessions/${sessionId}/attempt`, {
             sequence,
             studentInput,
+            skipped,
             idempotencyKey: `${sessionId}-${sequence}`
         });
         return response.data.data;

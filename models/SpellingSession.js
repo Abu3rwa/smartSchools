@@ -12,6 +12,7 @@ const spellingAttemptSchema = new mongoose.Schema({
     retestItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingRetestItem', default: null },
     isRetest: { type: Boolean, default: false },
     correct: { type: Boolean, required: true },
+    skipped: { type: Boolean, default: false },
     studentInput: { type: String, default: null, maxlength: 200 },
     normalizedInput: { type: String, default: null, maxlength: 200 },
     answeredAt: { type: Date, default: Date.now },

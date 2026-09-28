@@ -179,14 +179,15 @@ const SpellingStudentPage = () => {
         }
     };
 
-    const submitAttempt = async (studentInput) => {
+    const submitAttempt = async (studentInput, skipped = false) => {
         if (!currentItem || !session) return;
         const answeredWord = currentItem.word;
         const answeredDictionaryEntry = dictionaryMatches(dictionaryEntry, currentItem.word) ? dictionaryEntry : null;
         const result = await dispatch(submitSpellingAnswer({
             sessionId: session._id,
             sequence: currentItem.sequence,
-            studentInput
+            studentInput,
+            skipped
         }));
         if (submitSpellingAnswer.fulfilled.match(result)) {
             setRevealedAttempt({ word: answeredWord, dictionary: answeredDictionaryEntry, correct: result.payload.attempt.correct, input: studentInput });
@@ -205,7 +206,7 @@ const SpellingStudentPage = () => {
         submitAttempt(input);
     };
 
-    const skipWord = () => submitAttempt('');
+    const skipWord = () => submitAttempt('', true);
 
     const endSession = async () => {
         if (!session || loading) return;
@@ -233,6 +234,9 @@ const SpellingStudentPage = () => {
     const selectedAttempts = selectedHistorySession?.attempts || [];
     const correctWords = selectedAttempts.filter((attempt) => attempt.correct);
     const incorrectWords = selectedAttempts.filter((attempt) => !attempt.correct);
+    const hasSkippedWords = session?.mode === 'self-serve' && session.attempts?.some((attempt) => attempt.skipped === true || (
+        attempt.skipped === undefined && !String(attempt.studentInput ?? '').trim()
+    ));
     const mistakesAllowed = session?.maxMistakesAllowed || 3;
 
     return (
@@ -304,6 +308,7 @@ const SpellingStudentPage = () => {
                         {session?.status !== 'in-progress' ? (
                             <Stack spacing={2} alignItems="center">
                                 <Alert severity="success">{t('sessionCompleted')}</Alert>
+                                {hasSkippedWords && <Alert severity="info">{t('teacherWillReviewSkippedWords')}</Alert>}
                                 <Button variant="contained" onClick={startSession} disabled={loading}>{t('startNewSession')}</Button>
                             </Stack>
                         ) : session.mode === 'teacher-led' ? (

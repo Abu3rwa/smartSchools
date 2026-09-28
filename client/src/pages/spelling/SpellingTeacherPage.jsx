@@ -21,6 +21,10 @@ import {
 
 const PASSAGE_STATUS_COLOR = { draft: 'warning', approved: 'info', sent: 'success', failed: 'error' };
 
+const isSkippedSpellingAttempt = (attempt) => attempt?.skipped === true || (
+    attempt?.skipped === undefined && !String(attempt?.studentInput ?? '').trim()
+);
+
 const SpellingTeacherPage = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
@@ -503,6 +507,9 @@ const SpellingTeacherPage = () => {
     }, [activeSession?._id, activeSession?.mode, activeSession?.status, loadCurrentItem, loadIntegrityEvents]);
 
     const missedWords = activeSession?.attempts?.filter((attempt) => !attempt.correct) || [];
+    const skippedWords = activeSession?.mode === 'self-serve'
+        ? activeSession.attempts?.filter(isSkippedSpellingAttempt) || []
+        : [];
     const mistakesAllowed = activeSession?.maxMistakesAllowed || 3;
     const mistakePips = Array.from({ length: mistakesAllowed }, (_, index) => index < (activeSession?.mistakeCount || 0));
 
@@ -647,6 +654,15 @@ const SpellingTeacherPage = () => {
                                             <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
                                                 {missedWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} icon={<HiOutlineXMark />} label={attempt.wordSnapshot} color="error" variant="outlined" />)}
                                             </Stack>
+                                        )}
+                                        {skippedWords.length > 0 && (
+                                            <Box sx={{ width: '100%' }}>
+                                                <Typography variant="subtitle1">{t('skippedWordsToSay')}</Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{t('skippedWordsFollowUp')}</Typography>
+                                                <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" useFlexGap>
+                                                    {skippedWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="warning" variant="outlined" />)}
+                                                </Stack>
+                                            </Box>
                                         )}
                                         {!passage && (
                                             <Button variant="outlined" onClick={generatePassage} disabled={passageLoading || missedWords.length === 0}>
@@ -898,6 +914,10 @@ const SpellingTeacherPage = () => {
                             const level = rowLevels[student._id] || { grade: '', week: '' };
                             const studentSessions = studentHistoryMap[student._id] || [];
                             const rowActiveSession = studentSessions.find((session) => session.status === 'in-progress');
+                            const skippedSession = studentSessions.find((session) =>
+                                session.mode === 'self-serve' && session.attempts?.some(isSkippedSpellingAttempt)
+                            );
+                            const skippedCount = skippedSession?.attempts?.filter(isSkippedSpellingAttempt).length || 0;
                             const currentWord = rowActiveSession?.currentWord;
                             const passageSession = studentSessions.find((session) => session.practicePassage);
                             const latestPassage = passageSession?.practicePassage;
@@ -958,6 +978,11 @@ const SpellingTeacherPage = () => {
                                                     <Button size="small" color="error" variant="outlined" onClick={() => endRowActiveSession(student)} disabled={rowBusy}>{t('endActiveSession')}</Button>
                                                   </>
                                                 : <Button size="small" variant="contained" onClick={() => startStudentSession(student)} disabled={rowBusy || !level.grade || !level.week}>{t('startStudentSession')}</Button>}
+                                            {skippedSession && skippedCount > 0 && (
+                                                <Button size="small" color="warning" variant="outlined" onClick={() => openSessionReview(student, skippedSession)}>
+                                                    {t('reviewSkippedWords', { count: skippedCount })}
+                                                </Button>
+                                            )}
                                             <Button size="small" variant="outlined" onClick={() => exportStudentReport(student)} disabled={exportingRowId === student._id}>{exportingRowId === student._id ? t('exporting') : t('exportReport')}</Button>
                                             <Button size="small" variant="outlined" onClick={() => navigate(`/portal/students/${student._id}`)}>{t('viewDetailsCharts')}</Button>
                                         </Stack>

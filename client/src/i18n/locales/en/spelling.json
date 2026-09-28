@@ -100,4 +100,8 @@
   ,"hearWord": "Hear the word"
   ,"listenCarefully": "Listen carefully and type the word you hear."
   ,"playSound": "Play sound"
+  ,"skippedWordsToSay": "Words to say aloud"
+  ,"skippedWordsFollowUp": "The student skipped these words. Read them aloud during follow-up."
+  ,"reviewSkippedWords": "Say skipped words ({{count}})"
+  ,"teacherWillReviewSkippedWords": "Your teacher will review the skipped words aloud with you."
 }

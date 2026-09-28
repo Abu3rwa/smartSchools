@@ -100,4 +100,8 @@
   ,"hearWord": "استمع إلى الكلمة"
   ,"listenCarefully": "استمع بعناية واكتب الكلمة التي تسمعها."
   ,"playSound": "تشغيل الصوت"
+  ,"skippedWordsToSay": "كلمات لقراءتها بصوت عالٍ"
+  ,"skippedWordsFollowUp": "تخطّى الطالب هذه الكلمات. اقرأها له بصوت عالٍ عند المتابعة."
+  ,"reviewSkippedWords": "اقرأ الكلمات المتخطاة ({{count}})"
+  ,"teacherWillReviewSkippedWords": "سيراجع معلمك الكلمات التي تخطيتها بصوت عالٍ معك."
 }

@@ -97,6 +97,7 @@ export const recordAttempt = asyncHandler(async (req, res) => {
         sequence: Number(req.body.sequence),
         correct: req.body.correct,
         studentInput: req.body.studentInput,
+        skipped: req.body.skipped === true,
         idempotencyKey: req.body.idempotencyKey
     });
     return res.status(200).json({ success: true, data: result });

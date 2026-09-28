@@ -251,7 +251,7 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
     });
 }
 
-export async function recordSpellingAttempt({ schoolId, sessionId, userId, sequence, correct, studentInput, idempotencyKey }) {
+export async function recordSpellingAttempt({ schoolId, sessionId, userId, sequence, correct, studentInput, skipped = false, idempotencyKey }) {
     if (!Number.isInteger(sequence) || sequence < 1) throw badRequest('sequence must be a positive integer');
     if (!idempotencyKey || typeof idempotencyKey !== 'string') throw badRequest('idempotencyKey is required');
 
@@ -280,6 +280,7 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
             retestItemId: item.retestItemId,
             isRetest: item.isRetest,
             correct: evaluatedCorrect,
+            skipped: session.mode === 'self-serve' && skipped === true && !String(studentInput ?? '').trim(),
             studentInput: session.mode === 'self-serve' ? String(studentInput ?? '') : null,
             normalizedInput: session.mode === 'self-serve' ? normalizeForGrading(studentInput) : null,
             answeredAt: now,
