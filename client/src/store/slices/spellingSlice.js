@@ -139,6 +139,7 @@ const spellingSlice = createSlice({
         currentItem: null,
         feedback: null,
         loading: false,
+        wordsLoading: false,
         error: null
     },
     reducers: {
@@ -152,13 +153,13 @@ const spellingSlice = createSlice({
             .addCase(fetchSpellingHistory.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
             .addCase(fetchSpellingRetests.fulfilled, (state, action) => { state.retests = action.payload; })
             .addCase(fetchSpellingRetests.rejected, (state, action) => { state.error = action.payload; })
-            .addCase(fetchSpellingWords.pending, (state) => { state.loading = true; state.error = null; })
+            .addCase(fetchSpellingWords.pending, (state) => { state.wordsLoading = true; state.error = null; })
             .addCase(fetchSpellingWords.fulfilled, (state, action) => {
-                state.loading = false;
+                state.wordsLoading = false;
                 state.words = action.payload.words || [];
                 state.categories = action.payload.categories || [];
             })
-            .addCase(fetchSpellingWords.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+            .addCase(fetchSpellingWords.rejected, (state, action) => { state.wordsLoading = false; state.error = action.payload; })
             .addCase(fetchStudentSpellingDetails.pending, (state) => { state.loading = true; state.error = null; })
             .addCase(fetchStudentSpellingDetails.fulfilled, (state, action) => { state.loading = false; state.studentDetails = action.payload; })
             .addCase(fetchStudentSpellingDetails.rejected, (state, action) => { state.loading = false; state.error = action.payload; })

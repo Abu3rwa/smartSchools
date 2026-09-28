@@ -73,7 +73,7 @@ const SpellingTeacherPage = () => {
     const [overviewLoading, setOverviewLoading] = useState(false);
     const wordList = spelling.words;
     const wordCategories = spelling.categories;
-    const wordsLoading = spelling.loading;
+    const wordsLoading = spelling.wordsLoading;
 
     const notify = useCallback((text, severity = 'info') => {
         setMessage(text);
