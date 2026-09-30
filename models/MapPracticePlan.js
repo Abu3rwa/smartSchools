@@ -8,6 +8,7 @@ const mapPracticePlanSchema = new mongoose.Schema({
     academicYear: { type: String, required: true },
     title: { type: String, required: true, trim: true, maxlength: 180 },
     normalizedTitle: { type: String, required: true, trim: true, lowercase: true, maxlength: 180 },
+    sourceStudentId: { type: String, default: '', trim: true, maxlength: 80 },
     season: { type: String, default: '', trim: true, maxlength: 80 },
     status: { type: String, enum: ['active', 'archived'], default: 'active' },
     skills: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MapPracticeSkill' }],

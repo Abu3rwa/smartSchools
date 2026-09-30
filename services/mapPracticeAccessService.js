@@ -9,11 +9,12 @@ export const ensureTeacherCanAccessStudent = async ({ req, studentId, studentMod
   const teacher = await teacherScope.resolveTeacherProfile(req);
   if (!teacher) return false;
 
-  const student = await studentModel.findOne({ _id: studentId, school: req.schoolId }).select('currentClass').lean();
-  if (!student?.currentClass) return false;
+  const student = await studentModel.findOne({ _id: studentId, school: req.schoolId }).select('currentClass enrolledClasses').lean();
+  const studentClassIds = [student?.currentClass, ...(student?.enrolledClasses || [])].filter(Boolean).map(String);
+  if (!studentClassIds.length) return false;
 
   const classIds = await teacherScope.getTeacherClassIds(teacher._id);
-  return classIds.some((classId) => String(classId) === String(student.currentClass));
+  return classIds.some((classId) => studentClassIds.includes(String(classId)));
 };
 
 export const ensureStudentOwnsPracticeData = async ({ req, studentId, studentModel = Student } = {}) => {

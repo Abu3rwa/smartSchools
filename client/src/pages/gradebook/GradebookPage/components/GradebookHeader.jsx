@@ -46,6 +46,17 @@ const GradebookHeader = ({
     onClassChange
 }) => {
     const { t } = useTranslation(['gradebook']);
+    const categoryOptions = useMemo(() => {
+        const options = new Map(CATEGORY_FILTER_OPTIONS.map((category) => [category.toLowerCase(), category]));
+        for (const grade of grades || []) {
+            const rawCategory = String(grade.category || grade.gradeType || '').trim();
+            if (!rawCategory) continue;
+            const normalizedCategory = `${rawCategory.charAt(0).toUpperCase()}${rawCategory.slice(1).toLowerCase()}`;
+            const key = normalizedCategory.toLowerCase();
+            if (!options.has(key)) options.set(key, normalizedCategory);
+        }
+        return [...options.values()];
+    }, [grades]);
 
     const uniqueGrades = useMemo(() => {
         if (!isEmbedded) return [];
@@ -268,7 +279,7 @@ const GradebookHeader = ({
                                     onChange={(event) => onCategoryFilterChange(event.target.value)}
                                 >
                                     <option value="All">{t('gradebook:categories.all')}</option>
-                                    {CATEGORY_FILTER_OPTIONS.map((category) => (
+                                    {categoryOptions.map((category) => (
                                         <option key={category} value={category}>
                                             {t(`gradebook:categories.${category}`, { defaultValue: category })}
                                         </option>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../../config/api';
+import { getMapPracticeSetProgress } from './studentMapPracticeProgress';
 import './StudentMapTestPrepPage.css';
 
 const StudentMapTestPrepPage = () => {
@@ -88,6 +89,20 @@ const StudentMapTestPrepPage = () => {
     setSaving(true);
     try {
       await api.post(`/map-test-prep/practice/attempts/${attempt._id}/answer`, { questionId, response });
+      setHome((current) => {
+        if (!current) return current;
+        const existingAttempt = (current.attempts || []).find((item) => String(item._id) === String(attempt._id));
+        if (!existingAttempt) return current;
+        const answers = [...(existingAttempt.answers || [])];
+        const answerIndex = answers.findIndex((answer) => String(answer.question?._id || answer.question) === String(questionId));
+        const nextAnswer = { ...(answerIndex >= 0 ? answers[answerIndex] : {}), question: questionId, response };
+        if (answerIndex >= 0) answers[answerIndex] = nextAnswer;
+        else answers.push(nextAnswer);
+        return {
+          ...current,
+          attempts: current.attempts.map((item) => String(item._id) === String(attempt._id) ? { ...item, answers } : item)
+        };
+      });
     } catch {
       setMessage('Your answer was not saved yet. Please try again.');
     } finally {
@@ -283,18 +298,26 @@ const StudentMapTestPrepPage = () => {
               <div className="student-map-prep-grid">
                 {assignedSets.map((assignmentItem) => (
                   <div key={assignmentItem._id} className="student-map-prep-card">
+                    {(() => {
+                      const progress = getMapPracticeSetProgress(home?.attempts || [], assignmentItem.set?._id, assignmentItem.set?.questionCount || 0);
+                      const setAttempt = home?.attempts?.find((item) => String(item.set?._id || item.set) === String(assignmentItem.set?._id));
+                      return (
+                        <>
                     <div className="student-map-prep-card-header">
                       <h3>{assignmentItem.set?.title || 'Practice set'}</h3>
                       <span className="student-map-prep-chip">Due soon</span>
                     </div>
                     <p>{assignmentItem.set?.questionCount || 0} questions</p>
                     <div className="student-map-prep-progress-mini">
-                      <span>3 of 10 answered</span>
-                      <div className="student-map-prep-progress-mini-bar"><i style={{ width: '30%' }} /></div>
+                      <span>{progress.answered} of {progress.total} answered</span>
+                      <div className="student-map-prep-progress-mini-bar"><i style={{ width: `${progress.percentage}%` }} /></div>
                     </div>
                     <button type="button" className="btn btn-primary" onClick={() => startAssignment(assignmentItem)}>
-                      {assignmentItem.status === 'in_progress' ? 'Continue' : 'Start'}
+                      {setAttempt?.status === 'in_progress' ? 'Continue' : 'Start'}
                     </button>
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -354,3 +377,15 @@ const StudentMapTestPrepPage = () => {
                     <strong>{attemptItem.set?.title || 'Finished set'}</strong>
                     <span>{attemptItem.score ?? 0} of {attemptItem.maxScore ?? 0}</span>
                     <small>{attemptItem.status === 'reviewed' ? 'Reviewed' : 'Submitted'}</small>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default StudentMapTestPrepPage;
