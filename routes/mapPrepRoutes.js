@@ -36,6 +36,7 @@ import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { uploadMapPdf } from '../middleware/uploadMapPdf.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import mapPracticeRoutes from './mapPracticeRoutes.js';
 
 const router = express.Router();
 const requireMapPrepAccess = asyncHandler(async (req, res, next) => {
@@ -44,10 +45,11 @@ const requireMapPrepAccess = asyncHandler(async (req, res, next) => {
 });
 
 router.use(protect, requireSchoolContext, requireMapPrepAccess);
+router.use('/practice', mapPracticeRoutes);
 
-router.get('/classes', authorizeWithPermission(['admin'], [PERMISSIONS.VIEW_MAP_TEST_PREP]), getMapClasses);
-router.get('/classes/:classId/students', authorizeWithPermission(['admin'], [PERMISSIONS.VIEW_MAP_TEST_PREP]), getMapClassStudents);
-router.get('/students/:studentId/map-records', authorizeWithPermission(['admin'], [PERMISSIONS.VIEW_MAP_PREP_PROGRESS]), getStudentMapRecords);
+router.get('/classes', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.VIEW_MAP_TEST_PREP]), getMapClasses);
+router.get('/classes/:classId/students', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.VIEW_MAP_TEST_PREP]), getMapClassStudents);
+router.get('/students/:studentId/map-records', authorizeWithPermission(['admin', 'teacher'], [PERMISSIONS.VIEW_MAP_PREP_PROGRESS]), getStudentMapRecords);
 router.post('/students/:studentId/map-records/upload', authorizeWithPermission(['admin'], [PERMISSIONS.UPLOAD_MAP_PDF_DATA]), uploadMapPdf.single('file'), uploadMapRecord);
 router.delete('/map-records/:recordId', authorizeWithPermission(['admin'], [PERMISSIONS.CREATE_MAP_PREP_PLAN]), deleteMapRecord);
 router.get('/map-records/:recordId', authorizeWithPermission(['admin'], [PERMISSIONS.VIEW_MAP_PREP_PROGRESS]), getMapRecord);

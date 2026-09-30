@@ -81,6 +81,40 @@ Optional: `PORT`, `NODE_ENV`, `CLIENT_URL`, `JWT_EXPIRE`, `GOOGLE_REDIRECT_URI`,
 - **Auth:** `POST /api/auth/login`, `POST /api/auth/register`, etc.
 - **Schools, Students, Classes, Grades, Attendance:** See API docs or route files.
 
+## MAP Practice CSV Import
+
+The existing MAP Test Prep feature has been upgraded in place to support a CSV-based student practice workflow without creating a second feature. The new flow lives under the existing `/api/map-test-prep` namespace and uses the existing route and teacher/student page entry points.
+
+### CSV file rules
+
+- One file per student is recommended.
+- UTF-8 with or without BOM is supported.
+- Header row is required.
+- Standard RFC 4180 quoting is expected for commas, quotes, and embedded line breaks.
+- Student IDs must match the enrolled student ID in the school.
+- `question_type` values are `mcq`, `multi_select`, and `short_text`.
+- `correct_answer` for `mcq` is a single letter such as `B`.
+- `correct_answer` for `multi_select` is a pipe-separated list such as `A|C`.
+- `correct_answer` for `short_text` is a pipe-separated list of accepted answers.
+
+### Column reference
+
+`student_id, plan_title, set_id, set_title, set_order, question_id, order, subject, strand, skill_code, skill_name, rit_band, passage_id, passage_title, passage_text, question_type, stem, option_a, option_b, option_c, option_d, correct_answer, explanation, distractor_note, points`
+
+### Import flow
+
+1. Upload one or more CSV files.
+2. Preview file-by-file validation and student matching.
+3. Confirm the import.
+4. The app creates or updates plan, set, skill, and question records for the matched student.
+5. Short-text answers remain in the teacher review queue unless accepted.
+
+### Template files
+
+- Template: `client/public/map_practice_template.csv`
+- Example: `client/public/map_practice_example_student_1.csv`
+- Example: `client/public/map_practice_example_student_2.csv`
+
 ## Project Structure
 
 ```

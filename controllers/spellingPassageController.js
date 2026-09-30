@@ -1,6 +1,7 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import {
     approveSpellingPassage,
+    cancelSpellingPassageDelivery,
     discardSpellingPassage,
     generateSpellingPassage,
     getSpellingPassage,
@@ -43,4 +44,10 @@ export const sendPassage = asyncHandler(async (req, res) => {
     if (!staffOnly(req)) return res.status(403).json({ success: false, message: 'Staff access required' });
     const delivery = await sendSpellingPassage({ schoolId: req.schoolId, sessionId: req.params.id, userId: req.user._id });
     return res.status(201).json({ success: true, data: delivery });
+});
+
+export const cancelPassageSend = asyncHandler(async (req, res) => {
+    if (!staffOnly(req)) return res.status(403).json({ success: false, message: 'Staff access required' });
+    const passage = await cancelSpellingPassageDelivery({ schoolId: req.schoolId, sessionId: req.params.id, userId: req.user._id });
+    return res.json({ success: true, data: passage });
 });

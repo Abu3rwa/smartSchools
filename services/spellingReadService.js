@@ -50,9 +50,23 @@ export async function listSpellingSessions({ schoolId, studentId, limit = 50, vi
         school: schoolId,
         session: { $in: sessions.map((session) => session._id) },
         ...(viewerRole === 'student' ? { status: { $in: ['approved', 'sent'] } } : {})
-    }).select('session style missedWords content status generatedAt sentAt').lean();
-    const passageBySession = new Map(passages.map((passage) => [String(passage.session), passage]));
-    return sessions.map((session) => ({ ...session, practicePassage: passageBySession.get(String(session._id)) || null }));
+    }).select('_id session style missedWords content status generatedAt sentAt supersedes createdAt').sort({ createdAt: 1 }).lean();
+    const passagesBySession = new Map();
+    passages.forEach((passage) => {
+        const key = String(passage.session);
+        const versions = passagesBySession.get(key) || [];
+        versions.push(passage);
+        passagesBySession.set(key, versions);
+    });
+    return sessions.map((session) => {
+        const practicePassages = passagesBySession.get(String(session._id)) || [];
+        return {
+            ...session,
+            practicePassage: practicePassages[practicePassages.length - 1] || null,
+            practicePassages,
+            hasSentPassage: practicePassages.some((passage) => passage.status === 'sent')
+        };
+    });
 }
 
 export async function getActiveSpellingSession({ schoolId, studentId }) {

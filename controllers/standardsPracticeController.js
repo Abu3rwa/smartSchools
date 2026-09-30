@@ -15,6 +15,7 @@ import {
 import { scheduleFromAttempt } from "../services/reviewSchedulerService.js";
 import { upsertInterventionCase } from "../services/interventionQueueService.js";
 import notificationService from "../services/notificationService.js";
+import { gradePracticeAnswer } from "../services/practiceAnswerGrading.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import logger from "../utils/logger.js";
 import { percentageToScaleLevel, isValidManualScore, computeEffectiveScore, SCALE_LEVELS } from "../utils/sbrScaleUtils.js";
@@ -1675,43 +1676,13 @@ export const submitAnswer = asyncHandler(async (req, res) => {
     }
   }
 
-  const recentAnsweredAttempts = await PracticeAttempt.find({
-    school: req.schoolId,
-    student: student._id,
-    standard: attempt.standard._id,
-    status: "answered",
-    ...(attempt.session ? { session: attempt.session } : {}),
-  })
-    .select("isCorrect")
-    .sort({ createdAt: -1 })
-    .limit(5)
-    .lean();
-  const recentPerformance = computeRecentPerformance(recentAnsweredAttempts);
-
-  const requiresTeacherReview = attempt.questionType === "short_answer";
-  const evaluation = requiresTeacherReview
-    ? {
-        isCorrect: null,
-        feedback: "Your answer has been submitted for teacher review.",
-        feedbackParts: null,
-      }
-    : await standardsPracticeAIService.evaluateAnswer({
-        questionText: attempt.questionText,
-        correctAnswer: attempt.correctAnswer,
-        studentAnswer: answer,
-        questionType: attempt.questionType,
-        standard: attempt.standard,
-        questionOptions: attempt.options || [],
-        studentFirstName: student.firstName || "",
-        subjectName: attempt.assignment?.subject?.name || "",
-        gradeLevel: attempt.standard?.gradeLevel || null,
-        difficulty: attempt.difficulty || "medium",
-        attemptNumber: attempt.attemptNumber || 1,
-        recentPerformance,
-        gradingMode: attempt.gradingMode || "conceptual",
-        acceptableAnswers: attempt.acceptableAnswers || [],
-        evaluationCriteria: attempt.evaluationCriteria || "",
-      });
+  const evaluation = gradePracticeAnswer({
+    questionType: attempt.questionType,
+    studentAnswer: answer,
+    correctAnswer: attempt.correctAnswer,
+    questionOptions: attempt.options || [],
+  });
+  const requiresTeacherReview = evaluation.requiresTeacherReview;
 
   // Update the attempt
   attempt.studentAnswer = answer;

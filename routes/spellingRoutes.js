@@ -30,7 +30,7 @@ import { listSpellingWords } from '../controllers/spellingWordController.js';
 import { getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
 import { getDictionaryWord } from '../controllers/dictionaryController.js';
-import { approvePassage, discardPassage, generatePassage, getPassage, sendPassage, updatePassage } from '../controllers/spellingPassageController.js';
+import { approvePassage, cancelPassageSend, discardPassage, generatePassage, getPassage, sendPassage, updatePassage } from '../controllers/spellingPassageController.js';
 
 const router = express.Router();
 
@@ -59,6 +59,7 @@ router.post('/sessions/:id/passage/generate', express.json(), generatePassage);
 router.patch('/sessions/:id/passage', express.json(), updatePassage);
 router.post('/sessions/:id/passage/approve', approvePassage);
 router.post('/sessions/:id/passage/send', sendPassage);
+router.post('/sessions/:id/passage/cancel-send', cancelPassageSend);
 router.post('/sessions/:id/passage/discard', discardPassage);
 router.get('/retest-queue', listRetests);
 router.use('/reports', authorize('admin', 'department_principal', 'teacher'));

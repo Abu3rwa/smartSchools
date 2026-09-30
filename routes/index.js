@@ -17,6 +17,7 @@ import attendanceRequestRoutes from './attendanceRequestRoutes.js';
 import assignmentRoutes from './assignmentRoutes.js';
 import assignmentTypeRoutes from './assignmentTypeRoutes.js';
 import mapPrepRoutes from './mapPrepRoutes.js';
+import mapPracticeRoutes from './mapPracticeRoutes.js';
 
 export {
     authRoutes,
@@ -37,5 +38,6 @@ export {
     attendanceRequestRoutes,
     assignmentRoutes,
     assignmentTypeRoutes,
-    mapPrepRoutes
+    mapPrepRoutes,
+    mapPracticeRoutes
 };

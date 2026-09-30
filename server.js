@@ -31,6 +31,7 @@ import {
   standardRoutes,
   standardAssignmentRoutes,
   mapPrepRoutes,
+  mapPracticeRoutes,
   practiceRoutes,
 } from "./routes/index.js";
 import emailRoutes from "./routes/emailRoutes.js";
@@ -359,6 +360,7 @@ app.use("/api/newsletter-templates", newsletterTemplateRoutes);
 app.use("/api/standards", standardRoutes);
 app.use("/api/standard-assignments", standardAssignmentRoutes);
 app.use("/api/map-test-prep", mapPrepRoutes);
+app.use("/api/map-practice", mapPracticeRoutes);
 app.use("/api/grammar-tests", grammarTestRoutes);
 app.use("/api/standard-assessment", standardAssessmentFeatureRoutes);
 app.use("/api/social-studies/units", socialStudiesUnitRoutes);

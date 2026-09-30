@@ -60,19 +60,39 @@ const migrateSpellingEmailDeliveryIndexes = async () => {
 
     const collection = db.collection('spellingemaildeliveries');
     const indexes = await collection.indexes();
-    const legacySessionIndex = indexes.find((index) => index.name === 'session_1');
-    if (legacySessionIndex) {
+    const legacySessionIndexes = indexes.filter((index) => index.name === 'session_1' || index.name === 'session_1_kind_1');
+    for (const legacySessionIndex of legacySessionIndexes) {
       await collection.dropIndex(legacySessionIndex.name);
-      logger.success('Dropped legacy unique spelling email session index');
+      logger.success(`Dropped legacy unique spelling email index ${legacySessionIndex.name}`);
     }
 
-    const compoundIndex = indexes.find((index) => index.name === 'session_1_kind_1');
-    if (!compoundIndex) {
-      await collection.createIndex({ session: 1, kind: 1 }, { unique: true, name: 'session_1_kind_1' });
-      logger.success('Created spelling email session and kind index');
+    const passageIndex = indexes.find((index) => index.name === 'passage_1_kind_1');
+    if (!passageIndex) {
+      await collection.createIndex(
+        { passage: 1, kind: 1 },
+        { unique: true, partialFilterExpression: { passage: { $type: 'objectId' } }, name: 'passage_1_kind_1' }
+      );
+      logger.success('Created spelling email passage and kind index');
     }
   } catch (err) {
     logger.warn(`Spelling email delivery index migration skipped: ${err.message}`);
+  }
+};
+
+const migrateSpellingPassageIndexes = async () => {
+  try {
+    const db = mongoose.connection.db;
+    if (!db) return;
+
+    const collection = db.collection('spellingpassages');
+    const indexes = await collection.indexes();
+    const uniqueSessionIndex = indexes.find((index) => index.name === 'session_1' && index.unique === true);
+    if (uniqueSessionIndex) {
+      await collection.dropIndex(uniqueSessionIndex.name);
+      logger.success('Dropped unique spelling passage session index');
+    }
+  } catch (err) {
+    logger.warn(`Spelling passage index migration skipped: ${err.message}`);
   }
 };
 
@@ -83,6 +103,7 @@ const connectDB = async () => {
     // Run migrations after connection is established.
     await migrateDeviceTokenIndex();
     await migrateSpellingSessionIndexes();
+    await migrateSpellingPassageIndexes();
     await migrateSpellingEmailDeliveryIndexes();
   } catch (error) {
     logger.error(`❌ MongoDB Connection Error: ${error.message}`);

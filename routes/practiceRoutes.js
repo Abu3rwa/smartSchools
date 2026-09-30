@@ -37,7 +37,7 @@ router.use(requireFeature('standardsPractice'));
 // Student routes
 router.get('/my-assignments', authorize('student'), getMyAssignments);
 router.post('/generate', authorize('student'), aiFeatureRateLimiter, generateQuestion);
-router.post('/submit', authorize('student'), aiFeatureRateLimiter, submitAnswer);
+router.post('/submit', authorize('student'), submitAnswer);
 router.post('/assessment/finalize', authorize('student'), finalizeAssessment);
 router.get('/assessment/my-results', authorize('student'), getMyAssessmentResults);
 router.get('/history/:standardId', authorize('student'), getPracticeHistory);

@@ -190,18 +190,19 @@ export async function processDueSpellingEmails({ now = new Date(), limit = 25 } 
             await SpellingEmailDelivery.updateOne({ _id: delivery._id, status: 'processing' }, { $set: { status: 'sent', sentAt: new Date(), lastError: '' } });
             await SpellingSession.updateOne({ _id: delivery.session, school: delivery.school }, { $set: { emailStatus: 'sent', emailSentAt: new Date(), emailError: null } });
             if (delivery.kind === 'passage') {
-                await SpellingPassage.updateOne({ school: delivery.school, session: delivery.session }, { $set: { status: 'sent', sentAt: new Date(), lastError: '' } });
+                await SpellingPassage.updateOne(
+                    delivery.passage
+                        ? { _id: delivery.passage, school: delivery.school }
+                        : { school: delivery.school, session: delivery.session },
+                    { $set: { status: 'sent', sentAt: new Date(), lastError: '' } }
+                );
             }
             if (delivery.kind === 'results') {
                 const completedSession = await SpellingSession.findOne({ _id: delivery.session, school: delivery.school }).lean();
                 if (completedSession?.passageGeneration?.enabled && completedSession.passageGeneration.trigger === 'automatic') {
                     try {
-                        const { generateSpellingPassage, approveSpellingPassage, sendSpellingPassage } = await import('./spellingPassageService.js');
+                        const { generateSpellingPassage } = await import('./spellingPassageService.js');
                         const generated = await generateSpellingPassage({ schoolId: delivery.school, sessionId: delivery.session, userId: completedSession.createdBy, style: completedSession.passageGeneration.style });
-                        if (!completedSession.passageGeneration.requireTeacherApproval) {
-                            await approveSpellingPassage({ schoolId: delivery.school, sessionId: delivery.session, userId: completedSession.createdBy });
-                            if (completedSession.passageEmailAudience !== 'none') await sendSpellingPassage({ schoolId: delivery.school, sessionId: delivery.session, userId: completedSession.createdBy });
-                        }
                         logger.info('spelling_passage_generated', { sessionId: String(delivery.session), passageId: String(generated._id) });
                     } catch (passageError) {
                         logger.error('spelling_passage_generation_failed', { sessionId: String(delivery.session), message: passageError.message });
@@ -224,7 +225,7 @@ export async function processDueSpellingEmails({ now = new Date(), limit = 25 } 
             );
             await SpellingSession.updateOne({ _id: delivery.session, school: delivery.school }, { $set: { emailStatus: exhausted ? 'failed' : 'pending', emailError: error.message } });
             if (delivery.kind === 'passage') {
-                await SpellingPassage.updateOne({ school: delivery.school, session: delivery.session }, { $set: { status: exhausted ? 'failed' : 'approved', lastError: error.message } });
+                await SpellingPassage.updateOne({ school: delivery.school, session: delivery.session }, { $set: { status: exhausted ? 'failed' : 'queued', lastError: error.message } });
             }
             stats.failed += 1;
         }
