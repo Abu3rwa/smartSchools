@@ -68,18 +68,22 @@ export const startSession = asyncHandler(async (req, res) => {
     const studentId = await resolveStudentId(req);
     if (!studentId) return res.status(400).json({ success: false, message: 'studentId is required' });
 
+    const maxMistakes = req.body.maxMistakesAllowed !== undefined && req.body.maxMistakesAllowed !== null
+        ? Number(req.body.maxMistakesAllowed)
+        : undefined;
+
     const session = await startSpellingSession({
         schoolId: req.schoolId,
         studentId,
         userId: req.user._id,
         mode: req.body.mode,
-        maxMistakesAllowed: Number(req.body.maxMistakesAllowed),
+        maxMistakesAllowed: maxMistakes,
         retestDeadline: req.body.retestDeadline,
         curriculumGrade: req.body.curriculumGrade,
         curriculumWeek: req.body.curriculumWeek ? Number(req.body.curriculumWeek) : undefined,
-        emailNotification: req.body.emailNotification,
-        passageEmailAudience: req.body.passageEmailAudience ?? null
-        ,passageGeneration: req.body.passageGeneration || {}
+        emailNotification: req.body.emailNotification ?? null,
+        passageEmailAudience: req.body.passageEmailAudience ?? null,
+        passageGeneration: req.body.passageGeneration || {}
     });
     return res.status(201).json({ success: true, data: session });
 });

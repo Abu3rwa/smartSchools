@@ -79,11 +79,17 @@ const getCurrentItemData = async (session, dbSession) => {
     return null;
 };
 
-export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, curriculumGrade, curriculumWeek, emailNotification = DEFAULT_SPELLING_EMAIL_AUDIENCE, passageEmailAudience = null, passageGeneration = {} }) {
+export async function startSpellingSession({ schoolId, studentId, userId, mode, maxMistakesAllowed, retestDeadline, curriculumGrade, curriculumWeek, emailNotification = null, passageEmailAudience = null, passageGeneration = {} }) {
     if (!['teacher-led', 'self-serve'].includes(mode)) throw badRequest('Invalid spelling session mode');
-    if (!Number.isInteger(maxMistakesAllowed) || maxMistakesAllowed < 1 || maxMistakesAllowed > 50) throw badRequest('maxMistakesAllowed must be a positive integer between 1 and 50');
-    if (!isSpellingEmailAudience(emailNotification)) throw badRequest('Invalid spelling email audience');
-    if (passageEmailAudience !== null && !isSpellingEmailAudience(passageEmailAudience)) throw badRequest('Invalid passage email audience');
+    if (maxMistakesAllowed !== undefined && maxMistakesAllowed !== null && (!Number.isInteger(maxMistakesAllowed) || maxMistakesAllowed < 1 || maxMistakesAllowed > 50)) {
+        throw badRequest('maxMistakesAllowed must be a positive integer between 1 and 50');
+    }
+    if (emailNotification !== null && emailNotification !== undefined && !isSpellingEmailAudience(emailNotification)) {
+        throw badRequest('Invalid spelling email audience');
+    }
+    if (passageEmailAudience !== null && passageEmailAudience !== undefined && !isSpellingEmailAudience(passageEmailAudience)) {
+        throw badRequest('Invalid passage email audience');
+    }
 
     const startedAt = new Date();
     const deadline = retestDeadline ? new Date(retestDeadline) : new Date(startedAt.getTime() + (7 * DAY_MS));
@@ -115,9 +121,24 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
     if (wordCount === 0) {
         throw badRequest(`No spelling words are imported for ${selectedGrade}, week ${selectedWeek}`);
     }
-    const classSettings = student.currentClass
-        ? await SpellingClassSettings.findOne({ school: schoolId, class: student.currentClass }).lean()
+    const targetClassId = student.currentClass || (student.enrolledClasses && student.enrolledClasses[0]);
+    const classSettings = targetClassId
+        ? await SpellingClassSettings.findOne({ school: schoolId, class: targetClassId }).lean()
         : null;
+
+    // Resolve defaults from class settings if not explicitly specified by teacher
+    const effectiveEmailNotification = emailNotification !== undefined && emailNotification !== null
+        ? emailNotification
+        : (classSettings?.defaultEmailAudience || DEFAULT_SPELLING_EMAIL_AUDIENCE);
+
+    const effectivePassageEmailAudience = passageEmailAudience !== undefined && passageEmailAudience !== null
+        ? passageEmailAudience
+        : (classSettings?.passageGeneration?.passageEmailAudience || 'none');
+
+    const effectiveMaxMistakesAllowed = Number.isInteger(maxMistakesAllowed) && maxMistakesAllowed >= 1
+        ? maxMistakesAllowed
+        : (classSettings?.defaultMaxMistakes || 3);
+
     const dictationMode = {
         enabled: classSettings?.dictationMode?.enabled === true,
         autoPlayOnShow: classSettings?.dictationMode?.autoPlayOnShow !== false
@@ -127,12 +148,12 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         school: schoolId,
         student: studentId,
         mode,
-        maxMistakesAllowed,
+        maxMistakesAllowed: effectiveMaxMistakesAllowed,
         retestDeadline: deadline,
         curriculumGrade: selectedGrade,
         curriculumWeek: selectedWeek,
-        emailNotification,
-        passageEmailAudience: passageEmailAudience || emailNotification,
+        emailNotification: effectiveEmailNotification,
+        passageEmailAudience: effectivePassageEmailAudience,
         passageGeneration: {
             enabled: passageGeneration.enabled === true,
             trigger: 'manual',
