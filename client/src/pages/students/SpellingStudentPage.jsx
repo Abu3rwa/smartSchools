@@ -65,10 +65,13 @@ const SpellingStudentPage = () => {
 
     useEffect(() => {
         if (!session?._id || session.status !== 'in-progress') return undefined;
+        // In self-serve mode the student drives their own test sequence; poll every 8s as safety check.
+        // In teacher-led mode, poll every 4s to catch the next word advanced by the teacher.
+        const pollInterval = session.mode === 'self-serve' ? 8000 : 4000;
         const refreshSession = () => dispatch(fetchSpellingCurrentItem(session._id));
-        const intervalId = window.setInterval(refreshSession, 3000);
+        const intervalId = window.setInterval(refreshSession, pollInterval);
         return () => window.clearInterval(intervalId);
-    }, [dispatch, session?._id, session?.status]);
+    }, [dispatch, session?._id, session?.status, session?.mode]);
 
     useEffect(() => {
         if (!currentItem?.word) return;
@@ -288,7 +291,6 @@ const SpellingStudentPage = () => {
                                 </Stack>
                             </Box>
                         </Stack>
-                        {session?.status === 'in-progress' && <Button color="error" variant="outlined" onClick={endSession} disabled={loading}>{t('endSession')}</Button>}
                     </Stack>
 
                     <Box sx={{ maxWidth: 700, width: '100%', mx: 'auto', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3 }}>

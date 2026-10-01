@@ -28,9 +28,17 @@ const SettingsPage = () => {
         <Box className="settings-page" sx={{ px: { xs: 0, sm: 0 } }}>
             <SettingsPageHeader />
             {isAdmin && (
-                <div className="settings-actions-strip">
+                <div className="settings-actions-strip" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                     <button type="button" className="btn btn-secondary" onClick={navigateToSubscription}>
                         Open subscription details
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => navigateToSubscription()}
+                        title="View MongoDB Atlas cluster storage metrics and cleanup options"
+                    >
+                        Database & storage health
                     </button>
                 </div>
             )}

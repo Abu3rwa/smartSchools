@@ -135,9 +135,9 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         passageEmailAudience: passageEmailAudience || emailNotification,
         passageGeneration: {
             enabled: passageGeneration.enabled === true,
-            trigger: passageGeneration.trigger === 'automatic' ? 'automatic' : 'manual',
+            trigger: 'manual',
             style: passageGeneration.style === 'passage' ? 'passage' : 'sentence-list',
-            requireTeacherApproval: passageGeneration.requireTeacherApproval !== false
+            requireTeacherApproval: true
         },
         dictationMode,
         startedAt,

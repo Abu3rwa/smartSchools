@@ -54,7 +54,9 @@ const SpellingStudentRosterTable = ({
                                 <TableRow key={student._id}>
                                     <TableCell>
                                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                                            <Typography variant="body2">{student.firstName} {student.lastName}</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: rowActiveSession ? 600 : 400 }}>
+                                                {student.firstName} {student.lastName}
+                                            </Typography>
                                             {currentWord && (
                                                 <Chip
                                                     size="small"
@@ -70,7 +72,27 @@ const SpellingStudentRosterTable = ({
                                                 />
                                             )}
                                         </Stack>
-                                        <Typography variant="caption" color="text.secondary">{t('studentId', { id: student.studentId })}</Typography>
+                                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mt: 0.25 }}>
+                                            <Typography variant="caption" color="text.secondary">{t('studentId', { id: student.studentId })}</Typography>
+                                            {rowActiveSession && (
+                                                <>
+                                                    <Chip
+                                                        size="small"
+                                                        label={`Word ${(rowActiveSession.attempts?.length || 0) + 1}/10 · ${rowActiveSession.mode === 'self-serve' ? 'Self-serve' : 'Teacher-led'}`}
+                                                        color="primary"
+                                                        variant="outlined"
+                                                        sx={{ height: 20, fontSize: '0.72rem', fontWeight: 600 }}
+                                                    />
+                                                    <Chip
+                                                        size="small"
+                                                        label={`${rowActiveSession.mistakeCount || 0} mistakes`}
+                                                        color={rowActiveSession.mistakeCount > 0 ? 'error' : 'default'}
+                                                        variant="outlined"
+                                                        sx={{ height: 20, fontSize: '0.72rem' }}
+                                                    />
+                                                </>
+                                            )}
+                                        </Stack>
                                     </TableCell>
                                     <TableCell>
                                         <FormControl size="small" sx={{ minWidth: 110 }}>

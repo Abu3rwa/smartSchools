@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../config/api';
+import DatabaseStorageCard from './components/DatabaseStorageCard';
 import './SubscriptionPage.css';
 
 const formatDate = (value) => {
@@ -186,6 +187,8 @@ const SubscriptionPage = () => {
                     </ul>
                 </div>
             </div>
+
+            <DatabaseStorageCard />
 
             <div className="card">
                 <h3>Invoice history</h3>

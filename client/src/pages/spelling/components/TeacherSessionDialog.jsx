@@ -4,6 +4,7 @@ import { HiOutlineCheck, HiOutlineXMark, HiOutlineArrowLeft, HiOutlineClock } fr
 const TeacherSessionDialog = ({
     activeSession,
     onClose,
+    onEndSession,
     selectedStudent,
     t,
     integrityEvents,
@@ -29,16 +30,23 @@ const TeacherSessionDialog = ({
     onGradeAttempt
 }) => (
     <Dialog
-        fullScreen={activeSession?.status === 'in-progress'}
         open={Boolean(activeSession)}
         onClose={onClose}
         maxWidth="md"
         fullWidth
+        PaperProps={{
+            sx: {
+                borderRadius: { xs: 2, sm: 3 },
+                maxHeight: '92vh',
+                display: 'flex',
+                flexDirection: 'column'
+            }
+        }}
     >
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', bgcolor: 'background.default', p: { xs: 2, md: 5 } }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', bgcolor: 'background.default', p: { xs: 2, sm: 3, md: 4 }, overflowY: 'auto' }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
                 <Stack direction="row" spacing={2} alignItems="center">
-                    <IconButton aria-label="Exit session" onClick={onClose}><HiOutlineArrowLeft /></IconButton>
+                    <IconButton aria-label="Close modal" onClick={onClose}><HiOutlineXMark /></IconButton>
                     <Box>
                         <Typography variant="overline">
                             {activeSession?.status === 'in-progress'
@@ -49,7 +57,23 @@ const TeacherSessionDialog = ({
                         <Typography variant="body2" color="text.secondary">{t('currentWeek', { grade: activeSession?.curriculumGrade, week: activeSession?.curriculumWeek })}</Typography>
                     </Box>
                 </Stack>
-                <Stack direction="row" spacing={1} alignItems="center"><HiOutlineClock /><Typography>{t('wordCount', { count: activeSession?.attempts?.length || 0 })}</Typography></Stack>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                        <HiOutlineClock />
+                        <Typography>{t('wordCount', { count: activeSession?.attempts?.length || 0 })}</Typography>
+                    </Stack>
+                    {activeSession?.status === 'in-progress' && onEndSession && (
+                        <Button
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            onClick={onEndSession}
+                            disabled={loading}
+                        >
+                            {t('endSession')}
+                        </Button>
+                    )}
+                </Stack>
             </Stack>
             <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto', mb: 2 }}>
                 <Alert severity="info">

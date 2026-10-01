@@ -40,7 +40,6 @@ import publicRoutes from "./routes/publicRoutes.js";
 import landingRoutes from "./routes/landingRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import subscriptionRoutes from "./routes/subscriptionRoutes.js";
-import behaviorRoutes from "./routes/behaviorRoutes.js";
 import studentBehaviorRoutes from "./routes/studentBehaviorRoutes.js";
 import scheduleRoutes from "./routes/scheduleRoutes.js";
 import scheduleRoutesEnhanced from "./routes/scheduleRoutesEnhanced.js";
@@ -54,7 +53,6 @@ import importRoutes from "./routes/importRoutes.js";
 import spellingRoutes from "./routes/spellingRoutes.js";
 import advancedReportRoutes from "./routes/advancedReportRoutes.js";
 import { registerApiDocsRoute } from "./routes/apiDocsRoute.js";
-import { behaviorTracker } from "./middleware/behaviorTracker.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
 import newsletterTemplateRoutes from "./routes/newsletterTemplateRoutes.js";
 import revisionRoutes from "./routes/revisionRoutes.js";
@@ -102,6 +100,7 @@ import socialStudiesUnitRoutes from "./routes/socialStudiesUnitRoutes.js";
 import socialStudiesLessonRoutes from "./routes/socialStudiesLessonRoutes.js";
 import socialStudiesAssignmentRoutes from "./routes/socialStudiesAssignmentRoutes.js";
 import socialStudiesSubmissionRoutes from "./routes/socialStudiesSubmissionRoutes.js";
+import systemStorageRoutes from "./routes/systemStorageRoutes.js";
 import { ensureCurrentWeekIssuesForAllClasses } from "./services/newsletterScheduler.js";
 import { expireStaleSubstitutionRequests } from "./services/substitutionExpiryService.js";
 import { runReviewSchedulerJob } from "./jobs/reviewSchedulerJob.js";
@@ -234,6 +233,8 @@ const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isProduction ? 1000 : 10000,
   keyGenerator: userKeyGenerator,
+  // Exempt spelling endpoints to prevent school NAT/Wi-Fi connection drops during class tests
+  skip: (req) => req.originalUrl?.includes('/api/spelling'),
   message: {
     success: false,
     message: "Too many requests, please try again later",
@@ -315,9 +316,6 @@ if (enableAiTestEndpoint) {
   });
 }
 
-// Behavior tracking middleware (applies to all API routes)
-app.use("/api", behaviorTracker);
-
 // Public routes (no auth required)
 app.use("/api/public", publicRoutes);
 app.use("/api/landing", landingRoutes);
@@ -341,7 +339,6 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/reports", advancedReportRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
-app.use("/api/behavior", behaviorRoutes);
 app.use("/api/student-behavior", studentBehaviorRoutes);
 app.use("/api/schedules", scheduleRoutes);
 app.use("/api/schedules-enhanced", scheduleRoutesEnhanced);
@@ -378,6 +375,7 @@ app.use("/api/assessments", assessmentRoutes);
 app.use("/api/reteach-tasks", reteachTaskRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/devices", deviceRoutes);
+app.use("/api/system/storage", systemStorageRoutes);
 app.use("/api/homework", homeworkRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/assignment-types", assignmentTypeRoutes);

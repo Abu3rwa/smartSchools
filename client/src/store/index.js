@@ -10,7 +10,6 @@ import lessonReducer from './slices/lessonSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import schoolReducer from './slices/schoolSlice';
 import subscriptionReducer from './slices/subscriptionSlice';
-import behaviorReducer from './slices/behaviorSlice';
 import newsletterReducer from './slices/newsletterSlice';
 import standardReducer from './slices/standardSlice';
 import practiceReducer from './slices/practiceSlice';
@@ -55,7 +54,6 @@ const YEAR_SCOPED_SLICE_KEYS = [
     'lessons',
     'newsletters',
     'dashboard',
-    'behavior',
     'standards',
     'practice',
     'revision',
@@ -92,7 +90,6 @@ const appReducer = combineReducers({
     schools: schoolReducer,
     schoolFeatures: schoolFeaturesReducer,
     subscriptions: subscriptionReducer,
-    behavior: behaviorReducer,
     standards: standardReducer,
     practice: practiceReducer,
     revision: revisionReducer,

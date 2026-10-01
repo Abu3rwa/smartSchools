@@ -28,7 +28,6 @@ import MainLayout from "./components/layout/MainLayout";
 import AdminLayout from "./components/layout/AdminLayout";
 import FeatureGate from "./components/FeatureGate";
 
-import BehaviorAutoTracker from "./components/behavior/BehaviorAutoTracker";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 const LandingPage = lazy(() => import("./pages/landing/LandingPage"));
@@ -86,7 +85,6 @@ const SBRParentReportsPage = lazy(() => import("./pages/sbr/SBRParentReportsPage
 const SBRHubPage = lazy(() => import("./pages/sbr/SBRHubPage/SBRHubPage"));
 const AttendanceRemindersPage = lazy(() => import("./pages/admin/attendanceReminders/AttendanceRemindersPage"));
 const BehaviorManagementPage = lazy(() => import("./pages/behavior/BehaviorManagementPage"));
-const BehaviorTrackingDashboardPage = lazy(() => import("./pages/behavior/BehaviorTrackingDashboardPage"));
 const AdvancedReportGenerator = lazy(() => import("./pages/reports/AdvancedReportGenerator"));
 const ReportAnalytics = lazy(() => import("./pages/reports/ReportAnalytics"));
 const ReportTemplates = lazy(() => import("./pages/reports/ReportTemplates"));
@@ -138,7 +136,7 @@ const SuperAdminUsersPage = lazy(() => import("./pages/superAdmin/SuperAdminUser
 const SuperAdminSettingsPage = lazy(() => import("./pages/superAdmin/SuperAdminSettingsPage"));
 const SuperAdminSubscriptionsPage = lazy(() => import("./pages/superAdmin/SuperAdminSubscriptionsPage"));
 const SuperAdminSubscriptionDetailsPage = lazy(() => import("./pages/superAdmin/SuperAdminSubscriptionDetailsPage"));
-const BehaviorAnalyticsPage = lazy(() => import("./pages/superAdmin/BehaviorAnalyticsPage"));
+const SuperAdminAnalyticsPage = lazy(() => import("./pages/superAdmin/SuperAdminAnalyticsPage/SuperAdminAnalyticsPage"));
 const SuperAdminLandingPageEditor = lazy(() => import("./pages/superAdmin/SuperAdminLandingPageEditor"));
 const ApiDocsPage = lazy(() => import("./pages/docs/ApiDocsPage"));
 const PresentationListPage = lazy(() => import("./pages/presentations/PresentationListPage/PresentationListPage"));
@@ -367,7 +365,6 @@ function App() {
     <CacheProvider value={emotionCache}>
       <ThemeProvider theme={muiTheme}>
         <CssBaseline />
-        <BehaviorAutoTracker />
         <ErrorBoundary>
         <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
@@ -748,14 +745,6 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal", "teacher"]}>
                   <BehaviorManagementPage />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="behavior-analytics"
-              element={
-                <RoleRoute roles={["admin", "department_principal", "super_admin"]}>
-                  <BehaviorTrackingDashboardPage />
                 </RoleRoute>
               }
             />
@@ -1623,8 +1612,7 @@ function App() {
             <Route path="schools/new" element={<SuperAdminSchoolsPage />} />
             <Route path="schools/:id" element={<SuperAdminSchoolDetailsPage />} />
             <Route path="users" element={<SuperAdminUsersPage />} />
-            <Route path="analytics" element={<BehaviorAnalyticsPage />} />
-            <Route path="behavior-analytics" element={<BehaviorAnalyticsPage />} />
+            <Route path="analytics" element={<SuperAdminAnalyticsPage />} />
             <Route path="landing" element={<SuperAdminLandingPageEditor />} />
             <Route path="settings" element={<SuperAdminSettingsPage />} />
             <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />

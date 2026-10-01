@@ -17,9 +17,9 @@ const normalize = (input = {}) => {
         },
         passageGeneration: {
             enabled: input.passageGeneration?.enabled === true,
-            trigger: input.passageGeneration?.trigger === 'automatic' ? 'automatic' : 'manual',
+            trigger: 'manual',
             style: input.passageGeneration?.style === 'passage' ? 'passage' : 'sentence-list',
-            requireTeacherApproval: input.passageGeneration?.requireTeacherApproval !== false,
+            requireTeacherApproval: true,
             passageEmailAudience
         }
     };

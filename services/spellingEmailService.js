@@ -197,18 +197,6 @@ export async function processDueSpellingEmails({ now = new Date(), limit = 25 } 
                     { $set: { status: 'sent', sentAt: new Date(), lastError: '' } }
                 );
             }
-            if (delivery.kind === 'results') {
-                const completedSession = await SpellingSession.findOne({ _id: delivery.session, school: delivery.school }).lean();
-                if (completedSession?.passageGeneration?.enabled && completedSession.passageGeneration.trigger === 'automatic') {
-                    try {
-                        const { generateSpellingPassage } = await import('./spellingPassageService.js');
-                        const generated = await generateSpellingPassage({ schoolId: delivery.school, sessionId: delivery.session, userId: completedSession.createdBy, style: completedSession.passageGeneration.style });
-                        logger.info('spelling_passage_generated', { sessionId: String(delivery.session), passageId: String(generated._id) });
-                    } catch (passageError) {
-                        logger.error('spelling_passage_generation_failed', { sessionId: String(delivery.session), message: passageError.message });
-                    }
-                }
-            }
             stats.sent += 1;
         } catch (error) {
             const exhausted = delivery.attempts >= MAX_ATTEMPTS;

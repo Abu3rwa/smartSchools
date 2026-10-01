@@ -13,7 +13,7 @@ export async function resolveSpellingStudentId({ schoolId, requestedStudentId, u
     return student?._id || null;
 }
 
-export async function listSpellingSessions({ schoolId, studentId, limit = 50, viewerRole = 'student' }) {
+export async function listSpellingSessions({ schoolId, studentId, studentIds, limit = 50, viewerRole = 'student' }) {
     const query = {
         school: schoolId,
         $or: [
@@ -21,10 +21,15 @@ export async function listSpellingSessions({ schoolId, studentId, limit = 50, vi
             { 'attempts.0': { $exists: true } }
         ]
     };
-    if (studentId) query.student = studentId;
+    if (studentId) {
+        query.student = studentId;
+    } else if (Array.isArray(studentIds) && studentIds.length) {
+        query.student = { $in: studentIds };
+    }
+    const maxLimit = Array.isArray(studentIds) && studentIds.length > 1 ? 500 : 100;
     const sessions = await SpellingSession.find(query)
         .sort({ startedAt: -1 })
-        .limit(Math.min(Math.max(Number(limit) || 50, 1), 100))
+        .limit(Math.min(Math.max(Number(limit) || 50, 1), maxLimit))
         .select('student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts currentItem emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError')
         .lean();
     if (viewerRole !== 'student') {

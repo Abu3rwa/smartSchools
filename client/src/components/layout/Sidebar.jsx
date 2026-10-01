@@ -520,13 +520,6 @@ const Sidebar = () => {
       section: "support",
     },
     {
-      path: "/portal/behavior-analytics",
-      icon: HiOutlineChartPie,
-      labelKey: "behaviorAnalytics",
-      roles: ["admin", "department_principal", "super_admin"],
-      section: "support",
-    },
-    {
       path: "/portal/teachers",
       icon: HiOutlineIdentification,
       labelKey: "teachers",

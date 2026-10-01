@@ -73,6 +73,7 @@ const SpellingTeacherPage = () => {
     const [studentHistoryMap, setStudentHistoryMap] = useState({});
     const studentHistoryMapRef = useRef(studentHistoryMap);
     studentHistoryMapRef.current = studentHistoryMap;
+    const activeSessionIdRef = useRef(null);
     const [overviewLoading, setOverviewLoading] = useState(false);
     const wordList = spelling.words;
     const wordCategories = spelling.categories;
@@ -151,11 +152,20 @@ const SpellingTeacherPage = () => {
         if (!classStudents.length) return;
         if (showLoading) setOverviewLoading(true);
         try {
-            const entries = await Promise.all(classStudents.map(async (student) => {
-                const result = await dispatch(fetchSpellingHistory({ studentId: student._id }));
-                return [student._id, fetchSpellingHistory.fulfilled.match(result) ? result.payload : []];
-            }));
-            setStudentHistoryMap(Object.fromEntries(entries));
+            const studentIds = classStudents.map((s) => s._id).join(',');
+            const result = await dispatch(fetchSpellingHistory({ studentIds, limit: 300 }));
+            if (fetchSpellingHistory.fulfilled.match(result)) {
+                const sessions = Array.isArray(result.payload) ? result.payload : [];
+                const map = {};
+                classStudents.forEach((student) => { map[student._id] = []; });
+                sessions.forEach((session) => {
+                    const sid = String(session.student?._id || session.student);
+                    if (map[sid]) {
+                        map[sid].push(session);
+                    }
+                });
+                setStudentHistoryMap(map);
+            }
         } finally {
             if (showLoading) setOverviewLoading(false);
         }
@@ -171,22 +181,19 @@ const SpellingTeacherPage = () => {
 
     useEffect(() => {
         if (!classId || !classStudents.length) return undefined;
-        const intervalId = window.setInterval(() => {
-            classStudents.forEach((student) => {
-                const sessions = studentHistoryMapRef.current[student._id] || [];
-                if (sessions.some((session) => session.status === 'in-progress')) {
-                    refreshStudentHistory(student._id);
-                }
-            });
-        }, 2500);
-        return () => window.clearInterval(intervalId);
-    }, [classId, classStudents, refreshStudentHistory]);
+        // Check if any student currently has an active in-progress session
+        const hasActiveSession = classStudents.some((student) => {
+            const sessions = studentHistoryMapRef.current[student._id] || [];
+            return sessions.some((session) => session.status === 'in-progress');
+        });
 
-    useEffect(() => {
-        if (!classId || !classStudents.length) return undefined;
-        const intervalId = window.setInterval(() => loadAllHistories({ showLoading: false }), 10000);
+        // Use a single batched query: 5s when sessions are active, 20s when idle
+        const pollMs = hasActiveSession ? 5000 : 20000;
+        const intervalId = window.setInterval(() => {
+            loadAllHistories({ showLoading: false });
+        }, pollMs);
         return () => window.clearInterval(intervalId);
-    }, [classId, classStudents.length, loadAllHistories]);
+    }, [classId, classStudents, loadAllHistories, studentHistoryMap]);
 
     const updateRowLevel = async (student, field, value) => {
         const nextLevel = { ...(rowLevels[student._id] || {}), [field]: value };
@@ -226,7 +233,8 @@ const SpellingTeacherPage = () => {
 
     const loadCurrentItem = useCallback(async (sessionId) => {
         const result = await dispatch(fetchSpellingCurrentItem(sessionId));
-        if (fetchSpellingCurrentItem.fulfilled.match(result)) {
+        // Only update active session and modal state if the modal for this session is still open
+        if (activeSessionIdRef.current === sessionId && fetchSpellingCurrentItem.fulfilled.match(result)) {
             setActiveSession(result.payload.session);
             setCurrentItem(result.payload.item);
         }
@@ -235,12 +243,16 @@ const SpellingTeacherPage = () => {
     const loadIntegrityEvents = useCallback(async (sessionId) => {
         try {
             const response = await api.get(`/spelling/sessions/${sessionId}/integrity-events`);
-            setIntegrityEvents(response.data.data);
+            if (activeSessionIdRef.current === sessionId) {
+                setIntegrityEvents(response.data.data);
+            }
         } catch (error) {
-            setIntegrityEvents((current) => ({
-                ...current,
-                error: error.response?.data?.message || 'Unable to load page visibility events.'
-            }));
+            if (activeSessionIdRef.current === sessionId) {
+                setIntegrityEvents((current) => ({
+                    ...current,
+                    error: error.response?.data?.message || 'Unable to load page visibility events.'
+                }));
+            }
         }
     }, []);
 
@@ -261,8 +273,15 @@ const SpellingTeacherPage = () => {
                 maxMistakesAllowed
             }));
             if (startTeacherSpellingSession.fulfilled.match(result)) {
-                setStudentId(student._id);
-                await loadCurrentItem(result.payload._id);
+                // In teacher-led mode, open the live grading modal immediately.
+                // In self-serve mode, the student works independently on their device; keep the teacher on the roster.
+                if (assessmentMode === 'teacher-led') {
+                    setStudentId(student._id);
+                    activeSessionIdRef.current = result.payload._id;
+                    await loadCurrentItem(result.payload._id);
+                } else {
+                    notify(t('sessionStarted', { name: `${student.firstName} ${student.lastName}` }) || 'Session started for student', 'success');
+                }
             } else {
                 notify(result.payload || t('sessionError'), 'error');
             }
@@ -390,11 +409,8 @@ const SpellingTeacherPage = () => {
         }
     }, [activeSession, currentItem, dispatch, gradingFeedback, loadCurrentItem, loading, notify, refreshStudentHistory, studentId]);
 
-    const performExitTeacherSession = async () => {
-        if (!activeSession) return;
-        if (activeSession.status === 'in-progress') {
-            await dispatch(endSpellingSession({ sessionId: activeSession._id, reason: 'teacher-ended' }));
-        }
+    const closeTeacherSessionModal = () => {
+        activeSessionIdRef.current = null;
         setActiveSession(null);
         setCurrentItem(null);
         setGradingFeedback(null);
@@ -402,20 +418,23 @@ const SpellingTeacherPage = () => {
         setPassageContent('');
     };
 
-    const exitTeacherSession = () => {
+    const handleEndSessionExplicitly = () => {
         if (!activeSession) return;
-        if (activeSession.status === 'in-progress') {
-            requestConfirm(
-                'End this session?',
-                'The student has not finished. Leaving now will end the active session and it cannot be resumed.',
-                performExitTeacherSession
-            );
-        } else {
-            performExitTeacherSession();
-        }
+        requestConfirm(
+            'End this session?',
+            'The student has not finished. Ending this session will complete it now and it cannot be resumed.',
+            async () => {
+                if (activeSession.status === 'in-progress') {
+                    await dispatch(endSpellingSession({ sessionId: activeSession._id, reason: 'teacher-ended' }));
+                    if (studentId) await refreshStudentHistory(studentId);
+                }
+                closeTeacherSessionModal();
+            }
+        );
     };
 
     const openSessionReview = async (student, session) => {
+        activeSessionIdRef.current = session._id;
         setSessionsStudent(null);
         setStudentId(student._id);
         setActiveSession(session);
@@ -532,16 +551,21 @@ const SpellingTeacherPage = () => {
     }, [activeSession, currentItem, gradeAttempt, gradingFeedback, loading]);
 
     useEffect(() => {
-        if (!activeSession?._id) return undefined;
+        if (!activeSession?._id) {
+            activeSessionIdRef.current = null;
+            return undefined;
+        }
         const sessionId = activeSession._id;
+        activeSessionIdRef.current = sessionId;
         setIntegrityEvents({ count: 0, events: [], error: '' });
         loadIntegrityEvents(sessionId);
         if (activeSession.status !== 'in-progress') return undefined;
         const refreshLiveSession = () => {
+            if (activeSessionIdRef.current !== sessionId) return;
             loadIntegrityEvents(sessionId);
             if (activeSession.mode === 'self-serve') loadCurrentItem(sessionId);
         };
-        const intervalId = window.setInterval(refreshLiveSession, 1500);
+        const intervalId = window.setInterval(refreshLiveSession, 3000);
         return () => window.clearInterval(intervalId);
     }, [activeSession?._id, activeSession?.mode, activeSession?.status, loadCurrentItem, loadIntegrityEvents]);
 
@@ -655,7 +679,8 @@ const SpellingTeacherPage = () => {
 
             <TeacherSessionDialog
                 activeSession={activeSession}
-                onClose={exitTeacherSession}
+                onClose={closeTeacherSessionModal}
+                onEndSession={handleEndSessionExplicitly}
                 selectedStudent={selectedStudent}
                 t={t}
                 integrityEvents={integrityEvents}
