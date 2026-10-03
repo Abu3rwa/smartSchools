@@ -4,7 +4,7 @@ import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { PERMISSIONS } from '../config/permissions.js';
 import { uploadLessonPlanContext } from '../middleware/uploadLessonPlanContext.js';
-import { aiFeatureRateLimiter } from '../middleware/rateLimiters.js';
+import { aiFeatureRateLimiter, importRateLimiter } from '../middleware/rateLimiters.js';
 import {
     getLessonPlans,
     getLessonPlanById,
@@ -19,7 +19,12 @@ import {
     getLessonPlansForReview,
     reviewLessonPlan,
     getLessonPlanStats,
-    setAdminNoteToLessonPlan
+    setAdminNoteToLessonPlan,
+    exportLessonPlanDocx,
+    downloadLessonPlanImportTemplate,
+    previewLessonPlanImport,
+    parseLessonPlanCsvToForm,
+    commitLessonPlanImport
 } from '../controllers/lessonPlanController.js';
 import {
     triggerEvaluation,
@@ -49,11 +54,22 @@ router.get('/stats', authorizeWithPermission(
     [PERMISSIONS.REVIEW_LESSON_PLANS]
 ), getLessonPlanStats);
 
+// CSV import (must be before /:id)
+router.get('/import/template', authorize('teacher', 'admin'), downloadLessonPlanImportTemplate);
+router.post('/import/preview', authorize('teacher', 'admin'), importRateLimiter, previewLessonPlanImport);
+router.post('/import/form', authorize('teacher', 'admin'), importRateLimiter, parseLessonPlanCsvToForm);
+router.post('/import/commit', authorize('teacher', 'admin'), importRateLimiter, commitLessonPlanImport);
+
 // View routes - allow teachers, admins, principals, and users with review permission
 router.get('/', authorizeWithPermission(
     ['teacher', 'admin', 'department_principal'],
     [PERMISSIONS.REVIEW_LESSON_PLANS]
 ), getLessonPlans);
+
+router.get('/:id/export.docx', authorizeWithPermission(
+    ['teacher', 'admin', 'department_principal'],
+    [PERMISSIONS.REVIEW_LESSON_PLANS]
+), importRateLimiter, exportLessonPlanDocx);
 
 router.get('/:id', authorizeWithPermission(
     ['teacher', 'admin', 'department_principal'],

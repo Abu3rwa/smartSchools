@@ -31,7 +31,7 @@ const PracticeQuestionCard = ({
             </div>
 
             {currentQuestion.instruction && (
-                <div className="question-instruction">{currentQuestion.instruction}</div>
+                <div className="question-instruction"> <span>Instructions:</span> {currentQuestion.instruction}</div>
             )}
 
             <div className="question-text">{currentQuestion.questionText}</div>

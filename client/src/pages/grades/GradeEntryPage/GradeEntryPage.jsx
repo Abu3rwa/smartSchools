@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -9,11 +9,17 @@ import { fetchStudentsByClass, selectClassStudents } from '../../../store/slices
 import { bulkAddGrades, bulkUpdateGrades, fetchGradesByAssessmentGroup, selectGradesSubmitting } from '../../../store/slices/gradeSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { fetchMyClasses, selectMyClasses } from '../../../store/slices/teacherSlice';
-import { selectIsTeacher } from '../../../store/slices/authSlice';
+import { selectIsTeacher, selectUser } from '../../../store/slices/authSlice';
 import GradeEntryHeader from './components/GradeEntryHeader';
 import GradeEntrySelectionForm from './components/GradeEntrySelectionForm';
 import GradeEntryTable from './components/GradeEntryTable';
 import GradeEntryEmptyState from './components/GradeEntryEmptyState';
+import ClassworkBehaviorModal from '../../../components/grades/ClassworkBehaviorModal';
+import EmailLanguageControl from '../../../components/shared/EmailLanguageControl';
+import {
+    getEmailLanguagePreference,
+    saveEmailLanguagePreference
+} from '../../../utils/emailLanguagePreference';
 import useGradeEntryPageState from './hooks/useGradeEntryPageState';
 import {
     countEnteredGrades,
@@ -34,7 +40,13 @@ const GradeEntryPage = () => {
     const submitting = useSelector(selectGradesSubmitting);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isTeacher = useSelector(selectIsTeacher);
+    const user = useSelector(selectUser);
     const myClasses = useSelector(selectMyClasses);
+    const [behaviorStudent, setBehaviorStudent] = useState(null);
+    const [emailLanguage, setEmailLanguage] = useState(() => (
+        getEmailLanguagePreference(user?._id || user?.id)
+    ));
+    const [rememberEmailLanguage, setRememberEmailLanguage] = useState(false);
 
     const {
         selectedClass,
@@ -58,7 +70,6 @@ const GradeEntryPage = () => {
         resetGradesForStudents,
         setGrades,
         editMode,
-        editAssessmentGroupId,
         editGradeMap,
         enterEditMode,
         exitEditMode
@@ -173,10 +184,14 @@ const GradeEntryPage = () => {
             lessonPlanIds: selectedLessonPlanIds,
             academicYear,
             grades: gradesToSubmit,
-            sendNotifications
+            sendNotifications,
+            language: emailLanguage
         }));
 
         if (bulkAddGrades.fulfilled.match(result)) {
+            if (rememberEmailLanguage) {
+                saveEmailLanguagePreference(user?._id || user?.id, emailLanguage);
+            }
             toast.success(t('grades:toasts.savedSuccess', { count: gradesToSubmit.length }));
             resetGradesForStudents(classStudents);
         } else {
@@ -192,6 +207,26 @@ const GradeEntryPage = () => {
         newParams.delete('assessmentGroupId');
         window.history.replaceState({}, '', `${window.location.pathname}${newParams.toString() ? '?' + newParams.toString() : ''}`);
     }, [classStudents, exitEditMode, resetGradesForStudents, searchParams]);
+
+    const openBehaviorModal = (student) => setBehaviorStudent(student);
+
+    const applyBehaviorScore = (student, result) => {
+        setGrades((current) => ({
+            ...current,
+            [student._id]: {
+                ...current[student._id],
+                marks: result.marks,
+                remarks: result.remarks
+            }
+        }));
+    };
+
+    const applyBehaviorAndNext = (result) => {
+        if (!behaviorStudent) return;
+        applyBehaviorScore(behaviorStudent, result);
+        const currentIndex = classStudents.findIndex((student) => student._id === behaviorStudent._id);
+        setBehaviorStudent(classStudents[currentIndex + 1] || null);
+    };
 
     return (
         <div className="grade-entry-page">
@@ -224,12 +259,23 @@ const GradeEntryPage = () => {
                     maxMarks={maxMarks}
                     sendNotifications={sendNotifications}
                     onSendNotificationsChange={setSendNotifications}
+                    emailLanguageControl={(
+                        <EmailLanguageControl
+                            language={emailLanguage}
+                            onLanguageChange={setEmailLanguage}
+                            rememberLanguage={rememberEmailLanguage}
+                            onRememberLanguageChange={setRememberEmailLanguage}
+                            name="grade-entry-email-language"
+                        />
+                    )}
                     onGradeChange={handleGradeChange}
                     enteredCount={enteredCount}
                     submitting={submitting}
                     onSubmit={handleSubmit}
                     editMode={editMode}
                     onCancelEdit={handleCancelEdit}
+                    showBehaviorAction={selectedCategory?.toLowerCase() === 'classwork'}
+                    onOpenBehavior={openBehaviorModal}
                 />
             )}
 
@@ -239,6 +285,22 @@ const GradeEntryPage = () => {
 
             {(!selectedClass || !selectedSubject) && (
                 <GradeEntryEmptyState message={t('grades:entry.empty.selectClassSubject')} />
+            )}
+
+            {behaviorStudent && selectedCategory?.toLowerCase() === 'classwork' && (
+                <ClassworkBehaviorModal
+                    key={behaviorStudent._id}
+                    student={behaviorStudent}
+                    currentRow={grades[behaviorStudent._id]}
+                    maxMarks={maxMarks}
+                    onClose={() => setBehaviorStudent(null)}
+                    onApply={(result) => {
+                        applyBehaviorScore(behaviorStudent, result);
+                        setBehaviorStudent(null);
+                    }}
+                    onApplyNext={applyBehaviorAndNext}
+                    hasNext={classStudents.findIndex((student) => student._id === behaviorStudent._id) < classStudents.length - 1}
+                />
             )}
         </div>
     );

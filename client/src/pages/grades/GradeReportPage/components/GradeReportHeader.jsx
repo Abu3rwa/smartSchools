@@ -4,12 +4,17 @@ import {
     HiOutlineDownload,
     HiOutlineMail
 } from 'react-icons/hi';
+import EmailLanguageControl from '../../../../components/shared/EmailLanguageControl';
 
 const GradeReportHeader = ({
     studentId,
     student,
     academicYear,
     sending,
+    emailLanguage,
+    onEmailLanguageChange,
+    rememberEmailLanguage,
+    onRememberEmailLanguageChange,
     onSendReport
 }) => {
     return (
@@ -35,6 +40,13 @@ const GradeReportHeader = ({
                 </div>
 
                 <div className="header-actions">
+                    <EmailLanguageControl
+                        language={emailLanguage}
+                        onLanguageChange={onEmailLanguageChange}
+                        rememberLanguage={rememberEmailLanguage}
+                        onRememberLanguageChange={onRememberEmailLanguageChange}
+                        name="monthly-report-email-language"
+                    />
                     <button className="btn btn-secondary" onClick={onSendReport} disabled={sending}>
                         <HiOutlineMail />
                         {sending ? 'Sending...' : 'Send to Parent'}

@@ -16,6 +16,7 @@ const useGradebookActions = ({
     selectedSubject,
     selectedMonth,
     selectedCategoryFilter,
+    summaryLanguage = 'en',
     students,
     formData,
     setFormData,
@@ -29,6 +30,7 @@ const useGradebookActions = ({
     setShowAIModal,
     setGeneratingAI,
     aiPrimaryLanguage,
+    setAiPrimaryLanguage,
     aiSecondaryLanguage,
     aiSendEmail,
     aiRecipients,
@@ -89,6 +91,7 @@ const useGradebookActions = ({
                 category: formData.category === 'Custom' ? formData.customCategory : formData.category,
                 lessonPlanIds: Array.isArray(formData.lessonPlanIds) ? formData.lessonPlanIds : [],
                 academicYear,
+                language: summaryLanguage,
                 grades: gradesToSubmit
             });
 
@@ -133,7 +136,8 @@ const useGradebookActions = ({
                 studentId: student._id,
                 date: reportDate.toISOString(),
                 subject: selectedSubject || undefined,
-                category: normalizedCategory
+                category: normalizedCategory,
+                language: summaryLanguage
             })).then((result) => {
                 if (sendGradebookSummaryUpdate.fulfilled.match(result)) {
                     successCount += 1;
@@ -157,6 +161,7 @@ const useGradebookActions = ({
         setAiReportContent('');
         setEditedReportContent('');
         setIsEditingReport(false);
+        setAiPrimaryLanguage(summaryLanguage);
         setShowAIModal(true);
     };
 
@@ -244,7 +249,8 @@ const useGradebookActions = ({
             const period = buildPeriodLabel({ months: MONTHS, selectedMonth, academicYear });
             const response = await api.post(`/notifications/send-ai-report/${selectedStudentForAI._id}`, {
                 reportContent: editedReportContent || aiReportContent,
-                period
+                period,
+                language: aiPrimaryLanguage
             });
 
             if (response.data?.success) {

@@ -14,7 +14,9 @@ import AssignmentsFilters from './components/AssignmentsFilters';
 import CreateAssignmentForm from './components/CreateAssignmentForm';
 import AssignmentsTable from './components/AssignmentsTable';
 import AssignmentGradePanel from './components/AssignmentGradePanel';
+import ClassworkBehaviorModal from '../../../components/grades/ClassworkBehaviorModal';
 import useAssignmentsPageState from './hooks/useAssignmentsPageState';
+import { isClassworkAssignment } from '../../../components/grades/classworkBehaviorUtils';
 import { normalizeGradeStudentsFromClassStudents } from './utils/assignmentPresentation';
 import './AssignmentsPage.css';
 
@@ -27,6 +29,7 @@ const AssignmentsPage = () => {
     const myClasses = useSelector(selectMyClasses);
     const academicYear = useSelector(selectCurrentAcademicYear);
     const user = useSelector(selectUser);
+    const [behaviorStudent, setBehaviorStudent] = useState(null);
 
     const {
         assignmentTypes,
@@ -340,6 +343,18 @@ const AssignmentsPage = () => {
         }
     };
 
+    const applyBehaviorScore = (student, result) => {
+        onGradeChange(student.id, 'marks', result.marks);
+        onGradeChange(student.id, 'remarks', result.remarks);
+    };
+
+    const applyBehaviorAndNext = (result) => {
+        if (!behaviorStudent) return;
+        applyBehaviorScore(behaviorStudent, result);
+        const currentIndex = gradeStudents.findIndex((student) => student.id === behaviorStudent.id);
+        setBehaviorStudent(gradeStudents[currentIndex + 1] || null);
+    };
+
     useEffect(() => {
         if (!gradingAssignment || gradeStudents.length > 0) return;
         if (!Array.isArray(classStudents) || classStudents.length === 0) return;
@@ -395,7 +410,26 @@ const AssignmentsPage = () => {
                 onClose={() => setGradingAssignment(null)}
                 onSubmitGrades={onSubmitGrades}
                 submitting={submittingGrades}
+                showBehaviorAction={isClassworkAssignment(gradingAssignment)}
+                onOpenBehavior={setBehaviorStudent}
             />
+
+            {behaviorStudent && isClassworkAssignment(gradingAssignment) && (
+                <ClassworkBehaviorModal
+                    key={behaviorStudent.id}
+                    student={behaviorStudent}
+                    currentRow={gradeRows[behaviorStudent.id]}
+                    maxMarks={gradingAssignment.maxMarks}
+                    userId={user?.id || user?._id}
+                    onClose={() => setBehaviorStudent(null)}
+                    onApply={(result) => {
+                        applyBehaviorScore(behaviorStudent, result);
+                        setBehaviorStudent(null);
+                    }}
+                    onApplyNext={applyBehaviorAndNext}
+                    hasNext={gradeStudents.findIndex((student) => student.id === behaviorStudent.id) < gradeStudents.length - 1}
+                />
+            )}
         </div>
     );
 };

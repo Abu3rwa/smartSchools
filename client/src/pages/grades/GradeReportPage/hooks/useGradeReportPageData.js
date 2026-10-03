@@ -13,12 +13,13 @@ const useGradeReportPageData = ({ studentId, academicYear }) => {
         dispatch(fetchStudentGradeReport({ studentId, academicYear }));
     }, [academicYear, dispatch, studentId]);
 
-    const handleSendReport = async () => {
+    const handleSendReport = async (language) => {
         const currentMonth = new Date().getMonth() + 1;
         const result = await dispatch(sendMonthlyReport({
             studentId,
             month: currentMonth,
-            academicYear
+            academicYear,
+            language
         }));
 
         if (sendMonthlyReport.fulfilled.match(result)) {

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import toast from 'react-hot-toast';
 import { useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
@@ -8,7 +10,7 @@ import {
 import { selectSubjects } from '../../../store/slices/subjectSlice';
 import { selectTeacherProfile, selectUser } from '../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
-import { selectNotificationSending } from '../../../store/slices/notificationSlice';
+import { selectNotificationSending, sendClassDailyClassworkUpdate } from '../../../store/slices/notificationSlice';
 import { selectHasFeature } from '../../../store/slices/schoolFeaturesSlice';
 import GradebookHeader from './components/GradebookHeader';
 import GradebookTable from './components/GradebookTable';
@@ -16,6 +18,11 @@ import GradebookSpreadsheet from './components/GradebookSpreadsheet';
 import AddGradesModal from './components/AddGradesModal';
 import AIReportModal from './components/AIReportModal';
 import ReteachTaskModal from './components/ReteachTaskModal';
+import DailyClassworkEmailModal from './components/DailyClassworkEmailModal';
+import {
+    getEmailLanguagePreference,
+    saveEmailLanguagePreference
+} from '../../../utils/emailLanguagePreference';
 // import ReteachTasksPanel from './components/ReteachTasksPanel';
 import StudentLearningTraceModal from './components/StudentLearningTraceModal';
 import useGradebookPageState from './hooks/useGradebookPageState';
@@ -36,6 +43,7 @@ const GradebookPage = ({
     onClassChange
 } = {}) => {
     const { classId: classIdParam } = useParams();
+    const dispatch = useDispatch();
     const classId = classIdProp || classIdParam;
     const isEmbedded = Boolean(classIdProp);
 
@@ -49,6 +57,10 @@ const GradebookPage = ({
     const hasSpreadsheet = useSelector((state) => selectHasFeature(state, 'gradebookSpreadsheet'));
 
     const [viewMode, setViewMode] = useState('table');
+    const [showDailyClassworkModal, setShowDailyClassworkModal] = useState(false);
+    const [summaryLanguage, setSummaryLanguage] = useState(() => {
+        return getEmailLanguagePreference(user?._id || user?.id);
+    });
 
     const {
         selectedSubject,
@@ -165,6 +177,7 @@ const GradebookPage = ({
         selectedSubject,
         selectedMonth,
         selectedCategoryFilter,
+        summaryLanguage,
         students,
         formData,
         setFormData,
@@ -178,6 +191,7 @@ const GradebookPage = ({
         setShowAIModal,
         setGeneratingAI,
         aiPrimaryLanguage,
+        setAiPrimaryLanguage,
         aiSecondaryLanguage,
         aiSendEmail,
         aiRecipients,
@@ -215,6 +229,21 @@ const GradebookPage = ({
         handleCloseReteachTask();
     };
 
+    const handleSendDailyClasswork = async (payload) => {
+        if (payload.rememberLanguage) {
+            setSummaryLanguage(payload.language);
+        }
+        const result = await dispatch(sendClassDailyClassworkUpdate(payload));
+        if (sendClassDailyClassworkUpdate.fulfilled.match(result)) {
+            toast.success(result.payload?.sentCount
+                ? `Sent daily classwork updates to ${result.payload.sentCount} student(s)`
+                : 'Daily classwork updates sent');
+            return true;
+        }
+        toast.error(result.payload || 'Failed to send daily classwork updates');
+        return false;
+    };
+
     return (
         <div className={isEmbedded ? 'gradebook-page-embedded' : 'gradebook-page'}>
             <GradebookHeader
@@ -224,6 +253,12 @@ const GradebookPage = ({
                 selectedCategoryFilter={selectedCategoryFilter}
                 onCategoryFilterChange={setSelectedCategoryFilter}
                 onSendReports={handleSendGradebookSummaryUpdate}
+                summaryLanguage={summaryLanguage}
+                onSummaryLanguageChange={(language) => {
+                    setSummaryLanguage(language);
+                    saveEmailLanguagePreference(user?._id || user?.id, language);
+                }}
+                onOpenDailyClasswork={() => setShowDailyClassworkModal(true)}
                 notificationSending={notificationSending}
                 hasStudents={students.length > 0}
                 onOpenAddModal={handleOpenAddModal}
@@ -322,6 +357,18 @@ const GradebookPage = ({
                 onClose={handleCloseReteachTask}
                 onSubmit={handleCreateReteachTask}
                 saving={reteachTasksSaving}
+            />
+
+            <DailyClassworkEmailModal
+                open={showDailyClassworkModal}
+                classId={classId}
+                students={students}
+                grades={grades}
+                selectedSubject={selectedSubject}
+                userId={user?._id || user?.id}
+                sending={notificationSending}
+                onClose={() => setShowDailyClassworkModal(false)}
+                onSend={handleSendDailyClasswork}
             />
         </div>
     );

@@ -2,7 +2,47 @@
   "page": {
     "title": "خطط الدروس",
     "subtitle": "خطط وشارك الدروس مع أولياء الأمور",
-    "newLesson": "درس جديد"
+    "newLesson": "درس جديد",
+    "importCsv": "استيراد CSV"
+  },
+  "export": {
+    "download": "تنزيل .docx",
+    "downloadEnglish": "Word (English)",
+    "downloadArabic": "Word (العربية)",
+    "failed": "تعذر تصدير خطة الدرس",
+    "language": "لغة المستند"
+  },
+  "import": {
+    "title": "استيراد خطط الدروس من ملف CSV",
+    "description": "ارفع ملف CSV. يتم فحص الصفوف أولًا ثم تُستورد كمسودات.",
+    "downloadTemplate": "تنزيل نموذج جاهز",
+    "formTitle": "استيراد من ملف CSV",
+    "formHint": "املأ النموذج من ملف CSV. يتم الاحتفاظ بالتاريخ والصف والمادة أعلاه، ويمكنك تعديل كل شيء قبل الحفظ.",
+    "formSelectFirst": "اختر التاريخ والصف والمادة أولًا، ثم استورد ملف CSV.",
+    "formLoaded": "تم تحميل الملف في النموذج. راجعه ثم احفظ.",
+    "copyPrompt": "نسخ أمر الذكاء الاصطناعي",
+    "promptCopied": "تم نسخ الأمر. الصقه في محادثة الذكاء الاصطناعي مع خطط دروسك.",
+    "promptCopyFailed": "تعذر النسخ إلى الحافظة",
+    "chooseFile": "اختر ملف CSV",
+    "tooLarge": "الملف كبير جدًا (الحد الأقصى 900 ك.ب).",
+    "notCsv": "يرجى اختيار ملف بصيغة .csv.",
+    "preview": "معاينة",
+    "previewing": "جارٍ الفحص...",
+    "totalRows": "الصفوف",
+    "validRows": "جاهزة للاستيراد",
+    "errorRows": "صفوف بها أخطاء",
+    "skipped": "مكررات تم تخطيها",
+    "errorsTitle": "الأخطاء",
+    "warningsTitle": "التحذيرات",
+    "row": "الصف",
+    "column": "العمود",
+    "message": "الرسالة",
+    "downloadErrors": "تنزيل تقرير الأخطاء",
+    "importNow": "استيراد {{count}} خطة درس",
+    "importing": "جارٍ الاستيراد...",
+    "success": "تم استيراد {{count}} خطة درس",
+    "failed": "فشل الاستيراد",
+    "close": "إغلاق"
   },
   "toolbar": {
     "allTeachers": "كل المعلمين",

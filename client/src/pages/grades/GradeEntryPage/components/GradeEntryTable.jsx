@@ -13,12 +13,15 @@ const GradeEntryTable = ({
     maxMarks,
     sendNotifications,
     onSendNotificationsChange,
+    emailLanguageControl,
     onGradeChange,
     enteredCount,
     submitting,
     onSubmit,
     editMode = false,
-    onCancelEdit
+    onCancelEdit,
+    showBehaviorAction = false,
+    onOpenBehavior
 }) => {
     const { t } = useTranslation(['grades']);
 
@@ -52,6 +55,12 @@ const GradeEntryTable = ({
                     </div>
                 </div>
 
+                {!editMode && sendNotifications && (
+                    <div style={{ padding: '0 16px 12px' }}>
+                        {emailLanguageControl}
+                    </div>
+                )}
+
                 <div className="table-container">
                     <table className="grade-table">
                         <thead>
@@ -61,6 +70,7 @@ const GradeEntryTable = ({
                                 <th>ID</th>
                                 <th>{t('grades:entry.table.columns.marks', { maxMarks })}</th>
                                 <th>{t('grades:entry.table.columns.remarks')}</th>
+                                {showBehaviorAction && <th>Behavior</th>}
                                 <th>{t('grades:entry.table.columns.status')}</th>
                             </tr>
                         </thead>
@@ -90,6 +100,13 @@ const GradeEntryTable = ({
                                             placeholder="-"
                                         />
                                     </td>
+                                    {showBehaviorAction && (
+                                        <td>
+                                            <button type="button" className="btn btn-outline btn-sm" onClick={() => onOpenBehavior(student)}>
+                                                Score behavior
+                                            </button>
+                                        </td>
+                                    )}
                                     <td>
                                         <input
                                             type="text"

@@ -4,6 +4,7 @@ import Standard from '../models/Standard.js';
 import Student from '../models/Student.js';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
+import { NOTIFICATION_TYPES } from '../constants/notificationTypes.js';
 import { writeAuditLog } from './assessmentAuditService.js';
 import { getSettings } from './assessmentSettingsService.js';
 import AssessmentAuditLog from '../models/AssessmentAuditLog.js';
@@ -181,7 +182,7 @@ export async function sendProgressTable({
   }
 
   // Cooldown check
-  const cooldownMin = settings.progressSend?.cooldownMinutes || 60;
+  const cooldownMin = settings.progressSend?.cooldownMinutes ?? 60;
   if (cooldownMin > 0) {
     const cooldownSince = new Date(Date.now() - cooldownMin * 60 * 1000);
     const recentSend = await AssessmentAuditLog.findOne({
@@ -241,6 +242,7 @@ export async function sendProgressTable({
   // Resolve recipients
   const recipientTypes = [];
   const recipientIds = [];
+  const notificationRecipients = [];
   const channelStatus = { email: null, inApp: null };
 
   const student = await Student.findById(studentId)
@@ -250,6 +252,7 @@ export async function sendProgressTable({
   if (sendToStudent && student?.user) {
     recipientTypes.push('student');
     recipientIds.push(student.user._id);
+    notificationRecipients.push({ userId: student.user._id, email: student.user.email });
     channelStatus.inApp = 'pending';
     if (student.user.email) channelStatus.email = 'pending';
   }
@@ -266,6 +269,7 @@ export async function sendProgressTable({
 
     for (const p of parentUsers) {
       recipientIds.push(p._id);
+      notificationRecipients.push({ userId: p._id, email: p.email });
     }
     if (parentUsers.length === 0) {
       logger.warn(`No parent found for student ${studentId}`);
@@ -273,15 +277,19 @@ export async function sendProgressTable({
   }
 
   // Create in-app notifications
-  const notifications = [];
-  for (const recipientId of recipientIds) {
-    notifications.push({
+  const subject = 'Standards Assessment Progress Report';
+  const notifications = notificationRecipients
+    .filter((recipient) => recipient.email)
+    .map((recipient) => ({
       school: schoolId,
-      user: recipientId,
-      type: 'assessment_progress_report',
-      title: 'Standards Assessment Progress Report',
+      recipient: recipient.userId,
+      recipientEmail: recipient.email,
+      student: studentId,
+      type: NOTIFICATION_TYPES.ASSESSMENT_PROGRESS_REPORT,
+      subject,
       message: `Progress report sent by your teacher. ${summary.totalSelected} standard(s) included.`,
-      data: {
+      channels: [],
+      metadata: {
         studentId,
         classId,
         subjectId,
@@ -289,12 +297,16 @@ export async function sendProgressTable({
         selectedRows: settings.audit?.logProgressTableContent ? selectedRows : undefined,
         teacherNote: optionalMessage || null,
       },
-    });
-  }
+      createdBy: userId,
+    }));
   if (notifications.length > 0) {
-    await Notification.insertMany(notifications).catch((err) => {
+    try {
+      await Notification.insertMany(notifications);
+      channelStatus.inApp = 'sent';
+    } catch (err) {
+      channelStatus.inApp = 'failed';
       logger.error('Failed to create progress notifications', { error: err.message });
-    });
+    }
   }
 
   // Write audit log

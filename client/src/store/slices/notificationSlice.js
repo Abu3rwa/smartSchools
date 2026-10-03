@@ -16,9 +16,9 @@ export const sendGradeNotification = createAsyncThunk(
 
 export const sendDailyReport = createAsyncThunk(
     'notifications/sendDaily',
-    async ({ studentId, date }, { rejectWithValue }) => {
+    async ({ studentId, date, language }, { rejectWithValue }) => {
         try {
-            const response = await api.post(`/notifications/daily-report/${studentId}`, { date });
+            const response = await api.post(`/notifications/daily-report/${studentId}`, { date, language });
             return response.data.data;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to send report');
@@ -28,9 +28,9 @@ export const sendDailyReport = createAsyncThunk(
 
 export const sendMonthlyReport = createAsyncThunk(
     'notifications/sendMonthly',
-    async ({ studentId, month, academicYear }, { rejectWithValue }) => {
+    async ({ studentId, month, academicYear, language }, { rejectWithValue }) => {
         try {
-            const response = await api.post(`/notifications/monthly-report/${studentId}`, { month, academicYear });
+            const response = await api.post(`/notifications/monthly-report/${studentId}`, { month, academicYear, language });
             return response.data.data;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to send report');
@@ -52,9 +52,9 @@ export const sendWeeklyReport = createAsyncThunk(
 
 export const sendDailyClassworkUpdate = createAsyncThunk(
     'notifications/sendDailyClasswork',
-    async ({ studentId, date, subject, category }, { rejectWithValue }) => {
+    async ({ studentId, date, subject, category, language }, { rejectWithValue }) => {
         try {
-            const response = await api.post(`/notifications/daily-classwork/${studentId}`, { date, subject, category });
+            const response = await api.post(`/notifications/daily-classwork/${studentId}`, { date, subject, category, language });
             return response.data.data;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to send daily classwork update');
@@ -62,11 +62,28 @@ export const sendDailyClassworkUpdate = createAsyncThunk(
     }
 );
 
+export const sendClassDailyClassworkUpdate = createAsyncThunk(
+    'notifications/sendClassDailyClasswork',
+    async ({ classId, date, language, subject, studentIds }, { rejectWithValue }) => {
+        try {
+            const response = await api.post(`/notifications/daily-classwork/class/${classId}`, {
+                date,
+                language,
+                subject,
+                studentIds
+            });
+            return response.data.data;
+        } catch (error) {
+            return rejectWithValue(error.response?.data?.message || 'Failed to send daily classwork updates');
+        }
+    }
+);
+
 export const sendGradebookSummaryUpdate = createAsyncThunk(
     'notifications/sendGradebookSummary',
-    async ({ studentId, date, subject, category }, { rejectWithValue }) => {
+    async ({ studentId, date, subject, category, language }, { rejectWithValue }) => {
         try {
-            const response = await api.post(`/notifications/gradebook-summary/${studentId}`, { date, subject, category });
+            const response = await api.post(`/notifications/gradebook-summary/${studentId}`, { date, subject, category, language });
             return response.data.data;
         } catch (error) {
             return rejectWithValue(error.response?.data?.message || 'Failed to send gradebook summary update');
@@ -162,6 +179,18 @@ const notificationSlice = createSlice({
                 state.lastSent = action.payload.notification;
             })
             .addCase(sendDailyClassworkUpdate.rejected, (state, action) => {
+                state.sending = false;
+                state.error = action.payload;
+            })
+            .addCase(sendClassDailyClassworkUpdate.pending, (state) => {
+                state.sending = true;
+                state.error = null;
+            })
+            .addCase(sendClassDailyClassworkUpdate.fulfilled, (state, action) => {
+                state.sending = false;
+                state.lastSent = action.payload.notifications?.[0] || null;
+            })
+            .addCase(sendClassDailyClassworkUpdate.rejected, (state, action) => {
                 state.sending = false;
                 state.error = action.payload;
             })

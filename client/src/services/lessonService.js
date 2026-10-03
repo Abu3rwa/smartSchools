@@ -1,6 +1,41 @@
 import api from '../config/api';
+import { downloadBlob, filenameFromContentDisposition } from '../utils/downloadBlob';
 
 const lessonService = {
+    // Download a lesson plan as a .docx file
+    exportLessonDocx: async (id, lang = 'en') => {
+        const response = await api.get(`/lessons/${id}/export.docx`, {
+            params: { lang },
+            responseType: 'blob'
+        });
+        const filename = filenameFromContentDisposition(
+            response.headers?.['content-disposition'],
+            'lesson-plan.docx'
+        );
+        downloadBlob(response.data, filename);
+    },
+
+    // CSV import
+    downloadImportTemplate: async () => {
+        const response = await api.get('/lessons/import/template', { responseType: 'blob' });
+        downloadBlob(response.data, 'lesson-plans-import-template.csv');
+    },
+
+    previewImport: async (csv, academicYear) => {
+        const response = await api.post('/lessons/import/preview', { csv }, { params: { academicYear } });
+        return response.data;
+    },
+
+    parseImportToForm: async (csv) => {
+        const response = await api.post('/lessons/import/form', { csv });
+        return response.data;
+    },
+
+    commitImport: async (csv, academicYear) => {
+        const response = await api.post('/lessons/import/commit', { csv }, { params: { academicYear } });
+        return response.data;
+    },
+
     // Get all lessons with optional filters
     getLessons: async (params = {}) => {
         const response = await api.get('/lessons', { params });

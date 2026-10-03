@@ -1,0 +1,94 @@
+.lp-import-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--spacing-lg);
+    overflow-y: auto;
+}
+
+.lp-import-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    padding: var(--spacing-xl);
+    width: 100%;
+    max-width: 760px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.lp-import-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.lp-import-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.lp-import-actions,
+.lp-import-footer {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: var(--spacing-md);
+}
+
+.lp-import-footer {
+    justify-content: flex-end;
+    margin-top: var(--spacing-lg);
+}
+
+.lp-import-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+}
+
+.lp-import-summary > div {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+}
+
+.lp-import-summary strong {
+    font-size: 1.4rem;
+}
+
+.lp-import-summary span {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.lp-import-summary .ok strong {
+    color: #16834a;
+}
+
+.lp-import-summary .bad strong {
+    color: #bd2c35;
+}
+
+.lp-import-issues {
+    margin-top: var(--spacing-md);
+}
+
+.lp-import-issues h4 {
+    margin: 0 0 var(--spacing-xs);
+}
+
+.lp-import-issues__scroll {
+    max-height: 200px;
+    overflow: auto;
+}

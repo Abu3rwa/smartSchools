@@ -1,0 +1,31 @@
+.email-language-control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+}
+
+.email-language-control fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: 6px;
+}
+
+.email-language-control legend {
+    padding: 0 4px;
+    font-size: 0.85rem;
+}
+
+.email-language-control label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.email-language-control__remember {
+    font-size: 0.9rem;
+}

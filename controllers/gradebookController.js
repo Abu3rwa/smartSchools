@@ -47,6 +47,11 @@ const normalizeCategoryFilter = (value) => {
     return normalized || undefined;
 };
 
+const normalizeGradeCategory = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === 'daily classwork' ? 'classwork' : normalized;
+};
+
 const buildDateQuery = ({ startDate, endDate }) => {
     if (!startDate && !endDate) {
         return undefined;
@@ -210,6 +215,7 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
         description,
         remarks,
         sendNotification,
+        language,
         lessonPlanIds,
         assessmentGroupId
     } = req.body;
@@ -268,7 +274,10 @@ export const addDailyGrade = asyncHandler(async (req, res) => {
             student,
             {
                 ...gradeData,
-                subjectName: subjectData?.name
+                subjectName: subjectData?.name,
+                subjectNameAr: subjectData?.nameAr,
+                category: 'classwork',
+                language
             },
             req.user._id
         );
@@ -306,7 +315,8 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         gradeType,
         title,
         category,
-        lessonPlanIds
+        lessonPlanIds,
+        language
     } = req.body;
     // grades: [{ student: id, marks, remarks, notes }]
     let teacherProfile = null;
@@ -336,8 +346,16 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
 
     // Determine the grade type - derive from category when not explicit
     const CATEGORY_TO_GRADE_TYPE = { test: 'monthly_test', exam: 'semester_exam', midterm: 'midterm_exam', final: 'final_exam' };
-    const normalizedCategory = (category || '').trim().toLowerCase();
-    const effectiveGradeType = gradeType || CATEGORY_TO_GRADE_TYPE[normalizedCategory] || normalizedCategory || 'classwork';
+    const rawCategory = String(category || '').trim().toLowerCase();
+    const normalizedCategory = normalizeGradeCategory(category);
+    const normalizedGradeType = String(gradeType || '').trim().toLowerCase();
+    const isDailyClasswork = rawCategory === 'daily classwork' || normalizedGradeType === 'daily classwork';
+    const effectiveGradeType = normalizedGradeType && normalizedGradeType !== 'daily classwork'
+        ? normalizedGradeType
+        : isDailyClasswork
+            ? 'daily'
+            : CATEGORY_TO_GRADE_TYPE[normalizedCategory] || normalizedCategory || 'classwork';
+    const effectiveCategory = normalizedCategory || (isDailyClasswork ? 'classwork' : effectiveGradeType || 'classwork');
     const resolvedAssessmentGroupId = req.body.assessmentGroupId || generateAssessmentGroupId('asg');
 
     // Calculate month and semester from date (Use UTC to avoid timezone shifts)
@@ -353,7 +371,7 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         teacher: req.user._id,
         academicYear,
         gradeType: effectiveGradeType,
-        category: (category || effectiveGradeType).toLowerCase(),
+        category: effectiveCategory,
         date: gradeDate,
         month,
         semester,
@@ -373,7 +391,12 @@ export const bulkAddGrades = asyncHandler(async (req, res) => {
         for (const grade of savedGrades) {
             await notificationService.sendGradeUpdateNotification(
                 grade.student,
-                { ...grade.toObject(), subjectName: subjectData?.name },
+                {
+                    ...grade.toObject(),
+                    subjectName: subjectData?.name,
+                    subjectNameAr: subjectData?.nameAr,
+                    language
+                },
                 req.user._id
             ).catch(err => logger.error('Grade notification error', { error: err.message }));
         }
@@ -526,7 +549,7 @@ export const bulkUpdateGrades = asyncHandler(async (req, res) => {
         if (hasMetadataMaxMarksUpdate) setFields.maxMarks = Number(metadata.maxMarks);
         if (hasClassUpdate) setFields.class = metadata.classId;
         if (hasSubjectUpdate) setFields.subject = metadata.subject;
-        if (hasCategoryUpdate) setFields.category = String(metadata.category || 'other').toLowerCase();
+        if (hasCategoryUpdate) setFields.category = normalizeGradeCategory(metadata.category) || 'other';
         if (hasDateUpdate) {
             setFields.date = resolvedDate;
             setFields.month = resolvedMonth;

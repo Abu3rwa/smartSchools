@@ -10,7 +10,7 @@ import {
     removeStudentPhoto
 } from '../../../store/slices/studentSlice';
 import { sendDailyReport, selectNotificationSending } from '../../../store/slices/notificationSlice';
-import { selectIsAdmin } from '../../../store/slices/authSlice';
+import { selectIsAdmin, selectUser } from '../../../store/slices/authSlice';
 import { selectCurrentAcademicYear } from '../../../store/slices/uiSlice';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -22,6 +22,10 @@ import StudentInsightsSection from './components/StudentInsightsSection';
 import StudentSpellingDetailsSection from './components/StudentSpellingDetailsSection';
 import useStudentAcademicInsights from './hooks/useStudentAcademicInsights';
 import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
+import {
+    getEmailLanguagePreference,
+    saveEmailLanguagePreference
+} from '../../../utils/emailLanguagePreference';
 import './StudentDetailPage.css';
 
 const StudentDetailPage = () => {
@@ -32,6 +36,7 @@ const StudentDetailPage = () => {
     const loading = useSelector(selectStudentsLoading);
     const sending = useSelector(selectNotificationSending);
     const isAdmin = useSelector(selectIsAdmin);
+    const user = useSelector(selectUser);
     const currentAcademicYear = useSelector(selectCurrentAcademicYear);
     const [showAIReportModal, setShowAIReportModal] = useState(false);
     const [generatingAIReport, setGeneratingAIReport] = useState(false);
@@ -39,8 +44,14 @@ const StudentDetailPage = () => {
     const [generatedReportContent, setGeneratedReportContent] = useState('');
     const [generatedReportPeriod, setGeneratedReportPeriod] = useState('');
     const [reportGeneratedAt, setReportGeneratedAt] = useState(null);
-    const [aiPrimaryLanguage, setAiPrimaryLanguage] = useState('en');
+    const [aiPrimaryLanguage, setAiPrimaryLanguage] = useState(() => (
+        getEmailLanguagePreference(user?._id || user?.id)
+    ));
     const [aiSecondaryLanguage, setAiSecondaryLanguage] = useState('');
+    const [emailLanguage, setEmailLanguage] = useState(() => (
+        getEmailLanguagePreference(user?._id || user?.id)
+    ));
+    const [rememberEmailLanguage, setRememberEmailLanguage] = useState(false);
     const [schoolYearFilter, setSchoolYearFilter] = useState('');
     const [semesterFilter, setSemesterFilter] = useState('');
 
@@ -85,9 +96,13 @@ const StudentDetailPage = () => {
     }, [availableAcademicYears, student?.academicYear, currentAcademicYear]);
 
     const handleSendDailyReport = async () => {
+        if (rememberEmailLanguage) {
+            saveEmailLanguagePreference(user?._id || user?.id, emailLanguage);
+        }
         const result = await dispatch(sendDailyReport({
             studentId: id,
-            date: format(new Date(), 'yyyy-MM-dd')
+            date: format(new Date(), 'yyyy-MM-dd'),
+            language: emailLanguage
         }));
 
         if (sendDailyReport.fulfilled.match(result)) {
@@ -137,7 +152,8 @@ const StudentDetailPage = () => {
         try {
             const sendResponse = await api.post(`/notifications/send-ai-report/${id}`, {
                 reportContent,
-                period: generatedReportPeriod || t('detail.report.customPeriod')
+                period: generatedReportPeriod || t('detail.report.customPeriod'),
+                language: aiPrimaryLanguage
             });
 
             if (!sendResponse.data.success) {
@@ -210,6 +226,10 @@ const StudentDetailPage = () => {
                     student={student}
                     isAdmin={isAdmin}
                     sending={sending}
+                    emailLanguage={emailLanguage}
+                    onEmailLanguageChange={setEmailLanguage}
+                    rememberEmailLanguage={rememberEmailLanguage}
+                    onRememberEmailLanguageChange={setRememberEmailLanguage}
                     generatingAIReport={generatingAIReport}
                     photoUploading={photoUploading}
                     onSendDailyReport={handleSendDailyReport}

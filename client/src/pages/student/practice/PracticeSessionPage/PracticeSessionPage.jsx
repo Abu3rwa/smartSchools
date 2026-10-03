@@ -1,13 +1,13 @@
 import React from 'react';
 import usePracticeSessionData from './hooks/usePracticeSessionData';
 import PracticeSessionHeader from './components/PracticeSessionHeader';
-import PracticeSessionStats from './components/PracticeSessionStats';
 import StudentGuidanceCard from './components/StudentGuidanceCard';
 import PracticeErrorState from './components/PracticeErrorState';
 import PracticeInitialState from './components/PracticeInitialState';
 import PracticeSessionComplete from './components/PracticeSessionComplete';
 import PracticeQuestionCard from './components/PracticeQuestionCard';
 import PracticeAnswerForm from './components/PracticeAnswerForm';
+import PracticeLoadingState from './components/PracticeLoadingState';
 import './PracticeSessionPage.css';
 
 const PracticeSessionPage = () => {
@@ -43,7 +43,6 @@ const PracticeSessionPage = () => {
         displayName,
         combinedAsked,
         combinedCorrect,
-        sessionProgressPercent,
         sessionAccuracy,
         streakValue,
         streakLabel,
@@ -58,25 +57,13 @@ const PracticeSessionPage = () => {
         <div className="practice-session">
             <PracticeSessionHeader onBack={() => navigate('/portal/practice')} />
 
-            <PracticeSessionStats
-                currentQuestion={currentQuestion}
-                currentSessionStep={currentSessionStep}
-                questionLimit={questionLimit}
-                questionsAnswered={sessionInfo?.questionsAnswered}
-                combinedAsked={combinedAsked}
-                sessionProgressPercent={sessionProgressPercent}
-                streakLabel={streakLabel}
-                streakValue={streakValue}
-                confidenceHint={sessionContext?.confidenceHint}
-                sessionAccuracy={sessionAccuracy}
-                combinedCorrect={combinedCorrect}
-            />
-
             {/* <StudentGuidanceCard 
                 activeQuestionGuidance={activeQuestionGuidance}
                 assignmentInstructions={assignmentInstructions}
             /> */}
-            <h2>{assignmentInstructions}</h2>
+            {/* <h2>{assignmentInstructions}</h2> */}
+            {generating && !currentQuestion && <PracticeLoadingState />}
+
             {practiceError && !generating && (
                 <PracticeErrorState
                     error={practiceError}
@@ -85,7 +72,7 @@ const PracticeSessionPage = () => {
                 />
             )}
 
-            {!currentQuestion && !lastResult && !isSessionComplete && !isMasteredResult && (
+            {!currentQuestion && !lastResult && !generating && !practiceError && !isSessionComplete && !isMasteredResult && (
                 <PracticeInitialState
                     displayName={displayName}
                     difficulty={difficulty}

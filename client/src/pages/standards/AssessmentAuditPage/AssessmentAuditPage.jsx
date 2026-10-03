@@ -29,7 +29,7 @@ const AssessmentAuditPage = ({ embedded }) => {
     setSettingsLoading(true);
     try {
       const result = await dispatch(fetchSettings(section)).unwrap();
-      setSettings(result || {});
+      setSettings(result?.[section] || result || {});
       setDirty(false);
     } catch (err) {
       setErrorMsg(err?.message || 'Failed to load settings');
@@ -137,12 +137,13 @@ const AssessmentAuditPage = ({ embedded }) => {
   const renderProgressSendSettings = () => (
     <div className="setting-group">
       <h4>Progress Send Settings</h4>
-      {renderSettingRow('allowSendUnfinished', 'Allow Sending Unfinished Rows', null, 'toggle')}
-      {renderSettingRow('maxSendsPerDay', 'Max Sends Per Day', 'Rate limit per student per day', 'number')}
-      {renderSettingRow('cooldownMinutes', 'Cooldown (minutes)', 'Minimum gap between sends', 'number')}
-      {renderSettingRow('ccTeacher', 'CC Teacher on Send', null, 'toggle')}
+      {renderSettingRow('allowSendUnfinishedRows', 'Allow Sending Unfinished Rows', null, 'toggle')}
+      {renderSettingRow('maxSendsPerStudentPerDay', 'Max Sends Per Day', 'Rate limit per student per day', 'number')}
+      {renderSettingRow('cooldownMinutes', 'Cooldown (minutes)', 'Minimum gap between sends; 0 disables the cooldown', 'number')}
+      {renderSettingRow('ccTeacherOnEmail', 'CC Teacher on Send', null, 'toggle')}
+      {renderSettingRow('requireMinFinishedRows', 'Minimum Finished Rows', null, 'number')}
+      {renderSettingRow('allowTeacherNote', 'Allow Teacher Notes', null, 'toggle')}
       {renderSettingRow('maxTeacherNoteLength', 'Max Teacher Note Length', null, 'number')}
-      {renderSettingRow('maskRawScores', 'Mask Raw Scores', 'Show mastery bands instead of percentages', 'toggle')}
     </div>
   );
 

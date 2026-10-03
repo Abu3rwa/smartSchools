@@ -2,7 +2,8 @@
  * Shared create/edit lesson plan modal.
  * Used by both Admin and Teacher lesson plan pages.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import lessonService from '../../services/lessonService';
 import { useDispatch } from 'react-redux';
 import toast from 'react-hot-toast';
 import { HiOutlineDocumentText, HiOutlineCheckCircle, HiOutlineCloudUpload, HiOutlineLightningBolt } from 'react-icons/hi';
@@ -32,8 +33,42 @@ const LessonPlanFormModal = ({
   const [extracting, setExtracting] = useState(false);
   const [extractProgress, setExtractProgress] = useState(0);
   const [suggestingTitle, setSuggestingTitle] = useState(false);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef(null);
 
   if (!open) return null;
+
+  const canImportCsv = Boolean(formData.date && formData.classId && formData.subjectId);
+
+  const handleCsvFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!/\.csv$/i.test(file.name)) {
+      toast.error(t('lessonPlan:import.notCsv'));
+      return;
+    }
+    if (file.size > 900 * 1024) {
+      toast.error(t('lessonPlan:import.tooLarge'));
+      return;
+    }
+    setImportingCsv(true);
+    try {
+      const { fields, warnings } = await lessonService.parseImportToForm(await file.text());
+      setFormData((prev) => ({
+        ...prev,
+        ...fields,
+        stages: fields.stages?.length ? fields.stages : prev.stages,
+        manualStandards: fields.manualStandards?.length ? fields.manualStandards : prev.manualStandards,
+      }));
+      toast.success(t('lessonPlan:import.formLoaded'));
+      (warnings || []).forEach((w) => toast(w));
+    } catch (error) {
+      toast.error(error.response?.data?.message || t('lessonPlan:import.failed'));
+    } finally {
+      setImportingCsv(false);
+    }
+  };
 
   const handleStageChange = (index, field, value) => {
     const next = formData.stages.map((s, i) =>
@@ -185,7 +220,27 @@ const LessonPlanFormModal = ({
                 </select>
               </div>
             </div>
-            
+
+            {!editingId && (
+              <div style={{ padding: '12px 16px', background: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '16px', border: '1px solid var(--border-color)', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px' }}>{t('lessonPlan:import.formTitle')}</h4>
+                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {canImportCsv ? t('lessonPlan:import.formHint') : t('lessonPlan:import.formSelectFirst')}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => lessonService.downloadImportTemplate().catch(() => toast.error(t('lessonPlan:import.failed')))}>
+                    {t('lessonPlan:import.downloadTemplate')}
+                  </button>
+                  <button type="button" className="btn btn-primary btn-sm" disabled={!canImportCsv || importingCsv} onClick={() => csvInputRef.current?.click()}>
+                    {importingCsv ? t('lessonPlan:import.previewing') : t('lessonPlan:import.chooseFile')}
+                  </button>
+                  <input ref={csvInputRef} type="file" accept=".csv,text/csv" hidden onChange={handleCsvFile} />
+                </div>
+              </div>
+            )}
+
             <div className="ai-context-section" style={{ padding: '16px', background: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '16px', border: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div>

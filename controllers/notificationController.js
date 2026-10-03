@@ -72,6 +72,7 @@ export const sendGradeUpdateNotification = asyncHandler(async (req, res) => {
 export const sendDailyReport = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const date = req.body.date ? new Date(req.body.date) : new Date();
+    const { language } = req.body;
 
     if (!(await verifyTeacherStudentAccess(req, studentId))) {
         return res.status(403).json({ success: false, message: 'Not authorized for this student' });
@@ -80,7 +81,8 @@ export const sendDailyReport = asyncHandler(async (req, res) => {
     const notification = await notificationService.sendDailyReport(
         studentId,
         date,
-        req.user._id
+        req.user._id,
+        language
     );
 
     if (!notification) {
@@ -104,7 +106,7 @@ export const sendDailyReport = asyncHandler(async (req, res) => {
  */
 export const sendMonthlyReport = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
-    const { month, academicYear } = req.body;
+    const { month, academicYear, language } = req.body;
     const effectiveAcademicYear = resolveRequestedAcademicYear(academicYear, req.school);
 
     if (!(await verifyTeacherStudentAccess(req, studentId))) {
@@ -115,7 +117,8 @@ export const sendMonthlyReport = asyncHandler(async (req, res) => {
         studentId,
         month || new Date().getMonth() + 1,
         effectiveAcademicYear,
-        req.user._id
+        req.user._id,
+        language
     );
 
     if (!notification) {
@@ -140,7 +143,7 @@ export const sendMonthlyReport = asyncHandler(async (req, res) => {
 export const sendDailyClassworkUpdate = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const date = req.body.date ? new Date(req.body.date) : new Date();
-    const { subject, category } = req.body;
+    const { subject, language } = req.body;
 
     if (!(await verifyTeacherStudentAccess(req, studentId))) {
         return res.status(403).json({ success: false, message: 'Not authorized for this student' });
@@ -150,21 +153,19 @@ export const sendDailyClassworkUpdate = asyncHandler(async (req, res) => {
         studentId,
         date,
         req.user._id,
-        { subject, category }
+        { subject, language }
     );
 
     if (!notification) {
         const periodLabel = date.toLocaleDateString('en-US', {
+            weekday: 'long',
             month: 'long',
+            day: 'numeric',
             year: 'numeric'
         });
-        const categoryLabel = String(category || '').trim();
-        const categoryHint = categoryLabel && categoryLabel.toLowerCase() !== 'all'
-            ? ` for category "${categoryLabel}"`
-            : '';
         return res.status(400).json({
             success: false,
-            message: `No classwork grades found${categoryHint} for ${periodLabel}. Add grades for this month or choose a different date range.`
+            message: `No classwork grades found for ${periodLabel}.`
         });
     }
 
@@ -176,6 +177,42 @@ export const sendDailyClassworkUpdate = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Send daily classwork updates for selected students in a class
+ * @route   POST /api/notifications/daily-classwork/class/:classId
+ * @access  Private (Teacher)
+ */
+export const sendClassDailyClassworkUpdates = asyncHandler(async (req, res) => {
+    const { classId } = req.params;
+    const date = req.body.date ? new Date(req.body.date) : new Date();
+    const { language, subject, studentIds } = req.body;
+
+    if (req.user.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        const classIds = teacher ? await getTeacherClassIds(teacher._id) : [];
+        if (!classIds.some((id) => id.toString() === classId.toString())) {
+            return res.status(403).json({ success: false, message: 'Not authorized for this class' });
+        }
+    }
+
+    const notifications = await notificationService.sendClassDailyClassworkUpdates(
+        classId,
+        date,
+        req.user._id,
+        { language, subject, studentIds }
+    );
+
+    if (notifications.length === 0) {
+        return res.status(400).json({ success: false, message: 'No classwork grades found for the selected date.' });
+    }
+
+    res.json({
+        success: true,
+        message: `Daily classwork updates sent for ${notifications.length} student(s)`,
+        data: { notifications, sentCount: notifications.length }
+    });
+});
+
+/**
  * @desc    Send gradebook summary update for a student (monthly summary, all or selected categories)
  * @route   POST /api/notifications/gradebook-summary/:studentId
  * @access  Private (Teacher)
@@ -183,7 +220,7 @@ export const sendDailyClassworkUpdate = asyncHandler(async (req, res) => {
 export const sendGradebookSummaryUpdate = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const date = req.body.date ? new Date(req.body.date) : new Date();
-    const { subject, category } = req.body;
+    const { subject, category, language } = req.body;
 
     if (!(await verifyTeacherStudentAccess(req, studentId))) {
         return res.status(403).json({ success: false, message: 'Not authorized for this student' });
@@ -193,7 +230,7 @@ export const sendGradebookSummaryUpdate = asyncHandler(async (req, res) => {
         studentId,
         date,
         req.user._id,
-        { subject, category }
+        { subject, category, language }
     );
 
     if (!notification) {
@@ -296,7 +333,7 @@ export const getNotification = asyncHandler(async (req, res) => {
  */
 export const sendAIReport = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
-    const { reportContent, period } = req.body;
+    const { reportContent, period, language } = req.body;
 
     if (!reportContent || !period) {
         return res.status(400).json({
@@ -314,7 +351,8 @@ export const sendAIReport = asyncHandler(async (req, res) => {
             studentId,
             reportContent,
             period,
-            req.user._id
+            req.user._id,
+            language
         );
 
         res.json({

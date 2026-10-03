@@ -8,7 +8,9 @@ const AssignmentGradePanel = ({
     onGradeChange,
     onClose,
     onSubmitGrades,
-    submitting = false
+    submitting = false,
+    showBehaviorAction = false,
+    onOpenBehavior
 }) => {
     const { t } = useTranslation(['assignments']);
     if (!gradingAssignment) return null;
@@ -38,6 +40,7 @@ const AssignmentGradePanel = ({
                             <th>{t('assignments:gradePanel.columns.student')}</th>
                             <th>{t('assignments:gradePanel.columns.marks')}</th>
                             <th>{t('assignments:gradePanel.columns.remarks')}</th>
+                            {showBehaviorAction && <th>Behavior</th>}
                             <th>{t('assignments:gradePanel.columns.status')}</th>
                         </tr>
                     </thead>
@@ -54,6 +57,13 @@ const AssignmentGradePanel = ({
                                         onChange={(event) => onGradeChange(student.id, 'marks', event.target.value)}
                                     />
                                 </td>
+                                {showBehaviorAction && (
+                                    <td>
+                                        <button type="button" className="btn btn-outline btn-sm" onClick={() => onOpenBehavior(student)}>
+                                            Score behavior
+                                        </button>
+                                    </td>
+                                )}
                                 <td>
                                     <input
                                         type="text"

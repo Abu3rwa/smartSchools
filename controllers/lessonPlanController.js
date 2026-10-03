@@ -8,6 +8,13 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import * as lessonPlanAIService from '../services/lessonPlanAIService.js';
 import * as lessonPlanEvaluationService from '../services/lessonPlanEvaluationService.js';
 import { sendLessonPlanFeedback } from '../services/emailService.js';
+import { buildLessonPlanDocx, buildSafeFilename } from '../services/lessonPlanDocxService.js';
+import {
+    buildImportTemplateCsv,
+    parseLessonPlanCsvForForm,
+    processLessonPlanImport
+} from '../services/lessonPlanImportService.js';
+import { localizeSubject } from '../utils/emailLocalization.js';
 import {
     resolveRequestedLanguages,
     toLegacyLanguageValue
@@ -188,6 +195,116 @@ export const getLessonPlanById = asyncHandler(async (req, res) => {
 
     res.json({ success: true, data: { lesson } });
 });
+
+/**
+ * @desc    Export a lesson plan as a .docx file
+ * @route   GET /api/lessons/:id/export.docx?lang=en|ar
+ * @access  Private (same visibility as GET /:id)
+ */
+export const exportLessonPlanDocx = asyncHandler(async (req, res) => {
+    const lang = req.query.lang === undefined ? 'en' : String(req.query.lang);
+    if (!['en', 'ar'].includes(lang)) {
+        return res.status(400).json({ success: false, message: 'lang must be "en" or "ar"' });
+    }
+
+    const lesson = await LessonPlan.findById(req.params.id)
+        .populate('class', 'name department')
+        .populate('subject', 'name nameAr')
+        .populate('teacher', 'firstName lastName')
+        .populate('standardIds', 'code name')
+        .lean();
+
+    if (!lesson || lesson.school.toString() !== req.schoolId.toString()) {
+        return res.status(404).json({ success: false, message: 'Lesson plan not found' });
+    }
+
+    const canViewAll = req.user.role === 'admin'
+        || req.user.role === 'department_principal'
+        || req.user.permissions?.includes('review_lesson_plans');
+    if (req.user.role === 'teacher' && !canViewAll && lesson.teacher?._id?.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    if (req.departmentId) {
+        const deptId = lesson.class?.department;
+        if (!deptId || deptId.toString() !== req.departmentId.toString()) {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+    }
+
+    const buffer = await buildLessonPlanDocx(lesson, {
+        lang,
+        schoolName: req.school?.name || '',
+        teacherName: [lesson.teacher?.firstName, lesson.teacher?.lastName].filter(Boolean).join(' '),
+        className: lesson.class?.name || '',
+        subjectName: lesson.subject ? localizeSubject(lesson.subject, lang) : '',
+        standards: lesson.standardIds || []
+    });
+
+    const filename = buildSafeFilename(lesson.title, lesson.date);
+    const asciiName = filename.replace(/[^\x20-\x7E]/g, '_');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    );
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.send(buffer);
+});
+
+/**
+ * @desc    Download the lesson plan CSV import template
+ * @route   GET /api/lessons/import/template
+ * @access  Private (Teacher, Admin)
+ */
+export const downloadLessonPlanImportTemplate = asyncHandler(async (req, res) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="lesson-plans-import-template.csv"');
+    res.send(buildImportTemplateCsv());
+});
+
+const runLessonPlanImport = (commit) => asyncHandler(async (req, res) => {
+    const csv = typeof req.body?.csv === 'string' ? req.body.csv : '';
+    const result = await processLessonPlanImport({
+        csv,
+        commit,
+        schoolId: req.schoolId,
+        user: req.user,
+        departmentId: req.departmentId || null,
+        academicYear: req.query?.academicYear || req.academicYear || null
+    });
+
+    if (!result.ok) {
+        return res.status(result.statusCode).json({ success: false, message: result.message });
+    }
+
+    res.json({
+        success: true,
+        message: commit
+            ? `${result.summary.imported} lesson plan(s) imported`
+            : 'Preview ready',
+        summary: result.summary,
+        errors: result.errors,
+        warnings: result.warnings,
+        sample: result.sample
+    });
+});
+
+export const previewLessonPlanImport = runLessonPlanImport(false);
+
+/**
+ * @desc    Read a CSV and return values to pre-fill the lesson plan form
+ * @route   POST /api/lessons/import/form
+ * @access  Private (Teacher, Admin)
+ */
+export const parseLessonPlanCsvToForm = asyncHandler(async (req, res) => {
+    const csv = typeof req.body?.csv === 'string' ? req.body.csv : '';
+    const result = await parseLessonPlanCsvForForm(csv, req.schoolId);
+    if (!result.ok) {
+        return res.status(result.statusCode).json({ success: false, message: result.message });
+    }
+    res.json({ success: true, fields: result.fields, warnings: result.warnings });
+});
+export const commitLessonPlanImport = runLessonPlanImport(true);
 
 /**
  * @desc    Create lesson plan

@@ -1,0 +1,27 @@
+<style>{{!reportSharedStyles}}</style>
+<div class="report-scope" dir="rtl" lang="ar" style="direction:rtl;text-align:right;">
+  <div class="report-card">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">التقرير اليومي</h2>
+        <p class="card-meta">{{prettyDate}}</p>
+      </div>
+      <span class="tag">ملخص أكاديمي</span>
+    </div>
+
+    <div class="section">
+      <p class="card-meta">ولي أمر {{studentFirstName}} العزيز،</p>
+      <p class="section-subtitle">
+        إليكم ملخص أداء اليوم للطالب <strong>{{studentFullName}}</strong> من إعداد <strong>{{teacherName}}</strong>.
+      </p>
+      <div class="row-list">
+        {{!gradesRows}}
+      </div>
+    </div>
+
+    <div class="section">
+      <p class="meta-line">{{teacherName}}</p>
+      <p class="meta-line">{{schoolName}}</p>
+    </div>
+  </div>
+</div>

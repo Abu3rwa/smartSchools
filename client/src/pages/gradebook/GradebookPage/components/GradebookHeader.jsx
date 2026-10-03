@@ -20,6 +20,9 @@ const GradebookHeader = ({
     selectedCategoryFilter,
     onCategoryFilterChange,
     onSendReports,
+    summaryLanguage = 'en',
+    onSummaryLanguageChange,
+    onOpenDailyClasswork,
     notificationSending,
     hasStudents,
     onOpenAddModal,
@@ -63,20 +66,6 @@ const GradebookHeader = ({
         const grades = [...new Set(availableClasses.map((c) => c.grade))].filter(Boolean);
         grades.sort((a, b) => a - b);
         return grades;
-    }, [availableClasses, isEmbedded]);
-
-    const uniqueSubjects = useMemo(() => {
-        if (!isEmbedded) return [];
-        const seen = new Map();
-        for (const cls of availableClasses) {
-            for (const s of cls.subjects || []) {
-                const sub = s.subject;
-                if (sub && !seen.has(sub._id)) {
-                    seen.set(sub._id, sub);
-                }
-            }
-        }
-        return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
     }, [availableClasses, isEmbedded]);
 
     const filteredClasses = useMemo(() => {
@@ -167,10 +156,30 @@ const GradebookHeader = ({
                             {notificationSending ? t('gradebook:common.sending') : t('gradebook:header.sendReports')}
                         </button>
 
-                        <button className="btn btn-primary" onClick={onOpenAddModal}>
+                        <select
+                            value={summaryLanguage}
+                            onChange={(event) => onSummaryLanguageChange(event.target.value)}
+                            disabled={notificationSending}
+                            aria-label="Summary email language"
+                            title="Monthly summary email language"
+                        >
+                            <option value="en">English</option>
+                            <option value="ar">العربية</option>
+                        </select>
+
+                        <button
+                            className="btn btn-outline"
+                            onClick={onOpenDailyClasswork}
+                            disabled={notificationSending || !hasStudents}
+                        >
+                            <HiOutlineMail size={20} />
+                            Send Daily Classwork
+                        </button>
+
+                        <Link className="btn btn-primary" to={`/portal/grades/entry`}>
                             <HiOutlinePlus size={20} />
                             {t('gradebook:header.addGrades')}
-                        </button>
+                        </Link>
 
                         {assessmentGroups.length > 0 && (
                             <div className="dropdown" style={{ position: 'relative', display: 'inline-block' }}>

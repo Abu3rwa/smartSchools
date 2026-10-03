@@ -12,6 +12,11 @@ const subjectSchema = new mongoose.Schema({
         required: [true, 'Subject name is required'],
         trim: true
     },
+    nameAr: {
+        type: String,
+        trim: true,
+        default: ''
+    },
     code: {
         type: String,
         required: [true, 'Subject code is required'],

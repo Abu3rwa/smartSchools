@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import lessonService from '../../../services/lessonService';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -9,7 +11,7 @@ import {
 } from '../../../store/slices/lessonSlice';
 import { selectUser } from '../../../store/slices/authSlice';
 import { selectCurrentAcademicYear, selectAppName } from '../../../store/slices/uiSlice';
-import { HiOutlineArrowLeft, HiOutlinePrinter, HiOutlineCalendar, HiOutlineAcademicCap, HiOutlineBookOpen, HiOutlineUser } from 'react-icons/hi';
+import { HiOutlineArrowLeft, HiOutlinePrinter, HiOutlineDownload, HiOutlineCalendar, HiOutlineAcademicCap, HiOutlineBookOpen, HiOutlineUser } from 'react-icons/hi';
 import { format } from 'date-fns';
 import { SAAS_URL } from './constants';
 import './LessonPlanDetailPage.css';
@@ -35,6 +37,7 @@ const LessonPlanDetailPage = () => {
     const academicYear = useSelector(selectCurrentAcademicYear);
     const appName = useSelector(selectAppName);
     const printRef = useRef(null);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         if (!lessons.length) {
@@ -50,6 +53,17 @@ const LessonPlanDetailPage = () => {
 
     const handlePrint = () => {
         window.print();
+    };
+
+    const handleExport = async (lang) => {
+        setExporting(true);
+        try {
+            await lessonService.exportLessonDocx(id, lang);
+        } catch {
+            toast.error(t('lessonPlan:export.failed'));
+        } finally {
+            setExporting(false);
+        }
     };
 
     if (loading) {
@@ -88,6 +102,12 @@ const LessonPlanDetailPage = () => {
             <div className="lp-toolbar no-print">
                 <button className="btn btn-ghost btn-sm" onClick={() => navigate('/portal/lessons')}>
                     <HiOutlineArrowLeft size={18} /> {t('lessonPlan:detail.backToLessons')}
+                </button>
+                <button className="btn btn-secondary" onClick={() => handleExport('en')} disabled={exporting}>
+                    <HiOutlineDownload size={18} /> {t('lessonPlan:export.download')} · EN
+                </button>
+                <button className="btn btn-secondary" onClick={() => handleExport('ar')} disabled={exporting}>
+                    <HiOutlineDownload size={18} /> {t('lessonPlan:export.download')} · عربي
                 </button>
                 <button className="btn btn-primary" onClick={handlePrint}>
                     <HiOutlinePrinter size={18} /> {t('lessonPlan:detail.print')}

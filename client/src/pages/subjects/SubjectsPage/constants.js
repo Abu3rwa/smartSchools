@@ -6,6 +6,7 @@ export const SUBJECT_TYPES = [
 
 export const DEFAULT_SUBJECT_FORM = {
     name: '',
+    nameAr: '',
     code: '',
     description: '',
     dailyMaxMarks: 10,

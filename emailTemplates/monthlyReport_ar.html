@@ -1,0 +1,18 @@
+<div dir="rtl" lang="ar" style="direction:rtl;text-align:right;font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#f8fafc;padding:12px;color:#0f172a;">
+  <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #cce8e6;border-radius:12px;padding:16px;">
+    <div style="margin-bottom:12px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;">
+      <h2 style="margin:0;font-size:20px;">التقرير الشهري - {{monthName}}</h2>
+      <p style="margin:6px 0 0;font-size:12px;color:#334155;">الطالب: {{studentFullName}}</p>
+    </div>
+    <div class="section">
+      <p class="section-subtitle">متوسطات المواد للطالب <strong>{{studentFullName}}</strong> بواسطة <strong>{{teacherName}}</strong>.</p>
+      <div class="row-list">{{!subjectsRows}}</div>
+      <div class="summary-bar"><span>المتوسط العام</span><span>{{overallAverage}}%</span></div>
+    </div>
+    <div class="section">
+      <p class="meta-line">استناداً إلى الدرجات المسجلة للشهر المحدد.</p>
+      <p class="meta-line">إعداد: {{teacherName}}.</p>
+      <p class="meta-line">{{schoolName}}</p>
+    </div>
+  </div>
+</div>

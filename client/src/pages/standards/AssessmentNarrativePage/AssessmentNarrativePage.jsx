@@ -46,6 +46,7 @@ const AssessmentNarrativePage = ({ embedded }) => {
   const [successMsg, setSuccessMsg] = useState('');
   const [attemptCountsByStandardId, setAttemptCountsByStandardId] = useState({});
   const [attemptFilterLoading, setAttemptFilterLoading] = useState(false);
+  const [attemptFilterError, setAttemptFilterError] = useState('');
 
   // Fetch reference data on mount
   useEffect(() => {
@@ -136,11 +137,13 @@ const AssessmentNarrativePage = ({ embedded }) => {
       if (!genForm.studentId) {
         setAttemptCountsByStandardId({});
         setAttemptFilterLoading(false);
+        setAttemptFilterError('');
         return;
       }
 
       setAttemptFilterLoading(true);
       setAttemptCountsByStandardId({});
+      setAttemptFilterError('');
       try {
         const result = await dispatch(fetchProgressTable({
           studentId: genForm.studentId,
@@ -160,9 +163,12 @@ const AssessmentNarrativePage = ({ embedded }) => {
         });
 
         setAttemptCountsByStandardId(counts);
-      } catch {
+      } catch (error) {
         if (!isCancelled) {
           setAttemptCountsByStandardId({});
+          setAttemptFilterError(
+            typeof error === 'string' ? error : error?.message || 'Failed to load attempted standards.'
+          );
         }
       } finally {
         if (!isCancelled) {
@@ -387,6 +393,10 @@ const AssessmentNarrativePage = ({ embedded }) => {
               {attemptFilterLoading ? (
                 <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>
                   Loading standards with attempts...
+                </p>
+              ) : attemptFilterError ? (
+                <p role="alert" style={{ color: 'var(--accent-red)', textAlign: 'center', padding: 24 }}>
+                  Could not load standards with attempts: {attemptFilterError}
                 </p>
               ) : filteredStandards.length === 0 ? (
                 <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 24 }}>

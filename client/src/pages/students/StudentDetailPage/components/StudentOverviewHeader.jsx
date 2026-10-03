@@ -7,12 +7,17 @@ import {
     HiOutlineDocumentText
 } from 'react-icons/hi';
 import ImageUploader from '../../../../components/shared/ImageUploader';
+import EmailLanguageControl from '../../../../components/shared/EmailLanguageControl';
 
 const StudentOverviewHeader = ({
     student,
     isAdmin,
     sending,
     generatingAIReport,
+    emailLanguage,
+    onEmailLanguageChange,
+    rememberEmailLanguage,
+    onRememberEmailLanguageChange,
     photoUploading,
     onSendDailyReport,
     onOpenAIReport,
@@ -66,6 +71,13 @@ const StudentOverviewHeader = ({
                 
             </div>
             <div className="header-actions">
+                    <EmailLanguageControl
+                        language={emailLanguage}
+                        onLanguageChange={onEmailLanguageChange}
+                        rememberLanguage={rememberEmailLanguage}
+                        onRememberLanguageChange={onRememberEmailLanguageChange}
+                        name="daily-report-email-language"
+                    />
                     <button
                         className="btn btn-secondary"
                         onClick={onSendDailyReport}

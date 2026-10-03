@@ -1,0 +1,28 @@
+<div dir="rtl" lang="ar" style="direction:rtl;text-align:right;font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#f8fafc;padding:12px;color:#0f172a;">
+  <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #cce8e6;border-radius:12px;padding:16px;">
+    <div style="margin-bottom:12px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;">
+      <h2 style="margin:0;font-size:20px;">تحديث الدرجة</h2>
+      <p style="margin:6px 0 0;font-size:12px;color:#334155;">{{studentFullName}}</p>
+    </div>
+    <div class="section">
+      <p class="card-meta">عزيزي ولي أمر {{studentFirstName}}،</p>
+      <p class="section-subtitle">تم تسجيل درجة جديدة للطالب <strong>{{studentFirstName}}</strong> بواسطة <strong>{{teacherName}}</strong>.</p>
+      <div class="row-list">
+        <div class="row-item">
+          <div class="row-left"><div>المادة</div><div class="meta-line">{{subjectName}}</div></div>
+          <div class="row-right"><span class="badge">{{marks}} / {{maxMarks}}</span></div>
+        </div>
+        <div class="row-item">
+          <div class="row-left"><div>الفئة</div><div class="meta-line">{{gradeType}}</div></div>
+          <div class="row-right"><span class="badge">{{gradeDate}}</span></div>
+        </div>
+      </div>
+      {{!remarksSection}}
+    </div>
+    <div class="section">
+      <p class="meta-line">تم التسجيل بواسطة {{teacherName}}.</p>
+      <p class="meta-line">{{schoolName}}</p>
+      <p class="meta-line">&copy; {{year}} {{schoolName}}.</p>
+    </div>
+  </div>
+</div>

@@ -33,6 +33,8 @@ const SuperAdminSchoolsPage = () => {
     const [search, setSearch] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [editForm, setEditForm] = useState(null);
+    const [savingEdit, setSavingEdit] = useState(false);
     const [schoolsPage, setSchoolsPage] = useState(1);
     const [schoolsPageSize, setSchoolsPageSize] = useState(DEFAULT_SCHOOLS_PAGE_SIZE);
     const [templatesPage, setTemplatesPage] = useState(1);
@@ -206,6 +208,38 @@ const SuperAdminSchoolsPage = () => {
         }
     };
 
+    const openEditModal = (school) => {
+        setEditForm({
+            id: school._id,
+            name: school.name || '',
+            adminName: school.contact?.adminName || '',
+            adminEmail: school.contact?.adminEmail || '',
+            phone: school.contact?.phone || ''
+        });
+    };
+
+    const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        setSavingEdit(true);
+        try {
+            await api.put(`/schools/${editForm.id}`, {
+                name: editForm.name.trim(),
+                contact: {
+                    adminName: editForm.adminName.trim(),
+                    adminEmail: editForm.adminEmail.trim(),
+                    phone: editForm.phone.trim()
+                }
+            });
+            toast.success(t('superAdminSchools:toast.schoolUpdated', { defaultValue: 'School updated successfully' }));
+            setEditForm(null);
+            fetchSchools();
+        } catch (error) {
+            toast.error(error.response?.data?.message || t('superAdminSchools:toast.updateFailed', { defaultValue: 'Failed to update school' }));
+        } finally {
+            setSavingEdit(false);
+        }
+    };
+
     const getStatusLabel = (status = 'active') => {
         const normalized = String(status || 'active').toLowerCase();
         return t(`superAdminSchools:status.${normalized}`, { defaultValue: normalized });
@@ -330,7 +364,7 @@ const SuperAdminSchoolsPage = () => {
                                                 <button className="admin-action-btn" title={t('superAdminSchools:actions.viewDetails')} onClick={() => navigate(`/admin/schools/${school._id}`)}>
                                                     <HiOutlineEye size={14} />
                                                 </button>
-                                                <button className="admin-action-btn" title={t('superAdminSchools:actions.editSchool')}>
+                                                <button className="admin-action-btn" title={t('superAdminSchools:actions.editSchool')} onClick={() => openEditModal(school)}>
                                                     <HiOutlinePencil size={14} />
                                                 </button>
                                             </div>
@@ -495,6 +529,56 @@ const SuperAdminSchoolsPage = () => {
                                 <button type="button" className="admin-action-btn" onClick={() => setShowCreateModal(false)}>{t('superAdminSchools:actions.cancel')}</button>
                                 <button type="submit" className="admin-action-btn primary" disabled={creating}>
                                     {creating ? t('superAdminSchools:actions.creating') : t('superAdminSchools:actions.createSchool')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {editForm && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 1000, padding: 'var(--spacing-xl)', overflowY: 'auto'
+                }}>
+                    <div style={{
+                        background: 'var(--bg-card)', borderRadius: 'var(--radius-xl)',
+                        padding: 'var(--spacing-2xl)', width: '100%', maxWidth: 480,
+                        border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-lg)',
+                        margin: 'var(--spacing-md) 0'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t('superAdminSchools:actions.editSchool')}</h2>
+                            <button onClick={() => setEditForm(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                                <HiOutlineX size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleEditSubmit} className="register-form" style={{ gap: 'var(--spacing-md)' }}>
+                            <div className="form-group">
+                                <label>{t('superAdminSchools:form.schoolNameLabel')}</label>
+                                <input type="text" required value={editForm.name}
+                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('superAdminSchools:form.adminNameLabel')}</label>
+                                <input type="text" value={editForm.adminName}
+                                    onChange={(e) => setEditForm({ ...editForm, adminName: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('superAdminSchools:form.adminEmailLabel')}</label>
+                                <input type="email" required value={editForm.adminEmail}
+                                    onChange={(e) => setEditForm({ ...editForm, adminEmail: e.target.value })} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('superAdminSchools:form.phoneLabel', { defaultValue: 'Phone' })}</label>
+                                <input type="tel" value={editForm.phone}
+                                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end', marginTop: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+                                <button type="button" className="admin-action-btn" onClick={() => setEditForm(null)}>{t('superAdminSchools:actions.cancel')}</button>
+                                <button type="submit" className="admin-action-btn primary" disabled={savingEdit}>
+                                    {savingEdit ? t('superAdminSchools:actions.saving', { defaultValue: 'Saving...' }) : t('superAdminSchools:actions.save', { defaultValue: 'Save' })}
                                 </button>
                             </div>
                         </form>

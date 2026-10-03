@@ -1452,8 +1452,21 @@ router.put('/:id', superAdminOnly, asyncHandler(async (req, res) => {
     const allowed = ['name', 'contact', 'settings'];
     const updates = {};
     allowed.forEach(key => {
-        if (req.body[key] !== undefined) updates[key] = req.body[key];
+        if (req.body[key] === undefined) return;
+        const value = req.body[key];
+        // Flatten nested objects so partial edits don't overwrite sibling fields
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            Object.entries(value).forEach(([subKey, subValue]) => {
+                if (subValue !== undefined) updates[`${key}.${subKey}`] = subValue;
+            });
+        } else {
+            updates[key] = value;
+        }
     });
+
+    if (updates.name !== undefined && !String(updates.name).trim()) {
+        return res.status(400).json({ success: false, message: 'School name is required' });
+    }
 
     const school = await School.findByIdAndUpdate(req.params.id, updates, {
         new: true,

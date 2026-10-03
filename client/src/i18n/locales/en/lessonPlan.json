@@ -2,7 +2,47 @@
   "page": {
     "title": "Lesson Plans",
     "subtitle": "Plan and share lessons with parents",
-    "newLesson": "New Lesson"
+    "newLesson": "New Lesson",
+    "importCsv": "Import CSV"
+  },
+  "export": {
+    "download": "Download .docx",
+    "downloadEnglish": "Word (English)",
+    "downloadArabic": "Word (العربية)",
+    "failed": "Failed to export the lesson plan",
+    "language": "Document language"
+  },
+  "import": {
+    "title": "Import Lesson Plans from CSV",
+    "description": "Upload a CSV file. Rows are checked first and imported as drafts.",
+    "downloadTemplate": "Download sample template",
+    "formTitle": "Import from CSV",
+    "formHint": "Fill this form from a CSV file. Date, class and subject above are kept. You can edit everything before saving.",
+    "formSelectFirst": "Choose the date, class and subject first, then import a CSV file.",
+    "formLoaded": "CSV loaded into the form. Review it, then save.",
+    "copyPrompt": "Copy AI prompt",
+    "promptCopied": "AI prompt copied. Paste it into your AI chat with your lesson plans.",
+    "promptCopyFailed": "Could not copy to the clipboard",
+    "chooseFile": "Choose CSV file",
+    "tooLarge": "The file is too large (max 900 KB).",
+    "notCsv": "Please choose a .csv file.",
+    "preview": "Preview",
+    "previewing": "Checking...",
+    "totalRows": "Rows",
+    "validRows": "Ready to import",
+    "errorRows": "Rows with errors",
+    "skipped": "Duplicates skipped",
+    "errorsTitle": "Errors",
+    "warningsTitle": "Warnings",
+    "row": "Row",
+    "column": "Column",
+    "message": "Message",
+    "downloadErrors": "Download error report",
+    "importNow": "Import {{count}} lesson plan(s)",
+    "importing": "Importing...",
+    "success": "{{count}} lesson plan(s) imported",
+    "failed": "Import failed",
+    "close": "Close"
   },
   "toolbar": {
     "allTeachers": "All teachers",

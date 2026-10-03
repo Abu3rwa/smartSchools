@@ -12,6 +12,11 @@ import { renderTemplate } from "../emailTemplates/templateLoader.js";
 import { buildPortalLink, getClientUrl } from "../helpers/portalUrl.js";
 import { getSignedUrl } from "./firebaseStorageService.js";
 import logger from "../utils/logger.js";
+import {
+  localizeCategory,
+  localizeRemarks,
+  localizeSubject,
+} from "../utils/emailLocalization.js";
 
 /**
  * Sanitize email subject to plain ASCII (remove emojis and special characters)
@@ -35,6 +40,112 @@ const getGradeObservation = (grade) =>
     .map((value) => String(value ?? "").trim())
     .filter(Boolean)
     .join(" | ");
+
+const parseRemarkGroups = (gradeData = {}, language = 'en') => {
+  const groups = { positive: [], negative: [], neutral: [] };
+  const pointsPattern = /^(.*?)\s*\(([+-]?\d+(?:\.\d+)?)\)\s*$/;
+  const remarks = gradeData?.remarks;
+  if (typeof remarks !== "string" && !Array.isArray(remarks)) return groups;
+
+  const localizedRemarks = localizeRemarks(remarks, language);
+  const items = (Array.isArray(localizedRemarks) ? localizedRemarks : localizedRemarks.split(";"))
+    .flatMap((item) => typeof item === "string" ? item.split(";") : [])
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  for (const item of items) {
+    const match = item.match(pointsPattern);
+    if (!match) {
+      groups.neutral.push({ label: item });
+      continue;
+    }
+
+    const points = Number(match[2]);
+    const parsed = { label: match[1].trim(), points, pointsText: match[2] };
+    if (points > 0) groups.positive.push(parsed);
+    else if (points < 0) groups.negative.push(parsed);
+    else groups.neutral.push({ label: parsed.label });
+  }
+
+  return groups;
+};
+
+const formatRemarkPoints = (points) => {
+  const value = Number(Number(points).toFixed(10));
+  return `${value > 0 ? "+" : ""}${value}`;
+};
+
+const buildRemarksSection = (gradeData = {}, language = 'en') => {
+  const groups = parseRemarkGroups(gradeData, language);
+  const hasRemarks = Object.values(groups).some((items) => items.length > 0);
+  if (!hasRemarks) return "";
+
+  const renderGroup = (className, title, items, total = null) => {
+    if (items.length === 0) return "";
+    const totalMarkup = total === null ? "" : ` <span class="rm-total">${formatRemarkPoints(total)}</span>`;
+    const itemsMarkup = items.map((item) => {
+      const pointsMarkup = item.pointsText
+        ? `<span class="rm-pts">${escapeHtml(item.pointsText)}</span>`
+        : "";
+      return `<div class="rm-item"><span class="rm-label">${escapeHtml(item.label)}</span>${pointsMarkup}</div>`;
+    }).join("");
+    return `<div class="rm-group ${className}"><div class="rm-head">${title}${totalMarkup}</div>${itemsMarkup}</div>`;
+  };
+
+  const positiveTotal = groups.positive.reduce((total, item) => total + item.points, 0);
+  const negativeTotal = groups.negative.reduce((total, item) => total + item.points, 0);
+
+  return [
+    `<p class="section-title">${language === 'ar' ? 'ملاحظات المعلم' : "Teacher's Remarks"}</p>`,
+    renderGroup("rm-pos", language === 'ar' ? "إيجابي" : "Positive", groups.positive, positiveTotal),
+    renderGroup("rm-neg", language === 'ar' ? "يحتاج إلى تحسين" : "Needs improvement", groups.negative, negativeTotal),
+    renderGroup("rm-neutral", language === 'ar' ? "ملاحظات أخرى" : "Other", groups.neutral),
+  ].join("");
+};
+
+const buildRemarksPlainText = (gradeData = {}, language = 'en') => {
+  const groups = parseRemarkGroups(gradeData, language);
+  const lines = [];
+  const appendGroup = (title, items) => {
+    if (items.length === 0) return;
+    lines.push(`${title}:`);
+    items.forEach((item) => {
+      lines.push(`- ${item.label}${item.pointsText ? ` (${item.pointsText})` : ""}`);
+    });
+  };
+
+  appendGroup(language === 'ar' ? "إيجابي" : "Positive", groups.positive);
+  appendGroup(language === 'ar' ? "يحتاج إلى تحسين" : "Needs improvement", groups.negative);
+  appendGroup(language === 'ar' ? "ملاحظات أخرى" : "Other", groups.neutral);
+  return lines.join("\n");
+};
+
+const buildGradebookRemarksHtml = (grade, language = "en") => {
+  const observation = getGradeObservation(grade);
+  if (!observation) return "";
+
+  const groups = parseRemarkGroups({ remarks: observation }, language);
+  const renderGroup = (title, tone, items) => {
+    if (items.length === 0) return "";
+    const chips = items.map((item) => {
+      const points = item.pointsText
+        ? `<strong class="gbr-remark-points">${escapeHtml(item.pointsText)}</strong>`
+        : "";
+      return `<span class="gbr-remark-chip gbr-remark-${tone}"><span>${escapeHtml(item.label)}</span>${points}</span>`;
+    }).join("");
+    return `<div class="gbr-remark-group"><p class="gbr-remark-group-title">${title}</p><div class="gbr-remark-list">${chips}</div></div>`;
+  };
+
+  const groupMarkup = [
+    renderGroup(language === "ar" ? "إيجابي" : "Positive", "positive", groups.positive),
+    renderGroup(language === "ar" ? "يحتاج إلى تحسين" : "Needs improvement", "negative", groups.negative),
+    renderGroup(language === "ar" ? "ملاحظات أخرى" : "Other", "neutral", groups.neutral),
+  ].join("");
+
+  if (!groupMarkup) return "";
+  const title = language === "ar" ? "ملاحظات المعلم" : "Teacher's remarks";
+  return `<div class="gbr-remarks"><p class="gbr-remarks-title">${title}</p>${groupMarkup}</div>`;
+};
 
 const buildSubjectNotesSummary = (grades = []) => {
   const summary = {};
@@ -1615,12 +1726,16 @@ class NotificationService {
 
     const contact = student.getPrimaryContact();
 
-    const subject = `Grade Update for ${student.fullName}`;
-    const message = this.formatGradeUpdateMessage(student, gradeData);
+    const language = gradeData.language === "ar" ? "ar" : "en";
+    const subject = language === "ar"
+      ? `تحديث الدرجة للطالب ${student.fullName}`
+      : `Grade Update for ${student.fullName}`;
+    const message = this.formatGradeUpdateMessage(student, gradeData, language);
     const htmlContent = await this.formatGradeUpdateHtml(
       student,
       gradeData,
       createdBy,
+      language,
     );
 
     const notification = new Notification({
@@ -1650,12 +1765,13 @@ class NotificationService {
   /**
    * Send daily report for a student to all contact emails
    */
-  async sendDailyReport(studentId, date, createdBy) {
+  async sendDailyReport(studentId, date, createdBy, language = "en") {
     const student = await Student.findById(studentId)
       .populate("currentClass")
       .populate("user", "email");
     if (!student) throw new Error("Student not found");
 
+    const normalizedLanguage = language === "ar" ? "ar" : "en";
     const recipients = student.getAllContactEmails();
     if (recipients.length === 0) return null;
 
@@ -1671,13 +1787,16 @@ class NotificationService {
 
     if (grades.length === 0) return null;
 
-    const subject = `Daily Report for ${student.fullName} - ${date.toLocaleDateString()}`;
-    const message = this.formatDailyReportMessage(student, grades, date);
+    const subject = normalizedLanguage === "ar"
+      ? `التقرير اليومي للطالب ${student.fullName} - ${date.toLocaleDateString("ar-EG")}`
+      : `Daily Report for ${student.fullName} - ${date.toLocaleDateString()}`;
+    const message = this.formatDailyReportMessage(student, grades, date, normalizedLanguage);
     const htmlContent = await this.formatDailyReportHtml(
       student,
       grades,
       date,
       createdBy,
+      normalizedLanguage,
     );
 
     const notification = new Notification({
@@ -1704,8 +1823,7 @@ class NotificationService {
   }
 
   /**
-   * Send daily classwork update - cumulative monthly report
-   * Includes all classwork grades from the 1st of the month to today
+   * Send a daily classwork update for one selected calendar day.
    */
   async sendDailyClassworkUpdate(studentId, date, createdBy, filters = {}) {
     const student = await Student.findById(studentId)
@@ -1722,40 +1840,28 @@ class NotificationService {
         String(filters.category ?? "").trim().toLowerCase() || undefined,
     };
 
-    // Get all classwork grades for the current month up to today, with optional filters
-    let grades = await gradeService.getMonthlyClassworkGrades(
+    const language = filters.language === "ar" ? "ar" : "en";
+
+    let grades = await gradeService.getSingleDayClassworkGrades(
       studentId,
       date,
       {
         subject: normalizedFilters.subject,
-        category: normalizedFilters.category,
       },
     );
 
     if (grades.length === 0) return null;
 
-    const monthName = date.toLocaleString("default", { month: "long" });
+    const monthName = date.toLocaleString(language === "ar" ? "ar-EG" : "default", { month: "long" });
     const dayName = date.toLocaleString("default", { weekday: "long" });
     const todayDate = date.getDate();
     const year = date.getFullYear();
-    const today = `${dayName}, ${monthName} ${todayDate}, ${year}`;
+    const today = language === "ar"
+      ? date.toLocaleDateString("ar-EG", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+      : `${dayName}, ${monthName} ${todayDate}, ${year}`;
     logger.info("Daily classwork update date", { today });
-    const todayFormatted = date.toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-
     // Customize subject line based on filters
-    let reportTitle = "Class Update";
-    if (normalizedFilters.category && normalizedFilters.category.toLowerCase() !== "all") {
-      // Capitalize first letter
-      const categoryTitle =
-        normalizedFilters.category.charAt(0).toUpperCase() +
-        normalizedFilters.category.slice(1);
-      reportTitle = `${categoryTitle} Report`;
-    }
+    const reportTitle = language === "ar" ? "تقرير العمل الصفي اليومي" : "Daily Classwork Update";
 
     const subject = `${reportTitle} - ${student.fullName} (${today})`;
     const message = await this.formatDailyClassworkUpdateMessage(
@@ -1766,6 +1872,8 @@ class NotificationService {
       year,
       reportTitle,
       createdBy,
+      language === "ar" ? "ملخص العمل الصفي" : "Classwork Summary",
+      language,
     );
     const htmlContent = await this.formatDailyClassworkUpdateHtml(
       student,
@@ -1775,6 +1883,7 @@ class NotificationService {
       year,
       reportTitle,
       createdBy,
+      language,
     );
 
     const notification = new Notification({
@@ -1788,9 +1897,11 @@ class NotificationService {
       channels: ["email"],
       metadata: {
         month: date.getMonth() + 1,
+        day: date.getDate(),
         year,
         gradesCount: grades.length,
-        filterCategory: normalizedFilters.category,
+        filterCategory: "classwork",
+        language,
       },
       createdBy,
     });
@@ -1804,6 +1915,29 @@ class NotificationService {
     await this.sendEmail(notification, createdBy);
 
     return notification;
+  }
+
+  async sendClassDailyClassworkUpdates(classId, date, createdBy, options = {}) {
+    const studentFilter = Array.isArray(options.studentIds) && options.studentIds.length > 0
+      ? { _id: { $in: options.studentIds }, currentClass: classId }
+      : { currentClass: classId };
+    const students = await Student.find(studentFilter).select("_id");
+    const notifications = [];
+
+    for (const student of students) {
+      const notification = await this.sendDailyClassworkUpdate(
+        student._id,
+        date,
+        createdBy,
+        {
+          subject: options.subject,
+          language: options.language,
+        },
+      );
+      if (notification) notifications.push(notification);
+    }
+
+    return notifications;
   }
 
   /**
@@ -1844,6 +1978,7 @@ class NotificationService {
     const normalizedFilters = {
       subject: String(filters.subject ?? "").trim() || undefined,
       category: normalizeCategoryFilter(filters.category),
+      language: filters.language === "ar" ? "ar" : "en",
     };
 
     const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -1869,21 +2004,30 @@ class NotificationService {
 
     if (grades.length === 0) return null;
 
-    const monthName = date.toLocaleString("default", { month: "long" });
+    const monthName = date.toLocaleString(
+      normalizedFilters.language === "ar" ? "ar-EG" : "default",
+      { month: "long" },
+    );
     const dayName = date.toLocaleString("default", { weekday: "long" });
     const todayDate = date.getDate();
     const year = date.getFullYear();
-    const today = `${dayName}, ${monthName} ${todayDate}, ${year}`;
+    const today = normalizedFilters.language === "ar"
+      ? date.toLocaleDateString("ar-EG", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+      : `${dayName}, ${monthName} ${todayDate}, ${year}`;
 
-    let reportTitle = "Monthly Gradebook Summary";
+    let reportTitle = normalizedFilters.language === "ar"
+      ? "ملخص سجل الدرجات الشهري"
+      : "Monthly Gradebook Summary";
     if (normalizedFilters.category && normalizedFilters.category.toLowerCase() !== "all") {
-      const categoryTitle =
-        normalizedFilters.category.charAt(0).toUpperCase() +
-        normalizedFilters.category.slice(1);
-      reportTitle = `${categoryTitle} Summary`;
+      const categoryTitle = localizeCategory(normalizedFilters.category, normalizedFilters.language);
+      reportTitle = normalizedFilters.language === "ar"
+        ? `ملخص ${categoryTitle}`
+        : `${categoryTitle.charAt(0).toUpperCase()}${categoryTitle.slice(1)} Summary`;
     }
 
-    const subject = `${reportTitle} - ${student.fullName} (${today})`;
+    const subject = normalizedFilters.language === "ar"
+      ? `ملخص الدرجات الشهري - ${student.fullName} (${today})`
+      : `${reportTitle} - ${student.fullName} (${today})`;
     const message = await this.formatGradebookSummaryMessage(
       student,
       grades,
@@ -1892,6 +2036,7 @@ class NotificationService {
       year,
       reportTitle,
       createdBy,
+      normalizedFilters.language,
     );
     const htmlContent = await this.formatGradebookSummaryHtml(
       student,
@@ -1901,6 +2046,7 @@ class NotificationService {
       year,
       reportTitle,
       createdBy,
+      normalizedFilters.language,
     );
 
     const notification = new Notification({
@@ -1919,6 +2065,7 @@ class NotificationService {
         filterCategory: normalizedFilters.category,
         filterSubject: normalizedFilters.subject,
         source: "gradebook_summary",
+        language: normalizedFilters.language,
       },
       createdBy,
     });
@@ -1937,7 +2084,7 @@ class NotificationService {
   /**
    * Send monthly report to all contact emails
    */
-  async sendMonthlyReport(studentId, month, academicYear, createdBy) {
+  async sendMonthlyReport(studentId, month, academicYear, createdBy, language = "en") {
     const student = await Student.findById(studentId)
       .populate("currentClass")
       .populate("user", "email");
@@ -1955,17 +2102,21 @@ class NotificationService {
       academicYear,
     });
     const subjectNotesSummary = buildSubjectNotesSummary(monthlyGrades);
-    const monthName = new Date(2024, month - 1).toLocaleString("default", {
+    const normalizedLanguage = language === "ar" ? "ar" : "en";
+    const monthName = new Date(2024, month - 1).toLocaleString(normalizedLanguage === "ar" ? "ar-EG" : "default", {
       month: "long",
     });
 
-    const subject = `Monthly Report for ${student.fullName} - ${monthName} ${academicYear}`;
+    const subject = normalizedLanguage === "ar"
+      ? `التقرير الشهري للطالب ${student.fullName} - ${monthName} ${academicYear}`
+      : `Monthly Report for ${student.fullName} - ${monthName} ${academicYear}`;
     const message = this.formatMonthlyReportMessage(
       student,
       report,
       month,
       monthName,
       subjectNotesSummary,
+      normalizedLanguage,
     );
     const htmlContent = await this.formatMonthlyReportHtml(
       student,
@@ -1974,6 +2125,7 @@ class NotificationService {
       monthName,
       createdBy,
       subjectNotesSummary,
+      normalizedLanguage,
     );
 
     const notification = new Notification({
@@ -1985,7 +2137,7 @@ class NotificationService {
       message,
       htmlContent,
       channels: ["email"],
-      metadata: { month, academicYear },
+      metadata: { month, academicYear, language: normalizedLanguage },
       createdBy,
     });
 
@@ -2008,7 +2160,7 @@ class NotificationService {
    * @param {String} userId - User ID of the sender
    * @returns {Promise<Object>} Notification document
    */
-  async sendAIReportToParent(studentId, reportContent, period, userId) {
+  async sendAIReportToParent(studentId, reportContent, period, userId, language = "en") {
     const student = await Student.findById(studentId)
       .populate("currentClass")
       .populate("user", "email");
@@ -2019,7 +2171,9 @@ class NotificationService {
       throw new Error("No student-related contact email found for this student");
     }
 
-    const subject = `Progress Report for ${student.fullName} - ${period}`;
+    const subject = language === "ar"
+      ? `تقرير التقدم للطالب ${student.fullName} - ${period}`
+      : `Progress Report for ${student.fullName} - ${period}`;
 
     // Extract text content from HTML for plain text version
     const plainText = reportContent
@@ -2163,41 +2317,40 @@ class NotificationService {
   }
 
   // Message formatters
-  formatGradeUpdateMessage(student, gradeData) {
-    const observation = getGradeObservation(gradeData);
+  formatGradeUpdateMessage(student, gradeData, language = "en") {
+    const isArabic = language === "ar";
+    const remarksText = buildRemarksPlainText(gradeData, language);
     return `
-Dear ${student.firstName}'s Parent,
+${isArabic ? `عزيزي ولي أمر ${student.firstName}،` : `Dear ${student.firstName}'s Parent,`}
 
-This is to inform you that ${student.fullName} received a grade update:
+${isArabic ? `نود إعلامكم بأنه تم تسجيل درجة جديدة للطالب ${student.fullName}:` : `This is to inform you that ${student.fullName} received a grade update:`}
 
-Subject: ${gradeData.subjectName}
-Type: ${gradeData.gradeType}
-Marks: ${gradeData.marks}/${gradeData.maxMarks}
-Date: ${new Date(gradeData.date).toLocaleDateString()}
-${observation ? `Notes: ${observation}` : ""}
+${isArabic ? 'المادة' : 'Subject'}: ${localizeSubject({ name: gradeData.subjectName, nameAr: gradeData.subjectNameAr }, language)}
+${isArabic ? 'الفئة' : 'Type'}: ${localizeCategory(gradeData.gradeType, language)}
+${isArabic ? 'الدرجة' : 'Marks'}: ${gradeData.marks}/${gradeData.maxMarks}
+${isArabic ? 'التاريخ' : 'Date'}: ${new Date(gradeData.date).toLocaleDateString(isArabic ? 'ar-EG' : undefined)}
+${remarksText ? `${isArabic ? 'ملاحظات المعلم' : "Teacher's Remarks"}:\n${remarksText}` : ""}
 
-Best regards,
+${isArabic ? 'مع خالص التحية،' : 'Best regards,'}
     `.trim();
   }
 
-  async formatGradeUpdateHtml(student, gradeData, createdBy = null) {
+  async formatGradeUpdateHtml(student, gradeData, createdBy = null, language = "en") {
     const percentage = ((gradeData.marks / gradeData.maxMarks) * 100).toFixed(1);
     const teacherName = await this._resolveTeacherName(createdBy);
     const schoolName = await this._resolveSchoolName(student?.school);
 
-    const observation = getGradeObservation(gradeData);
-    const remarksSection = observation
-      ? renderTemplate("gradeUpdateRemarks", { remarks: observation })
-      : "";
+    const isArabic = language === "ar";
+    const remarksSection = buildGradebookRemarksHtml({ remarks: gradeData?.remarks }, language);
 
-    return renderTemplate("gradeUpdate", {
+    return renderTemplate(isArabic ? "gradeUpdate_ar" : "gradeUpdate", {
       studentFullName: student.fullName,
       studentFirstName: student.firstName,
       teacherName,
       schoolName,
-      subjectName: gradeData.subjectName,
-      gradeType: gradeData.gradeType,
-      gradeDate: new Date(gradeData.date).toLocaleDateString(),
+      subjectName: localizeSubject({ name: gradeData.subjectName, nameAr: gradeData.subjectNameAr }, language),
+      gradeType: localizeCategory(gradeData.gradeType, language),
+      gradeDate: new Date(gradeData.date).toLocaleDateString(isArabic ? "ar-EG" : undefined),
       marks: gradeData.marks,
       maxMarks: gradeData.maxMarks,
       percentage,
@@ -2207,31 +2360,35 @@ Best regards,
     });
   }
 
-  formatDailyReportMessage(student, grades, date) {
-    const prettyDate = date.toLocaleDateString("en-US", {
+  formatDailyReportMessage(student, grades, date, language = "en") {
+    const isArabic = language === "ar";
+    const prettyDate = date.toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
       year: "numeric",
     });
 
-    let message = `Daily Report for ${student.fullName}\n`;
-    message += `Date: ${prettyDate}\n\n`;
+    let message = isArabic
+      ? `التقرير اليومي للطالب ${student.fullName}\n`
+      : `Daily Report for ${student.fullName}\n`;
+    message += `${isArabic ? "التاريخ" : "Date"}: ${prettyDate}\n\n`;
 
     grades.forEach((grade) => {
       const percentage = ((grade.marks / grade.maxMarks) * 100).toFixed(1);
-      message += `${grade.subject.name}: ${grade.marks}/${grade.maxMarks} (${percentage}%)\n`;
+      message += `${localizeSubject(grade.subject, language)}: ${grade.marks}/${grade.maxMarks} (${percentage}%)\n`;
       const observation = getGradeObservation(grade);
       if (observation) {
-        message += `  Notes: ${observation}\n`;
+        message += `  ${isArabic ? "ملاحظات" : "Notes"}: ${localizeRemarks(observation, language)}\n`;
       }
     });
 
     return message.trim();
   }
 
-  async formatDailyReportHtml(student, grades, date, createdBy = null) {
-    const prettyDate = date.toLocaleDateString("en-US", {
+  async formatDailyReportHtml(student, grades, date, createdBy = null, language = "en") {
+    const isArabic = language === "ar";
+    const prettyDate = date.toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -2244,16 +2401,16 @@ Best regards,
       .map((grade) => {
         const observation = getGradeObservation(grade);
         const notesLine = observation
-          ? `<div class="meta-line">Notes: ${escapeHtml(observation)}</div>`
+          ? `<div class="meta-line">${isArabic ? "ملاحظات" : "Notes"}: ${escapeHtml(localizeRemarks(observation, language))}</div>`
           : "";
         return `<div class="row-item">
-          <div class="row-left">${grade.subject.name}${notesLine}</div>
+          <div class="row-left">${escapeHtml(localizeSubject(grade.subject, language))}${notesLine}</div>
           <div class="row-right"><span class="badge">${grade.marks} / ${grade.maxMarks}</span></div>
         </div>`;
       })
       .join("");
 
-    return renderTemplate("dailyReport", {
+    return renderTemplate(isArabic ? "dailyReport_ar" : "dailyReport", {
       prettyDate,
       studentFirstName: student.firstName,
       studentFullName: student.fullName,
@@ -2263,22 +2420,26 @@ Best regards,
     });
   }
 
-  formatMonthlyReportMessage(student, report, month, monthName, subjectNotesSummary = {}) {
-    let message = `Monthly Report for ${student.fullName} - ${monthName}\n\n`;
+  formatMonthlyReportMessage(student, report, month, monthName, subjectNotesSummary = {}, language = "en") {
+    const isArabic = language === "ar";
+    let message = isArabic
+      ? `التقرير الشهري للطالب ${student.fullName} - ${monthName}\n\n`
+      : `Monthly Report for ${student.fullName} - ${monthName}\n\n`;
 
     report.subjects.forEach((subject) => {
       const monthData = subject.monthlyAverages[month];
       if (monthData) {
-        message += `${subject.subjectName}: ${monthData.average}% (based on ${monthData.entries} entries)\n`;
+        const subjectName = localizeSubject(subject, language);
+        message += `${subjectName}: ${monthData.average}% (${isArabic ? `استناداً إلى ${monthData.entries} إدخال` : `based on ${monthData.entries} entries`})\n`;
         const subjectId = String(subject.subjectId || "").trim();
         const noteSummary = subjectNotesSummary[subjectId];
         if (noteSummary?.count) {
-          message += `  Notes (${noteSummary.count}): ${noteSummary.samples.join(" | ")}\n`;
+          message += `  ${isArabic ? `ملاحظات (${noteSummary.count})` : `Notes (${noteSummary.count})`}: ${localizeRemarks(noteSummary.samples.join(" | "), language)}\n`;
         }
       }
     });
 
-    message += `\nOverall Average: ${report.overallAverage}%`;
+    message += `\n${isArabic ? "المتوسط العام" : "Overall Average"}: ${report.overallAverage}%`;
     return message.trim();
   }
 
@@ -2289,7 +2450,9 @@ Best regards,
     monthName,
     createdBy = null,
     subjectNotesSummary = {},
+    language = "en",
   ) {
+    const isArabic = language === "ar";
     const teacherName = await this._resolveTeacherName(createdBy);
     const schoolName = await this._resolveSchoolName(student?.school);
 
@@ -2301,15 +2464,15 @@ Best regards,
         const subjectId = String(subject.subjectId || "").trim();
         const noteSummary = subjectNotesSummary[subjectId];
         const notesLine = noteSummary?.count
-          ? `<div class="meta-line">Notes (${noteSummary.count}): ${escapeHtml(noteSummary.samples.join(" | "))}</div>`
+            ? `<div class="meta-line">${isArabic ? "ملاحظات" : "Notes"} (${noteSummary.count}): ${escapeHtml(localizeRemarks(noteSummary.samples.join(" | "), language))}</div>`
           : "";
         const numericAvg = Number(avg);
         const hasNumericAvg = Number.isFinite(numericAvg);
         const label = hasNumericAvg ? `${numericAvg.toFixed(1)}%` : "N/A";
         return `<div class="row-item">
           <div class="row-left">
-            <div>${subject.subjectName}</div>
-            <div class="meta-line">${entries} entr${entries === 1 ? "y" : "ies"}</div>
+            <div>${escapeHtml(localizeSubject(subject, language))}</div>
+            <div class="meta-line">${entries} ${isArabic ? "إدخال" : `entr${entries === 1 ? "y" : "ies"}`}</div>
             ${notesLine}
           </div>
           <div class="row-right"><span class="badge">${label}</span></div>
@@ -2317,7 +2480,7 @@ Best regards,
       })
       .join("");
 
-    return renderTemplate("monthlyReport", {
+    return renderTemplate(isArabic ? "monthlyReport_ar" : "monthlyReport", {
       monthName,
       studentFullName: student.fullName,
       teacherName,
@@ -2337,7 +2500,9 @@ Best regards,
     title = "Class Update",
     createdBy = null,
     summaryLabel = "Classwork Summary",
+    language = "en",
   ) {
+    const isArabic = language === "ar";
     const todayStr = date.toLocaleDateString("en-US", {
       weekday: "long",
       month: "long",
@@ -2359,17 +2524,21 @@ Best regards,
       }
     }
 
-    let message = `${title} for ${student.fullName}\n`;
-    message += `Report Date: ${todayStr}\n`;
-    message += `Month: ${monthName} ${year}\n\n`;
-    message += `${summaryLabel} (${grades.length} entries this month) by ${authenticatedTeacherName}:\n`;
+    const localizedDate = isArabic
+      ? date.toLocaleDateString("ar-EG", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+      : todayStr;
+    let message = isArabic
+      ? `${title} للطالب ${student.fullName}\n`
+      : `${title} for ${student.fullName}\n`;
+    message += `${isArabic ? "تاريخ التقرير" : "Report Date"}: ${localizedDate}\n`;
+    message += `${isArabic ? "ملخص العمل الصفي" : summaryLabel} (${grades.length} ${isArabic ? "درجات اليوم" : "entries today"}) ${isArabic ? "بواسطة" : "by"} ${authenticatedTeacherName}:\n`;
     message += "─".repeat(50) + "\n";
 
     // Group grades by subject and category
     const grouped = {};
     grades.forEach((grade) => {
-      const subjectName = grade.subject?.name || "Unknown Subject";
-      const category = grade.category || grade.gradeType || "Classwork";
+      const subjectName = localizeSubject(grade.subject, language);
+      const category = localizeCategory(grade.category || grade.gradeType || "classwork", language);
       if (!grouped[subjectName]) {
         grouped[subjectName] = {};
       }
@@ -2382,9 +2551,9 @@ Best regards,
     Object.entries(grouped).forEach(([subjectName, categories]) => {
       message += `\n${subjectName}\n`;
       Object.entries(categories).forEach(([category, subjectGrades]) => {
-        message += `  ${category}:\n`;
+          message += `  ${category}:\n`;
         subjectGrades.forEach((grade) => {
-          const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
+          const gradeDate = new Date(grade.date).toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
             month: "short",
             day: "numeric",
           });
@@ -2392,7 +2561,10 @@ Best regards,
           message += `    ${gradeDate} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
           const observation = getGradeObservation(grade);
           if (observation) {
-            message += ` | ${observation}`;
+            const groupedRemarks = buildRemarksPlainText({ remarks: observation }, language);
+            if (groupedRemarks) {
+              message += `\n${groupedRemarks.split("\n").map((line) => `      ${line}`).join("\n")}`;
+            }
           }
           message += "\n";
         });
@@ -2406,8 +2578,8 @@ Best regards,
       totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : 0;
 
     message += "─".repeat(50) + "\n";
-    message += `Monthly Average: ${overallPercentage}%\n\n`;
-    message += "Best regards,\n" + authenticatedTeacherName;
+    message += `${isArabic ? "المتوسط" : "Daily Average"}: ${overallPercentage}%\n\n`;
+    message += isArabic ? `مع خالص التحية،\n${authenticatedTeacherName}` : `Best regards,\n${authenticatedTeacherName}`;
 
     return message;
   }
@@ -2420,8 +2592,10 @@ Best regards,
     year,
     title = "Class Update",
     createdBy = null,
+    language = "en",
   ) {
-    const todayStr = date.toLocaleDateString("en-US", {
+    const isArabic = language === "ar";
+    const todayStr = date.toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -2435,8 +2609,8 @@ Best regards,
     // Group grades by subject and category
     const grouped = {};
     grades.forEach((grade) => {
-      const subjectName = grade.subject?.name || "Unknown Subject";
-      const category = grade.category || grade.gradeType || "Classwork";
+        const subjectName = localizeSubject(grade.subject, language);
+        const category = localizeCategory(grade.category || grade.gradeType || "classwork", language);
       if (!grouped[subjectName]) {
         grouped[subjectName] = { teacher: teacherName, categories: {} };
       }
@@ -2459,25 +2633,23 @@ Best regards,
 
             const gradeRows = subjectGrades
               .map((grade) => {
-                const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
+                const gradeDate = new Date(grade.date).toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
                   weekday: "short", month: "short", day: "numeric",
                 });
 
-                const notesText = getGradeObservation(grade);
-                const notesLine = notesText
-                  ? `<div class="row-notes">${escapeHtml(notesText)}</div>`
-                  : "";
+                const notesLine = buildGradebookRemarksHtml(grade, language);
 
-                return renderTemplate("classworkGradeRow", {
+                return renderTemplate(isArabic ? "classworkGradeRow_ar" : "classworkGradeRow", {
                   gradeDate,
                   scoreClass: "",
                   marks: grade.marks, maxMarks: grade.maxMarks,
                   notesLine,
+                  dateLabel: isArabic ? "التاريخ" : "Date",
                 });
               })
               .join("");
 
-            return renderTemplate("classworkCategorySection", {
+            return renderTemplate(isArabic ? "classworkCategorySection_ar" : "classworkCategorySection", {
               categoryName: category.charAt(0).toUpperCase() + category.slice(1),
               gradeRows,
               categoryAverage,
@@ -2485,19 +2657,20 @@ Best regards,
           })
           .join("");
 
-        return renderTemplate("classworkSubjectSection", {
+        return renderTemplate(isArabic ? "classworkSubjectSection_ar" : "classworkSubjectSection", {
           subjectName, teacher, categorySections,
         });
       })
       .join("");
 
-    return renderTemplate("dailyClassworkUpdate", {
+    return renderTemplate(isArabic ? "dailyClassworkUpdate_ar" : "dailyClassworkUpdate", {
       title,
       todayStr,
       groupedSectionsHtml,
       teacherFirstName: teacherInfo.firstName,
       teacherEmail: teacherInfo.email,
       schoolName,
+      academicSummaryLabel: isArabic ? "ملخص أكاديمي" : "Academic Summary",
     });
   }
 
@@ -2509,8 +2682,10 @@ Best regards,
     year,
     title = "Monthly Gradebook Summary",
     createdBy = null,
+    language = "en",
   ) {
-    const todayStr = date.toLocaleDateString("en-US", {
+    const isArabic = language === "ar";
+    const todayStr = date.toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -2530,16 +2705,18 @@ Best regards,
       }
     }
 
-    let message = `${title} for ${student.fullName}\n`;
-    message += `Report Date: ${todayStr}\n`;
-    message += `Month: ${monthName} ${year}\n\n`;
-    message += `Gradebook Summary (${grades.length} entries this month) by ${authenticatedTeacherName}:\n`;
+    let message = isArabic
+      ? `${title} للطالب ${student.fullName}\n`
+      : `${title} for ${student.fullName}\n`;
+    message += `${isArabic ? "تاريخ التقرير" : "Report Date"}: ${todayStr}\n`;
+    message += `${isArabic ? "الشهر" : "Month"}: ${monthName} ${year}\n\n`;
+    message += `${isArabic ? "ملخص الدرجات" : "Gradebook Summary"} (${grades.length} ${isArabic ? "درجات هذا الشهر" : "entries this month"}) ${isArabic ? "بواسطة" : "by"} ${authenticatedTeacherName}:\n`;
     message += "─".repeat(50) + "\n";
 
     const grouped = {};
     grades.forEach((grade) => {
-      const subjectName = grade.subject?.name || "Unknown Subject";
-      const category = grade.category || grade.gradeType || "Classwork";
+      const subjectName = localizeSubject(grade.subject, isArabic ? "ar" : "en");
+      const category = localizeCategory(grade.category || grade.gradeType || "classwork", isArabic ? "ar" : "en");
       if (!grouped[subjectName]) {
         grouped[subjectName] = {};
       }
@@ -2554,7 +2731,7 @@ Best regards,
       Object.entries(categories).forEach(([category, subjectGrades]) => {
         message += `  ${category}:\n`;
         subjectGrades.forEach((grade) => {
-          const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
+          const gradeDate = new Date(grade.date).toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
             month: "short",
             day: "numeric",
           });
@@ -2562,7 +2739,10 @@ Best regards,
           message += `    ${gradeDate} | ${grade.marks}/${grade.maxMarks} (${percentage}%)`;
           const observation = getGradeObservation(grade);
           if (observation) {
-            message += ` | ${observation}`;
+            const groupedRemarks = buildRemarksPlainText({ remarks: observation }, language);
+            if (groupedRemarks) {
+              message += `\n${groupedRemarks.split("\n").map((line) => `      ${line}`).join("\n")}`;
+            }
           }
           message += "\n";
         });
@@ -2576,8 +2756,8 @@ Best regards,
       totalMaxMarks > 0 ? ((totalMarks / totalMaxMarks) * 100).toFixed(1) : 0;
 
     message += "─".repeat(50) + "\n";
-    message += `Monthly Average: ${overallPercentage}%\n\n`;
-    message += "Best regards,\n" + authenticatedTeacherName;
+    message += `${isArabic ? "المتوسط الشهري" : "Monthly Average"}: ${overallPercentage}%\n\n`;
+    message += isArabic ? `مع خالص التحية،\n${authenticatedTeacherName}` : `Best regards,\n${authenticatedTeacherName}`;
 
     return message;
   }
@@ -2590,8 +2770,10 @@ Best regards,
     year,
     title = "Monthly Gradebook Summary",
     createdBy = null,
+    language = "en",
   ) {
-    const todayStr = date.toLocaleDateString("en-US", {
+    const isArabic = language === "ar";
+    const todayStr = date.toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -2604,8 +2786,8 @@ Best regards,
 
     const grouped = {};
     grades.forEach((grade) => {
-      const subjectName = grade.subject?.name || "Unknown Subject";
-      const category = grade.category || grade.gradeType || "Classwork";
+      const subjectName = localizeSubject(grade.subject, isArabic ? "ar" : "en");
+      const category = localizeCategory(grade.category || grade.gradeType || "classwork", isArabic ? "ar" : "en");
       if (!grouped[subjectName]) {
         grouped[subjectName] = { teacher: teacherName, categories: {} };
       }
@@ -2627,16 +2809,13 @@ Best regards,
 
             const gradeRows = subjectGrades
               .map((grade) => {
-                const gradeDate = new Date(grade.date).toLocaleDateString("en-US", {
+                const gradeDate = new Date(grade.date).toLocaleDateString(isArabic ? "ar-EG" : "en-US", {
                   weekday: "short", month: "short", day: "numeric",
                 });
 
-                const notesText = getGradeObservation(grade);
-                const notesLine = notesText
-                  ? `<div class="row-notes">${escapeHtml(notesText)}</div>`
-                  : "";
+                const notesLine = buildGradebookRemarksHtml(grade, isArabic ? "ar" : "en");
 
-                return renderTemplate("gradebookGradeRow", {
+                return renderTemplate(isArabic ? "gradebookGradeRow_ar" : "gradebookGradeRow", {
                   gradeDate,
                   scoreClass: "",
                   marks: grade.marks, maxMarks: grade.maxMarks,
@@ -2645,7 +2824,7 @@ Best regards,
               })
               .join("");
 
-            return renderTemplate("gradebookCategorySection", {
+            return renderTemplate(isArabic ? "gradebookCategorySection_ar" : "gradebookCategorySection", {
               categoryName: category.charAt(0).toUpperCase() + category.slice(1),
               gradeRows,
               categoryAverage,
@@ -2653,13 +2832,13 @@ Best regards,
           })
           .join("");
 
-        return renderTemplate("gradebookSubjectSection", {
+        return renderTemplate(isArabic ? "gradebookSubjectSection_ar" : "gradebookSubjectSection", {
           subjectName, teacher, categorySections,
         });
       })
       .join("");
 
-    return renderTemplate("gradebookSummary", {
+    return renderTemplate(isArabic ? "gradebookSummary_ar" : "gradebookSummary", {
       title,
       todayStr,
       groupedSectionsHtml,

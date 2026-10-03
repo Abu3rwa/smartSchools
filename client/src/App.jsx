@@ -36,6 +36,7 @@ const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const AuthCallbackPage = lazy(() => import("./pages/auth/AuthCallbackPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
+const TestUiPage = lazy(() => import("./pages/testui/TestUiPage"));
 const ForcePasswordChangePage = lazy(() => import("./pages/auth/ForcePasswordChangePage"));
 const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage"));
 const ClassesPage = lazy(() => import("./pages/classes/ClassesPage"));
@@ -370,6 +371,7 @@ function App() {
           <Routes>
           {/* Public Routes */}
           {/* <Route path="/" element={<LandingPage />} /> */}
+          {import.meta.env.DEV && <Route path="/testui" element={<TestUiPage />} />}
           <Route path="/register-school" element={<RegisterSchoolPage />} />
           <Route path="/login" element={<LoginPage />} />
                     <Route path="/" element={<LoginPage />} />

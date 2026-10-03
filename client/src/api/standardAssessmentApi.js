@@ -1,6 +1,9 @@
 import api from '../config/api';
 
 const BASE = '/standard-assessment';
+const SETTINGS_SECTION_PATHS = { progressSend: 'send', liveEdit: 'edit' };
+const getSettingsPath = (section) =>
+  `${BASE}/settings/${SETTINGS_SECTION_PATHS[section] || section}`;
 
 // ── Feature 1: Pool Library ──
 
@@ -88,12 +91,12 @@ export const fetchRevisions = async (assignmentId) => {
 // ── Settings ──
 
 export const fetchSettings = async (section) => {
-  const response = await api.get(`${BASE}/settings/${section}`);
+  const response = await api.get(getSettingsPath(section));
   return response.data.data;
 };
 
 export const updateSettings = async (section, data) => {
-  const response = await api.put(`${BASE}/settings/${section}`, data);
+  const response = await api.put(getSettingsPath(section), data);
   return response.data.data;
 };
 

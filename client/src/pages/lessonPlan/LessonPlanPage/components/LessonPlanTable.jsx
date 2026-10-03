@@ -8,6 +8,7 @@ import {
   HiOutlineEye,
   HiOutlineChat,
   HiOutlineTrash,
+  HiOutlineDownload,
 } from 'react-icons/hi';
 import { format } from 'date-fns';
 import { getStatusLabel } from '../constants.js';
@@ -21,6 +22,7 @@ const LessonPlanTable = ({
   canManageLesson,
   onEdit,
   onDelete,
+  onExport,
   onAdminNote,
   onOpenEvaluation,
   onTriggerEvaluation,
@@ -129,6 +131,20 @@ const LessonPlanTable = ({
                               <HiOutlineEye />
                               {t('lessonPlan:actions.viewPrint')}
                             </button>
+                            {['en', 'ar'].map((lang) => (
+                              <button
+                                key={lang}
+                                type="button"
+                                className="lesson-menu-item"
+                                onClick={() => {
+                                  setOpenActionMenuLessonId(null);
+                                  onExport?.(lesson._id, lang);
+                                }}
+                              >
+                                <HiOutlineDownload />
+                                {lang === 'en' ? t('lessonPlan:export.downloadEnglish') : t('lessonPlan:export.downloadArabic')}
+                              </button>
+                            ))}
                             {canFilterAsAdmin && (
                               <>
                                 <button

@@ -34,6 +34,16 @@ const SubjectFormModal = ({
                                 />
                             </div>
                             <div className="form-group">
+                                <label>Arabic subject name</label>
+                                <input
+                                    type="text"
+                                    dir="rtl"
+                                    value={formData.nameAr}
+                                    onChange={(event) => setFormData({ ...formData, nameAr: event.target.value })}
+                                    placeholder="اسم المادة بالعربية (اختياري)"
+                                />
+                            </div>
+                            <div className="form-group">
                                 <label>{t('subjects:form.code')}</label>
                                 <input
                                     type="text"

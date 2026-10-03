@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { HiOutlinePlus } from 'react-icons/hi';
+import { HiOutlinePlus, HiOutlineUpload, HiOutlineDownload, HiOutlineClipboardCopy } from 'react-icons/hi';
+import { buildLessonPlanCsvPrompt } from '../../../utils/lessonPlanCsvPrompt.js';
+import lessonService from '../../../services/lessonService.js';
+import ImportLessonPlansModal from '../../../components/lessonPlan/ImportLessonPlansModal.jsx';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import {
   createLesson,
+  fetchLessons,
   updateLesson,
   deleteLesson,
   generateSection,
@@ -67,7 +71,7 @@ const LessonPlanPage = () => {
     subjects,
   } = filters;
 
-  const { lessons, loading } = useLessonPlanData({
+  const { lessons, loading, academicYear } = useLessonPlanData({
     canFilterAsAdmin,
     selectedSubjectFilter,
     selectedClassFilter,
@@ -77,6 +81,25 @@ const LessonPlanPage = () => {
   });
 
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  const handleCopyAiPrompt = async () => {
+    const prompt = buildLessonPlanCsvPrompt({ classes: filters.classes, subjects });
+    try {
+      await navigator.clipboard.writeText(prompt);
+      toast.success(t('lessonPlan:import.promptCopied'));
+    } catch {
+      toast.error(t('lessonPlan:import.promptCopyFailed'));
+    }
+  };
+
+  const handleExport = async (lessonId, lang) => {
+    try {
+      await lessonService.exportLessonDocx(lessonId, lang);
+    } catch {
+      toast.error(t('lessonPlan:export.failed'));
+    }
+  };
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(getInitialFormData);
   const [generatingSection, setGeneratingSection] = useState(false);
@@ -358,10 +381,33 @@ const LessonPlanPage = () => {
           <h1>{t('lessonPlan:page.title')}</h1>
           <p className="text-muted">{t('lessonPlan:page.subtitle')}</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>
-          <HiOutlinePlus size={20} />
-          {t('lessonPlan:page.newLesson')}
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
+          {canManageLessonPlans && (
+            <button className="btn btn-secondary" onClick={handleCopyAiPrompt}>
+              <HiOutlineClipboardCopy size={20} />
+              {t('lessonPlan:import.copyPrompt')}
+            </button>
+          )}
+          {canManageLessonPlans && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => lessonService.downloadImportTemplate().catch(() => toast.error(t('lessonPlan:import.failed')))}
+            >
+              <HiOutlineDownload size={20} />
+              {t('lessonPlan:import.downloadTemplate')}
+            </button>
+          )}
+          {canManageLessonPlans && (
+            <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
+              <HiOutlineUpload size={20} />
+              {t('lessonPlan:page.importCsv')}
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={openCreate}>
+            <HiOutlinePlus size={20} />
+            {t('lessonPlan:page.newLesson')}
+          </button>
+        </div>
       </div>
 
       <div className="lessons-list mt-lg">
@@ -399,6 +445,7 @@ const LessonPlanPage = () => {
             canManageLesson={canManageLesson}
             onEdit={openEdit}
             onDelete={handleDelete}
+            onExport={handleExport}
             onAdminNote={openAdminNote}
             onOpenEvaluation={openEvaluationModal}
             onTriggerEvaluation={handleTriggerEvaluation}
@@ -408,6 +455,13 @@ const LessonPlanPage = () => {
           />
         )}
       </div>
+
+      {showImportModal && (
+        <ImportLessonPlansModal
+          onClose={() => setShowImportModal(false)}
+          onImported={() => dispatch(fetchLessons({ academicYear }))}
+        />
+      )}
 
       <LessonPlanFormModal
         open={showModal}

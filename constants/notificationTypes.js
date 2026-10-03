@@ -13,6 +13,7 @@ export const NOTIFICATION_TYPES = {
     ATTENDANCE_REQUEST_STATUS: 'attendance_request_status',
     ASSIGNMENT_POSTED: 'assignment_posted',
     ASSIGNMENT_GRADED: 'assignment_graded',
+    ASSIGNMENT_COMPLETED: 'assignment_completed',
     HOMEWORK_POSTED: 'homework_posted',
     HOMEWORK_DUE_REMINDER: 'homework_due_reminder',
     HOMEWORK_GRADED: 'homework_graded',
@@ -37,6 +38,7 @@ export const NOTIFICATION_TYPES = {
     WORKSHEET_MARKED: 'worksheet_marked',
     WORKSHEET_RESULT: 'worksheet_result',
     WORKSHEET_PARENT_RESULT: 'worksheet_parent_result',
+    ASSESSMENT_PROGRESS_REPORT: 'assessment_progress_report',
     // Assignment Reminders
     ASSIGNMENT_REMINDER: 'assignment_reminder',
     // PLP / Character Development

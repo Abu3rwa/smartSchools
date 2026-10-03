@@ -70,7 +70,7 @@ class GradeService {
             : 20;
 
         let gradesQuery = Grade.find(query)
-            .populate('subject', 'name code')
+            .populate('subject', 'name nameAr code')
             .populate('class', 'name grade section')
             .populate('teacher', 'firstName lastName email')
             .populate({
@@ -137,7 +137,7 @@ class GradeService {
         }
 
         return await Grade.find(query)
-            .populate('subject', 'name code')
+            .populate('subject', 'name nameAr code')
             .populate('class', 'name grade section')
             .populate('teacher', 'firstName lastName email')
             .populate({
@@ -319,6 +319,7 @@ class GradeService {
         const report = {
             subjectId,
             subjectName: subject?.name,
+            subjectNameAr: subject?.nameAr || '',
             subjectCode: subject?.code,
             monthlyAverages: {},
             semester1Average: 0,
@@ -465,6 +466,87 @@ class GradeService {
             .sort({ date: 1 }); // Ascending order by date
 
         return grades;
+    }
+
+    /**
+     * Get only classwork grades recorded on the selected calendar day.
+     */
+    async getSingleDayClassworkGrades(studentId, targetDate = new Date(), filters = {}) {
+        const date = new Date(targetDate);
+        if (Number.isNaN(date.getTime())) return [];
+
+        const startOfDay = new Date(Date.UTC(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate(),
+            0, 0, 0, 0
+        ));
+        const endOfDay = new Date(Date.UTC(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate(),
+            23, 59, 59, 999
+        ));
+
+        const query = {
+            student: new mongoose.Types.ObjectId(studentId),
+            $or: [{ category: 'classwork' }, { gradeType: 'classwork' }],
+            date: { $gte: startOfDay, $lte: endOfDay }
+        };
+
+        const normalizedSubject = String(filters.subject ?? '').trim();
+        if (normalizedSubject && mongoose.isValidObjectId(normalizedSubject)) {
+            query.subject = new mongoose.Types.ObjectId(normalizedSubject);
+        }
+
+        return Grade.find(query)
+            .populate('subject', 'name nameAr code')
+            .sort({ date: 1 });
+    }
+
+    /**
+     * Get one day's classwork grades for every student in a class.
+     */
+    async getClassSingleDayClassworkGrades(classId, targetDate = new Date(), filters = {}) {
+        const date = new Date(targetDate);
+        if (Number.isNaN(date.getTime())) return {};
+
+        const startOfDay = new Date(Date.UTC(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate(),
+            0, 0, 0, 0
+        ));
+        const endOfDay = new Date(Date.UTC(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate(),
+            23, 59, 59, 999
+        ));
+
+        const query = {
+            class: new mongoose.Types.ObjectId(classId),
+            $or: [{ category: 'classwork' }, { gradeType: 'classwork' }],
+            date: { $gte: startOfDay, $lte: endOfDay }
+        };
+
+        const normalizedSubject = String(filters.subject ?? '').trim();
+        if (normalizedSubject && mongoose.isValidObjectId(normalizedSubject)) {
+            query.subject = new mongoose.Types.ObjectId(normalizedSubject);
+        }
+
+        const grades = await Grade.find(query)
+            .populate('student', 'firstName lastName studentId')
+            .populate('subject', 'name nameAr code')
+            .sort({ date: 1 });
+
+        return grades.reduce((byStudent, grade) => {
+            const studentId = grade.student?._id?.toString();
+            if (!studentId) return byStudent;
+            if (!byStudent[studentId]) byStudent[studentId] = [];
+            byStudent[studentId].push(grade);
+            return byStudent;
+        }, {});
     }
 
     /**

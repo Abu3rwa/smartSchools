@@ -38,3 +38,19 @@ export const emailSendRateLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false
 });
+
+/**
+ * Rate limiter for document export / CSV import endpoints.
+ * 60 requests per 15 minutes per user.
+ */
+export const importRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 60,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Too many export/import requests. Please try again in a few minutes.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});

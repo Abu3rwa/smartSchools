@@ -236,24 +236,33 @@
 }
 
 .question-instruction {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-bottom: var(--spacing-sm);
+    /* font-size: 0.95rem; */
+    font-weight: 700;
+    color: #14b8a6;
+    /* margin-bottom: var(--spacing-sm); */
     padding: var(--spacing-xs) var(--spacing-sm);
-    border-left: 3px solid var(--primary, #6366f1);
+    border: 2px solid var(--primary, #6366f1);
     background: rgba(99, 102, 241, 0.06);
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     line-height: 1.5;
 }
-
+.question-instruction span {
+    font-weight: 700;
+    color: #970197;
+    margin-right: 4px;
+}
 .question-text {
-    font-size: 1.1rem;
+       font-size: 1.1rem;
     font-weight: 500;
     line-height: 1.6;
     margin-bottom: var(--spacing-lg);
-    color: var(--text-primary);
+    background: #14b8a6;
     white-space: pre-line;
+    color: white;
+    padding: 10px;
+    margin: 30px;
+    text-align: center;
+    border-radius: 10px;
 }
 
 .question-skill-tag {
