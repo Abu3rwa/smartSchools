@@ -436,6 +436,10 @@ const useStandardAssignPageData = (options = {}) => {
             }
         };
 
+        if (editingAssignmentId || grammarOnly || !Array.isArray(payload.importedQuestions) || payload.importedQuestions.length === 0) {
+            delete payload.importedQuestions;
+        }
+
         try {
             const action = editingAssignmentId
                 ? updateAssignment({ id: editingAssignmentId, data: payload })
@@ -788,7 +792,11 @@ const useStandardAssignPageData = (options = {}) => {
 
         setPoolActionLoadingId(assignmentId);
         try {
-            let status = initialStatus;
+            const requiresApproval =
+                typeof assignmentOrId === 'string' ||
+                assignmentOrId?.questionWorkflow?.requireApprovalBeforeStudentAccess === true;
+            // Review/approve only exist for assignments with the approval workflow (assessments).
+            let status = requiresApproval ? initialStatus : 'approved';
 
             if (status === 'draft') {
                 await api.post(`/standard-assignments/${assignmentId}/question-pool/review`);

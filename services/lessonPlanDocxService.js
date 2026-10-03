@@ -11,6 +11,7 @@ import {
     Table,
     TableCell,
     TableRow,
+    TableLayoutType,
     TextRun,
     WidthType,
     BorderStyle
@@ -104,6 +105,14 @@ const LABELS = {
 };
 
 const FONT = 'Arial';
+
+// A4 page, 1000-twip margins. All table widths are absolute (DXA) and must sum to CONTENT_WIDTH.
+const PAGE_WIDTH = 11906;
+const PAGE_HEIGHT = 16838;
+const PAGE_MARGIN = 1000;
+const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN * 2;
+const INFO_COLS = [1700, 3253, 1700, 3253];
+const STAGE_COLS = [600, 1900, 4206, 2000, 1200];
 const BORDER = { style: BorderStyle.SINGLE, size: 4, color: 'CBD5E1' };
 const CELL_BORDERS = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER };
 const HEADER_FILL = { type: ShadingType.CLEAR, color: 'auto', fill: 'E8F1EC' };
@@ -181,9 +190,25 @@ export const buildLessonPlanDocx = async (plan, options = {}) => {
         ...extra
     });
 
+    // Google Docs ignores percentage widths, so every table uses absolute DXA widths
+    // that sum to the content width, plus an explicit grid and fixed layout.
+    const makeTable = (columnWidths, rows) => {
+        const total = columnWidths.reduce((a, b) => a + b, 0);
+        if (total !== CONTENT_WIDTH) {
+            throw new Error(`Table column widths sum to ${total}, expected ${CONTENT_WIDTH}`);
+        }
+        return new Table({
+            width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+            columnWidths,
+            layout: TableLayoutType.FIXED,
+            visuallyRightToLeft: isArabic,
+            rows
+        });
+    };
+
     const headerCell = (text, width) => cell(
         para(text, { run: { bold: true } }),
-        { shading: HEADER_FILL, width: width ? { size: width, type: WidthType.PERCENTAGE } : undefined }
+        { shading: HEADER_FILL, width: { size: width, type: WidthType.DXA } }
     );
 
     const sections = [];
@@ -208,8 +233,8 @@ export const buildLessonPlanDocx = async (plan, options = {}) => {
         const cells = [];
         pair.forEach((entry) => {
             cells.push(
-                cell(para(entry ? entry[0] : '', { run: { bold: true } }), { shading: HEADER_FILL, width: { size: 18, type: WidthType.PERCENTAGE } }),
-                cell(para(entry ? clean(entry[1]) : ''), { width: { size: 32, type: WidthType.PERCENTAGE } })
+                cell(para(entry ? entry[0] : '', { run: { bold: true } }), { shading: HEADER_FILL, width: { size: INFO_COLS[cells.length], type: WidthType.DXA } }),
+                cell(para(entry ? clean(entry[1]) : ''), { width: { size: INFO_COLS[cells.length + 1], type: WidthType.DXA } })
             );
         });
         infoRows.push(new TableRow({ children: cells }));
@@ -236,11 +261,7 @@ export const buildLessonPlanDocx = async (plan, options = {}) => {
     }));
 
     if (infoRows.length) {
-        sections.push(new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            visuallyRightToLeft: isArabic,
-            rows: infoRows
-        }));
+        sections.push(makeTable(INFO_COLS, infoRows));
     }
 
     const textSections = [
@@ -283,7 +304,7 @@ export const buildLessonPlanDocx = async (plan, options = {}) => {
     const stages = (plan.stages || []).filter((s) => s && (clean(s.name) || clean(s.procedure) || clean(s.materials) || clean(s.timing)));
     if (stages.length) {
         sections.push(heading(L.stages));
-        const widths = [6, 20, 44, 20, 10];
+        const widths = STAGE_COLS;
         const headerRow = new TableRow({
             tableHeader: true,
             children: [L.stageNo, L.stageName, L.procedure, L.materials, L.timing]
@@ -293,13 +314,9 @@ export const buildLessonPlanDocx = async (plan, options = {}) => {
             cantSplit: true,
             children: [
                 String(index + 1), stage.name, stage.procedure, stage.materials, stage.timing
-            ].map((value, i) => cell(textParagraphs(value), { width: { size: widths[i], type: WidthType.PERCENTAGE } }))
+            ].map((value, i) => cell(textParagraphs(value), { width: { size: widths[i], type: WidthType.DXA } }))
         }));
-        sections.push(new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            visuallyRightToLeft: isArabic,
-            rows: [headerRow, ...rows]
-        }));
+        sections.push(makeTable(widths, [headerRow, ...rows]));
     }
 
     const standards = [
@@ -334,7 +351,12 @@ export const buildLessonPlanDocx = async (plan, options = {}) => {
         creator: 'ClassHope',
         title: clean(plan.title),
         sections: [{
-            properties: { page: { margin: { top: 1000, bottom: 1000, left: 1000, right: 1000 } } },
+            properties: {
+                page: {
+                    size: { width: PAGE_WIDTH, height: PAGE_HEIGHT },
+                    margin: { top: PAGE_MARGIN, bottom: PAGE_MARGIN, left: PAGE_MARGIN, right: PAGE_MARGIN }
+                }
+            },
             headers: {
                 default: new Header({
                     children: [new Paragraph({

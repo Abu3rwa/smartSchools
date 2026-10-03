@@ -27,6 +27,7 @@ import {
     buildDefaultAssignmentTitle,
     createStandardAssignmentWithPool,
     resolvePreGeneratedQuestionCount,
+    sanitizeImportedQuestions,
     DEFAULT_PREGENERATED_QUESTION_COUNT
 } from '../services/standardAssignmentService.js';
 import standardsPracticeAIService from '../services/standardsPracticeAIService.js';
@@ -353,11 +354,21 @@ export const createAssignment = asyncHandler(async (req, res) => {
         assessmentConfig,
         preGeneratedQuestionCount,
         aiLanguages,
+        importedQuestions,
         notifyParents = true,
         notifyStudents = true
     } = req.body;
     const effectiveAcademicYear = resolveAcademicYearForRequest(req);
     const requestedSemester = normalizeSemester(req.body?.semester);
+
+    let sanitizedImportedQuestions = null;
+    if (Array.isArray(importedQuestions) && importedQuestions.length > 0) {
+        const imported = sanitizeImportedQuestions(importedQuestions);
+        if (imported.error) {
+            return res.status(400).json({ success: false, message: imported.error });
+        }
+        sanitizedImportedQuestions = imported.questions;
+    }
 
     let parsedConfig = undefined;
     if (practiceConfig !== undefined) {
@@ -540,6 +551,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
             parsedConfig?.questionLimit || practiceConfig?.questionLimit
         ),
         aiLanguages: generationLanguages,
+        importedQuestions: sanitizedImportedQuestions,
         notifyParents,
         notifyStudents,
         questionWorkflow: {

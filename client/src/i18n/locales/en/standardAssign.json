@@ -184,6 +184,7 @@
       "name": "Name",
       "aiLanguages": "AI Languages",
       "preGenerated": "Pre-generated",
+      "importedCount": "{{count}} imported questions",
       "preGeneratedCount": "{{count}} questions",
       "standard": "Standard",
       "subject": "Subject",
@@ -256,6 +257,70 @@
     "studentResults": "Student Test Results",
     "testSpecificProgress": "Test-Specific Progress (Repeated Attempts)",
     "tabSwitches": "Tab Switches"
+  },
+  "questionImport": {
+    "chooseFile": "Upload CSV",
+    "confirm": "Import {{count}} question(s)",
+    "copied": "Copied!",
+    "copyPrompt": "Copy AI prompt",
+    "downloadTemplate": "Download CSV template",
+    "errors": {
+      "fileTooLarge": "The file is too large (max 1 MB).",
+      "readFailed": "Could not read the file."
+    },
+    "fatal": {
+      "empty": "The file is empty.",
+      "missingHeaders": "Missing required columns: {{columns}}.",
+      "noRows": "The file has a header but no questions.",
+      "tooManyRows": "Too many questions. The maximum is {{max}} per import."
+    },
+    "intro": "Bring questions from another AI tool (like ChatGPT) into this assignment using a CSV file.",
+    "languages": {
+      "ar": "Arabic",
+      "en": "English"
+    },
+    "mode": {
+      "append": "Add to the existing questions",
+      "replace": "Replace the existing questions"
+    },
+    "modeLabel": "When importing",
+    "openButton": "Import from CSV",
+    "promptLabel": "AI prompt (copy and paste it into your AI tool)",
+    "promptLanguage": "Question language",
+    "rowErrors": {
+      "badCorrectMc": "Correct answer must be A, B, C or D",
+      "badCorrectTf": "Correct answer must be True or False",
+      "badDifficulty": "Difficulty must be easy, medium or hard",
+      "badType": "Type must be multiple_choice or true_false",
+      "duplicateOptions": "Options must be different",
+      "duplicateQuestion": "Duplicate question",
+      "missingOptions": "All four options are required",
+      "missingQuestion": "Question text is missing"
+    },
+    "saveHint": "Imported questions appear in the list below. You can edit them, then click Save Question Pool.",
+    "skipNote": "Rows with problems will be skipped. Fix them in your file and upload again if needed.",
+    "steps": {
+      "prompt": "Copy the AI prompt, paste it into your AI tool, and save its answer as a .csv file.",
+      "template": "Download the CSV template to see the format.",
+      "upload": "Upload the file, review the preview, then confirm."
+    },
+    "summary": "{{valid}} valid, {{invalid}} with problems",
+    "table": {
+      "answer": "Answer",
+      "line": "Line",
+      "ok": "OK",
+      "question": "Question",
+      "status": "Status",
+      "type": "Type"
+    },
+    "title": "Import Questions from CSV",
+    "wizardClear": "Remove imported questions",
+    "wizardHint": "The imported questions will be saved with the assignment when you click Assign.",
+    "wizardHintEmpty": "Optional: import questions from another AI tool instead of generating them with AI.",
+    "wizardLabel": "Import Questions (Optional)",
+    "wizardReady": "{{count}} imported question(s) ready",
+    "wizardReadyHint": "AI generation will be skipped for this assignment. You can still edit the questions later from the question pool.",
+    "wizardReplace": "Import a different file"
   },
   "questionPool": {
     "changeSummaryPlaceholder": "Describe what changed (optional)",

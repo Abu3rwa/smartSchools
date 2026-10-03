@@ -4,6 +4,7 @@ import {
     GRAMMAR_LEVEL_OPTIONS,
     QUESTION_TYPE_OPTIONS
 } from '../../constants';
+import StandardAssignQuestionImport from './StandardAssignQuestionImport';
 
 const StandardAssignStepRules = ({
     t,
@@ -17,7 +18,9 @@ const StandardAssignStepRules = ({
     secondaryAiLanguage,
     applyAiLanguages,
     formatQuestionType,
-    grammarOnly = false
+    grammarOnly = false,
+    isEditing = false,
+    importContext
 }) => (
     <section className="assign-step-section">
         <div className="assign-advanced-header">
@@ -124,6 +127,15 @@ const StandardAssignStepRules = ({
                                     />
                                 </div>
                             </div>
+
+                            {!grammarOnly && !isEditing && (
+                                <StandardAssignQuestionImport
+                                    t={t}
+                                    formData={formData}
+                                    setFormData={setFormData}
+                                    importContext={importContext}
+                                />
+                            )}
 
                             <div className="form-group">
                                 <label>{t('standardAssign:form.labels.allowedQuestionTypes')}</label>

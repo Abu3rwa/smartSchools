@@ -48,6 +48,7 @@ export const createInitialFormData = (semester = 1) => ({
     dueDate: '',
     instructions: '',
     aiLanguages: ['en'],
+    importedQuestions: [],
     practiceConfig: {
         ...DEFAULT_PRACTICE_CONFIG,
         allowedQuestionTypes: [...DEFAULT_PRACTICE_CONFIG.allowedQuestionTypes],

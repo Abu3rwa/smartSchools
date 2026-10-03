@@ -75,6 +75,7 @@ const StandardAssignModal = ({
                         setShowAdvanced={setShowAdvanced}
                         getEntityId={getEntityId}
                         grammarOnly={grammarOnly}
+                        isEditing={Boolean(editingAssignmentId)}
                     />
                     <div className="modal-footer">
                         <button type="button" className="btn btn-secondary" onClick={onClose}>

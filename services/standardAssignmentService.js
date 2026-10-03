@@ -24,6 +24,75 @@ export const resolvePreGeneratedQuestionCount = (value, fallbackValue = null) =>
     return DEFAULT_PREGENERATED_QUESTION_COUNT;
 };
 
+export const MAX_IMPORTED_QUESTION_COUNT = 100;
+const IMPORT_MC_LABELS = ['A', 'B', 'C', 'D'];
+const IMPORT_DIFFICULTIES = ['easy', 'medium', 'hard'];
+
+/**
+ * Validates and normalizes teacher-imported questions (multiple choice / true-false).
+ * @returns {{ questions: object[], error: string|null }}
+ */
+export const sanitizeImportedQuestions = (input) => {
+    if (!Array.isArray(input) || input.length === 0) {
+        return { questions: [], error: 'importedQuestions must be a non-empty array' };
+    }
+    if (input.length > MAX_IMPORTED_QUESTION_COUNT) {
+        return {
+            questions: [],
+            error: `importedQuestions cannot exceed ${MAX_IMPORTED_QUESTION_COUNT} questions`,
+        };
+    }
+
+    const str = (value, max) => String(value ?? '').trim().slice(0, max);
+    const questions = [];
+    for (let i = 0; i < input.length; i += 1) {
+        const item = input[i] || {};
+        const label = `Imported question ${i + 1}`;
+        const questionText = str(item.questionText, 2000);
+        const questionType = item.questionType;
+        const explanation = str(item.explanation, 2000);
+        const difficulty = IMPORT_DIFFICULTIES.includes(item.difficulty) ? item.difficulty : 'medium';
+        if (!questionText) return { questions: [], error: `${label}: question text is required` };
+
+        if (questionType === 'multiple_choice') {
+            const options = IMPORT_MC_LABELS.map((optionLabel, index) => {
+                const source = Array.isArray(item.options) ? item.options[index] : null;
+                return { label: optionLabel, text: str(source?.text, 500) };
+            });
+            if (options.some((option) => !option.text)) {
+                return { questions: [], error: `${label}: all four options are required` };
+            }
+            if (new Set(options.map((option) => option.text.toLowerCase())).size < 4) {
+                return { questions: [], error: `${label}: options must be distinct` };
+            }
+            const correctAnswer = str(item.correctAnswer, 1).toUpperCase();
+            if (!IMPORT_MC_LABELS.includes(correctAnswer)) {
+                return { questions: [], error: `${label}: correct answer must be A, B, C or D` };
+            }
+            questions.push({ questionText, questionType, options, correctAnswer, explanation, difficulty });
+        } else if (questionType === 'true_false') {
+            const raw = str(item.correctAnswer, 10).toLowerCase();
+            if (raw !== 'true' && raw !== 'false') {
+                return { questions: [], error: `${label}: correct answer must be True or False` };
+            }
+            questions.push({
+                questionText,
+                questionType,
+                options: [
+                    { label: 'A', text: 'True' },
+                    { label: 'B', text: 'False' },
+                ],
+                correctAnswer: raw === 'true' ? 'True' : 'False',
+                explanation,
+                difficulty,
+            });
+        } else {
+            return { questions: [], error: `${label}: unsupported question type` };
+        }
+    }
+    return { questions, error: null };
+};
+
 export const buildDefaultAssignmentTitle = ({ standard, classDoc, sessionType }) => {
     const standardCode = standard?.code ? `${standard.code} ` : '';
     const standardName = standard?.name || 'Standard';
@@ -178,15 +247,19 @@ export async function createStandardAssignmentWithPool(opts = {}) {
         questionWorkflow,
         generationContext,
         failOnGenerationError = false,
+        importedQuestions = null,
         notifyParents = true,
         notifyStudents = true,
     } = opts;
 
     const resolvedPracticeConfig = practiceConfig || {};
-    const generatedCount = resolvePreGeneratedQuestionCount(
-        preGeneratedQuestionCount,
-        resolvedPracticeConfig?.questionLimit
-    );
+    const hasImportedQuestions = Array.isArray(importedQuestions) && importedQuestions.length > 0;
+    const generatedCount = hasImportedQuestions
+        ? importedQuestions.length
+        : resolvePreGeneratedQuestionCount(
+            preGeneratedQuestionCount,
+            resolvedPracticeConfig?.questionLimit
+        );
     const workflowStatus = String(questionWorkflow?.status || 'draft').toLowerCase();
     const shouldAutoPublishPool =
         questionWorkflow?.requireApprovalBeforeStudentAccess === false
@@ -228,13 +301,15 @@ export async function createStandardAssignmentWithPool(opts = {}) {
     let generatedQuestions = [];
     let generationError = null;
     try {
-        generatedQuestions = await buildQuestionPool({
-            standard: standardGenerationContext,
-            subjectName: subjectName || 'General Studies',
-            questionCount: generatedCount,
-            practiceConfig: resolvedPracticeConfig,
-            generationLanguages: aiLanguages,
-        });
+        generatedQuestions = hasImportedQuestions
+            ? importedQuestions
+            : await buildQuestionPool({
+                standard: standardGenerationContext,
+                subjectName: subjectName || 'General Studies',
+                questionCount: generatedCount,
+                practiceConfig: resolvedPracticeConfig,
+                generationLanguages: aiLanguages,
+            });
     } catch (error) {
         generationError = error?.message || 'Question generation failed';
         logger.error('standard_assignment_pool_generation_failed', {

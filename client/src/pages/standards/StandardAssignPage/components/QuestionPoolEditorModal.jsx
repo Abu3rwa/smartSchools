@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
+import QuestionPoolImportPanel from './QuestionPoolImportPanel';
 
 const MC_LABELS = ['A', 'B', 'C', 'D'];
 const QUESTION_TYPES = ['multiple_choice', 'true_false'];
@@ -108,6 +109,7 @@ const QuestionPoolEditorModal = ({
     const [questions, setQuestions] = useState([]);
     const [changeSummary, setChangeSummary] = useState('');
     const [localError, setLocalError] = useState('');
+    const [showImport, setShowImport] = useState(false);
 
     useEffect(() => {
         if (!show || !data) return;
@@ -121,7 +123,23 @@ const QuestionPoolEditorModal = ({
         setQuestions(normalized);
         setChangeSummary('');
         setLocalError('');
+        setShowImport(false);
     }, [show, data]);
+
+    const handleImportQuestions = (imported, mode) => {
+        const normalized = imported.map((question, index) =>
+            normalizeIncomingQuestion(question, index)
+        );
+        setQuestions((previous) => {
+            if (mode === 'replace') return normalized;
+            const hasOnlyBlankDraft =
+                previous.length === 1 && !toNonEmptyString(previous[0].questionText);
+            return hasOnlyBlankDraft ? normalized : [...previous, ...normalized];
+        });
+        setChangeSummary((previous) => previous || 'Imported questions from CSV');
+        setLocalError('');
+        setShowImport(false);
+    };
 
     const assignmentTitle = useMemo(
         () =>
@@ -343,6 +361,21 @@ const QuestionPoolEditorModal = ({
                                 <div className="question-pool-editor-error">{localError}</div>
                             ) : null}
 
+                            {showImport ? (
+                                <QuestionPoolImportPanel
+                                    context={{
+                                        subject: data?.assignment?.subject?.name,
+                                        grade: data?.assignment?.class?.grade || data?.assignment?.class?.name,
+                                        standardCode: data?.assignment?.standard?.code,
+                                        standardName: data?.assignment?.standard?.name,
+                                        count: data?.questionWorkflow?.preGeneratedQuestionCount || 10
+                                    }}
+                                    disabled={saving}
+                                    onImport={handleImportQuestions}
+                                    onCancel={() => setShowImport(false)}
+                                />
+                            ) : null}
+
                             <div className="question-pool-editor-list">
                                 {questions.map((question, index) => (
                                     <div className="question-pool-item" key={question.localId}>
@@ -552,6 +585,14 @@ const QuestionPoolEditorModal = ({
                                     disabled={saving}
                                 >
                                     {t('standardAssign:actions.addQuestion')}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => setShowImport((previous) => !previous)}
+                                    disabled={saving}
+                                >
+                                    {t('standardAssign:questionImport.openButton')}
                                 </button>
                             </div>
 

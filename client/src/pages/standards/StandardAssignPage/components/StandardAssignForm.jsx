@@ -28,7 +28,8 @@ const StandardAssignForm = ({
     showAdvanced,
     setShowAdvanced,
     getEntityId,
-    grammarOnly = false
+    grammarOnly = false,
+    isEditing = false
 }) => {
     const { t, i18n } = useTranslation(['standardAssign']);
     const locale = i18n.resolvedLanguage === 'ar' ? 'ar' : undefined;
@@ -224,6 +225,29 @@ const StandardAssignForm = ({
         setCurrentStep(targetStep);
     };
 
+    const importedCount = Array.isArray(formData.importedQuestions)
+        ? formData.importedQuestions.length
+        : 0;
+
+    const importContext = useMemo(() => {
+        const standard = availableStandards.find((item) => item._id === formData.standardId);
+        return {
+            subject: selectedSubjectName,
+            grade: selectedClass?.grade || selectedClass?.name,
+            standardCode: standard?.code,
+            standardName: standard ? getStandardDescription(standard) : '',
+            count: Number(formData.preGeneratedQuestionCount) || 10
+        };
+    }, [
+        availableStandards,
+        formData.standardId,
+        formData.preGeneratedQuestionCount,
+        selectedSubjectName,
+        selectedClass?.grade,
+        selectedClass?.name,
+        getStandardDescription
+    ]);
+
     const summaryItems = useMemo(() => {
         const items = [
             {
@@ -263,7 +287,9 @@ const StandardAssignForm = ({
             {
                 key: 'preGenerated',
                 label: t('standardAssign:form.summary.preGenerated'),
-                value: t('standardAssign:form.summary.preGeneratedCount', { count: formData.preGeneratedQuestionCount || 10 })
+                value: importedCount > 0
+                    ? t('standardAssign:form.summary.importedCount', { count: importedCount })
+                    : t('standardAssign:form.summary.preGeneratedCount', { count: formData.preGeneratedQuestionCount || 10 })
             },
             {
                 key: 'grammarLevels',
@@ -326,6 +352,7 @@ const StandardAssignForm = ({
         formData.practiceConfig.enableGrammarLeveling,
         formData.dueDate,
         formData.preGeneratedQuestionCount,
+        importedCount,
         formData.notifyParents,
         formData.notifyStudents,
         selectedClass?.name,
@@ -436,6 +463,8 @@ const StandardAssignForm = ({
                     applyAiLanguages={applyAiLanguages}
                     formatQuestionType={formatQuestionType}
                     grammarOnly={grammarOnly}
+                    isEditing={isEditing}
+                    importContext={importContext}
                 />
             )}
 

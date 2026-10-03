@@ -388,15 +388,7 @@ const LessonPlanPage = () => {
               {t('lessonPlan:import.copyPrompt')}
             </button>
           )}
-          {canManageLessonPlans && (
-            <button
-              className="btn btn-secondary"
-              onClick={() => lessonService.downloadImportTemplate().catch(() => toast.error(t('lessonPlan:import.failed')))}
-            >
-              <HiOutlineDownload size={20} />
-              {t('lessonPlan:import.downloadTemplate')}
-            </button>
-          )}
+           
           {canManageLessonPlans && (
             <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
               <HiOutlineUpload size={20} />
