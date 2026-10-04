@@ -4,7 +4,7 @@
  * @param {Object} params
  * @param {Object} params.assignment - Assignment document (title, dueDate, assignmentTypeName)
  * @param {string} params.studentName - Student's full name
- * @returns {{ subject: string, body: string }}
+ * @returns {{ subject: string, body: string, studentBody: string }}
  */
 export function generateAssignmentReminder({ assignment, studentName }) {
     const typeName = assignment.assignmentTypeName || 'Assignment';
@@ -19,6 +19,9 @@ export function generateAssignmentReminder({ assignment, studentName }) {
     const body = dueDate
         ? `Just a friendly heads-up that ${firstName}'s ${typeName.toLowerCase()} is due on ${dueDate}. Hope they're having fun with it!`
         : `Just a friendly heads-up that ${firstName} has a ${typeName.toLowerCase()} "${title}" that needs to be completed. Please check the app for details.`;
+    const studentBody = dueDate
+        ? `Friendly reminder: Your ${typeName.toLowerCase()} is due on ${dueDate}. You've got this!`
+        : `Friendly reminder: Please complete your ${typeName.toLowerCase()}, "${title}". Please check the app for details.`;
 
-    return { subject, body };
+    return { subject, body, studentBody };
 }

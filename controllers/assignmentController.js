@@ -815,9 +815,9 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
     const results = await Promise.allSettled(
         students.map(async (student) => {
             try {
-                const { subject, body } = generateAssignmentReminder({
+                const { subject, body, studentBody } = generateAssignmentReminder({
                     assignment,
-                    studentName: student.fullName || 'Student',
+                    studentName: [student.firstName, student.lastName].filter(Boolean).join(' ') || 'Student',
                 });
                 const promises = [];
                 if (sendToParents) {
@@ -834,7 +834,7 @@ export const sendAssignmentReminder = asyncHandler(async (req, res) => {
                         studentId: student._id,
                         assignment,
                         subject,
-                        reminderText: body,
+                        reminderText: studentBody,
                         createdBy: req.user._id,
                     }));
                 }

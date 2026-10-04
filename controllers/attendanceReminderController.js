@@ -292,7 +292,7 @@ export async function processAttendanceReminders(hoursAfterClass = DEFAULT_REMIN
     <p style="margin-top: 30px;">Thank you for your attention to this matter!</p>
     <p style="margin-top: 20px; color: #666;">Best regards,<br><strong>School Administration</strong></p>
   </div>
-  <div class="footer"><p>This is an automated reminder. Please do not reply to this email.</p></div>
+   
 </body>
 </html>`;
 

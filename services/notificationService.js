@@ -226,6 +226,16 @@ const wrapEmailHtml = ({ preheader = "", bodyHtml, accentColor = "#0d9488" }) =>
     ".body-content p{margin:0 0 12px;font-size:14px;line-height:1.6;color:#334155}",
     ".body-content .label{font-weight:600;color:#1e293b}",
     ".detail-row{margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155}",
+    ".gbr-remarks{margin-top:10px;padding:12px 14px;border-top:1px solid #e2e8f0}",
+    ".gbr-remarks-title{margin:0 0 10px;color:#52675f;font-family:Arial,sans-serif;font-size:11px;font-weight:700}",
+    ".gbr-remark-group{margin:0 0 10px}",
+    ".gbr-remark-group-title{margin:0 0 6px;color:#52675f;font-family:Arial,sans-serif;font-size:10px;font-weight:700}",
+    ".gbr-remark-list{font-size:0;line-height:1.5}",
+    ".gbr-remark-chip{display:inline-block;max-width:100%;margin:0 6px 6px 0;padding:6px 9px;border-radius:4px;font-family:Arial,sans-serif;font-size:12px;line-height:1.35}",
+    ".gbr-remark-positive{background:#16834a;color:#ffffff}",
+    ".gbr-remark-negative{background:#bd2c35;color:#ffffff}",
+    ".gbr-remark-neutral{background:#e2e8f0;color:#334155}",
+    ".gbr-remark-points{margin-left:6px;color:#ffffff;font-size:11px;font-weight:800;white-space:nowrap}",
     `.btn{display:inline-block;margin:16px 0 4px;padding:10px 24px;background:${accentColor};color:#ffffff !important;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px}`,
     ".footer{padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center}",
     ".footer p{margin:0;font-size:12px;color:#94a3b8}",
@@ -234,8 +244,7 @@ const wrapEmailHtml = ({ preheader = "", bodyHtml, accentColor = "#0d9488" }) =>
     '<div class="wrapper"><div class="card">',
     '<div class="header"><h1>{{SCHOOL_NAME}}</h1></div>',
     `<div class="body-content">${bodyHtml}</div>`,
-    '<div class="footer"><p>This is an automated notification from {{SCHOOL_NAME}}.</p></div>',
-    "</div></div></body></html>",
+     "</div></div></body></html>",
   ].join("");
 };
 
@@ -613,7 +622,8 @@ class NotificationService {
     return !parentEmailAlreadyNotified;
   }
 
-  async _buildAssignmentPostedContent({ student, assignment }) {
+  async _buildAssignmentPostedContent({ student, assignment, audience = "parent" }) {
+    const isStudent = audience === "student";
     const studentName = student?.fullName || "Student";
     const typeName = String(assignment?.assignmentTypeName || "Assignment").trim() || "Assignment";
     const title = String(assignment?.title || "Assignment").trim() || "Assignment";
@@ -627,7 +637,9 @@ class NotificationService {
 
     const subject = `New ${typeName}: ${title}`;
     const messageLines = [
-      `A new ${typeName.toLowerCase()} has been posted for ${studentName}.`,
+      isStudent
+        ? `A new ${typeName.toLowerCase()} is ready for you.`
+        : `A new ${typeName.toLowerCase()} has been posted for ${studentName}.`,
       `Title: ${title}`,
       dueDate ? `Due date: ${dueDate}` : "",
       trimmedInstructions ? `Instructions: ${trimmedInstructions}` : "",
@@ -635,7 +647,7 @@ class NotificationService {
     ].filter(Boolean);
 
     const detailRows = [
-      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
+      isStudent ? "" : `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
       `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
       `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
       dueDate ? `<p class="detail-row"><span class="label">Due date:</span> ${escapeHtml(dueDate)}</p>` : "",
@@ -689,7 +701,10 @@ class NotificationService {
       ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
       : "<p>Open the app to review details.</p>";
 
-    const bodyHtml = `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>${detailRows}${linksHtml}${attachmentsHtml}${ctaHtml}`;
+    const introHtml = isStudent
+      ? `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> is ready for you.</p>`
+      : `<p>A new <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been posted for <strong>${escapeHtml(studentName)}</strong>.</p>`;
+    const bodyHtml = `${introHtml}${detailRows}${linksHtml}${attachmentsHtml}${ctaHtml}`;
 
     return {
       subject,
@@ -698,7 +713,8 @@ class NotificationService {
     };
   }
 
-  _buildAssignmentGradedContent({ student, assignment, grade }) {
+  _buildAssignmentGradedContent({ student, assignment, grade, audience = "parent" }) {
+    const isStudent = audience === "student";
     const studentName = student?.fullName || "Student";
     const typeName = String(assignment?.assignmentTypeName || "Assignment").trim() || "Assignment";
     const title = String(assignment?.title || "Assignment").trim() || "Assignment";
@@ -711,8 +727,11 @@ class NotificationService {
 
     const hasScore = Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0;
     const subject = `${typeName} graded: ${title}`;
+    const remarksHtml = buildGradebookRemarksHtml({ remarks });
     const messageLines = [
-      `${studentName}'s ${typeName.toLowerCase()} has been graded.`,
+      isStudent
+        ? `Your ${typeName.toLowerCase()} has been graded.`
+        : `${studentName}'s ${typeName.toLowerCase()} has been graded.`,
       `Title: ${title}`,
       hasScore ? `Score: ${marks}/${maxMarks}` : "",
       remarks ? `Remarks: ${remarks}` : "",
@@ -720,18 +739,20 @@ class NotificationService {
     ].filter(Boolean);
 
     const detailRows = [
-      `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
+      isStudent ? "" : `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
       `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
       `<p class="detail-row"><span class="label">Type:</span> ${escapeHtml(typeName)}</p>`,
       hasScore ? `<p class="detail-row"><span class="label">Score:</span> ${escapeHtml(`${marks}/${maxMarks}`)}</p>` : "",
-      remarks ? `<p class="detail-row"><span class="label">Remarks:</span> ${escapeHtml(remarks)}</p>` : "",
     ].filter(Boolean).join("");
 
     const ctaHtml = assignmentUrl
       ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View Grade</a></p>`
       : "<p>Open the app to review details.</p>";
 
-    const bodyHtml = `<p><strong>${escapeHtml(studentName)}</strong>'s <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been graded.</p>${detailRows}${ctaHtml}`;
+    const introHtml = isStudent
+      ? `<p>Your <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been graded.</p>`
+      : `<p><strong>${escapeHtml(studentName)}</strong>'s <strong>${escapeHtml(typeName.toLowerCase())}</strong> has been graded.</p>`;
+    const bodyHtml = `${introHtml}${detailRows}${remarksHtml}${ctaHtml}`;
 
     return {
       subject,
@@ -794,6 +815,7 @@ class NotificationService {
 
     const hasScore = Number.isFinite(marks) && Number.isFinite(maxMarks) && maxMarks > 0;
     const subject = `Homework graded: ${title}`;
+    const remarksHtml = buildGradebookRemarksHtml({ remarks });
     const messageLines = [
       `${studentName}'s homework has been graded.`,
       `Title: ${title}`,
@@ -806,14 +828,13 @@ class NotificationService {
       `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(studentName)}</p>`,
       `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
       hasScore ? `<p class="detail-row"><span class="label">Score:</span> ${escapeHtml(`${marks}/${maxMarks}`)}</p>` : "",
-      remarks ? `<p class="detail-row"><span class="label">Remarks:</span> ${escapeHtml(remarks)}</p>` : "",
     ].filter(Boolean).join("");
 
     const ctaHtml = assignmentUrl
       ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View Grade</a></p>`
       : "<p>Open the app to review details.</p>";
 
-    const bodyHtml = `<p><strong>${escapeHtml(studentName)}</strong>'s homework has been graded.</p>${detailRows}${ctaHtml}`;
+    const bodyHtml = `<p><strong>${escapeHtml(studentName)}</strong>'s homework has been graded.</p>${detailRows}${remarksHtml}${ctaHtml}`;
 
     return {
       subject,
@@ -1379,7 +1400,11 @@ class NotificationService {
     const schoolSettings = await this._getSchoolNotificationSettings(student.school);
     if (schoolSettings?.studentNotifications?.onAssignmentPosted === false) return null;
 
-    const content = await this._buildAssignmentPostedContent({ student, assignment });
+    const content = await this._buildAssignmentPostedContent({
+      student,
+      assignment,
+      audience: "student",
+    });
     const metadata = {
       assignmentId: String(assignment._id),
       assignmentTypeKey: String(assignment?.assignmentTypeKey || ""),
@@ -1689,7 +1714,12 @@ class NotificationService {
     const schoolSettings = await this._getSchoolNotificationSettings(student.school);
     if (schoolSettings?.studentNotifications?.onAssignmentGraded === false) return null;
 
-    const content = this._buildAssignmentGradedContent({ student, assignment, grade });
+    const content = this._buildAssignmentGradedContent({
+      student,
+      assignment,
+      grade,
+      audience: "student",
+    });
     const metadata = {
       assignmentId: String(assignment._id),
       assignmentTypeKey: String(assignment?.assignmentTypeKey || ""),
