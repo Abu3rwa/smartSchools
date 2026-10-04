@@ -304,6 +304,20 @@ class NotificationService {
     return [...normalized];
   }
 
+  _getParentContactEmails(student) {
+    const parentEmails = typeof student?.getAllContactEmailEntries === "function"
+      ? student.getAllContactEmailEntries()
+        .filter((contact) => ["father", "mother", "guardian"].includes(contact?.type))
+        .map((contact) => contact.email)
+      : [
+        student?.parentInfo?.fatherEmail,
+        student?.parentInfo?.motherEmail,
+        student?.parentInfo?.guardianEmail,
+      ];
+
+    return this._normalizeRecipientEmails(parentEmails);
+  }
+
   _resolvePushBodyText(message) {
     const normalized = String(message || "").replace(/\s+/g, " ").trim();
     if (!normalized) return "You have a new update.";
@@ -515,11 +529,7 @@ class NotificationService {
       };
     }
 
-    const recipientEmails = this._normalizeRecipientEmails(
-      typeof student.getAllContactEmails === "function"
-        ? student.getAllContactEmails()
-        : [],
-    );
+    const recipientEmails = this._getParentContactEmails(student);
     if (recipientEmails.length === 0) {
       return {
         parentRecipients: [],
@@ -581,6 +591,26 @@ class NotificationService {
       parentRecipients,
       fallbackEmails,
     };
+  }
+
+  async _shouldEmailStudentAssignmentNotice(student, studentEmail) {
+    const normalizedStudentEmail = this._normalizeRecipientEmails([studentEmail])[0];
+    if (!normalizedStudentEmail) return false;
+
+    if (!this._getParentContactEmails(student).includes(normalizedStudentEmail)) {
+      return true;
+    }
+
+    const audience = await this._resolveAssignmentAudience(student);
+    const parentEmailAlreadyNotified =
+      audience.fallbackEmails.includes(normalizedStudentEmail) ||
+      audience.parentRecipients.some(
+        (recipient) =>
+          recipient.emailEnabled &&
+          this._normalizeRecipientEmails([recipient.email])[0] === normalizedStudentEmail,
+      );
+
+    return !parentEmailAlreadyNotified;
   }
 
   async _buildAssignmentPostedContent({ student, assignment }) {
@@ -1359,6 +1389,7 @@ class NotificationService {
     const studentUserId = String(student.user?._id || student.user);
     const studentUser = await User.findById(studentUserId).select("email").lean();
     const studentEmail = studentUser?.email || "";
+    const emailStudent = await this._shouldEmailStudentAssignmentNotice(student, studentEmail);
 
     const notification = new Notification({
       school: student.school,
@@ -1369,7 +1400,7 @@ class NotificationService {
       subject: content.subject,
       message: content.message,
       htmlContent: content.htmlContent,
-      channels: ["push", ...(studentEmail ? ["email"] : [])],
+      channels: ["push", ...(emailStudent ? ["email"] : [])],
       metadata,
       createdBy,
     });
@@ -1385,7 +1416,7 @@ class NotificationService {
       });
     }
 
-    if (studentEmail) {
+    if (emailStudent) {
       try {
         await this.sendEmail(notification, createdBy);
       } catch (error) {
@@ -1670,6 +1701,7 @@ class NotificationService {
     const studentUserId = String(student.user?._id || student.user);
     const studentUser = await User.findById(studentUserId).select("email").lean();
     const studentEmail = studentUser?.email || "";
+    const emailStudent = await this._shouldEmailStudentAssignmentNotice(student, studentEmail);
 
     const notification = new Notification({
       school: student.school,
@@ -1680,7 +1712,7 @@ class NotificationService {
       subject: content.subject,
       message: content.message,
       htmlContent: content.htmlContent,
-      channels: ["push", ...(studentEmail ? ["email"] : [])],
+      channels: ["push", ...(emailStudent ? ["email"] : [])],
       metadata,
       createdBy,
     });
@@ -1696,7 +1728,7 @@ class NotificationService {
       });
     }
 
-    if (studentEmail) {
+    if (emailStudent) {
       try {
         await this.sendEmail(notification, createdBy);
       } catch (error) {
