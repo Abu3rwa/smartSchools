@@ -48,6 +48,8 @@ const SpellingStudentRosterTable = ({
                             );
                             const skippedCount = skippedSession?.attempts?.filter(isSkippedSpellingAttempt).length || 0;
                             const currentWord = rowActiveSession?.currentWord;
+                            const currentWordNumber = rowActiveSession?.nextSequence
+                                || (rowActiveSession?.attempts?.length || 0) + 1;
                             const rowBusy = rowActionLoadingId === student._id;
 
                             return (
@@ -78,7 +80,7 @@ const SpellingStudentRosterTable = ({
                                                 <>
                                                     <Chip
                                                         size="small"
-                                                        label={`Word ${(rowActiveSession.attempts?.length || 0) + 1}/10 · ${rowActiveSession.mode === 'self-serve' ? 'Self-serve' : 'Teacher-led'}`}
+                                                        label={`${t('wordNumber', { count: currentWordNumber })} · ${rowActiveSession.mode === 'self-serve' ? 'Self-serve' : 'Teacher-led'}`}
                                                         color="primary"
                                                         variant="outlined"
                                                         sx={{ height: 20, fontSize: '0.72rem', fontWeight: 600 }}

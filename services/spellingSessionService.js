@@ -3,16 +3,53 @@ import SpellingWord from '../models/SpellingWord.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
 import { withTransaction } from '../utils/withTransaction.js';
-import { isCorrect, normalizeForGrading } from '../utils/spellingGrading.js';
+import { evaluateSpellingAnswer, normalizeForGrading } from '../utils/spellingGrading.js';
 import { queueSpellingCompletionEmail } from './spellingEmailService.js';
 import { DEFAULT_SPELLING_EMAIL_AUDIENCE, isSpellingEmailAudience } from '../utils/spellingEmailSettings.js';
 import SpellingClassSettings from '../models/SpellingClassSettings.js';
+import { getSpellingGradeProgress, SPELLING_CURRICULUM_GRADES } from '../utils/spellingProgress.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const notFound = (message) => Object.assign(new Error(message), { statusCode: 404 });
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
 const conflict = (message) => Object.assign(new Error(message), { statusCode: 409 });
+
+const saveSpellingGradeProgress = async ({ schoolId, session, week, lastWordIndex, dbSession }) => {
+    const studentFilter = { _id: session.student, school: schoolId };
+    const gradeProgressFilter = { ...studentFilter, 'spelling.progressByGrade.grade': session.curriculumGrade };
+    const gradeProgressUpdate = {
+        $set: {
+            'spelling.progressByGrade.$.week': week,
+            'spelling.progressByGrade.$.lastWordIndex': lastWordIndex
+        }
+    };
+    const updateOptions = dbSession ? { session: dbSession } : {};
+
+    const updated = await Student.updateOne(gradeProgressFilter, gradeProgressUpdate, updateOptions);
+    if (updated.matchedCount === 0) {
+        await Student.updateOne(
+            studentFilter,
+            {
+                $push: {
+                    'spelling.progressByGrade': {
+                        grade: session.curriculumGrade,
+                        week,
+                        lastWordIndex
+                    }
+                }
+            },
+            updateOptions
+        );
+    }
+
+    const legacyUpdate = { ...studentFilter, 'spelling.currentGrade': session.curriculumGrade };
+    await Student.updateOne(
+        legacyUpdate,
+        { $set: { 'spelling.currentWeek': week, 'spelling.lastWordIndex': lastWordIndex } },
+        updateOptions
+    );
+};
 
 const getCurrentItemData = async (session, dbSession) => {
     const attemptedSequences = new Set(session.attempts.map((attempt) => attempt.sequence));
@@ -104,22 +141,37 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         status: 'in-progress'
     }).sort({ startedAt: -1 });
     if (activeSession) {
-        if (activeSession.mode === mode) return activeSession;
+        if (activeSession.mode === mode) {
+            const current = await getCurrentSpellingItem({ schoolId, sessionId: activeSession._id });
+            return current.session;
+        }
         throw conflict('This student already has an active spelling session. End it before starting another session.');
     }
 
     const selectedGrade = curriculumGrade || student.spelling?.currentGrade;
-    const selectedWeek = curriculumWeek || student.spelling?.currentWeek;
-    if (!selectedGrade || !selectedWeek) {
-        throw badRequest('Set the student spelling grade and week before starting an assessment');
+    if (!selectedGrade || !SPELLING_CURRICULUM_GRADES.includes(selectedGrade)) {
+        throw badRequest('Select a valid spelling grade before starting an assessment');
     }
+    const gradeProgress = getSpellingGradeProgress(student, selectedGrade);
+    let selectedWeek = curriculumWeek || gradeProgress.week;
+    if (!selectedWeek) {
+        const firstWord = await SpellingWord.findOne({ school: schoolId, grade: selectedGrade })
+            .sort({ week: 1, order: 1 })
+            .select('week')
+            .lean();
+        selectedWeek = firstWord?.week;
+    }
+    if (!Number.isInteger(Number(selectedWeek)) || Number(selectedWeek) < 1) {
+        throw badRequest('Select a valid spelling week before starting an assessment');
+    }
+    selectedWeek = Number(selectedWeek);
     const wordCount = await SpellingWord.countDocuments({
         school: schoolId,
         grade: selectedGrade,
-        week: selectedWeek
+        week: { $gte: selectedWeek }
     });
     if (wordCount === 0) {
-        throw badRequest(`No spelling words are imported for ${selectedGrade}, week ${selectedWeek}`);
+        throw badRequest(`No spelling words remain for ${selectedGrade} from week ${selectedWeek}`);
     }
     const targetClassId = student.currentClass || (student.enrolledClasses && student.enrolledClasses[0]);
     const classSettings = targetClassId
@@ -166,7 +218,8 @@ export async function startSpellingSession({ schoolId, studentId, userId, mode, 
         administeredBy: mode === 'teacher-led' ? userId : null
     });
 
-    return session;
+    const current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+    return current.session;
 }
 
 export async function getCurrentSpellingItem({ schoolId, sessionId }) {
@@ -213,12 +266,17 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
                 isRetest: true
             };
         } else if (session.curriculumGrade && session.curriculumWeek) {
+            const gradeProgress = getSpellingGradeProgress(student, session.curriculumGrade);
             const wordQuery = {
                 school: schoolId,
                 grade: session.curriculumGrade,
                 week: session.curriculumWeek,
                 _id: { $nin: attemptedWordIds },
-                order: { $gt: student.spelling?.lastWordIndex || 0 }
+                order: {
+                    $gt: gradeProgress.week === session.curriculumWeek
+                        ? gradeProgress.lastWordIndex
+                        : 0
+                }
             };
             let word = await SpellingWord.findOne(wordQuery).sort({ order: 1 }).session(dbSession).lean();
 
@@ -232,11 +290,13 @@ export async function getCurrentSpellingItem({ schoolId, sessionId }) {
 
                 if (nextWeekWord) {
                     session.curriculumWeek = nextWeekWord.week;
-                    await Student.updateOne(
-                        { _id: session.student, school: schoolId },
-                        { $set: { 'spelling.currentWeek': nextWeekWord.week, 'spelling.lastWordIndex': 0 } },
-                        { session: dbSession }
-                    );
+                    await saveSpellingGradeProgress({
+                        schoolId,
+                        session,
+                        week: nextWeekWord.week,
+                        lastWordIndex: 0,
+                        dbSession
+                    });
                     word = nextWeekWord;
                 }
             }
@@ -287,9 +347,15 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
         const item = await getCurrentItemData(session, dbSession);
         if (!item || item.sequence !== sequence) throw conflict('The requested spelling item is no longer current');
 
-        const evaluatedCorrect = session.mode === 'self-serve'
-            ? isCorrect(studentInput, item.word)
-            : correct === true;
+        const outcome = evaluateSpellingAnswer({
+            mode: session.mode,
+            studentInput,
+            correct,
+            skipped,
+            canonicalWord: item.word
+        });
+        const evaluatedCorrect = outcome.correct;
+        const isSkipped = outcome.skipped;
         const now = new Date();
         const attempt = {
             sequence,
@@ -301,7 +367,7 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
             retestItemId: item.retestItemId,
             isRetest: item.isRetest,
             correct: evaluatedCorrect,
-            skipped: session.mode === 'self-serve' && skipped === true && !String(studentInput ?? '').trim(),
+            skipped: isSkipped,
             studentInput: session.mode === 'self-serve' ? String(studentInput ?? '') : null,
             normalizedInput: session.mode === 'self-serve' ? normalizeForGrading(studentInput) : null,
             answeredAt: now,
@@ -312,7 +378,7 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
         session.attempts.push(attempt);
         const attemptDocument = session.attempts[session.attempts.length - 1];
         session.correctCount += evaluatedCorrect ? 1 : 0;
-        session.mistakeCount += evaluatedCorrect ? 0 : 1;
+        session.mistakeCount += outcome.countsAsMistake ? 1 : 0;
         session.currentItem = { wordId: null, retestItemId: null, sequence: null };
         session.nextSequence += 1;
 
@@ -322,7 +388,7 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
                 { $set: { status: 'resolved', resolvedAt: now, resolvedBySession: session._id } },
                 { session: dbSession }
             );
-        } else if (!item.isRetest && !evaluatedCorrect) {
+        } else if (!item.isRetest && outcome.countsAsMistake) {
             await SpellingRetestItem.updateOne(
                 { school: schoolId, student: session.student, wordSnapshot: item.word, status: 'pending' },
                 { $setOnInsert: {
@@ -344,11 +410,13 @@ export async function recordSpellingAttempt({ schoolId, sessionId, userId, seque
         }
 
         if (!item.isRetest) {
-            await Student.updateOne(
-                { _id: session.student, school: schoolId },
-                { $set: { 'spelling.lastWordIndex': item.order || undefined } },
-                { session: dbSession }
-            );
+            await saveSpellingGradeProgress({
+                schoolId,
+                session,
+                week: item.week,
+                lastWordIndex: item.order || 0,
+                dbSession
+            });
         }
 
         if (session.mistakeCount >= session.maxMistakesAllowed) {

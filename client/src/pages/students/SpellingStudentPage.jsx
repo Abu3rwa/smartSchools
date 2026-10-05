@@ -10,12 +10,17 @@ import {
     fetchActiveSpellingSession,
     fetchSpellingHistory,
     fetchSpellingRetests,
-    endSpellingSession,
     selectSpelling,
     startSelfServeSpellingSession,
-    submitSpellingAnswer
-    ,fetchSpellingDictionaryEntry
+    submitSpellingAnswer,
+    fetchSpellingDictionaryEntry
 } from '../../store/slices/spellingSlice';
+
+const isSkippedSpellingAttempt = (attempt, mode) => attempt?.skipped === true || (
+    mode === 'self-serve'
+    && attempt?.skipped === undefined
+    && !String(attempt?.studentInput ?? '').trim()
+);
 
 const SpellingStudentPage = () => {
     const dispatch = useDispatch();
@@ -193,7 +198,13 @@ const SpellingStudentPage = () => {
             skipped
         }));
         if (submitSpellingAnswer.fulfilled.match(result)) {
-            setRevealedAttempt({ word: answeredWord, dictionary: answeredDictionaryEntry, correct: result.payload.attempt.correct, input: studentInput });
+            setRevealedAttempt({
+                word: answeredWord,
+                dictionary: answeredDictionaryEntry,
+                correct: result.payload.attempt.correct,
+                skipped: result.payload.attempt.skipped,
+                input: studentInput
+            });
             setInput('');
             if (result.payload.session.status === 'in-progress') {
                 dispatch(fetchSpellingCurrentItem(session._id));
@@ -211,15 +222,6 @@ const SpellingStudentPage = () => {
 
     const skipWord = () => submitAttempt('', true);
 
-    const endSession = async () => {
-        if (!session || loading) return;
-        const result = await dispatch(endSpellingSession({ sessionId: session._id }));
-        if (endSpellingSession.fulfilled.match(result)) {
-            dispatch(fetchSpellingHistory());
-            dispatch(fetchSpellingRetests());
-        }
-    };
-
     const openHistorySession = async (entry) => {
         setSelectedHistorySession(entry);
         setPracticePassage(null);
@@ -236,10 +238,9 @@ const SpellingStudentPage = () => {
 
     const selectedAttempts = selectedHistorySession?.attempts || [];
     const correctWords = selectedAttempts.filter((attempt) => attempt.correct);
-    const incorrectWords = selectedAttempts.filter((attempt) => !attempt.correct);
-    const hasSkippedWords = session?.mode === 'self-serve' && session.attempts?.some((attempt) => attempt.skipped === true || (
-        attempt.skipped === undefined && !String(attempt.studentInput ?? '').trim()
-    ));
+    const incorrectWords = selectedAttempts.filter((attempt) => !attempt.correct && !isSkippedSpellingAttempt(attempt, selectedHistorySession?.mode));
+    const skippedHistoryWords = selectedAttempts.filter((attempt) => isSkippedSpellingAttempt(attempt, selectedHistorySession?.mode));
+    const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));
     const mistakesAllowed = session?.maxMistakesAllowed || 3;
 
     return (
@@ -300,9 +301,9 @@ const SpellingStudentPage = () => {
                                 {session.attempts.map((attempt) => <Chip
                                     key={attempt._id || attempt.sequence}
                                     label={attempt.wordSnapshot}
-                                    color={attempt.correct ? 'success' : 'error'}
+                                    color={isSkippedSpellingAttempt(attempt, session.mode) ? 'warning' : attempt.correct ? 'success' : 'error'}
                                     variant="outlined"
-                                    title={attempt.correct ? 'Correct' : 'Incorrect'}
+                                    title={isSkippedSpellingAttempt(attempt, session.mode) ? t('skipped') : attempt.correct ? 'Correct' : 'Incorrect'}
                                 />)}
                             </Stack>
                         </Box>}
@@ -339,8 +340,8 @@ const SpellingStudentPage = () => {
                                         <Card variant="outlined">
                                             <CardContent>
                                                 <Stack spacing={1}>
-                                                    <Typography color={revealedAttempt.correct ? 'success.main' : 'error.main'} variant="h5">
-                                                        {revealedAttempt.correct ? `${t('correct')} 🎉` : t('incorrect')}
+                                                    <Typography color={revealedAttempt.skipped ? 'warning.main' : revealedAttempt.correct ? 'success.main' : 'error.main'} variant="h5">
+                                                        {revealedAttempt.skipped ? t('skipped') : revealedAttempt.correct ? `${t('correct')} 🎉` : t('incorrect')}
                                                     </Typography>
                                                     {!revealedAttempt.correct && (
                                                         <Typography variant="body2">
@@ -408,7 +409,7 @@ const SpellingStudentPage = () => {
             </>}
             <Divider sx={{ my: 2 }} />
             <Typography variant="h6">{t('sessionHistory')}</Typography>
-            <Stack spacing={1} sx={{ mt: 1 }}>{history.map((entry) => <Stack key={entry._id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}><Box><Typography>{new Date(entry.startedAt).toLocaleDateString()} - {entry.correctCount} correct, {entry.mistakeCount} incorrect</Typography>{entry.practicePassage && <Typography variant="caption" color="success.main">Practice passage available</Typography>}</Box><Button size="small" variant="outlined" onClick={() => openHistorySession(entry)}>{t('viewDetails')}</Button></Stack>)}</Stack>
+            <Stack spacing={1} sx={{ mt: 1 }}>{history.map((entry) => <Stack key={entry._id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}><Box><Typography>{entry.curriculumGrade ? `${entry.curriculumGrade} - ` : ''}{new Date(entry.startedAt).toLocaleDateString()} - {entry.correctCount} correct, {entry.mistakeCount} incorrect</Typography>{entry.practicePassage && <Typography variant="caption" color="success.main">Practice passage available</Typography>}</Box><Button size="small" variant="outlined" onClick={() => openHistorySession(entry)}>{t('viewDetails')}</Button></Stack>)}</Stack>
             <Dialog open={Boolean(selectedHistorySession)} onClose={() => setSelectedHistorySession(null)} fullWidth maxWidth="sm">
                 <DialogTitle>{t('sessionDetails')}</DialogTitle>
                 <DialogContent dividers>
@@ -416,6 +417,7 @@ const SpellingStudentPage = () => {
                         <Typography color="text.secondary">{selectedHistorySession && new Date(selectedHistorySession.startedAt).toLocaleDateString()}</Typography>
                         <Box><Typography variant="subtitle1">{t('correctWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{correctWords.length ? correctWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="success" icon={<span aria-hidden="true">✓</span>} />) : <Typography color="text.secondary">{t('none')}</Typography>}</Stack></Box>
                         <Box><Typography variant="subtitle1">{t('incorrectWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{incorrectWords.length ? incorrectWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="error" icon={<span aria-hidden="true">×</span>} />) : <Typography color="text.secondary">{t('none')}</Typography>}</Stack></Box>
+                        {skippedHistoryWords.length > 0 && <Box><Typography variant="subtitle1">{t('skippedWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{skippedHistoryWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="warning" variant="outlined" />)}</Stack></Box>}
                         {passageLoading && <Typography color="text.secondary">Loading practice passage…</Typography>}
                         {!passageLoading && practicePassage && (
                             <Box>

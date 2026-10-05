@@ -171,7 +171,7 @@ const TeacherSessionDialog = ({
                 ) : (
                     <Stack spacing={3} alignItems="center" sx={{ width: '100%' }}>
                         <Stack direction="row" spacing={{ xs: 1, sm: 2 }} alignItems="center" justifyContent="center" flexWrap="wrap" useFlexGap>
-                            <Stack direction="row" spacing={0.5} alignItems="center"><Typography variant="body1">{t('wordCount', { count: (activeSession?.attempts?.length || 0) + 1 })}</Typography><Typography color="text.secondary">/ 10</Typography></Stack>
+                            <Typography variant="body1">{t('wordNumber', { count: activeSession?.nextSequence || (activeSession?.attempts?.length || 0) + 1 })}</Typography>
                             <Typography variant="body2" color="text.secondary">{t('mistakeCount', { count: activeSession?.mistakeCount || 0 })} / {mistakesAllowed}</Typography>
                             {currentItem?.isRetest && <Chip size="small" icon={<HiOutlineArrowLeft />} label={t('retests', { count: 1 })} color="warning" />}
                         </Stack>

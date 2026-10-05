@@ -30,7 +30,7 @@ export async function listSpellingSessions({ schoolId, studentId, studentIds, li
     const sessions = await SpellingSession.find(query)
         .sort({ startedAt: -1 })
         .limit(Math.min(Math.max(Number(limit) || 50, 1), maxLimit))
-        .select('student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts currentItem emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError')
+        .select('student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts currentItem nextSequence curriculumGrade curriculumWeek emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError')
         .lean();
     if (viewerRole !== 'student') {
         const activeSessions = sessions.filter((session) => session.status === 'in-progress');

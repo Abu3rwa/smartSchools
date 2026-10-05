@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
-import { isCorrect, normalizeForGrading } from '../utils/spellingGrading.js';
+import { evaluateSpellingAnswer, isCorrect, normalizeForGrading } from '../utils/spellingGrading.js';
+import { getSpellingGradeProgress } from '../utils/spellingProgress.js';
 import SpellingWord from '../models/SpellingWord.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
@@ -14,6 +15,46 @@ const objectId = () => new mongoose.Types.ObjectId();
     assert.equal(isCorrect('cat hous', 'cat house'), false);
     assert.equal(normalizeForGrading(null), '');
 });
+
+ test('ignores accidental punctuation and symbols when grading spelling', () => {
+     assert.equal(isCorrect('c@a!t.', 'cat'), true);
+     assert.equal(isCorrect('c a t', 'cat'), false);
+ });
+
+ test('skipped words are recorded without counting as mistakes', () => {
+     assert.deepEqual(evaluateSpellingAnswer({
+         mode: 'self-serve',
+         studentInput: '',
+         skipped: true,
+         canonicalWord: 'otter'
+     }), { correct: false, skipped: true, countsAsMistake: false });
+ });
+
+ test('a non-empty wrong answer cannot bypass mistake counting by setting skipped', () => {
+     assert.deepEqual(evaluateSpellingAnswer({
+         mode: 'self-serve',
+         studentInput: 'other',
+         skipped: true,
+         canonicalWord: 'otter'
+     }), { correct: false, skipped: false, countsAsMistake: true });
+ });
+
+ test('curriculum progress is isolated by grade and supports legacy student progress', () => {
+     const student = {
+         spelling: {
+             currentGrade: 'G2',
+             currentWeek: 3,
+             lastWordIndex: 5,
+             progressByGrade: [
+                 { grade: 'G1', week: 8, lastWordIndex: 12 }
+             ]
+         }
+     };
+
+     assert.deepEqual(getSpellingGradeProgress(student, 'G1'), { week: 8, lastWordIndex: 12 });
+     assert.deepEqual(getSpellingGradeProgress(student, 'G2'), { week: 3, lastWordIndex: 5 });
+     assert.deepEqual(getSpellingGradeProgress(student, 'G3'), { week: null, lastWordIndex: 0 });
+ });
 
 test('SpellingWord requires school-scoped curriculum fields', () => {
     const word = new SpellingWord({

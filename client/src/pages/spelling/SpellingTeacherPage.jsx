@@ -131,9 +131,13 @@ const SpellingTeacherPage = () => {
             const next = { ...current };
             classStudents.forEach((student) => {
                 if (!next[student._id]) {
+                    const grade = student.spelling?.currentGrade || '';
+                    const savedGradeProgress = student.spelling?.progressByGrade?.find((progress) => progress.grade === grade);
                     next[student._id] = {
-                        grade: student.spelling?.currentGrade || '',
-                        week: student.spelling?.currentWeek ? String(student.spelling.currentWeek) : ''
+                        grade,
+                        week: savedGradeProgress?.week
+                            ? String(savedGradeProgress.week)
+                            : (student.spelling?.currentWeek ? String(student.spelling.currentWeek) : '')
                     };
                 }
             });
@@ -196,7 +200,12 @@ const SpellingTeacherPage = () => {
     }, [classId, classStudents, loadAllHistories, studentHistoryMap]);
 
     const updateRowLevel = async (student, field, value) => {
-        const nextLevel = { ...(rowLevels[student._id] || {}), [field]: value };
+        const savedGradeProgress = field === 'grade'
+            ? student.spelling?.progressByGrade?.find((progress) => progress.grade === value)
+            : null;
+        const nextLevel = field === 'grade'
+            ? { grade: value, week: savedGradeProgress?.week ? String(savedGradeProgress.week) : '' }
+            : { ...(rowLevels[student._id] || {}), [field]: value };
         setRowLevels((current) => ({ ...current, [student._id]: nextLevel }));
         if (!nextLevel.grade || !nextLevel.week) return;
         setSavingRowId(student._id);

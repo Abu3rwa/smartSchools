@@ -147,6 +147,23 @@ const studentSchema = new mongoose.Schema({
             min: 0,
             default: 0
         },
+        progressByGrade: [{
+            grade: {
+                type: String,
+                enum: ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'],
+                required: true
+            },
+            week: {
+                type: Number,
+                min: 1,
+                required: true
+            },
+            lastWordIndex: {
+                type: Number,
+                min: 0,
+                default: 0
+            }
+        }],
         defaultMaxMistakes: {
             type: Number,
             min: 1,

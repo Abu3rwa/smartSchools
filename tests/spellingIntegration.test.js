@@ -7,8 +7,8 @@ import SpellingWord from '../models/SpellingWord.js';
 import SpellingSession from '../models/SpellingSession.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingIntegrityEvent from '../models/SpellingIntegrityEvent.js';
-import { getCurrentSpellingItem, recordSpellingAttempt, startSpellingSession } from '../services/spellingSessionService.js';
-import { listSpellingIntegrityEvents, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
+import { completeSpellingSession, getCurrentSpellingItem, recordSpellingAttempt, startSpellingSession } from '../services/spellingSessionService.js';
+import { listSpellingIntegrityEvents, listSpellingSessions, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
 
 const enabled = process.env.RUN_SPELLING_INTEGRATION === 'true' && Boolean(process.env.MONGODB_URI);
 const integrationTest = enabled ? test : test.skip;
@@ -43,12 +43,16 @@ integrationTest('session transitions are stable and concurrent duplicate answers
     });
 
     const session = await startSpellingSession({ schoolId, studentId, userId, mode: 'self-serve', maxMistakesAllowed: 1 });
+    assert.ok(session.currentItem.wordId);
     const [first, second] = await Promise.all([
         getCurrentSpellingItem({ schoolId, sessionId: session._id }),
         getCurrentSpellingItem({ schoolId, sessionId: session._id })
     ]);
     assert.equal(first.item.word, 'otter');
     assert.equal(second.item.sequence, first.item.sequence);
+    const rosterSessions = await listSpellingSessions({ schoolId, studentIds: [studentId], viewerRole: 'teacher' });
+    assert.equal(rosterSessions[0].currentWord, 'otter');
+    assert.equal(rosterSessions[0].nextSequence, 1);
 
     const integrityEvent = {
         schoolId,
@@ -75,6 +79,81 @@ integrationTest('session transitions are stable and concurrent duplicate answers
     assert.equal(savedSession.attempts.length, 1);
     assert.equal(await SpellingRetestItem.countDocuments({ school: schoolId, student: studentId, status: 'pending' }), 1);
     await assert.rejects(() => recordSpellingIntegrityEvent(integrityEvent), /Active spelling session not found/);
+}, { timeout: 30000 });
+
+integrationTest('self-serve grade progress resumes independently and skipped words do not create mistakes', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+    const userId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId });
+
+    await Student.create({
+        _id: studentId,
+        school: schoolId,
+        studentId: `spelling-progress-${studentId}`,
+        firstName: 'Spelling',
+        lastName: 'Progress',
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'other',
+        academicYear: 'integration',
+        spelling: { currentGrade: 'G1', currentWeek: 1, lastWordIndex: 0, defaultMaxMistakes: 3 }
+    });
+    await SpellingWord.create([
+        { school: schoolId, grade: 'G1', week: 1, category: 'Integration', word: 'otter', normalizedWord: 'otter', order: 1 },
+        { school: schoolId, grade: 'G1', week: 1, category: 'Integration', word: 'rabbit', normalizedWord: 'rabbit', order: 2 },
+        { school: schoolId, grade: 'G1', week: 1, category: 'Integration', word: 'turtle', normalizedWord: 'turtle', order: 3 },
+        { school: schoolId, grade: 'G2', week: 1, category: 'Integration', word: 'kitten', normalizedWord: 'kitten', order: 1 }
+    ]);
+
+    const firstSession = await startSpellingSession({
+        schoolId, studentId, userId, mode: 'self-serve', maxMistakesAllowed: 3, curriculumGrade: 'G1'
+    });
+    let current = await getCurrentSpellingItem({ schoolId, sessionId: firstSession._id });
+    assert.equal(current.item.word, 'otter');
+
+    const skipped = await recordSpellingAttempt({
+        schoolId,
+        sessionId: firstSession._id,
+        userId,
+        sequence: current.item.sequence,
+        studentInput: '',
+        skipped: true,
+        idempotencyKey: 'skip-otter'
+    });
+    assert.equal(skipped.attempt.skipped, true);
+    assert.equal(skipped.session.mistakeCount, 0);
+    assert.equal(await SpellingRetestItem.countDocuments({ school: schoolId, student: studentId, status: 'pending' }), 0);
+
+    current = await getCurrentSpellingItem({ schoolId, sessionId: firstSession._id });
+    assert.equal(current.item.word, 'rabbit');
+    const punctuated = await recordSpellingAttempt({
+        schoolId,
+        sessionId: firstSession._id,
+        userId,
+        sequence: current.item.sequence,
+        studentInput: 'rab!bit.',
+        idempotencyKey: 'punctuated-rabbit'
+    });
+    assert.equal(punctuated.attempt.correct, true);
+
+    current = await getCurrentSpellingItem({ schoolId, sessionId: firstSession._id });
+    assert.equal(current.item.word, 'turtle');
+    await completeSpellingSession({ schoolId, sessionId: firstSession._id });
+
+    const secondGradeSession = await startSpellingSession({
+        schoolId, studentId, userId, mode: 'self-serve', maxMistakesAllowed: 3, curriculumGrade: 'G2'
+    });
+    current = await getCurrentSpellingItem({ schoolId, sessionId: secondGradeSession._id });
+    assert.equal(current.item.word, 'kitten');
+    await completeSpellingSession({ schoolId, sessionId: secondGradeSession._id });
+
+    const resumedFirstGradeSession = await startSpellingSession({
+        schoolId, studentId, userId, mode: 'self-serve', maxMistakesAllowed: 3, curriculumGrade: 'G1'
+    });
+    current = await getCurrentSpellingItem({ schoolId, sessionId: resumedFirstGradeSession._id });
+    assert.equal(current.item.word, 'turtle');
+    await completeSpellingSession({ schoolId, sessionId: resumedFirstGradeSession._id });
 }, { timeout: 30000 });
 
 test.after(async () => {
