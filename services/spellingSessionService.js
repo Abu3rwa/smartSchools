@@ -406,18 +406,23 @@ export async function startSpellingClassSession({
         throw badRequest('The selected class has no students');
     }
 
-    const activeSession = await SpellingSession.findOne({
-        school: schoolId,
-        student: { $in: studentIds },
-        status: 'in-progress'
-    }).select('student').lean();
-    if (activeSession) {
-        throw conflict('End each active student spelling session before starting a class session');
-    }
-
     let group = await SpellingClassSession.findOne({ school: schoolId, class: classId, grade: curriculumGrade });
     if (group?.status === 'completed') {
         throw conflict(`The class has completed all ${curriculumGrade} spelling words`);
+    }
+
+    // Students busy in another class's (or an individual) session are left out; this class's own sessions resume.
+    const activeSessions = await SpellingSession.find({
+        school: schoolId,
+        student: { $in: studentIds },
+        status: 'in-progress'
+    }).select('student classSession').lean();
+    const busyStudentIds = new Set(activeSessions
+        .filter((active) => !group || String(active.classSession || '') !== String(group._id))
+        .map((active) => String(active.student)));
+    studentIds = studentIds.filter((id) => !busyStudentIds.has(String(id)));
+    if (studentIds.length === 0) {
+        throw conflict('All students in this class are in another active spelling session. End those sessions first.');
     }
     if (!group) {
         const firstWord = await SpellingWord.findOne({ school: schoolId, grade: curriculumGrade })

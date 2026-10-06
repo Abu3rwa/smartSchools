@@ -108,6 +108,10 @@
   ,"reviewSkippedWords": "Say skipped words ({{count}})"
   ,  "teacherWillReviewSkippedWords": "Your teacher will review the skipped words aloud with you.",
   "alreadyCompletedClassWord": "You already completed this class word correctly. Wait for the next word.",
+  "nextClassWord": "Next word",
+  "activeSessionOtherGrade": "Active session is in {{grade}}",
+  "studentCurrentWeek": "Week {{week}}",
+  "skipToNextClassWord": "Skip to next word (absent students)",
   "waitingForClass": "Your answer is recorded. Wait for the rest of the class to finish this word.",
   "classProgressHelp": "The class moves together through the selected grade's words in order. Students who already completed the current word correctly will be marked complete.",
   "currentGradeWeek": "{{grade}} is currently on Week {{week}}.",

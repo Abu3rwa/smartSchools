@@ -46,10 +46,18 @@ const SpellingStudentRosterTable = ({
                                 session.mode === 'self-serve' && session.attempts?.some(isSkippedSpellingAttempt)
                             );
                             const skippedCount = skippedSession?.attempts?.filter(isSkippedSpellingAttempt).length || 0;
-                            const currentWord = rowActiveSession?.currentWord;
+                            const sessionGradeMismatch = Boolean(rowActiveSession?.curriculumGrade && level.grade && rowActiveSession.curriculumGrade !== level.grade);
+                            const currentWord = sessionGradeMismatch ? null : rowActiveSession?.currentWord;
                             const currentWordNumber = rowActiveSession?.nextSequence
                                 || (rowActiveSession?.attempts?.length || 0) + 1;
                             const rowBusy = rowActionLoadingId === student._id;
+                            const selectedGrade = level.grade || student.spelling?.currentGrade;
+                            const gradeProgress = student.spelling?.progressByGrade?.find((entry) => entry.grade === selectedGrade);
+                            const currentWeek = rowActiveSession?.curriculumGrade === selectedGrade && rowActiveSession?.curriculumWeek
+                                ? rowActiveSession.curriculumWeek
+                                : (gradeProgress?.week
+                                    || (student.spelling?.currentGrade === selectedGrade ? student.spelling?.currentWeek : null)
+                                    || null);
 
                             return (
                                 <TableRow key={student._id}>
@@ -75,7 +83,12 @@ const SpellingStudentRosterTable = ({
                                         </Stack>
                                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mt: 0.25 }}>
                                             <Typography variant="caption" color="text.secondary">{t('studentId', { id: student.studentId })}</Typography>
-                                            {rowActiveSession && (
+                                            {rowActiveSession && sessionGradeMismatch && (
+                                                <Typography variant="caption" color="warning.main">
+                                                    {t('activeSessionOtherGrade', { grade: rowActiveSession.curriculumGrade })}
+                                                </Typography>
+                                            )}
+                                            {rowActiveSession && !sessionGradeMismatch && (
                                                 <>
                                                     <Chip
                                                         size="small"
@@ -102,6 +115,11 @@ const SpellingStudentRosterTable = ({
                                                 {['KG', 'G1', 'G2', 'G3', 'G4', 'G5'].map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}
                                             </Select>
                                         </FormControl>
+                                        {currentWeek && (
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                                {t('studentCurrentWeek', { week: currentWeek })}
+                                            </Typography>
+                                        )}
                                     </TableCell>
                                     <TableCell align="right">
                                         <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>

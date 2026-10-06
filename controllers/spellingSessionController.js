@@ -9,6 +9,7 @@ import { getTeacherClassIds, resolveTeacherProfile } from '../helpers/teacherSco
 import { validateSpellingIntegrityEvent } from '../utils/spellingIntegrity.js';
 import {
     abandonSpellingSession,
+    advanceClassWord,
     completeSpellingSession,
     getCurrentSpellingItem,
     recordSpellingAttempt,

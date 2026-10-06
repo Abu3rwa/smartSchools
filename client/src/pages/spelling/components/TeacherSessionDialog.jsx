@@ -27,7 +27,8 @@ const TeacherSessionDialog = ({
     gradingFeedback,
     dictionaryEntry,
     loading,
-    onGradeAttempt
+    onGradeAttempt,
+    onNextClassWord
 }) => (
     <Dialog
         open={Boolean(activeSession)}
@@ -218,6 +219,11 @@ const TeacherSessionDialog = ({
                                 <Button fullWidth variant="contained" color="success" startIcon={<HiOutlineCheck />} sx={{ minHeight: 64, fontSize: '1.1rem' }} onClick={() => onGradeAttempt(true)} disabled={loading || Boolean(gradingFeedback)}>{t('correct')}<Typography component="span" variant="caption" sx={{ ml: 1 }}>(Y / Right)</Typography></Button>
                                 <Button fullWidth variant="contained" color="error" startIcon={<HiOutlineXMark />} sx={{ minHeight: 64, fontSize: '1.1rem' }} onClick={() => onGradeAttempt(false)} disabled={loading || Boolean(gradingFeedback)}>{t('incorrect')}<Typography component="span" variant="caption" sx={{ ml: 1 }}>(N / Left)</Typography></Button>
                             </Stack>
+                        )}
+                        {activeSession?.mode === 'teacher-led' && activeSession?.classSession && currentItem && !gradingFeedback && (
+                            <Button variant="outlined" onClick={onNextClassWord} disabled={loading}>
+                                {currentItem.alreadyCompleted || currentItem.waitingForClass ? t('nextClassWord') : t('skipToNextClassWord')}
+                            </Button>
                         )}
                     </Stack>
                 )}

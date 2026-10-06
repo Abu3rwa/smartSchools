@@ -426,6 +426,24 @@ const SpellingTeacherPage = () => {
         }
     }, [activeSession, currentItem, dispatch, gradingFeedback, loadCurrentItem, loading, notify, refreshStudentHistory, studentId]);
 
+    const advanceClassWord = useCallback(async () => {
+        if (!activeSession || !currentItem || loading) return;
+        setLoading(true);
+        try {
+            const response = await api.post(`/spelling/sessions/${activeSession._id}/advance-class-word`, { wordId: currentItem.wordId });
+            const { session, item } = response.data.data;
+            if (activeSessionIdRef.current === activeSession._id) {
+                setActiveSession(session);
+                setCurrentItem(item);
+                if (session.status !== 'in-progress') await refreshStudentHistory(studentId);
+            }
+        } catch (error) {
+            notify(error.response?.data?.message || 'Unable to move to the next word.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    }, [activeSession, currentItem, loading, notify, refreshStudentHistory, studentId]);
+
     const closeTeacherSessionModal = () => {
         activeSessionIdRef.current = null;
         setActiveSession(null);
@@ -721,6 +739,7 @@ const SpellingTeacherPage = () => {
                 dictionaryEntry={dictionaryEntry}
                 loading={loading}
                 onGradeAttempt={gradeAttempt}
+                onNextClassWord={advanceClassWord}
             />
 
             <PassageDeliveryDialog open={passageDeliveryDialogOpen} onClose={() => setPassageDeliveryDialogOpen(false)} />
