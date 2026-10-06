@@ -2,7 +2,7 @@
 
 > **Goal:** let teachers produce a clear, complete, print-ready report from a student's *Spelling details* page. PDF is the primary format; an editable Word document is an optional follow-up.
 
-> **Status:** Phase 1 is implemented as a dedicated browser print report with an A4 layout. Teachers can choose **Save as PDF** in the browser print dialog. The optional DOCX Phase 2 below has not been implemented.
+> **Status:** The A4 browser print report and editable DOCX export are implemented. Both use the same school-scoped spelling details data. DOCX export is available from the spelling details page and the spelling student roster, with navy table headers, pale alternating rows and clear pending/resolved status colours.
 
 ## Recommendation and scope
 

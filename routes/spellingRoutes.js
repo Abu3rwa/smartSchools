@@ -30,7 +30,7 @@ import {
     studentSpellingDocx
 } from '../controllers/spellingReportController.js';
 import { listSpellingWords } from '../controllers/spellingWordController.js';
-import { getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
+import { exportStudentSpellingDetailsDocx, getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
 import { getDictionaryWord } from '../controllers/dictionaryController.js';
 import { approvePassage, cancelPassageSend, discardPassage, generatePassage, getPassage, sendPassage, updatePassage } from '../controllers/spellingPassageController.js';
@@ -44,6 +44,7 @@ router.get('/dictionary/:word', getDictionaryWord);
 router.get('/classes/:classId/settings', authorize('admin', 'department_principal', 'teacher'), getClassSettings);
 router.patch('/classes/:classId/settings', express.json(), authorize('admin', 'department_principal', 'teacher'), updateClassSettings);
 router.get('/students/:studentId/details', authorize('admin', 'department_principal', 'teacher'), getStudentSpellingDetails);
+router.get('/students/:studentId/details/docx', authorize('admin', 'department_principal', 'teacher'), exportStudentSpellingDetailsDocx);
 router.post('/word-lists/import/preview', uploadImportTemplate.single('file'), previewSpellingWords);
 router.post('/word-lists/import/commit', express.json(), commitSpellingWords);
 router.use('/sessions', authorize('admin', 'department_principal', 'teacher', 'student'));

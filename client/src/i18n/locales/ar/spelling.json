@@ -136,4 +136,5 @@
   ,"status": "الحالة"
   ,"retestCorrectOfAttempts": "صحيح الإعادة / المحاولات"
   ,"retestCounts": "{{correct}} / {{attempts}}"
+  ,"exportWord": "تصدير DOCX"
 }

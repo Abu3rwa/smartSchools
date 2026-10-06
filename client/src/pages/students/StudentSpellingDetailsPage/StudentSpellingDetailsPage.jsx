@@ -3,18 +3,21 @@ import { Box, Button, FormControl, InputLabel, MenuItem, Select, Stack } from '@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import StudentSpellingDetailsSection from '../StudentDetailPage/components/StudentSpellingDetailsSection';
 import { fetchClass, selectClassStudents, selectCurrentClass } from '../../../store/slices/classSlice';
 import { selectSpelling } from '../../../store/slices/spellingSlice';
+import { downloadStudentSpellingDetailsDocx } from '../../../services/spellingDetailsDocxExport';
 import StudentSpellingPrintReport from './StudentSpellingPrintReport';
 
 const StudentSpellingDetailsPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const dispatch = useDispatch();
-    const { t } = useTranslation('spelling');
+    const { t, i18n } = useTranslation('spelling');
     const { studentDetails, loading } = useSelector(selectSpelling);
     const [printing, setPrinting] = useState(false);
+    const [exportingDocx, setExportingDocx] = useState(false);
     const classStudents = useSelector(selectClassStudents);
     const selectedClass = useSelector(selectCurrentClass);
     const classId = studentDetails?.student?.classId;
@@ -26,6 +29,23 @@ const StudentSpellingDetailsPage = () => {
     const switcherStudents = String(selectedClass?._id) === String(classId) ? classStudents : [];
     const detailsMatchRoute = String(studentDetails?.student?.id) === String(id);
     const canPrint = detailsMatchRoute && !loading;
+
+    const exportDocx = async () => {
+        if (!detailsMatchRoute || loading || exportingDocx) return;
+        setExportingDocx(true);
+        try {
+            await downloadStudentSpellingDetailsDocx({
+                studentId: id,
+                firstName: studentDetails.student.firstName,
+                lastName: studentDetails.student.lastName,
+                locale: i18n.resolvedLanguage || i18n.language
+            });
+        } catch {
+            toast.error(t('exportError'));
+        } finally {
+            setExportingDocx(false);
+        }
+    };
 
     const printReport = async () => {
         if (!canPrint || printing) return;
@@ -64,10 +84,18 @@ const StudentSpellingDetailsPage = () => {
                 <Button
                     variant="contained"
                     size="small"
-                    disabled={!canPrint || printing}
+                    disabled={!canPrint || printing || exportingDocx}
                     onClick={printReport}
                 >
                     {printing ? t('preparingPrint') : t('exportPdfPrint')}
+                </Button>
+                <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={!detailsMatchRoute || loading || exportingDocx || printing}
+                    onClick={exportDocx}
+                >
+                    {exportingDocx ? t('exporting') : t('exportWord')}
                 </Button>
             </Stack>
             <StudentSpellingDetailsSection studentId={id} />

@@ -135,5 +135,6 @@
   "weekWithNumber": "Week {{week}}",
   "status": "Status",
   "retestCorrectOfAttempts": "Retest correct / attempts",
-  "retestCounts": "{{correct}} / {{attempts}}"
+  "retestCounts": "{{correct}} / {{attempts}}",
+  "exportWord": "Export DOCX"
 }

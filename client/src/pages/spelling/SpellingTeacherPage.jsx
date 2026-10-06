@@ -3,6 +3,7 @@ import { Alert, Box, FormControl, InputLabel, MenuItem, Select, Stack, Tab, Tabs
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import api from '../../config/api';
+import { downloadStudentSpellingDetailsDocx } from '../../services/spellingDetailsDocxExport';
 import './SpellingTeacherPage.css';
 import TeacherSessionDialog from './components/TeacherSessionDialog';
 import SpellingClassSessionControls from './components/SpellingClassSessionControls';
@@ -28,7 +29,7 @@ const DEFAULT_CLASS_STORAGE_KEY = 'spelling.defaultClassId';
 
 const SpellingTeacherPage = () => {
     const dispatch = useDispatch();
-    const { t } = useTranslation('spelling');
+    const { t, i18n } = useTranslation('spelling');
     const classes = useSelector(selectClasses);
     const classStudents = useSelector(selectClassStudents);
     const selectedClass = useSelector(selectCurrentClass);
@@ -374,15 +375,12 @@ const SpellingTeacherPage = () => {
     const exportStudentReport = async (student) => {
         setExportingRowId(student._id);
         try {
-            const response = await api.get(`/spelling/reports/student/${student._id}/docx`, { responseType: 'blob' });
-            const blobUrl = window.URL.createObjectURL(response.data);
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = `spelling-${student.firstName || 'student'}-${student.lastName || 'report'}.docx`;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(blobUrl);
+            await downloadStudentSpellingDetailsDocx({
+                studentId: student._id,
+                firstName: student.firstName,
+                lastName: student.lastName,
+                locale: i18n.resolvedLanguage || i18n.language
+            });
         } catch (error) {
             notify(error.response?.data?.message || t('exportError'), 'error');
         } finally {
