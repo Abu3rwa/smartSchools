@@ -1,4 +1,4 @@
-{
+﻿{
   "teacherTitle": "Spelling assessments",
   "teacherDescription": "Choose a class, review a student's spelling history, or create the next assessment.",
   "class": "Class",
@@ -93,6 +93,8 @@
   "progressOverTime": "Progress over time",
   "missedWords": "Missed words",
   "pending": "Pending",
+  "noData": "No data yet.",
+  "switchStudent": "Switch student",
   "resolved": "Resolved",
   "noMissedWords": "No original spelling mistakes recorded.",
   "viewDetailsCharts": "View details and charts",
@@ -109,6 +111,11 @@
   ,  "teacherWillReviewSkippedWords": "Your teacher will review the skipped words aloud with you.",
   "alreadyCompletedClassWord": "You already completed this class word correctly. Wait for the next word.",
   "nextClassWord": "Next word",
+  "backToStudent": "Back to student",
+  "replaceExistingList": "Replace the existing word list for the grades in this file",
+  "replaceExistingWarning": "All current words for these grades are removed and replaced by this file. Students' completed history and reports are kept, and words that appear in both lists are not asked again. End active sessions for these grades first.",
+  "replaceList": "Replace word list",
+  "replacedWords": "Word list replaced: {{inserted}} new, {{kept}} kept, {{removed}} old words removed.",
   "activeSessionOtherGrade": "Active session is in {{grade}}",
   "studentCurrentWeek": "Week {{week}}",
   "skipToNextClassWord": "Skip to next word (absent students)",
@@ -117,5 +124,16 @@
   "currentGradeWeek": "{{grade}} is currently on Week {{week}}.",
   "loadingClassProgress": "Loading current grade progress...",
   "noGradeWeeks": "No spelling weeks are available for {{grade}}.",
-  "classProgressError": "Unable to load the current grade week."
+  "classProgressError": "Unable to load the current grade week.",
+  "exportPdfPrint": "Export PDF / Print",
+  "preparingPrint": "Preparing report...",
+  "spellingReportTitle": "Student spelling report",
+  "originalTests": "Original tests",
+  "retests": "Retests",
+  "retestIncorrect": "Retest incorrect",
+  "overdueRetests": "Overdue retests",
+  "weekWithNumber": "Week {{week}}",
+  "status": "Status",
+  "retestCorrectOfAttempts": "Retest correct / attempts",
+  "retestCounts": "{{correct}} / {{attempts}}"
 }

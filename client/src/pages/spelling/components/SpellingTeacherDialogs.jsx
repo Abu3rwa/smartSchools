@@ -1,16 +1,49 @@
-import { Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Typography, Box } from '@mui/material';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, InputLabel, MenuItem, Select, Stack, Typography, Box } from '@mui/material';
 
-export const StudentSessionsDialog = ({ student, sessions, onClose, onOpenSession }) => (
+const getSessionDate = (session) => new Date(session.completedAt || session.startedAt || session.createdAt);
+const getMonthKey = (date) => (Number.isNaN(date.getTime()) ? '' : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+
+export const StudentSessionsDialog = ({ student, sessions, onClose, onOpenSession }) => {
+    const [month, setMonth] = useState('');
+
+    useEffect(() => { setMonth(''); }, [student?._id]);
+
+    const months = useMemo(() => {
+        const keys = new Set((sessions || []).map((session) => getMonthKey(getSessionDate(session))).filter(Boolean));
+        return [...keys].sort().reverse();
+    }, [sessions]);
+
+    const visibleSessions = useMemo(
+        () => (month ? (sessions || []).filter((session) => getMonthKey(getSessionDate(session)) === month) : (sessions || [])),
+        [sessions, month]
+    );
+
+    const monthLabel = (key) => {
+        const [year, monthNumber] = key.split('-').map(Number);
+        return new Date(year, monthNumber - 1, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' });
+    };
+
+    return (
     <Dialog open={Boolean(student)} onClose={onClose} maxWidth="md" fullWidth>
         <DialogTitle>
             {student ? `${student.firstName} ${student.lastName}'s sessions` : 'Student sessions'}
         </DialogTitle>
         <DialogContent dividers>
-            {!sessions?.length ? (
+            {months.length > 1 && (
+                <FormControl size="small" sx={{ minWidth: 200, mb: 2 }}>
+                    <InputLabel>Month</InputLabel>
+                    <Select value={month} label="Month" onChange={(event) => setMonth(event.target.value)}>
+                        <MenuItem value="">All months</MenuItem>
+                        {months.map((key) => <MenuItem key={key} value={key}>{monthLabel(key)}</MenuItem>)}
+                    </Select>
+                </FormControl>
+            )}
+            {!visibleSessions.length ? (
                 <Typography color="text.secondary">No spelling sessions found.</Typography>
             ) : (
                 <Stack divider={<Divider flexItem />}>
-                    {sessions.map((session) => {
+                    {visibleSessions.map((session) => {
                         const passageStatus = session.practicePassage?.status || 'not sent';
                         return (
                             <Stack key={session._id} direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between" sx={{ py: 1.5 }}>
@@ -35,7 +68,8 @@ export const StudentSessionsDialog = ({ student, sessions, onClose, onOpenSessio
         </DialogContent>
         <DialogActions><Button onClick={onClose}>Close</Button></DialogActions>
     </Dialog>
-);
+    );
+};
 
 export const ConfirmDialog = ({ dialog, onClose }) => (
     <Dialog open={dialog.open} onClose={onClose} maxWidth="xs" fullWidth>

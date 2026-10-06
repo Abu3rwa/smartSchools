@@ -19,6 +19,6 @@ export const previewSpellingWords = asyncHandler(async (req, res) => {
 
 export const commitSpellingWords = asyncHandler(async (req, res) => {
     if (!req.body?.importId) return res.status(400).json({ success: false, message: 'importId is required' });
-    const result = await commitSpellingImport({ schoolId: req.schoolId, importId: req.body.importId });
+    const result = await commitSpellingImport({ schoolId: req.schoolId, importId: req.body.importId, replace: req.body.replace === true });
     return res.status(200).json({ success: true, data: result });
 });

@@ -1,4 +1,5 @@
-import { Alert, Box, Button, Card, CardContent, Chip, FormControl, InputLabel, MenuItem, Select, Stack, Typography } from '@mui/material';
+import { useState } from 'react';
+import { Alert, Box, Button, Card, CardContent, Checkbox, Chip, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
 const SpellingCurriculumTab = ({
@@ -16,6 +17,7 @@ const SpellingCurriculumTab = ({
     onCommitWordList
 }) => {
     const { t } = useTranslation('spelling');
+    const [replaceExisting, setReplaceExisting] = useState(false);
 
     return (
         <>
@@ -79,7 +81,16 @@ const SpellingCurriculumTab = ({
                             <Typography variant="body2">{t('rows')}: {importPreview.summary.totalRows} | {t('valid')}: {importPreview.summary.validRows}</Typography>
                             {importPreview.errors?.length > 0
                                 ? <Alert severity="error" sx={{ mt: 1 }}>{importPreview.errors.length} validation errors must be fixed before import.</Alert>
-                                : <Button sx={{ mt: 1 }} variant="contained" onClick={onCommitWordList} disabled={importing}>{t('commitImport')}</Button>}
+                                : <>
+                                    <FormControlLabel
+                                        control={<Checkbox checked={replaceExisting} onChange={(event) => setReplaceExisting(event.target.checked)} />}
+                                        label={t('replaceExistingList')}
+                                    />
+                                    {replaceExisting && <Alert severity="warning" sx={{ mt: 1 }}>{t('replaceExistingWarning')}</Alert>}
+                                    <Button sx={{ mt: 1 }} variant="contained" color={replaceExisting ? 'warning' : 'primary'} onClick={() => onCommitWordList(replaceExisting)} disabled={importing}>
+                                        {replaceExisting ? t('replaceList') : t('commitImport')}
+                                    </Button>
+                                </>}
                         </Box>}
                     </Stack>
                 </CardContent>

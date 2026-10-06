@@ -1,0 +1,295 @@
+.spelling-print-report {
+    position: fixed;
+    top: 0;
+    left: -10000px;
+    z-index: -1;
+    width: 180mm;
+    padding: 0;
+    color: #263238;
+    background: #fff;
+    font-family: Arial, Tahoma, sans-serif;
+    font-size: 10pt;
+    line-height: 1.4;
+}
+
+.spelling-print-report *,
+.spelling-print-report *::before,
+.spelling-print-report *::after {
+    box-sizing: border-box;
+}
+
+.spelling-print-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12mm;
+    align-items: flex-start;
+    padding-bottom: 5mm;
+    border-bottom: 2px solid #1f3a5f;
+}
+
+.spelling-print-eyebrow {
+    margin: 0 0 2mm;
+    color: #1f3a5f;
+    font-size: 10pt;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.spelling-print-header h1 {
+    margin: 0;
+    color: #1f3a5f;
+    font-size: 20pt;
+    line-height: 1.2;
+}
+
+.spelling-print-header time {
+    flex: 0 0 auto;
+    padding-top: 2mm;
+    color: #52606d;
+    font-size: 9pt;
+}
+
+.spelling-print-subtitle {
+    margin: 2mm 0 0;
+    color: #52606d;
+}
+
+.spelling-print-pending {
+    margin: 5mm 0;
+    padding: 3mm 4mm;
+    border: 1px solid #d9dee4;
+    border-radius: 2mm;
+    background: #f7f9fb;
+}
+
+.spelling-print-pending.is-pending {
+    border-color: #d7a640;
+    background: #fff8e8;
+    color: #8a5700;
+}
+
+.spelling-print-section {
+    min-width: 0;
+    margin: 5mm 0 0;
+    break-inside: auto;
+}
+
+.spelling-print-section h2 {
+    margin: 0 0 2mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 1px solid #d9dee4;
+    color: #1f3a5f;
+    font-size: 12pt;
+    break-after: avoid;
+}
+
+.spelling-print-split-layout {
+    display: flex;
+    gap: 6mm;
+    align-items: flex-start;
+}
+
+.spelling-print-split-half {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.spelling-print-metric-layout {
+    gap: 5mm;
+}
+
+.spelling-print-metric-layout .spelling-print-section {
+    margin-top: 0;
+}
+
+.spelling-print-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2.5mm;
+}
+
+.spelling-print-metric {
+    min-width: 0;
+    min-height: 16mm;
+    padding: 2.5mm;
+    border: 1px solid #d9dee4;
+    border-radius: 1.5mm;
+}
+
+.spelling-print-metric span {
+    display: block;
+    color: #52606d;
+    font-size: 7.5pt;
+    overflow-wrap: anywhere;
+}
+
+.spelling-print-metric strong {
+    display: block;
+    margin-top: 1mm;
+    color: #1f3a5f;
+    font-size: 15pt;
+    line-height: 1.1;
+}
+
+.spelling-print-performance-layout {
+    display: flex;
+    gap: 5mm;
+    align-items: flex-start;
+}
+
+.spelling-print-performance-chart {
+    flex: 3 1 0;
+    min-width: 0;
+    height: 50mm;
+    break-inside: avoid;
+}
+
+.spelling-print-performance-table-wrapper {
+    flex: 2 1 0;
+    min-width: 0;
+    margin-top: 2mm;
+}
+
+.spelling-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+}
+
+.spelling-print-table thead {
+    display: table-header-group;
+}
+
+.spelling-print-table th,
+.spelling-print-table td {
+    padding: 1.5mm;
+    border: 1px solid #d9dee4;
+    text-align: start;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+
+.spelling-print-table th {
+    color: #1f3a5f;
+    background: #eaf1f8;
+    font-weight: 700;
+}
+
+.spelling-print-count {
+    text-align: center !important;
+}
+
+.spelling-print-table tbody tr:nth-child(even) {
+    background: #f7f9fb;
+}
+
+.spelling-print-table tbody tr {
+    break-inside: avoid;
+}
+
+.spelling-print-missed-table {
+    table-layout: fixed;
+    font-size: 7.5pt;
+}
+
+.spelling-print-missed-table th,
+.spelling-print-missed-table td {
+    padding: 1.2mm;
+}
+
+.spelling-print-missed-table th:first-child,
+.spelling-print-missed-table td:first-child {
+    width: 34%;
+}
+
+.spelling-print-missed-table th:nth-child(2),
+.spelling-print-missed-table td:nth-child(2) {
+    width: 16%;
+}
+
+.spelling-print-missed-table th:nth-child(3),
+.spelling-print-missed-table td:nth-child(3) {
+    width: 22%;
+}
+
+.spelling-print-missed-table th:nth-child(4),
+.spelling-print-missed-table td:nth-child(4) {
+    width: 28%;
+}
+
+.spelling-print-word-main {
+    color: #1f3a5f;
+    font-weight: 700;
+}
+
+.spelling-print-badge {
+    display: inline-block;
+    padding: 0.8mm 1.5mm;
+    border: 1px solid transparent;
+    border-radius: 4mm;
+    font-size: 7pt;
+    font-weight: 700;
+}
+
+.spelling-print-badge.is-pending {
+    border-color: #d7a640;
+    color: #8a5700;
+    background: #fff8e8;
+}
+
+.spelling-print-badge.is-resolved {
+    border-color: #a5d6a7;
+    color: #2e7d32;
+    background: #e8f5e9;
+}
+
+.spelling-print-empty {
+    margin: 2mm 0;
+    color: #52606d;
+}
+
+@page {
+    size: A4 portrait;
+    margin: 15mm;
+}
+
+@media print {
+    body * {
+        visibility: hidden !important;
+    }
+
+    .spelling-print-report,
+    .spelling-print-report * {
+        visibility: visible !important;
+    }
+
+    .spelling-print-report {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: auto !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .spelling-print-performance,
+    .spelling-print-words {
+        break-inside: auto;
+    }
+
+    .spelling-print-section h2,
+    .spelling-print-metric,
+    .spelling-print-table tbody tr {
+        break-inside: avoid;
+    }
+
+    .spelling-print-metric-layout,
+    .spelling-print-performance-layout,
+    .spelling-print-words > .spelling-print-split-layout {
+        flex-wrap: nowrap;
+    }
+}

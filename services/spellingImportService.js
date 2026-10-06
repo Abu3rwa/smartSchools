@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { withTransaction } from '../utils/withTransaction.js';
 import SpellingImportJob from '../models/SpellingImportJob.js';
 import SpellingWord from '../models/SpellingWord.js';
+import SpellingSession from '../models/SpellingSession.js';
+import SpellingClassSession from '../models/SpellingClassSession.js';
 import { normalizeForGrading } from '../utils/spellingGrading.js';
 
 const REQUIRED_HEADERS = ['grade', 'week', 'category', 'word', 'order'];
@@ -136,12 +138,100 @@ export async function previewSpellingImport({ schoolId, userId, fileName, conten
     };
 }
 
-export async function commitSpellingImport({ schoolId, importId }) {
+// Replaces the full word list of every grade present in the file. A word that exists in both the
+// old and new list (same text within the grade) keeps its _id, so students' completed-word history
+// still matches it and it is not asked again. Attempts also keep their own word snapshot.
+async function replaceSpellingWordLists({ schoolId, job }) {
+    const grades = [...new Set(job.rows.map((row) => row.grade))];
+
+    const activeSession = await SpellingSession.findOne({
+        school: schoolId,
+        curriculumGrade: { $in: grades },
+        status: 'in-progress'
+    }).select('_id').lean();
+    if (activeSession) {
+        throw Object.assign(
+            new Error(`End all active spelling sessions for ${grades.join(', ')} before replacing its word list`),
+            { statusCode: 409 }
+        );
+    }
+
+    const result = await withTransaction(async (session) => {
+        const oldWords = await SpellingWord.find({ school: schoolId, grade: { $in: grades } }).session(session).lean();
+        const oldById = new Map(oldWords.map((word) => [String(word._id), word]));
+        const idsByWord = new Map();
+        for (const word of oldWords) {
+            const key = `${word.grade}:${word.normalizedWord}`;
+            if (!idsByWord.has(key)) idsByWord.set(key, []);
+            idsByWord.get(key).push(word._id);
+        }
+
+        const newDocs = job.rows.map((row) => {
+            const plain = typeof row.toObject === 'function' ? row.toObject() : { ...row };
+            delete plain._id;
+            const reusable = idsByWord.get(`${plain.grade}:${plain.normalizedWord}`)?.shift();
+            const previous = reusable ? oldById.get(String(reusable)) : null;
+            return {
+                ...plain,
+                ...(reusable ? { _id: reusable } : {}),
+                definition: plain.definition ?? previous?.definition ?? '',
+                school: schoolId,
+                sourceImportId: job._id
+            };
+        });
+
+        const groups = await SpellingClassSession.find({
+            school: schoolId,
+            grade: { $in: grades },
+            status: 'in-progress'
+        }).session(session);
+        const groupPositions = groups.map((group) => ({ group, position: oldById.get(String(group.currentWord)) }));
+
+        const keptCount = newDocs.filter((doc) => doc._id).length;
+        await SpellingWord.deleteMany({ school: schoolId, grade: { $in: grades } }, { session });
+        if (newDocs.length > 0) await SpellingWord.insertMany(newDocs, { session, ordered: true });
+
+        // Keep each class on (or after) the position it was at in the old list.
+        for (const { group, position } of groupPositions) {
+            const next = await SpellingWord.findOne({
+                school: schoolId,
+                grade: group.grade,
+                ...(position ? { $or: [{ week: { $gt: position.week } }, { week: position.week, order: { $gte: position.order } }] } : {})
+            }).sort({ week: 1, order: 1 }).session(session).lean();
+            if (next) {
+                group.currentWord = next._id;
+                for (const participant of group.participants) {
+                    participant.submittedWord = null;
+                    participant.correct = false;
+                }
+            } else {
+                group.status = 'completed';
+            }
+            await group.save({ session });
+        }
+
+        job.status = 'committed';
+        job.committedAt = new Date();
+        await job.save({ session });
+        return {
+            importedRows: newDocs.length,
+            insertedRows: newDocs.length - keptCount,
+            updatedRows: keptCount,
+            removedRows: oldWords.length
+        };
+    });
+
+    return { importId: job._id, idempotent: false, replaced: true, grades, ...result };
+}
+
+export async function commitSpellingImport({ schoolId, importId, replace = false }) {
     const job = await SpellingImportJob.findOne({ _id: importId, school: schoolId });
     if (!job) throw Object.assign(new Error('Spelling import preview not found'), { statusCode: 404 });
     if (job.status === 'committed') return { importId: job._id, idempotent: true, importedRows: job.rows.length };
     if (job.status !== 'preview') throw Object.assign(new Error('Spelling import is not available for commit'), { statusCode: 409 });
     if (job.errors.length > 0) throw Object.assign(new Error('Fix CSV validation errors before committing'), { statusCode: 400 });
+
+    if (replace) return replaceSpellingWordLists({ schoolId, job });
 
     const importedRows = await withTransaction(async (session) => {
         const operations = job.rows.map((row) => ({

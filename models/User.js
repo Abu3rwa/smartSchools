@@ -295,6 +295,16 @@ const userSchema = new mongoose.Schema({
         headerShortcuts: {
             type: [String],
             default: []
+        },
+        classworkBehaviorRules: {
+            type: [{
+                _id: false,
+                id: String,
+                label: String,
+                value: Number,
+                direction: String
+            }],
+            default: undefined
         }
     }
 }, {

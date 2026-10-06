@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import api from '../../config/api';
 import {
     buildClassworkRemark,
     calculateClassworkScore,
@@ -13,28 +14,36 @@ const getStorageKey = (userId) => `classwork_behavior_rules_${userId || 'default
 
 const loadRules = (userId) => {
     try {
-        const saved = window.localStorage.getItem(getStorageKey(userId));
+        const saved = window.localStorage.getItem(getStorageKey(userId))
+            || window.localStorage.getItem(getStorageKey(null));
         if (!saved) return DEFAULT_CLASSWORK_RULES;
-
-        const defaultRulesById = new Map(DEFAULT_CLASSWORK_RULES.map((rule) => [rule.id, rule]));
-        const legacyDefaultValues = {
-            'active-participation': 1,
-            'completed-on-time': 1,
-            'followed-rules': 1
-        };
-        return normalizeClassworkRules(JSON.parse(saved)).map((rule) => {
-            const defaultRule = defaultRulesById.get(rule.id);
-            const legacyValue = legacyDefaultValues[rule.id];
-            return defaultRule
-                && rule.label === defaultRule.label
-                && rule.value === legacyValue
-                ? defaultRule
-                : rule;
-        });
+        return migrateRules(JSON.parse(saved));
     } catch {
         return DEFAULT_CLASSWORK_RULES;
     }
 };
+
+const migrateRules = (savedRules) => {
+    const defaultRulesById = new Map(DEFAULT_CLASSWORK_RULES.map((rule) => [rule.id, rule]));
+    const legacyDefaultValues = {
+        'active-participation': 1,
+        'completed-on-time': 1,
+        'followed-rules': 1
+    };
+    return normalizeClassworkRules(savedRules).map((rule) => {
+        const defaultRule = defaultRulesById.get(rule.id);
+        const legacyValue = legacyDefaultValues[rule.id];
+        return defaultRule
+            && rule.label === defaultRule.label
+            && rule.value === legacyValue
+            ? defaultRule
+            : rule;
+    });
+};
+
+const saveRulesToServer = (rules) => api.put('/auth/profile', {
+    uiPreferences: { classworkBehaviorRules: rules }
+}).catch(() => {});
 
 const ClassworkBehaviorModal = ({
     student,
@@ -59,6 +68,25 @@ const ClassworkBehaviorModal = ({
         saved ? saved.personalNote : (currentRow?.remarks || '')
     ));
     const [configuring, setConfiguring] = useState(false);
+
+    // Server copy follows the teacher across browsers; push local rules up once if none are saved yet
+    useEffect(() => {
+        let cancelled = false;
+        api.get('/auth/me').then((response) => {
+            if (cancelled) return;
+            const user = response?.data?.data?.user;
+            const serverRules = user?.uiPreferences?.classworkBehaviorRules;
+            if (Array.isArray(serverRules) && serverRules.length) {
+                const next = migrateRules(serverRules);
+                setRules(next);
+                window.localStorage.setItem(getStorageKey(userId), JSON.stringify(next));
+            } else {
+                const local = loadRules(userId);
+                if (local !== DEFAULT_CLASSWORK_RULES) saveRulesToServer(local);
+            }
+        }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [userId]);
 
     const result = useMemo(() => calculateClassworkScore({
         maxMarks,
@@ -96,6 +124,7 @@ const ClassworkBehaviorModal = ({
     const persistRules = (nextRules) => {
         setRules(nextRules);
         window.localStorage.setItem(getStorageKey(userId), JSON.stringify(nextRules));
+        saveRulesToServer(nextRules);
     };
 
     const addRule = () => {

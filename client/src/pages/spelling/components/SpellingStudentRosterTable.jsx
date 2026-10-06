@@ -157,7 +157,7 @@ const SpellingStudentRosterTable = ({
                                                 <MenuItem onClick={() => { onExportStudentReport(student); setActionsAnchor(null); setActionsStudent(null); }} disabled={exportingRowId === student._id}>
                                                     {exportingRowId === student._id ? t('exporting') : t('exportReport')}
                                                 </MenuItem>
-                                                <MenuItem onClick={() => navigate(`/portal/students/${student._id}`)}>{t('viewDetailsCharts')}</MenuItem>
+                                                <MenuItem onClick={() => navigate(`/portal/students/${student._id}/spelling`)}>{t('viewDetailsCharts')}</MenuItem>
                                             </Menu>
                                         </Stack>
                                     </TableCell>

@@ -1,4 +1,4 @@
-{
+﻿{
   "teacherTitle": "اختبارات الإملاء",
   "teacherDescription": "اختر فصلاً، وراجع سجل إملاء الطالب، أو أنشئ الاختبار التالي.",
   "class": "الفصل",
@@ -107,7 +107,14 @@
   ,"skippedWordsFollowUp": "تخطّى الطالب هذه الكلمات. اقرأها له بصوت عالٍ عند المتابعة."
   ,"reviewSkippedWords": "اقرأ الكلمات المتخطاة ({{count}})"
   ,"teacherWillReviewSkippedWords": "سيراجع معلمك الكلمات التي تخطيتها بصوت عالٍ معك."
+  ,"noData": "لا توجد بيانات بعد."
+  ,"switchStudent": "تبديل الطالب"
   ,"nextClassWord": "الكلمة التالية"
+  ,"backToStudent": "العودة إلى الطالب"
+  ,"replaceExistingList": "استبدال قائمة الكلمات الحالية للصفوف الموجودة في هذا الملف"
+  ,"replaceExistingWarning": "ستتم إزالة جميع الكلمات الحالية لهذه الصفوف واستبدالها بهذا الملف. يتم الاحتفاظ بسجل إنجاز الطلاب والتقارير، ولا تُطرح الكلمات الموجودة في القائمتين مرة أخرى. أنهِ الجلسات النشطة لهذه الصفوف أولاً."
+  ,"replaceList": "استبدال قائمة الكلمات"
+  ,"replacedWords": "تم استبدال قائمة الكلمات: {{inserted}} جديدة، {{kept}} محتفظ بها، {{removed}} قديمة محذوفة."
   ,"activeSessionOtherGrade": "الجلسة النشطة في {{grade}}"
   ,"studentCurrentWeek": "الأسبوع {{week}}"
   ,"skipToNextClassWord": "تخطي إلى الكلمة التالية (طلاب غائبون)"
@@ -118,4 +125,15 @@
   ,"loadingClassProgress": "جارٍ تحميل تقدم الصف الحالي..."
   ,"noGradeWeeks": "لا توجد أسابيع إملاء متاحة للصف {{grade}}."
   ,"classProgressError": "تعذر تحميل أسبوع الصف الحالي."
+  ,"exportPdfPrint": "تصدير PDF / طباعة"
+  ,"preparingPrint": "جارٍ تجهيز التقرير..."
+  ,"spellingReportTitle": "تقرير إملاء الطالب"
+  ,"originalTests": "الاختبارات الأصلية"
+  ,"retests": "إعادات الاختبار"
+  ,"retestIncorrect": "إجابات الإعادة الخاطئة"
+  ,"overdueRetests": "إعادات الاختبار المتأخرة"
+  ,"weekWithNumber": "الأسبوع {{week}}"
+  ,"status": "الحالة"
+  ,"retestCorrectOfAttempts": "صحيح الإعادة / المحاولات"
+  ,"retestCounts": "{{correct}} / {{attempts}}"
 }

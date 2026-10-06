@@ -24,6 +24,8 @@ import {
     submitTeacherSpellingAttempt
 } from '../../store/slices/spellingSlice';
 
+const DEFAULT_CLASS_STORAGE_KEY = 'spelling.defaultClassId';
+
 const SpellingTeacherPage = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation('spelling');
@@ -34,6 +36,18 @@ const SpellingTeacherPage = () => {
     const spelling = useSelector(selectSpelling);
     const [classId, setClassId] = useState('');
     const [activeTab, setActiveTab] = useState(0);
+
+    useEffect(() => {
+        if (classId || !classes.length) return;
+        const savedClassId = localStorage.getItem(DEFAULT_CLASS_STORAGE_KEY);
+        if (savedClassId && classes.some((schoolClass) => schoolClass._id === savedClassId)) setClassId(savedClassId);
+    }, [classId, classes]);
+
+    const selectClass = (nextClassId) => {
+        setClassId(nextClassId);
+        localStorage.setItem(DEFAULT_CLASS_STORAGE_KEY, nextClassId);
+        setActiveTab(0);
+    };
     const [studentId, setStudentId] = useState('');
     const [activeSession, setActiveSession] = useState(null);
     const [currentItem, setCurrentItem] = useState(null);
@@ -629,14 +643,16 @@ const SpellingTeacherPage = () => {
         }
     };
 
-    const commitWordList = async () => {
+    const commitWordList = async (replace = false) => {
         if (!importPreview?.importId) return;
         setImporting(true);
         try {
-            const response = await api.post('/spelling/word-lists/import/commit', { importId: importPreview.importId });
+            const response = await api.post('/spelling/word-lists/import/commit', { importId: importPreview.importId, replace: replace === true });
             const result = response.data.data;
             if (result.idempotent) {
                 notify(t('importAlreadyApplied'), 'success');
+            } else if (result.replaced) {
+                notify(t('replacedWords', { inserted: result.insertedRows || 0, kept: result.updatedRows || 0, removed: result.removedRows || 0 }), 'success');
             } else {
                 notify(t('importedWords', { inserted: result.insertedRows || 0, updated: result.updatedRows || 0 }), 'success');
             }
@@ -680,7 +696,7 @@ const SpellingTeacherPage = () => {
                 </Box>
                 <FormControl sx={{ width: { xs: '100%', md: 320 }, flexShrink: 0 }}>
                     <InputLabel>{t('class')}</InputLabel>
-                    <Select value={classId} label={t('class')} onChange={(event) => { setClassId(event.target.value); setActiveTab(0); }} disabled={classesLoading}>
+                    <Select value={classId} label={t('class')} onChange={(event) => selectClass(event.target.value)} disabled={classesLoading}>
                         {classes.map((schoolClass) => <MenuItem key={schoolClass._id} value={schoolClass._id}>{schoolClass.name}{schoolClass.section ? ` - ${schoolClass.section}` : ''}</MenuItem>)}
                     </Select>
                 </FormControl>

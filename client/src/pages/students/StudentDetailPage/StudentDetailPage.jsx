@@ -19,7 +19,6 @@ import AIReportModal from '../../../components/reports/AIReportModal';
 import StudentOverviewHeader from './components/StudentOverviewHeader';
 import StudentInformationGrid from './components/StudentInformationGrid';
 import StudentInsightsSection from './components/StudentInsightsSection';
-import StudentSpellingDetailsSection from './components/StudentSpellingDetailsSection';
 import useStudentAcademicInsights from './hooks/useStudentAcademicInsights';
 import { buildRequestedLanguages, toLegacyLanguageValue } from '../../../constants/aiLanguages';
 import {
@@ -255,7 +254,9 @@ const StudentDetailPage = () => {
                     onSemesterChange={setSemesterFilter}
                 />
 
-                <StudentSpellingDetailsSection studentId={id} />
+                <Link to={`/portal/students/${id}/spelling`} className="btn btn-secondary" style={{ display: 'inline-block', marginTop: 24 }}>
+                    {t('detail.overview.actions.spellingDetails', { defaultValue: 'View spelling details' })}
+                </Link>
 
                 <StudentInformationGrid student={student} />
             </div>

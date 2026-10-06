@@ -23,7 +23,7 @@ const buildEmptyGrade = (grade) => ({
 
 export async function buildStudentSpellingDetails({ schoolId, studentId, grade, from, to }) {
     const student = await Student.findOne({ school: schoolId, _id: studentId })
-        .select('studentId firstName lastName spelling')
+        .select('studentId firstName lastName spelling currentClass enrolledClasses')
         .lean();
     if (!student) throw notFound('Student not found');
 
@@ -139,6 +139,7 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
             studentId: student.studentId,
             firstName: student.firstName,
             lastName: student.lastName,
+            classId: student.currentClass || student.enrolledClasses?.[0] || null,
             currentGrade: student.spelling?.currentGrade || null,
             currentWeek: student.spelling?.currentWeek || null,
             lastWordIndex: student.spelling?.lastWordIndex || 0

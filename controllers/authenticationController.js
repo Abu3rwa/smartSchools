@@ -87,6 +87,21 @@ const normalizeHeaderShortcuts = (raw) => {
     return normalized;
 };
 
+const normalizeClassworkBehaviorRules = (raw) => {
+    if (!Array.isArray(raw)) return undefined;
+    return raw.slice(0, 100).map((rule, index) => {
+        const direction = rule?.direction === 'negative' ? 'negative' : 'positive';
+        const amount = Math.abs(Number(rule?.value));
+        const safeAmount = Number.isFinite(amount) ? amount : 1;
+        return {
+            id: String(rule?.id || `classwork-rule-${index + 1}`).slice(0, 80),
+            label: String(rule?.label || '').trim().slice(0, 200),
+            value: direction === 'negative' ? -safeAmount : safeAmount,
+            direction
+        };
+    }).filter((rule) => rule.label && rule.value !== 0);
+};
+
 /**
  * @desc    Register a new user
  * @route   POST /api/auth/register
@@ -279,7 +294,12 @@ export const getMe = asyncHandler(async (req, res) => {
                 permissions: user.permissions || [],
                 permissionScopes: user.permissionScopes || {},
                 uiPreferences: {
-                    headerShortcuts: normalizeHeaderShortcuts(user.uiPreferences?.headerShortcuts)
+                    headerShortcuts: normalizeHeaderShortcuts(user.uiPreferences?.headerShortcuts),
+                    classworkBehaviorRules: user.uiPreferences?.classworkBehaviorRules?.length
+                        ? user.uiPreferences.classworkBehaviorRules.map((rule) => ({
+                            id: rule.id, label: rule.label, value: rule.value, direction: rule.direction
+                        }))
+                        : undefined
                 }
             },
             profile
@@ -303,6 +323,11 @@ export const updateProfile = asyncHandler(async (req, res) => {
     const submittedHeaderShortcuts = req.body?.uiPreferences?.headerShortcuts;
     if (submittedHeaderShortcuts !== undefined) {
         updates['uiPreferences.headerShortcuts'] = normalizeHeaderShortcuts(submittedHeaderShortcuts);
+    }
+
+    const submittedClassworkRules = normalizeClassworkBehaviorRules(req.body?.uiPreferences?.classworkBehaviorRules);
+    if (submittedClassworkRules !== undefined) {
+        updates['uiPreferences.classworkBehaviorRules'] = submittedClassworkRules;
     }
 
     const userToUpdate = await User.findById(req.user._id);

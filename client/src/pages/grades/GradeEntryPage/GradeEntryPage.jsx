@@ -293,6 +293,7 @@ const GradeEntryPage = () => {
                     student={behaviorStudent}
                     currentRow={grades[behaviorStudent._id]}
                     maxMarks={maxMarks}
+                    userId={user?.id || user?._id}
                     onClose={() => setBehaviorStudent(null)}
                     onApply={(result) => {
                         applyBehaviorScore(behaviorStudent, result);
