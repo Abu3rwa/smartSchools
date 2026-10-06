@@ -11,8 +11,10 @@ import {
     completeSession,
     createSpellingIntegrityEvent,
     getSpellingIntegrityEvents,
+    getClassSessionProgress,
     getCurrentItem,
     recordAttempt,
+    startClassSession,
     startSession
 } from '../controllers/spellingSessionController.js';
 import {
@@ -44,6 +46,8 @@ router.get('/students/:studentId/details', authorize('admin', 'department_princi
 router.post('/word-lists/import/preview', uploadImportTemplate.single('file'), previewSpellingWords);
 router.post('/word-lists/import/commit', express.json(), commitSpellingWords);
 router.use('/sessions', authorize('admin', 'department_principal', 'teacher', 'student'));
+router.post('/sessions/class', authorize('admin', 'department_principal', 'teacher'), express.json(), startClassSession);
+router.get('/sessions/class/progress', authorize('admin', 'department_principal', 'teacher'), getClassSessionProgress);
 router.post('/sessions', startSession);
 router.get('/sessions', listSessions);
 router.get('/sessions/active', getActiveSession);

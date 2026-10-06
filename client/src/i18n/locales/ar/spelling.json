@@ -42,7 +42,7 @@
   "selectWeek": "اختر الأسبوع",
   "saveStudentLevel": "حفظ مستوى الطالب",
   "allStudentsOverview": "نظرة عامة على جميع الطلاب",
-  "studentLevelSaved": "تم حفظ صف وأسبوع إملاء الطالب.",
+  "studentLevelSaved": "تم حفظ صف الإملاء للطالب.",
   "studentLevelSaveError": "تعذر حفظ مستوى إملاء الطالب.",
   "saving": "جارٍ الحفظ...",
   "assessmentMode": "وضع الاختبار",
@@ -107,4 +107,11 @@
   ,"skippedWordsFollowUp": "تخطّى الطالب هذه الكلمات. اقرأها له بصوت عالٍ عند المتابعة."
   ,"reviewSkippedWords": "اقرأ الكلمات المتخطاة ({{count}})"
   ,"teacherWillReviewSkippedWords": "سيراجع معلمك الكلمات التي تخطيتها بصوت عالٍ معك."
+  ,"alreadyCompletedClassWord": "لقد أكملت كلمة الصف هذه بشكل صحيح. انتظر الكلمة التالية."
+  ,"waitingForClass": "تم تسجيل إجابتك. انتظر حتى ينتهي باقي الصف من هذه الكلمة."
+  ,"classProgressHelp": "يتقدم الصف معًا بالترتيب في كلمات الصف المختار. سيظهر للطلاب الذين أكملوا الكلمة الحالية بشكل صحيح أنهم أكملوها."
+  ,"currentGradeWeek": "الصف {{grade}} في الأسبوع {{week}} حاليًا."
+  ,"loadingClassProgress": "جارٍ تحميل تقدم الصف الحالي..."
+  ,"noGradeWeeks": "لا توجد أسابيع إملاء متاحة للصف {{grade}}."
+  ,"classProgressError": "تعذر تحميل أسبوع الصف الحالي."
 }

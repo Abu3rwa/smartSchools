@@ -4,6 +4,9 @@ const SpellingClassSessionControls = ({
     t,
     assessmentMode,
     setAssessmentMode,
+    classGrade,
+    setClassGrade,
+    classGradeProgress,
     startClassSession,
     classId,
     classStudents,
@@ -27,6 +30,12 @@ const SpellingClassSessionControls = ({
         <CardContent>
             <Stack spacing={2}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }} justifyContent="space-between">
+                    <FormControl sx={{ minWidth: 150 }}>
+                        <InputLabel>{t('spellingGrade')}</InputLabel>
+                        <Select value={classGrade} label={t('spellingGrade')} onChange={(event) => setClassGrade(event.target.value)}>
+                            {['KG', 'G1', 'G2', 'G3', 'G4', 'G5'].map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}
+                        </Select>
+                    </FormControl>
                     <FormControl sx={{ minWidth: 180 }}>
                         <InputLabel>{t('assessmentMode')}</InputLabel>
                         <Select value={assessmentMode} label={t('assessmentMode')} onChange={(event) => setAssessmentMode(event.target.value)}>
@@ -38,6 +47,16 @@ const SpellingClassSessionControls = ({
                         {classStarting ? t('creating') : t('createClassSession')}
                     </Button>
                 </Stack>
+                {classGradeProgress.error
+                    ? <Typography variant="body2" color="error">{classGradeProgress.error}</Typography>
+                    : <Typography variant="body2" color="text.secondary">
+                        {classGradeProgress.status === 'loading'
+                            ? t('loadingClassProgress')
+                            : classGradeProgress.week
+                                ? t('currentGradeWeek', { grade: classGrade, week: classGradeProgress.week })
+                                : t('noGradeWeeks', { grade: classGrade })}
+                    </Typography>}
+                <Typography variant="body2" color="text.secondary">{t('classProgressHelp')}</Typography>
 
                 <Box sx={{ bgcolor: 'action.hover', borderRadius: 1, p: 2 }}>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} justifyContent="space-between" flexWrap="wrap" useFlexGap>

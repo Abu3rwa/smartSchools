@@ -1,7 +1,10 @@
 import { asyncHandler } from '../middleware/errorHandler.js';
 import Student from '../models/Student.js';
 import SpellingSession from '../models/SpellingSession.js';
+import SpellingClassSession from '../models/SpellingClassSession.js';
+import SpellingWord from '../models/SpellingWord.js';
 import Class from '../models/Class.js';
+import { startSpellingClassSession } from '../services/spellingSessionService.js';
 import { getTeacherClassIds, resolveTeacherProfile } from '../helpers/teacherScoping.js';
 import { validateSpellingIntegrityEvent } from '../utils/spellingIntegrity.js';
 import {
@@ -88,8 +91,101 @@ export const startSession = asyncHandler(async (req, res) => {
     return res.status(201).json({ success: true, data: session });
 });
 
+export const startClassSession = asyncHandler(async (req, res) => {
+    const { classId, curriculumGrade } = req.body;
+    if (!classId) return res.status(400).json({ success: false, message: 'classId is required' });
+
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId }).select('_id department').lean();
+    if (!classDoc) return res.status(404).json({ success: false, message: 'Class not found' });
+
+    if (req.user?.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        const classIds = teacher ? await getTeacherClassIds(teacher._id) : [];
+        if (!classIds.some((id) => String(id) === String(classId))) {
+            return res.status(403).json({ success: false, message: 'Not authorized to start a spelling session for this class' });
+        }
+    } else if (req.user?.role === 'department_principal') {
+        if (!req.departmentId || String(classDoc.department) !== String(req.departmentId)) {
+            return res.status(403).json({ success: false, message: 'Not authorized to start a spelling session for this class' });
+        }
+    }
+
+    const students = await Student.find({
+        school: req.schoolId,
+        $or: [{ currentClass: classId }, { enrolledClasses: classId }]
+    }).select('_id').lean();
+    const maxMistakes = req.body.maxMistakesAllowed !== undefined && req.body.maxMistakesAllowed !== null
+        ? Number(req.body.maxMistakesAllowed)
+        : undefined;
+    const result = await startSpellingClassSession({
+        schoolId: req.schoolId,
+        classId,
+        studentIds: students.map((student) => student._id),
+        userId: req.user._id,
+        mode: req.body.mode,
+        maxMistakesAllowed: maxMistakes,
+        retestDeadline: req.body.retestDeadline,
+        curriculumGrade,
+        emailNotification: req.body.emailNotification ?? null,
+        passageEmailAudience: req.body.passageEmailAudience ?? null,
+        passageGeneration: req.body.passageGeneration || {}
+    });
+    return res.status(201).json({ success: true, data: result });
+});
+
+export const getClassSessionProgress = asyncHandler(async (req, res) => {
+    const { classId, grade } = req.query;
+    if (!classId || !['KG', 'G1', 'G2', 'G3', 'G4', 'G5'].includes(grade)) {
+        return res.status(400).json({ success: false, message: 'A valid classId and grade are required' });
+    }
+
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId }).select('_id department').lean();
+    if (!classDoc) return res.status(404).json({ success: false, message: 'Class not found' });
+
+    if (req.user?.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        const classIds = teacher ? await getTeacherClassIds(teacher._id) : [];
+        if (!classIds.some((id) => String(id) === String(classId))) {
+            return res.status(403).json({ success: false, message: 'Not authorized to view spelling progress for this class' });
+        }
+    } else if (req.user?.role === 'department_principal') {
+        if (!req.departmentId || String(classDoc.department) !== String(req.departmentId)) {
+            return res.status(403).json({ success: false, message: 'Not authorized to view spelling progress for this class' });
+        }
+    } else if (!['admin'].includes(req.user?.role)) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view spelling progress for this class' });
+    }
+
+    const classSession = await SpellingClassSession.findOne({
+        school: req.schoolId,
+        class: classId,
+        grade
+    }).select('currentWord status').lean();
+    const currentWord = classSession?.currentWord
+        ? await SpellingWord.findOne({ _id: classSession.currentWord, school: req.schoolId }).select('week').lean()
+        : await SpellingWord.findOne({ school: req.schoolId, grade }).sort({ week: 1, order: 1 }).select('week').lean();
+
+    return res.json({
+        success: true,
+        data: {
+            grade,
+            week: currentWord?.week || null,
+            status: classSession?.status || 'not-started'
+        }
+    });
+});
+
 export const getCurrentItem = asyncHandler(async (req, res) => {
     const result = await getCurrentSpellingItem({ schoolId: req.schoolId, sessionId: req.params.id });
+    return res.status(200).json({ success: true, data: result });
+});
+
+export const advanceClassWordHandler = asyncHandler(async (req, res) => {
+    const result = await advanceClassWord({
+        schoolId: req.schoolId,
+        sessionId: req.params.id,
+        expectedWordId: req.body?.wordId
+    });
     return res.status(200).json({ success: true, data: result });
 });
 

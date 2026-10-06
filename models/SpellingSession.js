@@ -31,6 +31,11 @@ const spellingSessionSchema = new mongoose.Schema({
         ref: 'Student',
         required: true
     },
+    classSession: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SpellingClassSession',
+        default: null
+    },
     mode: {
         type: String,
         enum: ['teacher-led', 'self-serve'],

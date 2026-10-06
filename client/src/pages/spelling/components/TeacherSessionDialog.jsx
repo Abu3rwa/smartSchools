@@ -184,6 +184,8 @@ const TeacherSessionDialog = ({
                                 />
                             ))}
                         </Stack>
+                        {currentItem?.alreadyCompleted && <Alert severity="success">{t('alreadyCompletedClassWord')}</Alert>}
+                        {currentItem?.waitingForClass && <Alert severity="info">{t('waitingForClass')}</Alert>}
                         <Fade in key={`${currentItem?.sequence || 'feedback'}-${gradingFeedback?.correct}`} timeout={350}>
                             <Card sx={{ width: '100%', minHeight: { xs: 260, md: 360 }, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: gradingFeedback ? (gradingFeedback.correct ? 'success.light' : 'error.light') : 'background.paper', transition: 'background-color 180ms ease', boxShadow: 4 }}>
                                 <CardContent sx={{ textAlign: 'center' }}>
@@ -209,7 +211,7 @@ const TeacherSessionDialog = ({
                                 </CardContent>
                             </Card>
                         </Fade>
-                        {activeSession?.mode === 'self-serve' ? (
+                        {currentItem?.alreadyCompleted || currentItem?.waitingForClass ? null : activeSession?.mode === 'self-serve' ? (
                             <Alert severity="info" sx={{ width: '100%', maxWidth: 700 }}>Student answers are graded automatically. This view refreshes as answers are submitted.</Alert>
                         ) : (
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: '100%', maxWidth: 700 }}>

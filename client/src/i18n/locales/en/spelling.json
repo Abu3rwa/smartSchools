@@ -41,7 +41,7 @@
   "selectGrade": "Select grade",
   "selectWeek": "Select week",
   "saveStudentLevel": "Save student level",
-  "studentLevelSaved": "Student spelling grade and week saved.",
+  "studentLevelSaved": "Student spelling grade saved.",
   "studentLevelSaveError": "Unable to save the student's spelling level.",
   "saving": "Saving...",
   "assessmentMode": "Assessment mode",
@@ -106,5 +106,12 @@
   ,"skippedWordsToSay": "Words to say aloud"
   ,"skippedWordsFollowUp": "The student skipped these words. Read them aloud during follow-up."
   ,"reviewSkippedWords": "Say skipped words ({{count}})"
-  ,"teacherWillReviewSkippedWords": "Your teacher will review the skipped words aloud with you."
+  ,  "teacherWillReviewSkippedWords": "Your teacher will review the skipped words aloud with you.",
+  "alreadyCompletedClassWord": "You already completed this class word correctly. Wait for the next word.",
+  "waitingForClass": "Your answer is recorded. Wait for the rest of the class to finish this word.",
+  "classProgressHelp": "The class moves together through the selected grade's words in order. Students who already completed the current word correctly will be marked complete.",
+  "currentGradeWeek": "{{grade}} is currently on Week {{week}}.",
+  "loadingClassProgress": "Loading current grade progress...",
+  "noGradeWeeks": "No spelling weeks are available for {{grade}}.",
+  "classProgressError": "Unable to load the current grade week."
 }

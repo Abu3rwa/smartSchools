@@ -43,6 +43,8 @@ const SpellingTeacherPage = () => {
     const [loading, setLoading] = useState(false);
     const [classStarting, setClassStarting] = useState(false);
     const [assessmentMode, setAssessmentMode] = useState('self-serve');
+    const [classGrade, setClassGrade] = useState('KG');
+    const [classGradeProgress, setClassGradeProgress] = useState({ week: null, status: 'loading', error: '' });
     const [maxMistakesAllowed, setMaxMistakesAllowed] = useState(3);
     const [emailNotification, setEmailNotification] = useState('student-and-parents');
     const [passageEmailAudience, setPassageEmailAudience] = useState('none');
@@ -126,19 +128,34 @@ const SpellingTeacherPage = () => {
     }, [classId, dispatch, applyDefaultsToFields]);
 
     useEffect(() => {
+        if (!classId || !classGrade) {
+            setClassGradeProgress({ week: null, status: 'loading', error: '' });
+            return undefined;
+        }
+        let cancelled = false;
+        setClassGradeProgress((current) => ({ ...current, status: 'loading', error: '' }));
+        api.get('/spelling/sessions/class/progress', { params: { classId, grade: classGrade } })
+            .then(({ data }) => {
+                if (!cancelled) setClassGradeProgress({ ...data.data, error: '' });
+            })
+            .catch((error) => {
+                if (!cancelled) setClassGradeProgress({
+                    week: null,
+                    status: 'error',
+                    error: error.response?.data?.message || t('classProgressError')
+                });
+            });
+        return () => { cancelled = true; };
+    }, [classId, classGrade, t]);
+
+    useEffect(() => {
         if (!classStudents.length) return;
         setRowLevels((current) => {
             const next = { ...current };
             classStudents.forEach((student) => {
                 if (!next[student._id]) {
                     const grade = student.spelling?.currentGrade || '';
-                    const savedGradeProgress = student.spelling?.progressByGrade?.find((progress) => progress.grade === grade);
-                    next[student._id] = {
-                        grade,
-                        week: savedGradeProgress?.week
-                            ? String(savedGradeProgress.week)
-                            : (student.spelling?.currentWeek ? String(student.spelling.currentWeek) : '')
-                    };
+                    next[student._id] = { grade };
                 }
             });
             return next;
@@ -200,22 +217,16 @@ const SpellingTeacherPage = () => {
     }, [classId, classStudents, loadAllHistories, studentHistoryMap]);
 
     const updateRowLevel = async (student, field, value) => {
-        const savedGradeProgress = field === 'grade'
-            ? student.spelling?.progressByGrade?.find((progress) => progress.grade === value)
-            : null;
-        const nextLevel = field === 'grade'
-            ? { grade: value, week: savedGradeProgress?.week ? String(savedGradeProgress.week) : '' }
-            : { ...(rowLevels[student._id] || {}), [field]: value };
+        const nextLevel = { ...(rowLevels[student._id] || {}), [field]: value };
         setRowLevels((current) => ({ ...current, [student._id]: nextLevel }));
-        if (!nextLevel.grade || !nextLevel.week) return;
+        if (!nextLevel.grade) return;
         setSavingRowId(student._id);
         const result = await dispatch(updateStudent({
             id: student._id,
             data: {
                 spelling: {
                     ...(student.spelling || {}),
-                    currentGrade: nextLevel.grade,
-                    currentWeek: Number(nextLevel.week)
+                    currentGrade: nextLevel.grade
                 }
             }
         }));
@@ -267,14 +278,13 @@ const SpellingTeacherPage = () => {
 
     const startStudentSession = async (student) => {
         const level = rowLevels[student._id] || {};
-        if (!student._id || !level.grade || !level.week) return;
+        if (!student._id || !level.grade) return;
         setRowActionLoadingId(student._id);
         setMessage('');
         try {
             const result = await dispatch(startTeacherSpellingSession({
                 studentId: student._id,
                 curriculumGrade: level.grade,
-                curriculumWeek: level.week,
                 mode: assessmentMode,
                 emailNotification,
                 passageEmailAudience,
@@ -370,25 +380,23 @@ const SpellingTeacherPage = () => {
         if (!classStudents.length) return;
         setClassStarting(true);
         setMessage('');
-        let started = 0;
         try {
-            for (const student of classStudents) {
-                await api.post('/spelling/sessions', {
-                    studentId: student._id,
-                    mode: assessmentMode,
-                    maxMistakesAllowed,
-                    curriculumGrade: wordFilters.grade,
-                    curriculumWeek: wordFilters.week,
-                    emailNotification,
-                    passageEmailAudience,
-                    passageGeneration: { enabled: passageEnabled, trigger: passageTrigger, style: passageStyle, requireTeacherApproval: true }
-                });
-                started += 1;
-            }
-            notify(t('classCreated', { count: started, className: selectedClass?.name || t('class') }), 'success');
+            const response = await api.post('/spelling/sessions/class', {
+                classId,
+                mode: assessmentMode,
+                maxMistakesAllowed,
+                curriculumGrade: classGrade,
+                emailNotification,
+                passageEmailAudience,
+                passageGeneration: { enabled: passageEnabled, trigger: passageTrigger, style: passageStyle, requireTeacherApproval: true }
+            });
+            notify(t('classCreated', {
+                count: response.data.data.sessions.length,
+                className: selectedClass?.name || t('class')
+            }), 'success');
             await loadAllHistories();
         } catch (error) {
-            notify(error.response?.data?.message || t('classStopped', { count: started }), 'error');
+            notify(error.response?.data?.message || t('sessionError'), 'error');
         } finally {
             setClassStarting(false);
         }
@@ -744,6 +752,9 @@ const SpellingTeacherPage = () => {
                     t={t}
                     assessmentMode={assessmentMode}
                     setAssessmentMode={setAssessmentMode}
+                    classGrade={classGrade}
+                    setClassGrade={setClassGrade}
+                    classGradeProgress={classGradeProgress}
                     startClassSession={startClassSession}
                     classId={classId}
                     classStudents={classStudents}

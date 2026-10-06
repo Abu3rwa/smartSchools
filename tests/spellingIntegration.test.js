@@ -5,9 +5,10 @@ import mongoose from 'mongoose';
 import Student from '../models/Student.js';
 import SpellingWord from '../models/SpellingWord.js';
 import SpellingSession from '../models/SpellingSession.js';
+import SpellingClassSession from '../models/SpellingClassSession.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingIntegrityEvent from '../models/SpellingIntegrityEvent.js';
-import { completeSpellingSession, getCurrentSpellingItem, recordSpellingAttempt, startSpellingSession } from '../services/spellingSessionService.js';
+import { completeSpellingSession, getCurrentSpellingItem, recordSpellingAttempt, startSpellingClassSession, startSpellingSession } from '../services/spellingSessionService.js';
 import { listSpellingIntegrityEvents, listSpellingSessions, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
 
 const enabled = process.env.RUN_SPELLING_INTEGRATION === 'true' && Boolean(process.env.MONGODB_URI);
@@ -156,13 +157,103 @@ integrationTest('self-serve grade progress resumes independently and skipped wor
     await completeSpellingSession({ schoolId, sessionId: resumedFirstGradeSession._id });
 }, { timeout: 30000 });
 
+integrationTest('class spelling sessions share and resume ordered words independently by grade', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const classId = new mongoose.Types.ObjectId();
+    const studentIds = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+    const userId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId: studentIds[0], extraStudentIds: [studentIds[1]] });
+
+    await Student.create(studentIds.map((studentId, index) => ({
+        _id: studentId,
+        school: schoolId,
+        studentId: `spelling-class-${studentId}`,
+        firstName: `Class${index + 1}`,
+        lastName: 'Student',
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'other',
+        academicYear: 'integration'
+    })));
+    const words = await SpellingWord.create([
+        { school: schoolId, grade: 'KG', week: 1, category: 'Integration', word: 'otter', normalizedWord: 'otter', order: 1 },
+        { school: schoolId, grade: 'KG', week: 1, category: 'Integration', word: 'rabbit', normalizedWord: 'rabbit', order: 2 },
+        { school: schoolId, grade: 'G1', week: 1, category: 'Integration', word: 'kitten', normalizedWord: 'kitten', order: 1 }
+    ]);
+
+    const started = await startSpellingClassSession({
+        schoolId,
+        classId,
+        studentIds,
+        userId,
+        mode: 'self-serve',
+        curriculumGrade: 'KG'
+    });
+    const [firstItem, secondItem] = await Promise.all(started.sessions.map((session) =>
+        getCurrentSpellingItem({ schoolId, sessionId: session._id })
+    ));
+    assert.equal(firstItem.item.word, 'otter');
+    assert.equal(secondItem.item.word, 'otter');
+
+    await recordSpellingAttempt({
+        schoolId,
+        sessionId: started.sessions[0]._id,
+        userId,
+        sequence: firstItem.item.sequence,
+        studentInput: 'otter',
+        idempotencyKey: `${started.sessions[0]._id}-1`
+    });
+    const waitingItem = await getCurrentSpellingItem({ schoolId, sessionId: started.sessions[0]._id });
+    assert.equal(waitingItem.item.alreadyCompleted, true);
+
+    await recordSpellingAttempt({
+        schoolId,
+        sessionId: started.sessions[1]._id,
+        userId,
+        sequence: secondItem.item.sequence,
+        studentInput: 'wrong',
+        idempotencyKey: `${started.sessions[1]._id}-1`
+    });
+    const [nextFirst, nextSecond] = await Promise.all(started.sessions.map((session) =>
+        getCurrentSpellingItem({ schoolId, sessionId: session._id })
+    ));
+    assert.equal(nextFirst.item.word, 'rabbit');
+    assert.equal(nextSecond.item.word, 'rabbit');
+    assert.equal(nextFirst.item.sequence, 2);
+    assert.equal(nextSecond.item.sequence, 2);
+    assert.equal(words.length, 3);
+
+    await Promise.all(started.sessions.map((session) =>
+        completeSpellingSession({ schoolId, sessionId: session._id, reason: 'teacher-ended' })
+    ));
+    const gradeOne = await startSpellingClassSession({
+        schoolId, classId, studentIds, userId, mode: 'self-serve', curriculumGrade: 'G1'
+    });
+    const gradeOneItems = await Promise.all(gradeOne.sessions.map((session) =>
+        getCurrentSpellingItem({ schoolId, sessionId: session._id })
+    ));
+    assert.deepEqual(gradeOneItems.map((result) => result.item.word), ['kitten', 'kitten']);
+    await Promise.all(gradeOne.sessions.map((session) =>
+        completeSpellingSession({ schoolId, sessionId: session._id, reason: 'teacher-ended' })
+    ));
+
+    const resumedKindergarten = await startSpellingClassSession({
+        schoolId, classId, studentIds, userId, mode: 'self-serve', curriculumGrade: 'KG'
+    });
+    const resumedItems = await Promise.all(resumedKindergarten.sessions.map((session) =>
+        getCurrentSpellingItem({ schoolId, sessionId: session._id })
+    ));
+    assert.deepEqual(resumedItems.map((result) => result.item.word), ['rabbit', 'rabbit']);
+}, { timeout: 30000 });
+
 test.after(async () => {
     if (!enabled) return;
-    for (const { schoolId, studentId } of ids) {
+    for (const { schoolId, studentId, extraStudentIds = [] } of ids) {
         await Promise.all([
-            Student.deleteOne({ _id: studentId, school: schoolId }).setOptions({ skipTenantFilter: true }),
+            Student.deleteMany({ _id: { $in: [studentId, ...extraStudentIds] }, school: schoolId }).setOptions({ skipTenantFilter: true }),
             SpellingWord.deleteMany({ school: schoolId }).setOptions({ skipTenantFilter: true }),
             SpellingSession.deleteMany({ school: schoolId }).setOptions({ skipTenantFilter: true }),
+            SpellingClassSession.deleteMany({ school: schoolId }).setOptions({ skipTenantFilter: true }),
                 SpellingRetestItem.deleteMany({ school: schoolId }).setOptions({ skipTenantFilter: true }),
                 SpellingIntegrityEvent.deleteMany({ school: schoolId, student: studentId }).setOptions({ skipTenantFilter: true })
         ]);

@@ -35,12 +35,11 @@ const SpellingStudentRosterTable = ({
                     <TableHead><TableRow>
                         <TableCell>{t('student')}</TableCell>
                         <TableCell>{t('spellingGrade')}</TableCell>
-                        <TableCell>{t('spellingWeek')}</TableCell>
                         <TableCell align="right">{t('viewDetails')}</TableCell>
                     </TableRow></TableHead>
                     <TableBody>
                         {classStudents.map((student) => {
-                            const level = rowLevels[student._id] || { grade: '', week: '' };
+                            const level = rowLevels[student._id] || { grade: '' };
                             const studentSessions = studentHistoryMap[student._id] || [];
                             const rowActiveSession = studentSessions.find((session) => session.status === 'in-progress');
                             const skippedSession = studentSessions.find((session) =>
@@ -104,14 +103,6 @@ const SpellingStudentRosterTable = ({
                                             </Select>
                                         </FormControl>
                                     </TableCell>
-                                    <TableCell>
-                                        <FormControl size="small" sx={{ minWidth: 110 }}>
-                                            <Select displayEmpty value={level.week} onChange={(event) => onUpdateRowLevel(student, 'week', event.target.value)} disabled={savingRowId === student._id}>
-                                                <MenuItem value="">{t('selectWeek')}</MenuItem>
-                                                {Array.from({ length: 52 }, (_, index) => index + 1).map((week) => <MenuItem key={week} value={week}>{week}</MenuItem>)}
-                                            </Select>
-                                        </FormControl>
-                                    </TableCell>
                                     <TableCell align="right">
                                         <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
                                             {rowActiveSession
@@ -119,7 +110,7 @@ const SpellingStudentRosterTable = ({
                                                     <Button size="small" variant="contained" onClick={() => onOpenSessionReview(student, rowActiveSession)} disabled={rowBusy}>Open session</Button>
                                                     <Button size="small" color="error" variant="outlined" onClick={() => onEndActiveSession(student)} disabled={rowBusy}>{t('endActiveSession')}</Button>
                                                 </>
-                                                : <Button size="small" variant="contained" onClick={() => onStartStudentSession(student)} disabled={rowBusy || !level.grade || !level.week}>{t('startStudentSession')}</Button>}
+                                                : <Button size="small" variant="contained" onClick={() => onStartStudentSession(student)} disabled={rowBusy || !level.grade}>{t('startStudentSession')}</Button>}
                                             {studentSessions.length > 0 && (
                                                 <Button size="small" variant="contained" onClick={() => onViewStudentSessions(student)} disabled={rowBusy}>
                                                     View details

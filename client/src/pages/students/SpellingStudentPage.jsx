@@ -314,6 +314,14 @@ const SpellingStudentPage = () => {
                                 {hasSkippedWords && <Alert severity="info">{t('teacherWillReviewSkippedWords')}</Alert>}
                                 <Button variant="contained" onClick={startSession} disabled={loading}>{t('startNewSession')}</Button>
                             </Stack>
+                        ) : currentItem?.alreadyCompleted ? (
+                            <Alert severity="success" role="status">
+                                {t('alreadyCompletedClassWord')}
+                            </Alert>
+                        ) : currentItem?.waitingForClass ? (
+                            <Alert severity="info" role="status">
+                                {t('waitingForClass')}
+                            </Alert>
                         ) : session.mode === 'teacher-led' ? (
                             <Alert severity="info">{t('teacherLedActive')}</Alert>
                         ) : currentItem ? (

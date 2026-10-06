@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     recordSpellingAttempt,
+    startSpellingClassSession,
     startSpellingSession
 } from '../services/spellingSessionService.js';
 import { validateSpellingIntegrityEvent } from '../utils/spellingIntegrity.js';
@@ -35,6 +36,32 @@ test('startSpellingSession rejects invalid modes before database access', async 
             maxMistakesAllowed: 3
         }),
         (error) => error.statusCode === 400 && /Invalid spelling session mode/.test(error.message)
+    );
+});
+
+test('startSpellingClassSession rejects invalid grade and mode before database access', async () => {
+    await assert.rejects(
+        () => startSpellingClassSession({
+            schoolId: 'school-1',
+            classId: 'class-1',
+            studentIds: ['student-1'],
+            userId: 'user-1',
+            mode: 'unsupported',
+            curriculumGrade: 'KG'
+        }),
+        (error) => error.statusCode === 400 && /Invalid spelling session mode/.test(error.message)
+    );
+
+    await assert.rejects(
+        () => startSpellingClassSession({
+            schoolId: 'school-1',
+            classId: 'class-1',
+            studentIds: ['student-1'],
+            userId: 'user-1',
+            mode: 'self-serve',
+            curriculumGrade: 'G6'
+        }),
+        (error) => error.statusCode === 400 && /valid spelling grade/.test(error.message)
     );
 });
 
