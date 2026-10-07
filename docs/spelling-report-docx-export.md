@@ -42,7 +42,7 @@ Use the existing `studentDetails` response produced by `buildStudentSpellingDeta
 
 The current service returns only grades with recorded attempts. Keep that behavior: don't imply that a missing grade has zero performance unless the product explicitly decides to show every grade.
 
-Sort missed words with pending first, then by `originalIncorrectCount` descending, matching the details page. Keep status as visible text as well as colour.
+Sort missed words with pending first, then by `originalIncorrectCount` descending, matching the details page. The details page also offers month and original-miss session filters, defaulted to **All months** and **All sessions**. These filters scope which words and original incorrect counts are shown; retest progress and pending status remain the current totals for each word. Keep status as visible text as well as colour.
 
 ## Print design
 

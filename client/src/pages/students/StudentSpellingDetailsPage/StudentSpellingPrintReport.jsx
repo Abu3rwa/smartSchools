@@ -16,6 +16,14 @@ const StudentSpellingPrintReport = ({ details }) => {
         const bRank = GRADE_ORDER.indexOf(String(b.grade).toUpperCase());
         return (aRank === -1 ? GRADE_ORDER.length : aRank) - (bRank === -1 ? GRADE_ORDER.length : bRank);
     }), [byGrade]);
+    const gradePerformancePercentages = orderedGrades.map((item) => {
+        const attempts = item.originalAttempts || item.originalCorrect + item.originalIncorrect;
+        return {
+            ...item,
+            originalCorrectPercent: attempts ? Math.round((item.originalCorrect / attempts) * 10000) / 100 : 0,
+            originalIncorrectPercent: attempts ? Math.round((item.originalIncorrect / attempts) * 10000) / 100 : 0
+        };
+    });
     const orderedMissedWords = useMemo(() => [...missedWords].sort(
         (a, b) => Number(b.pending) - Number(a.pending)
             || b.originalIncorrectCount - a.originalIncorrectCount
@@ -124,17 +132,17 @@ const StudentSpellingPrintReport = ({ details }) => {
                     <div className="spelling-print-performance-layout">
                         <div className="spelling-print-performance-chart">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={orderedGrades} margin={{ top: 22, right: 12, left: 0, bottom: 4 }} barCategoryGap="25%">
+                                <BarChart data={gradePerformancePercentages} margin={{ top: 22, right: 12, left: 0, bottom: 4 }} barCategoryGap="25%">
                                     <CartesianGrid stroke="#d9dee4" strokeDasharray="3 3" />
                                     <XAxis dataKey="grade" />
-                                    <YAxis allowDecimals={false} width={35} />
-                                    <Tooltip />
+                                    <YAxis domain={[0, 100]} ticks={[0, 20, 40, 60, 80, 100]} tickFormatter={(value) => `${value}%`} width={42} />
+                                    <Tooltip formatter={(value) => [`${value}%`]} />
                                     <Legend />
-                                    <Bar dataKey="originalCorrect" name={t('originalCorrect')} fill="#2e7d32" isAnimationActive={false}>
-                                        <LabelList dataKey="originalCorrect" position="top" />
+                                    <Bar dataKey="originalCorrectPercent" name={t('originalCorrectPercent')} fill="#2e7d32" isAnimationActive={false}>
+                                        <LabelList dataKey="originalCorrectPercent" position="top" formatter={(value) => `${value}%`} />
                                     </Bar>
-                                    <Bar dataKey="originalIncorrect" name={t('originalIncorrect')} fill="#c62828" isAnimationActive={false}>
-                                        <LabelList dataKey="originalIncorrect" position="top" />
+                                    <Bar dataKey="originalIncorrectPercent" name={t('originalIncorrectPercent')} fill="#c62828" isAnimationActive={false}>
+                                        <LabelList dataKey="originalIncorrectPercent" position="top" formatter={(value) => `${value}%`} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -144,16 +152,16 @@ const StudentSpellingPrintReport = ({ details }) => {
                                 <thead>
                                     <tr>
                                         <th>{t('grade')}</th>
-                                        <th className="spelling-print-count">{t('originalCorrect')}</th>
-                                        <th className="spelling-print-count">{t('originalIncorrect')}</th>
+                                        <th className="spelling-print-count">{t('originalCorrectPercent')}</th>
+                                        <th className="spelling-print-count">{t('originalIncorrectPercent')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {orderedGrades.map((item) => (
+                                    {gradePerformancePercentages.map((item) => (
                                         <tr key={item.grade}>
                                             <td>{item.grade}</td>
-                                            <td className="spelling-print-count">{item.originalCorrect}</td>
-                                            <td className="spelling-print-count">{item.originalIncorrect}</td>
+                                            <td className="spelling-print-count">{`${item.originalCorrectPercent}%`}</td>
+                                            <td className="spelling-print-count">{`${item.originalIncorrectPercent}%`}</td>
                                         </tr>
                                     ))}
                                 </tbody>

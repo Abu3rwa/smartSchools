@@ -46,6 +46,7 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
     const attempts = sessions.flatMap((session) => (session.attempts || []).map((attempt) => ({
         ...attempt,
         sessionStartedAt: session.startedAt,
+        mode: session.mode,
         sessionId: session._id
     })));
     const filteredAttempts = grade ? attempts.filter((attempt) => attempt.grade === String(grade).toUpperCase()) : attempts;
@@ -112,8 +113,29 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
     const missedWords = new Map();
     for (const attempt of filteredAttempts.filter((item) => !item.isRetest && !item.correct)) {
         const key = String(attempt.wordId || `${attempt.grade}:${attempt.week}:${attempt.wordSnapshot}`);
-        const current = missedWords.get(key) || { word: attempt.wordSnapshot, grade: attempt.grade, firstMissedAt: attempt.answeredAt || attempt.sessionStartedAt, originalIncorrectCount: 0, retestAttempts: 0, retestCorrect: 0, pending: false };
+        const current = missedWords.get(key) || {
+            word: attempt.wordSnapshot,
+            grade: attempt.grade,
+            firstMissedAt: attempt.answeredAt || attempt.sessionStartedAt,
+            originalIncorrectCount: 0,
+            retestAttempts: 0,
+            retestCorrect: 0,
+            pending: false,
+            sourceSessions: []
+        };
         current.originalIncorrectCount += 1;
+        const sourceSessionId = String(attempt.sessionId);
+        let sourceSession = current.sourceSessions.find((entry) => entry.id === sourceSessionId);
+        if (!sourceSession) {
+            sourceSession = {
+                id: sourceSessionId,
+                startedAt: attempt.sessionStartedAt,
+                mode: attempt.mode,
+                originalIncorrectCount: 0
+            };
+            current.sourceSessions.push(sourceSession);
+        }
+        sourceSession.originalIncorrectCount += 1;
         missedWords.set(key, current);
     }
     for (const item of filteredAttempts.filter((attempt) => attempt.isRetest)) {

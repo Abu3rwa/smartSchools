@@ -137,4 +137,11 @@
   ,"retestCorrectOfAttempts": "صحيح الإعادة / المحاولات"
   ,"retestCounts": "{{correct}} / {{attempts}}"
   ,"exportWord": "تصدير DOCX"
+  ,"filterByMonth": "تصفية حسب الشهر"
+  ,"filterBySession": "تصفية حسب الجلسة"
+  ,"allMonths": "كل الأشهر"
+  ,"allSessions": "كل الجلسات"
+  ,"noMissedWordsInFilter": "لا توجد كلمات فائتة تطابق عوامل التصفية."
+  ,"originalCorrectPercent": "الإجابات الأصلية الصحيحة (%)"
+  ,"originalIncorrectPercent": "الإجابات الأصلية الخاطئة (%)"
 }
