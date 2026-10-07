@@ -46,7 +46,7 @@ const normalizeHeader = (header) => header
     .replace(/[\s-]+/g, '_');
 
 const parseBoolean = (value, column) => {
-    if (!value.trim()) return undefined;
+    if (value == null || !value.trim()) return undefined;
     const normalized = value.trim().toLowerCase();
     if (['true', 'yes', '1'].includes(normalized)) return true;
     if (['false', 'no', '0'].includes(normalized)) return false;
@@ -98,8 +98,12 @@ export const parseAssignmentCsv = (csvText) => {
     if (record.instructions) imported.instructions = record.instructions;
 
     if (record.due_date) {
+        const [year, month, day] = record.due_date.split('-').map(Number);
+        const parsedDate = new Date(Date.UTC(year, month - 1, day));
         if (!/^\d{4}-\d{2}-\d{2}$/.test(record.due_date)
-            || Number.isNaN(Date.parse(`${record.due_date}T00:00:00`))) {
+            || parsedDate.getUTCFullYear() !== year
+            || parsedDate.getUTCMonth() !== month - 1
+            || parsedDate.getUTCDate() !== day) {
             throw new Error('Due date must use YYYY-MM-DD format.');
         }
         imported.dueDate = record.due_date;
@@ -166,7 +170,7 @@ export const buildAssignmentCsvTemplate = () => {
         'notify_on_grade'
     ];
     const sample = [
-        'Homework',
+        '',
         'Read chapter 3',
         '2026-10-30',
         '10',

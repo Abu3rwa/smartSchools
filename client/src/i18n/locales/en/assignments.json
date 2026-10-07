@@ -60,7 +60,7 @@
   },
   "import": {
     "title": "Fill assignment from CSV",
-    "description": "Choose the class and subject above, then import one assignment with its links.",
+    "description": "Choose the class and subject above, then import one assignment with its links. Leave assignment_type blank to keep the selected type.",
     "downloadTemplate": "Download CSV template",
     "chooseFile": "Import CSV",
     "importing": "Reading CSV...",

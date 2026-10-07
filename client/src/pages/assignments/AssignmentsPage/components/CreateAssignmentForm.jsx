@@ -93,6 +93,7 @@ const CreateAssignmentForm = ({
                     <div>
                         <strong>{t('assignments:import.title')}</strong>
                         <p>{t('assignments:import.description')}</p>
+                        <p>{t('assignments:import.templateHelp')}</p>
                     </div>
                     <div className="assignment-csv-import__actions">
                         <button type="button" className="btn btn-outline" onClick={downloadTemplate} disabled={submitting || importingCsv}>
