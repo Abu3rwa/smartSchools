@@ -200,14 +200,42 @@ const nextTeacherEmployeeId = (counterRef) => {
     return `TCH${year}${String(counterRef.value).padStart(4, '0')}`;
 };
 
-const resolveSubjectByRef = (ref, lookup) => {
+export const normalizeSubjectRef = (value) => {
+    if (value === undefined || value === null) return '';
+    return String(value)
+        .trim()
+        .toLowerCase()
+        .replace(/[\s\-_./]+/g, '')
+        .replace(/[^a-z0-9]/g, '');
+};
+
+export const resolveSubjectByRef = (ref, lookup) => {
     if (!ref) return null;
     const raw = String(ref).trim();
     if (!raw) return null;
     if (isObjectId(raw) && lookup.byId.has(raw)) return lookup.byId.get(raw);
+
     const upper = raw.toUpperCase();
     if (lookup.byCode.has(upper)) return lookup.byCode.get(upper);
-    return lookup.byName.get(raw.toLowerCase()) || null;
+
+    const normalized = normalizeSubjectRef(raw);
+    if (normalized) {
+        if (lookup.byNormalized && lookup.byNormalized.has(normalized)) {
+            return lookup.byNormalized.get(normalized);
+        }
+        if (lookup.byCodeNormalized && lookup.byCodeNormalized.has(normalized)) {
+            return lookup.byCodeNormalized.get(normalized);
+        }
+    }
+
+    const byName = lookup.byName.get(raw.toLowerCase());
+    if (byName) return byName;
+
+    if (normalized && lookup.byNameNormalized && lookup.byNameNormalized.has(normalized)) {
+        return lookup.byNameNormalized.get(normalized);
+    }
+
+    return null;
 };
 
 const resolveDepartmentByRef = (ref, lookup) => {
@@ -258,13 +286,28 @@ const buildSubjectLookup = async () => {
     const subjects = await Subject.find().select('_id code name').lean();
     const byId = new Map();
     const byCode = new Map();
+    const byCodeNormalized = new Map();
     const byName = new Map();
+    const byNameNormalized = new Map();
+    const byNormalized = new Map();
+
     for (const item of subjects) {
+        const code = String(item.code || '').trim();
+        const name = String(item.name || '').trim();
+
         byId.set(toId(item._id), item);
-        byCode.set(String(item.code || '').toUpperCase(), item);
-        byName.set(String(item.name || '').toLowerCase(), item);
+        if (code) {
+            byCode.set(code.toUpperCase(), item);
+            byCodeNormalized.set(normalizeSubjectRef(code), item);
+            byNormalized.set(normalizeSubjectRef(code), item);
+        }
+        if (name) {
+            byName.set(name.toLowerCase(), item);
+            byNameNormalized.set(normalizeSubjectRef(name), item);
+            byNormalized.set(normalizeSubjectRef(name), item);
+        }
     }
-    return { byId, byCode, byName };
+    return { byId, byCode, byCodeNormalized, byName, byNameNormalized, byNormalized };
 };
 
 const buildDepartmentLookup = async () => {

@@ -162,6 +162,7 @@ const parseCsvLine = (line) => {
 
 export const parseStandardsImportText = (text, filterGrade, importSubjectId) => {
     const lines = text
+        .replace(/^\uFEFF/, '')
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
         .split('\n')
@@ -192,16 +193,18 @@ export const parseStandardsImportText = (text, filterGrade, importSubjectId) => 
             const parts = parseCsvLine(line);
             if (parts.length < 3) return null;
 
-            const get = (key, fallbackIdx) => {
-                const idx = headerMap?.[key];
-                const value = (idx !== undefined ? parts[idx] : parts[fallbackIdx]) ?? '';
+            const get = (keys, fallbackIdx) => {
+                const aliases = Array.isArray(keys) ? keys : [keys];
+                const header = aliases.find((key) => headerMap?.[key] !== undefined);
+                const idx = headerMap ? headerMap[header] : fallbackIdx;
+                const value = (idx !== undefined ? parts[idx] : '') ?? '';
                 return String(value).trim();
             };
 
-            const gradeStr = get('grade', 3) || get('gradelevel', 3) || get('grade_level', 3);
-            const masteryThresholdStr = get('masterythreshold', 5) || get('mastery_threshold', 5);
-            const masteryMinQuestionsStr =
-                get('masteryminquestions', 6) || get('mastery_min_questions', 6);
+            const gradeStr = get(['grade', 'gradelevel', 'grade_level'], 3);
+            const masteryThresholdStr = get(['masterythreshold', 'mastery_threshold'], 5);
+            const masteryMinQuestionsStr = get(['masteryminquestions', 'mastery_min_questions'], 6);
+            const isActiveStr = get(['isactive', 'is_active'], 8).toLowerCase();
 
             return {
                 code: get('code', 0),
@@ -213,6 +216,7 @@ export const parseStandardsImportText = (text, filterGrade, importSubjectId) => 
                 masteryMinQuestions: masteryMinQuestionsStr
                     ? parseInt(masteryMinQuestionsStr)
                     : undefined,
+                isActive: isActiveStr ? !['false', '0', 'no', 'n'].includes(isActiveStr) : undefined,
                 subject: importSubjectId
             };
         })
