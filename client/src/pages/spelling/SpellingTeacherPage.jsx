@@ -82,7 +82,9 @@ const SpellingTeacherPage = () => {
     const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', description: '', onConfirm: null });
     const [endSessionPassageReview, setEndSessionPassageReview] = useState(null);
     const [sessionsStudent, setSessionsStudent] = useState(null);
-    const [wordFilters, setWordFilters] = useState({ grade: 'KG', week: '1', category: '' });
+    const [wordFilters, setWordFilters] = useState({ grade: 'KG', week: '', category: '' });
+    const [deletingWordId, setDeletingWordId] = useState(null);
+    const [correctingAttemptId, setCorrectingAttemptId] = useState(null);
     const [rowLevels, setRowLevels] = useState({});
     const [savingRowId, setSavingRowId] = useState(null);
     const [exportingRowId, setExportingRowId] = useState(null);
@@ -126,8 +128,8 @@ const SpellingTeacherPage = () => {
 
     useEffect(() => {
         if (!classId) return;
-        dispatch(fetchSpellingWords(wordFilters));
-    }, [classId, dispatch, wordFilters]);
+        dispatch(fetchSpellingWords(wordFilters.grade ? { grade: wordFilters.grade } : {}));
+    }, [classId, dispatch, wordFilters.grade]);
 
     useEffect(() => {
         if (!classId) return;
@@ -236,12 +238,18 @@ const SpellingTeacherPage = () => {
         setRowLevels((current) => ({ ...current, [student._id]: nextLevel }));
         if (!nextLevel.grade) return;
         setSavingRowId(student._id);
+        const gradeChanged = field === 'grade' && value !== student.spelling?.currentGrade;
+        const savedGradeProgress = student.spelling?.progressByGrade?.find((progress) => progress.grade === value);
         const result = await dispatch(updateStudent({
             id: student._id,
             data: {
                 spelling: {
                     ...(student.spelling || {}),
-                    currentGrade: nextLevel.grade
+                    currentGrade: nextLevel.grade,
+                    ...(gradeChanged ? {
+                        currentWeek: savedGradeProgress?.week ?? null,
+                        lastWordIndex: savedGradeProgress?.lastWordIndex ?? 0
+                    } : {})
                 }
             }
         }));
@@ -307,6 +315,12 @@ const SpellingTeacherPage = () => {
                 maxMistakesAllowed
             }));
             if (startTeacherSpellingSession.fulfilled.match(result)) {
+                if (result.payload.curriculumGrade && result.payload.curriculumGrade !== level.grade) {
+                    setRowLevels((current) => ({
+                        ...current,
+                        [student._id]: { ...(current[student._id] || {}), grade: result.payload.curriculumGrade }
+                    }));
+                }
                 // In teacher-led mode, open the live grading modal immediately.
                 // In self-serve mode, the student works independently on their device; keep the teacher on the roster.
                 if (assessmentMode === 'teacher-led') {
@@ -437,6 +451,24 @@ const SpellingTeacherPage = () => {
             setLoading(false);
         }
     }, [activeSession, currentItem, dispatch, gradingFeedback, loadCurrentItem, loading, notify, refreshStudentHistory, studentId]);
+
+    const correctSpellingAttempt = async (attempt) => {
+        if (!activeSession?._id || !attempt?._id || correctingAttemptId) return false;
+        setCorrectingAttemptId(String(attempt._id));
+        try {
+            const response = await api.patch(`/spelling/sessions/${activeSession._id}/attempts/${attempt._id}/correct`);
+            const result = response.data.data;
+            if (activeSessionIdRef.current === activeSession._id) setActiveSession(result.session);
+            await refreshStudentHistory(studentId);
+            notify('Spelling answer marked correct; score and retest list updated.', 'success');
+            return true;
+        } catch (error) {
+            notify(error.response?.data?.message || 'Unable to correct the spelling attempt.', 'error');
+            return false;
+        } finally {
+            setCorrectingAttemptId(null);
+        }
+    };
 
     const advanceClassWord = useCallback(async () => {
         if (!activeSession || !currentItem || loading) return;
@@ -654,12 +686,29 @@ const SpellingTeacherPage = () => {
             } else {
                 notify(t('importedWords', { inserted: result.insertedRows || 0, updated: result.updatedRows || 0 }), 'success');
             }
+            dispatch(fetchSpellingWords(wordFilters.grade ? { grade: wordFilters.grade } : {}));
             setImportPreview(null);
             setImportFile(null);
         } catch (error) {
             notify(error.response?.data?.message || 'Unable to import the word list.', 'error');
         } finally {
             setImporting(false);
+        }
+    };
+
+    const deleteCurriculumWord = async (word) => {
+        if (!word?._id || deletingWordId) return false;
+        setDeletingWordId(String(word._id));
+        try {
+            await api.delete(`/spelling/word-lists/${word._id}`);
+            await dispatch(fetchSpellingWords(wordFilters.grade ? { grade: wordFilters.grade } : {}));
+            notify('Word removed from the shared curriculum.', 'success');
+            return true;
+        } catch (error) {
+            notify(error.response?.data?.message || 'Unable to remove the curriculum word.', 'error');
+            return false;
+        } finally {
+            setDeletingWordId(null);
         }
     };
 
@@ -754,6 +803,8 @@ const SpellingTeacherPage = () => {
                 loading={loading}
                 onGradeAttempt={gradeAttempt}
                 onNextClassWord={advanceClassWord}
+                onMarkAttemptCorrect={correctSpellingAttempt}
+                correctingAttemptId={correctingAttemptId}
             />
 
             <PassageDeliveryDialog open={passageDeliveryDialogOpen} onClose={() => setPassageDeliveryDialogOpen(false)} />
@@ -767,7 +818,11 @@ const SpellingTeacherPage = () => {
 
             {activeTab === 1 && <SpellingCurriculumTab
                 wordFilters={wordFilters}
-                setWordFilters={setWordFilters}
+                setWordFilters={(updater) => setWordFilters((current) => {
+                    const next = typeof updater === 'function' ? updater(current) : updater;
+                    if (next.grade && next.grade !== 'KG' && Number(next.week) > 36) return { ...next, week: '' };
+                    return next;
+                })}
                 wordCategories={wordCategories}
                 wordList={wordList}
                 wordsLoading={wordsLoading}
@@ -778,6 +833,8 @@ const SpellingTeacherPage = () => {
                 importing={importing}
                 onPreviewWordList={previewWordList}
                 onCommitWordList={commitWordList}
+                onDeleteWord={deleteCurriculumWord}
+                deletingWordId={deletingWordId}
             />}
 
             {activeTab === 0 && <>

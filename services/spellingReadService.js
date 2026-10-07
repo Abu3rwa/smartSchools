@@ -37,18 +37,20 @@ export async function listSpellingSessions({ schoolId, studentId, studentIds, li
         const wordIds = activeSessions.map((session) => session.currentItem?.wordId).filter(Boolean);
         const retestIds = activeSessions.map((session) => session.currentItem?.retestItemId).filter(Boolean);
         const [words, retests] = await Promise.all([
-            wordIds.length ? SpellingWord.find({ _id: { $in: wordIds }, school: schoolId }).select('_id word').lean() : [],
-            retestIds.length ? SpellingRetestItem.find({ _id: { $in: retestIds }, school: schoolId }).select('_id wordSnapshot').lean() : []
+            wordIds.length ? SpellingWord.find({ _id: { $in: wordIds }, school: schoolId }).select('_id word grade week').lean() : [],
+            retestIds.length ? SpellingRetestItem.find({ _id: { $in: retestIds }, school: schoolId }).select('_id wordSnapshot grade week').lean() : []
         ]);
-        const wordById = new Map(words.map((word) => [String(word._id), word.word]));
-        const retestById = new Map(retests.map((item) => [String(item._id), item.wordSnapshot]));
+        const wordById = new Map(words.map((word) => [String(word._id), word]));
+        const retestById = new Map(retests.map((item) => [String(item._id), item]));
         for (const session of activeSessions) {
             const current = session.currentItem;
-            session.currentWord = current?.wordId
-                ? wordById.get(String(current.wordId)) || null
-                : current?.retestItemId
-                    ? retestById.get(String(current.retestItemId)) || null
-                    : null;
+            const retest = current?.retestItemId ? retestById.get(String(current.retestItemId)) : null;
+            const word = current?.wordId ? wordById.get(String(current.wordId)) : null;
+            const currentItem = retest || word;
+            session.currentWord = retest?.wordSnapshot || word?.word || null;
+            session.currentWordGrade = currentItem?.grade || null;
+            session.currentWordWeek = currentItem?.week || null;
+            session.currentWordIsRetest = Boolean(retest);
         }
     }
     const passages = await SpellingPassage.find({

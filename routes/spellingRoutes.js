@@ -14,6 +14,7 @@ import {
     getSpellingIntegrityEvents,
     getClassSessionProgress,
     getCurrentItem,
+    markAttemptCorrect,
     recordAttempt,
     startClassSession,
     startSession
@@ -29,7 +30,7 @@ import {
     spellingDashboard,
     studentSpellingDocx
 } from '../controllers/spellingReportController.js';
-import { listSpellingWords } from '../controllers/spellingWordController.js';
+import { deleteSpellingWord, listSpellingWords } from '../controllers/spellingWordController.js';
 import { exportStudentSpellingDetailsDocx, getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
 import { getDictionaryWord } from '../controllers/dictionaryController.js';
@@ -40,6 +41,7 @@ const router = express.Router();
 router.use(protect, requireSchoolContext);
 router.use('/word-lists', authorize('admin', 'department_principal', 'teacher'));
 router.get('/word-lists', listSpellingWords);
+router.delete('/word-lists/:wordId', authorize('admin', 'department_principal', 'teacher'), deleteSpellingWord);
 router.get('/dictionary/:word', getDictionaryWord);
 router.get('/classes/:classId/settings', authorize('admin', 'department_principal', 'teacher'), getClassSettings);
 router.patch('/classes/:classId/settings', express.json(), authorize('admin', 'department_principal', 'teacher'), updateClassSettings);
@@ -57,6 +59,7 @@ router.get('/sessions/:id/current-item', getCurrentItem);
 router.post('/sessions/:id/integrity-events', authorize('student'), createSpellingIntegrityEvent);
 router.get('/sessions/:id/integrity-events', authorize('admin', 'department_principal', 'teacher'), getSpellingIntegrityEvents);
 router.patch('/sessions/:id/attempt', recordAttempt);
+router.patch('/sessions/:id/attempts/:attemptId/correct', authorize('admin', 'department_principal', 'teacher'), express.json(), markAttemptCorrect);
 router.post('/sessions/:id/advance-class-word', authorize('admin', 'department_principal', 'teacher'), express.json(), advanceClassWordHandler);
 router.post('/sessions/:id/complete', completeSession);
 router.post('/sessions/:id/abandon', abandonSession);

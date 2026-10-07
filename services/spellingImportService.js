@@ -10,6 +10,29 @@ const REQUIRED_HEADERS = ['grade', 'week', 'category', 'word', 'order'];
 const DEFINITION_HEADER = 'definition';
 const VALID_GRADES = new Set(['KG', 'G1', 'G2', 'G3', 'G4', 'G5']);
 
+export const estimateSpellingReplacement = (existingWords, rows) => {
+    const existingByWord = new Map();
+    for (const word of existingWords) {
+        const key = `${word.grade}:${word.normalizedWord}`;
+        existingByWord.set(key, (existingByWord.get(key) || 0) + 1);
+    }
+
+    let keptRows = 0;
+    for (const row of rows) {
+        const key = `${row.grade}:${row.normalizedWord}`;
+        const count = existingByWord.get(key) || 0;
+        if (count > 0) {
+            keptRows += 1;
+            existingByWord.set(key, count - 1);
+        }
+    }
+
+    return {
+        removed: existingWords.length - keptRows,
+        added: rows.length - keptRows
+    };
+};
+
 const parseCsvLine = (line, rowNumber) => {
     const values = [];
     let value = '';
@@ -120,6 +143,11 @@ export async function previewSpellingImport({ schoolId, userId, fileName, conten
     const rows = parseSpellingCsv(content);
     const { validRows, errors } = validateSpellingRows(rows);
     const fileHash = crypto.createHash('sha256').update(String(content)).digest('hex');
+    const grades = [...new Set(validRows.map((row) => row.grade))];
+    const existingWords = grades.length > 0
+        ? await SpellingWord.find({ school: schoolId, grade: { $in: grades } }).select('grade normalizedWord').lean()
+        : [];
+    const replaceEstimate = estimateSpellingReplacement(existingWords, validRows);
     const job = await SpellingImportJob.create({
         school: schoolId,
         uploadedBy: userId,
@@ -134,7 +162,9 @@ export async function previewSpellingImport({ schoolId, userId, fileName, conten
         importId: job._id,
         fileHash,
         summary: job.summary,
-        errors
+        errors,
+        previewRows: validRows.slice(0, 5),
+        replaceEstimate
     };
 }
 
@@ -217,7 +247,7 @@ async function replaceSpellingWordLists({ schoolId, job }) {
             importedRows: newDocs.length,
             insertedRows: newDocs.length - keptCount,
             updatedRows: keptCount,
-            removedRows: oldWords.length
+            removedRows: oldWords.length - keptCount
         };
     });
 

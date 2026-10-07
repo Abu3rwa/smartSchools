@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
 import { evaluateSpellingAnswer, isCorrect, normalizeForGrading } from '../utils/spellingGrading.js';
-import { getSpellingGradeProgress } from '../utils/spellingProgress.js';
+import { getNextSpellingGrade, getSpellingGradeProgress } from '../utils/spellingProgress.js';
 import SpellingWord from '../models/SpellingWord.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingSession from '../models/SpellingSession.js';
@@ -39,7 +39,7 @@ const objectId = () => new mongoose.Types.ObjectId();
      }), { correct: false, skipped: false, countsAsMistake: true });
  });
 
- test('curriculum progress is isolated by grade and supports legacy student progress', () => {
+ test('curriculum progress is isolated by grade and only uses legacy progress when no grade history exists', () => {
      const student = {
          spelling: {
              currentGrade: 'G2',
@@ -52,8 +52,26 @@ const objectId = () => new mongoose.Types.ObjectId();
      };
 
      assert.deepEqual(getSpellingGradeProgress(student, 'G1'), { week: 8, lastWordIndex: 12 });
-     assert.deepEqual(getSpellingGradeProgress(student, 'G2'), { week: 3, lastWordIndex: 5 });
+     assert.deepEqual(getSpellingGradeProgress(student, 'G2'), { week: null, lastWordIndex: 0 });
      assert.deepEqual(getSpellingGradeProgress(student, 'G3'), { week: null, lastWordIndex: 0 });
+
+     assert.deepEqual(getSpellingGradeProgress({
+         spelling: { currentGrade: 'G4', currentWeek: 11, lastWordIndex: 5, progressByGrade: [{ grade: 'KG', week: 11, lastWordIndex: 5 }] }
+     }, 'G4'), { week: null, lastWordIndex: 0 });
+
+     assert.deepEqual(getSpellingGradeProgress({
+         spelling: { currentGrade: 'G4', currentWeek: 11, lastWordIndex: 5 }
+     }, 'G4'), { week: 11, lastWordIndex: 5 });
+ });
+
+ test('spelling grade order promotes KG through G5 and treats G5 as terminal', () => {
+     assert.equal(getNextSpellingGrade('KG'), 'G1');
+     assert.equal(getNextSpellingGrade('G1'), 'G2');
+     assert.equal(getNextSpellingGrade('G2'), 'G3');
+     assert.equal(getNextSpellingGrade('G3'), 'G4');
+     assert.equal(getNextSpellingGrade('G4'), 'G5');
+     assert.equal(getNextSpellingGrade('G5'), null);
+     assert.equal(getNextSpellingGrade('G6'), null);
  });
 
 test('SpellingWord requires school-scoped curriculum fields', () => {

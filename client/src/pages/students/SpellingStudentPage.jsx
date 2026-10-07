@@ -69,14 +69,35 @@ const SpellingStudentPage = () => {
     }, [dispatch]);
 
     useEffect(() => {
-        if (!session?._id || session.status !== 'in-progress') return undefined;
-        // In self-serve mode the student drives their own test sequence; poll every 8s as safety check.
-        // In teacher-led mode, poll every 4s to catch the next word advanced by the teacher.
-        const pollInterval = session.mode === 'self-serve' ? 8000 : 4000;
-        const refreshSession = () => dispatch(fetchSpellingCurrentItem(session._id));
+        if (!session?._id) return undefined;
+        // Keep completed results current too, in case a teacher corrects an answer after the test.
+        const pollInterval = session.status !== 'in-progress'
+            ? 10000
+            : session.mode === 'self-serve' ? 8000 : 4000;
+        const refreshSession = () => {
+            dispatch(fetchSpellingCurrentItem(session._id));
+            if (session.status !== 'in-progress') {
+                dispatch(fetchSpellingHistory());
+                dispatch(fetchSpellingRetests());
+            }
+        };
         const intervalId = window.setInterval(refreshSession, pollInterval);
         return () => window.clearInterval(intervalId);
     }, [dispatch, session?._id, session?.status, session?.mode]);
+
+    useEffect(() => {
+        if (!selectedHistorySession?._id) return;
+        const latestSession = history.find((entry) => String(entry._id) === String(selectedHistorySession._id));
+        if (latestSession && latestSession.updatedAt !== selectedHistorySession.updatedAt) {
+            setSelectedHistorySession(latestSession);
+        }
+    }, [history, selectedHistorySession]);
+
+    useEffect(() => {
+        if (!selectedHistorySession?._id) return undefined;
+        const intervalId = window.setInterval(() => dispatch(fetchSpellingHistory()), 10000);
+        return () => window.clearInterval(intervalId);
+    }, [dispatch, selectedHistorySession?._id]);
 
     useEffect(() => {
         if (!currentItem?.word) return;
@@ -240,6 +261,11 @@ const SpellingStudentPage = () => {
     const correctWords = selectedAttempts.filter((attempt) => attempt.correct);
     const incorrectWords = selectedAttempts.filter((attempt) => !attempt.correct && !isSkippedSpellingAttempt(attempt, selectedHistorySession?.mode));
     const skippedHistoryWords = selectedAttempts.filter((attempt) => isSkippedSpellingAttempt(attempt, selectedHistorySession?.mode));
+    const answerReviewAttempts = (attempts, mode) => (attempts || []).filter((attempt) => (
+        mode === 'self-serve'
+        && String(attempt.studentInput ?? '').trim()
+        && (!attempt.correct || attempt.correctedAt)
+    ));
     const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));
     const mistakesAllowed = session?.maxMistakesAllowed || 3;
 
@@ -307,6 +333,30 @@ const SpellingStudentPage = () => {
                                 />)}
                             </Stack>
                         </Box>}
+                        {answerReviewAttempts(session?.attempts, session?.mode).length > 0 && (
+                            <Box sx={{ width: '100%' }}>
+                                <Typography variant="subtitle1">Answer review</Typography>
+                                <Stack spacing={1} sx={{ mt: 1 }}>
+                                    {answerReviewAttempts(session.attempts, session.mode).map((attempt) => (
+                                        <Card key={attempt._id || attempt.sequence} variant="outlined">
+                                            <CardContent sx={{ '&:last-child': { pb: 1.5 }, py: 1.5 }}>
+                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                                                    <Box sx={{ flex: 1 }}>
+                                                        <Typography variant="caption" color="text.secondary">Your answer</Typography>
+                                                        <Typography>{attempt.studentInput}</Typography>
+                                                    </Box>
+                                                    <Box sx={{ flex: 1 }}>
+                                                        <Typography variant="caption" color="text.secondary">Correct spelling</Typography>
+                                                        <Typography>{attempt.wordSnapshot}</Typography>
+                                                    </Box>
+                                                    {attempt.correctedAt && <Chip size="small" color="success" label="Accepted by teacher" />}
+                                                </Stack>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </Stack>
+                            </Box>
+                        )}
 
                         {session?.status !== 'in-progress' ? (
                             <Stack spacing={2} alignItems="center">
@@ -352,9 +402,14 @@ const SpellingStudentPage = () => {
                                                         {revealedAttempt.skipped ? t('skipped') : revealedAttempt.correct ? `${t('correct')} 🎉` : t('incorrect')}
                                                     </Typography>
                                                     {!revealedAttempt.correct && (
-                                                        <Typography variant="body2">
-                                                            Correct spelling: <strong>{revealedAttempt.word}</strong>
-                                                        </Typography>
+                                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center">
+                                                            <Typography variant="body2">
+                                                                Your answer: <strong>{String(revealedAttempt.input || '').trim() || 'Skipped'}</strong>
+                                                            </Typography>
+                                                            <Typography variant="body2">
+                                                                Correct spelling: <strong>{revealedAttempt.word}</strong>
+                                                            </Typography>
+                                                        </Stack>
                                                     )}
                                                     {revealedAttempt.dictionary?.definitions?.slice(0, 2).map((definition) => (
                                                         <Box key={`${definition.partOfSpeech}-${definition.definition}`}>
@@ -425,6 +480,20 @@ const SpellingStudentPage = () => {
                         <Typography color="text.secondary">{selectedHistorySession && new Date(selectedHistorySession.startedAt).toLocaleDateString()}</Typography>
                         <Box><Typography variant="subtitle1">{t('correctWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{correctWords.length ? correctWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="success" icon={<span aria-hidden="true">✓</span>} />) : <Typography color="text.secondary">{t('none')}</Typography>}</Stack></Box>
                         <Box><Typography variant="subtitle1">{t('incorrectWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{incorrectWords.length ? incorrectWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="error" icon={<span aria-hidden="true">×</span>} />) : <Typography color="text.secondary">{t('none')}</Typography>}</Stack></Box>
+                        {answerReviewAttempts(selectedAttempts, selectedHistorySession?.mode).length > 0 && (
+                            <Box>
+                                <Typography variant="subtitle1">Answer comparison</Typography>
+                                <Stack spacing={1} sx={{ mt: 1 }}>
+                                    {answerReviewAttempts(selectedAttempts, selectedHistorySession?.mode).map((attempt) => (
+                                        <Stack key={attempt._id || attempt.sequence} direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                                            <Typography sx={{ flex: 1 }}>Your answer: <strong>{attempt.studentInput}</strong></Typography>
+                                            <Typography sx={{ flex: 1 }}>Correct spelling: <strong>{attempt.wordSnapshot}</strong></Typography>
+                                            {attempt.correctedAt && <Chip size="small" color="success" label="Accepted by teacher" />}
+                                        </Stack>
+                                    ))}
+                                </Stack>
+                            </Box>
+                        )}
                         {skippedHistoryWords.length > 0 && <Box><Typography variant="subtitle1">{t('skippedWords')}</Typography><Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>{skippedHistoryWords.map((attempt) => <Chip key={attempt._id || attempt.sequence} label={attempt.wordSnapshot} color="warning" variant="outlined" />)}</Stack></Box>}
                         {passageLoading && <Typography color="text.secondary">Loading practice passage…</Typography>}
                         {!passageLoading && practicePassage && (

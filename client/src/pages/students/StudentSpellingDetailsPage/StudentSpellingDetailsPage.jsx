@@ -64,7 +64,7 @@ const StudentSpellingDetailsPage = () => {
     return (
         <Box sx={{ maxWidth: 1100, mx: 'auto', p: 3 }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ sm: 'center' }}>
-                <Button component={Link} to={`/portal/students/${id}`} variant="outlined" size="small" sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}>
+                <Button component={Link} to="/portal/spelling" variant="outlined" size="small" sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}>
                     {t('backToStudent')}
                 </Button>
                 {switcherStudents.length > 1 && (

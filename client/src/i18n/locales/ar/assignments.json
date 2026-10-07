@@ -58,6 +58,20 @@
     "notifyAudience": "جهة الإشعار",
     "notifyOnGrade": "إشعار عند التصحيح"
   },
+  "import": {
+    "title": "تعبئة الواجب من CSV",
+    "description": "اختر الصف والمادة أعلاه، ثم استورد واجبًا واحدًا مع روابطه.",
+    "downloadTemplate": "تنزيل نموذج CSV",
+    "chooseFile": "استيراد CSV",
+    "importing": "جارٍ قراءة CSV...",
+    "formLoaded": "تم تحميل حقول الواجب من {{name}}. راجعها قبل الإنشاء.",
+    "selectClassSubject": "اختر الصف والمادة قبل استيراد الواجب.",
+    "invalidFile": "اختر ملف CSV.",
+    "fileTooLarge": "يجب أن يكون حجم ملف CSV أقل من 900 كيلوبايت.",
+    "assignmentTypeNotFound": "نوع الواجب في CSV غير موجود. استخدم اسم نوع واجب أو معرّفه.",
+    "failed": "تعذر استيراد CSV للواجب.",
+    "templateHelp": "واجب واحد في كل ملف. استخدم links_json لإضافة عدة روابط."
+  },
   "audience": {
     "both": "الطلاب وأولياء الأمور",
     "students": "الطلاب فقط",

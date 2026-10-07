@@ -9,6 +9,7 @@ const spellingAttemptSchema = new mongoose.Schema({
     grade: { type: String, required: true, uppercase: true },
     week: { type: Number, required: true, min: 1 },
     category: { type: String, required: true, trim: true, maxlength: 120 },
+    order: { type: Number, min: 1, default: null },
     retestItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingRetestItem', default: null },
     isRetest: { type: Boolean, default: false },
     correct: { type: Boolean, required: true },
@@ -17,6 +18,8 @@ const spellingAttemptSchema = new mongoose.Schema({
     normalizedInput: { type: String, default: null, maxlength: 200 },
     answeredAt: { type: Date, default: Date.now },
     answeredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    correctedAt: { type: Date, default: null },
+    correctedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     idempotencyKey: { type: String, required: true, trim: true, maxlength: 160 }
 }, { _id: true, id: false });
 

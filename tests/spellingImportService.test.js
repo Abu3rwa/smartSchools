@@ -1,6 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSpellingCsv, validateSpellingRows } from '../services/spellingImportService.js';
+import {
+    estimateSpellingReplacement,
+    parseSpellingCsv,
+    validateSpellingRows
+} from '../services/spellingImportService.js';
+
+test('estimateSpellingReplacement counts only unmatched existing and imported words', () => {
+    const estimate = estimateSpellingReplacement(
+        [
+            { grade: 'G2', normalizedWord: 'fox' },
+            { grade: 'G2', normalizedWord: 'wolf' },
+            { grade: 'G3', normalizedWord: 'fox' }
+        ],
+        [
+            { grade: 'G2', normalizedWord: 'fox' },
+            { grade: 'G2', normalizedWord: 'bear' },
+            { grade: 'G3', normalizedWord: 'fox' }
+        ]
+    );
+
+    assert.deepEqual(estimate, { removed: 1, added: 1 });
+});
 
 test('parseSpellingCsv supports quoted commas and trims row values', () => {
     const rows = parseSpellingCsv([

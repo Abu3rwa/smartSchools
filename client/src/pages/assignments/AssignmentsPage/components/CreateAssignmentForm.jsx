@@ -1,8 +1,11 @@
-import { HiOutlinePlus, HiOutlineUpload } from 'react-icons/hi';
+import { useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { HiOutlineDownload, HiOutlinePlus, HiOutlineUpload } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 import LinkEditor from './LinkEditor';
 import AttachmentEditor from './AttachmentEditor';
+import { buildAssignmentCsvTemplate, parseAssignmentCsv } from '../utils/assignmentCsvImport';
 
 const CreateAssignmentForm = ({
     open,
@@ -17,7 +20,64 @@ const CreateAssignmentForm = ({
     onSubmit
 }) => {
     const { t } = useTranslation(['assignments']);
+    const csvInputRef = useRef(null);
+    const [importingCsv, setImportingCsv] = useState(false);
     if (!open) return null;
+
+    const handleCsvImport = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        if (!selectedClass || !selectedSubject) {
+            toast.error(t('assignments:import.selectClassSubject'));
+            return;
+        }
+        if (!/\.csv$/i.test(file.name)) {
+            toast.error(t('assignments:import.invalidFile'));
+            return;
+        }
+        if (file.size > 900 * 1024) {
+            toast.error(t('assignments:import.fileTooLarge'));
+            return;
+        }
+
+        setImportingCsv(true);
+        try {
+            const imported = parseAssignmentCsv(await file.text());
+            const selectedType = imported.assignmentType
+                ? assignmentTypes.find((item) => (
+                    String(item.id) === imported.assignmentType
+                    || String(item.name || '').trim().toLowerCase() === imported.assignmentType.trim().toLowerCase()
+                ))
+                : null;
+            if (imported.assignmentType && !selectedType) {
+                throw new Error(t('assignments:import.assignmentTypeNotFound'));
+            }
+            const fields = Object.fromEntries(
+                Object.entries(imported).filter(([key]) => key !== 'assignmentType')
+            );
+            setForm((current) => ({
+                ...current,
+                ...fields,
+                ...(selectedType ? { assignmentTypeId: selectedType.id } : {})
+            }));
+            toast.success(t('assignments:import.formLoaded', { name: file.name }));
+        } catch (error) {
+            toast.error(error.message || t('assignments:import.failed'));
+        } finally {
+            setImportingCsv(false);
+        }
+    };
+
+    const downloadTemplate = () => {
+        const blob = new Blob([buildAssignmentCsvTemplate()], { type: 'text/csv;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'assignment-import-template.csv';
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+    };
 
     return (
         <form className="create-form card" onSubmit={onSubmit}>
@@ -27,6 +87,38 @@ const CreateAssignmentForm = ({
                     {isEditing ? t('assignments:form.editTitle') : t('assignments:form.createTitle')}
                 </h3>
             </div>
+
+            {!isEditing && (
+                <div className="assignment-csv-import">
+                    <div>
+                        <strong>{t('assignments:import.title')}</strong>
+                        <p>{t('assignments:import.description')}</p>
+                    </div>
+                    <div className="assignment-csv-import__actions">
+                        <button type="button" className="btn btn-outline" onClick={downloadTemplate} disabled={submitting || importingCsv}>
+                            <HiOutlineDownload />
+                            {t('assignments:import.downloadTemplate')}
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => csvInputRef.current?.click()}
+                            disabled={!selectedClass || !selectedSubject || submitting || importingCsv}
+                        >
+                            <HiOutlineUpload />
+                            {importingCsv ? t('assignments:import.importing') : t('assignments:import.chooseFile')}
+                        </button>
+                        <input
+                            ref={csvInputRef}
+                            type="file"
+                            accept=".csv,text/csv"
+                            hidden
+                            aria-label={t('assignments:import.chooseFile')}
+                            onChange={handleCsvImport}
+                        />
+                    </div>
+                </div>
+            )}
 
             <div className="create-grid">
                 <div className="form-group">

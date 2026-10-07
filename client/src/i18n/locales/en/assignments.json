@@ -58,6 +58,20 @@
     "notifyAudience": "Notify audience",
     "notifyOnGrade": "Notify on grade"
   },
+  "import": {
+    "title": "Fill assignment from CSV",
+    "description": "Choose the class and subject above, then import one assignment with its links.",
+    "downloadTemplate": "Download CSV template",
+    "chooseFile": "Import CSV",
+    "importing": "Reading CSV...",
+    "formLoaded": "Assignment fields loaded from {{name}}. Review them before creating.",
+    "selectClassSubject": "Choose a class and subject before importing an assignment.",
+    "invalidFile": "Choose a CSV file.",
+    "fileTooLarge": "The CSV file must be smaller than 900 KB.",
+    "assignmentTypeNotFound": "The assignment type in the CSV was not found. Use an assignment type name or ID.",
+    "failed": "Unable to import assignment CSV.",
+    "templateHelp": "One assignment per file. Use links_json for multiple links."
+  },
   "audience": {
     "both": "Students & Parents",
     "students": "Students only",

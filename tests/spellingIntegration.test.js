@@ -8,7 +8,7 @@ import SpellingSession from '../models/SpellingSession.js';
 import SpellingClassSession from '../models/SpellingClassSession.js';
 import SpellingRetestItem from '../models/SpellingRetestItem.js';
 import SpellingIntegrityEvent from '../models/SpellingIntegrityEvent.js';
-import { completeSpellingSession, getCurrentSpellingItem, recordSpellingAttempt, startSpellingClassSession, startSpellingSession } from '../services/spellingSessionService.js';
+import { completeSpellingSession, getCurrentSpellingItem, markSpellingAttemptCorrect, recordSpellingAttempt, startSpellingClassSession, startSpellingSession } from '../services/spellingSessionService.js';
 import { listSpellingIntegrityEvents, listSpellingSessions, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
 
 const enabled = process.env.RUN_SPELLING_INTEGRATION === 'true' && Boolean(process.env.MONGODB_URI);
@@ -53,6 +53,9 @@ integrationTest('session transitions are stable and concurrent duplicate answers
     assert.equal(second.item.sequence, first.item.sequence);
     const rosterSessions = await listSpellingSessions({ schoolId, studentIds: [studentId], viewerRole: 'teacher' });
     assert.equal(rosterSessions[0].currentWord, 'otter');
+    assert.equal(rosterSessions[0].currentWordGrade, 'G3');
+    assert.equal(rosterSessions[0].currentWordWeek, 1);
+    assert.equal(rosterSessions[0].currentWordIsRetest, false);
     assert.equal(rosterSessions[0].nextSequence, 1);
 
     const integrityEvent = {
@@ -155,6 +158,226 @@ integrationTest('self-serve grade progress resumes independently and skipped wor
     current = await getCurrentSpellingItem({ schoolId, sessionId: resumedFirstGradeSession._id });
     assert.equal(current.item.word, 'turtle');
     await completeSpellingSession({ schoolId, sessionId: resumedFirstGradeSession._id });
+}, { timeout: 30000 });
+
+integrationTest('completed grades promote students to the next grade and G5 remains terminal', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const kindergartenStudentId = new mongoose.Types.ObjectId();
+    const terminalStudentId = new mongoose.Types.ObjectId();
+    const userId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId: kindergartenStudentId, extraStudentIds: [terminalStudentId] });
+
+    await Student.create([
+        {
+            _id: kindergartenStudentId,
+            school: schoolId,
+            studentId: `spelling-kg-complete-${kindergartenStudentId}`,
+            firstName: 'Kindergarten',
+            lastName: 'Complete',
+            dateOfBirth: new Date('2015-01-01'),
+            gender: 'other',
+            academicYear: 'integration',
+            spelling: {
+                currentGrade: 'KG',
+                currentWeek: 40,
+                lastWordIndex: 1,
+                progressByGrade: [{ grade: 'KG', week: 40, lastWordIndex: 1 }]
+            }
+        },
+        {
+            _id: terminalStudentId,
+            school: schoolId,
+            studentId: `spelling-g5-complete-${terminalStudentId}`,
+            firstName: 'Grade Five',
+            lastName: 'Complete',
+            dateOfBirth: new Date('2015-01-01'),
+            gender: 'other',
+            academicYear: 'integration',
+            spelling: {
+                currentGrade: 'G5',
+                currentWeek: 36,
+                lastWordIndex: 1,
+                progressByGrade: [{ grade: 'G5', week: 36, lastWordIndex: 1 }]
+            }
+        }
+    ]);
+    await SpellingWord.create([
+        { school: schoolId, grade: 'KG', week: 40, category: 'Integration', word: 'kindergarten', normalizedWord: 'kindergarten', order: 1 },
+        { school: schoolId, grade: 'G1', week: 1, category: 'Integration', word: 'firstgrade', normalizedWord: 'firstgrade', order: 1 },
+        { school: schoolId, grade: 'G5', week: 36, category: 'Integration', word: 'terminal', normalizedWord: 'terminal', order: 1 }
+    ]);
+
+    const promotedSession = await startSpellingSession({
+        schoolId,
+        studentId: kindergartenStudentId,
+        userId,
+        mode: 'self-serve',
+        maxMistakesAllowed: 3,
+        curriculumGrade: 'KG'
+    });
+    assert.equal(promotedSession.curriculumGrade, 'G1');
+    assert.equal(promotedSession.curriculumWeek, 1);
+    const promotedStudent = await Student.findById(kindergartenStudentId).lean();
+    assert.equal(promotedStudent.spelling.currentGrade, 'G1');
+    assert.equal(promotedStudent.spelling.currentWeek, 1);
+    assert.equal(promotedStudent.spelling.progressByGrade.find((entry) => entry.grade === 'KG').week, 40);
+
+    await assert.rejects(
+        () => startSpellingSession({
+            schoolId,
+            studentId: terminalStudentId,
+            userId,
+            mode: 'self-serve',
+            maxMistakesAllowed: 3,
+            curriculumGrade: 'G5'
+        }),
+        (error) => error.statusCode === 400 && /completed all available spelling grades \(G5\)/.test(error.message)
+    );
+}, { timeout: 30000 });
+
+integrationTest('starting a new grade ignores another grade legacy progress and repairs out-of-range weeks', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentIds = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+    const userId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId: studentIds[0], extraStudentIds: [studentIds[1]] });
+
+    await Student.create([
+        {
+            _id: studentIds[0],
+            school: schoolId,
+            studentId: `spelling-cross-grade-${studentIds[0]}`,
+            firstName: 'Cross',
+            lastName: 'Grade',
+            dateOfBirth: new Date('2015-01-01'),
+            gender: 'other',
+            academicYear: 'integration',
+            spelling: {
+                currentGrade: 'G4',
+                currentWeek: 11,
+                lastWordIndex: 7,
+                progressByGrade: [{ grade: 'KG', week: 11, lastWordIndex: 7 }]
+            }
+        },
+        {
+            _id: studentIds[1],
+            school: schoolId,
+            studentId: `spelling-invalid-week-${studentIds[1]}`,
+            firstName: 'Invalid',
+            lastName: 'Week',
+            dateOfBirth: new Date('2015-01-01'),
+            gender: 'other',
+            academicYear: 'integration',
+            spelling: { currentGrade: 'G1', currentWeek: 38, lastWordIndex: 0 }
+        }
+    ]);
+    await SpellingWord.create([
+        { school: schoolId, grade: 'G4', week: 1, category: 'Integration', word: 'gradefour', normalizedWord: 'gradefour', order: 1 },
+        { school: schoolId, grade: 'G1', week: 1, category: 'Integration', word: 'gradeone', normalizedWord: 'gradeone', order: 1 }
+    ]);
+
+    const firstGradeSession = await startSpellingSession({
+        schoolId,
+        studentId: studentIds[0],
+        userId,
+        mode: 'self-serve',
+        maxMistakesAllowed: 3,
+        curriculumGrade: 'G4'
+    });
+    assert.equal(firstGradeSession.curriculumGrade, 'G4');
+    assert.equal(firstGradeSession.curriculumWeek, 1);
+
+    const recoveredSession = await startSpellingSession({
+        schoolId,
+        studentId: studentIds[1],
+        userId,
+        mode: 'self-serve',
+        maxMistakesAllowed: 3,
+        curriculumGrade: 'G1'
+    });
+    assert.equal(recoveredSession.curriculumGrade, 'G1');
+    assert.equal(recoveredSession.curriculumWeek, 1);
+    const repairedStudent = await Student.findById(studentIds[1]).lean();
+    assert.equal(repairedStudent.spelling.currentWeek, null);
+    assert.equal(repairedStudent.spelling.lastWordIndex, 0);
+}, { timeout: 30000 });
+
+integrationTest('teachers can correct a wrong answer after completion and resolve its retest', async () => {
+    await mongoose.connect(process.env.MONGODB_URI);
+    const schoolId = new mongoose.Types.ObjectId();
+    const studentId = new mongoose.Types.ObjectId();
+    const userId = new mongoose.Types.ObjectId();
+    ids.push({ schoolId, studentId });
+
+    await Student.create({
+        _id: studentId,
+        school: schoolId,
+        studentId: `spelling-correction-${studentId}`,
+        firstName: 'Spelling',
+        lastName: 'Correction',
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'other',
+        academicYear: 'integration',
+        spelling: { currentGrade: 'G1', currentWeek: 1, lastWordIndex: 0 }
+    });
+    const word = await SpellingWord.create({
+        school: schoolId,
+        grade: 'G1',
+        week: 1,
+        category: 'Integration',
+        word: 'otter',
+        normalizedWord: 'otter',
+        order: 1
+    });
+    const session = await startSpellingSession({
+        schoolId,
+        studentId,
+        userId,
+        mode: 'self-serve',
+        maxMistakesAllowed: 1,
+        curriculumGrade: 'G1'
+    });
+    const current = await getCurrentSpellingItem({ schoolId, sessionId: session._id });
+    await recordSpellingAttempt({
+        schoolId,
+        sessionId: session._id,
+        userId,
+        sequence: current.item.sequence,
+        studentInput: 'other',
+        idempotencyKey: 'correction-test'
+    });
+
+    const completedSession = await SpellingSession.findById(session._id).lean();
+    assert.equal(completedSession.status, 'completed');
+    assert.equal(completedSession.mistakeCount, 1);
+    assert.equal(completedSession.attempts[0].order, 1);
+    const retest = await SpellingRetestItem.findOne({ school: schoolId, student: studentId, status: 'pending' }).lean();
+    assert.ok(retest);
+
+    const corrected = await markSpellingAttemptCorrect({
+        schoolId,
+        sessionId: session._id,
+        attemptId: completedSession.attempts[0]._id,
+        userId
+    });
+    assert.equal(corrected.session.status, 'completed');
+    assert.equal(corrected.session.correctCount, 1);
+    assert.equal(corrected.session.mistakeCount, 0);
+    assert.equal(corrected.attempt.correct, true);
+    assert.ok(corrected.attempt.correctedAt);
+    assert.equal(await SpellingRetestItem.countDocuments({ school: schoolId, student: studentId, status: 'pending' }), 0);
+    assert.equal(await SpellingRetestItem.countDocuments({ _id: retest._id, sourceWord: word._id, status: 'resolved' }), 1);
+
+    const repeatedCorrection = await markSpellingAttemptCorrect({
+        schoolId,
+        sessionId: session._id,
+        attemptId: completedSession.attempts[0]._id,
+        userId
+    });
+    assert.equal(repeatedCorrection.idempotent, true);
+    assert.equal(repeatedCorrection.session.correctCount, 1);
+    assert.equal(repeatedCorrection.session.mistakeCount, 0);
 }, { timeout: 30000 });
 
 integrationTest('class spelling sessions share and resume ordered words independently by grade', async () => {

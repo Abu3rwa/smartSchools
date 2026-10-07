@@ -53,11 +53,15 @@ const SpellingStudentRosterTable = ({
                             const rowBusy = rowActionLoadingId === student._id;
                             const selectedGrade = level.grade || student.spelling?.currentGrade;
                             const gradeProgress = student.spelling?.progressByGrade?.find((entry) => entry.grade === selectedGrade);
+                            const canUseLegacyProgress = !student.spelling?.progressByGrade?.length;
+                            const legacyWeek = student.spelling?.currentGrade === selectedGrade
+                                && canUseLegacyProgress
+                                && student.spelling.currentWeek <= (selectedGrade === 'KG' ? 40 : 36)
+                                ? student.spelling.currentWeek
+                                : null;
                             const currentWeek = rowActiveSession?.curriculumGrade === selectedGrade && rowActiveSession?.curriculumWeek
                                 ? rowActiveSession.curriculumWeek
-                                : (gradeProgress?.week
-                                    || (student.spelling?.currentGrade === selectedGrade ? student.spelling?.currentWeek : null)
-                                    || null);
+                                : (gradeProgress?.week || legacyWeek || null);
 
                             return (
                                 <TableRow key={student._id}>
@@ -78,6 +82,17 @@ const SpellingStudentRosterTable = ({
                                                         border: '1px solid',
                                                         borderColor: 'warning.main'
                                                     }}
+                                                />
+                                            )}
+                                            {currentWord && rowActiveSession?.currentWordIsRetest && (
+                                                <Chip
+                                                    size="small"
+                                                    color="warning"
+                                                    variant="outlined"
+                                                    label={t('retestFromGradeWeek', {
+                                                        grade: rowActiveSession.currentWordGrade,
+                                                        week: rowActiveSession.currentWordWeek
+                                                    })}
                                                 />
                                             )}
                                         </Stack>

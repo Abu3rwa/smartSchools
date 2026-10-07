@@ -1,4 +1,4 @@
-﻿{
+{
   "teacherTitle": "اختبارات الإملاء",
   "teacherDescription": "اختر فصلاً، وراجع سجل إملاء الطالب، أو أنشئ الاختبار التالي.",
   "class": "الفصل",
@@ -144,4 +144,34 @@
   ,"noMissedWordsInFilter": "لا توجد كلمات فائتة تطابق عوامل التصفية."
   ,"originalCorrectPercent": "الإجابات الأصلية الصحيحة (%)"
   ,"originalIncorrectPercent": "الإجابات الأصلية الخاطئة (%)"
+  ,"retestFromGradeWeek": "إعادة اختبار · {{grade}} · الأسبوع {{week}}"
+  ,"searchWords": "البحث عن الكلمات"
+  ,"clearFilters": "مسح عوامل التصفية"
+  ,"importWordList": "استيراد قائمة كلمات"
+  ,"removeWordAria": "إزالة {{word}} من المنهج المشترك"
+  ,"removeCurriculumWordTitle": "إزالة كلمة من المنهج؟"
+  ,"removeCurriculumWordMessage": "هل تريد إزالة «{{word}}» من {{grade}}، الأسبوع {{week}}، {{category}}؟ سيؤثر ذلك في المنهج المشترك للجميع."
+  ,"cancel": "إلغاء"
+  ,"removingWord": "جارٍ إزالة الكلمة..."
+  ,"removeWord": "إزالة الكلمة"
+  ,"chooseCsvFile": "اختيار ملف CSV"
+  ,"dropCsvHere": "اسحب ملف CSV وأفلته هنا، أو اختر ملفًا."
+  ,"removeSelectedFile": "إزالة الملف المحدد"
+  ,"rowCount": "{{count}} صفوف"
+  ,"validRowCount": "{{count}} صالحة"
+  ,"errorRowCount": "{{count}} أخطاء"
+  ,"validationErrors": "أخطاء التحقق"
+  ,"validationErrorRow": "الصف {{row}}: {{message}}"
+  ,"firstValidRows": "أول 5 صفوف صالحة"
+  ,"importing": "جارٍ استيراد قائمة الكلمات..."
+  ,"confirmReplaceTitle": "تأكيد استبدال المنهج؟"
+  ,"confirmReplace": "تأكيد الاستبدال"
+  ,"replaceEstimate": "استنادًا إلى المنهج الحالي، ستتم إزالة {{removed}} كلمة وإضافة {{added}}."
+  ,"invalidImportGrade": "يجب أن يكون الصف KG أو من G1 إلى G5."
+  ,"invalidImportWeek": "يجب أن يكون الأسبوع عددًا صحيحًا موجبًا."
+  ,"invalidImportCategory": "الفئة مطلوبة ويجب ألا يتجاوز طولها 120 حرفًا."
+  ,"invalidImportWord": "الكلمة مطلوبة ويجب ألا يتجاوز طولها 200 حرف."
+  ,"invalidImportDefinition": "يجب ألا يتجاوز طول التعريف 2000 حرف."
+  ,"invalidImportOrder": "يجب أن يكون الترتيب عددًا صحيحًا موجبًا."
+  ,"duplicateImportPosition": "تكررت مجموعة الصف والأسبوع والترتيب في الملف."
 }
