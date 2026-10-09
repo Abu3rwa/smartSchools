@@ -314,7 +314,15 @@ const SpellingStudentPage = () => {
         && String(attempt.studentInput ?? '').trim()
         && (!attempt.correct || attempt.correctedAt)
     ));
-    const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));
+    // "giraaaa × giraffe" for a wrong answer, "giraaaa ✓ giraffe" once the teacher accepts it, "giraffe ✓" when correct.
+    const previousWordLabel = (attempt, mode) => {
+        const word = attempt.wordSnapshot;
+        const typed = String(attempt.studentInput ?? '').trim();
+        if (isSkippedSpellingAttempt(attempt, mode)) return word;
+        if (mode === 'self-serve' && typed && attempt.correctedAt) return `${typed} ✓ ${word}`;
+        if (attempt.correct) return `${word} ✓`;
+        return mode === 'self-serve' && typed ? `${typed} × ${word}` : word;
+    };    const hasSkippedWords = session?.attempts?.some((attempt) => isSkippedSpellingAttempt(attempt, session.mode));
     const mistakesAllowed = session?.maxMistakesAllowed || 3;
 
     return (
@@ -374,38 +382,13 @@ const SpellingStudentPage = () => {
                             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
                                 {session.attempts.map((attempt) => <Chip
                                     key={attempt._id || attempt.sequence}
-                                    label={attempt.wordSnapshot}
+                                    label={previousWordLabel(attempt, session.mode)}
                                     color={isSkippedSpellingAttempt(attempt, session.mode) ? 'warning' : attempt.correct ? 'success' : 'error'}
                                     variant="outlined"
                                     title={isSkippedSpellingAttempt(attempt, session.mode) ? t('skipped') : attempt.correct ? 'Correct' : 'Incorrect'}
                                 />)}
                             </Stack>
                         </Box>}
-                        {answerReviewAttempts(session?.attempts, session?.mode).length > 0 && (
-                            <Box sx={{ width: '100%' }}>
-                                <Typography variant="subtitle1">Answer review</Typography>
-                                <Stack spacing={1} sx={{ mt: 1 }}>
-                                    {answerReviewAttempts(session.attempts, session.mode).map((attempt) => (
-                                        <Card key={attempt._id || attempt.sequence} variant="outlined">
-                                            <CardContent sx={{ '&:last-child': { pb: 1.5 }, py: 1.5 }}>
-                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                                    <Box sx={{ flex: 1 }}>
-                                                        <Typography variant="caption" color="text.secondary">Your answer</Typography>
-                                                        <Typography>{attempt.studentInput}</Typography>
-                                                    </Box>
-                                                    <Box sx={{ flex: 1 }}>
-                                                        <Typography variant="caption" color="text.secondary">Correct spelling</Typography>
-                                                        <Typography>{attempt.wordSnapshot}</Typography>
-                                                    </Box>
-                                                    {attempt.correctedAt && <Chip size="small" color="success" label="Accepted by teacher" />}
-                                                </Stack>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
-                                </Stack>
-                            </Box>
-                        )}
-
                         {session?.status !== 'in-progress' ? (
                             <Stack spacing={2} alignItems="center">
                                 <Alert severity="success">{t('sessionCompleted')}</Alert>
