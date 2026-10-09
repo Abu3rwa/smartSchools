@@ -427,13 +427,14 @@ const SpellingStudentPage = () => {
                         ) : currentItem ? (
                             <Box aria-live="polite" aria-atomic="true" sx={{ width: '100%' }}>
                                 <Stack spacing={2} sx={{ width: '100%' }}>
-                                    <Typography variant="body1" color="text.secondary" textAlign="center">{t('listenCarefully')}</Typography>
                                     {currentItem.definition && (
                                         <Box sx={{ textAlign: 'center', px: 2 }}>
                                             <Typography variant="caption" color="text.secondary">Definition</Typography>
                                             <Typography variant="body1">{currentItem.definition}</Typography>
                                         </Box>
                                     )}
+                                    {/* Words with dictionary audio use the voice panel; others keep the original play button. */}
+                                    {!currentItem.audio && (
                                     <Button
                                         variant="outlined"
                                         size="large"
@@ -444,6 +445,7 @@ const SpellingStudentPage = () => {
                                     >
                                         {audioPlaying ? 'Playing…' : t('hearWord')}
                                     </Button>
+                                    )}
                                     {currentItem.audio && (
                                         <SpellingVoicePanel
                                             audio={currentItem.audio}

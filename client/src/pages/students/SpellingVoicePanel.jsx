@@ -26,7 +26,7 @@ const GROUP_ITEM_SX = { '& .MuiToggleButtonGroup-grouped': { border: 1, borderCo
  * - Example sentences are separated from voices: they play audio, they don't change the voice.
  */
 const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onPlayExample }) => {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(true);
     const panelId = useId();
     const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const dictionaries = useMemo(() => Object.entries(audio?.dictionaries || {}), [audio]);
@@ -45,10 +45,8 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
 
     if (dictionaries.length === 0) return null;
 
-    // ToggleButtonGroup passes null when the active button is clicked again; ignore it.
-    const handleChange = (_event, value) => {
-        if (value) onSelectVoice(value);
-    };
+    // Clicking the active voice again passes null: replay the current voice.
+    const handleChange = (_event, value) => onSelectVoice(value || selectedVoice);
 
     return (
         <Box
