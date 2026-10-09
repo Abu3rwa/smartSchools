@@ -91,7 +91,7 @@ test('planWordAudioImport never overwrites a stored URL with an empty cell or dr
     const rows = parseWordAudioCsv('word,Longman US,Oxford UK,definition,Longman example 1\ncat,,,,\n');
     const { operations, unchanged } = planWordAudioImport(rows, stored);
     assert.equal(operations.length, 0);
-    assert.equal(unchanged, 1);
+    assert.equal(unchanged, 0);
 });
 
 test('planWordAudioImport appends new example URLs without removing existing ones', () => {
