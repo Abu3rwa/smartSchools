@@ -116,6 +116,7 @@ const InterventionQueuePage = lazy(() => import("./pages/interventions/Intervent
 const StudentGradesPage = lazy(() => import("./pages/student/academics/StudentGradesPage"));
 const StudentAttendancePage = lazy(() => import("./pages/student/attendance/StudentAttendancePage"));
 const SpellingTeacherPage = lazy(() => import("./pages/spelling/SpellingTeacherPage"));
+const SpellingAudioAdminPage = lazy(() => import("./pages/spelling/SpellingAudioAdminPage"));
 const StudentSpellingDetailsPage = lazy(() => import("./pages/students/StudentSpellingDetailsPage/StudentSpellingDetailsPage"));
 const SpellingStudentPage = lazy(() => import("./pages/students/SpellingStudentPage"));
 const AttendanceRequestFormPage = lazy(() => import("./pages/attendance/AttendanceRequestFormPage"));
@@ -499,6 +500,14 @@ function App() {
               element={
                 <RoleRoute roles={["admin", "department_principal", "teacher"]}>
                   <SpellingTeacherPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="spelling/audio"
+              element={
+                <RoleRoute roles={["admin"]}>
+                  <SpellingAudioAdminPage />
                 </RoleRoute>
               }
             />
