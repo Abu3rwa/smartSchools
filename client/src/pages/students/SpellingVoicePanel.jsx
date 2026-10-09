@@ -1,70 +1,201 @@
-import { Box, Button, Stack, Typography } from '@mui/material';
-import { HiOutlineSpeakerWave } from 'react-icons/hi2';
+import { useId, useMemo, useState } from 'react';
+import { Box, Button, Collapse, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from '@mui/material';
+import { HiOutlineSpeakerWave, HiOutlineChevronDown, HiOutlineCheck } from 'react-icons/hi2';
 import { DEFAULT_VOICE_ID, DICTIONARY_LABELS } from '../../utils/voicePlayback';
 
-const ACCENTS = [['us', 'US'], ['uk', 'UK']];
+const ACCENTS = [
+    ['us', 'US', 'American'],
+    ['uk', 'UK', 'British']
+];
 
-// Rendered only when the word has custom audio (grade flag ON). One section per dictionary.
+const TARGET = { minHeight: 44 }; // comfortable touch target
+
+const dictionaryLabel = (dictionary) => DICTIONARY_LABELS[dictionary] || dictionary;
+
+const GROUP_ITEM_SX = { '& .MuiToggleButtonGroup-grouped': { border: 1, borderColor: 'divider', borderRadius: 1.5, m: 0 } };
+
+/**
+ * Voice picker, rendered only when the word has custom audio (grade flag ON).
+ *
+ * Design notes
+ * - Collapsed by default: during a test the main "Hear word" button is the hero,
+ *   so voice options stay one tap away instead of competing for attention.
+ * - The summary row always states which voice is active, so students never have to guess.
+ * - Voices are a true single-choice control (ToggleButtonGroup, exclusive), so the
+ *   selected state is obvious and can't be deselected into "nothing".
+ * - Example sentences are separated from voices: they play audio, they don't change the voice.
+ */
 const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onPlayExample }) => {
-    const dictionaries = Object.entries(audio?.dictionaries || {});
+    const [open, setOpen] = useState(false);
+    const panelId = useId();
+    const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+    const dictionaries = useMemo(() => Object.entries(audio?.dictionaries || {}), [audio]);
+
+    const activeLabel = useMemo(() => {
+        if (selectedVoice === DEFAULT_VOICE_ID) return 'Default';
+        for (const [dictionary, section] of dictionaries) {
+            for (const [accent, label] of ACCENTS) {
+                if (section[accent] && selectedVoice === `${dictionary}-${accent}`) {
+                    return `${dictionaryLabel(dictionary)} ${label}`;
+                }
+            }
+        }
+        return 'Default';
+    }, [dictionaries, selectedVoice]);
+
     if (dictionaries.length === 0) return null;
 
+    // ToggleButtonGroup passes null when the active button is clicked again; ignore it.
+    const handleChange = (_event, value) => {
+        if (value) onSelectVoice(value);
+    };
+
     return (
-        <Stack spacing={1.5} role="group" aria-label="Voice" sx={{ width: '100%' }}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                <Typography variant="subtitle2" component="span">Voice</Typography>
-                <Button
-                    size="small"
-                    variant={selectedVoice === DEFAULT_VOICE_ID ? 'contained' : 'outlined'}
-                    aria-pressed={selectedVoice === DEFAULT_VOICE_ID}
-                    onClick={() => onSelectVoice(DEFAULT_VOICE_ID)}
-                    disabled={disabled}
-                    sx={{ minHeight: 40 }}
-                >
-                    Default
-                </Button>
-            </Stack>
-            {dictionaries.map(([dictionary, section]) => (
-                <Box key={dictionary} component="section" aria-label={DICTIONARY_LABELS[dictionary] || dictionary}>
-                    <Typography variant="caption" color="text.secondary">{DICTIONARY_LABELS[dictionary] || dictionary}</Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
-                        {ACCENTS.filter(([accent]) => section[accent]).map(([accent, label]) => {
-                            const id = `${dictionary}-${accent}`;
-                            return (
-                                <Button
-                                    key={id}
-                                    size="small"
-                                    variant={selectedVoice === id ? 'contained' : 'outlined'}
-                                    aria-pressed={selectedVoice === id}
-                                    aria-label={`${DICTIONARY_LABELS[dictionary]} ${label} voice`}
-                                    startIcon={<HiOutlineSpeakerWave />}
-                                    onClick={() => onSelectVoice(id)}
-                                    disabled={disabled}
-                                    sx={{ minHeight: 40 }}
-                                >
-                                    {label}
-                                </Button>
-                            );
-                        })}
-                        {(section.examples || []).map((url, index) => (
-                            <Button
-                                key={url}
-                                size="small"
-                                variant="text"
-                                aria-label={`${DICTIONARY_LABELS[dictionary]} example sentence ${index + 1}`}
-                                startIcon={<HiOutlineSpeakerWave />}
-                                onClick={() => onPlayExample(url)}
-                                disabled={disabled}
-                                sx={{ minHeight: 40 }}
-                            >
-                                {`Example ${index + 1}`}
-                            </Button>
-                        ))}
-                    </Stack>
-                </Box>
-            ))}
-        </Stack>
+        <Box
+            role="group"
+            aria-label="Voice settings"
+            sx={{
+                width: '100%',
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 2,
+                bgcolor: 'background.paper',
+                overflow: 'hidden'
+            }}
+        >
+            <Button
+                fullWidth
+                color="inherit"
+                onClick={() => setOpen((value) => !value)}
+                aria-expanded={open}
+                aria-controls={panelId}
+                sx={{
+                    ...TARGET,
+                    justifyContent: 'space-between',
+                    px: 2,
+                    py: 1,
+                    textTransform: 'none',
+                    borderRadius: 0
+                }}
+            >
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                    <HiOutlineSpeakerWave aria-hidden="true" />
+                    <Typography variant="body2" color="text.secondary" component="span">Voice</Typography>
+                    <Typography variant="body2" fontWeight={600} component="span" noWrap>{activeLabel}</Typography>
+                </Stack>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Typography variant="caption" color="text.secondary" component="span">
+                        {open ? 'Hide' : 'Change'}
+                    </Typography>
+                    <HiOutlineChevronDown
+                        aria-hidden="true"
+                        style={{
+                            transform: open ? 'rotate(180deg)' : 'none',
+                            transition: reduceMotion ? 'none' : 'transform 150ms ease'
+                        }}
+                    />
+                </Stack>
+            </Button>
+
+            <Collapse in={open} timeout={reduceMotion ? 0 : 'auto'} unmountOnExit id={panelId}>
+                <Stack spacing={2.5} sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+                    <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={selectedVoice}
+                        onChange={handleChange}
+                        disabled={disabled}
+                        aria-label="Default voice"
+                        sx={{ gap: 1, flexWrap: 'wrap', ...GROUP_ITEM_SX }}
+                    >
+                        <VoiceOption id={DEFAULT_VOICE_ID} label="Default" selected={selectedVoice === DEFAULT_VOICE_ID} />
+                    </ToggleButtonGroup>
+
+                    {dictionaries.map(([dictionary, section]) => {
+                        const accents = ACCENTS.filter(([accent]) => section[accent]);
+                        const examples = section.examples || [];
+                        if (accents.length === 0 && examples.length === 0) return null;
+                        return (
+                            <Box key={dictionary} component="section" aria-label={dictionaryLabel(dictionary)}>
+                                <Typography variant="subtitle2" sx={{ mb: 1 }}>{dictionaryLabel(dictionary)}</Typography>
+
+                                {accents.length > 0 && (
+                                    <ToggleButtonGroup
+                                        exclusive
+                                        size="small"
+                                        value={selectedVoice}
+                                        onChange={handleChange}
+                                        disabled={disabled}
+                                        aria-label={`${dictionaryLabel(dictionary)} accents`}
+                                        sx={{ gap: 1, flexWrap: 'wrap', ...GROUP_ITEM_SX }}
+                                    >
+                                        {accents.map(([accent, label, full]) => {
+                                            const id = `${dictionary}-${accent}`;
+                                            return (
+                                                <VoiceOption
+                                                    key={id}
+                                                    id={id}
+                                                    label={label}
+                                                    ariaLabel={`${dictionaryLabel(dictionary)} ${full} voice`}
+                                                    selected={selectedVoice === id}
+                                                    withIcon
+                                                />
+                                            );
+                                        })}
+                                    </ToggleButtonGroup>
+                                )}
+
+                                {examples.length > 0 && (
+                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                                        <Typography variant="caption" color="text.secondary">Hear it in a sentence</Typography>
+                                        {examples.map((url, index) => (
+                                            <Button
+                                                key={url}
+                                                size="small"
+                                                variant="text"
+                                                aria-label={`${dictionaryLabel(dictionary)} example sentence ${index + 1}`}
+                                                startIcon={<HiOutlineSpeakerWave />}
+                                                onClick={() => onPlayExample(url)}
+                                                disabled={disabled}
+                                                sx={{ ...TARGET, textTransform: 'none' }}
+                                            >
+                                                {`Example ${index + 1}`}
+                                            </Button>
+                                        ))}
+                                    </Stack>
+                                )}
+                            </Box>
+                        );
+                    })}
+                </Stack>
+            </Collapse>
+        </Box>
     );
 };
+
+// Single selectable voice. Selected state shows a check (not colour alone) plus a tinted fill.
+const VoiceOption = ({ id, label, ariaLabel, selected, withIcon = false, ...rest }) => (
+    <ToggleButton
+        value={id}
+        aria-label={ariaLabel || label}
+        selected={selected}
+        sx={{
+            ...TARGET,
+            px: 2,
+            gap: 0.75,
+            textTransform: 'none',
+            fontWeight: selected ? 600 : 400,
+            '&.Mui-selected': {
+                color: 'primary.main',
+                bgcolor: 'action.selected',
+                borderColor: 'primary.main'
+            }
+        }}
+        {...rest}
+    >
+        {selected ? <HiOutlineCheck aria-hidden="true" /> : withIcon ? <HiOutlineSpeakerWave aria-hidden="true" /> : null}
+        {label}
+    </ToggleButton>
+);
 
 export default SpellingVoicePanel;
