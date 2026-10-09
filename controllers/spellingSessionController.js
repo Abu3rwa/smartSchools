@@ -16,6 +16,7 @@ import {
     recordSpellingAttempt,
     startSpellingSession
 } from '../services/spellingSessionService.js';
+import { attachAudioToCurrentItem } from '../services/wordAudioService.js';
 import { listSpellingIntegrityEvents, recordSpellingIntegrityEvent } from '../services/spellingReadService.js';
 
 export const createSpellingIntegrityEvent = asyncHandler(async (req, res) => {
@@ -179,7 +180,7 @@ export const getClassSessionProgress = asyncHandler(async (req, res) => {
 
 export const getCurrentItem = asyncHandler(async (req, res) => {
     const result = await getCurrentSpellingItem({ schoolId: req.schoolId, sessionId: req.params.id });
-    return res.status(200).json({ success: true, data: result });
+    return res.status(200).json({ success: true, data: await attachAudioToCurrentItem(result, req.schoolId) });
 });
 
 export const advanceClassWordHandler = asyncHandler(async (req, res) => {
