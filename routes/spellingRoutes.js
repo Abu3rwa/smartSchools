@@ -34,6 +34,12 @@ import { deleteSpellingWord, listSpellingWords } from '../controllers/spellingWo
 import { exportStudentSpellingDetailsDocx, getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
 import { getDictionaryWord } from '../controllers/dictionaryController.js';
+import {
+    importWordAudioCsv,
+    listWordAudioSettings,
+    updateWordAudioSetting,
+    wordAudioCoverage
+} from '../controllers/wordAudioController.js';
 import { approvePassage, cancelPassageSend, discardPassage, generatePassage, getPassage, sendPassage, updatePassage } from '../controllers/spellingPassageController.js';
 
 const router = express.Router();
@@ -49,6 +55,10 @@ router.get('/students/:studentId/details', authorize('admin', 'department_princi
 router.get('/students/:studentId/details/docx', authorize('admin', 'department_principal', 'teacher'), exportStudentSpellingDetailsDocx);
 router.post('/word-lists/import/preview', uploadImportTemplate.single('file'), previewSpellingWords);
 router.post('/word-lists/import/commit', express.json(), commitSpellingWords);
+router.post('/word-audio/import', authorize('admin'), uploadImportTemplate.single('file'), importWordAudioCsv);
+router.get('/word-audio/coverage', authorize('admin'), wordAudioCoverage);
+router.get('/word-audio/settings', authorize('admin'), listWordAudioSettings);
+router.put('/word-audio/settings/:grade', authorize('admin'), express.json(), updateWordAudioSetting);
 router.use('/sessions', authorize('admin', 'department_principal', 'teacher', 'student'));
 router.post('/sessions/class', authorize('admin', 'department_principal', 'teacher'), express.json(), startClassSession);
 router.get('/sessions/class/progress', authorize('admin', 'department_principal', 'teacher'), getClassSessionProgress);
