@@ -15,6 +15,8 @@ import {
     submitSpellingAnswer,
     fetchSpellingDictionaryEntry
 } from '../../store/slices/spellingSlice';
+import SpellingVoicePanel from './SpellingVoicePanel';
+import { playUrl, playWithFallback, readStoredVoice, resolveVoice, storeVoice } from '../../utils/voicePlayback';
 
 const isSkippedSpellingAttempt = (attempt, mode) => attempt?.skipped === true || (
     mode === 'self-serve'
@@ -35,6 +37,8 @@ const SpellingStudentPage = () => {
     const [dictionaryEntry, setDictionaryEntry] = useState(null);
     const [revealedAttempt, setRevealedAttempt] = useState(null);
     const [audioPlaying, setAudioPlaying] = useState(false);
+    const [selectedVoice, setSelectedVoice] = useState(() => readStoredVoice());
+    const [voiceNotice, setVoiceNotice] = useState('');
     const [sessionViewOpen, setSessionViewOpen] = useState(false);
     const [integrityNotice, setIntegrityNotice] = useState(false);
     const autoPlayedSequence = useRef(null);
@@ -100,13 +104,13 @@ const SpellingStudentPage = () => {
     }, [dispatch, selectedHistorySession?._id]);
 
     useEffect(() => {
-        if (!currentItem?.word) return;
+        if (!currentItem?.word || currentItem.audio) return;
         let cancelled = false;
         dispatch(fetchSpellingDictionaryEntry(currentItem.word)).then((result) => {
             if (!cancelled && fetchSpellingDictionaryEntry.fulfilled.match(result)) setDictionaryEntry(result.payload);
         });
         return () => { cancelled = true; };
-    }, [currentItem?.word, dispatch]);
+    }, [currentItem?.word, currentItem?.audio, dispatch]);
 
     useEffect(() => {
         if (!session?._id || session.status !== 'in-progress') return undefined;
@@ -154,11 +158,12 @@ const SpellingStudentPage = () => {
     // previous word so it never overlaps the next listening prompt.
     useEffect(() => {
         setRevealedAttempt(null);
+        setVoiceNotice('');
     }, [currentItem?.sequence]);
 
     const dictionaryMatches = (entry, word) => Boolean(entry?.word) && entry.word === String(word || '').trim().toLowerCase();
 
-    const speakWord = (word) => {
+    const playDefaultWord = (word) => {
         if (activeAudioRef.current) {
             const activeAudio = activeAudioRef.current;
             activeAudioRef.current = null;
@@ -183,11 +188,54 @@ const SpellingStudentPage = () => {
         });
     };
 
+    const finishPlayback = () => {
+        activeAudioRef.current = null;
+        setAudioPlaying(false);
+    };
+
+    // Chosen dictionary voice -> Default (the original playback above). Missing voice or any failure uses Default.
+    const speakWord = (word, audio = null, voiceId = selectedVoice) => {
+        const voice = resolveVoice(audio, voiceId);
+        if (!voice) {
+            playDefaultWord(word);
+            return;
+        }
+        if (activeAudioRef.current) activeAudioRef.current.pause();
+        setAudioPlaying(true);
+        const { handle } = playWithFallback({
+            url: voice.url,
+            playDefault: () => playDefaultWord(word),
+            onFallback: () => setVoiceNotice("That voice isn't available right now, so we used the default voice."),
+            onEnded: finishPlayback
+        });
+        activeAudioRef.current = { pause: handle.cancel };
+    };
+
+    const playExample = (url) => {
+        if (activeAudioRef.current) activeAudioRef.current.pause();
+        setAudioPlaying(true);
+        const handle = playUrl(url, {
+            onEnded: finishPlayback,
+            onFail: () => {
+                finishPlayback();
+                setVoiceNotice("That example isn't available right now.");
+            }
+        });
+        activeAudioRef.current = { pause: handle.cancel };
+    };
+
+    const selectVoice = (voiceId) => {
+        setSelectedVoice(voiceId);
+        storeVoice(voiceId);
+        setVoiceNotice('');
+        if (currentItem?.word) speakWord(currentItem.word, currentItem.audio, voiceId);
+    };
+
     useEffect(() => {
-        if (!session?.dictationMode?.enabled || !currentItem?.word || !dictionaryMatches(dictionaryEntry, currentItem.word) || !session.dictationMode.autoPlayOnShow) return;
+        if (!session?.dictationMode?.enabled || !currentItem?.word || (!currentItem.audio && !dictionaryMatches(dictionaryEntry, currentItem.word)) || !session.dictationMode.autoPlayOnShow) return;
         if (autoPlayedSequence.current === currentItem.sequence) return;
         autoPlayedSequence.current = currentItem.sequence;
-        speakWord(currentItem.word);
+        speakWord(currentItem.word, currentItem.audio);
     }, [currentItem, dictionaryEntry, session?.dictationMode]);
 
     const startSession = async () => {
@@ -212,6 +260,7 @@ const SpellingStudentPage = () => {
         if (!currentItem || !session) return;
         const answeredWord = currentItem.word;
         const answeredDictionaryEntry = dictionaryMatches(dictionaryEntry, currentItem.word) ? dictionaryEntry : null;
+        const answeredAudio = currentItem.audio || null;
         const result = await dispatch(submitSpellingAnswer({
             sessionId: session._id,
             sequence: currentItem.sequence,
@@ -222,6 +271,7 @@ const SpellingStudentPage = () => {
             setRevealedAttempt({
                 word: answeredWord,
                 dictionary: answeredDictionaryEntry,
+                audio: answeredAudio,
                 correct: result.payload.attempt.correct,
                 skipped: result.payload.attempt.skipped,
                 input: studentInput
@@ -388,12 +438,22 @@ const SpellingStudentPage = () => {
                                         variant="outlined"
                                         size="large"
                                         startIcon={<HiOutlineSpeakerWave />}
-                                        onClick={() => speakWord(currentItem.word)}
+                                        onClick={() => speakWord(currentItem.word, currentItem.audio)}
                                         disabled={audioPlaying}
                                         sx={{ minHeight: 56, fontSize: '1.05rem', alignSelf: 'center', px: 4 }}
                                     >
                                         {audioPlaying ? 'Playing…' : t('hearWord')}
                                     </Button>
+                                    {currentItem.audio && (
+                                        <SpellingVoicePanel
+                                            audio={currentItem.audio}
+                                            selectedVoice={selectedVoice}
+                                            disabled={audioPlaying}
+                                            onSelectVoice={selectVoice}
+                                            onPlayExample={playExample}
+                                        />
+                                    )}
+                                    {voiceNotice && <Alert severity="info" role="status">{voiceNotice}</Alert>}
                                     {revealedAttempt && (
                                         <Card variant="outlined">
                                             <CardContent>
@@ -411,6 +471,12 @@ const SpellingStudentPage = () => {
                                                             </Typography>
                                                         </Stack>
                                                     )}
+                                                    {revealedAttempt.audio?.definition && (
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary">Definition</Typography>
+                                                            <Typography variant="body2">{revealedAttempt.audio.definition}</Typography>
+                                                        </Box>
+                                                    )}
                                                     {revealedAttempt.dictionary?.definitions?.slice(0, 2).map((definition) => (
                                                         <Box key={`${definition.partOfSpeech}-${definition.definition}`}>
                                                             <Typography variant="caption" color="text.secondary">{definition.partOfSpeech}</Typography>
@@ -420,7 +486,7 @@ const SpellingStudentPage = () => {
                                                     <Button
                                                         size="small"
                                                         startIcon={<HiOutlineSpeakerWave />}
-                                                        onClick={() => speakWord(revealedAttempt.word)}
+                                                        onClick={() => speakWord(revealedAttempt.word, revealedAttempt.audio)}
                                                         disabled={audioPlaying}
                                                     >
                                                         {audioPlaying ? 'Playing…' : t('playSound')}
