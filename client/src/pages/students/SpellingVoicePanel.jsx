@@ -105,69 +105,51 @@ const SpellingVoicePanel = ({ audio, selectedVoice, disabled, onSelectVoice, onP
                         value={selectedVoice}
                         onChange={handleChange}
                         disabled={disabled}
-                        aria-label="Default voice"
+                        aria-label="Choose a voice"
                         sx={{ gap: 1, flexWrap: 'wrap', ...GROUP_ITEM_SX }}
                     >
                         <VoiceOption id={DEFAULT_VOICE_ID} label="Default" selected={selectedVoice === DEFAULT_VOICE_ID} />
+                        {dictionaries.flatMap(([dictionary, section]) => ACCENTS
+                            .filter(([accent]) => section[accent])
+                            .map(([accent, label, full]) => {
+                                const id = `${dictionary}-${accent}`;
+                                return (
+                                    <VoiceOption
+                                        key={id}
+                                        id={id}
+                                        label={`${dictionaryLabel(dictionary)} ${label}`}
+                                        ariaLabel={`${dictionaryLabel(dictionary)} ${full} voice`}
+                                        selected={selectedVoice === id}
+                                        withIcon
+                                    />
+                                );
+                            }))}
                     </ToggleButtonGroup>
 
                     {dictionaries.map(([dictionary, section]) => {
-                        const accents = ACCENTS.filter(([accent]) => section[accent]);
                         const examples = section.examples || [];
-                        if (accents.length === 0 && examples.length === 0) return null;
+                        if (examples.length === 0) return null;
                         return (
-                            <Box key={dictionary} component="section" aria-label={dictionaryLabel(dictionary)}>
-                                <Typography variant="subtitle2" sx={{ mb: 1 }}>{dictionaryLabel(dictionary)}</Typography>
-
-                                {accents.length > 0 && (
-                                    <ToggleButtonGroup
-                                        exclusive
+                            <Stack key={dictionary} component="section" aria-label={`${dictionaryLabel(dictionary)} examples`} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                <Typography variant="subtitle2">{dictionaryLabel(dictionary)}</Typography>
+                                <Typography variant="caption" color="text.secondary">Hear it in a sentence</Typography>
+                                {examples.map((url, index) => (
+                                    <Button
+                                        key={url}
                                         size="small"
-                                        value={selectedVoice}
-                                        onChange={handleChange}
+                                        variant="text"
+                                        aria-label={`${dictionaryLabel(dictionary)} example sentence ${index + 1}`}
+                                        startIcon={<HiOutlineSpeakerWave />}
+                                        onClick={() => onPlayExample(url)}
                                         disabled={disabled}
-                                        aria-label={`${dictionaryLabel(dictionary)} accents`}
-                                        sx={{ gap: 1, flexWrap: 'wrap', ...GROUP_ITEM_SX }}
+                                        sx={{ ...TARGET, textTransform: 'none' }}
                                     >
-                                        {accents.map(([accent, label, full]) => {
-                                            const id = `${dictionary}-${accent}`;
-                                            return (
-                                                <VoiceOption
-                                                    key={id}
-                                                    id={id}
-                                                    label={label}
-                                                    ariaLabel={`${dictionaryLabel(dictionary)} ${full} voice`}
-                                                    selected={selectedVoice === id}
-                                                    withIcon
-                                                />
-                                            );
-                                        })}
-                                    </ToggleButtonGroup>
-                                )}
-
-                                {examples.length > 0 && (
-                                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                                        <Typography variant="caption" color="text.secondary">Hear it in a sentence</Typography>
-                                        {examples.map((url, index) => (
-                                            <Button
-                                                key={url}
-                                                size="small"
-                                                variant="text"
-                                                aria-label={`${dictionaryLabel(dictionary)} example sentence ${index + 1}`}
-                                                startIcon={<HiOutlineSpeakerWave />}
-                                                onClick={() => onPlayExample(url)}
-                                                disabled={disabled}
-                                                sx={{ ...TARGET, textTransform: 'none' }}
-                                            >
-                                                {`Example ${index + 1}`}
-                                            </Button>
-                                        ))}
-                                    </Stack>
-                                )}
-                            </Box>
+                                        {`Example ${index + 1}`}
+                                    </Button>
+                                ))}
+                            </Stack>
                         );
-                    })}
-                </Stack>
+                    })}                </Stack>
             </Collapse>
         </Box>
     );
