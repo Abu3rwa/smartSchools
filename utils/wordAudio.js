@@ -18,10 +18,11 @@ export const PRONUNCIATION_COLUMNS = Object.freeze({
 export const PRONUNCIATION_FIELDS = Object.freeze(Object.values(PRONUNCIATION_COLUMNS));
 const MAX_URL_LENGTH = 500;
 
-// Trim, lowercase, collapse spaces; apostrophes are kept.
+// Trim, lowercase, treat hyphens as spaces, collapse spaces; apostrophes are kept.
 export const normalizeWordKey = (word) => String(word ?? '')
     .normalize('NFKC')
     .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[-\u2010-\u2015]/g, ' ')
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase();

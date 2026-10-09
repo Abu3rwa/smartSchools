@@ -16,6 +16,8 @@ test('normalizeWordKey trims, lowercases, collapses spaces and keeps apostrophes
     assert.equal(normalizeWordKey("Don\u2019t"), "don't");
     assert.equal(normalizeWordKey('JANUARY'), 'january');
     assert.equal(normalizeWordKey(null), '');
+    assert.equal(normalizeWordKey('ice-cream'), 'ice cream');
+    assert.equal(normalizeWordKey(' Living - Room '), 'living room');
 });
 
 test('validateAudioUrl accepts allowed https hosts and rejects everything else', () => {
