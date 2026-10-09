@@ -88,6 +88,61 @@
     "optional": "Optional",
     "save": "Save Assignment Grades"
   },
+  "classroom": {
+    "badge": "Google Classroom: {{state}}",
+    "open": "Open in Classroom",
+    "confirmPost": "Post this assignment to Google Classroom?\n\nCourse: {{course}}\nGoogle account: {{email}}\n\nStudents in that course will be able to see it once it is published.",
+    "states": {
+      "pending": "Posting…",
+      "draft": "Draft posted",
+      "published": "Posted",
+      "failed": "Not posted"
+    },
+    "panel": {
+      "title": "Google Classroom",
+      "notConnected": "Connect your Google account to post assignments to Google Classroom.",
+      "connect": "Connect Google Classroom",
+      "connectedAs": "Connected as {{email}}",
+      "disconnect": "Disconnect",
+      "selectClassSubject": "Choose a class and subject above to link them to a Classroom course.",
+      "mappedTo": "This class and subject post to: {{course}}",
+      "change": "Change",
+      "remove": "Remove",
+      "chooseCourse": "Classroom course",
+      "selectCourse": "Select a course",
+      "loadingCourses": "Loading courses…",
+      "saveMapping": "Save course",
+      "cancel": "Cancel"
+    },
+    "form": {
+      "postToClassroom": "Also post to Google Classroom",
+      "willPostTo": "(course: {{course}})",
+      "connectFirst": "(connect Google Classroom first)",
+      "mapFirst": "(choose a course for this class and subject first)",
+      "alreadyPosted": "Google Classroom: {{state}}. Saving changes updates the Classroom post."
+    },
+    "actions": {
+      "post": "Post to Classroom",
+      "retry": "Retry Classroom"
+    },
+    "toasts": {
+      "connected": "Google Classroom connected",
+      "disconnected": "Google Classroom disconnected",
+      "mappingSaved": "Classroom course saved",
+      "mappingRemoved": "Classroom course removed",
+      "posted": "Posted to Google Classroom",
+      "savedButNotPosted": "Saved in the app, but not posted to Google Classroom. {{message}}"
+    },
+    "errors": {
+      "connectFailed": "Could not connect Google Classroom. Please try again.",
+      "missingScopes": "Google Classroom was not connected because some permissions were not allowed. Please try again and allow all requested access.",
+      "notAvailable": "Google Classroom is not available for your account.",
+      "disconnectFailed": "Could not disconnect Google Classroom.",
+      "coursesFailed": "Could not load your Classroom courses.",
+      "mappingFailed": "Could not update the Classroom course.",
+      "postFailed": "Could not post to Google Classroom."
+    }
+  },
   "common": {
     "empty": "-",
     "close": "Close",

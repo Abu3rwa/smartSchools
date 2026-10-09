@@ -88,6 +88,61 @@
     "optional": "اختياري",
     "save": "حفظ درجات الواجب"
   },
+  "classroom": {
+    "badge": "Google Classroom: {{state}}",
+    "open": "فتح في Classroom",
+    "confirmPost": "هل تريد نشر هذا الواجب في Google Classroom؟\n\nالمقرر: {{course}}\nحساب Google: {{email}}\n\nسيتمكن الطلاب في هذا المقرر من رؤيته بعد نشره.",
+    "states": {
+      "pending": "جارٍ النشر…",
+      "draft": "تم نشر مسودة",
+      "published": "تم النشر",
+      "failed": "لم يتم النشر"
+    },
+    "panel": {
+      "title": "Google Classroom",
+      "notConnected": "اربط حساب Google الخاص بك لنشر الواجبات في Google Classroom.",
+      "connect": "ربط Google Classroom",
+      "connectedAs": "متصل بالحساب {{email}}",
+      "disconnect": "فصل الربط",
+      "selectClassSubject": "اختر الصف والمادة أعلاه لربطهما بمقرر في Classroom.",
+      "mappedTo": "يتم النشر لهذا الصف والمادة في: {{course}}",
+      "change": "تغيير",
+      "remove": "إزالة",
+      "chooseCourse": "مقرر Classroom",
+      "selectCourse": "اختر مقررًا",
+      "loadingCourses": "جارٍ تحميل المقررات…",
+      "saveMapping": "حفظ المقرر",
+      "cancel": "إلغاء"
+    },
+    "form": {
+      "postToClassroom": "النشر أيضًا في Google Classroom",
+      "willPostTo": "(المقرر: {{course}})",
+      "connectFirst": "(اربط Google Classroom أولًا)",
+      "mapFirst": "(اختر مقررًا لهذا الصف والمادة أولًا)",
+      "alreadyPosted": "Google Classroom: {{state}}. سيؤدي حفظ التعديلات إلى تحديث المنشور في Classroom."
+    },
+    "actions": {
+      "post": "النشر في Classroom",
+      "retry": "إعادة محاولة Classroom"
+    },
+    "toasts": {
+      "connected": "تم ربط Google Classroom",
+      "disconnected": "تم فصل Google Classroom",
+      "mappingSaved": "تم حفظ مقرر Classroom",
+      "mappingRemoved": "تمت إزالة مقرر Classroom",
+      "posted": "تم النشر في Google Classroom",
+      "savedButNotPosted": "تم الحفظ في التطبيق، لكن لم يتم النشر في Google Classroom. {{message}}"
+    },
+    "errors": {
+      "connectFailed": "تعذر ربط Google Classroom. يرجى المحاولة مرة أخرى.",
+      "missingScopes": "لم يتم ربط Google Classroom لأن بعض الأذونات لم تتم الموافقة عليها. يرجى المحاولة مرة أخرى والموافقة على جميع الأذونات المطلوبة.",
+      "notAvailable": "Google Classroom غير متاح لحسابك.",
+      "disconnectFailed": "تعذر فصل Google Classroom.",
+      "coursesFailed": "تعذر تحميل مقررات Classroom الخاصة بك.",
+      "mappingFailed": "تعذر تحديث مقرر Classroom.",
+      "postFailed": "تعذر النشر في Google Classroom."
+    }
+  },
   "common": {
     "empty": "-",
     "close": "إغلاق",

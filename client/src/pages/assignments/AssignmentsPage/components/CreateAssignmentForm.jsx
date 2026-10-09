@@ -17,7 +17,9 @@ const CreateAssignmentForm = ({
     selectedSubject,
     isEditing,
     onCancelEdit,
-    onSubmit
+    onSubmit,
+    classroom,
+    existingClassroomLink
 }) => {
     const { t } = useTranslation(['assignments']);
     const csvInputRef = useRef(null);
@@ -218,6 +220,36 @@ const CreateAssignmentForm = ({
                     </select>
                 </label>
                 <label><input type="checkbox" checked={form.notifyOnGrade} onChange={(event) => setForm((prev) => ({ ...prev, notifyOnGrade: event.target.checked }))} /> {t('assignments:form.notifyOnGrade')}</label>
+                {classroom?.canUse && (
+                    existingClassroomLink ? (
+                        <p className="classroom-option classroom-option--status">
+                            {t('assignments:classroom.form.alreadyPosted', {
+                                state: t(`assignments:classroom.states.${existingClassroomLink.syncState}`, {
+                                    defaultValue: existingClassroomLink.syncState
+                                })
+                            })}
+                        </p>
+                    ) : (
+                        <label className="classroom-option">
+                            <input
+                                type="checkbox"
+                                checked={Boolean(form.classroomPublish) && classroom.ready}
+                                disabled={submitting || !classroom.ready}
+                                onChange={(event) => setForm((prev) => ({ ...prev, classroomPublish: event.target.checked }))}
+                            />
+                            {' '}
+                            {t('assignments:classroom.form.postToClassroom')}
+                            <small className="text-muted">
+                                {' '}
+                                {classroom.ready
+                                    ? t('assignments:classroom.form.willPostTo', { course: classroom.mapping?.courseName || '' })
+                                    : !classroom.connection.connected
+                                        ? t('assignments:classroom.form.connectFirst')
+                                        : t('assignments:classroom.form.mapFirst')}
+                            </small>
+                        </label>
+                    )
+                )}
             </div>
 
             <div className="card-footer">

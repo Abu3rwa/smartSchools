@@ -12,9 +12,12 @@ const AssignmentsTable = ({
     onDeleteAssignment,
     onSendReminder,
     sendingReminder,
-    publishingAssignment
+    publishingAssignment,
+    classroom
 }) => {
     const { t } = useTranslation(['assignments']);
+    const classroomLinks = classroom?.enabled ? classroom.links || {} : {};
+    const canPostToClassroom = Boolean(classroom?.canUse && classroom?.connection?.connected);
 
     return (
         <div className="card assignments-list">
@@ -51,6 +54,28 @@ const AssignmentsTable = ({
                                         <span className={`status-badge ${assignment.status}`}>
                                             {t(`assignments:status.${assignment.status}`, { defaultValue: assignment.status })}
                                         </span>
+                                        {classroomLinks[assignment.id] && (
+                                            <div className="classroom-status">
+                                                <span
+                                                    className={`classroom-badge classroom-badge--${classroomLinks[assignment.id].syncState}`}
+                                                    title={classroomLinks[assignment.id].lastError || undefined}
+                                                >
+                                                    {t('assignments:classroom.badge', {
+                                                        state: t(`assignments:classroom.states.${classroomLinks[assignment.id].syncState}`, {
+                                                            defaultValue: classroomLinks[assignment.id].syncState
+                                                        })
+                                                    })}
+                                                </span>
+                                                {classroomLinks[assignment.id].lastError && (
+                                                    <small className="classroom-status__error">{classroomLinks[assignment.id].lastError}</small>
+                                                )}
+                                                {classroomLinks[assignment.id].alternateLink && (
+                                                    <a href={classroomLinks[assignment.id].alternateLink} target="_blank" rel="noopener noreferrer">
+                                                        {t('assignments:classroom.open')}
+                                                    </a>
+                                                )}
+                                            </div>
+                                        )}
                                     </td>
                                     <td>{formatAssignmentDueDate(assignment.dueDate)}</td>
                                     <td>{assignment.maxMarks}</td>
@@ -105,6 +130,21 @@ const AssignmentsTable = ({
                                                     <option value="parents">{t('assignments:actions.remindParents', { defaultValue: 'Parents Only' })}</option>
                                                 </select>
                                             </div>
+                                        )}
+                                        {canPostToClassroom && canCreateAssignments
+                                            && (assignment.status === 'draft' || assignment.status === 'published')
+                                            && (!classroomLinks[assignment.id]
+                                                || classroomLinks[assignment.id].lastErrorCode) && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline btn-sm"
+                                                disabled={classroom.busy}
+                                                onClick={() => classroom.postAssignment(assignment, { retry: Boolean(classroomLinks[assignment.id]) })}
+                                            >
+                                                {classroomLinks[assignment.id]
+                                                    ? t('assignments:classroom.actions.retry')
+                                                    : t('assignments:classroom.actions.post')}
+                                            </button>
                                         )}
                                         {canCreateAssignments && (
                                             <button type="button" className="btn btn-outline btn-sm" onClick={() => onEditAssignment(assignment)}>

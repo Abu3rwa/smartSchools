@@ -16,6 +16,9 @@ const optionalEnvVars = [
   'JWT_EXPIRE',
   'GOOGLE_REDIRECT_URI',
   'GOOGLE_LOGIN_REDIRECT_URI',
+  'GOOGLE_CLASSROOM_ENABLED',
+  'GOOGLE_CLASSROOM_REDIRECT_URI',
+  'GOOGLE_CLASSROOM_SCHOOL_IDS',
   'ALLOW_LOCAL_SERVICE_ACCOUNT',
   'RUN_NEWSLETTER_ISSUE_SCHEDULER',
   'RUN_SUBSTITUTION_EXPIRY_JOB'
@@ -97,6 +100,24 @@ export function validateEnvironment() {
 
       if (value.includes('localhost') || value.includes('127.0.0.1')) {
         warnings.push(`${varName} points to localhost in production`);
+      }
+    }
+
+    // The Classroom callback must be exact, public and HTTPS, or Google will reject the sign-in.
+    if (String(process.env.GOOGLE_CLASSROOM_ENABLED || '').trim().toLowerCase() === 'true') {
+      const classroomUri = String(process.env.GOOGLE_CLASSROOM_REDIRECT_URI || '').trim();
+      if (!classroomUri) {
+        logger.error('GOOGLE_CLASSROOM_REDIRECT_URI is required in production when GOOGLE_CLASSROOM_ENABLED=true');
+        process.exit(1);
+      }
+      if (!/^https:\/\//i.test(classroomUri) || /localhost|127\.0\.0\.1/i.test(classroomUri)) {
+        logger.error('GOOGLE_CLASSROOM_REDIRECT_URI must be a public https URL in production');
+        process.exit(1);
+      }
+      // Without a key, secretCrypto stores tokens as plain text.
+      if (!process.env.APP_SECRET_ENCRYPTION_KEY && !process.env.ENCRYPTION_KEY) {
+        logger.error('APP_SECRET_ENCRYPTION_KEY is required in production when GOOGLE_CLASSROOM_ENABLED=true');
+        process.exit(1);
       }
     }
   }

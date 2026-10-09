@@ -20,8 +20,30 @@ import { validateGradeLessonPlanLinks } from '../helpers/gradeLessonPlanLinks.js
 import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
 import { generateAssignmentReminder } from '../helpers/assignmentReminderAi.js';
 import logger from '../utils/logger.js';
+import AssignmentClassroomLink from '../models/AssignmentClassroomLink.js';
+import { syncAssignmentToClassroom } from '../services/classroomPublishService.js';
 
 const toId = (value) => (value == null ? '' : String(value));
+
+/**
+ * Best-effort Google Classroom sync. The app-side operation has already succeeded, so this never throws;
+ * the outcome is returned for the response and recorded on the link for later retry.
+ */
+const runClassroomSync = async (req, assignment, createIfMissing) => {
+    try {
+        const result = await syncAssignmentToClassroom({ assignment, actor: req.user, createIfMissing });
+        if (result.skipped) return undefined;
+        return {
+            ok: Boolean(result.ok),
+            code: result.code,
+            message: result.message,
+            link: result.link
+        };
+    } catch (error) {
+        logger.error('Unexpected Google Classroom sync error', { message: error?.message });
+        return undefined;
+    }
+};
 
 /** Safely coerce a value that may be a JSON-stringified array (from FormData) into a real array. */
 const toArray = (v, fallback = []) => {
@@ -748,9 +770,15 @@ export const createAssignment = asyncHandler(async (req, res) => {
         .populate('lessonPlanIds', 'title date')
         .lean();
 
+    const classroom = await runClassroomSync(
+        req,
+        assignment,
+        parseBoolean(body.classroomPublish, false)
+    );
+
     res.status(201).json({
         success: true,
-        data: { assignment: mapAssignmentSummary(populated) }
+        data: { assignment: mapAssignmentSummary(populated), ...(classroom ? { classroom } : {}) }
     });
 });
 
@@ -784,9 +812,16 @@ export const publishAssignment = asyncHandler(async (req, res) => {
         });
     }
 
+    // Promotes an existing Classroom draft, or posts now when the teacher opted in.
+    const classroom = await runClassroomSync(
+        req,
+        assignment,
+        parseBoolean(req.body?.classroomPublish, false)
+    );
+
     res.json({
         success: true,
-        data: { assignment: mapAssignmentSummary(assignment) }
+        data: { assignment: mapAssignmentSummary(assignment), ...(classroom ? { classroom } : {}) }
     });
 });
 
@@ -1241,9 +1276,16 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         .populate('lessonPlanIds', 'title date')
         .lean();
 
+    // Keeps already-posted coursework in step with edits; opting in here posts it for the first time.
+    const classroom = await runClassroomSync(
+        req,
+        assignment,
+        parseBoolean(body.classroomPublish, false)
+    );
+
     res.json({
         success: true,
-        data: { assignment: mapAssignmentSummary(populated) }
+        data: { assignment: mapAssignmentSummary(populated), ...(classroom ? { classroom } : {}) }
     });
 });
 
@@ -1263,6 +1305,9 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
     await deleteAttachmentFiles(assignment.attachments);
 
     await assignment.deleteOne();
+
+    // The Classroom coursework itself is left untouched; only the app-side link record is removed.
+    await AssignmentClassroomLink.deleteMany({ school: req.schoolId, assignment: assignment._id });
 
     res.json({
         success: true,

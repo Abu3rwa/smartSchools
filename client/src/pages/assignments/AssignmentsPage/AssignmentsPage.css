@@ -354,3 +354,71 @@
     font-size: 0.75rem;
     color: var(--text-secondary, #6b7280);
 }
+
+.assignments-page .classroom-panel__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem 1rem;
+}
+
+.assignments-page .classroom-panel__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.assignments-page .classroom-panel__actions {
+    display: inline-flex;
+    gap: 0.5rem;
+}
+
+.assignments-page .classroom-panel__picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 16rem;
+}
+
+.assignments-page .classroom-option--status {
+    margin: 0;
+}
+
+.assignments-page .classroom-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    margin-block-start: 0.35rem;
+}
+
+.assignments-page .classroom-status__error {
+    color: #b91c1c;
+    max-inline-size: 18rem;
+}
+
+.assignments-page .classroom-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.assignments-page .classroom-badge--published {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.assignments-page .classroom-badge--draft {
+    background: #fef9c3;
+    color: #854d0e;
+}
+
+.assignments-page .classroom-badge--failed {
+    background: #fee2e2;
+    color: #991b1b;
+}

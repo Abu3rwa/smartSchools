@@ -14,8 +14,10 @@ import AssignmentsFilters from './components/AssignmentsFilters';
 import CreateAssignmentForm from './components/CreateAssignmentForm';
 import AssignmentsTable from './components/AssignmentsTable';
 import AssignmentGradePanel from './components/AssignmentGradePanel';
+import ClassroomPanel from './components/ClassroomPanel';
 import ClassworkBehaviorModal from '../../../components/grades/ClassworkBehaviorModal';
 import useAssignmentsPageState from './hooks/useAssignmentsPageState';
+import useGoogleClassroom from './hooks/useGoogleClassroom';
 import { isClassworkAssignment } from '../../../components/grades/classworkBehaviorUtils';
 import { normalizeGradeStudentsFromClassStudents } from './utils/assignmentPresentation';
 import './AssignmentsPage.css';
@@ -63,6 +65,14 @@ const AssignmentsPage = () => {
         availableClasses,
         availableSubjects
     } = useAssignmentsPageState({ user, classes, subjects, myClasses });
+
+    const classroom = useGoogleClassroom({
+        user,
+        selectedClass,
+        selectedSubject,
+        academicYear,
+        assignments
+    });
 
     const fetchAssignmentTypes = async () => {
         try {
@@ -136,6 +146,16 @@ const AssignmentsPage = () => {
             return;
         }
 
+        const existingClassroomLink = editingAssignment?.id ? classroom.links[editingAssignment.id] : null;
+        const postToClassroom = classroom.ready && Boolean(form.classroomPublish) && !existingClassroomLink;
+        if (postToClassroom) {
+            const confirmed = window.confirm(t('assignments:classroom.confirmPost', {
+                course: classroom.mapping?.courseName || '',
+                email: classroom.connection.email || ''
+            }));
+            if (!confirmed) return;
+        }
+
         setSubmitting(true);
         try {
             const payload = {
@@ -153,6 +173,7 @@ const AssignmentsPage = () => {
                 dueDate: form.dueDate || undefined,
                 maxMarks: Number(form.maxMarks || 10),
                 publishNow: form.publishNow,
+                classroomPublish: postToClassroom || undefined,
                 notifyOnAssign: form.notifyOnAssign,
                 notifyAudience: form.notifyAudience || 'both',
                 notifyOnGrade: form.notifyOnGrade,
@@ -164,13 +185,15 @@ const AssignmentsPage = () => {
 
             const files = form.attachmentFiles || [];
 
+            let saved;
             if (editingAssignment?.id) {
-                await assignmentService.updateAssignment(editingAssignment.id, payload, files);
+                saved = await assignmentService.updateAssignment(editingAssignment.id, payload, files);
                 toast.success(t('assignments:toasts.updated'));
             } else {
-                await assignmentService.createAssignment(payload, files);
+                saved = await assignmentService.createAssignment(payload, files);
                 toast.success(t('assignments:toasts.created'));
             }
+            classroom.reportOutcome(saved?.data?.classroom);
 
             setEditingAssignment(null);
             resetForm();
@@ -204,6 +227,7 @@ const AssignmentsPage = () => {
             dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().slice(0, 10) : '',
             maxMarks: assignment.maxMarks || 10,
             publishNow: assignment.status === 'published',
+            classroomPublish: false,
             notifyOnAssign: assignment.notifyOnAssign !== false,
             notifyAudience: assignment.notifyAudience || 'both',
             notifyOnGrade: assignment.notifyOnGrade !== false
@@ -243,11 +267,12 @@ const AssignmentsPage = () => {
     const onPublishAssignment = async (assignmentId, notifyAudience = 'both') => {
         setPublishingAssignment(assignmentId);
         try {
-            await assignmentService.publishAssignment(assignmentId, {
+            const published = await assignmentService.publishAssignment(assignmentId, {
                 notifyOnAssign: true,
                 notifyAudience
             });
             toast.success(t('assignments:toasts.published'));
+            classroom.reportOutcome(published?.data?.classroom);
             await fetchAssignments();
         } catch (error) {
             toast.error(error.response?.data?.message || t('assignments:toasts.publishFailed'));
@@ -376,6 +401,12 @@ const AssignmentsPage = () => {
                 availableSubjects={availableSubjects}
             />
 
+            <ClassroomPanel
+                classroom={classroom}
+                selectedClass={selectedClass}
+                selectedSubject={selectedSubject}
+            />
+
             <CreateAssignmentForm
                 open={canCreateAssignments}
                 submitting={submitting}
@@ -387,6 +418,8 @@ const AssignmentsPage = () => {
                 isEditing={Boolean(editingAssignment)}
                 onCancelEdit={onCancelEdit}
                 onSubmit={onCreateAssignment}
+                classroom={classroom}
+                existingClassroomLink={editingAssignment?.id ? classroom.links[editingAssignment.id] : null}
             />
 
             <AssignmentsTable
@@ -400,6 +433,7 @@ const AssignmentsPage = () => {
                 onSendReminder={onSendReminder}
                 sendingReminder={sendingReminder}
                 publishingAssignment={publishingAssignment}
+                classroom={classroom}
             />
 
             <AssignmentGradePanel

@@ -14,6 +14,7 @@ export const DEFAULT_ASSIGNMENT_FORM = {
     dueDate: '',
     maxMarks: 10,
     publishNow: false,
+    classroomPublish: false,
     notifyOnAssign: true,
     notifyAudience: 'both',
     notifyOnGrade: true,

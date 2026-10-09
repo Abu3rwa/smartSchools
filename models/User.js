@@ -291,6 +291,35 @@ const userSchema = new mongoose.Schema({
             default: false
         }
     },
+    // Separate OAuth credentials for publishing assignments to Google Classroom
+    googleClassroomTokens: {
+        email: {
+            type: String,
+            lowercase: true,
+            trim: true
+        },
+        accessToken: {
+            type: String,
+            get: decryptSecret,
+            set: encryptSecret,
+            select: false
+        },
+        refreshToken: {
+            type: String,
+            get: decryptSecret,
+            set: encryptSecret,
+            select: false
+        },
+        scopes: {
+            type: [String],
+            default: []
+        },
+        expiryDate: Date,
+        isActive: {
+            type: Boolean,
+            default: false
+        }
+    },
     uiPreferences: {
         headerShortcuts: {
             type: [String],
@@ -411,6 +440,44 @@ userSchema.methods.clearGoogleDriveTokens = async function () {
         email: null,
         accessToken: null,
         refreshToken: null,
+        expiryDate: null,
+        isActive: false
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+// Check if Google Classroom is connected
+userSchema.methods.hasGoogleClassroomConnected = function () {
+    return Boolean(this.googleClassroomTokens?.isActive && this.googleClassroomTokens?.refreshToken);
+};
+
+// Check if Google Classroom token needs refresh (5 minutes before expiry)
+userSchema.methods.googleClassroomTokenNeedsRefresh = function () {
+    if (!this.googleClassroomTokens?.expiryDate) return true;
+    const fiveMinutes = 5 * 60 * 1000;
+    return new Date() >= new Date(this.googleClassroomTokens.expiryDate.getTime() - fiveMinutes);
+};
+
+// Update Google Classroom tokens (keeps the existing refresh token when Google omits a new one)
+userSchema.methods.updateGoogleClassroomTokens = async function (tokens, email, scopes) {
+    this.googleClassroomTokens = {
+        email: email || this.googleClassroomTokens?.email,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || this.googleClassroomTokens?.refreshToken,
+        scopes: Array.isArray(scopes) ? scopes : (this.googleClassroomTokens?.scopes || []),
+        expiryDate: new Date(tokens.expiry_date),
+        isActive: true
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+// Clear Google Classroom tokens
+userSchema.methods.clearGoogleClassroomTokens = async function () {
+    this.googleClassroomTokens = {
+        email: null,
+        accessToken: null,
+        refreshToken: null,
+        scopes: [],
         expiryDate: null,
         isActive: false
     };
