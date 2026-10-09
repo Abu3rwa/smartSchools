@@ -88,6 +88,7 @@ const SpellingAudioAdminPage = () => {
                             Columns: word, Longman US, Longman UK, Oxford US, Oxford UK, Webster US, status, first week.
                             Optional: definition, and Longman/Oxford/Webster example 1, example 2, … (audio URLs; several URLs in one cell can be separated by |).
                             Empty cells never erase existing data. Preview first; nothing is saved until you press Import.
+                            {' '}<a href="/spelling_word_audio_sample.csv" download>Download sample CSV</a>
                         </Typography>
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
                             <Button component="label" variant="outlined">
