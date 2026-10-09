@@ -291,8 +291,6 @@ const SpellingStudentPage = () => {
         submitAttempt(input);
     };
 
-    const skipWord = () => submitAttempt('', true);
-
     const openHistorySession = async (entry) => {
         setSelectedHistorySession(entry);
         setPracticePassage(null);
@@ -513,9 +511,6 @@ const SpellingStudentPage = () => {
                                                 onContextMenu={(event) => event.preventDefault()}
                                             />
                                             <Stack direction={{ xs: 'column-reverse', sm: 'row' }} spacing={1}>
-                                                <Button type="button" variant="outlined" size="large" onClick={skipWord} disabled={loading} sx={{ flex: 1 }}>
-                                                    Skip word
-                                                </Button>
                                                 <Button type="submit" variant="contained" size="large" disabled={loading || !input.trim()} sx={{ flex: 1 }}>
                                                     {t('submitAnswer')}
                                                 </Button>
