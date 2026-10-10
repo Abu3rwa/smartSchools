@@ -136,7 +136,7 @@ const VocabListsTab = () => {
                     <TableHead>
                         <TableRow>
                             <TableCell>ID</TableCell><TableCell>Title</TableCell><TableCell>Reading lesson</TableCell>
-                            <TableCell>Order</TableCell><TableCell>Words</TableCell><TableCell>Visible</TableCell><TableCell />
+                            <TableCell>Order</TableCell><TableCell>Words</TableCell><TableCell>Visible</TableCell><TableCell>Accept base word</TableCell><TableCell />
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -151,6 +151,7 @@ const VocabListsTab = () => {
                                     <TableCell><TextField size="small" type="number" sx={{ width: 80 }} value={draft.order} onChange={(event) => setDraft(list, 'order', event.target.value)} inputProps={{ 'aria-label': `Order for ${list.listId}` }} /></TableCell>
                                     <TableCell>{list.wordCount}</TableCell>
                                     <TableCell><Switch checked={list.visible} onChange={(event) => patch(list, { visible: event.target.checked })} inputProps={{ 'aria-label': `Show ${list.listId} to students` }} /></TableCell>
+<TableCell><Switch checked={Boolean(list.acceptBaseForm)} onChange={(event) => patch(list, { acceptBaseForm: event.target.checked })} inputProps={{ 'aria-label': `Accept the base word as correct for ${list.listId}` }} /></TableCell>
                                     <TableCell>
                                         <Stack direction="row" spacing={1}>
                                             <Button size="small" variant="contained" disabled={!dirty} onClick={() => patch(list, draft)}>Save</Button>
@@ -160,7 +161,7 @@ const VocabListsTab = () => {
                                 </TableRow>
                             );
                         })}
-                        {lists.length === 0 && <TableRow><TableCell colSpan={7}>No lists yet. Load the starter lists or import a lists CSV.</TableCell></TableRow>}
+                        {lists.length === 0 && <TableRow><TableCell colSpan={8}>No lists yet. Load the starter lists or import a lists CSV.</TableCell></TableRow>}
                     </TableBody>
                 </Table>
             </Box>

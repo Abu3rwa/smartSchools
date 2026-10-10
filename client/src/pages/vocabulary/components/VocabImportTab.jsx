@@ -6,7 +6,8 @@ const TYPES = [
     { value: 'combined', label: 'Everything in one file (recommended)' },
     { value: 'lists', label: 'Advanced: lists only' },
     { value: 'words', label: 'Advanced: words only' },
-    { value: 'word_sources', label: 'Advanced: dictionary sources only' }
+    { value: 'word_sources', label: 'Advanced: dictionary sources only' },
+    { value: 'mcq', label: 'Multiple-choice questions' }
 ];
 
 const downloadBlob = (content, fileName, type) => {

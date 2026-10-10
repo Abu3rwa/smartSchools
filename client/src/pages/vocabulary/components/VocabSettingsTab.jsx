@@ -2,6 +2,38 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, FormControlLabel, Stack, Switch, TextField, Typography } from '@mui/material';
 import api from '../../../config/api';
 
+const AudioCheck = () => {
+    const [state, setState] = useState({ running: false, checked: 0, total: 0, broken: [], done: false, error: '' });
+    const run = async () => {
+        let offset = 0; let broken = [];
+        setState({ running: true, checked: 0, total: 0, broken: [], done: false, error: '' });
+        try {
+            for (;;) {
+                const { data } = await api.post('/vocabulary/audio-check', { offset });
+                const batch = data.data;
+                broken = broken.concat(batch.broken);
+                setState({ running: true, checked: batch.checked + offset, total: batch.total, broken, done: false, error: '' });
+                if (batch.nextOffset == null) break;
+                offset = batch.nextOffset;
+            }
+            setState((s) => ({ ...s, running: false, done: true }));
+        } catch (e) {
+            setState((s) => ({ ...s, running: false, error: e.response?.data?.message || 'The check stopped. Try again.' }));
+        }
+    };
+    return (
+        <Stack spacing={1}>
+            <Typography variant="h6" component="h2">Check audio links</Typography>
+            <Typography variant="caption" color="text.secondary">Tests the recording links in small batches and lists the ones that do not work.</Typography>
+            <Button variant="outlined" onClick={run} disabled={state.running} sx={{ alignSelf: 'flex-start' }}>{state.running ? 'Checking...' : 'Check audio links'}</Button>
+            {state.error && <Alert severity="error">{state.error}</Alert>}
+            {(state.running || state.done) && <Typography aria-live="polite">Checked {state.checked} of {state.total}. Broken: {state.broken.length}</Typography>}
+            {state.done && state.broken.length === 0 && <Alert severity="success">All audio links work.</Alert>}
+            {state.broken.map((b, i) => <Typography key={i} variant="body2" sx={{ wordBreak: 'break-all' }}>{JSON.stringify(b)}</Typography>)}
+        </Stack>
+    );
+};
+
 const VocabSettingsTab = () => {
     const [settings, setSettings] = useState(null);
     const [message, setMessage] = useState(null);
@@ -43,6 +75,7 @@ const VocabSettingsTab = () => {
                 label="Show dictionary definition text to students"
             />
             <Button variant="contained" onClick={save} sx={{ alignSelf: 'flex-start' }}>Save settings</Button>
+            <AudioCheck />
         </Stack>
     );
 };
