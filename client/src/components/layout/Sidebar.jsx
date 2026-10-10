@@ -316,6 +316,20 @@ const Sidebar = () => {
       section: "assessment",
     },
     {
+      path: "/portal/vocabulary",
+      icon: HiOutlineBookOpen,
+      labelKey: "vocabulary",
+      roles: ["admin", "department_principal", "teacher"],
+      section: "assessment",
+    },
+    {
+      path: "/portal/vocabulary/student",
+      icon: HiOutlineBookOpen,
+      labelKey: "vocabulary",
+      roles: ["student"],
+      section: "assessment",
+    },
+    {
       path: "/portal/standards",
       icon: HiOutlineCheckBadge,
       labelKey: "standards",

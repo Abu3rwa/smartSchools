@@ -51,6 +51,7 @@ import timetableRoutes from "./routes/timetableRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
 import importRoutes from "./routes/importRoutes.js";
 import spellingRoutes from "./routes/spellingRoutes.js";
+import vocabularyRoutes from "./routes/vocabularyRoutes.js";
 import advancedReportRoutes from "./routes/advancedReportRoutes.js";
 import { registerApiDocsRoute } from "./routes/apiDocsRoute.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
@@ -356,6 +357,7 @@ app.use("/api/rooms", roomRoutes);
 // BE-032: larger limit for import routes that handle CSV bulk data
 app.use("/api/import", express.json({ limit: "5mb" }), importRoutes);
 app.use("/api/spelling", spellingRoutes);
+app.use("/api/vocabulary", vocabularyRoutes);
 app.use("/api/newsletters", newsletterRoutes);
 app.use("/api/newsletter-templates", newsletterTemplateRoutes);
 app.use("/api/standards", standardRoutes);
