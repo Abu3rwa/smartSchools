@@ -38,7 +38,7 @@ const VocabImportTab = () => {
         body.append('mode', mode);
         body.append('dryRun', String(dryRun));
         try {
-            const { data } = await api.post(`/vocabulary/import/${type}`, body);
+            const { data } = await api.post(`/vocabulary/import/${type}`, body, { headers: { 'Content-Type': 'multipart/form-data' } });
             setResult(data.data);
         } catch (requestError) {
             setError(requestError.response?.data?.message || 'The import failed.');
