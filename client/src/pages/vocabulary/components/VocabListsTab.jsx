@@ -83,6 +83,48 @@ const AssignDialog = ({ list, onClose, onSaved }) => {
     );
 };
 
+const BulkAssign = ({ lists, onDone }) => {
+    const classes = useSelector(selectClasses);
+    const [classId, setClassId] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [result, setResult] = useState(null);
+
+    const run = async () => {
+        setBusy(true);
+        setResult(null);
+        try {
+            for (const list of lists) {
+                const { data } = await api.get(`/vocabulary/lists/${list.listId}/assignments`);
+                const { classIds, studentIds } = data.data;
+                if (!classIds.includes(classId)) await api.put(`/vocabulary/lists/${list.listId}/assignments`, { classIds: [...classIds, classId], studentIds });
+            }
+            setResult({ severity: 'success', text: `All ${lists.length} lists are now assigned to this class.` });
+            onDone();
+        } catch (requestError) {
+            setResult({ severity: 'error', text: errorText(requestError, 'Unable to assign the lists.') });
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <Stack spacing={1} sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+            <Typography variant="subtitle1" component="h2">Assign all lists to a class</Typography>
+            <Typography variant="body2" color="text.secondary">Students only see lists assigned to their class. To assign one list, or to pick students, use the Assign button on that list.</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <FormControl size="small" sx={{ minWidth: 220 }}>
+                    <InputLabel id="vocab-bulk-class">Class</InputLabel>
+                    <Select labelId="vocab-bulk-class" label="Class" value={classId} onChange={(event) => setClassId(event.target.value)}>
+                        {classes.map((schoolClass) => <MenuItem key={schoolClass._id} value={schoolClass._id}>{`${schoolClass.name}${schoolClass.section ? ` - ${schoolClass.section}` : ''}`}</MenuItem>)}
+                    </Select>
+                </FormControl>
+                <Button variant="contained" onClick={run} disabled={!classId || busy || lists.length === 0}>{busy ? 'Assigning...' : `Assign all ${lists.length} lists`}</Button>
+            </Stack>
+            {result && <Alert severity={result.severity} onClose={() => setResult(null)}>{result.text}</Alert>}
+        </Stack>
+    );
+};
+
 const VocabListsTab = () => {
     const [lists, setLists] = useState([]);
     const [drafts, setDrafts] = useState({});
@@ -131,6 +173,7 @@ const VocabListsTab = () => {
                 <Button variant="outlined" onClick={seed}>Load starter lists (13 lists, 96 words)</Button>
                 <Typography variant="body2" color="text.secondary">Safe to run again; it never overwrites your edits.</Typography>
             </Stack>
+            <BulkAssign lists={lists} onDone={() => {}} />
             <Box sx={{ overflowX: 'auto' }}>
                 <Table size="small" aria-label="Vocabulary lists">
                     <TableHead>
@@ -145,7 +188,7 @@ const VocabListsTab = () => {
                             const dirty = Boolean(drafts[list.listId]);
                             return (
                                 <TableRow key={list.listId}>
-                                    <TableCell>{list.listId}</TableCell>
+                                    <TableCell><Stack spacing={0.5} alignItems="flex-start"><span>{list.listId}</span><Button size="small" variant="outlined" onClick={() => setAssigning(list)}>Assign</Button></Stack></TableCell>
                                     <TableCell><TextField size="small" value={draft.title} onChange={(event) => setDraft(list, 'title', event.target.value)} inputProps={{ 'aria-label': `Title for ${list.listId}` }} /></TableCell>
                                     <TableCell><TextField size="small" value={draft.lessonTitle} onChange={(event) => setDraft(list, 'lessonTitle', event.target.value)} inputProps={{ 'aria-label': `Reading lesson for ${list.listId}` }} /></TableCell>
                                     <TableCell><TextField size="small" type="number" sx={{ width: 80 }} value={draft.order} onChange={(event) => setDraft(list, 'order', event.target.value)} inputProps={{ 'aria-label': `Order for ${list.listId}` }} /></TableCell>
@@ -155,7 +198,6 @@ const VocabListsTab = () => {
                                     <TableCell>
                                         <Stack direction="row" spacing={1}>
                                             <Button size="small" variant="contained" disabled={!dirty} onClick={() => patch(list, draft)}>Save</Button>
-                                            <Button size="small" onClick={() => setAssigning(list)}>Assign</Button>
                                         </Stack>
                                     </TableCell>
                                 </TableRow>
