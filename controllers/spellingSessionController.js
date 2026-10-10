@@ -266,7 +266,7 @@ export const listRaisedHands = asyncHandler(async (req, res) => {
         school: req.schoolId,
         student: { $in: students.map((student) => student._id) },
         status: 'in-progress',
-        'handRaise.raisedAt': { $ne: null }
+        'handRaise.raisedAt': { $type: 'date' }
     }).select('student handRaise nextSequence currentItem').sort({ 'handRaise.raisedAt': 1 }).lean();
     const data = sessions
         .filter((session) => session.handRaise.sequence === (session.currentItem?.sequence ?? session.nextSequence))

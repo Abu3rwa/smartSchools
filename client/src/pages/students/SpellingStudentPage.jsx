@@ -447,19 +447,19 @@ const SpellingStudentPage = () => {
                                             onPlayExample={playExample}
                                         />
                                     )}
-                                    {isPluralWithoutOxfordAudio(currentItem) && (
-                                        <Alert
-                                            severity="info"
-                                            role="note"
-                                            action={currentItem.handRaised ? null : (
-                                                <Button color="inherit" size="small" variant="outlined" onClick={raiseHand}>Raise your hand</Button>
-                                            )}
-                                        >
-                                            {currentItem.handRaised
-                                                ? 'Your hand is raised. Your teacher will say the word to you.'
-                                                : 'This word is plural and has no Oxford pronunciation. Raise your hand so your teacher can say it to you.'}
-                                        </Alert>
-                                    )}
+                                    <Alert
+                                        severity={currentItem.handRaised ? 'success' : 'info'}
+                                        role="note"
+                                        action={currentItem.handRaised ? null : (
+                                            <Button color="inherit" size="small" variant="outlined" onClick={raiseHand}>Raise your hand</Button>
+                                        )}
+                                    >
+                                        {currentItem.handRaised
+                                            ? 'Your hand is raised. Your teacher will help you soon.'
+                                            : isPluralWithoutOxfordAudio(currentItem)
+                                                ? 'This word is plural and has no Oxford pronunciation. Raise your hand so your teacher can say it to you.'
+                                                : "Can't hear properly or need help? Raise your hand."}
+                                    </Alert>
                                     {voiceNotice && <Alert severity="info" role="status">{voiceNotice}</Alert>}
                                     {revealedAttempt && (
                                         <Card variant="outlined">

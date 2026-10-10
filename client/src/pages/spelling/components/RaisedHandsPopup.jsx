@@ -20,7 +20,8 @@ const RaisedHandsPopup = ({ classId }) => {
         setHands([]);
         if (!classId) return undefined;
         load();
-        const intervalId = window.setInterval(load, 3000);
+        const poll = () => { if (document.visibilityState === 'visible') load(); };
+        const intervalId = window.setInterval(poll, 5000);
         return () => window.clearInterval(intervalId);
     }, [classId, load]);
 

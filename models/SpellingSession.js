@@ -164,6 +164,7 @@ const spellingSessionSchema = new mongoose.Schema({
 
 spellingSessionSchema.index({ school: 1, student: 1, status: 1, startedAt: -1 });
 spellingSessionSchema.index({ school: 1, createdAt: -1 });
+spellingSessionSchema.index({ school: 1, student: 1, 'handRaise.raisedAt': 1 }, { partialFilterExpression: { 'handRaise.raisedAt': { $type: 'date' } } });
 spellingSessionSchema.plugin(tenantIsolationPlugin);
 
 const SpellingSession = mongoose.model('SpellingSession', spellingSessionSchema);
