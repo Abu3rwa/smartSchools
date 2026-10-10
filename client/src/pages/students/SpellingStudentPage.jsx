@@ -16,7 +16,7 @@ import {
     fetchSpellingDictionaryEntry
 } from '../../store/slices/spellingSlice';
 import SpellingVoicePanel from './SpellingVoicePanel';
-import { playUrl, playWithFallback, readStoredVoice, resolveVoice, storeVoice } from '../../utils/voicePlayback';
+import { getVoiceOptions, playUrl, playWithFallback, readStoredVoice, resolveVoice, storeVoice } from '../../utils/voicePlayback';
 
 const isSkippedSpellingAttempt = (attempt, mode) => attempt?.skipped === true || (
     mode === 'self-serve'
@@ -160,6 +160,12 @@ const SpellingStudentPage = () => {
         setRevealedAttempt(null);
         setVoiceNotice('');
     }, [currentItem?.sequence]);
+
+    const isPluralWithoutPreferredAudio = (item) => {
+        const word = String(item?.word || '').trim().toLowerCase();
+        if (!/[a-z]s$/.test(word) || /(ss|us|is)$/.test(word)) return false;
+        return !getVoiceOptions(item.audio).some((option) => option.dictionary === 'oxford' || option.dictionary === 'longman');
+    };
 
     const dictionaryMatches = (entry, word) => Boolean(entry?.word) && entry.word === String(word || '').trim().toLowerCase();
 
@@ -435,6 +441,11 @@ const SpellingStudentPage = () => {
                                             onSelectVoice={selectVoice}
                                             onPlayExample={playExample}
                                         />
+                                    )}
+                                    {isPluralWithoutPreferredAudio(currentItem) && (
+                                        <Alert severity="info" role="note">
+                                            This word is plural and has no Oxford or Longman pronunciation. Ask your teacher to say it to you.
+                                        </Alert>
                                     )}
                                     {voiceNotice && <Alert severity="info" role="status">{voiceNotice}</Alert>}
                                     {revealedAttempt && (
