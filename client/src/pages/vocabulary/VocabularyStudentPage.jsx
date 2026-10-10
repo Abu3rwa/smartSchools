@@ -1,10 +1,10 @@
-import './VocabularyStudentPage.css';
 import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Checkbox, CircularProgress, FormControlLabel, Stack, Tab, Tabs, Typography } from '@mui/material';
 import api from '../../config/api';
 import VocabStudyView from './components/VocabStudyView';
 import VocabPracticeView from './components/VocabPracticeView';
 import VocabProgressView from './components/VocabProgressView';
+import './VocabularyStudentPage.css';
 
 const VocabularyStudentPage = () => {
     const [state, setState] = useState({ loading: true, error: '', data: null });
@@ -57,45 +57,58 @@ const VocabularyStudentPage = () => {
     const total = lists.reduce((sum, list) => sum + list.wordCount, 0);
 
     const picker = (
-        <>
-            <Typography variant="body1" sx={{ mb: 2 }}>Choose the lists you want to practise.</Typography>
-            <FormControlLabel
-                control={<Checkbox checked={all} onChange={(event) => { setSaved(false); setAll(event.target.checked); if (event.target.checked) setSelected([]); }} />}
-                label={`All my lists (${total} words)`}
-            />
-            <Stack spacing={1} sx={{ my: 2 }}>
-                {lists.map((list) => (
-                    <Card key={list.listId} variant="outlined">
-                        <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
-                            <FormControlLabel
-                                control={<Checkbox checked={all || selected.includes(list.listId)} disabled={all} onChange={() => toggle(list.listId)} />}
-                                label={`${list.title} - Semester ${list.semester} (${list.wordCount} words)`}
-                            />
-                            {list.lessonTitle && <Typography variant="caption" color="text.secondary" display="block" sx={{ pl: 4 }}>{list.lessonTitle}</Typography>}
-                        </CardContent>
-                    </Card>
-                ))}
-            </Stack>
-            <Button variant="contained" onClick={save} disabled={!all && selected.length === 0}>Save my choice</Button>
-            {saved && <Alert severity="success" sx={{ mt: 2 }} role="status">Saved. Open the Study or Practice tab to begin.</Alert>}
-        </>
+        <div className="vsp__picker">
+            <Typography component="h2" className="vsp__intro">Which lists do you want to practise?</Typography>
+            <div className={`vsp__all${all ? ' vsp__all--on' : ''}`}>
+                <FormControlLabel
+                    control={<Checkbox checked={all} onChange={(event) => { setSaved(false); setAll(event.target.checked); if (event.target.checked) setSelected([]); }} />}
+                    label={<strong>All my lists</strong>}
+                />
+                <span className="vsp__list-meta">{total} words</span>
+            </div>
+            <div className="vsp__lists">
+                {lists.map((list) => {
+                    const on = all || selected.includes(list.listId);
+                    return (
+                        <Card key={list.listId} variant="outlined" className={`vsp__list${on ? ' vsp__list--on' : ''}`}>
+                            <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                                <FormControlLabel
+                                    className="vsp__list-label"
+                                    control={<Checkbox checked={on} disabled={all} onChange={() => toggle(list.listId)} />}
+                                    label={(
+                                        <>
+                                            <span className="vsp__list-title">{list.title}</span>
+                                            <span className="vsp__list-meta">Semester {list.semester} · {list.wordCount} words</span>
+                                        </>
+                                    )}
+                                />
+                                {list.lessonTitle && <span className="vsp__list-lesson">{list.lessonTitle}</span>}
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+            </div>
+            <div className="vsp__savebar">
+                {saved && <Alert severity="success" sx={{ mb: 1 }} role="status">Saved! Open Study or Practice to begin.</Alert>}
+                <Button fullWidth variant="contained" className="vsp__save" onClick={save} disabled={!all && selected.length === 0}>Save my choice</Button>
+            </div>
+        </div>
     );
-
     const needList = <Alert severity="info">Choose and save your lists first.</Alert>;
     const loading = wordsState.loading ? <CircularProgress aria-label="Loading" /> : null;
 
     return (
-        <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 720, mx: 'auto', height: { xs: 'calc(100dvh - 72px)', md: 'calc(100dvh - 96px)' }, display: 'flex', flexDirection: 'column' }}>
-            <Tabs value={tab} onChange={(_, v) => { setTab(v); setWeakOnly(false); }} variant="scrollable" aria-label="Vocabulary sections" sx={{ mb: 1, flexShrink: 0, minHeight: 44 }}>
+        <div className="vsp">
+            <Tabs value={tab} onChange={(_, v) => { setTab(v); setWeakOnly(false); }} variant="scrollable" scrollButtons={false} aria-label="Vocabulary sections" className="vsp__tabs">
                 <Tab label="Choose lists" /><Tab label="Study" /><Tab label="Practice" /><Tab label="Progress" />
             </Tabs>
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div className="vsp__body">
             {tab === 0 && picker}
             {tab === 1 && (!savedOnce ? needList : loading || <VocabStudyView words={wordsState.words} />)}
             {tab === 2 && (!savedOnce ? needList : loading || <VocabPracticeView key={weakOnly ? 'weak' : 'all'} words={wordsState.words} settings={wordsState.settings} selection={{ all, listIds: selected }} />)}
             {tab === 3 && <VocabProgressView onPracticeWeak={() => { setWeakOnly(true); setTab(2); }} />}
-            </Box>
-        </Box>
+            </div>
+        </div>
     );
 };
 

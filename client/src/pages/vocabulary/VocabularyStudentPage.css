@@ -1,0 +1,100 @@
+.vsp {
+    --vsp-accent: #4f46e5;
+    --vsp-accent-soft: #eef2ff;
+    --vsp-border: #e2e8f0;
+    --vsp-text-muted: #64748b;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 8px;
+    height: calc(100dvh - 72px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+@media (min-width: 900px) {
+    .vsp { height: calc(100dvh - 96px); padding: 16px; }
+}
+
+/* Tabs as a segmented control */
+.vsp__tabs.MuiTabs-root {
+    flex-shrink: 0;
+    min-height: 44px;
+    background: #f1f5f9;
+    border-radius: 14px;
+    padding: 4px;
+}
+.vsp__tabs .MuiTabs-indicator { display: none; }
+.vsp__tabs .MuiTab-root {
+    min-height: 36px;
+    border-radius: 10px;
+    text-transform: none;
+    font-weight: 600;
+    color: var(--vsp-text-muted);
+}
+.vsp__tabs .MuiTab-root.Mui-selected {
+    background: #fff;
+    color: var(--vsp-accent);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+.vsp__body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Choose lists */
+.vsp__picker { display: flex; flex-direction: column; min-height: 100%; }
+.vsp__intro { margin: 4px 0 12px; font-size: 1.05rem; font-weight: 600; }
+
+.vsp__all {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    border: 1px solid var(--vsp-border);
+    border-radius: 14px;
+    background: #fff;
+    margin-bottom: 12px;
+}
+.vsp__all--on { border-color: var(--vsp-accent); background: var(--vsp-accent-soft); }
+
+.vsp__lists { display: grid; gap: 10px; grid-template-columns: 1fr; padding-bottom: 8px; }
+@media (min-width: 600px) {
+    .vsp__lists { grid-template-columns: 1fr 1fr; }
+}
+
+.vsp__list.MuiCard-root {
+    border-radius: 14px;
+    border: 1.5px solid var(--vsp-border);
+    transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+}
+.vsp__list.MuiCard-root:hover { border-color: #a5b4fc; }
+.vsp__list--on.MuiCard-root { border-color: var(--vsp-accent); background: var(--vsp-accent-soft); }
+.vsp__list-label { display: block; width: 100%; margin: 0; cursor: pointer; }
+.vsp__list-title { font-weight: 700; display: block; }
+.vsp__list-meta { color: var(--vsp-text-muted); font-size: 0.8rem; display: block; }
+.vsp__list-lesson { color: var(--vsp-text-muted); font-size: 0.8rem; display: block; padding-left: 4px; }
+
+/* The save button stays in view while the list scrolls */
+.vsp__savebar {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    padding: 10px 0 2px;
+    background: linear-gradient(to top, #fff 70%, rgba(255, 255, 255, 0));
+}
+.vsp__save.MuiButton-root {
+    min-height: 52px;
+    border-radius: 14px;
+    font-weight: 700;
+    text-transform: none;
+    font-size: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vsp__list.MuiCard-root { transition: none; }
+}
