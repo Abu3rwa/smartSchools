@@ -415,7 +415,21 @@ const SpellingStudentPage = () => {
                                 {t('waitingForClass')}
                             </Alert>
                         ) : session.mode === 'teacher-led' ? (
-                            <Alert severity="info">{t('teacherLedActive')}</Alert>
+                            <Stack spacing={2}>
+                                <Alert severity="info">{t('teacherLedActive')}</Alert>
+                                {currentItem?.sequence && (
+                                    <Alert
+                                        severity={currentItem.handRaised ? 'success' : 'info'}
+                                        action={currentItem.handRaised ? null : (
+                                            <Button color="inherit" size="small" variant="outlined" onClick={raiseHand}>Raise your hand</Button>
+                                        )}
+                                    >
+                                        {currentItem.handRaised
+                                            ? 'Your hand is raised. Your teacher will help you soon.'
+                                            : "Can't hear properly or need help? Raise your hand."}
+                                    </Alert>
+                                )}
+                            </Stack>
                         ) : currentItem ? (
                             <Box aria-live="polite" aria-atomic="true" sx={{ width: '100%' }}>
                                 <Stack spacing={2} sx={{ width: '100%' }}>
