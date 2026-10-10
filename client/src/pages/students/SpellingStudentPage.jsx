@@ -11,7 +11,6 @@ import {
     fetchSpellingHistory,
     fetchSpellingRetests,
     selectSpelling,
-    startSelfServeSpellingSession,
     submitSpellingAnswer,
     fetchSpellingDictionaryEntry
 } from '../../store/slices/spellingSlice';
@@ -161,10 +160,10 @@ const SpellingStudentPage = () => {
         setVoiceNotice('');
     }, [currentItem?.sequence]);
 
-    const isPluralWithoutPreferredAudio = (item) => {
+    const isPluralWithoutOxfordAudio = (item) => {
         const word = String(item?.word || '').trim().toLowerCase();
         if (!/[a-z]s$/.test(word) || /(ss|us|is)$/.test(word)) return false;
-        return !getVoiceOptions(item.audio).some((option) => option.dictionary === 'oxford' || option.dictionary === 'longman');
+        return !getVoiceOptions(item.audio).some((option) => option.dictionary === 'oxford');
     };
 
     const dictionaryMatches = (entry, word) => Boolean(entry?.word) && entry.word === String(word || '').trim().toLowerCase();
@@ -244,21 +243,26 @@ const SpellingStudentPage = () => {
         speakWord(currentItem.word, currentItem.audio);
     }, [currentItem, dictionaryEntry, session?.dictationMode]);
 
-    const startSession = async () => {
-        setLocalError('');
-        const result = await dispatch(startSelfServeSpellingSession());
-        if (startSelfServeSpellingSession.fulfilled.match(result)) {
-            dispatch(fetchSpellingCurrentItem(result.payload._id));
-            return;
-        }
+    // Students cannot start a session; wait for the teacher to start one.
+    useEffect(() => {
+        if (session?._id) return undefined;
+        const intervalId = window.setInterval(async () => {
+            const result = await dispatch(fetchActiveSpellingSession());
+            if (fetchActiveSpellingSession.fulfilled.match(result) && result.payload) {
+                dispatch(fetchSpellingCurrentItem(result.payload._id));
+            }
+        }, 5000);
+        return () => window.clearInterval(intervalId);
+    }, [dispatch, session?._id]);
 
-        // Recover the already-active session so the student can end it instead
-        // of being left with a start error and no available action.
-        const activeResult = await dispatch(fetchActiveSpellingSession());
-        if (fetchActiveSpellingSession.fulfilled.match(activeResult) && activeResult.payload) {
-            dispatch(fetchSpellingCurrentItem(activeResult.payload._id));
-        } else {
-            setLocalError(result.payload || t('sessionError'));
+    const raiseHand = async () => {
+        if (!session?._id || !currentItem?.sequence) return;
+        setLocalError('');
+        try {
+            await api.post(`/spelling/sessions/${session._id}/raise-hand`, { sequence: currentItem.sequence });
+            dispatch(fetchSpellingCurrentItem(session._id));
+        } catch (error) {
+            setLocalError(error.response?.data?.message || 'Unable to raise your hand. Please try again.');
         }
     };
 
@@ -343,7 +347,9 @@ const SpellingStudentPage = () => {
                 <Alert severity="info" sx={{ mb: 2 }}>
                     During a spelling session, when this page becomes hidden, the event is recorded for your teacher. This can happen when switching tabs or minimizing the browser.
                 </Alert>
-                <Button variant="contained" onClick={startSession} disabled={loading}>{t('startStudentSession')}</Button>
+                <Alert severity="info">
+                    Your teacher will start your spelling session. This page will open it automatically.
+                </Alert>
             </>}
 
             {session && !sessionViewOpen && <Card sx={{ mb: 3 }}><CardContent>
@@ -399,7 +405,6 @@ const SpellingStudentPage = () => {
                             <Stack spacing={2} alignItems="center">
                                 <Alert severity="success">{t('sessionCompleted')}</Alert>
                                 {hasSkippedWords && <Alert severity="info">{t('teacherWillReviewSkippedWords')}</Alert>}
-                                <Button variant="contained" onClick={startSession} disabled={loading}>{t('startNewSession')}</Button>
                             </Stack>
                         ) : currentItem?.alreadyCompleted ? (
                             <Alert severity="success" role="status">
@@ -442,9 +447,17 @@ const SpellingStudentPage = () => {
                                             onPlayExample={playExample}
                                         />
                                     )}
-                                    {isPluralWithoutPreferredAudio(currentItem) && (
-                                        <Alert severity="info" role="note">
-                                            This word is plural and has no Oxford or Longman pronunciation. Ask your teacher to say it to you.
+                                    {isPluralWithoutOxfordAudio(currentItem) && (
+                                        <Alert
+                                            severity="info"
+                                            role="note"
+                                            action={currentItem.handRaised ? null : (
+                                                <Button color="inherit" size="small" variant="outlined" onClick={raiseHand}>Raise your hand</Button>
+                                            )}
+                                        >
+                                            {currentItem.handRaised
+                                                ? 'Your hand is raised. Your teacher will say the word to you.'
+                                                : 'This word is plural and has no Oxford pronunciation. Raise your hand so your teacher can say it to you.'}
                                         </Alert>
                                     )}
                                     {voiceNotice && <Alert severity="info" role="status">{voiceNotice}</Alert>}

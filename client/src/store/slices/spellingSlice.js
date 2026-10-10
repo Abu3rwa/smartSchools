@@ -70,16 +70,7 @@ export const submitTeacherSpellingAttempt = createAsyncThunk('spelling/submitTea
     }
 });
 
-export const startSelfServeSpellingSession = createAsyncThunk('spelling/startSession', async (_, { rejectWithValue }) => {
-    try {
-        const response = await api.post('/spelling/sessions', { mode: 'self-serve', maxMistakesAllowed: 3 });
-        return response.data.data;
-    } catch (error) {
-        return rejectWithValue(requestError(error, 'Unable to start the spelling session.'));
-    }
-});
-
-export const fetchSpellingCurrentItem = createAsyncThunk('spelling/fetchCurrentItem', async (sessionId, { rejectWithValue }) => {
+export const fetchSpellingCurrentItem =  createAsyncThunk('spelling/fetchCurrentItem', async (sessionId, { rejectWithValue }) => {
     try {
         const response = await api.get(`/spelling/sessions/${sessionId}/current-item`);
         return response.data.data;
@@ -164,9 +155,6 @@ const spellingSlice = createSlice({
             .addCase(fetchStudentSpellingDetails.pending, (state) => { state.loading = true; state.error = null; })
             .addCase(fetchStudentSpellingDetails.fulfilled, (state, action) => { state.loading = false; state.studentDetails = action.payload; })
             .addCase(fetchStudentSpellingDetails.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
-            .addCase(startSelfServeSpellingSession.pending, (state) => { state.loading = true; state.error = null; })
-            .addCase(startSelfServeSpellingSession.fulfilled, (state, action) => { state.loading = false; state.session = action.payload; })
-            .addCase(startSelfServeSpellingSession.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
             .addCase(startTeacherSpellingSession.pending, (state) => { state.loading = true; state.error = null; })
             .addCase(startTeacherSpellingSession.fulfilled, (state, action) => { state.loading = false; state.session = action.payload; })
             .addCase(startTeacherSpellingSession.rejected, (state, action) => { state.loading = false; state.error = action.payload; })

@@ -183,7 +183,7 @@ const advanceClassSession = async ({ group, schoolId, dbSession }) => {
     await group.save({ session: dbSession });
     await SpellingSession.updateMany(
         { _id: { $in: group.participants.map((participant) => participant.session).filter(Boolean) }, school: schoolId, status: 'in-progress' },
-        { $set: { curriculumWeek: nextWord.week, currentItem: { wordId: null, retestItemId: null, sequence: null } } },
+        { $set: { curriculumWeek: nextWord.week, currentItem: { wordId: null, retestItemId: null, sequence: null }, handRaise: { raisedAt: null, sequence: null } } },
         { session: dbSession }
     );
 };

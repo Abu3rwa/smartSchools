@@ -14,7 +14,10 @@ import {
     getSpellingIntegrityEvents,
     getClassSessionProgress,
     getCurrentItem,
+    listRaisedHands,
+    lowerHand,
     markAttemptCorrect,
+    raiseHand,
     recordAttempt,
     startClassSession,
     startSession
@@ -62,9 +65,12 @@ router.put('/word-audio/settings/:grade', authorize('admin'), express.json(), up
 router.use('/sessions', authorize('admin', 'department_principal', 'teacher', 'student'));
 router.post('/sessions/class', authorize('admin', 'department_principal', 'teacher'), express.json(), startClassSession);
 router.get('/sessions/class/progress', authorize('admin', 'department_principal', 'teacher'), getClassSessionProgress);
-router.post('/sessions', startSession);
+router.post('/sessions', authorize('admin', 'department_principal', 'teacher'), startSession);
 router.get('/sessions', listSessions);
 router.get('/sessions/active', getActiveSession);
+router.get('/sessions/hands', authorize('admin', 'department_principal', 'teacher'), listRaisedHands);
+router.post('/sessions/:id/raise-hand', authorize('student'), express.json(), raiseHand);
+router.post('/sessions/:id/lower-hand', authorize('admin', 'department_principal', 'teacher'), lowerHand);
 router.get('/sessions/:id/current-item', getCurrentItem);
 router.post('/sessions/:id/integrity-events', authorize('student'), createSpellingIntegrityEvent);
 router.get('/sessions/:id/integrity-events', authorize('admin', 'department_principal', 'teacher'), getSpellingIntegrityEvents);

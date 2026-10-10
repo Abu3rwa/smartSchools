@@ -71,6 +71,9 @@ const resolveStudentId = async (req) => {
 };
 
 export const startSession = asyncHandler(async (req, res) => {
+    if (req.user?.role === 'student') {
+        return res.status(403).json({ success: false, message: 'Only a teacher can start a spelling session' });
+    }
     const studentId = await resolveStudentId(req);
     if (!studentId) return res.status(400).json({ success: false, message: 'studentId is required' });
 
@@ -180,7 +183,103 @@ export const getClassSessionProgress = asyncHandler(async (req, res) => {
 
 export const getCurrentItem = asyncHandler(async (req, res) => {
     const result = await getCurrentSpellingItem({ schoolId: req.schoolId, sessionId: req.params.id });
-    return res.status(200).json({ success: true, data: await attachAudioToCurrentItem(result, req.schoolId) });
+    const data = await attachAudioToCurrentItem(result, req.schoolId);
+    const handRaise = data?.session?.handRaise;
+    if (data?.item && handRaise?.raisedAt && handRaise.sequence === data.item.sequence) {
+        return res.status(200).json({ success: true, data: { ...data, item: { ...data.item, handRaised: true } } });
+    }
+    return res.status(200).json({ success: true, data });
+});
+
+export const raiseHand = asyncHandler(async (req, res) => {
+    const student = await Student.findOne({ user: req.user._id, school: req.schoolId }).select('_id').lean();
+    const sequence = Number(req.body?.sequence);
+    if (!student || !Number.isInteger(sequence) || sequence < 1) {
+        return res.status(400).json({ success: false, message: 'A valid sequence is required' });
+    }
+    const session = await SpellingSession.findOne({
+        _id: req.params.id,
+        school: req.schoolId,
+        student: student._id,
+        status: 'in-progress'
+    });
+    if (!session) return res.status(404).json({ success: false, message: 'Spelling session not found' });
+    if (!(session.handRaise?.raisedAt && session.handRaise.sequence === sequence)) {
+        session.handRaise = { raisedAt: new Date(), sequence };
+        await session.save();
+    }
+    return res.json({ success: true, data: { raisedAt: session.handRaise.raisedAt, sequence } });
+});
+
+export const lowerHand = asyncHandler(async (req, res) => {
+    const session = await SpellingSession.findOne({ _id: req.params.id, school: req.schoolId }).select('student');
+    if (!session) return res.status(404).json({ success: false, message: 'Spelling session not found' });
+    if (!(await canManageStudent(req, session.student))) {
+        return res.status(403).json({ success: false, message: 'Not authorized for this student' });
+    }
+    await SpellingSession.updateOne(
+        { _id: session._id, school: req.schoolId },
+        { $set: { 'handRaise.raisedAt': null, 'handRaise.sequence': null } }
+    );
+    return res.json({ success: true });
+});
+
+const canManageStudent = async (req, studentId) => {
+    if (req.user?.role === 'admin') return true;
+    const student = await Student.findOne({ _id: studentId, school: req.schoolId }).select('currentClass enrolledClasses').lean();
+    if (!student) return false;
+    const studentClassIds = [student.currentClass, ...(student.enrolledClasses || [])].filter(Boolean).map(String);
+    if (req.user?.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        const classIds = teacher ? (await getTeacherClassIds(teacher._id)).map(String) : [];
+        return studentClassIds.some((id) => classIds.includes(id));
+    }
+    if (req.user?.role === 'department_principal') {
+        const classes = await Class.find({ _id: { $in: studentClassIds }, school: req.schoolId, department: req.departmentId }).select('_id').lean();
+        return Boolean(req.departmentId) && classes.length > 0;
+    }
+    return false;
+};
+
+export const listRaisedHands = asyncHandler(async (req, res) => {
+    const { classId } = req.query;
+    if (!classId) return res.status(400).json({ success: false, message: 'classId is required' });
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId }).select('_id department').lean();
+    if (!classDoc) return res.status(404).json({ success: false, message: 'Class not found' });
+    if (req.user?.role === 'teacher') {
+        const teacher = await resolveTeacherProfile(req);
+        const classIds = teacher ? await getTeacherClassIds(teacher._id) : [];
+        if (!classIds.some((id) => String(id) === String(classId))) {
+            return res.status(403).json({ success: false, message: 'Not authorized for this class' });
+        }
+    } else if (req.user?.role === 'department_principal') {
+        if (!req.departmentId || String(classDoc.department) !== String(req.departmentId)) {
+            return res.status(403).json({ success: false, message: 'Not authorized for this class' });
+        }
+    }
+    const students = await Student.find({
+        school: req.schoolId,
+        $or: [{ currentClass: classId }, { enrolledClasses: classId }]
+    }).select('_id firstName lastName').lean();
+    const byId = new Map(students.map((student) => [String(student._id), student]));
+    const sessions = await SpellingSession.find({
+        school: req.schoolId,
+        student: { $in: students.map((student) => student._id) },
+        status: 'in-progress',
+        'handRaise.raisedAt': { $ne: null }
+    }).select('student handRaise nextSequence currentItem').sort({ 'handRaise.raisedAt': 1 }).lean();
+    const data = sessions
+        .filter((session) => session.handRaise.sequence === (session.currentItem?.sequence ?? session.nextSequence))
+        .map((session) => {
+            const student = byId.get(String(session.student));
+            return {
+                sessionId: session._id,
+                studentId: session.student,
+                name: `${student?.firstName || ''} ${student?.lastName || ''}`.trim(),
+                raisedAt: session.handRaise.raisedAt
+            };
+        });
+    return res.json({ success: true, data });
 });
 
 export const advanceClassWordHandler = asyncHandler(async (req, res) => {

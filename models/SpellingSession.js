@@ -122,6 +122,10 @@ const spellingSessionSchema = new mongoose.Schema({
         retestItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'SpellingRetestItem', default: null },
         sequence: { type: Number, default: null, min: 1 }
     },
+    handRaise: {
+        raisedAt: { type: Date, default: null },
+        sequence: { type: Number, default: null, min: 1 }
+    },
     correctCount: {
         type: Number,
         default: 0,

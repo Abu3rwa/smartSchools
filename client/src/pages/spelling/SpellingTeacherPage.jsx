@@ -12,6 +12,7 @@ import SpellingClassSessionControls from './components/SpellingClassSessionContr
 import SpellingStudentRosterTable from './components/SpellingStudentRosterTable';
 import SpellingCurriculumTab from './components/SpellingCurriculumTab';
 import SpellingSettingsTab from './components/SpellingSettingsTab';
+import RaisedHandsPopup from './components/RaisedHandsPopup';
 import { ConfirmDialog, EndSessionPassageReviewDialog, PassageDeliveryDialog, StudentSessionsDialog } from './components/SpellingTeacherDialogs';
 import { PASSAGE_STATUS_COLOR, isSkippedSpellingAttempt } from './components/spellingTeacherConstants';
 import { fetchClass, fetchClasses, selectClassStudents, selectClasses, selectClassesLoading, selectCurrentClass } from '../../store/slices/classSlice';
@@ -770,6 +771,7 @@ const SpellingTeacherPage = () => {
             />
 
             <ConfirmDialog dialog={confirmDialog} onClose={closeConfirm} />
+            <RaisedHandsPopup classId={classId} />
 
             <StudentSessionsDialog
                 student={sessionsStudent}
