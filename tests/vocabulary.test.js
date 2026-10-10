@@ -243,7 +243,7 @@ test('mcq csv: scope single, multiple and ALL; invalid scope, bad answers and du
     assert.ok(byRow(8).includes('correct'));
     assert.equal(bad.valid.length, 1);
     const template = parseCsvTable(buildTemplateCsv('mcq'), 'mcq');
-    assert.deepEqual(validateMcqRows(template.rows, new Set(['S1-L1', 'S1-L3', 'S1-L4'])).errors, []);
+    assert.deepEqual(validateMcqRows(template.rows, new Set(['S1-L1', 'S1-L2', 'S1-L3', 'S1-L4'])).errors, []);
 });
 
 test('mcq scope matching and shuffling keep every option', async () => {
@@ -300,4 +300,18 @@ test('new vocabulary routes keep students out of teacher tools and staff out of 
     for (const path of ['/reports/:name', '/reviews', '/reviews/:id', '/audio-check', '/student/answer', '/student/progress', '/student/mcq']) {
         assert.ok(routes.some((route) => route.path === path), path);
     }
+});
+
+test('every downloadable template imports without errors', async () => {
+    const v = await import('../utils/vocabCsv.js');
+    const lists = v.validateListRows(v.parseCsvTable(v.buildTemplateCsv('lists'), 'lists').rows);
+    assert.deepEqual(lists.errors, []);
+    const ids = new Set(lists.valid.map((l) => l.listId));
+    assert.deepEqual(v.validateWordRows(v.parseCsvTable(v.buildTemplateCsv('words'), 'words').rows, ids).errors, []);
+    assert.deepEqual(v.validateSourceRows(v.parseCsvTable(v.buildTemplateCsv('word_sources'), 'word_sources').rows, ids).errors, []);
+    const mcq = v.validateMcqRows(v.parseCsvTable(v.buildTemplateCsv('mcq'), 'mcq').rows, ids);
+    assert.deepEqual(mcq.errors, []);
+    assert.equal(mcq.valid.length, 4);
+    const combined = v.expandCombinedRows(v.parseCsvTable(v.buildTemplateCsv('combined'), 'combined').rows);
+    assert.deepEqual(v.validateWordRows(combined.wordRows, new Set(combined.listRows.map((l) => l.data.list_id))).errors, []);
 });

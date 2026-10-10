@@ -13,7 +13,9 @@ export const TEMPLATES = Object.freeze({
         required: ['question_id', 'scope', 'question', 'option_a', 'option_b', 'correct'],
         example: [
             ['Q-S1L1-001', 'S1-L1', 'debris', 'Which sentence uses debris correctly?', 'Debris covered the road after the storm.', 'She ate a bowl of debris.', 'The debris sang loudly.', 'He debris the door.', 'A', 'Debris means broken pieces left after something is destroyed.'],
-            ['Q-S1-002', 'S1-L3;S1-L4', '', 'Which word means a disadvantage?', 'drawback', 'analysis', 'data', 'cite', 'A', '']
+            ['Q-S1L2-001', 'S1-L2', 'wages', 'Which word is the plural form?', 'wage', 'wages', '', '', 'B', 'Wages ends in -s because it means more than one payment.'],
+            ['Q-MULTI-001', 'S1-L1;S1-L2', '', 'Which word means money paid for work?', 'debris', 'wages', 'emphasis', '', 'B', ''],
+            ['Q-ALL-001', 'ALL', '', 'Which word is a noun?', 'quickly', 'debris', 'happily', 'run', 'B', 'A noun names a thing.']
         ]
     },
     combined: {
@@ -27,7 +29,10 @@ export const TEMPLATES = Object.freeze({
     },
     lists: {
         headers: ['list_id', 'semester', 'list_number', 'title', 'lesson_title', 'order', 'visible'],
-        example: [['S1-L1', '1', '1', 'Semester 1 - List 1', '', '1', 'true']]
+        example: [
+            ['S1-L1', '1', '1', 'Semester 1 - List 1', '', '1', 'true'],
+            ['S1-L2', '1', '2', 'Semester 1 - List 2', '', '2', 'true']
+        ]
     },
     words: {
         headers: ['list_id', 'word', 'part_of_speech', 'form', 'base_word', 'example_sentence', 'student_friendly_meaning', 'arabic_meaning', 'notes'],
