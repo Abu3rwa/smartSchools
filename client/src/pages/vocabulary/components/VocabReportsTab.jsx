@@ -28,6 +28,11 @@ const VocabReportsTab = () => {
     const [filters, setFilters] = useState({ classId: '', studentId: '', listId: '', semester: '', from: '', to: '' });
     const [result, setResult] = useState(null);
     const [message, setMessage] = useState(null);
+    const [lists, setLists] = useState([]);
+
+    useEffect(() => {
+        api.get('/vocabulary/lists').then(({ data }) => setLists(data.data)).catch(() => setLists([]));
+    }, []);
 
     useEffect(() => { if (filters.classId) dispatch(fetchClass(filters.classId)); }, [dispatch, filters.classId]);
 
@@ -87,8 +92,20 @@ const VocabReportsTab = () => {
                         </Select>
                     </FormControl>
                 )}
-                <TextField size="small" label="List ID" value={filters.listId} onChange={set('listId')} placeholder="S1-L3" />
-                <TextField size="small" label="Semester" type="number" value={filters.semester} onChange={set('semester')} sx={{ width: 110 }} />
+                <FormControl size="small" sx={{ minWidth: 220 }}>
+                    <InputLabel id="vr-list">List</InputLabel>
+                    <Select labelId="vr-list" label="List" value={filters.listId} onChange={set('listId')}>
+                        <MenuItem value="">All lists</MenuItem>
+                        {lists.filter((l) => !filters.semester || String(l.semester) === String(filters.semester)).map((l) => <MenuItem key={l.listId} value={l.listId}>{l.title || l.listId}</MenuItem>)}
+                    </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 140 }}>
+                    <InputLabel id="vr-semester">Semester</InputLabel>
+                    <Select labelId="vr-semester" label="Semester" value={filters.semester} onChange={(e) => setFilters({ ...filters, semester: e.target.value, listId: '' })}>
+                        <MenuItem value="">All semesters</MenuItem>
+                        {[...new Set(lists.map((l) => l.semester))].sort().map((s) => <MenuItem key={s} value={String(s)}>Semester {s}</MenuItem>)}
+                    </Select>
+                </FormControl>
                 <TextField size="small" label="From" type="date" value={filters.from} onChange={set('from')} InputLabelProps={{ shrink: true }} />
                 <TextField size="small" label="To" type="date" value={filters.to} onChange={set('to')} InputLabelProps={{ shrink: true }} />
             </Stack>

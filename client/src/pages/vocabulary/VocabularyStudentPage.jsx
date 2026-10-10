@@ -1,3 +1,4 @@
+import './VocabularyStudentPage.css';
 import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Checkbox, CircularProgress, FormControlLabel, Stack, Tab, Tabs, Typography } from '@mui/material';
 import api from '../../config/api';
