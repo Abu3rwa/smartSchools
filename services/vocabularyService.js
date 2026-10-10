@@ -12,7 +12,8 @@ import {
     validateListRows,
     validateSourceRows,
     validateWordRows,
-    IMPORT_TYPES
+    IMPORT_TYPES,
+    expandCombinedRows
 } from '../utils/vocabCsv.js';
 import { buildSeedData } from '../utils/vocabSeed.js';
 
@@ -40,6 +41,92 @@ export const updateVocabSettings = async (schoolId, patch) => {
 
 const wordKeyOf = (row) => `${row.listId}|${row.normalizedWord}|${row.posKey}`;
 
+const emptySummary = () => ({ created: 0, updated: 0, skipped: 0 });
+
+const applyLists = async ({ schoolId, valid, knownListIds, addOnly, dryRun }) => {
+    const stats = emptySummary();
+    const operations = [];
+    for (const row of valid) {
+        const fields = { semester: row.semester, listNumber: row.listNumber, title: row.title, lessonTitle: row.lessonTitle, order: row.order, visible: row.visible };
+        if (knownListIds.has(row.listId)) {
+            if (addOnly) { stats.skipped += 1; continue; }
+            stats.updated += 1;
+            operations.push({ updateOne: { filter: { school: schoolId, listId: row.listId }, update: { $set: fields } } });
+        } else {
+            stats.created += 1;
+            operations.push({ updateOne: { filter: { school: schoolId, listId: row.listId }, update: { $set: fields, $setOnInsert: { school: schoolId, listId: row.listId } }, upsert: true } });
+        }
+    }
+    if (!dryRun && operations.length) await VocabList.bulkWrite(operations);
+    return stats;
+};
+
+const applyWords = async ({ schoolId, valid, addOnly, dryRun }) => {
+    const stats = emptySummary();
+    const existingWords = await VocabWord.find({ school: schoolId, listId: { $in: [...new Set(valid.map((row) => row.listId))] } }).select('listId normalizedWord posKey').lean();
+    const existing = new Set(existingWords.map(wordKeyOf));
+    const operations = [];
+    for (const row of valid) {
+        const fields = {
+            word: row.word,
+            partOfSpeech: row.partOfSpeech,
+            form: row.form,
+            baseWord: row.baseWord,
+            exampleSentence: row.exampleSentence,
+            meaning: row.meaning,
+            arabicMeaning: row.arabicMeaning,
+            notes: row.notes
+        };
+        const identity = { school: schoolId, listId: row.listId, normalizedWord: row.normalizedWord, posKey: row.posKey };
+        if (existing.has(wordKeyOf(row))) {
+            if (addOnly) { stats.skipped += 1; continue; }
+            stats.updated += 1;
+            operations.push({ updateOne: { filter: identity, update: { $set: fields } } });
+        } else {
+            stats.created += 1;
+            operations.push({ updateOne: { filter: identity, update: { $set: fields, $setOnInsert: identity }, upsert: true } });
+        }
+    }
+    if (!dryRun && operations.length) await VocabWord.bulkWrite(operations);
+    return stats;
+};
+
+// pendingWordKeys: words that will exist once the same file is applied (used by the combined import's dry run).
+const applySources = async ({ schoolId, valid, addOnly, dryRun, errors, pendingWordKeys = new Set() }) => {
+    const stats = emptySummary();
+    stats.invalid = 0;
+    const words = await VocabWord.find({ school: schoolId, listId: { $in: [...new Set(valid.map((row) => row.listId))] } }).select('listId normalizedWord posKey').lean();
+    const wordIds = new Map(words.map((word) => [wordKeyOf(word), word._id]));
+    const existingSources = await VocabWordSource.find({ school: schoolId, word: { $in: [...wordIds.values()] } }).select('word source').lean();
+    const existing = new Set(existingSources.map((entry) => `${entry.word}|${entry.source}`));
+    const operations = [];
+    for (const row of valid) {
+        const wordId = wordIds.get(wordKeyOf(row));
+        if (!wordId) {
+            if (pendingWordKeys.has(wordKeyOf(row))) { stats.created += 1; continue; }
+            errors.push({ row: row.rowNumber, column: 'word', message: 'No matching word for this list, word and part of speech; import the word first' });
+            stats.invalid += 1;
+            continue;
+        }
+        const fields = { definitionText: row.definitionText, pageUrl: row.pageUrl, audioUsUrl: row.audioUsUrl, audioUkUrl: row.audioUkUrl, exampleAudioUrl: row.exampleAudioUrl };
+        const identity = { school: schoolId, word: wordId, source: row.source };
+        if (existing.has(`${wordId}|${row.source}`)) {
+            if (addOnly) { stats.skipped += 1; continue; }
+            stats.updated += 1;
+            operations.push({ updateOne: { filter: identity, update: { $set: fields } } });
+        } else {
+            stats.created += 1;
+            operations.push({ updateOne: { filter: identity, update: { $set: fields, $setOnInsert: identity }, upsert: true } });
+        }
+    }
+    if (!dryRun && operations.length) await VocabWordSource.bulkWrite(operations);
+    return stats;
+};
+
+const addStats = (...parts) => parts.reduce((sum, part) => ({
+    created: sum.created + part.created, updated: sum.updated + part.updated, skipped: sum.skipped + part.skipped
+}), emptySummary());
+
 export async function runVocabImport({ schoolId, type, content, mode = 'update', dryRun = true }) {
     if (!IMPORT_TYPES.includes(type)) {
         const error = new Error('Unknown import type');
@@ -56,85 +143,48 @@ export async function runVocabImport({ schoolId, type, content, mode = 'update',
     const lists = await VocabList.find({ school: schoolId }).select('listId').lean();
     const knownListIds = new Set(lists.map((list) => list.listId));
     const addOnly = mode === 'add-only';
+    const rowCount = table.rows.length;
+    const finish = (errors, stats, details) => {
+        errors.sort((a, b) => a.row - b.row);
+        const summary = {
+            rows: rowCount,
+            created: stats.created,
+            updated: stats.updated,
+            skipped: stats.skipped,
+            invalid: new Set(errors.map((entry) => entry.row)).size,
+            ...(details ? { details } : {})
+        };
+        return { ok: errors.length === 0, errors, summary, dryRun, applied: !dryRun };
+    };
+
+    if (type === 'combined') {
+        const expanded = expandCombinedRows(table.rows);
+        const listCheck = validateListRows(expanded.listRows);
+        const fileListIds = new Set([...knownListIds, ...listCheck.valid.map((row) => row.listId)]);
+        const wordCheck = validateWordRows(expanded.wordRows, fileListIds);
+        const sourceCheck = validateSourceRows(expanded.sourceRows, fileListIds);
+        const errors = [...listCheck.errors, ...wordCheck.errors, ...sourceCheck.errors];
+        const failedWordRows = new Set(wordCheck.errors.map((entry) => entry.row));
+        const sources = sourceCheck.valid.filter((row) => !failedWordRows.has(row.rowNumber));
+        const lookupLists = new Set(knownListIds);
+        const listStats = await applyLists({ schoolId, valid: listCheck.valid, knownListIds: lookupLists, addOnly, dryRun });
+        const wordStats = await applyWords({ schoolId, valid: wordCheck.valid, addOnly, dryRun });
+        const pendingWordKeys = new Set(wordCheck.valid.map(wordKeyOf));
+        const sourceStats = await applySources({ schoolId, valid: sources, addOnly, dryRun, errors, pendingWordKeys });
+        return finish(errors, addStats(listStats, wordStats, sourceStats), { lists: listStats, words: wordStats, sources: sourceStats });
+    }
+
     let validation;
     if (type === 'lists') validation = validateListRows(table.rows);
     else if (type === 'words') validation = validateWordRows(table.rows, knownListIds);
     else validation = validateSourceRows(table.rows, knownListIds);
     const { valid, errors } = validation;
 
-    const summary = { rows: table.rows.length, created: 0, updated: 0, skipped: 0, invalid: errors.length ? new Set(errors.map((e) => e.row)).size : 0 };
-
-    if (type === 'lists') {
-        const existing = new Set(knownListIds);
-        const operations = [];
-        for (const row of valid) {
-            const fields = { semester: row.semester, listNumber: row.listNumber, title: row.title, lessonTitle: row.lessonTitle, order: row.order, visible: row.visible };
-            if (existing.has(row.listId)) {
-                if (addOnly) { summary.skipped += 1; continue; }
-                summary.updated += 1;
-                operations.push({ updateOne: { filter: { school: schoolId, listId: row.listId }, update: { $set: fields } } });
-            } else {
-                summary.created += 1;
-                operations.push({ updateOne: { filter: { school: schoolId, listId: row.listId }, update: { $set: fields, $setOnInsert: { school: schoolId, listId: row.listId } }, upsert: true } });
-            }
-        }
-        if (!dryRun && operations.length) await VocabList.bulkWrite(operations);
-    } else if (type === 'words') {
-        const existingWords = await VocabWord.find({ school: schoolId, listId: { $in: [...new Set(valid.map((row) => row.listId))] } }).select('listId normalizedWord posKey').lean();
-        const existing = new Set(existingWords.map(wordKeyOf));
-        const operations = [];
-        for (const row of valid) {
-            const key = wordKeyOf(row);
-            const fields = {
-                word: row.word,
-                partOfSpeech: row.partOfSpeech,
-                form: row.form,
-                baseWord: row.baseWord,
-                exampleSentence: row.exampleSentence,
-                meaning: row.meaning,
-                arabicMeaning: row.arabicMeaning,
-                notes: row.notes
-            };
-            const identity = { school: schoolId, listId: row.listId, normalizedWord: row.normalizedWord, posKey: row.posKey };
-            if (existing.has(key)) {
-                if (addOnly) { summary.skipped += 1; continue; }
-                summary.updated += 1;
-                operations.push({ updateOne: { filter: identity, update: { $set: fields } } });
-            } else {
-                summary.created += 1;
-                operations.push({ updateOne: { filter: identity, update: { $set: fields, $setOnInsert: identity }, upsert: true } });
-            }
-        }
-        if (!dryRun && operations.length) await VocabWord.bulkWrite(operations);
-    } else {
-        const words = await VocabWord.find({ school: schoolId, listId: { $in: [...new Set(valid.map((row) => row.listId))] } }).select('listId normalizedWord posKey').lean();
-        const wordIds = new Map(words.map((word) => [wordKeyOf(word), word._id]));
-        const existingSources = await VocabWordSource.find({ school: schoolId, word: { $in: [...wordIds.values()] } }).select('word source').lean();
-        const existing = new Set(existingSources.map((entry) => `${entry.word}|${entry.source}`));
-        const operations = [];
-        for (const row of valid) {
-            const wordId = wordIds.get(wordKeyOf(row));
-            if (!wordId) {
-                errors.push({ row: row.rowNumber, column: 'word', message: 'No matching word for this list, word and part of speech; import the word first' });
-                summary.invalid += 1;
-                continue;
-            }
-            const fields = { definitionText: row.definitionText, pageUrl: row.pageUrl, audioUsUrl: row.audioUsUrl, audioUkUrl: row.audioUkUrl, exampleAudioUrl: row.exampleAudioUrl };
-            const identity = { school: schoolId, word: wordId, source: row.source };
-            if (existing.has(`${wordId}|${row.source}`)) {
-                if (addOnly) { summary.skipped += 1; continue; }
-                summary.updated += 1;
-                operations.push({ updateOne: { filter: identity, update: { $set: fields } } });
-            } else {
-                summary.created += 1;
-                operations.push({ updateOne: { filter: identity, update: { $set: fields, $setOnInsert: identity }, upsert: true } });
-            }
-        }
-        if (!dryRun && operations.length) await VocabWordSource.bulkWrite(operations);
-    }
-
-    errors.sort((a, b) => a.row - b.row);
-    return { ok: errors.length === 0, errors, summary, dryRun, applied: !dryRun };
+    let stats;
+    if (type === 'lists') stats = await applyLists({ schoolId, valid, knownListIds, addOnly, dryRun });
+    else if (type === 'words') stats = await applyWords({ schoolId, valid, addOnly, dryRun });
+    else stats = await applySources({ schoolId, valid, addOnly, dryRun, errors });
+    return finish(errors, stats);
 }
 
 export async function seedVocabulary({ schoolId }) {

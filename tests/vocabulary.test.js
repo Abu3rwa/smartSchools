@@ -114,3 +114,22 @@ test('vocabulary role guards: students blocked from staff routes, staff blocked 
     assert.equal(run(staff, 'teacher').nextCalled, true);
     assert.equal(run(authorize('student'), 'teacher').statusCode, 403);
 });
+
+test('combined csv expands one row into a list, a word and per-source rows', async () => {
+    const { parseCsvTable, expandCombinedRows, buildTemplateCsv, validateListRows, validateWordRows, validateSourceRows } = await import('../utils/vocabCsv.js');
+    const csv = buildTemplateCsv('combined');
+    const table = parseCsvTable(csv, 'combined');
+    const { listRows, wordRows, sourceRows } = expandCombinedRows(table.rows);
+    assert.equal(listRows.length, 1);
+    assert.equal(wordRows.length, 1);
+    assert.equal(sourceRows.length, 1);
+    const lists = validateListRows(listRows);
+    assert.deepEqual(lists.errors, []);
+    assert.deepEqual(validateWordRows(wordRows, new Set(['S1-L1'])).errors, []);
+    assert.deepEqual(validateSourceRows(sourceRows, new Set(['S1-L1'])).errors, []);
+    const loose = parseCsvTable('list_id,word,part_of_speech\nS2-L3,seek,v.\nS2-L3,wages,n.\n', 'combined');
+    const expanded = expandCombinedRows(loose.rows);
+    assert.equal(expanded.listRows.length, 1);
+    assert.equal(validateListRows(expanded.listRows).valid[0].title, 'Semester 2 - List 3');
+    assert.equal(expanded.sourceRows.length, 0);
+});

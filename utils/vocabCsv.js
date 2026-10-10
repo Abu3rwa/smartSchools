@@ -1,9 +1,22 @@
-export const IMPORT_TYPES = ['lists', 'words', 'word_sources'];
+export const IMPORT_TYPES = ['combined', 'lists', 'words', 'word_sources'];
 export const PART_OF_SPEECH = ['n', 'v', 'adj', 'adv'];
 export const WORD_FORMS = ['plural', 'verb_s', 'past', 'ing', 'comparative', 'superlative', 'contraction'];
 export const SOURCES = ['oxford', 'longman', 'webster'];
 
+const SOURCE_COLUMN_SUFFIXES = ['definition', 'url', 'audio_us', 'audio_uk', 'example_audio'];
+const SOURCE_COLUMNS = ['oxford', 'longman', 'webster'].flatMap((source) => SOURCE_COLUMN_SUFFIXES.map((suffix) => `${source}_${suffix}`));
+const COMBINED_CORE = ['list_id', 'list_title', 'lesson_title', 'word', 'part_of_speech', 'form', 'base_word', 'example_sentence', 'student_friendly_meaning', 'arabic_meaning', 'notes'];
+
 export const TEMPLATES = Object.freeze({
+    combined: {
+        headers: [...COMBINED_CORE, ...SOURCE_COLUMNS],
+        required: ['list_id', 'word', 'part_of_speech'],
+        example: [
+            ['S1-L1', 'Semester 1 - List 1', '', 'debris', 'n.', '', '', 'Debris covered the road after the storm.', 'broken pieces left after something is destroyed', '', '',
+                'scattered pieces of rubbish or remains', 'https://example.com/debris', 'https://example.com/debris-us.mp3', 'https://example.com/debris-uk.mp3', '',
+                '', '', '', '', '', '', '', '', '', '']
+        ]
+    },
     lists: {
         headers: ['list_id', 'semester', 'list_number', 'title', 'lesson_title', 'order', 'visible'],
         example: [['S1-L1', '1', '1', 'Semester 1 - List 1', '', '1', 'true']]
@@ -85,7 +98,7 @@ export const parseCsvTable = (content, type) => {
     const records = parseCsvRecords(content);
     if (records.length === 0) throw new Error('The CSV file is empty');
     const headers = records[0].cells.map((header) => header.trim().toLowerCase());
-    const required = TEMPLATES[type].headers;
+    const required = TEMPLATES[type].required || TEMPLATES[type].headers;
     const missing = required.filter((header) => !headers.includes(header));
     if (missing.length > 0) throw new Error(`Missing required column(s): ${missing.join(', ')}`);
     const rows = records.slice(1).map((record) => {
@@ -254,3 +267,39 @@ export const validateSourceRows = (rows, knownListIds) => {
 };
 
 export const errorsToCsv = (errors) => `\uFEFF${toCsv(['row', 'column', 'message'], errors.map((error) => [error.row, error.column, error.message]))}\r\n`;
+
+// One combined row -> list row + word row + up to three source rows (all keep the original row number).
+export const expandCombinedRows = (rows) => {
+    const listRows = [];
+    const wordRows = [];
+    const sourceRows = [];
+    const listIndex = new Map();
+    for (const row of rows) {
+        const { data, rowNumber } = row;
+        const listId = normalizeListId(data.list_id);
+        const match = LIST_ID_PATTERN.exec(listId);
+        const existing = listIndex.get(listId);
+        if (!existing) {
+            const semester = match ? match[1] : '';
+            const listNumber = match ? String(Number(match[2])) : '';
+            const entry = { rowNumber, data: { list_id: data.list_id, semester, list_number: listNumber, title: data.list_title || (match ? `Semester ${semester} - List ${listNumber}` : ''), lesson_title: data.lesson_title || '', order: '', visible: '' } };
+            entry.defaulted = !data.list_title;
+            listIndex.set(listId, entry);
+            listRows.push(entry);
+        } else {
+            if (data.list_title && existing.defaulted) { existing.data.title = data.list_title; existing.defaulted = false; }
+            if (!existing.data.lesson_title && data.lesson_title) existing.data.lesson_title = data.lesson_title;
+        }
+        wordRows.push({ rowNumber, data });
+        for (const source of SOURCES) {
+            const get = (suffix) => data[`${source}_${suffix}`] || '';
+            if (!SOURCE_COLUMN_SUFFIXES.some((suffix) => get(suffix))) continue;
+            sourceRows.push({ rowNumber, data: {
+                list_id: data.list_id, word: data.word, part_of_speech: data.part_of_speech, source,
+                definition_text: get('definition'), page_url: get('url'), audio_us_url: get('audio_us'),
+                audio_uk_url: get('audio_uk'), example_audio_url: get('example_audio')
+            } });
+        }
+    }
+    return { listRows, wordRows, sourceRows };
+};

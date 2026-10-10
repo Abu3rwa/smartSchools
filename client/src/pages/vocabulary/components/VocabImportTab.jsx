@@ -3,9 +3,10 @@ import { Alert, Box, Button, FormControl, InputLabel, MenuItem, Select, Stack, T
 import api from '../../../config/api';
 
 const TYPES = [
-    { value: 'lists', label: '1. Lists (lists.csv)' },
-    { value: 'words', label: '2. Words (words.csv)' },
-    { value: 'word_sources', label: '3. Dictionary sources (word_sources.csv)' }
+    { value: 'combined', label: 'Everything in one file (recommended)' },
+    { value: 'lists', label: 'Advanced: lists only' },
+    { value: 'words', label: 'Advanced: words only' },
+    { value: 'word_sources', label: 'Advanced: dictionary sources only' }
 ];
 
 const downloadBlob = (content, fileName, type) => {
@@ -20,7 +21,7 @@ const downloadBlob = (content, fileName, type) => {
 const csvCell = (value) => (/[",\r\n]/.test(String(value)) ? `"${String(value).replace(/"/g, '""')}"` : String(value));
 
 const VocabImportTab = () => {
-    const [type, setType] = useState('lists');
+    const [type, setType] = useState('combined');
     const [mode, setMode] = useState('update');
     const [file, setFile] = useState(null);
     const [result, setResult] = useState(null);
@@ -65,7 +66,7 @@ const VocabImportTab = () => {
     return (
         <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-                Import in this order: lists, then words, then dictionary sources. Re-importing updates existing records and never creates duplicates.
+                One row per word: its list, its details and its Oxford, Longman and Webster entries. Leave any dictionary columns empty if you don't have them. Importing again updates existing records and never creates duplicates.
             </Typography>
             {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -97,6 +98,7 @@ const VocabImportTab = () => {
             {summary && (
                 <Alert severity={result.ok ? 'success' : 'warning'}>
                     {result.applied ? 'Import applied' : 'Preview only, nothing saved'}: {summary.rows} rows, {summary.created} to add, {summary.updated} to update, {summary.skipped} skipped, {summary.invalid} with errors.
+                    {summary.details && ` (Lists: ${summary.details.lists.created} new; words: ${summary.details.words.created} new, ${summary.details.words.updated} updated; dictionary entries: ${summary.details.sources.created} new, ${summary.details.sources.updated} updated.)`}
                     {!result.ok && ' Fix the errors below, then preview again. Rows with errors are never imported.'}
                 </Alert>
             )}
