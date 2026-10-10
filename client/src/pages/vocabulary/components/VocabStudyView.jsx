@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Chip, Link, Stack, Typography } from '@mui/material';
-import { HiOutlineSpeakerWave } from 'react-icons/hi2';
+import '@fontsource-variable/bricolage-grotesque';
+import '@fontsource-variable/source-serif-4/wght-italic.css';
+import '@fontsource-variable/source-serif-4';
+import '@fontsource-variable/instrument-sans';
+import './VocabStudyView.css';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Box, Button, Chip, Link, Stack, Typography } from '@mui/material';
+import { HiOutlineSpeakerWave, HiOutlineChevronDown, HiOutlineChevronLeft, HiOutlineChevronRight } from 'react-icons/hi2';
 import { playChain, planAudio, speakText, baseWordNotice, needsBaseWordNotice } from '../../../utils/vocabAudio';
 import { DICTIONARY_LABELS, getVoiceOptions, readStoredVoice, storeVoice } from '../../../utils/voicePlayback';
 
@@ -60,58 +65,98 @@ export const WordAudioControls = ({ word, audioState, showPlayButton = true }) =
 };
 const STATE_LABELS = { not_started: 'New', practicing: 'Learning', mastered: 'Mastered', needs_review: 'Review again' };
 
+// Wraps the word inside its example sentence in <mark>; falls back to plain text when it is not found.
+const HighlightedExample = ({ sentence, word }) => {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = sentence.split(new RegExp(`(\\b${escaped}\\b)`, 'i'));
+    return <>{parts.map((part, i) => (part.toLowerCase() === word.toLowerCase() ? <mark key={i} className="vsv__mark">{part}</mark> : part))}</>;
+};
+
 const StudyCard = ({ word }) => {
     const audioState = useWordAudio(word);
     const [showMore, setShowMore] = useState(false);
-    const hasExampleAudio = useMemo(() => Object.values(word.audio?.dictionaries || {}).some((entry) => entry.examples?.length), [word]);
+    const options = getVoiceOptions(word.audio);
+    const longMeaning = (word.meaning || '').length > 90;
     return (
-        <Card variant="outlined" sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-            <CardContent sx={{ textAlign: 'center' }}>
-                <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" flexWrap="wrap" useFlexGap>
-                    <Typography variant="h4" component="h2" sx={{ fontWeight: 700 }}>{word.word}</Typography>
-                    <Chip size="small" label={(word.partOfSpeech || []).join(' / ')} />
-                    <Chip size="small" variant="outlined" label={STATE_LABELS[word.mastery.state] || ''} />
-                </Stack>
+        <div className="vsv__card">
+            <section className="vsv__left" aria-label="Word">
+                <div className="vsv__tags">
+                    {word.partOfSpeech?.length > 0 && <span className="vsv__tag">{word.partOfSpeech.join(' / ')}</span>}
+                    <span className="vsv__tag vsv__tag--state">{STATE_LABELS[word.mastery.state] || ''}</span>
+                </div>
+                <h2 className="vsv__word">{word.word}</h2>
+                <div className="vsv__actions">
+                    <button type="button" className="vsv__btn vsv__btn--primary" onClick={() => audioState.play()}>
+                        <HiOutlineSpeakerWave aria-hidden="true" /> Listen
+                    </button>
+                    {word.exampleSentence && (
+                        <button type="button" className="vsv__btn vsv__btn--outline" onClick={() => audioState.playExample(Object.values(word.audio?.dictionaries || {}).flatMap((d) => d.examples || [])[0])}>
+                            Example
+                        </button>
+                    )}
+                </div>
                 <BaseWordNotice word={word} />
-                <WordAudioControls word={word} audioState={audioState} />
-                {word.meaning && <Typography sx={{ mt: 1 }}><strong>Meaning:</strong> {word.meaning}</Typography>}
-                {word.arabicMeaning && <Typography dir="auto" sx={{ mt: 0.5 }}>{word.arabicMeaning}</Typography>}
-                {word.exampleSentence && (
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-                        <Typography><em>{word.exampleSentence}</em></Typography>
-                        {!hasExampleAudio && <Button size="small" onClick={() => speakText(word.exampleSentence)} aria-label="Read the example aloud">Read aloud</Button>}
-                    </Stack>
-                )}
+                <div aria-live="polite" className="vsv__notice">{audioState.notice}</div>
+            </section>
+
+            <section className="vsv__right" aria-label="Meaning">
+                {word.meaning && (<>
+                    <p className="vsv__label">Meaning</p>
+                    <p className={`vsv__meaning${longMeaning ? ' vsv__meaning--long' : ''}`}>{word.meaning}</p>
+                </>)}
+                {word.arabicMeaning && <p className="vsv__arabic" dir="auto">{word.arabicMeaning}</p>}
+                {word.exampleSentence && <p className="vsv__example"><HighlightedExample sentence={word.exampleSentence} word={word.word} /></p>}
                 {word.sources?.length > 0 && (
-                    <Box sx={{ mt: 1 }}>
-                        <Button size="small" onClick={() => setShowMore((v) => !v)} aria-expanded={showMore}>{showMore ? 'Hide more meanings' : 'More meanings'}</Button>
-                        {showMore && word.sources.map((source) => (
-                            <Box key={source.source} sx={{ mt: 0.5 }}>
-                                <Typography variant="subtitle2">{DICTIONARY_LABELS[source.source] || source.source}</Typography>
-                                {source.definitionText && <Typography variant="body2">{source.definitionText}</Typography>}
-                                {source.pageUrl && <Link href={source.pageUrl} target="_blank" rel="noopener noreferrer" variant="body2">Open the dictionary page</Link>}
-                            </Box>
-                        ))}
-                    </Box>
+                    <div>
+                        <button type="button" className="vsv__more" onClick={() => setShowMore((v) => !v)} aria-expanded={showMore}>
+                            {showMore ? 'Hide more meanings' : 'More meanings'} <HiOutlineChevronDown aria-hidden="true" className={showMore ? 'vsv__chev vsv__chev--open' : 'vsv__chev'} />
+                        </button>
+                        {showMore && (
+                            <div className="vsv__sources">
+                                {word.sources.map((source) => (
+                                    <div key={source.source}>
+                                        <strong>{DICTIONARY_LABELS[source.source] || source.source}</strong>
+                                        {source.definitionText && <div>{source.definitionText}</div>}
+                                        {source.pageUrl && <Link href={source.pageUrl} target="_blank" rel="noopener noreferrer">Open the dictionary page</Link>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 )}
-            </CardContent>
-        </Card>
+                {options.length > 0 && (
+                    <div className="vsv__voices" role="group" aria-label="Choose a voice">
+                        {options.map((option) => (
+                            <button key={option.id} type="button" className={`vsv__voice${audioState.voice === option.id ? ' vsv__voice--on' : ''}`}
+                                aria-pressed={audioState.voice === option.id} onClick={() => audioState.chooseVoice(option.id)}>
+                                <HiOutlineSpeakerWave aria-hidden="true" /> {option.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </section>
+        </div>
     );
 };
 
-const VocabStudyView = ({ words }) => {
+const VocabStudyView = ({ words, onPosition }) => {
     const [index, setIndex] = useState(0);
+    const current = Math.min(index, Math.max(words.length - 1, 0));
+    useEffect(() => { onPosition?.(words.length ? { index: current, total: words.length } : null); return () => onPosition?.(null); }, [current, words.length]); // eslint-disable-line react-hooks/exhaustive-deps
     if (!words.length) return <Alert severity="info">Choose at least one list first.</Alert>;
-    const word = words[Math.min(index, words.length - 1)];
+    const word = words[current];
     return (
-        <Stack spacing={1.5} sx={{ height: '100%', minHeight: 0 }}>
+        <div className="vsv">
             <StudyCard key={word.id} word={word} />
-            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0 }}>
-                <Button variant="outlined" size="large" disabled={index === 0} onClick={() => setIndex(index - 1)}>Previous</Button>
-                <Typography aria-live="polite">{index + 1} of {words.length}</Typography>
-                <Button variant="contained" size="large" disabled={index >= words.length - 1} onClick={() => setIndex(index + 1)}>Next</Button>
-            </Stack>
-        </Stack>
+            <div className="vsv__bar">
+                <button type="button" className="vsv__nav" disabled={current === 0} onClick={() => setIndex(current - 1)}>
+                    <HiOutlineChevronLeft aria-hidden="true" /> Previous
+                </button>
+                <button type="button" className="vsv__nav vsv__nav--primary" disabled={current >= words.length - 1} onClick={() => setIndex(current + 1)}>
+                    Next <HiOutlineChevronRight aria-hidden="true" />
+                </button>
+            </div>
+        </div>
     );
 };
 

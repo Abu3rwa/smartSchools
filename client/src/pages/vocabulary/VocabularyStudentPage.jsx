@@ -14,6 +14,7 @@ const VocabularyStudentPage = () => {
     const [tab, setTab] = useState(0);
     const [wordsState, setWordsState] = useState({ words: [], settings: { masteryThreshold: 2 }, loading: false });
     const [weakOnly, setWeakOnly] = useState(false);
+    const [position, setPosition] = useState(null);
 
     useEffect(() => {
         api.get('/vocabulary/student/overview').then(({ data }) => {
@@ -98,13 +99,16 @@ const VocabularyStudentPage = () => {
     const loading = wordsState.loading ? <CircularProgress aria-label="Loading" /> : null;
 
     return (
-        <div className="vsp">
+        <div className={`vsp${tab === 1 ? ' vsp--wide' : ''}`}>
+            <div className="vsp__top">
             <Tabs value={tab} onChange={(_, v) => { setTab(v); setWeakOnly(false); }} variant="scrollable" scrollButtons={false} aria-label="Vocabulary sections" className="vsp__tabs">
                 <Tab label="Choose lists" /><Tab label="Study" /><Tab label="Practice" /><Tab label="Progress" />
             </Tabs>
+            {tab === 1 && position && <span className="vsp__count" aria-live="polite">{position.index + 1} of {position.total}</span>}
+            </div>
             <div className="vsp__body">
             {tab === 0 && picker}
-            {tab === 1 && (!savedOnce ? needList : loading || <VocabStudyView words={wordsState.words} />)}
+            {tab === 1 && (!savedOnce ? needList : loading || <VocabStudyView words={wordsState.words} onPosition={setPosition} />)}
             {tab === 2 && (!savedOnce ? needList : loading || <VocabPracticeView key={weakOnly ? 'weak' : 'all'} words={wordsState.words} settings={wordsState.settings} selection={{ all, listIds: selected }} />)}
             {tab === 3 && <VocabProgressView onPracticeWeak={() => { setWeakOnly(true); setTab(2); }} />}
             </div>

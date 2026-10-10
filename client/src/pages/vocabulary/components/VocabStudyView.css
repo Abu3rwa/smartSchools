@@ -1,0 +1,96 @@
+.vsv {
+    --teal: #0b7a6c;
+    --teal-soft: #e6f3f1;
+    --ink: #12201d;
+    --ink-2: #3d5651;
+    --line: #dbe5e2;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Instrument Sans Variable', system-ui, sans-serif;
+    color: var(--ink);
+}
+
+.vsv__card {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 24px;
+    align-items: center;
+    padding: 16px 24px;
+    overflow: auto;
+}
+@media (max-width: 760px) {
+    .vsv__card { grid-template-columns: 1fr; align-content: start; }
+}
+
+.vsv__left { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+.vsv__tags { display: flex; gap: 8px; }
+.vsv__tag {
+    padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line);
+    background: #fff; color: var(--ink-2); font-size: 0.9rem; font-weight: 600;
+}
+.vsv__tag--state { background: var(--teal-soft); border-color: transparent; color: var(--teal); }
+.vsv__word {
+    margin: 0; font-family: 'Bricolage Grotesque Variable', system-ui, sans-serif;
+    font-size: clamp(40px, 5.2vw, 64px); line-height: 1.05; font-weight: 700; overflow-wrap: anywhere;
+}
+.vsv__actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.vsv__notice { min-height: 18px; font-size: 0.85rem; color: var(--ink-2); }
+.vsv__left .MuiAlert-root { text-align: left; }
+
+.vsv__btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 48px; padding: 0 24px; border-radius: 999px; cursor: pointer;
+    font: inherit; font-weight: 700; font-size: 1.05rem; border: 2px solid var(--teal);
+}
+.vsv__btn--primary { background: var(--teal); color: #fff; }
+.vsv__btn--outline { background: #fff; color: var(--teal); }
+
+.vsv__right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.vsv__label { margin: 0; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.vsv__meaning {
+    margin: 0; font-family: 'Bricolage Grotesque Variable', system-ui, sans-serif;
+    font-size: clamp(22px, 2.4vw, 32px); line-height: 1.25; font-weight: 600;
+}
+.vsv__meaning--long { font-size: clamp(18px, 1.9vw, 24px); }
+.vsv__arabic { margin: 0; font-size: 1.3rem; color: var(--ink-2); }
+.vsv__example {
+    margin: 0; font-family: 'Source Serif 4 Variable', Georgia, serif; font-style: italic;
+    font-size: 20px; line-height: 1.45; color: var(--ink-2);
+}
+.vsv__mark { background: #cfe9e5; color: var(--ink); padding: 0 4px; border-radius: 4px; }
+
+.vsv__more {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 4px;
+    background: none; border: 0; color: var(--teal); font: inherit; font-weight: 700; cursor: pointer;
+}
+.vsv__chev { transition: transform 150ms ease; }
+.vsv__chev--open { transform: rotate(180deg); }
+.vsv__sources { display: grid; gap: 8px; max-height: 160px; overflow: auto; padding: 8px 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; font-size: 0.95rem; }
+
+.vsv__voices { display: flex; flex-wrap: wrap; gap: 8px; }
+.vsv__voice {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px;
+    border-radius: 999px; border: 1.5px solid var(--line); background: #fff; color: var(--ink);
+    font: inherit; font-weight: 600; cursor: pointer;
+}
+.vsv__voice--on { background: var(--teal); border-color: var(--teal); color: #fff; }
+
+.vsv__bar {
+    flex-shrink: 0; display: flex; justify-content: center; gap: 12px; padding: 10px;
+    background: #fff; border-top: 1px solid var(--line);
+}
+.vsv__nav {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-width: 150px; min-height: 48px; border-radius: 14px; border: 1.5px solid var(--line);
+    background: #fff; color: var(--ink); font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer;
+}
+.vsv__nav--primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+.vsv__nav:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.vsv button:focus-visible { outline: 3px solid #12201d; outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) { .vsv__chev { transition: none; } }
