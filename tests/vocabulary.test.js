@@ -133,3 +133,171 @@ test('combined csv expands one row into a list, a word and per-source rows', asy
     assert.equal(validateListRows(expanded.listRows).valid[0].title, 'Semester 2 - List 3');
     assert.equal(expanded.sourceRows.length, 0);
 });
+
+// ---- Phases 2-6 ----
+
+test('spelling is strict; the base word is a near miss unless the list accepts it', async () => {
+    const { gradeSpelling, NEAR_MISS_MESSAGE } = await import('../utils/vocabPractice.js');
+    const wages = { word: 'wages', baseWord: 'wage', form: 'plural' };
+    assert.equal(gradeSpelling({ answer: ' WAGES ', ...wages }).correct, true);
+    const near = gradeSpelling({ answer: 'wage', ...wages });
+    assert.deepEqual([near.correct, near.nearMiss, near.message], [false, true, NEAR_MISS_MESSAGE]);
+    assert.equal(gradeSpelling({ answer: 'wage', ...wages, acceptBaseForm: true }).correct, true);
+    assert.equal(gradeSpelling({ answer: 'wag', ...wages }).correct, false);
+    assert.equal(gradeSpelling({ answer: 'data', word: 'analysis', baseWord: '', form: '' }).nearMiss, undefined);
+});
+
+test('grading: match, fill, part of speech and mcq; sentences stay pending', async () => {
+    const { gradeAnswer } = await import('../utils/vocabPractice.js');
+    const word = { _id: 'w1', word: 'debate', partOfSpeech: ['v', 'n'], baseWord: '', form: '' };
+    assert.equal(gradeAnswer({ type: 'match', word, chosenWord: { _id: 'w1', word: 'debate' } }).correct, true);
+    assert.equal(gradeAnswer({ type: 'match', word, chosenWord: { _id: 'w2', word: 'union' } }).correct, false);
+    assert.ok(gradeAnswer({ type: 'match', word }).error);
+    assert.equal(gradeAnswer({ type: 'fill', word, body: { answer: 'Debate' } }).correct, true);
+    assert.equal(gradeAnswer({ type: 'pos', word, body: { answer: 'n.' } }).correct, true);
+    assert.equal(gradeAnswer({ type: 'pos', word, body: { answer: 'adj' } }).correct, false);
+    const mcq = { correct: 'B', explanation: 'because', options: [{ key: 'A', text: 'x' }, { key: 'B', text: 'y' }] };
+    const right = gradeAnswer({ type: 'mcq', mcq, body: { answer: 'b' } });
+    assert.deepEqual([right.correct, right.explanation, right.correctAnswer], [true, 'because', 'y']);
+    assert.equal(gradeAnswer({ type: 'mcq', mcq, body: { answer: 'A' } }).correct, false);
+    assert.ok(gradeAnswer({ type: 'mcq', mcq, body: { answer: 'D' } }).error);
+    const sentence = gradeAnswer({ type: 'use_it', word, body: { answer: 'I will debate it.' } });
+    assert.deepEqual([sentence.correct, sentence.status], [null, 'pending']);
+    assert.ok(gradeAnswer({ type: 'use_it', word, body: { answer: 'x'.repeat(501) } }).error);
+});
+
+test('mastery needs the threshold in a row; a miss resets it; idle words need review', async () => {
+    const { applyAnswer, effectiveState } = await import('../utils/vocabPractice.js');
+    const now = new Date('2026-01-10T00:00:00Z');
+    let m = applyAnswer(null, true, { threshold: 2, now });
+    assert.equal(effectiveState(m, { threshold: 2, now }), 'practicing');
+    m = applyAnswer(m, true, { threshold: 2, now });
+    assert.equal(effectiveState(m, { threshold: 2, now }), 'mastered');
+    m = applyAnswer(m, false, { threshold: 2, now });
+    assert.equal(effectiveState(m, { threshold: 2, now }), 'practicing');
+    assert.equal(m.consecutiveCorrect, 0);
+    m = applyAnswer(applyAnswer(m, true, { now }), true, { now });
+    const later = new Date('2026-01-20T00:00:00Z');
+    assert.equal(effectiveState(m, { threshold: 2, inactivityDays: 7, now: later }), 'needs_review');
+    assert.equal(effectiveState(null, {}), 'not_started');
+});
+
+test('weak words are ordered first', async () => {
+    const { orderWords } = await import('../utils/vocabPractice.js');
+    const states = { a: 'mastered', b: 'not_started', c: 'practicing', d: 'needs_review' };
+    const words = ['a', 'b', 'c', 'd'].map((id) => ({ id, word: id, listId: 'S1-L1' }));
+    assert.deepEqual(orderWords(words, (w) => states[w.id]).map((w) => w.id), ['c', 'd', 'b', 'a']);
+});
+
+test('missed words come back in the session and leave after the threshold', async () => {
+    const { createQueue, recordResult, currentItem, isDone } = await import('../client/src/utils/vocabSession.js');
+    const words = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, word: id }));
+    let q = createQueue(words, 2);
+    q = recordResult(q, false);
+    assert.equal(q.items.length, 5);
+    assert.equal(q.items[3].word.id, 'a');
+    q = recordResult(q, true); q = recordResult(q, true); q = recordResult(q, true);
+    assert.equal(currentItem(q).word.id, 'a');
+    q = recordResult(q, true);
+    assert.equal(q.items.length, 2);
+    q = recordResult(q, true);
+    assert.equal(currentItem(q).word.id, 'a');
+    q = recordResult(q, true);
+    assert.ok(isDone(q));
+    assert.ok(q.missed.has('a'));
+});
+
+test('audio fallback order: chosen voice, other recordings, never another word, then text-to-speech', async () => {
+    const { planAudio, playChain, needsBaseWordNotice, baseWordNotice } = await import('../client/src/utils/vocabAudio.js');
+    const audio = { dictionaries: { webster: { us: 'w-us' }, longman: { uk: 'l-uk', us: 'l-us' }, oxford: { us: 'o-us', uk: 'o-uk' } } };
+    assert.deepEqual(planAudio(audio, 'longman-uk'), ['l-uk', 'o-us', 'o-uk', 'l-us', 'w-us']);
+    assert.deepEqual(planAudio(audio, 'default'), ['o-us', 'o-uk', 'l-us', 'l-uk', 'w-us']);
+    assert.deepEqual(planAudio({ dictionaries: {} }, 'oxford-us'), []);
+    const played = []; const spoken = []; const notices = [];
+    playChain({ urls: ['a', 'b'], text: 'word', onFallback: (k) => notices.push(k), play: (url, { onFail }) => { played.push(url); onFail(); return {}; }, speak: (t) => spoken.push(t) });
+    assert.deepEqual(played, ['a', 'b']);
+    assert.deepEqual(spoken, ['word']);
+    assert.deepEqual(notices, ['other', 'tts']);
+    const word = { form: 'plural', baseWord: 'wage', audio };
+    assert.equal(needsBaseWordNotice(word), true);
+    assert.equal(needsBaseWordNotice({ ...word, audio: { dictionaries: {} } }), false);
+    assert.equal(needsBaseWordNotice({ form: '', baseWord: '', audio }), false);
+    assert.match(baseWordNotice(word), /the single word "wage"\. This word is a plural/);
+});
+
+test('mcq csv: scope single, multiple and ALL; invalid scope, bad answers and duplicates are row errors', async () => {
+    const { parseCsvTable, validateMcqRows, buildTemplateCsv } = await import('../utils/vocabCsv.js');
+    const known = new Set(['S1-L3', 'S1-L4']);
+    const header = 'question_id,scope,word,question,option_a,option_b,option_c,option_d,correct,explanation\n';
+    const run = (rows) => validateMcqRows(parseCsvTable(header + rows, 'mcq').rows, known);
+    const ok = run('q1,S1-L3,,Q?,a,b,c,d,A,\nq2,S1-L3;S1-L4,,Q?,a,b,,,B,\nq3,all,,Q?,a,b,c,d,D,why\n');
+    assert.deepEqual(ok.errors, []);
+    assert.deepEqual(ok.valid.map((q) => [q.scopeAll, q.listIds.length]), [[false, 1], [false, 2], [true, 0]]);
+    const bad = run('q4,S9-L1,,Q?,a,b,c,d,A,\nq5,S1-L3,,Q?,a,b,,,C,\nq6,S1-L3,,Q?,a,a,c,d,A,\nq1,S1-L3,,Q?,a,b,c,d,A,\nq1,S1-L3,,Q?,a,b,c,d,A,\nq7,,,Q?,a,b,c,d,A,\nq8,S1-L3,,Q?,a,b,c,d,E,\n');
+    const byRow = (row) => bad.errors.filter((e) => e.row === row).map((e) => e.column);
+    assert.ok(byRow(2).includes('scope'));
+    assert.ok(byRow(3).includes('correct'));
+    assert.ok(byRow(4).includes('option_b'));
+    assert.ok(byRow(6).includes('question_id'));
+    assert.ok(byRow(7).includes('scope'));
+    assert.ok(byRow(8).includes('correct'));
+    assert.equal(bad.valid.length, 1);
+    const template = parseCsvTable(buildTemplateCsv('mcq'), 'mcq');
+    assert.deepEqual(validateMcqRows(template.rows, new Set(['S1-L1', 'S1-L3', 'S1-L4'])).errors, []);
+});
+
+test('mcq scope matching and shuffling keep every option', async () => {
+    const { mcqInScope, shuffle } = await import('../utils/vocabPractice.js');
+    assert.equal(mcqInScope({ scopeAll: true, listIds: [] }, ['S1-L1']), true);
+    assert.equal(mcqInScope({ scopeAll: false, listIds: ['S1-L3', 'S1-L4'] }, ['S1-L4']), true);
+    assert.equal(mcqInScope({ scopeAll: false, listIds: ['S1-L3'] }, ['S2-L3']), false);
+    assert.deepEqual(shuffle(['A', 'B', 'C', 'D']).sort(), ['A', 'B', 'C', 'D']);
+});
+
+test('reports match the logged attempts', async () => {
+    const r = await import('../utils/vocabReports.js');
+    const at = (student, word, listId, correct, given = '', extra = {}) => ({ student, word, listId, correct, given, sessionId: 's1', createdAt: new Date('2026-01-01'), type: 'spelling', timeMs: 6000, ...extra });
+    const attempts = [at('u1', 'w1', 'S1-L1', true), at('u1', 'w1', 'S1-L1', false, 'wage'), at('u2', 'w1', 'S1-L1', false, 'wage'), at('u2', 'w2', 'S1-L1', true), at('u1', 'w2', 'S1-L1', null, 'my sentence', { type: 'use_it' })];
+    const [row] = r.classOverview(attempts, ['S1-L1'], 4);
+    assert.deepEqual([row.participants, row.attempts, row.correct, row.accuracyPct, row.participationPct], [2, 4, 2, 50, 50]);
+    const words = new Map([['w1', { word: 'wages', listId: 'S1-L1' }], ['w2', { word: 'seek', listId: 'S1-L1' }]]);
+    const [top] = r.wordDifficulty(attempts, words);
+    assert.deepEqual([top.word, top.attempts, top.wrong, top.topWrongAnswers[0]], ['wages', 3, 2, { answer: 'wage', count: 2 }]);
+    const detail = r.studentDetail(attempts.filter((a) => a.student === 'u1'), words, new Map(), {});
+    assert.equal(detail.words.find((w) => w.word === 'wages').accuracyPct, 50);
+    assert.equal(detail.minutesPracticed, 0.3);
+    const mcqAttempts = Array.from({ length: 6 }, (_, i) => ({ type: 'mcq', questionId: 'q1', correct: i === 0, choice: i === 0 ? 'A' : 'C' }));
+    const [item] = r.mcqAnalysis(mcqAttempts, new Map([['q1', { question: 'Q?', correct: 'A' }]]));
+    assert.deepEqual([item.attempts, item.correctPct, item.choices.C, item.lowScore], [6, 16.7, 5, true]);
+    const idle = r.inactiveStudents([{ _id: 'u1', firstName: 'Ali', lastName: 'K' }, { _id: 'u2', firstName: 'Sara' }, { _id: 'u3', firstName: 'Noor' }], new Map([['u1', new Date('2026-01-09')], ['u2', new Date('2025-12-01')]]), 7, new Date('2026-01-10'));
+    assert.deepEqual(idle.map((s) => s.name), ['Sara', 'Noor']);
+});
+
+test('report csv exports keep Arabic and neutralise spreadsheet formulas', async () => {
+    const { reportToCsv } = await import('../services/vocabularyReportService.js');
+    const csv = reportToCsv({ name: 'inactive', rows: [{ name: 'سارة', lastPracticed: null }, { name: '=HYPERLINK("x")', lastPracticed: '2026-01-02' }] });
+    assert.ok(csv.startsWith('\uFEFF'));
+    assert.match(csv, /سارة,never/);
+    assert.match(csv, /'=HYPERLINK/);
+});
+
+test('audio checker refuses private and local addresses', async () => {
+    const { isPrivateIp, isPublicHttpUrl } = await import('../services/vocabularyAudioCheck.js');
+    for (const ip of ['127.0.0.1', '10.1.2.3', '192.168.0.5', '172.16.0.1', '169.254.169.254', '::1', 'fd00::1', '::ffff:127.0.0.1']) assert.equal(isPrivateIp(ip), true, ip);
+    assert.equal(isPrivateIp('8.8.8.8'), false);
+    assert.equal(await isPublicHttpUrl('http://127.0.0.1/a.mp3'), false);
+    assert.equal(await isPublicHttpUrl('ftp://example.com/a.mp3'), false);
+    assert.equal(await isPublicHttpUrl('not a url'), false);
+});
+
+test('new vocabulary routes keep students out of teacher tools and staff out of student tools', async () => {
+    const { default: router } = await import('../routes/vocabularyRoutes.js');
+    const routes = router.stack.filter((layer) => layer.route).map((layer) => ({
+        path: layer.route.path,
+        method: Object.keys(layer.route.methods)[0],
+        guards: layer.route.stack.length
+    }));
+    for (const path of ['/reports/:name', '/reviews', '/reviews/:id', '/audio-check', '/student/answer', '/student/progress', '/student/mcq']) {
+        assert.ok(routes.some((route) => route.path === path), path);
+    }
+});

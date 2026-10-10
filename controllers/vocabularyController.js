@@ -16,7 +16,6 @@ import {
     getAllowedClassIds,
     getAssignedLists,
     getListAssignments,
-    getPracticeWords,
     getStudentForUser,
     getStudentPrefs,
     getVocabSettings,
@@ -26,6 +25,9 @@ import {
     setListAssignments,
     updateVocabSettings
 } from '../services/vocabularyService.js';
+import { getMcqQuestions, getPracticeWords, getStudentProgress, submitAnswer } from '../services/vocabularyPracticeService.js';
+import { buildReport, listReviews, reportToCsv, reviewAttempt } from '../services/vocabularyReportService.js';
+import { checkAudioUrls } from '../services/vocabularyAudioCheck.js';
 
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 
@@ -262,15 +264,70 @@ export const studentSaveSelection = guarded(async (req, res) => {
     return res.json({ success: true, data: selection });
 });
 
+const parseSelection = (req) => ({
+    listIds: String(req.query.listIds || '').split(',').map((id) => id.trim()).filter(Boolean),
+    all: req.query.all === 'true'
+});
+
 export const studentWords = guarded(async (req, res) => {
     const context = await loadStudentContext(req, res);
     if (context.handled) return undefined;
     if (context.disabled) return fail(res, 403, 'Vocabulary practice is not available yet');
-    const listIds = String(req.query.listIds || '').split(',').map((id) => id.trim()).filter(Boolean);
     const words = await getPracticeWords({
         schoolId: req.schoolId,
+        studentId: context.student._id,
         assignedLists: context.lists,
-        selection: { listIds, all: req.query.all === 'true' }
+        selection: parseSelection(req),
+        settings: context.settings,
+        weakOnly: req.query.weak === 'true'
     });
-    return res.json({ success: true, data: words });
+    return res.json({ success: true, data: { words, settings: { masteryThreshold: context.settings.masteryThreshold, showDictionaryText: context.settings.showDictionaryText } } });
+});
+
+export const studentMcq = guarded(async (req, res) => {
+    const context = await loadStudentContext(req, res);
+    if (context.handled) return undefined;
+    if (context.disabled) return fail(res, 403, 'Vocabulary practice is not available yet');
+    const questions = await getMcqQuestions({ schoolId: req.schoolId, assignedLists: context.lists, selection: parseSelection(req) });
+    return res.json({ success: true, data: questions });
+});
+
+export const studentAnswer = guarded(async (req, res) => {
+    const context = await loadStudentContext(req, res);
+    if (context.handled) return undefined;
+    if (context.disabled) return fail(res, 403, 'Vocabulary practice is not available yet');
+    const result = await submitAnswer({ schoolId: req.schoolId, student: context.student, assignedLists: context.lists, settings: context.settings, body: req.body || {} });
+    return res.json({ success: true, data: result });
+});
+
+export const studentProgress = guarded(async (req, res) => {
+    const context = await loadStudentContext(req, res);
+    if (context.handled) return undefined;
+    if (context.disabled) return fail(res, 403, 'Vocabulary practice is not available yet');
+    const progress = await getStudentProgress({ schoolId: req.schoolId, student: context.student, assignedLists: context.lists, settings: context.settings });
+    return res.json({ success: true, data: progress });
+});
+
+// ---- Staff: reports, review queue, audio check -----------------------------------------
+
+export const getReport = guarded(async (req, res) => {
+    const report = await buildReport(req, req.params.name, req.query);
+    if (req.query.format === 'csv') {
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="vocabulary-${report.name}.csv"`);
+        return res.send(reportToCsv(report));
+    }
+    return res.json({ success: true, data: report });
+});
+
+export const getReviews = guarded(async (req, res) => res.json({ success: true, data: await listReviews(req, req.query) }));
+
+export const patchReview = guarded(async (req, res) => {
+    const data = await reviewAttempt(req, req.params.id, { status: req.body?.status, comment: req.body?.comment });
+    return res.json({ success: true, data });
+});
+
+export const audioCheck = guarded(async (req, res) => {
+    const data = await checkAudioUrls({ schoolId: req.schoolId, listId: normalizeListId(req.body?.listId), offset: req.body?.offset });
+    return res.json({ success: true, data });
 });

@@ -4,15 +4,18 @@ import VocabWordSource from '../models/VocabWordSource.js';
 import VocabSettings from '../models/VocabSettings.js';
 import VocabAssignment from '../models/VocabAssignment.js';
 import VocabStudentPrefs from '../models/VocabStudentPrefs.js';
+import VocabMcq from '../models/VocabMcq.js';
 import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import { getTeacherClassIds, resolveTeacherProfile } from '../helpers/teacherScoping.js';
 import {
     parseCsvTable,
     validateListRows,
+    validateMcqRows,
     validateSourceRows,
     validateWordRows,
     IMPORT_TYPES,
+    normalizeWord,
     expandCombinedRows
 } from '../utils/vocabCsv.js';
 import { buildSeedData } from '../utils/vocabSeed.js';
@@ -123,6 +126,41 @@ const applySources = async ({ schoolId, valid, addOnly, dryRun, errors, pendingW
     return stats;
 };
 
+const applyMcq = async ({ schoolId, valid, addOnly, dryRun, errors }) => {
+    const stats = emptySummary();
+    const wordTexts = [...new Set(valid.map((row) => normalizeWord(row.wordText)).filter(Boolean))];
+    const words = wordTexts.length
+        ? await VocabWord.find({ school: schoolId, normalizedWord: { $in: wordTexts } }).select('listId normalizedWord').lean()
+        : [];
+    const existingDocs = await VocabMcq.find({ school: schoolId, questionId: { $in: valid.map((row) => row.questionId) } }).select('questionId').lean();
+    const existing = new Set(existingDocs.map((doc) => doc.questionId));
+    const operations = [];
+    let invalid = 0;
+    for (const row of valid) {
+        let wordId = null;
+        if (row.wordText) {
+            const match = words.find((word) => word.normalizedWord === normalizeWord(row.wordText) && (row.scopeAll || row.listIds.includes(word.listId)));
+            if (!match) {
+                errors.push({ row: row.rowNumber, column: 'word', message: `Word "${row.wordText}" was not found in the question's lists` });
+                invalid += 1;
+                continue;
+            }
+            wordId = match._id;
+        }
+        const fields = { scopeAll: row.scopeAll, listIds: row.listIds, word: wordId, question: row.question, options: row.options, correct: row.correct, explanation: row.explanation };
+        const identity = { school: schoolId, questionId: row.questionId };
+        if (existing.has(row.questionId)) {
+            if (addOnly) { stats.skipped += 1; continue; }
+            stats.updated += 1;
+            operations.push({ updateOne: { filter: identity, update: { $set: fields } } });
+        } else {
+            stats.created += 1;
+            operations.push({ updateOne: { filter: identity, update: { $set: fields, $setOnInsert: identity }, upsert: true } });
+        }
+    }
+    if (!dryRun && operations.length) await VocabMcq.bulkWrite(operations);
+    return stats;
+};
 const addStats = (...parts) => parts.reduce((sum, part) => ({
     created: sum.created + part.created, updated: sum.updated + part.updated, skipped: sum.skipped + part.skipped
 }), emptySummary());
@@ -175,13 +213,15 @@ export async function runVocabImport({ schoolId, type, content, mode = 'update',
     }
 
     let validation;
-    if (type === 'lists') validation = validateListRows(table.rows);
+    if (type === 'mcq') validation = validateMcqRows(table.rows, knownListIds);
+    else if (type === 'lists') validation = validateListRows(table.rows);
     else if (type === 'words') validation = validateWordRows(table.rows, knownListIds);
     else validation = validateSourceRows(table.rows, knownListIds);
     const { valid, errors } = validation;
 
     let stats;
-    if (type === 'lists') stats = await applyLists({ schoolId, valid, knownListIds, addOnly, dryRun });
+    if (type === 'mcq') stats = await applyMcq({ schoolId, valid, addOnly, dryRun, errors });
+    else if (type === 'lists') stats = await applyLists({ schoolId, valid, knownListIds, addOnly, dryRun });
     else if (type === 'words') stats = await applyWords({ schoolId, valid, addOnly, dryRun });
     else stats = await applySources({ schoolId, valid, addOnly, dryRun, errors });
     return finish(errors, stats);
@@ -317,24 +357,4 @@ export async function saveStudentPrefs({ schoolId, studentId, assignedLists, sel
         { upsert: true }
     );
     return { listIds, all };
-}
-
-// Words for practice; only from lists that are assigned and visible to this student. Teacher-only fields are omitted.
-export async function getPracticeWords({ schoolId, assignedLists, selection }) {
-    const listIds = resolveSelection(assignedLists, selection);
-    if (!listIds.length) return [];
-    const words = await VocabWord.find({ school: schoolId, listId: { $in: listIds } })
-        .select('listId word partOfSpeech form baseWord exampleSentence meaning arabicMeaning')
-        .sort({ listId: 1, normalizedWord: 1 }).lean();
-    return words.map((word) => ({
-        id: word._id,
-        listId: word.listId,
-        word: word.word,
-        partOfSpeech: word.partOfSpeech,
-        form: word.form,
-        baseWord: word.baseWord,
-        exampleSentence: word.exampleSentence,
-        meaning: word.meaning,
-        arabicMeaning: word.arabicMeaning || undefined
-    }));
 }

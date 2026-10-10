@@ -1,4 +1,4 @@
-export const IMPORT_TYPES = ['combined', 'lists', 'words', 'word_sources'];
+export const IMPORT_TYPES = ['combined', 'lists', 'words', 'word_sources', 'mcq'];
 export const PART_OF_SPEECH = ['n', 'v', 'adj', 'adv'];
 export const WORD_FORMS = ['plural', 'verb_s', 'past', 'ing', 'comparative', 'superlative', 'contraction'];
 export const SOURCES = ['oxford', 'longman', 'webster'];
@@ -8,6 +8,14 @@ const SOURCE_COLUMNS = ['oxford', 'longman', 'webster'].flatMap((source) => SOUR
 const COMBINED_CORE = ['list_id', 'list_title', 'lesson_title', 'word', 'part_of_speech', 'form', 'base_word', 'example_sentence', 'student_friendly_meaning', 'arabic_meaning', 'notes'];
 
 export const TEMPLATES = Object.freeze({
+    mcq: {
+        headers: ['question_id', 'scope', 'word', 'question', 'option_a', 'option_b', 'option_c', 'option_d', 'correct', 'explanation'],
+        required: ['question_id', 'scope', 'question', 'option_a', 'option_b', 'correct'],
+        example: [
+            ['Q-S1L1-001', 'S1-L1', 'debris', 'Which sentence uses debris correctly?', 'Debris covered the road after the storm.', 'She ate a bowl of debris.', 'The debris sang loudly.', 'He debris the door.', 'A', 'Debris means broken pieces left after something is destroyed.'],
+            ['Q-S1-002', 'S1-L3;S1-L4', '', 'Which word means a disadvantage?', 'drawback', 'analysis', 'data', 'cite', 'A', '']
+        ]
+    },
     combined: {
         headers: [...COMBINED_CORE, ...SOURCE_COLUMNS],
         required: ['list_id', 'word', 'part_of_speech'],
@@ -302,4 +310,61 @@ export const expandCombinedRows = (rows) => {
         }
     }
     return { listRows, wordRows, sourceRows };
+};
+
+const MCQ_KEYS = ['A', 'B', 'C', 'D'];
+
+export const parseMcqScope = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return { error: 'scope is required (a list id, ids separated by ;, or ALL)' };
+    if (text.toUpperCase() === 'ALL') return { scopeAll: true, listIds: [] };
+    const listIds = [...new Set(text.split(';').map(normalizeListId).filter(Boolean))];
+    if (listIds.length === 0) return { error: 'scope is required (a list id, ids separated by ;, or ALL)' };
+    if (listIds.includes('ALL')) return { error: 'ALL cannot be combined with list ids' };
+    return { scopeAll: false, listIds };
+};
+
+export const validateMcqRows = (rows, knownListIds) => {
+    const { errors, add } = makeCollector();
+    const valid = [];
+    const seen = new Set();
+    for (const row of rows) {
+        const { data } = row;
+        const before = errors.length;
+        const questionId = String(data.question_id || '').trim();
+        if (!questionId) add(row, 'question_id', 'question_id is required');
+        else if (questionId.length > 64) add(row, 'question_id', 'question_id must be 64 characters or fewer');
+        else if (seen.has(questionId)) add(row, 'question_id', `Duplicate question_id ${questionId}`);
+        else seen.add(questionId);
+        const scope = parseMcqScope(data.scope);
+        if (scope.error) add(row, 'scope', scope.error);
+        else for (const id of scope.listIds) if (!knownListIds.has(id)) add(row, 'scope', `Unknown list ${id}`);
+        if (!data.question) add(row, 'question', 'question is required');
+        const texts = MCQ_KEYS.map((key) => String(data[`option_${key.toLowerCase()}`] || '').trim());
+        const seenText = new Set();
+        texts.forEach((text, index) => {
+            if (!text) return;
+            const normalized = text.toLowerCase();
+            if (seenText.has(normalized)) add(row, `option_${MCQ_KEYS[index].toLowerCase()}`, 'Duplicate option in the same question');
+            seenText.add(normalized);
+        });
+        if (texts.filter(Boolean).length < 2) add(row, 'option_a', 'At least two options are required');
+        const correct = String(data.correct || '').trim().toUpperCase();
+        if (!MCQ_KEYS.includes(correct)) add(row, 'correct', 'correct must be A, B, C or D');
+        else if (!texts[MCQ_KEYS.indexOf(correct)]) add(row, 'correct', `Option ${correct} is empty`);
+        if (errors.length === before) {
+            valid.push({
+                rowNumber: row.rowNumber,
+                questionId,
+                scopeAll: scope.scopeAll,
+                listIds: scope.listIds,
+                wordText: String(data.word || '').trim(),
+                question: data.question,
+                options: MCQ_KEYS.map((key, index) => ({ key, text: texts[index] })).filter((option) => option.text),
+                correct,
+                explanation: data.explanation || ''
+            });
+        }
+    }
+    return { valid, errors };
 };
