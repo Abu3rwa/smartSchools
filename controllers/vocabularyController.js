@@ -25,7 +25,7 @@ import {
     setListAssignments,
     updateVocabSettings
 } from '../services/vocabularyService.js';
-import { getMcqQuestions, getPracticeWords, getStudentProgress, submitAnswer } from '../services/vocabularyPracticeService.js';
+import { getMatchingSets, getMcqQuestions, getPracticeWords, getStudentProgress, submitAnswer } from '../services/vocabularyPracticeService.js';
 import { buildReport, listReviews, reportToCsv, reviewAttempt } from '../services/vocabularyReportService.js';
 import { checkAudioUrls } from '../services/vocabularyAudioCheck.js';
 
@@ -291,6 +291,14 @@ export const studentMcq = guarded(async (req, res) => {
     if (context.disabled) return fail(res, 403, 'Vocabulary practice is not available yet');
     const questions = await getMcqQuestions({ schoolId: req.schoolId, assignedLists: context.lists, selection: await loadSelection(req, context) });
     return res.json({ success: true, data: questions });
+});
+
+export const studentMatching = guarded(async (req, res) => {
+    const context = await loadStudentContext(req, res);
+    if (context.handled) return undefined;
+    if (context.disabled) return fail(res, 403, 'Vocabulary practice is not available yet');
+    const sets = await getMatchingSets({ schoolId: req.schoolId, assignedLists: context.lists, selection: await loadSelection(req, context) });
+    return res.json({ success: true, data: sets });
 });
 
 export const studentAnswer = guarded(async (req, res) => {

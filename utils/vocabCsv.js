@@ -1,4 +1,4 @@
-export const IMPORT_TYPES = ['combined', 'lists', 'words', 'word_sources', 'mcq'];
+export const IMPORT_TYPES = ['combined', 'lists', 'words', 'word_sources', 'mcq', 'matching'];
 export const PART_OF_SPEECH = ['n', 'v', 'adj', 'adv'];
 export const WORD_FORMS = ['plural', 'verb_s', 'past', 'ing', 'comparative', 'superlative', 'contraction'];
 export const SOURCES = ['oxford', 'longman', 'webster'];
@@ -6,6 +6,9 @@ export const SOURCES = ['oxford', 'longman', 'webster'];
 const SOURCE_COLUMN_SUFFIXES = ['definition', 'url', 'audio_us', 'audio_uk', 'example_audio'];
 const SOURCE_COLUMNS = ['oxford', 'longman', 'webster'].flatMap((source) => SOURCE_COLUMN_SUFFIXES.map((suffix) => `${source}_${suffix}`));
 const COMBINED_CORE = ['list_id', 'list_title', 'lesson_title', 'word', 'part_of_speech', 'form', 'base_word', 'example_sentence', 'student_friendly_meaning', 'arabic_meaning', 'notes'];
+
+export const MATCH_MAX_PAIRS = 6;
+const MATCH_PAIR_COLUMNS = Array.from({ length: MATCH_MAX_PAIRS }, (_, index) => [`left_${index + 1}`, `right_${index + 1}`]).flat();
 
 export const TEMPLATES = Object.freeze({
     mcq: {
@@ -16,6 +19,15 @@ export const TEMPLATES = Object.freeze({
             ['Q-S1L2-001', 'S1-L2', 'wages', 'Which word is the plural form?', 'wage', 'wages', '', '', 'B', 'Wages ends in -s because it means more than one payment.'],
             ['Q-MULTI-001', 'S1-L1;S1-L2', '', 'Which word means money paid for work?', 'debris', 'wages', 'emphasis', '', 'B', ''],
             ['Q-ALL-001', 'ALL', '', 'Which word is a noun?', 'quickly', 'debris', 'happily', 'run', 'B', 'A noun names a thing.']
+        ]
+    },
+    matching: {
+        headers: ['set_id', 'scope', 'instruction', ...MATCH_PAIR_COLUMNS],
+        required: ['set_id', 'scope', 'left_1', 'right_1', 'left_2', 'right_2'],
+        example: [
+            ['M-S1L1-001', 'S1-L1', 'Match each word to its meaning.', 'debris', 'broken pieces left after something is destroyed', 'wages', 'money paid for work', 'emphasis', 'special importance given to something', '', '', '', '', '', ''],
+            ['M-S1L2-001', 'S1-L2', 'Match each word to its part of speech.', 'quickly', 'adverb', 'debris', 'noun', '', '', '', '', '', '', '', ''],
+            ['M-ALL-001', 'ALL', '', 'happy', 'sad', 'big', 'small', 'hot', 'cold', 'fast', 'slow', '', '', '', '']
         ]
     },
     combined: {
@@ -369,6 +381,43 @@ export const validateMcqRows = (rows, knownListIds) => {
                 correct,
                 explanation: data.explanation || ''
             });
+        }
+    }
+    return { valid, errors };
+};
+
+export const validateMatchingRows = (rows, knownListIds) => {
+    const { errors, add } = makeCollector();
+    const valid = [];
+    const seen = new Set();
+    for (const row of rows) {
+        const { data } = row;
+        const before = errors.length;
+        const setId = String(data.set_id || '').trim();
+        if (!setId) add(row, 'set_id', 'set_id is required');
+        else if (setId.length > 64) add(row, 'set_id', 'set_id must be 64 characters or fewer');
+        else if (seen.has(setId)) add(row, 'set_id', `Duplicate set_id ${setId}`);
+        else seen.add(setId);
+        const scope = parseMcqScope(data.scope);
+        if (scope.error) add(row, 'scope', scope.error);
+        else for (const id of scope.listIds) if (!knownListIds.has(id)) add(row, 'scope', `Unknown list ${id}`);
+        const pairs = [];
+        const lefts = new Set();
+        const rights = new Set();
+        for (let number = 1; number <= MATCH_MAX_PAIRS; number += 1) {
+            const left = String(data[`left_${number}`] || '').trim();
+            const right = String(data[`right_${number}`] || '').trim();
+            if (!left && !right) continue;
+            if (!left || !right) { add(row, left ? `right_${number}` : `left_${number}`, `Pair ${number} needs both a left and a right item`); continue; }
+            if (lefts.has(left.toLowerCase())) add(row, `left_${number}`, 'Duplicate left item in the same set');
+            if (rights.has(right.toLowerCase())) add(row, `right_${number}`, 'Duplicate right item in the same set');
+            lefts.add(left.toLowerCase());
+            rights.add(right.toLowerCase());
+            pairs.push({ left, right });
+        }
+        if (pairs.length < 2) add(row, 'left_2', 'At least two pairs are required');
+        if (errors.length === before) {
+            valid.push({ rowNumber: row.rowNumber, setId, scopeAll: scope.scopeAll, listIds: scope.listIds, instruction: data.instruction || '', pairs });
         }
     }
     return { valid, errors };

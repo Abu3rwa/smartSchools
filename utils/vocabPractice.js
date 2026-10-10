@@ -1,7 +1,7 @@
 // Pure practice logic for Vocabulary Practice (grading, mastery, ordering). No database access.
 
 export const NEAR_MISS_MESSAGE = 'Almost! This word needs an ending.';
-export const PRACTICE_TYPES = ['spelling', 'match', 'fill', 'pos', 'mcq', 'use_it'];
+export const PRACTICE_TYPES = ['spelling', 'match', 'fill', 'pos', 'mcq', 'matching', 'use_it'];
 export const MAX_SENTENCE_LENGTH = 500;
 
 export const normalizeAnswer = (value) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -51,6 +51,18 @@ export const gradeAnswer = ({ type, word, list, mcq, body = {}, chosenWord }) =>
         if (!option) return { error: 'Choose one of the options' };
         const right = mcq.options.find((entry) => entry.key === mcq.correct);
         return { correct: choice === mcq.correct, status: 'graded', given: option.text.slice(0, 200), choice, correctAnswer: right?.text || '', explanation: mcq.explanation || '' };
+    }
+    case 'matching': {
+        const pairs = mcq?.pairs || [];
+        const answer = Array.isArray(body.answer) ? body.answer : null;
+        if (!answer || answer.length !== pairs.length || answer.some((value) => !Number.isInteger(value) || value < 0 || value >= pairs.length)) return { error: 'Match every item first' };
+        const right = answer.filter((value, index) => value === index).length;
+        return {
+            correct: right === pairs.length,
+            status: 'graded',
+            given: `${right} of ${pairs.length} matched`,
+            correctAnswer: pairs.map((pair) => `${pair.left} = ${pair.right}`).join('; ')
+        };
     }
     case 'use_it': {
         const sentence = String(body.answer ?? '').trim();

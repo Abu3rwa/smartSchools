@@ -23,6 +23,7 @@ import {
     seed,
     studentAnswer,
     studentMcq,
+    studentMatching,
     studentOverview,
     studentProgress,
     studentSaveSelection,
@@ -39,6 +40,7 @@ router.get('/student/overview', student, studentOverview);
 router.put('/student/selection', student, studentSaveSelection);
 router.get('/student/words', student, studentWords);
 router.get('/student/mcq', student, studentMcq);
+router.get('/student/matching', student, studentMatching);
 router.post('/student/answer', student, studentAnswer);
 router.get('/student/progress', student, studentProgress);
 

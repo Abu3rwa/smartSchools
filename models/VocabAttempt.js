@@ -5,7 +5,7 @@ const vocabAttemptSchema = new mongoose.Schema({
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
     sessionId: { type: String, required: true, maxlength: 64 },
-    type: { type: String, enum: ['spelling', 'match', 'fill', 'pos', 'mcq', 'use_it'], required: true },
+    type: { type: String, enum: ['spelling', 'match', 'fill', 'pos', 'mcq', 'matching', 'use_it'], required: true },
     word: { type: mongoose.Schema.Types.ObjectId, ref: 'VocabWord', default: null },
     questionId: { type: String, default: '', maxlength: 64 },
     listId: { type: String, default: '' },

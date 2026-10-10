@@ -9,9 +9,7 @@ const POS_CHOICES = ['n', 'v', 'adj', 'adv', 'prep', 'conj', 'pron'];
 const TYPES = [
     { id: 'spelling', label: 'Spelling', help: 'Listen, then type the word.' },
     { id: 'match', label: 'Match', help: 'Match the word to its sound or its meaning.' },
-    { id: 'fill', label: 'Fill in the blank', help: 'Complete the example sentence.' },
-    { id: 'pos', label: 'Part of speech', help: 'Is the word a noun, verb, adjective...?' },
-    { id: 'use_it', label: 'Use it', help: 'Write your own sentence. Your teacher reads it.' },
+    { id: 'matching', label: 'Match pairs', help: 'Match each item with its partner. From your teacher.' },
     { id: 'mcq', label: 'Multiple choice', help: 'Questions from your teacher.' }
 ];
 
@@ -43,7 +41,42 @@ const Feedback = ({ result }) => (
     </Box>
 );
 
-const Question = ({ type, item, pool, onSubmit, result, onNext }) => {
+const MatchingQuestion = ({ item, onSubmit, result, onNext }) => {
+    const [picks, setPicks] = useState({});
+    const start = useRef(Date.now());
+    const answered = Boolean(result);
+    const used = new Set(Object.values(picks));
+    const complete = item.lefts.every((left) => picks[left.id] !== undefined);
+    const submit = () => onSubmit({ answer: item.lefts.map((left) => Number(picks[left.id])), timeMs: Date.now() - start.current });
+    return (
+        <Card variant="outlined" sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <CardContent sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+                <Typography variant="h6" component="h2" sx={{ textAlign: 'center', mb: 2 }}>{item.instruction}</Typography>
+                <Stack spacing={1.5} sx={{ maxWidth: 640, mx: 'auto' }}>
+                    {item.lefts.map((left) => (
+                        <Stack key={left.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                            <Typography sx={{ flex: 1, fontWeight: 700 }}>{left.text}</Typography>
+                            <TextField select size="small" sx={{ flex: 2 }} label="Choose the match" value={picks[left.id] ?? ''} disabled={answered}
+                                onChange={(e) => setPicks((p) => ({ ...p, [left.id]: e.target.value }))}
+                                SelectProps={{ native: true }} InputLabelProps={{ shrink: true }}>
+                                <option value="" />
+                                {item.rights.map((right) => (
+                                    <option key={right.id} value={right.id} disabled={used.has(right.id) && picks[left.id] !== right.id}>{right.text}</option>
+                                ))}
+                            </TextField>
+                        </Stack>
+                    ))}
+                </Stack>
+            </CardContent>
+            <Box sx={{ flexShrink: 0, p: 1.5, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+                <Feedback result={result ? { ...result, explanation: '' } : null} />
+                <Button fullWidth size="large" variant="contained" onClick={answered ? onNext : submit} disabled={!answered && !complete} autoFocus={answered} sx={{ minHeight: 52, borderRadius: 3, mt: result ? 1 : 0 }}>{answered ? 'Next' : 'Check'}</Button>
+            </Box>
+        </Card>
+    );
+};
+
+const ClassicQuestion = ({ type, item, pool, onSubmit, result, onNext }) => {
     const word = item.word;
     const audioState = useWordAudio(word || { audio: {}, word: '' });
     const [text, setText] = useState('');
@@ -126,6 +159,10 @@ const Question = ({ type, item, pool, onSubmit, result, onNext }) => {
     );
 };
 
+const Question = (props) => (props.type === 'matching'
+    ? <MatchingQuestion item={props.item} onSubmit={props.onSubmit} result={props.result} onNext={props.onNext} />
+    : <ClassicQuestion {...props} />);
+
 const VocabPracticeView = ({ words, settings, selection, onFinished }) => {
     const [type, setType] = useState(null);
     const [queue, setQueue] = useState(null);
@@ -140,11 +177,11 @@ const VocabPracticeView = ({ words, settings, selection, onFinished }) => {
     const begin = async (nextType) => {
         setError(''); setResult(null); setStats({ total: 0, correct: 0 });
         sessionId.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-        if (nextType === 'mcq') {
+        if (nextType === 'mcq' || nextType === 'matching') {
             setLoading(true);
             try {
                 const params = selection.all ? 'all=true' : `listIds=${selection.listIds.join(',')}`;
-                const { data } = await api.get(`/vocabulary/student/mcq?${params}`);
+                const { data } = await api.get(`/vocabulary/student/${nextType}?${params}`);
                 setMcq(data.data); setMcqIndex(0);
             } catch (e) { setError(e.response?.data?.message || 'Unable to load questions.'); setLoading(false); return; }
             setLoading(false);
@@ -155,14 +192,15 @@ const VocabPracticeView = ({ words, settings, selection, onFinished }) => {
         setType(nextType);
     };
 
-    const item = type === 'mcq' ? mcq[mcqIndex] : queue && currentItem(queue);
-    const finished = type && (type === 'mcq' ? mcqIndex >= mcq.length : queue && isDone(queue));
+    const teacherSet = type === 'mcq' || type === 'matching';
+    const item = teacherSet ? mcq[mcqIndex] : queue && currentItem(queue);
+    const finished = type && (teacherSet ? mcqIndex >= mcq.length : queue && isDone(queue));
 
     const submit = async (body) => {
         setError('');
         try {
             const payload = { type, sessionId: sessionId.current, ...body };
-            if (type === 'mcq') payload.questionId = item.questionId; else payload.wordId = item.word.id;
+            if (teacherSet) payload.questionId = item.questionId; else payload.wordId = item.word.id;
             const { data } = await api.post('/vocabulary/student/answer', payload);
             setResult(data.data);
             setStats((s) => ({ total: s.total + 1, correct: s.correct + (data.data.correct ? 1 : 0) }));
@@ -170,7 +208,7 @@ const VocabPracticeView = ({ words, settings, selection, onFinished }) => {
     };
 
     const next = () => {
-        if (type === 'mcq') setMcqIndex((i) => i + 1);
+        if (teacherSet) setMcqIndex((i) => i + 1);
         else setQueue((q) => recordResult(q, result.correct !== false));
         setResult(null);
     };
@@ -182,7 +220,7 @@ const VocabPracticeView = ({ words, settings, selection, onFinished }) => {
             <Stack spacing={1}>
                 <Typography>Pick an activity.</Typography>
                 {TYPES.map((t) => {
-                    const count = t.id === 'mcq' ? null : eligible(t.id, words).length;
+                    const count = t.id === 'mcq' || t.id === 'matching' ? null : eligible(t.id, words).length;
                     return (
                         <Card key={t.id} variant="outlined"><CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
                             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
@@ -200,7 +238,7 @@ const VocabPracticeView = ({ words, settings, selection, onFinished }) => {
     if (finished || !item) {
         return (
             <Stack spacing={2}>
-                <Alert severity="success" role="status">{type === 'mcq' && !mcq.length ? 'No questions yet for your lists.' : `Well done! You answered ${stats.total} question${stats.total === 1 ? '' : 's'} and got ${stats.correct} right.`}</Alert>
+                <Alert severity="success" role="status">{teacherSet && !mcq.length ? 'No questions yet for your lists.' : `Well done! You answered ${stats.total} question${stats.total === 1 ? '' : 's'} and got ${stats.correct} right.`}</Alert>
                 <Stack direction="row" spacing={1}>
                     <Button variant="contained" onClick={() => { setType(null); onFinished?.(); }}>Choose another activity</Button>
                 </Stack>
@@ -212,11 +250,11 @@ const VocabPracticeView = ({ words, settings, selection, onFinished }) => {
         <Stack spacing={1} sx={{ height: '100%', minHeight: 0 }}>
             <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
                 <Chip label={TYPES.find((t) => t.id === type).label} />
-                <Typography variant="caption">{type === 'mcq' ? `Question ${mcqIndex + 1} of ${mcq.length}` : `${queue.items.length} left`}</Typography>
+                <Typography variant="caption">{teacherSet ? `Question ${mcqIndex + 1} of ${mcq.length}` : `${queue.items.length} left`}</Typography>
                 <Button size="small" onClick={() => { setType(null); setResult(null); }}>Stop</Button>
             </Stack>
             {error && <Alert severity="error">{error}</Alert>}
-            <Question key={`${type}-${type === 'mcq' ? item.questionId : item.word.id}-${type === 'mcq' ? mcqIndex : queue.answered}`} type={type} item={item} pool={words} onSubmit={submit} result={result} onNext={next} />
+            <Question key={`${type}-${teacherSet ? item.questionId : item.word.id}-${teacherSet ? mcqIndex : queue.answered}`} type={type} item={item} pool={words} onSubmit={submit} result={result} onNext={next} />
         </Stack>
     );
 };

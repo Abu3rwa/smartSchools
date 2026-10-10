@@ -297,7 +297,7 @@ test('new vocabulary routes keep students out of teacher tools and staff out of 
         method: Object.keys(layer.route.methods)[0],
         guards: layer.route.stack.length
     }));
-    for (const path of ['/reports/:name', '/reviews', '/reviews/:id', '/audio-check', '/student/answer', '/student/progress', '/student/mcq']) {
+    for (const path of ['/reports/:name', '/reviews', '/reviews/:id', '/audio-check', '/student/answer', '/student/progress', '/student/mcq', '/student/matching']) {
         assert.ok(routes.some((route) => route.path === path), path);
     }
 });
@@ -312,6 +312,32 @@ test('every downloadable template imports without errors', async () => {
     const mcq = v.validateMcqRows(v.parseCsvTable(v.buildTemplateCsv('mcq'), 'mcq').rows, ids);
     assert.deepEqual(mcq.errors, []);
     assert.equal(mcq.valid.length, 4);
+    const matching = v.validateMatchingRows(v.parseCsvTable(v.buildTemplateCsv('matching'), 'matching').rows, ids);
+    assert.deepEqual(matching.errors, []);
+    assert.equal(matching.valid.length, 3);
+    assert.deepEqual(matching.valid[1].pairs, [{ left: 'quickly', right: 'adverb' }, { left: 'debris', right: 'noun' }]);
     const combined = v.expandCombinedRows(v.parseCsvTable(v.buildTemplateCsv('combined'), 'combined').rows);
     assert.deepEqual(v.validateWordRows(combined.wordRows, new Set(combined.listRows.map((l) => l.data.list_id))).errors, []);
+});
+
+test('matching grading needs every pair right and rejects incomplete answers', async () => {
+    const { gradeAnswer } = await import('../utils/vocabPractice.js');
+    const mcq = { pairs: [{ left: 'a', right: 'x' }, { left: 'b', right: 'y' }, { left: 'c', right: 'z' }] };
+    assert.equal(gradeAnswer({ type: 'matching', mcq, body: { answer: [0, 1, 2] } }).correct, true);
+    const wrong = gradeAnswer({ type: 'matching', mcq, body: { answer: [1, 0, 2] } });
+    assert.equal(wrong.correct, false);
+    assert.equal(wrong.given, '1 of 3 matched');
+    assert.ok(gradeAnswer({ type: 'matching', mcq, body: { answer: [0, 1] } }).error);
+    assert.ok(gradeAnswer({ type: 'matching', mcq, body: { answer: [0, 1, 9] } }).error);
+});
+
+test('matching import rejects duplicates, half pairs and unknown lists', async () => {
+    const v = await import('../utils/vocabCsv.js');
+    const csv = 'set_id,scope,instruction,left_1,right_1,left_2,right_2,left_3,right_3\r\nM1,S1-L1,,a,x,b,x,c,\r\nM2,NOPE,,a,x,b,y,,\r\nM3,S1-L1,,a,x,,,,\r\n';
+    const { errors, valid } = v.validateMatchingRows(v.parseCsvTable(csv, 'matching').rows, new Set(['S1-L1']));
+    assert.equal(valid.length, 0);
+    assert.ok(errors.some((e) => e.column === 'right_2'));
+    assert.ok(errors.some((e) => e.column === 'right_3'));
+    assert.ok(errors.some((e) => e.message === 'Unknown list NOPE'));
+    assert.ok(errors.some((e) => e.column === 'left_2' && /two pairs/.test(e.message)));
 });

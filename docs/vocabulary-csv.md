@@ -27,6 +27,10 @@ Headers: `question_id, scope, word, question, option_a, option_b, option_c, opti
 - At least two options (A and B); options must differ. `correct` is `A`-`D` and must point to a filled option.
 - Students see the options in a shuffled order.
 
+## Matching questions (`matching`)
+
+Columns: `set_id, scope, instruction` plus `left_1, right_1` ... `left_6, right_6`. Use 2 to 6 pairs; leave unused pairs blank. `scope` works like MCQ (a list id, ids separated by `;`, or `ALL`). Left and right items must be unique within a set. Students pick the partner for each left item and are marked correct only when every pair is right.
+
 ## Practice rules
 
 - Spelling is strict. If a student types the base word instead of the form, they see "Almost! This word needs an ending." unless the list has **Accept base word** on.

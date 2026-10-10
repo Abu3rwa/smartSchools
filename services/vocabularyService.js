@@ -5,6 +5,7 @@ import VocabSettings from '../models/VocabSettings.js';
 import VocabAssignment from '../models/VocabAssignment.js';
 import VocabStudentPrefs from '../models/VocabStudentPrefs.js';
 import VocabMcq from '../models/VocabMcq.js';
+import VocabMatch from '../models/VocabMatch.js';
 import Class from '../models/Class.js';
 import Student from '../models/Student.js';
 import { getTeacherClassIds, resolveTeacherProfile } from '../helpers/teacherScoping.js';
@@ -12,6 +13,7 @@ import {
     parseCsvTable,
     validateListRows,
     validateMcqRows,
+    validateMatchingRows,
     validateSourceRows,
     validateWordRows,
     IMPORT_TYPES,
@@ -161,6 +163,26 @@ const applyMcq = async ({ schoolId, valid, addOnly, dryRun, errors }) => {
     if (!dryRun && operations.length) await VocabMcq.bulkWrite(operations);
     return stats;
 };
+const applyMatching = async ({ schoolId, valid, addOnly, dryRun }) => {
+    const stats = emptySummary();
+    const existingDocs = await VocabMatch.find({ school: schoolId, setId: { $in: valid.map((row) => row.setId) } }).select('setId').lean();
+    const existing = new Set(existingDocs.map((doc) => doc.setId));
+    const operations = [];
+    for (const row of valid) {
+        const fields = { scopeAll: row.scopeAll, listIds: row.listIds, instruction: row.instruction, pairs: row.pairs };
+        const identity = { school: schoolId, setId: row.setId };
+        if (existing.has(row.setId)) {
+            if (addOnly) { stats.skipped += 1; continue; }
+            stats.updated += 1;
+            operations.push({ updateOne: { filter: identity, update: { $set: fields } } });
+        } else {
+            stats.created += 1;
+            operations.push({ updateOne: { filter: identity, update: { $set: fields, $setOnInsert: identity }, upsert: true } });
+        }
+    }
+    if (!dryRun && operations.length) await VocabMatch.bulkWrite(operations);
+    return stats;
+};
 const addStats = (...parts) => parts.reduce((sum, part) => ({
     created: sum.created + part.created, updated: sum.updated + part.updated, skipped: sum.skipped + part.skipped
 }), emptySummary());
@@ -214,6 +236,7 @@ export async function runVocabImport({ schoolId, type, content, mode = 'update',
 
     let validation;
     if (type === 'mcq') validation = validateMcqRows(table.rows, knownListIds);
+    else if (type === 'matching') validation = validateMatchingRows(table.rows, knownListIds);
     else if (type === 'lists') validation = validateListRows(table.rows);
     else if (type === 'words') validation = validateWordRows(table.rows, knownListIds);
     else validation = validateSourceRows(table.rows, knownListIds);
@@ -221,6 +244,7 @@ export async function runVocabImport({ schoolId, type, content, mode = 'update',
 
     let stats;
     if (type === 'mcq') stats = await applyMcq({ schoolId, valid, addOnly, dryRun, errors });
+    else if (type === 'matching') stats = await applyMatching({ schoolId, valid, addOnly, dryRun });
     else if (type === 'lists') stats = await applyLists({ schoolId, valid, knownListIds, addOnly, dryRun });
     else if (type === 'words') stats = await applyWords({ schoolId, valid, addOnly, dryRun });
     else stats = await applySources({ schoolId, valid, addOnly, dryRun, errors });

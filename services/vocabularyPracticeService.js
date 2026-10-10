@@ -2,6 +2,7 @@ import VocabWord from '../models/VocabWord.js';
 import VocabList from '../models/VocabList.js';
 import VocabWordSource from '../models/VocabWordSource.js';
 import VocabMcq from '../models/VocabMcq.js';
+import VocabMatch from '../models/VocabMatch.js';
 import VocabAttempt from '../models/VocabAttempt.js';
 import VocabMastery from '../models/VocabMastery.js';
 import { resolveSelection } from './vocabularyService.js';
@@ -80,6 +81,18 @@ export async function getMcqQuestions({ schoolId, assignedLists, selection, limi
     }));
 }
 
+export async function getMatchingSets({ schoolId, assignedLists, selection, limit = 20 }) {
+    const listIds = resolveSelection(assignedLists, selection);
+    if (!listIds.length) return [];
+    const docs = await VocabMatch.find({ school: schoolId, $or: [{ scopeAll: true }, { listIds: { $in: listIds } }] }).lean();
+    return shuffle(docs.filter((doc) => mcqInScope(doc, listIds))).slice(0, limit).map((doc) => ({
+        questionId: doc.setId,
+        instruction: doc.instruction || 'Match each item on the left with its partner.',
+        lefts: doc.pairs.map((pair, index) => ({ id: index, text: pair.left })),
+        rights: shuffle(doc.pairs.map((pair, index) => ({ id: index, text: pair.right })))
+    }));
+}
+
 const loadMastery = (schoolId, studentId, wordId) => VocabMastery.findOne({ school: schoolId, student: studentId, word: wordId }).lean();
 
 export async function submitAnswer({ schoolId, student, assignedLists, settings, body }) {
@@ -94,7 +107,10 @@ export async function submitAnswer({ schoolId, student, assignedLists, settings,
     let list = null;
     let mcq = null;
     let chosenWord = null;
-    if (type === 'mcq') {
+    if (type === 'matching') {
+        mcq = await VocabMatch.findOne({ school: schoolId, setId: String(body.questionId || '') }).lean();
+        if (!mcq || !(mcq.scopeAll ? assignedIds.size > 0 : mcq.listIds.some((id) => assignedIds.has(id)))) throw badRequest('Question not found', 404);
+    } else if (type === 'mcq') {
         mcq = await VocabMcq.findOne({ school: schoolId, questionId: String(body.questionId || '') }).lean();
         if (!mcq || !(mcq.scopeAll ? assignedIds.size > 0 : mcq.listIds.some((id) => assignedIds.has(id)))) throw badRequest('Question not found', 404);
         if (mcq.word) word = await VocabWord.findOne({ _id: mcq.word, school: schoolId }).lean();
@@ -117,7 +133,7 @@ export async function submitAnswer({ schoolId, student, assignedLists, settings,
         sessionId,
         type,
         word: word?._id || null,
-        questionId: mcq?.questionId || '',
+        questionId: mcq?.questionId || mcq?.setId || '',
         listId: word?.listId || '',
         given: result.given,
         choice: result.choice || '',
