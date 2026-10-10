@@ -84,15 +84,16 @@ const VocabularyStudentPage = () => {
     const loading = wordsState.loading ? <CircularProgress aria-label="Loading" /> : null;
 
     return (
-        <Box sx={{ p: { xs: 1, md: 3 }, maxWidth: 720 }}>
-            <Typography variant="h4" component="h1" gutterBottom>Vocabulary Practice</Typography>
-            <Tabs value={tab} onChange={(_, v) => { setTab(v); setWeakOnly(false); }} variant="scrollable" aria-label="Vocabulary sections" sx={{ mb: 2 }}>
+        <Box sx={{ p: { xs: 1, md: 2 }, maxWidth: 720, mx: 'auto', height: { xs: 'calc(100dvh - 72px)', md: 'calc(100dvh - 96px)' }, display: 'flex', flexDirection: 'column' }}>
+            <Tabs value={tab} onChange={(_, v) => { setTab(v); setWeakOnly(false); }} variant="scrollable" aria-label="Vocabulary sections" sx={{ mb: 1, flexShrink: 0, minHeight: 44 }}>
                 <Tab label="Choose lists" /><Tab label="Study" /><Tab label="Practice" /><Tab label="Progress" />
             </Tabs>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             {tab === 0 && picker}
             {tab === 1 && (!savedOnce ? needList : loading || <VocabStudyView words={wordsState.words} />)}
             {tab === 2 && (!savedOnce ? needList : loading || <VocabPracticeView key={weakOnly ? 'weak' : 'all'} words={wordsState.words} settings={wordsState.settings} selection={{ all, listIds: selected }} />)}
             {tab === 3 && <VocabProgressView onPracticeWeak={() => { setWeakOnly(true); setTab(2); }} />}
+            </Box>
         </Box>
     );
 };

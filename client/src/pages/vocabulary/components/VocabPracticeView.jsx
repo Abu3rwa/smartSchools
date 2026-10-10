@@ -28,11 +28,11 @@ const eligible = (type, words) => {
 };
 
 const Feedback = ({ result }) => (
-    <Box aria-live="polite" role="status" sx={{ mt: 2 }}>
+    <Box aria-live="polite" role="status">
         {result && (result.status === 'pending'
             ? <Alert severity="info">Sent! Your teacher will read your sentence. This does not change your score.</Alert>
             : (
-                <Alert severity={result.correct ? 'success' : result.nearMiss ? 'warning' : 'error'}>
+                <Alert severity={result.correct ? 'success' : result.nearMiss ? 'warning' : 'error'} sx={{ textAlign: 'left', py: 0 }}>
                     <strong>{result.correct ? 'Correct!' : 'Not quite.'}</strong>
                     {result.message && <> {result.message}</>}
                     {!result.correct && result.correctAnswer && <> The answer is <strong>{result.correctAnswer}</strong>.</>}
@@ -68,7 +68,8 @@ const Question = ({ type, item, pool, onSubmit, result, onNext }) => {
     const canSubmit = !answered && (type === 'match' || type === 'pos' || type === 'mcq' ? Boolean(choice) : text.trim().length > 0);
 
     return (
-        <Card variant="outlined"><CardContent>
+        <Card variant="outlined" sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <CardContent sx={{ flex: 1, minHeight: 0, overflow: 'auto', textAlign: 'center' }}>
             {type === 'mcq' && <Typography variant="h6" component="h2">{item.question}</Typography>}
             {type === 'spelling' && (<>
                 <Typography variant="h6" component="h2">Listen and spell the word</Typography>
@@ -101,27 +102,27 @@ const Question = ({ type, item, pool, onSubmit, result, onNext }) => {
                         onKeyDown={(e) => { if (e.key === 'Enter' && type !== 'use_it' && canSubmit) submit(); }} />
                 )}
                 {type === 'match' && (
-                    <RadioGroup aria-label="Choose a word" value={choice} onChange={(e) => setChoice(e.target.value)}>
+                    <RadioGroup sx={{ alignItems: 'flex-start', display: 'inline-flex' }} aria-label="Choose a word" value={choice} onChange={(e) => setChoice(e.target.value)}>
                         {options.map((o) => <FormControlLabel key={o.id} value={o.id} disabled={answered} control={<Radio />} label={reverse ? o.word : o.word} />)}
                     </RadioGroup>
                 )}
                 {type === 'pos' && (
-                    <RadioGroup aria-label="Choose a part of speech" value={choice} onChange={(e) => setChoice(e.target.value)}>
+                    <RadioGroup row sx={{ justifyContent: 'center' }} aria-label="Choose a part of speech" value={choice} onChange={(e) => setChoice(e.target.value)}>
                         {POS_CHOICES.map((p) => <FormControlLabel key={p} value={p} disabled={answered} control={<Radio />} label={p} />)}
                     </RadioGroup>
                 )}
                 {type === 'mcq' && (
-                    <RadioGroup aria-label="Choose an answer" value={choice} onChange={(e) => setChoice(e.target.value)}>
+                    <RadioGroup sx={{ alignItems: 'flex-start', display: 'inline-flex' }} aria-label="Choose an answer" value={choice} onChange={(e) => setChoice(e.target.value)}>
                         {item.options.map((o) => <FormControlLabel key={o.key} value={o.key} disabled={answered} control={<Radio />} label={o.text} />)}
                     </RadioGroup>
                 )}
             </Box>
+        </CardContent>
+        <Box sx={{ flexShrink: 0, p: 1.5, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
             <Feedback result={result} />
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                {!answered && <Button variant="contained" onClick={submit} disabled={!canSubmit}>Check</Button>}
-                {answered && <Button variant="contained" onClick={onNext} autoFocus>Next</Button>}
-            </Stack>
-        </CardContent></Card>
+            <Button fullWidth size="large" variant="contained" onClick={answered ? onNext : submit} disabled={!answered && !canSubmit} autoFocus={answered} sx={{ minHeight: 52, borderRadius: 3, mt: result ? 1 : 0 }}>{answered ? 'Next' : 'Check'}</Button>
+        </Box>
+        </Card>
     );
 };
 
@@ -208,8 +209,8 @@ const VocabPracticeView = ({ words, settings, selection, onFinished }) => {
     }
 
     return (
-        <Stack spacing={2}>
-            <Stack direction="row" spacing={1} alignItems="center">
+        <Stack spacing={1} sx={{ height: '100%', minHeight: 0 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
                 <Chip label={TYPES.find((t) => t.id === type).label} />
                 <Typography variant="caption">{type === 'mcq' ? `Question ${mcqIndex + 1} of ${mcq.length}` : `${queue.items.length} left`}</Typography>
                 <Button size="small" onClick={() => { setType(null); setResult(null); }}>Stop</Button>
