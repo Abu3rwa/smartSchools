@@ -18,6 +18,9 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
     const { t } = useTranslation(['assignments']);
     const [searchParams, setSearchParams] = useSearchParams();
     const [enabled, setEnabled] = useState(false);
+    const [canManageClassroom, setCanManageClassroom] = useState(false);
+    const [statusLoading, setStatusLoading] = useState(true);
+    const [statusError, setStatusError] = useState(null);
     const [connection, setConnection] = useState({ connected: false, email: null });
     const [mapping, setMapping] = useState(null);
     const [courses, setCourses] = useState([]);
@@ -25,16 +28,27 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
     const [links, setLinks] = useState({});
     const [busy, setBusy] = useState(false);
 
-    const isTeacher = user?.role === 'teacher';
+    const isTeacher = canManageClassroom;
+    const canViewPanel = ['teacher', 'admin', 'department_principal'].includes(user?.role);
 
     const refreshStatus = useCallback(async () => {
+        setStatusLoading(true);
+        setStatusError(null);
         try {
             const response = await googleClassroomService.getStatus();
             const data = response?.data || {};
             setEnabled(Boolean(data.enabled));
+            setCanManageClassroom(Boolean(data.canManageClassroom));
             setConnection({ connected: Boolean(data.connected), email: data.email || null });
-        } catch {
+        } catch (error) {
             setEnabled(false);
+            setCanManageClassroom(false);
+            setStatusError({
+                httpStatus: error.response?.status || null,
+                networkError: !error.response
+            });
+        } finally {
+            setStatusLoading(false);
         }
     }, []);
 
@@ -200,6 +214,10 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
 
     return {
         enabled,
+        isTeacher,
+        canViewPanel,
+        statusLoading,
+        statusError,
         canUse: enabled && isTeacher,
         connection,
         mapping,

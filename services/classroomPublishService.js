@@ -1,6 +1,7 @@
 import AssignmentClassroomLink from '../models/AssignmentClassroomLink.js';
 import ClassroomCourseMapping from '../models/ClassroomCourseMapping.js';
 import SchoolCalendarConfig from '../models/SchoolCalendarConfig.js';
+import Teacher from '../models/Teacher.js';
 import { DEFAULT_SCHOOL_TIMEZONE, resolveTimeZone } from '../utils/schoolTimezone.js';
 import { isClassroomEnabledForSchool } from '../config/classroomConfig.js';
 import logger from '../utils/logger.js';
@@ -17,9 +18,19 @@ const PENDING_STALE_MS = 2 * 60 * 1000;
 const MAX_ERROR_LENGTH = 500;
 
 const toId = (value) => (value == null ? '' : String(value));
+const CLASSROOM_MANAGER_ROLES = new Set(['teacher', 'admin', 'department_principal']);
+
+const hasClassroomTeacherProfile = async (actor, deps) => {
+    if (actor?.role === 'teacher') return true;
+    if (!CLASSROOM_MANAGER_ROLES.has(actor?.role) || !actor?._id) return false;
+    return deps.hasTeacherProfile(actor);
+};
 
 const defaultDeps = {
     getAuthorizedClient: (userId) => classroomOAuthService.getAuthorizedClient(userId),
+    hasTeacherProfile: async (actor) => Boolean(
+        await Teacher.exists({ user: actor._id, school: actor.school })
+    ),
     createCourseWork,
     patchCourseWork,
     findLink: (assignmentId, schoolId) =>
@@ -113,8 +124,11 @@ export const syncAssignmentToClassroom = async ({ assignment, actor, createIfMis
             return { ok: false, code: error.code, message: error.message, link: summarize(link) };
         }
 
-        if (actor?.role !== 'teacher') {
-            throw new ClassroomSyncError('TEACHER_ONLY', 'Only the assigned teacher can post to Google Classroom.');
+        if (!(await hasClassroomTeacherProfile(actor, deps))) {
+            throw new ClassroomSyncError(
+                'TEACHER_ONLY',
+                'A teacher profile assigned to this school is required to post to Google Classroom.'
+            );
         }
         if (assignment.scope !== 'class') {
             throw new ClassroomSyncError(

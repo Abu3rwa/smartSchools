@@ -62,6 +62,7 @@ const makeDeps = (state = {}) => {
     const deps = {
         calls,
         store,
+        hasTeacherProfile: state.hasTeacherProfile || (async () => false),
         getAuthorizedClient: async () => { calls.auth += 1; return { auth: {} }; },
         createCourseWork: state.createCourseWork || (async (auth, courseId, body) => {
             calls.create.push({ courseId, body });
@@ -176,6 +177,17 @@ test('only teachers can create a Classroom post', async () => {
     });
     assert.equal(result.code, 'TEACHER_ONLY');
     assert.equal(deps.calls.create.length, 0);
+});
+
+test('admins with a teacher profile can create a Classroom post', async () => {
+    const deps = makeDeps({ hasTeacherProfile: async () => true });
+    const adminTeacher = { _id: 'admin-teacher-user-1', role: 'admin', school: SCHOOL };
+    const result = await syncAssignmentToClassroom({
+        assignment: makeAssignment(), actor: adminTeacher, createIfMissing: true, deps
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(deps.calls.create.length, 1);
 });
 
 test('a failed create is recorded and a retry creates exactly one coursework', async () => {

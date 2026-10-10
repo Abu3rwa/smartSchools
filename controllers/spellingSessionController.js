@@ -267,7 +267,12 @@ export const listRaisedHands = asyncHandler(async (req, res) => {
         student: { $in: students.map((student) => student._id) },
         status: 'in-progress',
         'handRaise.raisedAt': { $type: 'date' }
-    }).select('student handRaise nextSequence currentItem').sort({ 'handRaise.raisedAt': 1 }).lean();
+    })
+        .select('student handRaise nextSequence currentItem')
+        .populate('currentItem.wordId', 'word')
+        .populate('currentItem.retestItemId', 'wordSnapshot')
+        .sort({ 'handRaise.raisedAt': 1 })
+        .lean();
     const data = sessions
         .filter((session) => session.handRaise.sequence === (session.currentItem?.sequence ?? session.nextSequence))
         .map((session) => {
@@ -276,6 +281,7 @@ export const listRaisedHands = asyncHandler(async (req, res) => {
                 sessionId: session._id,
                 studentId: session.student,
                 name: `${student?.firstName || ''} ${student?.lastName || ''}`.trim(),
+                word: session.currentItem?.retestItemId?.wordSnapshot || session.currentItem?.wordId?.word || null,
                 raisedAt: session.handRaise.raisedAt
             };
         });

@@ -49,7 +49,7 @@ const RaisedHandsPopup = ({ classId }) => {
                     <Chip
                         key={hand.sessionId}
                         color="warning"
-                        label={`${index + 1}. ${hand.name || 'Student'}`}
+                        label={`${index + 1}. ${hand.name || 'Student'}${hand.word ? ` — ${hand.word}` : ''}`}
                         onDelete={() => lower(hand)}
                     />
                 ))}

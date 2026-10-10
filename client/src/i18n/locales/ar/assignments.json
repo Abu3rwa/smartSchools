@@ -100,6 +100,12 @@
     },
     "panel": {
       "title": "Google Classroom",
+      "teacherOnly": "يحتاج هذا الحساب إلى ملف معلم في المدرسة لربط Classroom وتعيين المقررات.",
+      "checking": "جارٍ التحقق من توفر Google Classroom...",
+      "disabled": "نشر Google Classroom معطل في إعدادات الخادم.",
+      "statusNetworkError": "تعذر الوصول إلى الخادم للتحقق من Google Classroom. شغّل الخادم المحلي وحاول مرة أخرى.",
+      "statusHttpError": "تعذر على الخادم التحقق من Google Classroom (HTTP {{status}}). تحقق من اتصال API وإعدادات الخادم.",
+      "retryStatus": "تحقق مرة أخرى",
       "notConnected": "اربط حساب Google الخاص بك لنشر الواجبات في Google Classroom.",
       "connect": "ربط Google Classroom",
       "connectedAs": "متصل بالحساب {{email}}",

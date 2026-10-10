@@ -100,6 +100,12 @@
     },
     "panel": {
       "title": "Google Classroom",
+      "teacherOnly": "This account needs a teacher profile in this school before it can connect Classroom and map courses.",
+      "checking": "Checking Google Classroom availability...",
+      "disabled": "Google Classroom publishing is disabled by the backend configuration.",
+      "statusNetworkError": "Could not reach the backend to check Google Classroom. Start the local backend and try again.",
+      "statusHttpError": "The backend could not check Google Classroom (HTTP {{status}}). Verify the API connection and backend configuration.",
+      "retryStatus": "Check again",
       "notConnected": "Connect your Google account to post assignments to Google Classroom.",
       "connect": "Connect Google Classroom",
       "connectedAs": "Connected as {{email}}",

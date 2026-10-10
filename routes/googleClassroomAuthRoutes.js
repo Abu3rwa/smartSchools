@@ -1,5 +1,6 @@
 import express from 'express';
 import User from '../models/User.js';
+import Teacher from '../models/Teacher.js';
 import googleClassroomOAuthService from '../services/googleClassroomOAuthService.js';
 import { parseSignedState } from '../utils/classroomOAuthState.js';
 import { isClassroomEnabledForSchool } from '../config/classroomConfig.js';
@@ -23,7 +24,11 @@ router.get('/callback', async (req, res) => {
         if (!parsedState?.userId) return redirectWith(res, 'classroom_error=invalid_state');
 
         const user = await User.findById(parsedState.userId).select('role school');
-        if (!user || user.role !== 'teacher' || !isClassroomEnabledForSchool(user.school)) {
+        const allowedRole = ['teacher', 'admin', 'department_principal'].includes(user?.role);
+        const teacherProfile = user && allowedRole
+            ? await Teacher.findOne({ user: user._id, school: user.school }).select('_id').lean()
+            : null;
+        if (!user || !teacherProfile || !isClassroomEnabledForSchool(user.school)) {
             return redirectWith(res, 'classroom_error=not_available');
         }
 

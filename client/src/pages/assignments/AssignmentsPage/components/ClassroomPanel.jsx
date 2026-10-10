@@ -6,9 +6,19 @@ const ClassroomPanel = ({ classroom, selectedClass, selectedSubject }) => {
     const [changing, setChanging] = useState(false);
     const [courseId, setCourseId] = useState('');
 
-    if (!classroom?.canUse) return null;
+    if (!classroom?.canViewPanel) return null;
 
-    const { connection, mapping, courses, coursesLoading, busy } = classroom;
+    const {
+        enabled,
+        statusLoading,
+        statusError,
+        refreshStatus,
+        connection,
+        mapping,
+        courses,
+        coursesLoading,
+        busy
+    } = classroom;
     const hasSelection = Boolean(selectedClass && selectedSubject);
     const showPicker = hasSelection && (!mapping || changing);
 
@@ -32,7 +42,33 @@ const ClassroomPanel = ({ classroom, selectedClass, selectedSubject }) => {
                 <h3 className="card-title">{t('assignments:classroom.panel.title')}</h3>
             </div>
 
-            {!connection.connected ? (
+            {statusLoading ? (
+                <div className="classroom-panel__body">
+                    <p className="text-muted">{t('assignments:classroom.panel.checking')}</p>
+                </div>
+            ) : statusError ? (
+                <div className="classroom-panel__body" role="status">
+                    <p className="text-muted">
+                        {statusError.networkError
+                            ? t('assignments:classroom.panel.statusNetworkError')
+                            : t('assignments:classroom.panel.statusHttpError', { status: statusError.httpStatus })}
+                    </p>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={refreshStatus}>
+                        {t('assignments:classroom.panel.retryStatus')}
+                    </button>
+                </div>
+            ) : !enabled ? (
+                <div className="classroom-panel__body" role="status">
+                    <p className="text-muted">{t('assignments:classroom.panel.disabled')}</p>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={refreshStatus}>
+                        {t('assignments:classroom.panel.retryStatus')}
+                    </button>
+                </div>
+            ) : !classroom.isTeacher ? (
+                <div className="classroom-panel__body">
+                    <p className="text-muted">{t('assignments:classroom.panel.teacherOnly')}</p>
+                </div>
+            ) : !connection.connected ? (
                 <div className="classroom-panel__body">
                     <p className="text-muted">{t('assignments:classroom.panel.notConnected')}</p>
                     <button type="button" className="btn btn-primary btn-sm" onClick={classroom.connect} disabled={busy}>

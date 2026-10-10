@@ -70,6 +70,7 @@ const VocabularyStudentPage = () => {
             <div className="vsp__lists">
                 {lists.map((list) => {
                     const on = all || selected.includes(list.listId);
+                    const readingLessonTitle = list.lessonTitle || list.title;
                     return (
                         <Card key={list.listId} variant="outlined" className={`vsp__list${on ? ' vsp__list--on' : ''}`}>
                             <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
@@ -78,12 +79,12 @@ const VocabularyStudentPage = () => {
                                     control={<Checkbox checked={on} disabled={all} onChange={() => toggle(list.listId)} />}
                                     label={(
                                         <>
-                                            <span className="vsp__list-title">{list.title}</span>
+                                            <span className="vsp__list-title">Reading: {readingLessonTitle}</span>
+                                            {list.lessonTitle && list.lessonTitle !== list.title && <span className="vsp__list-meta">{list.title}</span>}
                                             <span className="vsp__list-meta">Semester {list.semester} · {list.wordCount} words</span>
                                         </>
                                     )}
                                 />
-                                {list.lessonTitle && <span className="vsp__list-lesson">{list.lessonTitle}</span>}
                             </CardContent>
                         </Card>
                     );

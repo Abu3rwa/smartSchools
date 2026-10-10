@@ -77,7 +77,6 @@
 .vsp__list-label { display: block; width: 100%; margin: 0; cursor: pointer; }
 .vsp__list-title { font-weight: 700; display: block; }
 .vsp__list-meta { color: var(--vsp-text-muted); font-size: 0.8rem; display: block; }
-.vsp__list-lesson { color: var(--vsp-text-muted); font-size: 0.8rem; display: block; padding-left: 4px; }
 
 /* The save button stays in view while the list scrolls */
 .vsp__savebar {
