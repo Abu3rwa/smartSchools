@@ -264,11 +264,12 @@ export const studentSaveSelection = guarded(async (req, res) => {
     return res.json({ success: true, data: selection });
 });
 
-const parseSelection = (req) => ({
-    listIds: String(req.query.listIds || '').split(',').map((id) => id.trim()).filter(Boolean),
-    all: req.query.all === 'true'
-});
-
+// An explicit query wins; otherwise use the lists the student saved on the Choose lists tab.
+const loadSelection = async (req, context) => {
+    const listIds = String(req.query.listIds || '').split(',').map((id) => id.trim()).filter(Boolean);
+    if (listIds.length || req.query.all === 'true') return { listIds, all: req.query.all === 'true' };
+    return getStudentPrefs({ schoolId: req.schoolId, studentId: context.student._id, assignedLists: context.lists });
+};
 export const studentWords = guarded(async (req, res) => {
     const context = await loadStudentContext(req, res);
     if (context.handled) return undefined;
@@ -277,7 +278,7 @@ export const studentWords = guarded(async (req, res) => {
         schoolId: req.schoolId,
         studentId: context.student._id,
         assignedLists: context.lists,
-        selection: parseSelection(req),
+        selection: await loadSelection(req, context),
         settings: context.settings,
         weakOnly: req.query.weak === 'true'
     });
@@ -288,7 +289,7 @@ export const studentMcq = guarded(async (req, res) => {
     const context = await loadStudentContext(req, res);
     if (context.handled) return undefined;
     if (context.disabled) return fail(res, 403, 'Vocabulary practice is not available yet');
-    const questions = await getMcqQuestions({ schoolId: req.schoolId, assignedLists: context.lists, selection: parseSelection(req) });
+    const questions = await getMcqQuestions({ schoolId: req.schoolId, assignedLists: context.lists, selection: await loadSelection(req, context) });
     return res.json({ success: true, data: questions });
 });
 
