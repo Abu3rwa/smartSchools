@@ -12,11 +12,11 @@ export const useWordAudio = (word) => {
 
     useEffect(() => () => playing.current?.cancel(), []);
 
-    const play = () => {
+    const play = (voiceId = voice) => {
         playing.current?.cancel();
         setNotice('');
         playing.current = playChain({
-            urls: planAudio(word.audio, voice),
+            urls: planAudio(word.audio, voiceId),
             text: word.word,
             onFallback: (kind) => setNotice(kind === 'tts' ? 'No recording is available, so the computer voice is reading this word.' : 'Playing another recording of this word.')
         });
@@ -25,7 +25,7 @@ export const useWordAudio = (word) => {
         playing.current?.cancel();
         playing.current = playChain({ urls: url ? [url] : [], text: word.exampleSentence, onFallback: () => setNotice('Reading the example with the computer voice.') });
     };
-    const chooseVoice = (id) => { setVoice(id); storeVoice(id); };
+    const chooseVoice = (id) => { setVoice(id); storeVoice(id); play(id); };
     return { voice, chooseVoice, play, playExample, notice };
 };
 
@@ -35,7 +35,7 @@ export const BaseWordNotice = ({ word }) => (needsBaseWordNotice(word)
 
 export const WordAudioControls = ({ word, audioState, showPlayButton = true }) => (
     <Stack spacing={1}>
-        {showPlayButton && <Button variant="outlined" onClick={audioState.play} sx={{ alignSelf: 'flex-start' }}>Listen to the word</Button>}
+        {showPlayButton && <Button variant="outlined" onClick={() => audioState.play()} sx={{ alignSelf: 'flex-start' }}>Listen to the word</Button>}
         <SpellingVoicePanel audio={word.audio} selectedVoice={audioState.voice} onSelectVoice={audioState.chooseVoice} onPlayExample={audioState.playExample} />
         <Box aria-live="polite">{audioState.notice && <Typography variant="caption" color="text.secondary">{audioState.notice}</Typography>}</Box>
     </Stack>
