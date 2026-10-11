@@ -134,6 +134,7 @@ const initialState = {
   selectedClass: null,
   status: 'idle',
   error: null,
+  classesRequestId: null,
   analytics: null,
   analyticsLoading: false,
   insights: null,
@@ -151,18 +152,23 @@ const classesSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchClasses.pending, (state) => {
+      .addCase(fetchClasses.pending, (state, action) => {
         state.status = 'loading';
         state.error = null;
+        state.classesRequestId = action.meta.requestId;
       })
       .addCase(fetchClasses.fulfilled, (state, action) => {
+        if (state.classesRequestId !== action.meta.requestId) return;
         state.status = 'succeeded';
         state.classes = normalizeClassesPayload(action.payload);
         state.pagination = normalizeClassesPagination(action.payload);
+        state.classesRequestId = null;
       })
       .addCase(fetchClasses.rejected, (state, action) => {
+        if (state.classesRequestId !== action.meta.requestId) return;
         state.status = 'failed';
         state.error = action.error.message;
+        state.classesRequestId = null;
       })
       .addCase(fetchClass.pending, (state) => {
         state.status = 'loading';

@@ -50,6 +50,13 @@ const googleClassroomService = {
         return response.data;
     },
 
+    publishAssignment: async (assignmentId) => {
+        const response = await api.post(`${BASE}/assignments/${assignmentId}/publish`, {
+            publishToClassroom: true
+        });
+        return response.data;
+    },
+
     retryAssignment: async (assignmentId) => {
         const response = await api.post(`${BASE}/assignments/${assignmentId}/retry`);
         return response.data;

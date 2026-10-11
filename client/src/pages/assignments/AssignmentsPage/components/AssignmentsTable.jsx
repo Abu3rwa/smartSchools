@@ -132,6 +132,22 @@ const AssignmentsTable = ({
                                             </div>
                                         )}
                                         {canPostToClassroom && canCreateAssignments
+                                            && classroomLinks[assignment.id]?.syncState === 'draft'
+                                            && !classroomLinks[assignment.id]?.lastErrorCode && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-primary btn-sm"
+                                                disabled={classroom.busy}
+                                                onClick={() => {
+                                                    if (window.confirm(t('assignments:classroom.confirmPublishDraft'))) {
+                                                        classroom.publishAssignment(assignment);
+                                                    }
+                                                }}
+                                            >
+                                                {t('assignments:classroom.actions.publish')}
+                                            </button>
+                                        )}
+                                        {canPostToClassroom && canCreateAssignments
                                             && (assignment.status === 'draft' || assignment.status === 'published')
                                             && (!classroomLinks[assignment.id]
                                                 || classroomLinks[assignment.id].lastErrorCode) && (

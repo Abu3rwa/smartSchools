@@ -150,6 +150,7 @@ const QuestionPoolEditorModal = ({
     );
 
     const workflowStatus = data?.questionWorkflow?.status || 'draft';
+    const canRegenerateQuestions = Boolean(data?.questionWorkflow?.requireApprovalBeforeStudentAccess);
     const workflowStatusLabel = t(`standardAssign:workflowStatus.${workflowStatus}`, {
         defaultValue: workflowStatus
     });
@@ -381,20 +382,22 @@ const QuestionPoolEditorModal = ({
                                     <div className="question-pool-item" key={question.localId}>
                                         <div className="question-pool-item-header">
                                             <strong>{t('standardAssign:questionPool.questionIndex', { index: index + 1 })}</strong>
-                                            <button
-                                                type="button"
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => handleRegenerate(question, index)}
-                                                disabled={saving || regeneratingQuestionIndex === index}
-                                            >
-                                                {regeneratingQuestionIndex === index
-                                                    ? t('standardAssign:actions.regenerating', {
-                                                        defaultValue: 'Regenerating...'
-                                                    })
-                                                    : t('standardAssign:actions.regenerateQuestion', {
-                                                        defaultValue: 'Regenerate'
-                                                    })}
-                                            </button>
+                                            {canRegenerateQuestions && (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={() => handleRegenerate(question, index)}
+                                                    disabled={saving || regeneratingQuestionIndex === index}
+                                                >
+                                                    {regeneratingQuestionIndex === index
+                                                        ? t('standardAssign:actions.regenerating', {
+                                                            defaultValue: 'Regenerating...'
+                                                        })
+                                                        : t('standardAssign:actions.regenerateQuestion', {
+                                                            defaultValue: 'Regenerate'
+                                                        })}
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
                                                 className="btn btn-secondary btn-sm"

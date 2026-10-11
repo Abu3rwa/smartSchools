@@ -22,7 +22,7 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
     const [statusLoading, setStatusLoading] = useState(true);
     const [statusError, setStatusError] = useState(null);
     const [connection, setConnection] = useState({ connected: false, email: null });
-    const [mapping, setMapping] = useState(null);
+    const [mappingsBySubject, setMappingsBySubject] = useState({});
     const [courses, setCourses] = useState([]);
     const [coursesLoading, setCoursesLoading] = useState(false);
     const [links, setLinks] = useState({});
@@ -75,21 +75,25 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
     }, [searchParams, setSearchParams, refreshStatus, t]);
 
     useEffect(() => {
-        if (!enabled || !isTeacher || !connection.connected || !selectedClass || !selectedSubject) {
-            setMapping(null);
+        if (!enabled || !isTeacher || !connection.connected || !selectedClass) {
+            setMappingsBySubject({});
             return undefined;
         }
         let cancelled = false;
         googleClassroomService
-            .listMappings({ classId: selectedClass, subjectId: selectedSubject, academicYear })
+            .listMappings({ classId: selectedClass })
             .then((response) => {
-                if (!cancelled) setMapping(response?.data?.items?.[0] || null);
+                if (cancelled) return;
+                const items = response?.data?.items || [];
+                setMappingsBySubject(Object.fromEntries(items.map((item) => [item.subjectId, item])));
             })
             .catch(() => {
-                if (!cancelled) setMapping(null);
+                if (!cancelled) setMappingsBySubject({});
             });
         return () => { cancelled = true; };
-    }, [enabled, isTeacher, connection.connected, selectedClass, selectedSubject, academicYear]);
+    }, [enabled, isTeacher, connection.connected, selectedClass]);
+
+    const mapping = mappingsBySubject[selectedSubject] || null;
 
     const assignmentIds = useMemo(
         () => (Array.isArray(assignments) ? assignments.map((item) => item.id).filter(Boolean) : []),
@@ -129,7 +133,7 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
         try {
             await googleClassroomService.disconnect();
             setConnection({ connected: false, email: null });
-            setMapping(null);
+            setMappingsBySubject({});
             setCourses([]);
             toast.success(t('assignments:classroom.toasts.disconnected'));
         } catch (error) {
@@ -152,47 +156,68 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
         }
     }, [refreshStatus, t]);
 
-    const saveMapping = useCallback(async (courseId) => {
-        if (!selectedClass || !selectedSubject || !courseId) return false;
+    const saveMappings = useCallback(async (entries) => {
+        if (!selectedClass || !Array.isArray(entries) || entries.length === 0) return false;
         setBusy(true);
-        try {
+        const results = await Promise.allSettled(entries.map(async ({ subjectId, courseId }) => {
             const response = await googleClassroomService.saveMapping({
                 classId: selectedClass,
-                subjectId: selectedSubject,
+                subjectId,
                 academicYear,
                 courseId
             });
-            setMapping(response?.data?.mapping || null);
-            toast.success(t('assignments:classroom.toasts.mappingSaved'));
-            return true;
-        } catch (error) {
-            toast.error(error.response?.data?.message || t('assignments:classroom.errors.mappingFailed'));
-            return false;
-        } finally {
-            setBusy(false);
+            return response?.data?.mapping;
+        }));
+        setBusy(false);
+        const savedMappings = results
+            .filter((result) => result.status === 'fulfilled' && result.value)
+            .map((result) => result.value);
+        if (savedMappings.length > 0) {
+            setMappingsBySubject((current) => ({
+                ...current,
+                ...Object.fromEntries(savedMappings.map((item) => [item.subjectId, item]))
+            }));
         }
-    }, [academicYear, selectedClass, selectedSubject, t]);
+        const failures = results.filter((result) => result.status === 'rejected');
+        if (failures.length > 0) {
+            const message = failures[0].reason?.response?.data?.message;
+            toast.error(message || t('assignments:classroom.errors.mappingFailed'));
+            return false;
+        }
+        toast.success(t('assignments:classroom.toasts.mappingSaved'));
+        return true;
+    }, [academicYear, selectedClass, t]);
 
-    const removeMapping = useCallback(async () => {
-        if (!mapping?.id) return;
+    const removeMapping = useCallback(async (subjectId) => {
+        const target = mappingsBySubject[subjectId];
+        if (!target?.id) return;
         setBusy(true);
         try {
-            await googleClassroomService.deleteMapping(mapping.id);
-            setMapping(null);
+            await googleClassroomService.deleteMapping(target.id);
+            setMappingsBySubject((current) => {
+                const next = { ...current };
+                delete next[subjectId];
+                return next;
+            });
             toast.success(t('assignments:classroom.toasts.mappingRemoved'));
         } catch (error) {
             toast.error(error.response?.data?.message || t('assignments:classroom.errors.mappingFailed'));
         } finally {
             setBusy(false);
         }
-    }, [mapping, t]);
+    }, [mappingsBySubject, t]);
 
-    const postAssignment = useCallback(async (assignment, { retry = false } = {}) => {
+    const postAssignment = useCallback(async (assignment, { retry = false, publish = false } = {}) => {
         setBusy(true);
         try {
-            const call = retry ? googleClassroomService.retryAssignment : googleClassroomService.postAssignment;
-            await call(assignment.id);
-            toast.success(t('assignments:classroom.toasts.posted'));
+            if (publish) {
+                await googleClassroomService.publishAssignment(assignment.id);
+                toast.success(t('assignments:classroom.toasts.published'));
+            } else {
+                const call = retry ? googleClassroomService.retryAssignment : googleClassroomService.postAssignment;
+                await call(assignment.id);
+                toast.success(t('assignments:classroom.toasts.posted'));
+            }
         } catch (error) {
             toast.error(error.response?.data?.message || t('assignments:classroom.errors.postFailed'));
         } finally {
@@ -221,6 +246,7 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
         canUse: enabled && isTeacher,
         connection,
         mapping,
+        mappingsBySubject,
         courses,
         coursesLoading,
         links,
@@ -229,9 +255,10 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
         connect,
         disconnect,
         loadCourses,
-        saveMapping,
+        saveMappings,
         removeMapping,
         postAssignment,
+        publishAssignment: (assignment) => postAssignment(assignment, { publish: true }),
         reportOutcome,
         refreshLinks
     };

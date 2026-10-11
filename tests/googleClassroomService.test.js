@@ -6,6 +6,7 @@ import { URL } from 'node:url';
 import { CLASSROOM_SCOPES, CLASSROOM_EMAIL_SCOPE } from '../config/classroomConfig.js';
 import {
     buildCourseWorkPatch,
+    buildCourseWorkMaterials,
     buildCourseWorkPayload,
     buildDescription,
     desiredClassroomState
@@ -51,30 +52,50 @@ test('desiredClassroomState only publishes published assignments', () => {
     assert.equal(desiredClassroomState({ status: 'draft' }), 'DRAFT');
 });
 
-test('buildDescription includes instructions and only external http links', () => {
+test('buildDescription includes instructions without placing links in the description', () => {
     const description = buildDescription(baseAssignment({
         links: [
             { type: 'external_url', title: 'Video', url: 'https://example.com/v' },
-            { type: 'external_url', title: '', url: 'http://example.com/plain' },
-            { type: 'external_url', title: 'Bad', url: 'javascript:alert(1)' },
             { type: 'assessment', title: 'Quiz', url: '', refId: 'abc' }
         ]
     }));
-    assert.match(description, /^Complete page 4\./);
-    assert.match(description, /- Video: https:\/\/example\.com\/v/);
-    assert.match(description, /- http:\/\/example\.com\/plain/);
-    assert.doesNotMatch(description, /javascript:/);
+    assert.equal(description, 'Complete page 4.');
+    assert.doesNotMatch(description, /https:\/\/example\.com/);
     assert.doesNotMatch(description, /Quiz/);
 });
 
+test('buildCourseWorkMaterials maps valid external URLs to Classroom link materials', () => {
+    assert.deepEqual(buildCourseWorkMaterials(baseAssignment({
+        links: [
+            { type: 'external_url', title: 'Video', url: 'https://example.com/v' },
+            { type: 'external_url', title: '', url: 'http://example.org/plain' },
+            { type: 'external_url', title: 'Invalid scheme', url: 'javascript:alert(1)' },
+            { type: 'external_url', title: 'Local only', url: 'http://localhost:5173/portal/assignments' },
+            { type: 'external_url', title: 'Loopback only', url: 'http://[::1]:5173/' },
+            { type: 'assessment', title: 'Quiz', url: '', refId: 'abc' }
+        ]
+    })), [
+        { link: { url: 'https://example.com/v', title: 'Video' } },
+        { link: { url: 'http://example.org/plain', title: 'example.org' } }
+    ]);
+});
+
 test('buildCourseWorkPayload maps app fields to Classroom coursework', () => {
-    const payload = buildCourseWorkPayload({ assignment: baseAssignment(), timeZone: 'UTC' });
+    const payload = buildCourseWorkPayload({
+        assignment: baseAssignment({
+            links: [{ type: 'external_url', title: 'Study guide', url: 'https://example.com/guide' }]
+        }),
+        timeZone: 'UTC'
+    });
     assert.equal(payload.title, 'Fractions worksheet');
     assert.equal(payload.workType, 'ASSIGNMENT');
     assert.equal(payload.maxPoints, 20);
     assert.equal(payload.state, 'DRAFT');
     assert.deepEqual(payload.dueDate, { year: 2026, month: 10, day: 9 });
     assert.deepEqual(payload.dueTime, { hours: 23, minutes: 59 });
+    assert.deepEqual(payload.materials, [
+        { link: { url: 'https://example.com/guide', title: 'Study guide' } }
+    ]);
 });
 
 test('buildCourseWorkPayload omits due fields when there is no due date', () => {
@@ -85,6 +106,7 @@ test('buildCourseWorkPayload omits due fields when there is no due date', () => 
     assert.equal(payload.state, 'PUBLISHED');
     assert.equal('dueDate' in payload, false);
     assert.equal('dueTime' in payload, false);
+    assert.deepEqual(payload.materials, []);
 });
 
 test('buildCourseWorkPayload caps the title length', () => {
@@ -124,6 +146,19 @@ test('buildCourseWorkPatch does not downgrade a published post when the app draf
         link: { syncState: 'published', dueDateSynced: true }
     });
     assert.equal(updateMask.split(',').includes('state'), false);
+});
+
+test('buildCourseWorkPatch does not send materials because Classroom patch does not support them', () => {
+    const { requestBody, updateMask } = buildCourseWorkPatch({
+        assignment: baseAssignment({
+            links: [{ type: 'external_url', title: 'New link', url: 'https://example.com/new' }]
+        }),
+        timeZone: 'UTC',
+        link: { syncState: 'draft', dueDateSynced: false }
+    });
+    assert.equal(requestBody.description, 'Complete page 4.');
+    assert.equal('materials' in requestBody, false);
+    assert.equal(updateMask.split(',').includes('materials'), false);
 });
 
 test('buildCourseWorkPatch clears a removed due date only if one was synced before', () => {

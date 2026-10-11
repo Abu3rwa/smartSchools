@@ -233,7 +233,12 @@ export const publishAssignmentToClassroom = asyncHandler(async (req, res) => {
         });
     }
 
-    const result = await syncAssignmentToClassroom({ assignment, actor: req.user, createIfMissing: true });
+    const result = await syncAssignmentToClassroom({
+        assignment,
+        actor: req.user,
+        createIfMissing: true,
+        publishToClassroom: req.body?.publishToClassroom === true
+    });
     if (result.ok) return res.json({ success: true, data: { classroom: result.link } });
 
     logger.info('Classroom publish did not complete', { assignmentId: toId(assignment._id), code: result.code });

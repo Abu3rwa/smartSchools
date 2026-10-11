@@ -148,6 +148,7 @@ const StandardAssignList = ({
                                 assignment.teacher?.user?._id === user?._id ||
                                 assignment.teacher?.user === user?._id;
                             const isAssessment = assignment.practiceConfig?.sessionType === 'assessment';
+                            const hasQuestionPool = Number(assignment.questionWorkflow?.preGeneratedQuestionCount) > 0;
                             const workflowStatus = String(assignment.questionWorkflow?.status || '').toLowerCase();
                             const dueState = getDueDateState(assignment.dueDate);
                             const dueLabel = getDueDateStateLabel(dueState);
@@ -246,7 +247,7 @@ const StandardAssignList = ({
                                                             <HiOutlinePencilAlt size={16} /> {t('standardAssign:actions.edit')}
                                                         </button>
                                                     )}
-                                                    {isOwner && isAssessment && (
+                                                    {isOwner && hasQuestionPool && (
                                                         <button
                                                             className="assign-row-menu__btn"
                                                             onClick={() => { setOpenMenuId(null); onManageQuestionPool(assignment._id); }}

@@ -355,6 +355,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         preGeneratedQuestionCount,
         aiLanguages,
         importedQuestions,
+        questionPoolSource,
         notifyParents = true,
         notifyStudents = true
     } = req.body;
@@ -362,6 +363,15 @@ export const createAssignment = asyncHandler(async (req, res) => {
     const requestedSemester = normalizeSemester(req.body?.semester);
 
     let sanitizedImportedQuestions = null;
+    if (
+        questionPoolSource === 'imported'
+        && (!Array.isArray(importedQuestions) || importedQuestions.length === 0)
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: 'Imported question mode requires at least one valid imported question'
+        });
+    }
     if (Array.isArray(importedQuestions) && importedQuestions.length > 0) {
         const imported = sanitizeImportedQuestions(importedQuestions);
         if (imported.error) {
@@ -936,13 +946,6 @@ export const getAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (!teacherOwnsAssignment) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
-    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
-        return res.status(400).json({
-            success: false,
-            message: 'Question pool workflow is not enabled for this assignment'
-        });
-    }
-
     const pool = await StandardQuestionPool.findOne({
         school: req.schoolId,
         assignment: assignment._id,
@@ -982,13 +985,6 @@ export const updateAssignmentQuestionPool = asyncHandler(async (req, res) => {
     if (!teacherOwnsAssignment) {
         return res.status(403).json({ success: false, message: 'Not authorized' });
     }
-    if (!assignment.questionWorkflow?.requireApprovalBeforeStudentAccess) {
-        return res.status(400).json({
-            success: false,
-            message: 'Question pool workflow is not enabled for this assignment'
-        });
-    }
-
     let pool = await StandardQuestionPool.findOne({
         school: req.schoolId,
         assignment: assignment._id,

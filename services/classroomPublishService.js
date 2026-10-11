@@ -105,7 +105,13 @@ export const summarizeLink = summarize;
  *
  * @param createIfMissing - when false, only assignments already linked to Classroom are synced.
  */
-export const syncAssignmentToClassroom = async ({ assignment, actor, createIfMissing = false, deps = defaultDeps }) => {
+export const syncAssignmentToClassroom = async ({
+    assignment,
+    actor,
+    createIfMissing = false,
+    publishToClassroom = false,
+    deps = defaultDeps
+}) => {
     const schoolId = assignment.school;
     if (!isClassroomEnabledForSchool(schoolId)) return { skipped: true, reason: 'DISABLED' };
 
@@ -153,6 +159,12 @@ export const syncAssignmentToClassroom = async ({ assignment, actor, createIfMis
             }
             const { auth } = await deps.getAuthorizedClient(actor._id);
             const patch = buildCourseWorkPatch({ assignment, timeZone, link });
+            if (publishToClassroom && link.syncState === 'draft') {
+                patch.requestBody.state = 'PUBLISHED';
+                if (!patch.updateMask.split(',').includes('state')) {
+                    patch.updateMask = `${patch.updateMask},state`;
+                }
+            }
             const data = await deps.patchCourseWork(auth, link.courseId, link.courseWorkId, patch);
             applySuccess(link, data, patch.requestBody, now);
             await link.save();
@@ -207,6 +219,7 @@ export const syncAssignmentToClassroom = async ({ assignment, actor, createIfMis
 
         const { auth } = await deps.getAuthorizedClient(actor._id);
         const body = buildCourseWorkPayload({ assignment, timeZone });
+        if (publishToClassroom) body.state = 'PUBLISHED';
         const data = await deps.createCourseWork(auth, link.courseId, body);
         applySuccess(link, data, body, now);
         await link.save();

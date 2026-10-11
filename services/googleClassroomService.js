@@ -8,24 +8,37 @@ const MAX_COURSE_PAGES = 5;
 
 const clip = (value, max) => String(value || '').slice(0, max);
 
-/**
- * Builds the coursework description. Links are placed in the description (not as Classroom
- * materials) because the patch endpoint cannot update materials, which would let edits drift.
- * Only external URLs are included; internal assessment/practice links stay in the app.
- */
+/** Only the assignment instructions belong in the description; external URLs become Classroom materials. */
 export const buildDescription = (assignment) => {
-    const parts = [];
-    const instructions = String(assignment?.instructions || '').trim();
-    if (instructions) parts.push(instructions);
-
-    const links = (Array.isArray(assignment?.links) ? assignment.links : [])
-        .filter((link) => link?.type === 'external_url' && /^https?:\/\//i.test(String(link?.url || '')));
-    if (links.length > 0) {
-        const lines = links.map((link) => (link.title ? `- ${link.title}: ${link.url}` : `- ${link.url}`));
-        parts.push(['Links:', ...lines].join('\n'));
-    }
-    return clip(parts.join('\n\n'), MAX_DESCRIPTION_LENGTH);
+    return clip(String(assignment?.instructions || '').trim(), MAX_DESCRIPTION_LENGTH);
 };
+
+export const buildCourseWorkMaterials = (assignment) => (
+    (Array.isArray(assignment?.links) ? assignment.links : [])
+        .filter((link) => link?.type === 'external_url')
+        .map((link) => {
+            const rawUrl = String(link.url || '').trim();
+            try {
+                const url = new URL(rawUrl);
+                if (!['http:', 'https:'].includes(url.protocol)
+                    || !url.hostname
+                    || ['localhost', '[::1]', '0.0.0.0'].includes(url.hostname)
+                    || url.hostname.endsWith('.localhost')
+                    || /^127\./.test(url.hostname)) {
+                    return null;
+                }
+                return {
+                    link: {
+                        url: url.href,
+                        title: clip(link.title || url.hostname, 1000)
+                    }
+                };
+            } catch {
+                return null;
+            }
+        })
+        .filter(Boolean)
+);
 
 export const desiredClassroomState = (assignment) =>
     assignment?.status === 'published' ? 'PUBLISHED' : 'DRAFT';
@@ -36,7 +49,8 @@ export const buildCourseWorkPayload = ({ assignment, timeZone }) => {
         description: buildDescription(assignment),
         workType: 'ASSIGNMENT',
         maxPoints: Number(assignment.maxMarks || 0),
-        state: desiredClassroomState(assignment)
+        state: desiredClassroomState(assignment),
+        materials: buildCourseWorkMaterials(assignment)
     };
     const due = toClassroomDue(assignment.dueDate, timeZone);
     if (due) {
@@ -47,7 +61,8 @@ export const buildCourseWorkPayload = ({ assignment, timeZone }) => {
 };
 
 /**
- * Builds a patch for existing coursework. State only moves DRAFT -> PUBLISHED; it is never downgraded.
+ * Builds a patch for existing coursework. Classroom's patch API doesn't allow changing materials.
+ * State only moves DRAFT -> PUBLISHED; it is never downgraded.
  * Due fields are included when set, or when a due date was previously synced and has now been removed.
  */
 export const buildCourseWorkPatch = ({ assignment, timeZone, link }) => {

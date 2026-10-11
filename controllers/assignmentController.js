@@ -606,18 +606,14 @@ export const createAssignment = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid dueDate' });
     }
 
-    const allowYearOverride = req.user.role === 'admin' || req.user.role === 'super_admin';
-    const academicYear = resolveAcademicYearForRequest(req, body.academicYear, {
-        allowOverride: allowYearOverride
-    });
-
-    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId, academicYear });
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId });
     if (!classDoc) {
         return res.status(400).json({
             success: false,
-            message: 'Selected class not found for current school and academic year'
+            message: 'Selected class was not found in this school. Refresh the class list and try again.'
         });
     }
+    const academicYear = classDoc.academicYear;
     const subjectExistsInClass = (classDoc.subjects || []).some(
         (entry) => toId(entry.subject) === subjectId
     );
@@ -1076,10 +1072,6 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to update this assignment' });
 
     const body = req.body || {};
-    const allowYearOverride = req.user.role === 'admin' || req.user.role === 'super_admin';
-    const academicYear = resolveAcademicYearForRequest(req, body.academicYear || assignment.academicYear, {
-        allowOverride: allowYearOverride
-    });
 
     const classId = toId(body.classId || body.class || assignment.class);
     const subjectId = toId(body.subjectId || body.subject || assignment.subject);
@@ -1093,13 +1085,14 @@ export const updateAssignment = asyncHandler(async (req, res) => {
         });
     }
 
-    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId, academicYear });
+    const classDoc = await Class.findOne({ _id: classId, school: req.schoolId });
     if (!classDoc) {
         return res.status(400).json({
             success: false,
-            message: 'Selected class not found for current school and academic year'
+            message: 'Selected class was not found in this school. Refresh the class list and try again.'
         });
     }
+    const academicYear = classDoc.academicYear;
 
     const subjectExistsInClass = (classDoc.subjects || []).some(
         (entry) => toId(entry.subject) === subjectId

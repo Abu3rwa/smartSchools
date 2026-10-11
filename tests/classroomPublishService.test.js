@@ -147,6 +147,23 @@ test('promotes the linked Classroom draft when the app assignment is published',
     assert.equal(link.syncState, 'published');
 });
 
+test('explicitly publishes a Classroom draft without publishing the app assignment', async () => {
+    const link = makeLink({ courseWorkId: 'cw-1', syncState: 'draft' });
+    const deps = makeDeps({ link });
+    const result = await syncAssignmentToClassroom({
+        assignment: makeAssignment({ status: 'draft' }),
+        actor: TEACHER,
+        createIfMissing: false,
+        publishToClassroom: true,
+        deps
+    });
+    assert.equal(result.ok, true);
+    assert.equal(deps.calls.patch.length, 1);
+    assert.equal(deps.calls.patch[0].patch.requestBody.state, 'PUBLISHED');
+    assert.match(deps.calls.patch[0].patch.updateMask, /state/);
+    assert.equal(link.syncState, 'published');
+});
+
 test('does not call Google when no course is mapped', async () => {
     const deps = makeDeps({ findMapping: async () => null });
     const result = await syncAssignmentToClassroom({

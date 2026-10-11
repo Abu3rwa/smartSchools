@@ -6,11 +6,11 @@ const StandardAssignQuestionImport = ({ t, formData, setFormData, importContext 
     const imported = Array.isArray(formData.importedQuestions) ? formData.importedQuestions : [];
 
     const handleImport = (questions) => {
-        setFormData({ ...formData, importedQuestions: questions });
+        setFormData((previous) => ({ ...previous, importedQuestions: questions }));
         setOpen(false);
     };
 
-    const handleClear = () => setFormData({ ...formData, importedQuestions: [] });
+    const handleClear = () => setFormData((previous) => ({ ...previous, importedQuestions: [] }));
 
     return (
         <div className="form-group">

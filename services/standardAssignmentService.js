@@ -218,6 +218,13 @@ const buildQuestionPool = async ({
     return questions;
 };
 
+export const resolveQuestionPoolQuestions = async ({ importedQuestions, generate }) => {
+    if (Array.isArray(importedQuestions) && importedQuestions.length > 0) {
+        return importedQuestions;
+    }
+    return generate();
+};
+
 /**
  * Shared assignment + pre-generated pool creation pipeline.
  *
@@ -229,7 +236,6 @@ export async function createStandardAssignmentWithPool(opts = {}) {
         schoolId,
         actorUserId,
         standard,
-        classDoc,
         subjectId,
         subjectName,
         teacherId,
@@ -301,15 +307,16 @@ export async function createStandardAssignmentWithPool(opts = {}) {
     let generatedQuestions = [];
     let generationError = null;
     try {
-        generatedQuestions = hasImportedQuestions
-            ? importedQuestions
-            : await buildQuestionPool({
+        generatedQuestions = await resolveQuestionPoolQuestions({
+            importedQuestions,
+            generate: () => buildQuestionPool({
                 standard: standardGenerationContext,
                 subjectName: subjectName || 'General Studies',
                 questionCount: generatedCount,
                 practiceConfig: resolvedPracticeConfig,
                 generationLanguages: aiLanguages,
-            });
+            }),
+        });
     } catch (error) {
         generationError = error?.message || 'Question generation failed';
         logger.error('standard_assignment_pool_generation_failed', {

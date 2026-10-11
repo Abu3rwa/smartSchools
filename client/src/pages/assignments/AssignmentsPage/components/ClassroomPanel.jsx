@@ -1,10 +1,23 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const ClassroomPanel = ({ classroom, selectedClass, selectedSubject }) => {
+const getSubjectId = (subject) => String(subject?._id || subject?.id || '');
+
+const ClassroomPanel = ({ classroom, selectedClass, availableSubjects = [] }) => {
     const { t } = useTranslation(['assignments']);
-    const [changing, setChanging] = useState(false);
-    const [courseId, setCourseId] = useState('');
+    const [draftState, setDraftState] = useState({ classId: '', values: {} });
+    const draftCourses = draftState.classId === selectedClass ? draftState.values : {};
+
+    const subjects = useMemo(() => {
+        const seen = new Set();
+        return (Array.isArray(availableSubjects) ? availableSubjects : [])
+            .filter((subject) => {
+                const id = getSubjectId(subject);
+                if (!id || seen.has(id)) return false;
+                seen.add(id);
+                return true;
+            });
+    }, [availableSubjects]);
 
     if (!classroom?.canViewPanel) return null;
 
@@ -14,26 +27,43 @@ const ClassroomPanel = ({ classroom, selectedClass, selectedSubject }) => {
         statusError,
         refreshStatus,
         connection,
-        mapping,
+        mappingsBySubject,
         courses,
         coursesLoading,
         busy
     } = classroom;
-    const hasSelection = Boolean(selectedClass && selectedSubject);
-    const showPicker = hasSelection && (!mapping || changing);
 
-    const startChange = async () => {
-        setChanging(true);
-        setCourseId('');
-        if (courses.length === 0) await classroom.loadCourses();
+    const getCourseValue = (subjectId) => (
+        Object.prototype.hasOwnProperty.call(draftCourses, subjectId)
+            ? draftCourses[subjectId]
+            : mappingsBySubject[subjectId]?.courseId || ''
+    );
+
+    const changedMappings = subjects
+        .map((subject) => {
+            const subjectId = getSubjectId(subject);
+            const courseId = getCourseValue(subjectId);
+            return {
+                subjectId,
+                courseId,
+                existingCourseId: mappingsBySubject[subjectId]?.courseId || ''
+            };
+        })
+        .filter(({ courseId, existingCourseId }) => courseId && courseId !== existingCourseId);
+
+    const saveAll = async () => {
+        const saved = await classroom.saveMappings(changedMappings);
+        if (saved) setDraftState({ classId: selectedClass, values: {} });
     };
 
-    const handleSave = async () => {
-        const saved = await classroom.saveMapping(courseId);
-        if (saved) {
-            setChanging(false);
-            setCourseId('');
-        }
+    const removeMapping = async (subjectId) => {
+        await classroom.removeMapping(subjectId);
+        setDraftState((state) => {
+            const current = state.classId === selectedClass ? state.values : {};
+            const next = { ...current };
+            delete next[subjectId];
+            return { classId: selectedClass, values: next };
+        });
     };
 
     return (
@@ -78,69 +108,85 @@ const ClassroomPanel = ({ classroom, selectedClass, selectedSubject }) => {
             ) : (
                 <div className="classroom-panel__body">
                     <div className="classroom-panel__row">
-                        <span>
-                            {t('assignments:classroom.panel.connectedAs', { email: connection.email || '' })}
-                        </span>
+                        <span>{t('assignments:classroom.panel.connectedAs', { email: connection.email || '' })}</span>
                         <button type="button" className="btn btn-outline btn-sm" onClick={classroom.disconnect} disabled={busy}>
                             {t('assignments:classroom.panel.disconnect')}
                         </button>
                     </div>
 
-                    {!hasSelection && (
-                        <p className="text-muted">{t('assignments:classroom.panel.selectClassSubject')}</p>
-                    )}
-
-                    {hasSelection && mapping && !changing && (
-                        <div className="classroom-panel__row">
-                            <span>
-                                {t('assignments:classroom.panel.mappedTo', {
-                                    course: [mapping.courseName, mapping.courseSection].filter(Boolean).join(' · ')
-                                })}
-                            </span>
-                            <span className="classroom-panel__actions">
-                                <button type="button" className="btn btn-outline btn-sm" onClick={startChange} disabled={busy}>
-                                    {t('assignments:classroom.panel.change')}
-                                </button>
-                                <button type="button" className="btn btn-outline btn-sm" onClick={classroom.removeMapping} disabled={busy}>
-                                    {t('assignments:classroom.panel.remove')}
-                                </button>
-                            </span>
-                        </div>
-                    )}
-
-                    {showPicker && (
-                        <div className="classroom-panel__row">
-                            <label className="classroom-panel__picker">
-                                <span>{t('assignments:classroom.panel.chooseCourse')}</span>
-                                <select
-                                    value={courseId}
-                                    onFocus={() => { if (courses.length === 0 && !coursesLoading) classroom.loadCourses(); }}
-                                    onChange={(event) => setCourseId(event.target.value)}
-                                    disabled={busy || coursesLoading}
+                    {!selectedClass ? (
+                        <p className="text-muted">{t('assignments:classroom.panel.selectClass')}</p>
+                    ) : subjects.length === 0 ? (
+                        <p className="text-muted">{t('assignments:classroom.panel.noSubjects')}</p>
+                    ) : (
+                        <>
+                            <p className="text-muted">{t('assignments:classroom.panel.mapSubjects')}</p>
+                            {subjects.map((subject) => {
+                                const subjectId = getSubjectId(subject);
+                                const currentMapping = mappingsBySubject[subjectId];
+                                return (
+                                    <div className="classroom-panel__row" key={subjectId}>
+                                        <label className="classroom-panel__picker">
+                                            <span>{subject.name || t('assignments:classroom.panel.subject')}</span>
+                                            <select
+                                                value={getCourseValue(subjectId)}
+                                                onFocus={() => {
+                                                    if (courses.length === 0 && !coursesLoading) classroom.loadCourses();
+                                                }}
+                                                onChange={(event) => setDraftState((state) => ({
+                                                    classId: selectedClass,
+                                                    values: {
+                                                        ...(state.classId === selectedClass ? state.values : {}),
+                                                        [subjectId]: event.target.value
+                                                    }
+                                                }))}
+                                                disabled={busy || coursesLoading}
+                                            >
+                                                <option value="">
+                                                    {coursesLoading
+                                                        ? t('assignments:classroom.panel.loadingCourses')
+                                                        : t('assignments:classroom.panel.selectCourse')}
+                                                </option>
+                                                {courses.map((course) => (
+                                                    <option key={course.id} value={course.id}>
+                                                        {[course.name, course.section].filter(Boolean).join(' · ')}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        {currentMapping && (
+                                            <span className="text-muted">
+                                                {t('assignments:classroom.panel.currentMapping', {
+                                                    course: [currentMapping.courseName, currentMapping.courseSection]
+                                                        .filter(Boolean)
+                                                        .join(' · ')
+                                                })}
+                                            </span>
+                                        )}
+                                        {currentMapping && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline btn-sm"
+                                                onClick={() => removeMapping(subjectId)}
+                                                disabled={busy}
+                                            >
+                                                {t('assignments:classroom.panel.remove')}
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            <div className="classroom-panel__row">
+                                <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={saveAll}
+                                    disabled={busy || changedMappings.length === 0}
                                 >
-                                    <option value="">
-                                        {coursesLoading
-                                            ? t('assignments:classroom.panel.loadingCourses')
-                                            : t('assignments:classroom.panel.selectCourse')}
-                                    </option>
-                                    {courses.map((course) => (
-                                        <option key={course.id} value={course.id}>
-                                            {[course.name, course.section].filter(Boolean).join(' · ')}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <span className="classroom-panel__actions">
-                                <button type="button" className="btn btn-primary btn-sm" onClick={handleSave} disabled={busy || !courseId}>
-                                    {t('assignments:classroom.panel.saveMapping')}
+                                    {t('assignments:classroom.panel.saveAllMappings')}
                                 </button>
-                                {changing && (
-                                    <button type="button" className="btn btn-outline btn-sm" onClick={() => setChanging(false)} disabled={busy}>
-                                        {t('assignments:classroom.panel.cancel')}
-                                    </button>
-                                )}
-                            </span>
-                        </div>
+                            </div>
+                        </>
                     )}
                 </div>
             )}

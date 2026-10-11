@@ -92,6 +92,7 @@
     "badge": "Google Classroom: {{state}}",
     "open": "فتح في Classroom",
     "confirmPost": "هل تريد نشر هذا الواجب في Google Classroom؟\n\nالمقرر: {{course}}\nحساب Google: {{email}}\n\nسيتمكن الطلاب في هذا المقرر من رؤيته بعد نشره.",
+    "confirmPublishDraft": "هل تريد نشر مسودة Classroom الآن؟ سيتمكن الطلاب في المقرر المرتبط من رؤيتها.",
     "states": {
       "pending": "جارٍ النشر…",
       "draft": "تم نشر مسودة",
@@ -110,14 +111,19 @@
       "connect": "ربط Google Classroom",
       "connectedAs": "متصل بالحساب {{email}}",
       "disconnect": "فصل الربط",
-      "selectClassSubject": "اختر الصف والمادة أعلاه لربطهما بمقرر في Classroom.",
+      "selectClass": "اختر صفًا من التطبيق لربط جميع مواده بمقررات Classroom.",
+      "noSubjects": "لا توجد مواد معيّنة لهذا الصف لربطها.",
+      "mapSubjects": "اختر مقرر Google Classroom المطابق لكل مادة في التطبيق، ثم احفظ جميع التغييرات معًا.",
+      "subject": "مادة التطبيق",
       "mappedTo": "يتم النشر لهذا الصف والمادة في: {{course}}",
+      "currentMapping": "مرتبط حاليًا بـ: {{course}}",
       "change": "تغيير",
       "remove": "إزالة",
       "chooseCourse": "مقرر Classroom",
       "selectCourse": "اختر مقررًا",
       "loadingCourses": "جارٍ تحميل المقررات…",
       "saveMapping": "حفظ المقرر",
+      "saveAllMappings": "حفظ جميع روابط المقررات",
       "cancel": "إلغاء"
     },
     "form": {
@@ -129,6 +135,7 @@
     },
     "actions": {
       "post": "النشر في Classroom",
+      "publish": "نشر في Classroom",
       "retry": "إعادة محاولة Classroom"
     },
     "toasts": {
@@ -137,6 +144,7 @@
       "mappingSaved": "تم حفظ مقرر Classroom",
       "mappingRemoved": "تمت إزالة مقرر Classroom",
       "posted": "تم النشر في Google Classroom",
+      "published": "تم نشر الواجب في Google Classroom",
       "savedButNotPosted": "تم الحفظ في التطبيق، لكن لم يتم النشر في Google Classroom. {{message}}"
     },
     "errors": {

@@ -404,7 +404,7 @@ const AssignmentsPage = () => {
             <ClassroomPanel
                 classroom={classroom}
                 selectedClass={selectedClass}
-                selectedSubject={selectedSubject}
+                availableSubjects={availableSubjects}
             />
 
             <CreateAssignmentForm

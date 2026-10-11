@@ -92,6 +92,7 @@
     "badge": "Google Classroom: {{state}}",
     "open": "Open in Classroom",
     "confirmPost": "Post this assignment to Google Classroom?\n\nCourse: {{course}}\nGoogle account: {{email}}\n\nStudents in that course will be able to see it once it is published.",
+    "confirmPublishDraft": "Publish this Classroom draft now? Students in the mapped course will be able to see it.",
     "states": {
       "pending": "Posting…",
       "draft": "Draft posted",
@@ -110,14 +111,19 @@
       "connect": "Connect Google Classroom",
       "connectedAs": "Connected as {{email}}",
       "disconnect": "Disconnect",
-      "selectClassSubject": "Choose a class and subject above to link them to a Classroom course.",
+      "selectClass": "Choose an app class above to connect all of its subjects to Classroom courses.",
+      "noSubjects": "This class has no assigned subjects to map.",
+      "mapSubjects": "Choose the matching Google Classroom course for each app subject, then save all changes together.",
+      "subject": "App subject",
       "mappedTo": "This class and subject post to: {{course}}",
+      "currentMapping": "Currently mapped to: {{course}}",
       "change": "Change",
       "remove": "Remove",
       "chooseCourse": "Classroom course",
       "selectCourse": "Select a course",
       "loadingCourses": "Loading courses…",
       "saveMapping": "Save course",
+      "saveAllMappings": "Save all course mappings",
       "cancel": "Cancel"
     },
     "form": {
@@ -129,6 +135,7 @@
     },
     "actions": {
       "post": "Post to Classroom",
+      "publish": "Publish in Classroom",
       "retry": "Retry Classroom"
     },
     "toasts": {
@@ -137,6 +144,7 @@
       "mappingSaved": "Classroom course saved",
       "mappingRemoved": "Classroom course removed",
       "posted": "Posted to Google Classroom",
+      "published": "Published in Google Classroom",
       "savedButNotPosted": "Saved in the app, but not posted to Google Classroom. {{message}}"
     },
     "errors": {

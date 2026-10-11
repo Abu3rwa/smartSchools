@@ -382,6 +382,9 @@ const useStandardAssignPageData = (options = {}) => {
 
         const payload = {
             ...formData,
+            questionPoolSource: Array.isArray(formData.importedQuestions) && formData.importedQuestions.length > 0
+                ? 'imported'
+                : 'generated',
             aiLanguages: (() => {
                 const normalized = Array.from(
                     new Set(
