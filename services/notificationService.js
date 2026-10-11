@@ -10,6 +10,7 @@ import gmailOAuthService from "./gmailOAuthService.js";
 import { sendPushToUsers } from "./pushNotificationService.js";
 import { renderTemplate } from "../emailTemplates/templateLoader.js";
 import { buildPortalLink, getClientUrl } from "../helpers/portalUrl.js";
+import { buildAssignmentReminderContent } from "../helpers/assignmentReminderLinks.js";
 import { getSignedUrl } from "./firebaseStorageService.js";
 import logger from "../utils/logger.js";
 import {
@@ -1206,6 +1207,7 @@ class NotificationService {
     const title = String(assignment.title || "Assignment").trim();
     const dueDate = formatDateForNotice(assignment.dueDate);
     const assignmentUrl = assignment._id ? buildPortalLink(`/assignments/${assignment._id}`) : "";
+    const { notificationText, linksHtml } = buildAssignmentReminderContent({ reminderText, assignment });
 
     const detailRows = [
       `<p class="detail-row"><span class="label">Student:</span> ${escapeHtml(student.fullName || "Student")}</p>`,
@@ -1218,7 +1220,7 @@ class NotificationService {
       ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
       : "<p>Open the app to review details.</p>";
 
-    const bodyHtml = `<p>${escapeHtml(reminderText)}</p>${detailRows}${ctaHtml}`;
+    const bodyHtml = `<p>${escapeHtml(reminderText)}</p>${detailRows}${linksHtml}${ctaHtml}`;
     const htmlContent = wrapEmailHtml({ preheader: subject, bodyHtml, accentColor: "#d97706" });
 
     const metadata = {
@@ -1242,7 +1244,7 @@ class NotificationService {
         student: student._id,
         type: "assignment_reminder",
         subject,
-        message: reminderText,
+        message: notificationText,
         htmlContent,
         channels,
         metadata,
@@ -1274,7 +1276,7 @@ class NotificationService {
         student: student._id,
         type: "assignment_reminder",
         subject,
-        message: reminderText,
+        message: notificationText,
         htmlContent,
         channels: ["email"],
         metadata,
@@ -1318,6 +1320,7 @@ class NotificationService {
     const title = String(assignment.title || "Assignment").trim();
     const dueDate = formatDateForNotice(assignment.dueDate);
     const assignmentUrl = assignment._id ? buildPortalLink(`/assignments/${assignment._id}`) : "";
+    const { notificationText, linksHtml } = buildAssignmentReminderContent({ reminderText, assignment });
 
     const detailRows = [
       `<p class="detail-row"><span class="label">Title:</span> ${escapeHtml(title)}</p>`,
@@ -1329,7 +1332,7 @@ class NotificationService {
       ? `<p><a href="${escapeHtml(assignmentUrl)}" class="btn">View ${escapeHtml(typeName)}</a></p>`
       : "<p>Open the app to review details.</p>";
 
-    const bodyHtml = `<p>${escapeHtml(reminderText)}</p>${detailRows}${ctaHtml}`;
+    const bodyHtml = `<p>${escapeHtml(reminderText)}</p>${detailRows}${linksHtml}${ctaHtml}`;
     const htmlContent = wrapEmailHtml({ preheader: subject, bodyHtml, accentColor: "#d97706" });
 
     const metadata = {
@@ -1350,7 +1353,7 @@ class NotificationService {
       student: student._id,
       type: "assignment_reminder",
       subject,
-      message: reminderText,
+      message: notificationText,
       htmlContent,
       channels: ["push", ...(studentEmail ? ["email"] : [])],
       metadata,
