@@ -428,6 +428,22 @@ const Sidebar = () => {
       section: "teaching",
     },
     {
+      path: "/portal/live-lessons",
+      icon: HiOutlinePresentationChartBar,
+      labelKey: "liveLessons",
+      roles: ["admin", "department_principal", "teacher"],
+      liveLessons: true,
+      section: "teaching",
+    },
+    {
+      path: "/portal/live-lessons/join",
+      icon: HiOutlinePresentationChartBar,
+      labelKey: "liveLessons",
+      roles: ["student"],
+      liveLessons: true,
+      section: "assessment",
+    },
+    {
       path: "/portal/worksheets",
       icon: HiOutlineDocumentCheck,
       labelKey: "worksheetChecker",
@@ -801,6 +817,9 @@ const Sidebar = () => {
   ];
 
   const filteredNavItems = navItems.filter((item) => {
+    if (item.liveLessons && import.meta.env.VITE_LIVE_LESSONS_ENABLED !== "true") {
+      return false;
+    }
     if ((item.section || "overview") === "finance") {
       return false;
     }

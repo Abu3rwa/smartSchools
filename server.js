@@ -93,6 +93,7 @@ import googleDriveAuthRoutes from "./routes/googleDriveAuthRoutes.js";
 import googleClassroomAuthRoutes from "./routes/googleClassroomAuthRoutes.js";
 import googleClassroomRoutes from "./routes/googleClassroomRoutes.js";
 import presentationRoutes from "./routes/presentationRoutes.js";
+import liveLessonRoutes from "./routes/liveLessonRoutes.js";
 import worksheetRoutes from "./routes/worksheetRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
 import hrRoutes from "./routes/hrRoutes.js";
@@ -114,6 +115,7 @@ import { processAttendanceRemindersForEnabledSchools } from "./controllers/atten
 import { runCurriculumImportJobCycle } from "./jobs/curriculumAiImportJobRunner.js";
 import { runAcademicExcellenceNightlyJob } from "./jobs/academicExcellenceSyncJob.js";
 import { initRealtimeGateway } from "./realtime/realtimeGateway.js";
+import { initLiveLessonsGateway } from "./realtime/liveLessonsGateway.js";
 import { validateTenantIsolation } from "./utils/validateTenantIsolation.js";
 // Validate environment variables
 validateEnvironment();
@@ -401,6 +403,11 @@ app.use("/api/academic-excellence", academicExcellenceRoutes);
 app.use("/api/student-grouping", studentGroupingRoutes);
 app.use("/api/sbr", sbrRoutes);
 app.use("/api/presentations", presentationRoutes);
+const liveLessonsEnabled = process.env.LIVE_LESSONS_ENABLED === "true";
+if (liveLessonsEnabled) {
+  app.use("/api/live", express.text({ type: ["text/csv", "text/plain"], limit: "2mb" }));
+  app.use("/api/live", liveLessonRoutes);
+}
 app.use("/api/worksheets", worksheetRoutes);
 app.use("/api/finance", financeRoutes);
 app.use("/api/hr", hrRoutes);
@@ -434,6 +441,7 @@ const ACADEMIC_EXCELLENCE_NIGHTLY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const httpServer = createServer(app);
 initRealtimeGateway(httpServer);
+if (liveLessonsEnabled) initLiveLessonsGateway(httpServer);
 
 // BE-040: Track all interval handles for graceful shutdown
 const activeIntervals = [];

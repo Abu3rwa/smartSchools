@@ -1,5 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { WebSocketServer } from 'ws';
+import process from 'node:process';
+import { clearTimeout, setTimeout } from 'node:timers';
+import { URL } from 'node:url';
 
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
@@ -77,8 +80,15 @@ const authenticateSocketFromRequest = async (request) => {
 export const initRealtimeGateway = (httpServer) => {
   if (gateway) return gateway;
 
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({ noServer: true });
   gateway = wss;
+  httpServer.on('upgrade', (request, socket, head) => {
+    const pathname = new URL(request.url, 'http://localhost').pathname;
+    if (pathname !== '/ws') return;
+    wss.handleUpgrade(request, socket, head, (webSocket) => {
+      wss.emit('connection', webSocket, request);
+    });
+  });
 
   wss.on('connection', async (socket, request) => {
     let userId = '';
@@ -236,4 +246,3 @@ export const closeRealtimeGateway = async () => {
   gateway = null;
   userSockets.clear();
 };
-

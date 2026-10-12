@@ -1,0 +1,35 @@
+.live-review-page { max-width: 1480px; min-height: calc(100vh - 72px); margin: auto; padding: 1.25rem clamp(.75rem, 3vw, 2.5rem) 3rem; color: #213546; }
+.live-review-header { display: flex; align-items: center; gap: 1rem; margin: .2rem 0 1.2rem; }
+.live-review-header .live-session-back { display: flex; width: auto; gap: .4rem; padding: 0 .8rem; }
+.live-review-header h1 { margin: .25rem 0 0; font-size: 1.4rem; }
+.live-review-layout,.live-report-layout { display: grid; gap: 1rem; }
+.live-review-card { min-width: 0; padding: clamp(1rem, 2vw, 1.5rem); border: 1px solid #e3e9ea; border-radius: 18px; background: #fff; box-shadow: 0 8px 26px rgba(30,52,65,.04); }
+.live-review-card h2 { margin: 0 0 .9rem; font-size: 1.1rem; }
+.live-report-table-wrap { overflow-x: auto; }
+.live-report-table-wrap table { width: 100%; border-collapse: collapse; text-align: left; }
+.live-report-table-wrap th,.live-report-table-wrap td { padding: .8rem .65rem; border-bottom: 1px solid #edf0f1; font-size: .84rem; }
+.live-report-table-wrap th { color: #6d7e87; background: #f8faf9; font-size: .73rem; text-transform: uppercase; white-space: nowrap; }
+.live-report-table-wrap td:first-child { min-width: 210px; }
+.live-replay-player>.live-slide { min-height: 390px; }
+.live-replay-topline { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.live-replay-topline h2 { margin: 0 0 .2rem; }
+.live-replay-topline span { color: #7d8b92; font-size: .8rem; }
+.live-replay-topline label { display: flex; align-items: center; gap: .5rem; color: #6e7c85; font-size: .78rem; font-weight: 700; }
+.live-replay-topline select { max-width: 210px; padding: .55rem; border: 1px solid #dfe6e8; border-radius: 9px; color: #354b59; background: #fff; }
+.live-replay-controls { display: flex; align-items: center; gap: .7rem; margin-top: 1rem; }
+.live-replay-controls>span { color: #78868e; font-size: .76rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.live-replay-controls input { flex: 1; accent-color: #167b78; }
+.live-replay-event-list,.live-replay-answer-log { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .9rem; padding-top: .85rem; border-top: 1px solid #edf0f1; }
+.live-replay-event-list strong,.live-replay-answer-log strong { flex: 0 0 100%; font-size: .83rem; }
+.live-replay-event-list span,.live-replay-answer-log span { padding: .34rem .5rem; border-radius: 7px; color: #59707b; background: #f0f5f4; font-size: .75rem; }
+.live-replay-answer-log span { color: #355b4a; background: #eaf6ef; }
+.live-review-page .live-error-banner,.live-review-page .live-loading { max-width: 100%; }
+
+@media(max-width:700px) {
+  .live-replay-topline { align-items: flex-start; flex-direction: column; }
+  .live-replay-topline label { width: 100%; justify-content: space-between; }
+  .live-replay-topline select { max-width: 65%; }
+  .live-replay-controls { flex-wrap: wrap; }
+  .live-replay-controls input { flex-basis: 100%; order: 3; }
+  .live-report-table-wrap th,.live-report-table-wrap td { padding: .65rem .45rem; }
+}

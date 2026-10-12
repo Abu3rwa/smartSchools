@@ -1,0 +1,10 @@
+.live-join-page { display: grid; min-height: calc(100vh - 72px); place-items: center; padding: 1rem; background: radial-gradient(circle at 50% 0%, rgba(106,191,164,.14), transparent 35%), #f3f6f5; }
+.live-join-card { display: flex; width: min(460px, 100%); flex-direction: column; padding: clamp(1.5rem, 5vw, 2.5rem); border: 1px solid #e3eaea; border-radius: 22px; background: white; box-shadow: 0 22px 60px rgba(29,58,69,.1); }
+.live-join-icon { display: grid; width: 58px; height: 58px; place-items: center; margin-bottom: 1.4rem; border-radius: 17px; color: #177a76; background: #e7f6f0; }
+.live-join-card h1 { margin: .4rem 0 .45rem; color: #1e3445; font-size: 1.9rem; letter-spacing: -.035em; }
+.live-join-card>p { margin: 0 0 1.5rem; color: #71818c; font-size: .93rem; line-height: 1.55; }
+.live-join-card>label { margin-bottom: .4rem; color: #455b68; font-size: .82rem; font-weight: 750; }
+.live-join-card>input { padding: .9rem 1rem; border: 1px solid #d8e2e4; border-radius: 12px; outline: none; color: #193949; background: #fbfdfd; font-size: 1.25rem; font-weight: 850; letter-spacing: .2em; text-align: center; }
+.live-join-card>input:focus { border-color: #338e89; box-shadow: 0 0 0 3px rgba(51,142,137,.13); }
+.live-join-card>.live-session-primary { width: 100%; margin-top: 1rem; }
+.live-join-error { margin-top: .7rem; color: #a03f3f; font-size: .84rem; }

@@ -147,6 +147,10 @@ const ApiDocsPage = lazy(() => import("./pages/docs/ApiDocsPage"));
 const PresentationListPage = lazy(() => import("./pages/presentations/PresentationListPage/PresentationListPage"));
 const PresentationEditorPage = lazy(() => import("./pages/presentations/PresentationEditorPage/PresentationEditorPage"));
 const PresenterViewPage = lazy(() => import("./pages/presentations/PresenterViewPage/PresenterViewPage"));
+const LiveLessonsPage = lazy(() => import("./pages/liveLessons/LiveLessonsPage"));
+const LiveLessonSessionPage = lazy(() => import("./pages/liveLessons/LiveLessonSessionPage"));
+const LiveLessonJoinPage = lazy(() => import("./pages/liveLessons/LiveLessonJoinPage"));
+const LiveLessonReviewPage = lazy(() => import("./pages/liveLessons/LiveLessonReviewPage"));
 const WorksheetListPage = lazy(() => import("./pages/worksheets/WorksheetListPage/WorksheetListPage"));
 const WorksheetCreatePage = lazy(() => import("./pages/worksheets/WorksheetCreatePage/WorksheetCreatePage"));
 const WorksheetDetailPage = lazy(() => import("./pages/worksheets/WorksheetDetailPage/WorksheetDetailPage"));
@@ -1264,6 +1268,58 @@ function App() {
                 </RoleRoute>
               }
             />
+            {import.meta.env.VITE_LIVE_LESSONS_ENABLED === "true" && (
+              <>
+                <Route
+                  path="live-lessons"
+                  element={
+                    <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                      <LiveLessonsPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="live-lessons/sessions/:sessionId"
+                  element={
+                    <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                      <LiveLessonSessionPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="live-lessons/sessions/:sessionId/report"
+                  element={
+                    <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                      <LiveLessonReviewPage mode="report" />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="live-lessons/sessions/:sessionId/replay"
+                  element={
+                    <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                      <LiveLessonReviewPage mode="replay" />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="live-lessons/join"
+                  element={
+                    <RoleRoute roles={["student"]}>
+                      <LiveLessonJoinPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="live-lessons/student/:sessionId"
+                  element={
+                    <RoleRoute roles={["student"]}>
+                      <LiveLessonSessionPage />
+                    </RoleRoute>
+                  }
+                />
+              </>
+            )}
             {/* Presentations */}
             <Route
               path="presentations"
