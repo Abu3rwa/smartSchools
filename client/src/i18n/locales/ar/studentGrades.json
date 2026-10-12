@@ -40,6 +40,8 @@
     "period": "الفترة المحددة",
     "allPeriods": "كل الفترات المحددة",
     "percentage": "النسبة المئوية",
+    "positive": "إيجابي",
+    "negative": "سلبي",
     "pdf": "تصدير PDF",
     "docx": "تصدير DOCX",
     "exporting": "جارٍ تجهيز التصدير...",

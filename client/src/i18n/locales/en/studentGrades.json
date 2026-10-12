@@ -40,6 +40,8 @@
     "period": "Selected period",
     "allPeriods": "All selected periods",
     "percentage": "Percentage",
+    "positive": "Positive",
+    "negative": "Negative",
     "pdf": "Export PDF",
     "docx": "Export DOCX",
     "exporting": "Preparing export...",

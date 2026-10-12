@@ -50,12 +50,54 @@
         table-layout: fixed;
     }
 
+    .student-gradebook-print .sgp-date-column {
+        width: 11%;
+    }
+
+    .student-gradebook-print .sgp-subject-column {
+        width: 12%;
+    }
+
+    .student-gradebook-print .sgp-type-column {
+        width: 10%;
+    }
+
+    .student-gradebook-print .sgp-score-column {
+        width: 9%;
+    }
+
+    .student-gradebook-print .sgp-percentage-column {
+        width: 8%;
+    }
+
+    .student-gradebook-print .sgp-remarks-column {
+        width: 50%;
+    }
+
     .student-gradebook-print th,
     .student-gradebook-print td {
         padding: 2mm;
         border: 1px solid #d9dee4;
         text-align: start;
         overflow-wrap: anywhere;
+    }
+
+    .student-gradebook-print .sgp-remarks {
+        font-size: 8.5pt;
+        line-height: 1.25;
+    }
+
+    .student-gradebook-print .sgp-remarks-row + .sgp-remarks-row,
+    .student-gradebook-print .sgp-remarks-other {
+        margin-top: 1mm;
+    }
+
+    .student-gradebook-print .sgp-remarks-positive strong {
+        color: #237a45;
+    }
+
+    .student-gradebook-print .sgp-remarks-negative strong {
+        color: #a12d2d;
     }
 
     .student-gradebook-print th {

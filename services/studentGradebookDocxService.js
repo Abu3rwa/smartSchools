@@ -2,15 +2,21 @@ import {
     AlignmentType,
     BorderStyle,
     Document,
+    HeadingLevel,
     Packer,
     Paragraph,
     ShadingType,
     Table,
     TableCell,
     TableRow,
+    TableLayoutType,
     TextRun,
     WidthType
 } from 'docx';
+
+export const GRADEBOOK_CONTENT_WIDTH_DXA = 9026;
+export const GRADEBOOK_COLUMN_WIDTHS_DXA = [1240, 1640, 1160, 800, 1000, 3186];
+const INFO_COLUMN_WIDTHS_DXA = [4513, 4513];
 
 const translations = {
     en: {
@@ -62,8 +68,9 @@ const borders = Object.fromEntries(['top', 'bottom', 'left', 'right', 'insideHor
     { style: BorderStyle.SINGLE, size: 4, color: 'D9DEE4' }
 ]));
 
-const cell = (value, header = false) => new TableCell({
-    shading: { type: ShadingType.CLEAR, fill: header ? '1F3A5F' : 'FFFFFF' },
+const cell = (value, { header = false, width, fill } = {}) => new TableCell({
+    width: { size: width, type: WidthType.DXA },
+    shading: { type: ShadingType.CLEAR, fill: fill || (header ? '1F3A5F' : 'FFFFFF') },
     margins: { top: 90, bottom: 90, left: 110, right: 110 },
     children: [new Paragraph({
         children: [new TextRun({
@@ -76,15 +83,63 @@ const cell = (value, header = false) => new TableCell({
     })]
 });
 
-const makeTable = (headers, rows) => new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+const makeTable = (headers, rows, isArabic) => new Table({
+    width: { size: GRADEBOOK_CONTENT_WIDTH_DXA, type: WidthType.DXA },
+    columnWidths: GRADEBOOK_COLUMN_WIDTHS_DXA,
+    layout: TableLayoutType.FIXED,
+    visuallyRightToLeft: isArabic,
     borders,
     rows: [
-        new TableRow({ tableHeader: true, children: headers.map((header) => cell(header, true)) }),
-        ...rows.map((row) => new TableRow({
+        new TableRow({
+            tableHeader: true,
+            children: headers.map((header, index) => cell(header, {
+                header: true,
+                width: GRADEBOOK_COLUMN_WIDTHS_DXA[index]
+            }))
+        }),
+        ...rows.map((row, rowIndex) => new TableRow({
             cantSplit: true,
-            children: row.map((value) => cell(value))
+            children: row.map((value, index) => cell(value, {
+                width: GRADEBOOK_COLUMN_WIDTHS_DXA[index],
+                fill: rowIndex % 2 === 0 ? 'F3F6FA' : 'FFFFFF'
+            }))
         }))
+    ]
+});
+
+const makeMetadataCell = (label, value, width) => new TableCell({
+    width: { size: width, type: WidthType.DXA },
+    shading: { type: ShadingType.CLEAR, fill: 'F3F6FA' },
+    margins: { top: 90, bottom: 90, left: 110, right: 110 },
+    children: [new Paragraph({
+        children: [
+            new TextRun({ text: `${label}: `, bold: true, color: '1F3A5F', size: 20, font: 'Arial' }),
+            new TextRun({ text: String(value ?? ''), color: '263238', size: 20, font: 'Arial' })
+        ]
+    })]
+});
+
+const makeMetadataTable = (studentName, studentId, subject, period, isArabic) => new Table({
+    width: { size: GRADEBOOK_CONTENT_WIDTH_DXA, type: WidthType.DXA },
+    columnWidths: INFO_COLUMN_WIDTHS_DXA,
+    layout: TableLayoutType.FIXED,
+    visuallyRightToLeft: isArabic,
+    borders,
+    rows: [
+        new TableRow({
+            cantSplit: true,
+            children: [
+                makeMetadataCell(translations[isArabic ? 'ar' : 'en'].student, studentName, INFO_COLUMN_WIDTHS_DXA[0]),
+                makeMetadataCell(translations[isArabic ? 'ar' : 'en'].studentId, studentId, INFO_COLUMN_WIDTHS_DXA[1])
+            ]
+        }),
+        new TableRow({
+            cantSplit: true,
+            children: [
+                makeMetadataCell(translations[isArabic ? 'ar' : 'en'].subject, subject, INFO_COLUMN_WIDTHS_DXA[0]),
+                makeMetadataCell(translations[isArabic ? 'ar' : 'en'].period, period, INFO_COLUMN_WIDTHS_DXA[1])
+            ]
+        })
     ]
 });
 
@@ -114,31 +169,39 @@ export async function buildStudentGradebookDocx({ student, grades, filters = {},
         `${grade.maxMarks > 0 ? Math.round((grade.marks / grade.maxMarks) * 10000) / 100 : 0}%`,
         displayValue(grade.remarks)
     ]);
-    const metadata = [
-        `${words.student}: ${studentName || '—'}`,
-        `${words.studentId}: ${displayValue(student.studentId)}`,
-        `${words.subject}: ${filters.subject ? displayValue(selectedSubject) : words.allSubjects}`,
-        `${words.period}: ${formatPeriod(filters, words)}`
-    ];
     const children = [
         new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { after: 160 },
+            heading: HeadingLevel.TITLE,
             children: [new TextRun({ text: words.title, bold: true, color: '1F3A5F', size: 30, font: 'Arial' })]
         }),
-        ...metadata.map((text) => new Paragraph({
-            spacing: { after: 80 },
-            children: [new TextRun({ text, size: 20, font: 'Arial' })]
-        })),
+        makeMetadataTable(
+            studentName || '—',
+            displayValue(student.studentId),
+            filters.subject ? displayValue(selectedSubject) : words.allSubjects,
+            formatPeriod(filters, words),
+            language === 'ar'
+        ),
+        new Paragraph({ spacing: { after: 100 } }),
         makeTable(
             [words.date, words.subject, words.type, words.score, words.percentage, words.remarks],
-            rows.length ? rows : [[words.noGrades, '', '', '', '', '']]
+            rows.length ? rows : [[words.noGrades, '', '', '', '', '']],
+            language === 'ar'
         )
     ];
     const doc = new Document({
         creator: 'ClassHope',
         title: `${words.title}: ${studentName || 'Student'}`,
-        sections: [{ children }]
+        sections: [{
+            properties: {
+                page: {
+                    size: { width: 11906, height: 16838 },
+                    margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+                }
+            },
+            children
+        }]
     });
     return Packer.toBuffer(doc);
 }
