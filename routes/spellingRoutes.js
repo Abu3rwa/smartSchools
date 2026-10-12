@@ -33,7 +33,7 @@ import {
     spellingDashboard,
     studentSpellingDocx
 } from '../controllers/spellingReportController.js';
-import { deleteSpellingWord, listSpellingWords } from '../controllers/spellingWordController.js';
+import { deleteSpellingWord, exportSpellingWordLibrary, listSpellingWords } from '../controllers/spellingWordController.js';
 import { exportStudentSpellingDetailsDocx, getStudentSpellingDetails } from '../controllers/spellingDetailsController.js';
 import { getClassSettings, updateClassSettings } from '../controllers/spellingClassSettingsController.js';
 import { getDictionaryWord } from '../controllers/dictionaryController.js';
@@ -50,6 +50,7 @@ const router = express.Router();
 router.use(protect, requireSchoolContext);
 router.use('/word-lists', authorize('admin', 'department_principal', 'teacher'));
 router.get('/word-lists', listSpellingWords);
+router.get('/word-lists/export', exportSpellingWordLibrary);
 router.delete('/word-lists/:wordId', authorize('admin', 'department_principal', 'teacher'), deleteSpellingWord);
 router.get('/dictionary/:word', getDictionaryWord);
 router.get('/classes/:classId/settings', authorize('admin', 'department_principal', 'teacher'), getClassSettings);

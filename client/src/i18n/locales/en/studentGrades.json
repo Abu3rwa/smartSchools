@@ -32,6 +32,19 @@
     "startDate": "Start date",
     "endDate": "End date"
   },
+  "export": {
+    "title": "Student Gradebook",
+    "student": "Student",
+    "studentId": "Student ID",
+    "subject": "Subject",
+    "period": "Selected period",
+    "allPeriods": "All selected periods",
+    "percentage": "Percentage",
+    "pdf": "Export PDF",
+    "docx": "Export DOCX",
+    "exporting": "Preparing export...",
+    "failed": "Unable to export the student gradebook."
+  },
   "months": {
     "1": "January",
     "2": "February",

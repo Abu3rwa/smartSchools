@@ -55,8 +55,10 @@ const SpellingCurriculumTab = ({
     setImportPreview,
     importPreview,
     importing,
+    exportingWordLibrary,
     onPreviewWordList,
     onCommitWordList,
+    onExportWordLibrary,
     onDeleteWord,
     deletingWordId
 }) => {
@@ -140,7 +142,20 @@ const SpellingCurriculumTab = ({
                 <Card sx={{ gridArea: 'words', minWidth: 0 }}>
                     <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                         <Stack spacing={2}>
-                            <Typography variant="h6">{t('wordListTitle')}</Typography>
+                            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}>
+                                <Typography variant="h6">{t('wordListTitle')}</Typography>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={onExportWordLibrary}
+                                    disabled={exportingWordLibrary}
+                                >
+                                    {exportingWordLibrary ? t('exportingWordLibrary') : t('exportWordLibrary')}
+                                </Button>
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary">
+                                {t('wordLibraryExportDescription')}
+                            </Typography>
                             <Box sx={{
                                 position: 'sticky',
                                 top: 8,

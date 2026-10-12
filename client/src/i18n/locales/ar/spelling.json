@@ -69,6 +69,11 @@
   "classCreated": "تم إنشاء اختبارات لـ {{count}} طلاب في {{className}}.",
   "classStopped": "تم إنشاء {{count}} اختبارات قبل توقف عملية الفصل."
   ,"wordListTitle": "قائمة كلمات المنهج"
+  ,"exportWordLibrary": "تصدير جميع الكلمات (CSV)"
+  ,"exportingWordLibrary": "جارٍ التصدير..."
+  ,"wordLibraryExportDescription": "يشمل جميع الصفوف وروابط النطق الصوتي والمعاني والرموز الصوتية والأمثلة المتاحة؛ ولا تؤثر عوامل التصفية الحالية على التصدير."
+  ,"wordLibraryExported": "تم تصدير قائمة كلمات الإملاء."
+  ,"wordLibraryExportError": "تعذر تصدير قائمة كلمات الإملاء."
   ,"grade": "الصف"
   ,"week": "الأسبوع"
   ,"category": "الفئة"
@@ -88,7 +93,14 @@
   "uniqueWordsEverMissed": "الكلمات التي أُخطئ فيها",
   "retestAttempts": "محاولات الإعادة",
   "retestCorrect": "الصحيح في الإعادة",
-  "retestRecoveryRate": "معدل التعافي في الإعادة",
+  "retestRecoveryRate": "دقة الإعادة",
+  "recoveredWords": "الكلمات المستعادة",
+  "recoveryRate": "نسبة التعافي",
+  "overallRecoveryRate": "التعافي الإجمالي للكلمات",
+  "recoveryForSelectedSessions": "التعافي في الجلسات المحددة (المستعادة / الفائتة)",
+  "recoveryBySession": "التعافي حسب الجلسة",
+  "session": "الجلسة",
+  "mode": "النمط",
   "gradePerformance": "الأداء حسب الصف",
   "progressOverTime": "التقدم مع الوقت",
   "missedWords": "الكلمات التي أُخطئ فيها",

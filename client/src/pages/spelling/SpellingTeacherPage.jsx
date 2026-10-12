@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { selectIsAdmin } from '../../store/slices/authSlice';
 import api from '../../config/api';
+import { downloadBlob, filenameFromContentDisposition } from '../../utils/downloadBlob';
 import { downloadStudentSpellingDetailsDocx } from '../../services/spellingDetailsDocxExport';
 import './SpellingTeacherPage.css';
 import TeacherSessionDialog from './components/TeacherSessionDialog';
@@ -77,6 +78,7 @@ const SpellingTeacherPage = () => {
     const [importFile, setImportFile] = useState(null);
     const [importPreview, setImportPreview] = useState(null);
     const [importing, setImporting] = useState(false);
+    const [exportingWordLibrary, setExportingWordLibrary] = useState(false);
     const [gradingFeedback, setGradingFeedback] = useState(null);
     const [dictionaryEntry, setDictionaryEntry] = useState(null);
     const [passage, setPassage] = useState(null);
@@ -716,6 +718,23 @@ const SpellingTeacherPage = () => {
         }
     };
 
+    const exportWordLibrary = async () => {
+        setExportingWordLibrary(true);
+        try {
+            const response = await api.get('/spelling/word-lists/export', { responseType: 'blob' });
+            const filename = filenameFromContentDisposition(
+                response.headers?.['content-disposition'],
+                'spelling-word-library.csv'
+            );
+            downloadBlob(response.data, filename);
+            notify(t('wordLibraryExported'), 'success');
+        } catch (error) {
+            notify(error.response?.data?.message || t('wordLibraryExportError'), 'error');
+        } finally {
+            setExportingWordLibrary(false);
+        }
+    };
+
     const saveClassSettings = async () => {
         if (!classId) return;
         try {
@@ -841,8 +860,10 @@ const SpellingTeacherPage = () => {
                 setImportPreview={setImportPreview}
                 importPreview={importPreview}
                 importing={importing}
+                exportingWordLibrary={exportingWordLibrary}
                 onPreviewWordList={previewWordList}
                 onCommitWordList={commitWordList}
+                onExportWordLibrary={exportWordLibrary}
                 onDeleteWord={deleteCurriculumWord}
                 deletingWordId={deletingWordId}
             />}

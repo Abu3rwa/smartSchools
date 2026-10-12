@@ -1,0 +1,76 @@
+.student-gradebook-print {
+    display: none;
+}
+
+@page {
+    size: A4 portrait;
+    margin: 14mm;
+}
+
+@media print {
+    body * {
+        visibility: hidden !important;
+    }
+
+    .student-gradebook-print,
+    .student-gradebook-print * {
+        visibility: visible !important;
+    }
+
+    .student-gradebook-print {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        color: #263238;
+        background: #fff;
+        font-family: Arial, sans-serif;
+        font-size: 10pt;
+    }
+
+    .student-gradebook-print h1 {
+        margin: 0 0 5mm;
+        color: #1f3a5f;
+        font-size: 20pt;
+    }
+
+    .student-gradebook-print header {
+        margin-bottom: 7mm;
+        padding-bottom: 3mm;
+        border-bottom: 2px solid #1f3a5f;
+    }
+
+    .student-gradebook-print header p {
+        margin: 1mm 0;
+    }
+
+    .student-gradebook-print table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .student-gradebook-print th,
+    .student-gradebook-print td {
+        padding: 2mm;
+        border: 1px solid #d9dee4;
+        text-align: start;
+        overflow-wrap: anywhere;
+    }
+
+    .student-gradebook-print th {
+        color: #1f3a5f;
+        background: #eaf1f8 !important;
+        font-weight: 700;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .student-gradebook-print thead {
+        display: table-header-group;
+    }
+
+    .student-gradebook-print tr {
+        break-inside: avoid;
+    }
+}

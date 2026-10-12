@@ -9,7 +9,7 @@ const formatPercent = (value) => `${Number(value) || 0}%`;
 
 const StudentSpellingPrintReport = ({ details }) => {
     const { t, i18n } = useTranslation('spelling');
-    const { student, summary, byGrade = [], missedWords = [] } = details;
+    const { student, summary, byGrade = [], missedWords = [], sessionRecovery = [] } = details;
     const locale = i18n.resolvedLanguage || i18n.language || 'en';
     const orderedGrades = useMemo(() => [...byGrade].sort((a, b) => {
         const aRank = GRADE_ORDER.indexOf(String(a.grade).toUpperCase());
@@ -44,15 +44,30 @@ const StudentSpellingPrintReport = ({ details }) => {
         { label: t('retestAttempts'), value: summary.retestAttempts },
         { label: t('retestCorrect'), value: summary.retestCorrect },
         { label: t('retestIncorrect'), value: summary.retestIncorrect },
-        { label: t('retestRecoveryRate'), value: summary.retestAttempts ? formatPercent(summary.retestRecoveryRate) : '—' }
+        { label: t('retestRecoveryRate'), value: summary.retestAttempts ? formatPercent(summary.retestRecoveryRate) : '—' },
+        { label: t('recoveredWords'), value: `${summary.recoveredWords} / ${summary.uniqueWordsEverMissed}` },
+        { label: t('recoveryRate'), value: summary.uniqueWordsEverMissed ? formatPercent(summary.recoveryRate) : '—' }
     ];
+    const orderedSessionRecovery = [...sessionRecovery]
+        .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+    const sessionRecoveryRows = orderedSessionRecovery.map((session) => {
+        const startedAt = new Date(session.startedAt);
+        const dateLabel = Number.isNaN(startedAt.getTime())
+            ? t('notSet')
+            : new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(startedAt);
+        return [
+            dateLabel,
+            session.mode === 'self-serve' ? t('selfServe') : t('teacherLed'),
+            `${session.recoveredWordCount} / ${session.missedWordCount}`,
+            formatPercent(session.recoveryRate)
+        ];
+    });
 
     const renderMissedWordsTable = (words) => (
         <table className="spelling-print-table spelling-print-missed-table">
             <thead>
                 <tr>
                     <th>{t('word')} ({t('grade')})</th>
-                    <th className="spelling-print-count">{t('originalIncorrect')}</th>
                     <th className="spelling-print-count">{t('retestCorrectOfAttempts')}</th>
                     <th>{t('status')}</th>
                 </tr>
@@ -61,7 +76,6 @@ const StudentSpellingPrintReport = ({ details }) => {
                 {words.map((item) => (
                     <tr key={`${item.grade}-${item.word}`}>
                         <td><span className="spelling-print-word-main">{item.word}</span> ({item.grade})</td>
-                        <td className="spelling-print-count">{item.originalIncorrectCount}</td>
                         <td className="spelling-print-count">
                             {t('retestCounts', { correct: item.retestCorrect, attempts: item.retestAttempts })}
                         </td>
@@ -125,6 +139,31 @@ const StudentSpellingPrintReport = ({ details }) => {
                     </div>
                 </section>
             </div>
+
+            <section className="spelling-print-section">
+                <h2>{t('recoveryBySession')}</h2>
+                {sessionRecoveryRows.length ? (
+                    <table className="spelling-print-table">
+                        <thead>
+                            <tr>
+                                <th>{t('session')}</th>
+                                <th>{t('mode')}</th>
+                                <th className="spelling-print-count">{t('recoveredWords')}</th>
+                                <th className="spelling-print-count">{t('recoveryRate')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sessionRecoveryRows.map((row, index) => (
+                                <tr key={orderedSessionRecovery[index].id}>
+                                    {row.map((value, columnIndex) => (
+                                        <td className={columnIndex > 1 ? 'spelling-print-count' : undefined} key={columnIndex}>{value}</td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : <p className="spelling-print-empty">{t('noData')}</p>}
+            </section>
 
             <section className="spelling-print-section spelling-print-performance">
                 <h2>{t('gradePerformance')}</h2>

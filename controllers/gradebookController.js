@@ -24,6 +24,7 @@ import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
 import { resolveSemesterForDate } from '../services/gradebookConfigService.js';
 import logger from '../utils/logger.js';
 import { logGradeAudit, logGradeAuditBulk } from '../services/gradeAuditService.js';
+import { buildStudentGradebookDocx } from '../services/studentGradebookDocxService.js';
 
 const DEFAULT_GRADE_PAGE_LIMIT = 10;
 const MAX_GRADE_PAGE_LIMIT = 100;
@@ -50,6 +51,15 @@ const normalizeCategoryFilter = (value) => {
 const normalizeGradeCategory = (value) => {
     const normalized = String(value || '').trim().toLowerCase();
     return normalized === 'daily classwork' ? 'classwork' : normalized;
+};
+
+const sendStudentGradebookDocx = async ({ res, student, grades, filters, locale }) => {
+    const buffer = await buildStudentGradebookDocx({ student, grades, filters, locale });
+    const studentName = `${student.firstName || ''}-${student.lastName || ''}`.trim();
+    const safeName = studentName.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'student';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="student-gradebook-${safeName}.docx"`);
+    return res.send(buffer);
 };
 
 const buildDateQuery = ({ startDate, endDate }) => {
@@ -1031,6 +1041,11 @@ export const getMyGrades = asyncHandler(async (req, res) => {
                 grades: [],
                 bySubject: [],
                 academicYear: effectiveAcademicYear,
+                student: {
+                    firstName: student.firstName,
+                    lastName: student.lastName,
+                    studentId: student.studentId
+                },
                 availableCategories: [],
                 availableSubjects: [],
                 pagination: {
@@ -1108,12 +1123,39 @@ export const getMyGrades = asyncHandler(async (req, res) => {
         .filter(Boolean)
         .sort();
 
+    if (String(req.query.format || '').toLowerCase() === 'docx') {
+        const exportSubject = subjectId
+            ? await Subject.findOne({ _id: subjectId, school: req.schoolId }).select('name').lean()
+            : null;
+        return sendStudentGradebookDocx({
+            res,
+            student,
+            grades: decoratedGrades,
+            filters: {
+                subject: subjectId,
+                category: normalizedCategory || normalizedGradeType,
+                month,
+                semester,
+                startDate,
+                endDate,
+                academicYear: effectiveAcademicYear,
+                subjectName: exportSubject?.name
+            },
+            locale: req.query.locale
+        });
+    }
+
     res.json({
         success: true,
         data: {
             grades: decoratedGrades,
             bySubject,
             academicYear: effectiveAcademicYear,
+            student: {
+                firstName: student.firstName,
+                lastName: student.lastName,
+                studentId: student.studentId
+            },
             gradingScale,
             availableCategories,
             availableSubjects,
@@ -1261,6 +1303,34 @@ export const getStudentGrades = asyncHandler(async (req, res) => {
         .sort();
 
     availableAcademicYears.sort();
+
+    if (String(req.query.format || '').toLowerCase() === 'docx') {
+        const student = await Student.findOne({ _id: studentId, school: req.schoolId })
+            .select('firstName lastName studentId')
+            .lean();
+        if (!student) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+        const exportSubject = selectedSubjectFilter
+            ? await Subject.findOne({ _id: selectedSubjectFilter, school: req.schoolId }).select('name').lean()
+            : null;
+        return sendStudentGradebookDocx({
+            res,
+            student,
+            grades,
+            filters: {
+                subject: selectedSubjectFilter,
+                category: normalizedCategory || normalizedGradeType,
+                month,
+                semester,
+                startDate,
+                endDate,
+                academicYear: effectiveAcademicYear,
+                subjectName: exportSubject?.name
+            },
+            locale: req.query.locale
+        });
+    }
 
     res.json({
         success: true,

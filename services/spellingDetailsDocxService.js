@@ -46,8 +46,16 @@ const translations = {
         correct: 'Correct',
         incorrect: 'Incorrect',
         accuracy: 'Accuracy',
+        recoveredWords: 'Words recovered / missed',
+        recoveryRate: 'Recovery percentage',
+        recoveryBySession: 'Recovery by session',
+        recoverySummary: 'Word recovery',
+        session: 'Session date',
+        mode: 'Mode',
+        selfServe: 'Student self-serve',
+        teacherLed: 'Teacher-led',
         uniqueMissed: 'Unique words ever missed',
-        recovery: 'Retest recovery',
+        recovery: 'Retest accuracy',
         performance: 'Performance by grade',
         grade: 'Grade',
         missedWords: 'Missed words',
@@ -74,8 +82,16 @@ const translations = {
         correct: 'الصحيح',
         incorrect: 'الخطأ',
         accuracy: 'الدقة',
+        recoveredWords: 'الكلمات المستعادة / الفائتة',
+        recoveryRate: 'نسبة التعافي',
+        recoveryBySession: 'التعافي حسب الجلسة',
+        recoverySummary: 'تعافي الكلمات',
+        session: 'تاريخ الجلسة',
+        mode: 'النمط',
+        selfServe: 'الطالب يدير الجلسة بنفسه',
+        teacherLed: 'بإشراف المعلم',
         uniqueMissed: 'الكلمات التي أُخطئ فيها',
-        recovery: 'التعافي في الإعادة',
+        recovery: 'دقة الإعادة',
         performance: 'الأداء حسب الصف',
         grade: 'الصف',
         missedWords: 'الكلمات التي أُخطئ فيها',
@@ -147,7 +163,7 @@ const section = (text, children) => [heading(text), ...children];
 export async function buildStudentSpellingDetailsDocx(details, { locale = 'en' } = {}) {
     const language = String(locale).toLowerCase().startsWith('ar') ? 'ar' : 'en';
     const words = translations[language];
-    const { student, summary, byGrade = [], missedWords = [] } = details;
+    const { student, summary, byGrade = [], missedWords = [], sessionRecovery = [] } = details;
     const sortedGrades = [...byGrade].sort((a, b) => {
         const aRank = GRADE_ORDER.indexOf(String(a.grade).toUpperCase());
         const bRank = GRADE_ORDER.indexOf(String(b.grade).toUpperCase());
@@ -168,10 +184,23 @@ export async function buildStudentSpellingDetailsDocx(details, { locale = 'en' }
     const missedRows = sortedMissedWords.map((item) => [
         item.word,
         item.grade,
-        item.originalIncorrectCount,
         `${item.retestCorrect} / ${item.retestAttempts}`,
         item.pending ? words.pending : words.resolved
     ]);
+    const sessionRecoveryRows = [...sessionRecovery]
+        .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
+        .map((item) => {
+            const startedAt = new Date(item.startedAt);
+            const dateLabel = Number.isNaN(startedAt.getTime())
+                ? words.notSet
+                : new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(startedAt);
+            return [
+                dateLabel,
+                item.mode === 'self-serve' ? words.selfServe : words.teacherLed,
+                `${item.recoveredWordCount} / ${item.missedWordCount}`,
+                `${item.recoveryRate}%`
+            ];
+        });
     const doc = new Document({
         creator: 'ClassHope',
         title: `${words.title}: ${studentName}`,
@@ -210,6 +239,18 @@ export async function buildStudentSpellingDetailsDocx(details, { locale = 'en' }
                 ...section(words.retests, [makeTable([words.retests, words.attempts, words.correct, words.incorrect, words.recovery], [
                     ['', summary.retestAttempts, summary.retestCorrect, summary.retestIncorrect, summary.retestAttempts ? `${summary.retestRecoveryRate}%` : '—']
                 ])]),
+                ...section(words.recoverySummary, [makeTable(
+                    [words.recoveredWords, words.uniqueMissed, words.recoveryRate],
+                    [[
+                        summary.recoveredWords,
+                        summary.uniqueWordsEverMissed,
+                        summary.uniqueWordsEverMissed ? `${summary.recoveryRate}%` : '—'
+                    ]]
+                )]),
+                ...section(words.recoveryBySession, [makeTable(
+                    [words.session, words.mode, words.recoveredWords, words.recoveryRate],
+                    sessionRecoveryRows.length ? sessionRecoveryRows : [[words.noData, '—', '—', '—']]
+                )]),
                 ...section(words.pending, [makeTable([words.pending, words.overdue, words.uniqueMissed], [[
                     summary.pendingRetests, summary.overdueRetests, summary.uniqueWordsEverMissed
                 ]])]),
@@ -218,9 +259,9 @@ export async function buildStudentSpellingDetailsDocx(details, { locale = 'en' }
                     performanceRows.length ? performanceRows : [[words.noData, '—', '—', '—']]
                 )]),
                 ...section(words.missedWords, [makeTable(
-                    [words.word, words.grade, words.originalIncorrect, words.retestCorrect, words.status],
-                    missedRows.length ? missedRows : [[words.noMissedWords, '', '', '', '']],
-                    { statusColumn: 4 }
+                    [words.word, words.grade, words.retestCorrect, words.status],
+                    missedRows.length ? missedRows : [[words.noMissedWords, '', '', '']],
+                    { statusColumn: 3 }
                 )])
             ]
         }]

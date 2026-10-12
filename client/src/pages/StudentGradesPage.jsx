@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import api from '../config/api';
 import { HiOutlineClipboardList } from 'react-icons/hi';
 import { selectCurrentAcademicYear } from '../store/slices/uiSlice';
@@ -11,6 +12,7 @@ import { fetchStudentsByClass, selectClassStudents as selectStudentsBySelectedCl
 import { fetchMyClasses, selectMyClasses } from '../store/slices/teacherSlice';
 import LessonPlanLinkSelector from '../components/grades/LessonPlanLinkSelector';
 import TablePagination from '../components/common/TablePagination';
+import StudentGradebookPrintReport from '../components/grades/StudentGradebookPrintReport';
 import './StudentGradesPage.css';
 
 const MONTHS = [
@@ -77,7 +79,7 @@ const summarizeBySubject = (grades = []) => {
 };
 
 const StudentGradesPage = () => {
-    const { t } = useTranslation(['studentGrades']);
+    const { t, i18n } = useTranslation(['studentGrades']);
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const { studentId } = useParams();
@@ -92,6 +94,7 @@ const StudentGradesPage = () => {
     const canViewLessonPlans = ['teacher', 'admin', 'department_principal'].includes(user?.role || '');
 
     const [studentName, setStudentName] = useState('');
+    const [studentNumber, setStudentNumber] = useState('');
     const [grades, setGrades] = useState([]);
     const [loading, setLoading] = useState(true);
     const [subjectId, setSubjectId] = useState('');
@@ -112,6 +115,8 @@ const StudentGradesPage = () => {
     const [availableCategories, setAvailableCategories] = useState([]);
     const [availableSubjects, setAvailableSubjects] = useState([]);
     const [bySubject, setBySubject] = useState([]);
+    const [exportingFormat, setExportingFormat] = useState('');
+    const [printReport, setPrintReport] = useState(null);
 
     const pageTitle = useMemo(() => {
         if (isStudentView) {
@@ -169,13 +174,17 @@ const StudentGradesPage = () => {
                 } else {
                     setStudentName('');
                 }
+                setStudentNumber(student?.studentId || '');
 
                 if (canSwitchStudents) {
                     setSelectedStudentId(studentId);
                     setSelectedClassId(normalizeClassId(student?.currentClass));
                 }
             })
-            .catch(() => setStudentName(''));
+            .catch(() => {
+                setStudentName('');
+                setStudentNumber('');
+            });
     }, [canSwitchStudents, studentId]);
 
     useEffect(() => {
@@ -236,6 +245,10 @@ const StudentGradesPage = () => {
         api.get(`${endpoint}?${params.toString()}`)
             .then((res) => {
                 const data = res.data?.data || {};
+                if (data.student) {
+                    setStudentName(`${data.student.firstName || ''} ${data.student.lastName || ''}`.trim());
+                    setStudentNumber(data.student.studentId || '');
+                }
                 const nextGrades = Array.isArray(data.grades) ? data.grades : [];
                 const nextPagination = data.pagination || {};
                 const nextAvailableCategories = Array.isArray(data.availableCategories)
@@ -356,6 +369,116 @@ const StudentGradesPage = () => {
         });
     };
 
+    const buildExportParams = (format) => {
+        const params = {
+            locale: i18n.resolvedLanguage || i18n.language || 'en'
+        };
+        if (subjectId) {
+            params.subjectId = subjectId;
+            params.subject = subjectId;
+        }
+        if (category) {
+            params.category = category;
+            params.gradeType = category;
+        }
+        if (month) params.month = month;
+        if (semester) params.semester = semester;
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
+        if (academicYear) params.academicYear = academicYear;
+        if (format) params.format = format;
+        return params;
+    };
+
+    const getExportContext = () => {
+        const selectedSubject = subjects.find((subject) => String(subject._id) === String(subjectId));
+        const periodParts = [];
+        if (academicYear) periodParts.push(`${t('studentGrades:subtitle.academicYearLabel')} ${academicYear}`);
+        if (month) periodParts.push(monthOptions.find((option) => option.value === month)?.label || month);
+        if (semester) periodParts.push(semester === '1'
+            ? t('studentGrades:filters.semester1')
+            : t('studentGrades:filters.semester2'));
+        if (startDate) periodParts.push(`${t('studentGrades:filters.startDate')}: ${startDate}`);
+        if (endDate) periodParts.push(`${t('studentGrades:filters.endDate')}: ${endDate}`);
+        if (category) periodParts.push(formatCategoryLabel(category));
+
+        return {
+            subjectName: selectedSubject?.name || t('studentGrades:filters.allSubjects'),
+            periodLabel: periodParts.join(' · ') || t('studentGrades:export.allPeriods'),
+            studentName: studentName || [user?.firstName, user?.lastName].filter(Boolean).join(' '),
+            studentNumber: studentNumber || user?.studentId || ''
+        };
+    };
+
+    const exportDocx = async () => {
+        if (loading || exportingFormat || totalItems === 0 || (!studentId && !isStudentView)) return;
+        setExportingFormat('docx');
+        try {
+            const endpoint = studentId ? `/grades/student/${studentId}` : '/grades/my-grades';
+            const response = await api.get(endpoint, {
+                params: buildExportParams('docx'),
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(response.data);
+            const safeStudentName = (getExportContext().studentName || 'student')
+                .replace(/[^a-z0-9]+/gi, '-')
+                .replace(/^-|-$/g, '')
+                .toLowerCase() || 'student';
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `student-gradebook-${safeStudentName}.docx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+        } catch {
+            toast.error(t('studentGrades:export.failed'));
+        } finally {
+            setExportingFormat('');
+        }
+    };
+
+    const exportPdf = async () => {
+        if (loading || exportingFormat || totalItems === 0 || (!studentId && !isStudentView)) return;
+        setExportingFormat('pdf');
+        try {
+            const endpoint = studentId ? `/grades/student/${studentId}` : '/grades/my-grades';
+            const response = await api.get(endpoint, { params: buildExportParams() });
+            const reportGrades = response.data?.data?.grades;
+            if (!Array.isArray(reportGrades)) {
+                throw new Error('Gradebook export returned an invalid grades list.');
+            }
+            setPrintReport({ ...getExportContext(), grades: reportGrades });
+        } catch {
+            toast.error(t('studentGrades:export.failed'));
+        } finally {
+            setExportingFormat('');
+        }
+    };
+
+    useEffect(() => {
+        if (!printReport) return undefined;
+        const previousTitle = document.title;
+        const safeStudentName = (printReport.studentName || 'student')
+            .replace(/[^a-z0-9]+/gi, '-')
+            .replace(/^-|-$/g, '')
+            .toLowerCase() || 'student';
+        document.title = `student-gradebook-${safeStudentName}`;
+        const afterPrint = () => {
+            document.title = previousTitle;
+            setPrintReport(null);
+        };
+        window.addEventListener('afterprint', afterPrint);
+        const firstFrame = window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => window.print());
+        });
+        return () => {
+            window.cancelAnimationFrame(firstFrame);
+            window.removeEventListener('afterprint', afterPrint);
+            document.title = previousTitle;
+        };
+    }, [printReport]);
+
     const handleEditStart = (grade) => {
         const linkedLessonPlanIds = Array.isArray(grade.lessonPlanIds)
             ? grade.lessonPlanIds
@@ -422,12 +545,38 @@ const StudentGradesPage = () => {
     return (
         <div className="student-grades-page">
             <header className="page-header">
-                <h1><HiOutlineClipboardList className="header-icon" /> {pageTitle}</h1>
-                <p className="page-subtitle">
-                    {isStudentView ? t('studentGrades:subtitle.student') : t('studentGrades:subtitle.staff')}
-                    {!isStudentView && studentName ? ` ${t('studentGrades:subtitle.studentLabel')} ${studentName}.` : ''}
-                    {academicYear ? ` ${t('studentGrades:subtitle.academicYearLabel')} ${academicYear}.` : ''}
-                </p>
+                <div className="page-header-content">
+                    <h1><HiOutlineClipboardList className="header-icon" /> {pageTitle}</h1>
+                    <p className="page-subtitle">
+                        {isStudentView ? t('studentGrades:subtitle.student') : t('studentGrades:subtitle.staff')}
+                        {!isStudentView && studentName ? ` ${t('studentGrades:subtitle.studentLabel')} ${studentName}.` : ''}
+                        {academicYear ? ` ${t('studentGrades:subtitle.academicYearLabel')} ${academicYear}.` : ''}
+                    </p>
+                </div>
+                {(studentId || isStudentView) && (
+                    <div className="gradebook-export-actions">
+                        <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={exportPdf}
+                            disabled={loading || Boolean(exportingFormat) || totalItems === 0}
+                        >
+                            {exportingFormat === 'pdf'
+                                ? t('studentGrades:export.exporting')
+                                : t('studentGrades:export.pdf')}
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={exportDocx}
+                            disabled={loading || Boolean(exportingFormat) || totalItems === 0}
+                        >
+                            {exportingFormat === 'docx'
+                                ? t('studentGrades:export.exporting')
+                                : t('studentGrades:export.docx')}
+                        </button>
+                    </div>
+                )}
             </header>
 
             {canSwitchStudents && (
@@ -537,7 +686,6 @@ const StudentGradesPage = () => {
                     />
                 </label>
             </div>
-
             {loading ? (
                 <div className="loading-state">
                     <div className="spinner" />
@@ -781,6 +929,7 @@ const StudentGradesPage = () => {
                     </section>
                 </>
             )}
+            <StudentGradebookPrintReport report={printReport} />
         </div>
     );
 };

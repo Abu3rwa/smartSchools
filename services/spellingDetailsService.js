@@ -38,10 +38,11 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
     if (to) dateFilter.$lte = new Date(`${to}T23:59:59.999Z`);
     if (Object.keys(dateFilter).length > 0) sessionQuery.startedAt = dateFilter;
 
-    const [sessions, pendingRetests] = await Promise.all([
+    const [sessions, retestItems] = await Promise.all([
         SpellingSession.find(sessionQuery).sort({ startedAt: 1 }).lean(),
-        SpellingRetestItem.find({ school: schoolId, student: studentId, status: 'pending' }).lean()
+        SpellingRetestItem.find({ school: schoolId, student: studentId }).lean()
     ]);
+    const pendingRetests = retestItems.filter((item) => item.status === 'pending');
 
     const attempts = sessions.flatMap((session) => (session.attempts || []).map((attempt) => ({
         ...attempt,
@@ -54,6 +55,41 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
     const retestAttempts = filteredAttempts.filter((attempt) => attempt.isRetest);
     const missedWordKeys = new Set(originalAttempts.filter((attempt) => !attempt.correct).map((attempt) => String(attempt.wordId || `${attempt.grade}:${attempt.week}:${attempt.wordSnapshot}`)));
     const retestByWord = new Map();
+    const retestItemBySourceAttempt = new Map(retestItems.map((item) => [String(item.sourceAttempt), item]));
+    const successfullyRetestedItemIds = new Set(retestAttempts
+        .filter((attempt) => attempt.correct && attempt.retestItemId)
+        .map((attempt) => String(attempt.retestItemId)));
+    const sessionRecoveryMap = new Map();
+
+    for (const attempt of originalAttempts.filter((item) => !item.correct)) {
+        const sessionId = String(attempt.sessionId);
+        const row = sessionRecoveryMap.get(sessionId) || {
+            id: sessionId,
+            startedAt: attempt.sessionStartedAt,
+            mode: attempt.mode,
+            missedWordKeys: new Set(),
+            recoveredWordKeys: new Set()
+        };
+        const wordKey = String(attempt.wordId || `${attempt.grade}:${attempt.week}:${attempt.wordSnapshot}`);
+        row.missedWordKeys.add(wordKey);
+        const retestItem = retestItemBySourceAttempt.get(String(attempt._id));
+        if (retestItem && successfullyRetestedItemIds.has(String(retestItem._id))) {
+            row.recoveredWordKeys.add(wordKey);
+        }
+        sessionRecoveryMap.set(sessionId, row);
+    }
+    const sessionRecovery = [...sessionRecoveryMap.values()].map((row) => {
+        const missedWordCount = row.missedWordKeys.size;
+        const recoveredWordCount = row.recoveredWordKeys.size;
+        return {
+            id: row.id,
+            startedAt: row.startedAt,
+            mode: row.mode,
+            missedWordCount,
+            recoveredWordCount,
+            recoveryRate: roundPercentage(recoveredWordCount, missedWordCount)
+        };
+    }).sort((a, b) => new Date(a.startedAt) - new Date(b.startedAt));
 
     for (const attempt of retestAttempts) {
         const key = String(attempt.wordId || `${attempt.grade}:${attempt.week}:${attempt.wordSnapshot}`);
@@ -155,6 +191,7 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
     const totalOriginal = originalAttempts.length;
     const totalRetest = retestAttempts.length;
     const retestCorrect = retestAttempts.filter((attempt) => attempt.correct).length;
+    const recoveredWords = [...missedWords.values()].filter((item) => item.retestCorrect > 0).length;
     return {
         student: {
             id: student._id,
@@ -177,10 +214,13 @@ export async function buildStudentSpellingDetails({ schoolId, studentId, grade, 
             pendingRetests: pendingRetests.length,
             overdueRetests: pendingRetests.filter((item) => item.dueAt && new Date(item.dueAt) < new Date()).length,
             originalAccuracy: roundPercentage(originalAttempts.filter((attempt) => attempt.correct).length, totalOriginal),
-            retestRecoveryRate: roundPercentage(retestCorrect, totalRetest)
+            retestRecoveryRate: roundPercentage(retestCorrect, totalRetest),
+            recoveredWords,
+            recoveryRate: roundPercentage(recoveredWords, missedWords.size)
         },
         byGrade,
         timeline: [...timelineMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
-        missedWords: [...missedWords.values()].sort((a, b) => b.originalIncorrectCount - a.originalIncorrectCount)
+        missedWords: [...missedWords.values()].sort((a, b) => b.originalIncorrectCount - a.originalIncorrectCount),
+        sessionRecovery
     };
 }

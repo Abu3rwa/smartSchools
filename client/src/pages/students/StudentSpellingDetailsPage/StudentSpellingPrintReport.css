@@ -201,22 +201,17 @@
 
 .spelling-print-missed-table th:first-child,
 .spelling-print-missed-table td:first-child {
-    width: 34%;
+    width: 50%;
 }
 
 .spelling-print-missed-table th:nth-child(2),
 .spelling-print-missed-table td:nth-child(2) {
-    width: 16%;
+    width: 25%;
 }
 
 .spelling-print-missed-table th:nth-child(3),
 .spelling-print-missed-table td:nth-child(3) {
-    width: 22%;
-}
-
-.spelling-print-missed-table th:nth-child(4),
-.spelling-print-missed-table td:nth-child(4) {
-    width: 28%;
+    width: 25%;
 }
 
 .spelling-print-word-main {

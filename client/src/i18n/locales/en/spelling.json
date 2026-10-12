@@ -69,6 +69,11 @@
   "classStopped": "Created {{count}} sessions before the class operation stopped.",
   "allStudentsOverview": "All students overview"
   ,"wordListTitle": "Curriculum word list"
+  ,"exportWordLibrary": "Export all words (CSV)"
+  ,"exportingWordLibrary": "Exporting..."
+  ,"wordLibraryExportDescription": "Includes all grades, pronunciation audio links, meanings, phonetics, and available examples; current filters do not limit the export."
+  ,"wordLibraryExported": "Spelling word library exported."
+  ,"wordLibraryExportError": "Unable to export the spelling word library."
   ,"grade": "Grade"
   ,"week": "Week"
   ,"category": "Category"
@@ -88,7 +93,14 @@
   "uniqueWordsEverMissed": "Unique words ever missed",
   "retestAttempts": "Retest attempts",
   "retestCorrect": "Retest correct",
-  "retestRecoveryRate": "Retest recovery",
+  "retestRecoveryRate": "Retest accuracy",
+  "recoveredWords": "Words recovered",
+  "recoveryRate": "Recovery percentage",
+  "overallRecoveryRate": "Overall word recovery",
+  "recoveryForSelectedSessions": "Recovery in selected sessions (recovered / missed)",
+  "recoveryBySession": "Recovery by session",
+  "session": "Session",
+  "mode": "Mode",
   "gradePerformance": "Performance by grade",
   "progressOverTime": "Progress over time",
   "missedWords": "Missed words",
@@ -111,7 +123,7 @@
   ,  "teacherWillReviewSkippedWords": "Your teacher will review the skipped words aloud with you.",
   "alreadyCompletedClassWord": "You already completed this class word correctly. Wait for the next word.",
   "nextClassWord": "Next word",
-  "backToStudent": "Back to student",
+  "backToStudent": "Back to students",
   "replaceExistingList": "Replace the existing word list for the grades in this file",
   "replaceExistingWarning": "All current words for these grades are removed and replaced by this file. Students' completed history and reports are kept, and words that appear in both lists are not asked again. End active sessions for these grades first.",
   "replaceList": "Replace word list",

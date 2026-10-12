@@ -14,10 +14,10 @@ const getMonthKey = (value) => {
 };
 
 const Metric = ({ label, value, tone = 'neutral' }) => (
-    <Card variant="outlined" sx={{ height: '100%', borderRadius: 2, borderLeft: 4, borderLeftColor: METRIC_COLORS[tone], transition: 'box-shadow 150ms ease', '&:hover': { boxShadow: 3 } }}>
-        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{label}</Typography>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: METRIC_COLORS[tone] }}>{value}</Typography>
+    <Card variant="outlined" sx={{ height: '100%', borderRadius: 1.5, borderLeft: 3, borderLeftColor: METRIC_COLORS[tone], transition: 'box-shadow 150ms ease', '&:hover': { boxShadow: 2 } }}>
+        <CardContent sx={{ py: 1, px: 1.5, '&:last-child': { pb: 1 } }}>
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.35, fontWeight: 600, fontSize: '0.65rem', lineHeight: 1.2 }}>{label}</Typography>
+            <Typography variant="h6" sx={{ mt: 0.25, fontWeight: 700, lineHeight: 1.15, color: METRIC_COLORS[tone] }}>{value}</Typography>
         </CardContent>
     </Card>
 );
@@ -40,7 +40,7 @@ const StudentSpellingDetailsSection = ({ studentId }) => {
     if (!studentDetails) return null;
 
 
-    const { student, summary, byGrade: rawByGrade = [], missedWords = [] } = studentDetails;
+    const { student, summary, byGrade: rawByGrade = [], missedWords = [], sessionRecovery = [] } = studentDetails;
     const gradeOrder = ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'];
     const gradeRank = (grade) => {
         const index = gradeOrder.indexOf(String(grade).toUpperCase());
@@ -56,17 +56,20 @@ const StudentSpellingDetailsSection = ({ studentId }) => {
         };
     });
     const accuracyTone = summary.originalAccuracy >= 80 ? 'success' : summary.originalAccuracy >= 60 ? 'warning' : 'error';
-    const sessionMap = new Map();
-    missedWords.forEach((item) => {
-        (item.sourceSessions || []).forEach((session) => {
-            if (!sessionMap.has(session.id)) sessionMap.set(session.id, session);
-        });
-    });
-    const sessions = [...sessionMap.values()].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+    const sessions = [...sessionRecovery].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
     const months = [...new Set(sessions.map((session) => getMonthKey(session.startedAt)).filter(Boolean))].sort().reverse();
     const availableSessions = selectedMonth === 'all'
         ? sessions
         : sessions.filter((session) => getMonthKey(session.startedAt) === selectedMonth);
+    const recoverySessions = sessions.filter((session) => (
+        (selectedMonth === 'all' || getMonthKey(session.startedAt) === selectedMonth)
+        && (selectedSession === 'all' || session.id === selectedSession)
+    ));
+    const recoveryMissedWords = recoverySessions.reduce((total, session) => total + session.missedWordCount, 0);
+    const recoveryRecoveredWords = recoverySessions.reduce((total, session) => total + session.recoveredWordCount, 0);
+    const selectedRecoveryRate = recoveryMissedWords
+        ? Math.round((recoveryRecoveredWords / recoveryMissedWords) * 10000) / 100
+        : null;
     const formatMonth = (month) => {
         const [year, number] = month.split('-').map(Number);
         return new Intl.DateTimeFormat(i18n.resolvedLanguage || i18n.language, { month: 'long', year: 'numeric' })
@@ -100,7 +103,7 @@ const StudentSpellingDetailsSection = ({ studentId }) => {
             <Box><Typography variant="h5">{student.firstName} {student.lastName}</Typography><Typography variant="subtitle2" color="text.secondary">{t('studentSpellingDetails')}{student.studentId ? ` · ${student.studentId}` : ''}</Typography><Typography color="text.secondary">{student.currentGrade || t('notSet')} · {student.currentWeek ? `${t('week')} ${student.currentWeek}` : t('notSet')}</Typography></Box>
             <Chip label={`${t('pendingRetests')}: ${summary.pendingRetests}`} color={summary.overdueRetests ? 'error' : 'warning'} />
         </Stack>
-        <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
             <Grid size={{ xs: 6, md: 3 }}><Metric label={t('originalAttempts')} value={summary.originalAttempts} /></Grid>
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="success" label={t('originalCorrect')} value={summary.originalCorrect} /></Grid>
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="error" label={t('originalIncorrect')} value={summary.originalIncorrect} /></Grid>
@@ -109,6 +112,10 @@ const StudentSpellingDetailsSection = ({ studentId }) => {
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="success" label={t('retestCorrect')} value={summary.retestCorrect} /></Grid>
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="warning" label={t('uniqueWordsEverMissed')} value={summary.uniqueWordsEverMissed} /></Grid>
             <Grid size={{ xs: 6, md: 3 }}><Metric tone="info" label={t('retestRecoveryRate')} value={summary.retestAttempts ? `${summary.retestRecoveryRate}%` : '—'} /></Grid>
+        </Grid>
+        <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+            <Grid size={{ xs: 6, md: 3 }}><Metric tone="success" label={t('recoveredWords')} value={`${summary.recoveredWords} / ${summary.uniqueWordsEverMissed}`} /></Grid>
+            <Grid size={{ xs: 6, md: 3 }}><Metric tone="info" label={t('overallRecoveryRate')} value={summary.uniqueWordsEverMissed ? `${summary.recoveryRate}%` : '—'} /></Grid>
         </Grid>
         <Grid container spacing={2}>
             <Grid size={12}><Card><CardContent><Typography variant="h6">{t('gradePerformance')}</Typography>{byGrade.length === 0 ? <Typography color="text.secondary" sx={{ mt: 1 }}>{t('noData')}</Typography> : <ResponsiveContainer width="100%" height={320}><BarChart data={gradePerformancePercentages} barCategoryGap="25%"><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="grade" /><YAxis domain={[0, 100]} ticks={[0, 20, 40, 60, 80, 100]} tickFormatter={(value) => `${value}%`} /><Tooltip formatter={(value) => [`${value}%`]} /><Legend /><Bar dataKey="originalCorrectPercent" name={t('originalCorrectPercent')} fill="#2e7d32"><LabelList dataKey="originalCorrectPercent" position="top" formatter={(value) => `${value}%`} /></Bar><Bar dataKey="originalIncorrectPercent" name={t('originalIncorrectPercent')} fill="#c62828"><LabelList dataKey="originalIncorrectPercent" position="top" formatter={(value) => `${value}%`} /></Bar></BarChart></ResponsiveContainer>}</CardContent></Card></Grid>
@@ -155,6 +162,25 @@ const StudentSpellingDetailsSection = ({ studentId }) => {
                         </FormControl>
                     </Stack>
                 </Stack>
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>{t('recoveryForSelectedSessions')}</Typography>
+                    <Grid container spacing={1.5}>
+                        <Grid size={{ xs: 6, sm: 4 }}>
+                            <Metric
+                                tone="success"
+                                label={t('recoveredWords')}
+                                value={`${recoveryRecoveredWords} / ${recoveryMissedWords}`}
+                            />
+                        </Grid>
+                        <Grid size={{ xs: 6, sm: 4 }}>
+                            <Metric
+                                tone="info"
+                                label={t('recoveryRate')}
+                                value={selectedRecoveryRate === null ? '—' : `${selectedRecoveryRate}%`}
+                            />
+                        </Grid>
+                    </Grid>
+                </Box>
                 {sortedMissedWords.length ? (
                     <Stack sx={{ maxHeight: 400, overflowY: 'auto' }}>
                         {sortedMissedWords.map((item) => (
