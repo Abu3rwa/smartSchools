@@ -28,6 +28,7 @@ import {
 import { getMatchingSets, getMcqQuestions, getPracticeWords, getStudentProgress, submitAnswer } from '../services/vocabularyPracticeService.js';
 import { buildReport, listReviews, reportToCsv, reviewAttempt } from '../services/vocabularyReportService.js';
 import { checkAudioUrls } from '../services/vocabularyAudioCheck.js';
+import User from '../models/User.js';
 
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 
@@ -320,6 +321,9 @@ export const studentProgress = guarded(async (req, res) => {
 // ---- Staff: reports, review queue, audio check -----------------------------------------
 
 export const getReport = guarded(async (req, res) => {
+    if (req.params.name === 'dashboard' && req.query.format === 'csv') {
+        return fail(res, 400, 'Use a detailed report to download vocabulary results as CSV');
+    }
     const report = await buildReport(req, req.params.name, req.query);
     if (req.query.format === 'csv') {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -327,6 +331,34 @@ export const getReport = guarded(async (req, res) => {
         return res.send(reportToCsv(report));
     }
     return res.json({ success: true, data: report });
+});
+
+export const getDashboardPreference = guarded(async (req, res) => {
+    const user = await User.findOne({ _id: req.user._id, school: req.schoolId })
+        .select('vocabularyDashboardDefaultClass')
+        .lean();
+    if (!user) return fail(res, 404, 'User not found');
+    const allowedClassIds = await getAllowedClassIds(req);
+    const preferredClassId = user.vocabularyDashboardDefaultClass
+        ? String(user.vocabularyDashboardDefaultClass)
+        : null;
+    return res.json({
+        success: true,
+        data: { defaultClassId: preferredClassId && allowedClassIds.includes(preferredClassId) ? preferredClassId : null }
+    });
+});
+
+export const saveDashboardPreference = guarded(async (req, res) => {
+    const classId = req.body?.defaultClassId ? String(req.body.defaultClassId) : null;
+    const allowedClassIds = await getAllowedClassIds(req);
+    if (classId && !allowedClassIds.includes(classId)) return fail(res, 403, 'You do not have access to that class');
+    const user = await User.findOneAndUpdate(
+        { _id: req.user._id, school: req.schoolId },
+        { $set: { vocabularyDashboardDefaultClass: classId } },
+        { new: true }
+    ).select('vocabularyDashboardDefaultClass').lean();
+    if (!user) return fail(res, 404, 'User not found');
+    return res.json({ success: true, data: { defaultClassId: user.vocabularyDashboardDefaultClass ? String(user.vocabularyDashboardDefaultClass) : null } });
 });
 
 export const getReviews = guarded(async (req, res) => res.json({ success: true, data: await listReviews(req, req.query) }));

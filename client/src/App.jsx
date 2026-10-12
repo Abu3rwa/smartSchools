@@ -435,10 +435,7 @@ function App() {
             <Route
               path="user-management"
               element={
-                <RoleRoute
-                  roles={["admin", "department_principal"]}
-                  permissions={["manage_users"]}
-                >
+                <RoleRoute roles={["admin"]}>
                   <SchoolUserManagementPage />
                 </RoleRoute>
               }
@@ -508,7 +505,7 @@ function App() {
             <Route
               path="spelling/audio"
               element={
-                <RoleRoute roles={["admin"]}>
+                <RoleRoute roles={["admin", "department_principal", "teacher"]}>
                   <SpellingAudioAdminPage />
                 </RoleRoute>
               }

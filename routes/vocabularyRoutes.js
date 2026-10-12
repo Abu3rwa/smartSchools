@@ -7,6 +7,7 @@ import {
     createWord,
     downloadTemplate,
     getAssignments,
+    getDashboardPreference,
     getReport,
     getReviews,
     getSettings,
@@ -21,6 +22,7 @@ import {
     putAssignments,
     putWordSource,
     seed,
+    saveDashboardPreference,
     studentAnswer,
     studentMcq,
     studentMatching,
@@ -47,6 +49,8 @@ router.get('/student/progress', student, studentProgress);
 router.get('/settings', staff, getSettings);
 router.patch('/settings', staff, patchSettings);
 router.post('/seed', staff, seed);
+router.get('/dashboard-preference', staff, getDashboardPreference);
+router.patch('/dashboard-preference', staff, saveDashboardPreference);
 router.get('/reports/:name', staff, getReport);
 router.get('/reviews', staff, getReviews);
 router.patch('/reviews/:id', staff, patchReview);

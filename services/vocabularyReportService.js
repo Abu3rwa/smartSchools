@@ -4,10 +4,12 @@ import VocabMastery from '../models/VocabMastery.js';
 import VocabMcq from '../models/VocabMcq.js';
 import VocabWord from '../models/VocabWord.js';
 import VocabList from '../models/VocabList.js';
+import School from '../models/School.js';
 import { getAllowedClassIds, getVocabSettings } from './vocabularyService.js';
 import { effectiveState, mcqInScope } from '../utils/vocabPractice.js';
 import { REPORT_TABLES, classOverview, inactiveStudents, mcqAnalysis, studentDetail, wordDifficulty } from '../utils/vocabReports.js';
 import { normalizeListId, toCsv } from '../utils/vocabCsv.js';
+import { resolveAcademicYearDateRange, resolveSchoolAcademicYear } from '../utils/academicYear.js';
 
 const httpError = (message, statusCode) => Object.assign(new Error(message), { statusCode });
 const MAX_ATTEMPTS = 50000;
@@ -57,7 +59,82 @@ const loadAttempts = (filter) => VocabAttempt.find(filter)
 
 export async function buildReport(req, name, query = {}) {
     const schoolId = req.schoolId;
+    if (name === 'dashboard' && !query.classId) throw httpError('classId is required', 400);
     const { students } = await resolveReportScope(req, query);
+
+    if (name === 'dashboard') {
+        const school = await School.findById(schoolId).select('settings.currentAcademicYear settings.academicYearStartMonth settings.academicYearStartDate settings.academicYearEndDate settings.academicYearDateOverrides').lean();
+        if (!school) throw httpError('School not found', 404);
+        const settings = await getVocabSettings(schoolId);
+        const academicYear = resolveSchoolAcademicYear(school);
+        const range = resolveAcademicYearDateRange(academicYear, school);
+        const now = new Date();
+        const to = range.endDate < now ? range.endDate : now;
+        const activityFrom = new Date(now);
+        activityFrom.setUTCHours(0, 0, 0, 0);
+        activityFrom.setUTCDate(activityFrom.getUTCDate() - 7 * 11);
+        if (activityFrom < range.startDate) activityFrom.setTime(range.startDate.getTime());
+        const attempts = await loadAttempts({
+            school: schoolId,
+            student: { $in: students.map((student) => student._id) },
+            createdAt: { $gte: range.startDate, $lte: to }
+        });
+        const lists = await VocabList.find({ school: schoolId }).sort({ semester: 1, order: 1 }).select('listId').lean();
+        const words = attempts.length
+            ? await VocabWord.find({ school: schoolId, _id: { $in: [...new Set(attempts.map((attempt) => attempt.word).filter(Boolean))] } }).select('word listId').lean()
+            : [];
+        const latest = students.length
+            ? await VocabAttempt.aggregate([
+                { $match: { school: schoolId, student: { $in: students.map((student) => student._id) } } },
+                { $group: { _id: '$student', lastSeen: { $max: '$createdAt' } } }
+            ])
+            : [];
+        const activity = students.length
+            ? await VocabAttempt.aggregate([
+                {
+                    $match: {
+                        school: schoolId,
+                        student: { $in: students.map((student) => student._id) },
+                        createdAt: { $gte: activityFrom, $lte: to }
+                    }
+                },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'UTC' } },
+                        attempts: { $sum: 1 }
+                    }
+                },
+                { $project: { _id: 0, date: '$_id', attempts: 1 } },
+                { $sort: { date: 1 } }
+            ])
+            : [];
+        const lastSeen = new Map();
+        for (const attempt of latest) lastSeen.set(String(attempt._id), attempt.lastSeen);
+        const inactiveDays = settings.inactivityDays;
+        return {
+            name,
+            rows: {
+                overview: classOverview(attempts, lists.map((list) => list.listId), students.length),
+                difficultWords: wordDifficulty(attempts, new Map(words.map((word) => [String(word._id), word])), 8),
+                notPractising: inactiveStudents(students, lastSeen, inactiveDays).sort((a, b) => {
+                    if (!a.lastPracticed) return b.lastPracticed ? -1 : a.name.localeCompare(b.name);
+                    if (!b.lastPracticed) return 1;
+                    return new Date(a.lastPracticed) - new Date(b.lastPracticed);
+                }),
+                activity
+            },
+            meta: {
+                academicYear,
+                from: range.startDate,
+                to,
+                activityFrom,
+                students: students.length,
+                inactiveDays,
+                truncated: attempts.length === MAX_ATTEMPTS
+            }
+        };
+    }
+
     const settings = await getVocabSettings(schoolId);
 
     if (name === 'overview') {

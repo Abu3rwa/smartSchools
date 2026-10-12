@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Radio, R
 import api from '../../../config/api';
 import { createQueue, currentItem, isDone, recordResult } from '../../../utils/vocabSession';
 import { BaseWordNotice, WordAudioControls, useWordAudio } from './VocabStudyView';
+import './VocabPracticeView.css';
 
 const POS_CHOICES = ['n', 'v', 'adj', 'adv', 'prep', 'conj', 'pron'];
 
@@ -145,7 +146,7 @@ const ClassicQuestion = ({ type, item, pool, onSubmit, result, onNext }) => {
                     </RadioGroup>
                 )}
                 {type === 'mcq' && (
-                    <RadioGroup sx={{ alignItems: 'flex-start', display: 'inline-flex' }} aria-label="Choose an answer" value={choice} onChange={(e) => setChoice(e.target.value)}>
+                    <RadioGroup className='mcq-vocab' sx={{ alignItems: 'flex-start', display: 'inline-flex' }} aria-label="Choose an answer" value={choice} onChange={(e) => setChoice(e.target.value)}>
                         {item.options.map((o) => <FormControlLabel key={o.key} value={o.key} disabled={answered} control={<Radio />} label={o.text} />)}
                     </RadioGroup>
                 )}

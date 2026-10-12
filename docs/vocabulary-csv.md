@@ -37,3 +37,17 @@ Columns: `set_id, scope, instruction` plus `left_1, right_1` ... `left_6, right_
 - A word is mastered after the configured number of correct answers in a row; it needs review after the configured days of inactivity.
 - "Use it" sentences wait for teacher review and never change mastery.
 - Reports export to CSV and are limited to the teacher's own classes.
+
+## Teacher reports
+
+The Vocabulary Practice **Reports** tab opens a class dashboard. Teachers choose a class the first time; that default is saved to their account and can be changed at any time. The dashboard covers the school's current academic year to date.
+
+- **Answers** and **class accuracy** use graded answers. Accuracy is calculated across answers, not as an unweighted average of list percentages.
+- **Students who may need a check-in** have no vocabulary attempt within the school's configured inactivity period. This includes students who have never practised.
+- The list chart compares participation with accuracy. The difficult-words chart highlights up to eight words with incorrect graded answers.
+- Detailed reports retain their filters and CSV downloads. Use these when you need exact rows or a spreadsheet.
+- The dashboard reports the most recent 50,000 answers when that limit is reached and shows a warning; detailed reports can be narrowed by date for smaller exports.
+
+## Removing inappropriate example audio
+
+- In Vocabulary Practice, choose a list, search for the word, open **Edit**, clear the relevant dictionary's **Example audio URL**, then save. This changes vocabulary audio for the current school only.

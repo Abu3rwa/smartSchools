@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import api from '../../../config/api';
 import { selectUser } from '../../../store/slices/authSlice';
-import { PERMISSIONS } from '../../../constants/permissions';
 import UsersTab from '../../schoolSettings/SchoolSettingsPage/components/UsersTab';
 import UserRoleModal from '../../schoolSettings/SchoolSettingsPage/components/UserRoleModal';
 import '../../schoolSettings/SchoolSettingsPage/SchoolSettingsPage.css';
@@ -44,11 +43,7 @@ const SchoolUserManagementPage = () => {
   const [userFormData, setUserFormData] = useState(initialUserForm);
   const [submittingUser, setSubmittingUser] = useState(false);
 
-  const canManageUsers = useMemo(() => {
-    if (!user) return false;
-    if (user.role === 'admin') return true;
-    return Array.isArray(user.permissions) && user.permissions.includes(PERMISSIONS.MANAGE_USERS);
-  }, [user]);
+  const canManageUsers = user?.role === 'admin';
 
   const fetchUsers = useCallback(async () => {
     setUsersLoading(true);

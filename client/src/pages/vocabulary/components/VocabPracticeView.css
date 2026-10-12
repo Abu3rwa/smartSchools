@@ -1,0 +1,48 @@
+.mcq-vocab .MuiFormControlLabel-root {
+    box-sizing: border-box;
+    min-width: 400px;
+    margin: 5px;
+    padding: 5px;
+    border: 1px solid #13b1a0;
+    border-radius: 10px;
+    background-color: #fff;
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.mcq-vocab .MuiFormControlLabel-root:hover,
+.mcq-vocab .MuiFormControlLabel-root:focus-within {
+    border-color: #0b7f73;
+    background-color: #effaf8;
+    box-shadow: 0 3px 10px rgb(19 177 160 / 18%);
+}
+
+.mcq-vocab .MuiFormControlLabel-root:hover {
+    transform: translateY(-1px);
+}
+
+.mcq-vocab .MuiFormControlLabel-root:has(.Mui-checked) {
+    border-color: #0b7f73;
+    background-color: #e1f5f2;
+    box-shadow: 0 0 0 1px #0b7f73;
+}
+
+.mcq-vocab .MuiFormControlLabel-root.Mui-disabled {
+    opacity: 0.75;
+}
+
+@media (max-width: 480px) {
+    .mcq-vocab .MuiFormControlLabel-root {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mcq-vocab .MuiFormControlLabel-root {
+        transition: none;
+    }
+
+    .mcq-vocab .MuiFormControlLabel-root:hover {
+        transform: none;
+    }
+}

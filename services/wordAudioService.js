@@ -1,10 +1,88 @@
 import WordAudio from '../models/WordAudio.js';
 import SpellingAudioSettings from '../models/SpellingAudioSettings.js';
 import SpellingWord from '../models/SpellingWord.js';
-import { DICTIONARIES, normalizeWordKey, parseWordAudioCsv, planWordAudioImport } from '../utils/wordAudio.js';
+import { DICTIONARIES, normalizeWordKey, parseWordAudioCsv, planWordAudioImport, validateAudioUrl } from '../utils/wordAudio.js';
 
 const GRADES = ['KG', 'G1', 'G2', 'G3', 'G4', 'G5'];
 const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
+const notFound = (message) => Object.assign(new Error(message), { statusCode: 404 });
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export async function searchSchoolWordAudioExamples({ schoolId, query }) {
+    const search = normalizeWordKey(query);
+    if (search.length < 2) throw badRequest('Enter at least 2 letters to search');
+    const words = await SpellingWord.find({
+        school: schoolId,
+        normalizedWord: { $regex: escapeRegex(search) }
+    }).select('word normalizedWord grade').sort({ normalizedWord: 1 }).limit(100).lean();
+    const uniqueKeys = [...new Set(words.map((entry) => normalizeWordKey(entry.normalizedWord || entry.word)).filter(Boolean))];
+    const audioDocs = uniqueKeys.length
+        ? await WordAudio.find({ word: { $in: uniqueKeys } }).select('word examples.longman examples.oxford examples.webster').lean()
+        : [];
+    const audioByWord = new Map(audioDocs.map((entry) => [entry.word, entry]));
+    const result = [];
+    const seen = new Set();
+    for (const entry of words) {
+        const key = normalizeWordKey(entry.normalizedWord || entry.word);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const audio = audioByWord.get(key);
+        const examples = DICTIONARIES.flatMap((dictionary) => (audio?.examples?.[dictionary] || [])
+            .map((url) => ({ dictionary, url })));
+        if (examples.length) result.push({ word: entry.word, grade: entry.grade, examples });
+    }
+    return result;
+}
+
+export async function removeSchoolWordAudioExample({ schoolId, word, dictionary, url }) {
+    if (!DICTIONARIES.includes(dictionary)) throw badRequest('Unknown audio dictionary');
+    const key = normalizeWordKey(word);
+    const exactUrl = String(url || '').trim();
+    if (!key || !exactUrl || exactUrl.length > 500) throw badRequest('A word and example audio URL are required');
+    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: key }))) {
+        throw notFound('Spelling word not found in this school');
+    }
+    const updated = await WordAudio.findOneAndUpdate(
+        { word: key, [`examples.${dictionary}`]: exactUrl },
+        { $pull: { [`examples.${dictionary}`]: exactUrl }, $set: { updatedAt: new Date() } },
+        { new: true }
+    ).select('word examples.longman examples.oxford examples.webster').lean();
+    if (!updated) throw notFound('That example audio was not found; refresh the search and try again');
+    return {
+        word: updated.word,
+        examples: DICTIONARIES.flatMap((source) => (updated.examples?.[source] || []).map((exampleUrl) => ({ dictionary: source, url: exampleUrl })))
+    };
+}
+
+export async function replaceSchoolWordAudioExample({ schoolId, word, dictionary, url, replacementUrl }) {
+    if (!DICTIONARIES.includes(dictionary)) throw badRequest('Unknown audio dictionary');
+    const key = normalizeWordKey(word);
+    const currentUrl = String(url || '').trim();
+    const validatedReplacement = validateAudioUrl(replacementUrl);
+    if (!key || !currentUrl || currentUrl.length > 500) throw badRequest('A word and current example audio URL are required');
+    if (!validatedReplacement.ok || validatedReplacement.empty) {
+        throw badRequest(validatedReplacement.reason || 'A replacement HTTPS audio URL is required');
+    }
+    if (!(await SpellingWord.exists({ school: schoolId, normalizedWord: key }))) {
+        throw notFound('Spelling word not found in this school');
+    }
+    const updated = await WordAudio.findOneAndUpdate(
+        {
+            word: key,
+            $and: [
+                { [`examples.${dictionary}`]: currentUrl },
+                { [`examples.${dictionary}`]: { $ne: validatedReplacement.url } }
+            ]
+        },
+        { $set: { [`examples.${dictionary}.$`]: validatedReplacement.url, updatedAt: new Date() } },
+        { new: true }
+    ).select('word examples.longman examples.oxford examples.webster').lean();
+    if (!updated) throw notFound('The example audio changed or the replacement is already listed; refresh the search and try again');
+    return {
+        word: updated.word,
+        examples: DICTIONARIES.flatMap((source) => (updated.examples?.[source] || []).map((exampleUrl) => ({ dictionary: source, url: exampleUrl })))
+    };
+}
 
 // Student-facing shape. Returns null when the word has no usable audio so callers add nothing.
 export const buildAudioPayload = (doc) => {

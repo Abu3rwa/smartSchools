@@ -151,6 +151,11 @@ const userSchema = new mongoose.Schema({
         ref: 'School',
         index: true
     },
+    vocabularyDashboardDefaultClass: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Class',
+        default: null
+    },
     // For department_principal: the one department they manage (required when role is department_principal)
     department: {
         type: mongoose.Schema.Types.ObjectId,
@@ -493,4 +498,3 @@ userSchema.pre(['find', 'findOne'], function() {
 
 const User = mongoose.model('User', userSchema);
 export default User;
-

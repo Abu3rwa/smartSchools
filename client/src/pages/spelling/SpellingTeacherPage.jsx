@@ -3,7 +3,6 @@ import { Alert, Box, Button, FormControl, InputLabel, MenuItem, Select, Stack, T
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { selectIsAdmin } from '../../store/slices/authSlice';
 import api from '../../config/api';
 import { downloadBlob, filenameFromContentDisposition } from '../../utils/downloadBlob';
 import { downloadStudentSpellingDetailsDocx } from '../../services/spellingDetailsDocxExport';
@@ -39,7 +38,6 @@ const SpellingTeacherPage = () => {
     const selectedClass = useSelector(selectCurrentClass);
     const classesLoading = useSelector(selectClassesLoading);
     const spelling = useSelector(selectSpelling);
-    const isAdmin = useSelector(selectIsAdmin);
     const [classId, setClassId] = useState('');
     const [activeTab, setActiveTab] = useState(0);
 
@@ -833,11 +831,9 @@ const SpellingTeacherPage = () => {
 
             <PassageDeliveryDialog open={passageDeliveryDialogOpen} onClose={() => setPassageDeliveryDialogOpen(false)} />
 
-            {isAdmin && (
-                <Box sx={{ mb: 2 }}>
-                    <Button component={Link} to="/portal/spelling/audio" size="small" variant="outlined">Pronunciation audio</Button>
-                </Box>
-            )}
+            <Box sx={{ mb: 2 }}>
+                <Button component={Link} to="/portal/spelling/audio" size="small" variant="outlined">Manage spelling audio</Button>
+            </Box>
             {classId && <>
             <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} sx={{ mb: 3 }}>
                 <Tab label="Assessments" />

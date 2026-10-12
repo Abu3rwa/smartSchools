@@ -297,7 +297,7 @@ test('new vocabulary routes keep students out of teacher tools and staff out of 
         method: Object.keys(layer.route.methods)[0],
         guards: layer.route.stack.length
     }));
-    for (const path of ['/reports/:name', '/reviews', '/reviews/:id', '/audio-check', '/student/answer', '/student/progress', '/student/mcq', '/student/matching']) {
+    for (const path of ['/reports/:name', '/dashboard-preference', '/reviews', '/reviews/:id', '/audio-check', '/student/answer', '/student/progress', '/student/mcq', '/student/matching']) {
         assert.ok(routes.some((route) => route.path === path), path);
     }
 });

@@ -37,3 +37,22 @@ test('spelling session authorization allows students but requires school context
     assert.equal(missingContext.nextCalled, false);
     assert.equal(missingContext.response.statusCode, 400);
 });
+
+test('spelling example-audio cleanup endpoints are available to teachers, not students', async () => {
+    const { default: router } = await import('../routes/spellingRoutes.js');
+    const getRoute = router.stack.find((layer) => layer.route?.path === '/word-audio/examples' && layer.route.methods.get)?.route;
+    const deleteRoute = router.stack.find((layer) => layer.route?.path === '/word-audio/examples' && layer.route.methods.delete)?.route;
+    const patchRoute = router.stack.find((layer) => layer.route?.path === '/word-audio/examples' && layer.route.methods.patch)?.route;
+    assert.ok(getRoute);
+    assert.ok(deleteRoute);
+    assert.ok(patchRoute);
+    const getGuard = getRoute.stack[0].handle;
+    const deleteGuard = deleteRoute.stack[1].handle;
+    const patchGuard = patchRoute.stack[1].handle;
+    assert.equal(runMiddleware(getGuard, { role: 'teacher' }, 'school-1').nextCalled, true);
+    assert.equal(runMiddleware(deleteGuard, { role: 'teacher' }, 'school-1').nextCalled, true);
+    assert.equal(runMiddleware(patchGuard, { role: 'teacher' }, 'school-1').nextCalled, true);
+    assert.equal(runMiddleware(getGuard, { role: 'student' }, 'school-1').response.statusCode, 403);
+    assert.equal(runMiddleware(deleteGuard, { role: 'student' }, 'school-1').response.statusCode, 403);
+    assert.equal(runMiddleware(patchGuard, { role: 'student' }, 'school-1').response.statusCode, 403);
+});

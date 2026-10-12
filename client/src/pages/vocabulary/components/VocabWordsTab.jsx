@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, FormControlLabel, InputLabel, MenuItem, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import api from '../../../config/api';
 
@@ -50,7 +50,7 @@ const WordDialog = ({ word, listId, onClose, onSaved }) => {
             }
             for (const [source, values] of Object.entries(sources)) {
                 const filled = Object.values(values).some((value) => typeof value === 'string' && value.trim());
-                if (filled) {
+                if (sources[source]?._id || filled) {
                     await api.put(`/vocabulary/words/${id}/sources/${source}`, {
                         definitionText: values.definitionText, pageUrl: values.pageUrl, audioUsUrl: values.audioUsUrl,
                         audioUkUrl: values.audioUkUrl, exampleAudioUrl: values.exampleAudioUrl
@@ -101,6 +101,15 @@ const WordDialog = ({ word, listId, onClose, onSaved }) => {
                                     <TextField label="Audio UK URL" value={values.audioUkUrl} onChange={(event) => setSource(source, 'audioUkUrl', event.target.value)} fullWidth />
                                 </Stack>
                                 <TextField label="Example audio URL" value={values.exampleAudioUrl} onChange={(event) => setSource(source, 'exampleAudioUrl', event.target.value)} />
+                                {values.exampleAudioUrl && (
+                                    <>
+                                        <audio controls preload="none" src={values.exampleAudioUrl} aria-label={`${SOURCE_LABELS[source]} example audio for ${word.word}`} />
+                                        <Button size="small" color="warning" sx={{ alignSelf: 'flex-start' }} onClick={() => setSource(source, 'exampleAudioUrl', '')}>
+                                            Remove example audio
+                                        </Button>
+                                    </>
+                                )}
+                                <Typography variant="caption" color="text.secondary">Clear an example URL and save to remove it from this school’s vocabulary list.</Typography>
                             </Stack>
                         );
                     })}
@@ -120,6 +129,7 @@ const VocabWordsTab = () => {
     const [words, setWords] = useState([]);
     const [editing, setEditing] = useState(null);
     const [error, setError] = useState('');
+    const [search, setSearch] = useState('');
 
     useEffect(() => {
         api.get('/vocabulary/lists').then(({ data }) => {
@@ -139,17 +149,22 @@ const VocabWordsTab = () => {
     }, [listId]);
 
     useEffect(() => { loadWords(); }, [loadWords]);
+    const visibleWords = useMemo(() => {
+        const query = search.trim().toLocaleLowerCase();
+        return query ? words.filter((word) => word.word.toLocaleLowerCase().includes(query)) : words;
+    }, [search, words]);
 
     return (
         <Stack spacing={2}>
             {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
                 <FormControl size="small" sx={{ minWidth: 280 }}>
                     <InputLabel id="vocab-words-list">List</InputLabel>
                     <Select labelId="vocab-words-list" label="List" value={listId} onChange={(event) => setListId(event.target.value)}>
                         {lists.map((list) => <MenuItem key={list.listId} value={list.listId}>{list.listId} - {list.title}</MenuItem>)}
                     </Select>
                 </FormControl>
+                <TextField size="small" label="Search words" value={search} onChange={(event) => setSearch(event.target.value)} sx={{ minWidth: 220 }} />
                 <Button variant="outlined" disabled={!listId} onClick={() => setEditing({})}>Add word</Button>
             </Stack>
             <Box sx={{ overflowX: 'auto' }}>
@@ -158,7 +173,7 @@ const VocabWordsTab = () => {
                         <TableRow><TableCell>Word</TableCell><TableCell>Part of speech</TableCell><TableCell>Form</TableCell><TableCell>Meaning</TableCell><TableCell>Verified</TableCell><TableCell /></TableRow>
                     </TableHead>
                     <TableBody>
-                        {words.map((word) => (
+                        {visibleWords.map((word) => (
                             <TableRow key={word._id}>
                                 <TableCell>{word.word}</TableCell>
                                 <TableCell>{word.partOfSpeech.map((entry) => `${entry}.`).join('/')}</TableCell>
@@ -168,7 +183,7 @@ const VocabWordsTab = () => {
                                 <TableCell><Button size="small" onClick={() => setEditing(word)}>Edit</Button></TableCell>
                             </TableRow>
                         ))}
-                        {words.length === 0 && <TableRow><TableCell colSpan={6}>No words in this list yet.</TableCell></TableRow>}
+                        {visibleWords.length === 0 && <TableRow><TableCell colSpan={6}>{words.length ? 'No words match your search.' : 'No words in this list yet.'}</TableCell></TableRow>}
                     </TableBody>
                 </Table>
             </Box>
