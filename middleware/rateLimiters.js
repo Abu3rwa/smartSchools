@@ -24,6 +24,22 @@ export const aiFeatureRateLimiter = rateLimit({
 });
 
 /**
+ * Practice generates questions from published pools or local templates, not the AI service.
+ * Keep a separate, higher ceiling so normal student practice does not consume the AI budget.
+ */
+export const practiceQuestionRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    keyGenerator: userKeyGenerator,
+    message: {
+        success: false,
+        message: 'Practice is temporarily limited. Please wait a few minutes before continuing.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+/**
  * Rate limiter for email sending endpoints.
  * 100 sends per hour per user.
  */
