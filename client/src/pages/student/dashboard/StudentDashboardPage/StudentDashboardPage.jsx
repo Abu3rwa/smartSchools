@@ -4,7 +4,6 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import StudentDashboardHeader from './components/StudentDashboardHeader';
 import StudentDashboardLoading from './components/StudentDashboardLoading';
-import StudentScheduleCard from './components/StudentScheduleCard';
 import RecentGradesCard from './components/RecentGradesCard';
 import PracticeProgressCard from './components/PracticeProgressCard';
 import UpcomingDueDatesCard from './components/UpcomingDueDatesCard';
@@ -28,7 +27,6 @@ const StudentDashboardPage = () => {
         assignments,
         assignmentsLoading,
         user,
-        schedule,
         grades,
         classAssignments,
         academicTasks,
@@ -41,6 +39,9 @@ const StudentDashboardPage = () => {
 
     const availableNavLinks = useMemo(() => (
         studentNavLinks.filter((item) => {
+            if (item.liveLessons && import.meta.env.VITE_LIVE_LESSONS_ENABLED !== 'true') {
+                return false;
+            }
             if (!item.feature) return true;
             return schoolFeatures?.[item.feature] !== false;
         })
@@ -85,7 +86,6 @@ const StudentDashboardPage = () => {
                 <StudentDashboardLoading />
             ) : (
                 <div className="student-dashboard-grid">
-                    <StudentScheduleCard schedule={schedule} />
                     <RecentGradesCard grades={grades} />
                     
                     <PracticeProgressCard 

@@ -32,7 +32,19 @@
 .live-lesson-card>p { min-height: 2.8rem; margin: 0 0 1rem; color: #74828c; font-size: .9rem; line-height: 1.45; }
 .live-lesson-card-footer { display: flex; gap: .55rem; }
 .live-lesson-card-footer select,.live-session-controls select { flex: 1; min-width: 0; padding: .65rem .72rem; border: 1px solid #dce4e7; border-radius: 10px; color: #344858; background: #fff; }
+.live-lesson-management { display: flex; align-items: center; gap: 1rem; margin-top: .75rem; padding-top: .7rem; border-top: 1px solid #edf0f1; }
+.live-edit-lesson,.live-delete-lesson,.live-delete-slide,.live-remove-option { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .1rem; border: 0; color: #147875; background: transparent; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
 .live-delete-lesson { margin-top: .8rem; padding: .2rem 0; border: 0; color: #9b5860; background: transparent; font: inherit; font-size: .8rem; cursor: pointer; }
+.live-lesson-management .live-delete-lesson { margin: 0; }
+.live-edit-lesson:hover,.live-text-button:hover { color: #105f5d; }
+.live-delete-lesson:hover,.live-delete-slide:hover,.live-remove-option:hover { color: #813b43; }
+.live-slide-edit-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.live-delete-slide,.live-remove-option { color: #9b5860; }
+.live-delete-slide:disabled { cursor: not-allowed; opacity: .45; }
+.live-option-editor { display: flex; align-items: flex-start; gap: .45rem; }
+.live-option-editor .live-edit-field { flex: 1; }
+.live-remove-option { margin-top: 1.25rem; }
+.live-add-option { justify-self: start; margin: -.35rem 0 .45rem; }
 .live-session-list { display: grid; gap: .8rem; }
 .live-session-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .live-session-row h3 { margin: .55rem 0 .2rem; }
@@ -41,6 +53,9 @@
 .live-status-pill.live { color: #176650; background: #ddf5e9; }
 .live-status-pill.ended { color: #65717b; background: #edf0f2; }
 .live-session-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+.live-delete-session { display: inline-flex; align-items: center; gap: .35rem; padding: .6rem .7rem; border: 1px solid #efd9d9; border-radius: 10px; color: #964a50; background: #fff; font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
+.live-delete-session:hover:not(:disabled) { border-color: #e6bfc0; background: #fff5f4; }
+.live-delete-session:disabled { cursor: not-allowed; opacity: .5; }
 .live-error-banner { display: flex; justify-content: space-between; gap: 1rem; margin: 1rem 0; padding: .8rem 1rem; border: 1px solid #edcaca; border-radius: 10px; color: #8a3434; background: #fff3f2; }
 .live-error-banner button { border: 0; color: inherit; background: none; cursor: pointer; }
 .live-loading { padding: 4rem; color: #71808c; text-align: center; }

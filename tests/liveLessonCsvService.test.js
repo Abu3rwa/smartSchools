@@ -73,7 +73,7 @@ test("CSV parser rejects duplicate slide order and malformed quoting", () => {
   assert.match(malformed.errors[0].message, /unclosed/i);
 });
 
-test("student slide payload withholds answer keys until the slide is revealed", () => {
+test("live slide payload never includes answer keys", () => {
   const slide = {
     type: "question",
     question: {
@@ -83,10 +83,28 @@ test("student slide payload withholds answer keys until the slide is revealed", 
       explanation: "The second choice is correct.",
     },
   };
-  const beforeReveal = safeSlide(slide, false);
-  assert.equal(beforeReveal.question.correctOptionId, undefined);
-  assert.equal(beforeReveal.question.explanation, undefined);
-  assert.equal(safeSlide(slide, true).question.correctOptionId, "b");
+  const safe = safeSlide(slide);
+  assert.equal(safe.question.correctOptionId, undefined);
+  assert.equal(safe.question.explanation, undefined);
+});
+
+test("answer key is kept separate from the student-safe slide", () => {
+  const slide = {
+    type: "question",
+    question: {
+      prompt: "Which answer is correct?",
+      options: [{ id: "a", text: "First" }, { id: "b", text: "Second" }],
+      correctOptionId: "b",
+      explanation: "The second choice is correct.",
+    },
+  };
+  const safe = safeSlide(slide);
+  const teacherAnswer = {
+    correctOptionId: slide.question.correctOptionId,
+    explanation: slide.question.explanation,
+  };
+  assert.equal(safe.question.correctOptionId, undefined);
+  assert.equal(teacherAnswer.correctOptionId, "b");
 });
 
 test("session roster uses the captured class list, including an empty roster", async () => {

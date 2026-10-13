@@ -7,15 +7,18 @@ const splitItems = (text) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-export default function LiveLessonSlide({ slide, index, total, hidden = false }) {
+export default function LiveLessonSlide({ slide, index, total, hidden = false, children }) {
   if (!slide) return <div className="live-slide live-slide-empty">Waiting for the teacher…</div>;
   if (hidden) {
     return (
-      <div className="live-slide live-slide-hidden">
-        <span className="live-slide-kicker">Eyes on the question</span>
-        <h2>Think it through</h2>
-        <p>Your teacher has hidden the lesson slide while you respond.</p>
-      </div>
+      <article className="live-slide live-slide-hidden">
+        <div className="live-slide-hidden-message">
+          <span className="live-slide-kicker">FOCUS MODE</span>
+          <h2>Think it through</h2>
+          <p>Your teacher hid the lesson content. The question is still available below.</p>
+        </div>
+        {children}
+      </article>
     );
   }
 
@@ -63,6 +66,7 @@ export default function LiveLessonSlide({ slide, index, total, hidden = false })
       </div>
       {slide.type === "activity" && <div className="live-slide-callout">Work independently, then be ready to share.</div>}
       {slide.type === "exit-ticket" && <div className="live-slide-callout">Show what you know before you leave.</div>}
+      {children}
     </article>
   );
 }

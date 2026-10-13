@@ -19,6 +19,7 @@ const liveSessionSchema = new Schema(
     status: { type: String, enum: ["waiting", "live", "ended"], default: "waiting", index: true },
     currentSlideIndex: { type: Number, default: 0, min: 0 },
     slideHidden: { type: Boolean, default: false },
+    studentsFullscreen: { type: Boolean, default: false },
     questionOpen: { type: Boolean, default: false },
     revealedSlideIds: { type: [String], default: [] },
     eventSeq: { type: Number, default: 0 },

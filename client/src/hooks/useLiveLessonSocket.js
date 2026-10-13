@@ -88,23 +88,25 @@ export default function useLiveLessonSocket(sessionId, role) {
         } else if (message.type === "results:revealed") {
           setState((previous) => previous ? {
             ...previous,
-            revealed: {
-              correctOptionId: message.data.correctOptionId,
-              explanation: message.data.explanation,
-            },
+            revealed: true,
             myIsCorrect: message.data.myIsCorrect,
             questionOpen: false,
           } : previous);
         } else if (message.type === "session:ended") {
           setState((previous) => previous ? { ...previous, status: "ended" } : previous);
+        } else if (message.type === "session:deleted") {
+          disposed = true;
+          setConnection("closed");
+          setError("This live session was deleted by the teacher.");
+          socket.close(4004, "Live session deleted");
         }
       });
       socket.addEventListener("close", (event) => {
         window.clearInterval(heartbeatTimer);
-        if (event.code === 1008) {
+        if (event.code === 1008 || event.code === 4004) {
           disposed = true;
           setConnection("closed");
-          setError("Your access to this live lesson is no longer valid.");
+          if (event.code === 1008) setError("Your access to this live lesson is no longer valid.");
         } else {
           setConnection(disposed ? "closed" : "reconnecting");
         }

@@ -4,13 +4,16 @@ import { requireSchoolContext } from "../middleware/tenantIsolation.js";
 import {
   createLiveSession,
   createLiveLesson,
+  deleteLiveSession,
   deleteLiveLesson,
   getLiveLesson,
   getLiveSession,
   getLiveSessionReplay,
   getLiveSessionReport,
   importLiveLessonCsv,
+  joinLiveSessionById,
   joinLiveSession,
+  listAvailableLiveSessions,
   listLiveLessons,
   listLiveSessions,
   previewLiveLessonCsv,
@@ -32,7 +35,10 @@ router
 
 router.post("/sessions", authorize("teacher", "admin", "department_principal"), createLiveSession);
 router.get("/sessions", authorize("teacher", "admin", "department_principal"), listLiveSessions);
+router.get("/sessions/available", authorize("student"), listAvailableLiveSessions);
+router.post("/sessions/:id/join", authorize("student"), joinLiveSessionById);
 router.post("/sessions/join", authorize("student"), joinLiveSession);
+router.delete("/sessions/:id", authorize("teacher", "admin", "department_principal"), deleteLiveSession);
 router.get("/sessions/:id/replay", authorize("teacher", "admin", "department_principal"), getLiveSessionReplay);
 router.get("/sessions/:id/report", authorize("teacher", "admin", "department_principal"), getLiveSessionReport);
 router.get("/sessions/:id", authorize("teacher", "admin", "department_principal", "student"), getLiveSession);

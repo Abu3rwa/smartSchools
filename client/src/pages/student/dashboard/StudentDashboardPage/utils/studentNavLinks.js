@@ -1,10 +1,15 @@
 import {
+  HiOutlineAcademicCap,
   HiOutlineBell,
   HiOutlineBookOpen,
   HiOutlineChartBar,
+  HiOutlineCheckCircle,
   HiOutlineClipboardList,
   HiOutlineHome,
   HiOutlineLightningBolt,
+  HiOutlinePencil,
+  HiOutlinePresentationChartBar,
+  HiOutlineSparkles,
 } from "react-icons/hi";
 
 export const studentNavLinks = [
@@ -50,6 +55,44 @@ export const studentNavLinks = [
     path: "/portal/practice/sb-results",
     icon: HiOutlineChartBar,
     labelKey: "sbResults",
+    section: "learning",
+  },
+  {
+    path: "/portal/map-test-prep/student",
+    icon: HiOutlineAcademicCap,
+    labelKey: "mapTestPrep",
+    feature: "mapTestPrep",
+    section: "learning",
+  },
+  {
+    path: "/portal/spelling/student",
+    icon: HiOutlinePencil,
+    labelKey: "spelling",
+    section: "learning",
+  },
+  {
+    path: "/portal/vocabulary/student",
+    icon: HiOutlineBookOpen,
+    labelKey: "vocabulary",
+    section: "learning",
+  },
+  {
+    path: "/portal/live-lessons/join",
+    icon: HiOutlinePresentationChartBar,
+    labelKey: "liveLessons",
+    liveLessons: true,
+    section: "learning",
+  },
+  {
+    path: "/portal/plp",
+    icon: HiOutlineSparkles,
+    labelKey: "plp",
+    section: "learning",
+  },
+  {
+    path: "/portal/plp/my-tasks",
+    icon: HiOutlineCheckCircle,
+    labelKey: "plpMyTasks",
     section: "learning",
   },
   // {

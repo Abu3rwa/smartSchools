@@ -308,6 +308,18 @@ const handleAction = async (socket, message) => {
     await session.save();
     const slide = session.lessonSnapshot.slides[session.currentSlideIndex];
     await appendLiveEvent(session, "slide:hidden", { role: "teacher", userId: socket.__liveUserId }, { hidden: data.hidden, slideId: String(slide._id) });
+  } else if (action === "students:fullscreen") {
+    if (session.status !== "live" || typeof data.enabled !== "boolean") {
+      return fail(socket, requestId, "VALIDATION", "A live session and a boolean fullscreen value are required.");
+    }
+    session.studentsFullscreen = data.enabled;
+    await session.save();
+    await appendLiveEvent(
+      session,
+      data.enabled ? "students:fullscreen" : "students:fullscreen-exited",
+      { role: "teacher", userId: socket.__liveUserId },
+      { enabled: data.enabled },
+    );
   } else if (action === "question:open" || action === "question:close") {
     const slide = session.lessonSnapshot.slides[session.currentSlideIndex];
     if (session.status !== "live" || !slide?.question) {
@@ -331,6 +343,7 @@ const handleAction = async (socket, message) => {
     session.status = "ended";
     session.endedAt = new Date();
     session.questionOpen = false;
+    session.studentsFullscreen = false;
     await session.save();
     await appendLiveEvent(session, "session:ended", { role: "teacher", userId: socket.__liveUserId });
   } else {
@@ -350,8 +363,6 @@ const handleAction = async (socket, message) => {
         type: "results:revealed",
         data: {
           slideId: String(slide._id),
-          correctOptionId: slide.question.correctOptionId,
-          explanation: slide.question.explanation || "",
           myIsCorrect: result?.isCorrect ?? null,
         },
       });
@@ -562,4 +573,17 @@ export const initLiveLessonsGateway = (httpServer) => {
   wss.on("close", () => clearInterval(sweepTimer));
   logger.info("live_lessons_websocket_started", { path: "/ws/live-lessons" });
   return wss;
+};
+
+export const closeLiveSessionConnections = (sessionId) => {
+  const key = sessionKey(sessionId);
+  const sockets = sessionSockets.get(key);
+  if (sockets) {
+    for (const socket of [...sockets]) {
+      send(socket, { type: "session:deleted" });
+      detachSocket(socket);
+      socket.close(4004, "Live session deleted");
+    }
+  }
+  studentStatuses.delete(key);
 };

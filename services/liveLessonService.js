@@ -56,10 +56,10 @@ export const appendLiveEvent = async (session, type, actor, payload = {}, at = n
   });
 };
 
-export const safeSlide = (slide, revealed) => {
+export const safeSlide = (slide) => {
   if (!slide) return null;
   const serialized = typeof slide.toObject === "function" ? slide.toObject() : { ...slide };
-  if (!revealed && serialized.question) {
+  if (serialized.question) {
     const safeQuestion = { ...serialized.question };
     delete safeQuestion.correctOptionId;
     delete safeQuestion.explanation;
@@ -89,20 +89,23 @@ export const getStateForUser = async (session, user) => {
     currentSlideIndex: session.currentSlideIndex,
     totalSlides: slides.length,
     slideHidden: session.slideHidden,
+    studentsFullscreen: Boolean(session.studentsFullscreen),
     questionOpen: session.questionOpen,
-    slide: safeSlide(slide, !student || revealed),
+    slide: safeSlide(slide),
     myAnswer: existingAnswer ? { selectedOptionId: existingAnswer.selectedOptionId } : null,
     ...(student && revealed && existingAnswer ? { myIsCorrect: existingAnswer.isCorrect } : {}),
-    revealed: revealed && slide?.question
-      ? {
-          correctOptionId: slide.question.correctOptionId,
-          explanation: slide.question.explanation || "",
-        }
-      : null,
+    revealed: Boolean(revealed && slide?.question),
   };
   if (user.role !== "teacher" && user.role !== "admin" && user.role !== "department_principal") {
     return state;
   }
+
+  state.teacherAnswer = slide?.question
+    ? {
+        correctOptionId: slide.question.correctOptionId,
+        explanation: slide.question.explanation || "",
+      }
+    : null;
 
   const roster = await getSessionStudents(session);
   const responses = slide?.question

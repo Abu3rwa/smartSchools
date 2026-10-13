@@ -19,7 +19,6 @@ const useStudentDashboardData = () => {
     const academicYear = useSelector(selectCurrentAcademicYear);
     const user = useSelector(selectUser);
 
-    const [schedule, setSchedule] = useState([]);
     const [grades, setGrades] = useState([]);
     const [classAssignments, setClassAssignments] = useState([]);
     const [academicTasks, setAcademicTasks] = useState([]);
@@ -85,14 +84,12 @@ const useStudentDashboardData = () => {
         setDataLoading(true);
 
         Promise.all([
-            api.get('/timetable/my-schedule').catch(() => ({ data: { data: { schedule: [] } } })),
             api.get('/grades/my-grades').catch(() => ({ data: { data: { grades: [] } } })),
             api.get('/assignments/my').catch(() => ({ data: { data: { items: [] } } }))
         ])
-            .then(([scheduleResponse, gradesResponse, assignmentResponse]) => {
+            .then(([gradesResponse, assignmentResponse]) => {
                 if (cancelled) return;
 
-                setSchedule(scheduleResponse.data?.data?.schedule || []);
                 const gradeList = gradesResponse.data?.data?.grades || [];
                 setGrades(Array.isArray(gradeList) ? gradeList.slice(0, MAX_RECENT_GRADES) : []);
                 const assignmentList = assignmentResponse.data?.data?.items || [];
@@ -119,7 +116,6 @@ const useStudentDashboardData = () => {
         assignments,
         assignmentsLoading,
         user,
-        schedule,
         grades,
         classAssignments,
         academicTasks,

@@ -5,6 +5,7 @@ import LiveLesson from "../models/LiveLesson.js";
 import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
+import Student from "../models/Student.js";
 import Teacher from "../models/Teacher.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { parseLiveLessonCsv } from "../services/liveLessonCsvService.js";
@@ -16,6 +17,7 @@ import {
   isStudentEnrolled,
   listClassStudents,
 } from "../services/liveLessonService.js";
+import { closeLiveSessionConnections } from "../realtime/liveLessonsGateway.js";
 
 const findOwnedSession = async (req, res) => {
   if (!validId(req.params.id)) {
@@ -309,6 +311,66 @@ export const listLiveSessions = asyncHandler(async (req, res) => {
   return res.json({ success: true, data: { sessions } });
 });
 
+export const listAvailableLiveSessions = asyncHandler(async (req, res) => {
+  const student = await Student.findOne({
+    school: req.schoolId,
+    user: req.user._id,
+  })
+    .select("currentClass enrolledClasses")
+    .lean();
+
+  const classIds = [...new Set([
+    student?.currentClass,
+    ...(student?.enrolledClasses || []),
+  ].filter(Boolean).map(String))];
+
+  if (!classIds.length) {
+    return res.json({ success: true, data: { sessions: [] } });
+  }
+
+  const sessions = await LiveSession.find({
+    school: req.schoolId,
+    classId: { $in: classIds },
+    status: "live",
+  })
+    .sort({ startedAt: -1 })
+    .select("lessonSnapshot.title lessonSnapshot.slides._id classId currentSlideIndex startedAt")
+    .populate("classId", "name grade section")
+    .lean();
+
+  return res.json({
+    success: true,
+    data: {
+      sessions: sessions.map((session) => ({
+        _id: String(session._id),
+        title: session.lessonSnapshot?.title || "Live lesson",
+        classId: session.classId,
+        currentSlideIndex: session.currentSlideIndex,
+        totalSlides: session.lessonSnapshot?.slides?.length || 0,
+        startedAt: session.startedAt,
+      })),
+    },
+  });
+});
+
+export const joinLiveSessionById = asyncHandler(async (req, res) => {
+  if (!validId(req.params.id)) {
+    return res.status(400).json({ success: false, message: "Invalid session ID." });
+  }
+  const session = await LiveSession.findOne({
+    _id: req.params.id,
+    school: req.schoolId,
+  }).select("_id classId status");
+  if (!session) return res.status(404).json({ success: false, message: "Live session not found." });
+  if (!(await isStudentEnrolled(session.classId, req.user._id))) {
+    return res.status(403).json({ success: false, message: "You are not enrolled in this session's class." });
+  }
+  if (session.status !== "live") {
+    return res.status(409).json({ success: false, message: "This lesson is not currently live." });
+  }
+  return res.json({ success: true, data: { sessionId: String(session._id) } });
+});
+
 export const joinLiveSession = asyncHandler(async (req, res) => {
   const joinCode = String(req.body?.joinCode || "").trim().toUpperCase();
   if (!/^[A-HJ-NP-Z2-9]{6}$/.test(joinCode)) {
@@ -420,6 +482,7 @@ export const getLiveSessionReport = asyncHandler(async (req, res) => {
       ),
     };
   });
+
   const endedAt = session.endedAt || new Date();
   const perStudent = students.map((student) => {
     const studentId = String(student.studentId);
@@ -446,4 +509,23 @@ export const getLiveSessionReport = asyncHandler(async (req, res) => {
       perStudent,
     },
   });
+});
+
+export const deleteLiveSession = asyncHandler(async (req, res) => {
+  const session = await findOwnedSession(req, res);
+  if (!session) return;
+  if (session.status === "live") {
+    return res.status(409).json({
+      success: false,
+      message: "End the live session before deleting it from history.",
+    });
+  }
+
+  await Promise.all([
+    LiveResponse.deleteMany({ sessionId: session._id, school: req.schoolId }),
+    LiveSessionEvent.deleteMany({ sessionId: session._id, school: req.schoolId }),
+  ]);
+  await session.deleteOne();
+  closeLiveSessionConnections(session._id);
+  return res.json({ success: true, message: "Session history deleted." });
 });
