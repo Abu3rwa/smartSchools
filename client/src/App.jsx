@@ -509,7 +509,7 @@ function App() {
             <Route
               path="spelling/audio"
               element={
-                <RoleRoute roles={["admin", "department_principal", "teacher"]}>
+                <RoleRoute roles={["admin"]}>
                   <SpellingAudioAdminPage />
                 </RoleRoute>
               }

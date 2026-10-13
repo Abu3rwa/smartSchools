@@ -41,7 +41,7 @@
   "selectGrade": "Select grade",
   "selectWeek": "Select week",
   "saveStudentLevel": "Save student level",
-  "studentLevelSaved": "Student spelling grade saved.",
+  "studentLevelSaved": "Student spelling grade and week saved.",
   "studentLevelSaveError": "Unable to save the student's spelling level.",
   "saving": "Saving...",
   "assessmentMode": "Assessment mode",

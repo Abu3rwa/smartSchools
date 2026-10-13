@@ -46,6 +46,7 @@ const VALIDATION_MESSAGE_KEYS = {
 };
 
 const SpellingCurriculumTab = ({
+    canImport = true,
     wordFilters,
     setWordFilters,
     wordList,
@@ -131,10 +132,12 @@ const SpellingCurriculumTab = ({
         <>
             <Box sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 2fr) minmax(300px, 1fr)' },
+                gridTemplateColumns: canImport
+                    ? { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 2fr) minmax(300px, 1fr)' }
+                    : 'minmax(0, 1fr)',
                 gridTemplateAreas: {
-                    xs: '"import" "words"',
-                    lg: '"words import"'
+                    xs: canImport ? '"import" "words"' : '"words"',
+                    lg: canImport ? '"words import"' : '"words"'
                 },
                 gap: 3,
                 alignItems: 'start'
@@ -283,13 +286,13 @@ const SpellingCurriculumTab = ({
                                 </Accordion>
                             )) : <Stack spacing={1} alignItems="flex-start" sx={{ py: 3 }}>
                                 <Typography color="text.secondary">{t('noWords')}</Typography>
-                                <Button variant="outlined" onClick={focusImportCard}>{t('importWordList')}</Button>
+                                {canImport && <Button variant="outlined" onClick={focusImportCard}>{t('importWordList')}</Button>}
                             </Stack>}
                         </Stack>
                     </CardContent>
                 </Card>
 
-                <Box sx={{ gridArea: 'import', minWidth: 0, position: { lg: 'sticky' }, top: { lg: 16 } }}>
+                {canImport && <Box sx={{ gridArea: 'import', minWidth: 0, position: { lg: 'sticky' }, top: { lg: 16 } }}>
                     <Card ref={importCardRef} id="spelling-import-card" tabIndex={-1}>
                         <CardContent>
                             <Stack spacing={2}>
@@ -434,7 +437,7 @@ const SpellingCurriculumTab = ({
                             </Stack>
                         </CardContent>
                     </Card>
-                </Box>
+                </Box>}
             </Box>
 
             <Dialog

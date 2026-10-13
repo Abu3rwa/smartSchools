@@ -61,7 +61,7 @@ const SpellingStudentRosterTable = ({
                                 : null;
                             const currentWeek = rowActiveSession?.curriculumGrade === selectedGrade && rowActiveSession?.curriculumWeek
                                 ? rowActiveSession.curriculumWeek
-                                : (gradeProgress?.week || legacyWeek || null);
+                                : (level.week || gradeProgress?.week || legacyWeek || null);
 
                             return (
                                 <TableRow key={student._id}>
@@ -130,11 +130,9 @@ const SpellingStudentRosterTable = ({
                                                 {['KG', 'G1', 'G2', 'G3', 'G4', 'G5'].map((grade) => <MenuItem key={grade} value={grade}>{grade}</MenuItem>)}
                                             </Select>
                                         </FormControl>
-                                        {currentWeek && (
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                                                {t('studentCurrentWeek', { week: currentWeek })}
-                                            </Typography>
-                                        )}
+                                        {currentWeek && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                            {t('studentCurrentWeek', { week: currentWeek })}
+                                        </Typography>}
                                     </TableCell>
                                     <TableCell align="right">
                                         <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" useFlexGap>

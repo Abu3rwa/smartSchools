@@ -42,7 +42,7 @@
   "selectWeek": "اختر الأسبوع",
   "saveStudentLevel": "حفظ مستوى الطالب",
   "allStudentsOverview": "نظرة عامة على جميع الطلاب",
-  "studentLevelSaved": "تم حفظ صف الإملاء للطالب.",
+  "studentLevelSaved": "تم حفظ صف وأسبوع الإملاء للطالب.",
   "studentLevelSaveError": "تعذر حفظ مستوى إملاء الطالب.",
   "saving": "جارٍ الحفظ...",
   "assessmentMode": "وضع الاختبار",

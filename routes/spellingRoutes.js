@@ -47,6 +47,7 @@ import {
     wordAudioCoverage
 } from '../controllers/wordAudioController.js';
 import { approvePassage, cancelPassageSend, discardPassage, generatePassage, getPassage, sendPassage, updatePassage } from '../controllers/spellingPassageController.js';
+import { updateStudentSpellingPlacement } from '../controllers/spellingStudentController.js';
 
 const router = express.Router();
 
@@ -60,12 +61,13 @@ router.get('/classes/:classId/settings', authorize('admin', 'department_principa
 router.patch('/classes/:classId/settings', express.json(), authorize('admin', 'department_principal', 'teacher'), updateClassSettings);
 router.get('/students/:studentId/details', authorize('admin', 'department_principal', 'teacher'), getStudentSpellingDetails);
 router.get('/students/:studentId/details/docx', authorize('admin', 'department_principal', 'teacher'), exportStudentSpellingDetailsDocx);
-router.post('/word-lists/import/preview', uploadImportTemplate.single('file'), previewSpellingWords);
-router.post('/word-lists/import/commit', express.json(), commitSpellingWords);
+router.patch('/students/:studentId/placement', authorize('admin', 'department_principal', 'teacher'), express.json(), updateStudentSpellingPlacement);
+router.post('/word-lists/import/preview', authorize('admin'), uploadImportTemplate.single('file'), previewSpellingWords);
+router.post('/word-lists/import/commit', authorize('admin'), express.json(), commitSpellingWords);
 router.post('/word-audio/import', authorize('admin'), uploadImportTemplate.single('file'), importWordAudioCsv);
-router.get('/word-audio/examples', authorize('admin', 'department_principal', 'teacher'), searchWordAudioExamples);
-router.delete('/word-audio/examples', express.json(), authorize('admin', 'department_principal', 'teacher'), deleteWordAudioExample);
-router.patch('/word-audio/examples', express.json(), authorize('admin', 'department_principal', 'teacher'), replaceWordAudioExample);
+router.get('/word-audio/examples', authorize('admin'), searchWordAudioExamples);
+router.delete('/word-audio/examples', express.json(), authorize('admin'), deleteWordAudioExample);
+router.patch('/word-audio/examples', express.json(), authorize('admin'), replaceWordAudioExample);
 router.get('/word-audio/coverage', authorize('admin'), wordAudioCoverage);
 router.get('/word-audio/settings', authorize('admin'), listWordAudioSettings);
 router.put('/word-audio/settings/:grade', authorize('admin'), express.json(), updateWordAudioSetting);

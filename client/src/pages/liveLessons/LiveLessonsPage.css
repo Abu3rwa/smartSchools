@@ -1,6 +1,7 @@
 .live-lessons-page { max-width: 1380px; margin: 0 auto; padding: 1.5rem clamp(1rem, 3vw, 2.75rem) 4rem; color: #1c2c3b; }
 .live-lessons-hero { display: flex; align-items: center; justify-content: space-between; min-height: 210px; padding: clamp(1.5rem, 4vw, 3.5rem); border-radius: 28px; color: #fff; background: radial-gradient(circle at 86% 8%, rgba(166, 224, 204, .2), transparent 26%), linear-gradient(115deg, #142e43, #1a7776); box-shadow: 0 20px 55px rgba(23, 58, 70, .14); }
 .live-lessons-hero-copy { max-width: 760px; }
+
 .live-eyebrow { display: inline-block; color: #5da5a3; font-size: .7rem; font-weight: 800; letter-spacing: .15em; }
 .live-lessons-hero .live-eyebrow { color: #a8e9d5; }
 .live-lessons-hero h1 { margin: .55rem 0; font-size: clamp(2.2rem, 5vw, 3.7rem); font-weight: 750; letter-spacing: -.04em; }

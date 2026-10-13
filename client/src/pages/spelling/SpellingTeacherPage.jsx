@@ -3,6 +3,7 @@ import { Alert, Box, Button, FormControl, InputLabel, MenuItem, Select, Stack, T
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { selectUser } from '../../store/slices/authSlice';
 import api from '../../config/api';
 import { downloadBlob, filenameFromContentDisposition } from '../../utils/downloadBlob';
 import { downloadStudentSpellingDetailsDocx } from '../../services/spellingDetailsDocxExport';
@@ -16,7 +17,6 @@ import RaisedHandsPopup from './components/RaisedHandsPopup';
 import { ConfirmDialog, EndSessionPassageReviewDialog, PassageDeliveryDialog, StudentSessionsDialog } from './components/SpellingTeacherDialogs';
 import { PASSAGE_STATUS_COLOR, isSkippedSpellingAttempt } from './components/spellingTeacherConstants';
 import { fetchClass, fetchClasses, selectClassStudents, selectClasses, selectClassesLoading, selectCurrentClass } from '../../store/slices/classSlice';
-import { updateStudent } from '../../store/slices/studentSlice';
 import {
     fetchSpellingCurrentItem,
     fetchSpellingDictionaryEntry,
@@ -38,6 +38,9 @@ const SpellingTeacherPage = () => {
     const selectedClass = useSelector(selectCurrentClass);
     const classesLoading = useSelector(selectClassesLoading);
     const spelling = useSelector(selectSpelling);
+    const user = useSelector(selectUser);
+    const canImportCurriculum = user?.role === 'admin';
+    const canManageSpellingAudio = user?.role === 'admin';
     const [classId, setClassId] = useState('');
     const [activeTab, setActiveTab] = useState(0);
 
@@ -176,7 +179,13 @@ const SpellingTeacherPage = () => {
             classStudents.forEach((student) => {
                 if (!next[student._id]) {
                     const grade = student.spelling?.currentGrade || '';
-                    next[student._id] = { grade };
+                    const gradeProgress = student.spelling?.progressByGrade?.find((progress) => progress.grade === grade);
+                    next[student._id] = {
+                        grade,
+                        week: gradeProgress?.week
+                            || (student.spelling?.currentGrade === grade ? student.spelling?.currentWeek : '')
+                            || ''
+                    };
                 }
             });
             return next;
@@ -238,30 +247,23 @@ const SpellingTeacherPage = () => {
     }, [classId, classStudents, loadAllHistories, studentHistoryMap]);
 
     const updateRowLevel = async (student, field, value) => {
-        const nextLevel = { ...(rowLevels[student._id] || {}), [field]: value };
-        setRowLevels((current) => ({ ...current, [student._id]: nextLevel }));
-        if (!nextLevel.grade) return;
+        const currentLevel = rowLevels[student._id] || { grade: '', week: '' };
+        const nextLevel = { ...currentLevel, [field]: value };
+        if (field === 'grade') {
+            const savedProgress = student.spelling?.progressByGrade?.find((progress) => progress.grade === value);
+            nextLevel.week = savedProgress?.week || 1;
+        }
+        if (!nextLevel.grade || !nextLevel.week) return;
         setSavingRowId(student._id);
-        const gradeChanged = field === 'grade' && value !== student.spelling?.currentGrade;
-        const savedGradeProgress = student.spelling?.progressByGrade?.find((progress) => progress.grade === value);
-        const result = await dispatch(updateStudent({
-            id: student._id,
-            data: {
-                spelling: {
-                    ...(student.spelling || {}),
-                    currentGrade: nextLevel.grade,
-                    ...(gradeChanged ? {
-                        currentWeek: savedGradeProgress?.week ?? null,
-                        lastWordIndex: savedGradeProgress?.lastWordIndex ?? 0
-                    } : {})
-                }
-            }
-        }));
-        notify(
-            updateStudent.fulfilled.match(result) ? t('studentLevelSaved') : (result.payload || t('studentLevelSaveError')),
-            updateStudent.fulfilled.match(result) ? 'success' : 'error'
-        );
-        setSavingRowId(null);
+        try {
+            await api.patch(`/spelling/students/${student._id}/placement`, { grade: nextLevel.grade });
+            setRowLevels((current) => ({ ...current, [student._id]: nextLevel }));
+            notify(t('studentLevelSaved'), 'success');
+        } catch (error) {
+            notify(error.response?.data?.message || t('studentLevelSaveError'), 'error');
+        } finally {
+            setSavingRowId(null);
+        }
     };
 
     useEffect(() => {
@@ -831,17 +833,18 @@ const SpellingTeacherPage = () => {
 
             <PassageDeliveryDialog open={passageDeliveryDialogOpen} onClose={() => setPassageDeliveryDialogOpen(false)} />
 
-            <Box sx={{ mb: 2 }}>
+            {canManageSpellingAudio && <Box sx={{ mb: 2 }}>
                 <Button component={Link} to="/portal/spelling/audio" size="small" variant="outlined">Manage spelling audio</Button>
-            </Box>
+            </Box>}
             {classId && <>
             <Tabs value={activeTab} onChange={(_, value) => setActiveTab(value)} sx={{ mb: 3 }}>
                 <Tab label="Assessments" />
-                <Tab label="Curriculum & import" />
+                <Tab label="Curriculum" />
                 <Tab label="Settings" />
             </Tabs>
 
             {activeTab === 1 && <SpellingCurriculumTab
+                canImport={canImportCurriculum}
                 wordFilters={wordFilters}
                 setWordFilters={(updater) => setWordFilters((current) => {
                     const next = typeof updater === 'function' ? updater(current) : updater;
