@@ -1,6 +1,6 @@
 import aiService from "./aiservice.js";
 
-const MAX_AI_REVIEW_CHARACTERS = 80000;
+const MAX_AI_REVIEW_BATCH_CHARACTERS = 200000;
 const forbiddenMarkup = [
   { pattern: /<\s*(?:iframe|object|embed|form|base|link)\b/i, reason: "Embedded frames, objects, forms, base tags, and external stylesheets are not allowed." },
   { pattern: /<\s*meta\b[^>]*http-equiv\s*=\s*(['"]?)\s*refresh/i, reason: "Automatic navigation is not allowed." },
@@ -32,9 +32,6 @@ const reviewWithAi = async (slides) => {
   const slideMarkup = slides
     .map((slide) => `SLIDE ${slide.sourceSlideNumber}\n${slide.html}`)
     .join("\n\n");
-  if (slideMarkup.length > MAX_AI_REVIEW_CHARACTERS) {
-    throw Object.assign(new Error(`AI safety review is limited to ${MAX_AI_REVIEW_CHARACTERS} HTML characters per lesson. Shorten the slides and try again.`), { statusCode: 400 });
-  }
   try {
     const result = await aiService.generateStructuredJson({
       modelName: process.env.LIVE_LESSON_SAFETY_AI_MODEL || process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",
@@ -59,11 +56,33 @@ export const assertLiveLessonHtmlSafe = async ({ slides, aiReviewEnabled = false
     if (issue) throw Object.assign(new Error(`Slide ${slide.sourceSlideNumber}: ${issue}`), { statusCode: 400 });
   }
   if (!aiReviewEnabled || !htmlSlides.length) return;
-  const result = await review(htmlSlides);
-  if (!result.safe) {
-    const findings = result.findings
-      .map((finding) => `Slide ${Number(finding.slide) || "?"}: ${String(finding.reason || "Unsafe content detected.")}`)
-      .join(" ");
-    throw Object.assign(new Error(`AI safety review rejected this lesson. ${findings}`), { statusCode: 400 });
+  const reviewBatches = [];
+  let batch = [];
+  let batchCharacters = 0;
+  for (const slide of htmlSlides) {
+    if (slide.html.length > MAX_AI_REVIEW_BATCH_CHARACTERS) {
+      throw Object.assign(
+        new Error(`Slide ${slide.sourceSlideNumber} exceeds the ${MAX_AI_REVIEW_BATCH_CHARACTERS} character AI safety review limit.`),
+        { statusCode: 400 },
+      );
+    }
+    if (batchCharacters + slide.html.length > MAX_AI_REVIEW_BATCH_CHARACTERS) {
+      reviewBatches.push(batch);
+      batch = [];
+      batchCharacters = 0;
+    }
+    batch.push(slide);
+    batchCharacters += slide.html.length;
+  }
+  if (batch.length) reviewBatches.push(batch);
+
+  for (const reviewBatch of reviewBatches) {
+    const result = await review(reviewBatch);
+    if (!result.safe) {
+      const findings = result.findings
+        .map((finding) => `Slide ${Number(finding.slide) || "?"}: ${String(finding.reason || "Unsafe content detected.")}`)
+        .join(" ");
+      throw Object.assign(new Error(`AI safety review rejected this lesson. ${findings}`), { statusCode: 400 });
+    }
   }
 };

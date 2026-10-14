@@ -39,3 +39,33 @@ test("requires a passing AI review before accepting scripts", async () => {
   );
   assert.equal(reviews, 1);
 });
+
+test("reviews large lessons in slide batches instead of applying a lesson-wide limit", async () => {
+  const slides = [
+    { type: "html", html: "a".repeat(40000) },
+    { type: "html", html: "b".repeat(40000) },
+    { type: "html", html: "c".repeat(40000) },
+  ];
+  const reviewedSlideNumbers = [];
+  await assertLiveLessonHtmlSafe({
+    slides,
+    aiReviewEnabled: true,
+    review: async (batch) => {
+      assert.ok(batch.reduce((total, slide) => total + slide.html.length, 0) <= 100000);
+      reviewedSlideNumbers.push(batch.map((slide) => slide.sourceSlideNumber));
+      return { safe: true, findings: [] };
+    },
+  });
+  assert.deepEqual(reviewedSlideNumbers, [[1, 2], [3]]);
+});
+
+test("rejects a single slide that exceeds the AI review request limit", async () => {
+  await assert.rejects(
+    assertLiveLessonHtmlSafe({
+      slides: [{ type: "html", html: "x".repeat(100001) }],
+      aiReviewEnabled: true,
+      review: async () => ({ safe: true, findings: [] }),
+    }),
+    /Slide 1 exceeds the 100000 character AI safety review limit/,
+  );
+});

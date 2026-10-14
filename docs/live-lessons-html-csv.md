@@ -13,7 +13,7 @@ The first data row is the lesson metadata row (`slide_order=0`, `slide_type=less
 - CSS animation is supported without JavaScript.
 - School admins control the optional AI safety review at `/api/live/settings`. It defaults to off. When off, HTML/CSS slides are allowed but scripts are rejected. When on, the server submits the HTML to the configured AI provider; scripts are saved only when deterministic checks and AI review both pass. Review failures stop the import.
 - AI review supplements, but does not replace, the iframe isolation and deterministic checks. It is not a guarantee that arbitrary JavaScript is harmless.
-- AI review accepts at most 80,000 combined HTML characters in a lesson. CSV upload is limited to 2 MB; a slide's HTML cell is limited to 100,000 characters.
+- AI reviews complete slides in batches of at most 100,000 HTML characters, so a lesson is not rejected just because its combined slides exceed one request's limit. An individual slide is limited to 100,000 characters. CSV upload is limited to 2 MB.
 
 ## Existing lessons and session history
 
