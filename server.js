@@ -256,6 +256,7 @@ const aiLimiter = rateLimit({
 });
 
 // Body parser — BE-032: reduced default limit
+app.use("/api/live", express.json({ limit: "3mb" }));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 

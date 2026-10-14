@@ -20,7 +20,6 @@ import { fetchClass, fetchClasses, selectClassStudents, selectClasses, selectCla
 import {
     fetchSpellingCurrentItem,
     fetchSpellingDictionaryEntry,
-    fetchSpellingHistory,
     fetchSpellingWords,
     selectSpelling,
     endSpellingSession,
@@ -97,8 +96,12 @@ const SpellingTeacherPage = () => {
     const [exportingRowId, setExportingRowId] = useState(null);
     const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
     const [studentHistoryMap, setStudentHistoryMap] = useState({});
-    const studentHistoryMapRef = useRef(studentHistoryMap);
-    studentHistoryMapRef.current = studentHistoryMap;
+    const [activeSessionMap, setActiveSessionMap] = useState({});
+    const activeSessionMapRef = useRef(activeSessionMap);
+    activeSessionMapRef.current = activeSessionMap;
+    const activeSessionRequestRef = useRef(false);
+    const [sessionsLoading, setSessionsLoading] = useState(false);
+    const [sessionsError, setSessionsError] = useState('');
     const activeSessionIdRef = useRef(null);
     const [overviewLoading, setOverviewLoading] = useState(false);
     const wordList = spelling.words;
@@ -192,59 +195,71 @@ const SpellingTeacherPage = () => {
         });
     }, [classStudents]);
 
-    const refreshStudentHistory = useCallback(async (targetStudentId) => {
-        const result = await dispatch(fetchSpellingHistory({ studentId: targetStudentId }));
-        if (fetchSpellingHistory.fulfilled.match(result)) {
-            setStudentHistoryMap((current) => ({ ...current, [targetStudentId]: result.payload }));
-        }
-    }, [dispatch]);
-
-    const loadAllHistories = useCallback(async ({ showLoading = true } = {}) => {
-        if (!classStudents.length) return;
+    const loadActiveSessions = useCallback(async ({ showLoading = true } = {}) => {
+        if (!classStudents.length || activeSessionRequestRef.current) return;
+        activeSessionRequestRef.current = true;
         if (showLoading) setOverviewLoading(true);
         try {
             const studentIds = classStudents.map((s) => s._id).join(',');
-            const result = await dispatch(fetchSpellingHistory({ studentIds, limit: 300 }));
-            if (fetchSpellingHistory.fulfilled.match(result)) {
-                const sessions = Array.isArray(result.payload) ? result.payload : [];
-                const map = {};
-                classStudents.forEach((student) => { map[student._id] = []; });
-                sessions.forEach((session) => {
-                    const sid = String(session.student?._id || session.student);
-                    if (map[sid]) {
-                        map[sid].push(session);
-                    }
-                });
-                setStudentHistoryMap(map);
+            const response = await api.get('/spelling/sessions', {
+                params: { studentIds, limit: 500, activeOnly: true }
+            });
+            const sessions = Array.isArray(response.data?.data) ? response.data.data : [];
+            const map = {};
+            sessions.forEach((session) => {
+                const sid = String(session.student?._id || session.student);
+                if (!map[sid]) map[sid] = session;
+            });
+            setActiveSessionMap(map);
+        } catch (error) {
+            if (showLoading) {
+                notify(error.response?.data?.message || 'Unable to load active spelling sessions.', 'error');
             }
         } finally {
+            activeSessionRequestRef.current = false;
             if (showLoading) setOverviewLoading(false);
         }
-    }, [classStudents, dispatch]);
+    }, [classStudents, notify]);
 
     useEffect(() => {
         if (!classId || !classStudents.length) {
-            setStudentHistoryMap({});
+            setActiveSessionMap({});
             return;
         }
-        loadAllHistories();
-    }, [classId, classStudents, loadAllHistories]);
+        loadActiveSessions();
+    }, [classId, classStudents, loadActiveSessions]);
 
     useEffect(() => {
         if (!classId || !classStudents.length) return undefined;
-        // Check if any student currently has an active in-progress session
-        const hasActiveSession = classStudents.some((student) => {
-            const sessions = studentHistoryMapRef.current[student._id] || [];
-            return sessions.some((session) => session.status === 'in-progress');
-        });
+        const hasActiveSession = Object.keys(activeSessionMapRef.current).length > 0;
 
-        // Use a single batched query: 5s when sessions are active, 20s when idle
+        // Poll only the lightweight active-session list, never completed history.
         const pollMs = hasActiveSession ? 5000 : 20000;
         const intervalId = window.setInterval(() => {
-            loadAllHistories({ showLoading: false });
+            loadActiveSessions({ showLoading: false });
         }, pollMs);
         return () => window.clearInterval(intervalId);
-    }, [classId, classStudents, loadAllHistories, studentHistoryMap]);
+    }, [classId, classStudents, loadActiveSessions, activeSessionMap]);
+
+    const loadStudentHistory = async (student) => {
+        setSessionsStudent(student);
+        setSessionsLoading(true);
+        setSessionsError('');
+        setStudentHistoryMap((current) => ({ ...current, [student._id]: [] }));
+        try {
+            const response = await api.get('/spelling/sessions', {
+                params: { studentId: student._id, limit: 100 }
+            });
+            setStudentHistoryMap((current) => ({
+                ...current,
+                [student._id]: Array.isArray(response.data?.data) ? response.data.data : []
+            }));
+        } catch (error) {
+            setSessionsError(error.response?.data?.message || 'Unable to load spelling sessions.');
+        } finally {
+            setSessionsLoading(false);
+        }
+    };
 
     const updateRowLevel = async (student, field, value) => {
         const currentLevel = rowLevels[student._id] || { grade: '', week: '' };
@@ -339,7 +354,7 @@ const SpellingTeacherPage = () => {
             } else {
                 notify(result.payload || t('sessionError'), 'error');
             }
-            await refreshStudentHistory(student._id);
+            await loadActiveSessions({ showLoading: false });
         } catch (error) {
             notify(error.response?.data?.message || 'Unable to start the session.', 'error');
         } finally {
@@ -353,7 +368,7 @@ const SpellingTeacherPage = () => {
             const result = await dispatch(endSpellingSession({ sessionId: rowActiveSession._id, reason: 'teacher-ended' }));
             const succeeded = endSpellingSession.fulfilled.match(result);
             notify(succeeded ? t('activeSessionEnded') : (result.payload || t('sessionError')), succeeded ? 'success' : 'error');
-            if (succeeded) await refreshStudentHistory(student._id);
+            if (succeeded) await loadActiveSessions({ showLoading: false });
             return succeeded;
         } finally {
             setRowActionLoadingId(null);
@@ -361,13 +376,10 @@ const SpellingTeacherPage = () => {
     };
 
     const endRowActiveSession = async (student) => {
-        const studentSessions = studentHistoryMap[student._id] || [];
-        const rowActiveSession = studentSessions.find((session) => session.status === 'in-progress');
+        const rowActiveSession = activeSessionMap[student._id];
         if (!rowActiveSession) return;
 
-        const currentSessionSentPassage = studentSessions.find(
-            (session) => String(session._id) === String(rowActiveSession._id) && session.practicePassage?.status === 'sent'
-        );
+        const currentSessionSentPassage = rowActiveSession.practicePassage?.status === 'sent';
         if (currentSessionSentPassage) {
             setRowActionLoadingId(student._id);
             try {
@@ -426,7 +438,7 @@ const SpellingTeacherPage = () => {
                 count: response.data.data.sessions.length,
                 className: selectedClass?.name || t('class')
             }), 'success');
-            await loadAllHistories();
+            await loadActiveSessions({ showLoading: false });
         } catch (error) {
             notify(error.response?.data?.message || t('sessionError'), 'error');
         } finally {
@@ -448,7 +460,7 @@ const SpellingTeacherPage = () => {
                 } else {
                     setActiveSession(result.payload.session);
                     setCurrentItem(null);
-                    await refreshStudentHistory(studentId);
+                    await loadActiveSessions({ showLoading: false });
                 }
             }
         } catch (error) {
@@ -456,7 +468,7 @@ const SpellingTeacherPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [activeSession, currentItem, dispatch, gradingFeedback, loadCurrentItem, loading, notify, refreshStudentHistory, studentId]);
+    }, [activeSession, currentItem, dispatch, gradingFeedback, loadActiveSessions, loadCurrentItem, loading, notify]);
 
     const correctSpellingAttempt = async (attempt) => {
         if (!activeSession?._id || !attempt?._id || correctingAttemptId) return false;
@@ -465,7 +477,7 @@ const SpellingTeacherPage = () => {
             const response = await api.patch(`/spelling/sessions/${activeSession._id}/attempts/${attempt._id}/correct`);
             const result = response.data.data;
             if (activeSessionIdRef.current === activeSession._id) setActiveSession(result.session);
-            await refreshStudentHistory(studentId);
+            await loadActiveSessions({ showLoading: false });
             notify('Spelling answer marked correct; score and retest list updated.', 'success');
             return true;
         } catch (error) {
@@ -485,14 +497,14 @@ const SpellingTeacherPage = () => {
             if (activeSessionIdRef.current === activeSession._id) {
                 setActiveSession(session);
                 setCurrentItem(item);
-                if (session.status !== 'in-progress') await refreshStudentHistory(studentId);
+                if (session.status !== 'in-progress') await loadActiveSessions({ showLoading: false });
             }
         } catch (error) {
             notify(error.response?.data?.message || 'Unable to move to the next word.', 'error');
         } finally {
             setLoading(false);
         }
-    }, [activeSession, currentItem, loading, notify, refreshStudentHistory, studentId]);
+    }, [activeSession, currentItem, loadActiveSessions, loading, notify]);
 
     const closeTeacherSessionModal = () => {
         activeSessionIdRef.current = null;
@@ -511,7 +523,7 @@ const SpellingTeacherPage = () => {
             async () => {
                 if (activeSession.status === 'in-progress') {
                     await dispatch(endSpellingSession({ sessionId: activeSession._id, reason: 'teacher-ended' }));
-                    if (studentId) await refreshStudentHistory(studentId);
+                    if (studentId) await loadActiveSessions({ showLoading: false });
                 }
                 closeTeacherSessionModal();
             }
@@ -522,19 +534,36 @@ const SpellingTeacherPage = () => {
         activeSessionIdRef.current = session._id;
         setSessionsStudent(null);
         setStudentId(student._id);
-        setActiveSession(session);
+        setActiveSession(null);
         setCurrentItem(null);
         setGradingFeedback(null);
         setIntegrityEvents({ count: 0, events: [], error: '' });
-        if (session.status === 'in-progress') {
-            await loadCurrentItem(session._id);
-        }
-        if (session.practicePassage) {
-            setPassage(session.practicePassage);
-            setPassageContent(session.practicePassage.content || '');
-        } else {
-            setPassage(null);
-            setPassageContent('');
+        setPassage(null);
+        setPassageContent('');
+        try {
+            let fullSession = session;
+            if (!Array.isArray(session.attempts)) {
+                const [sessionResponse, passageResponse] = await Promise.all([
+                    api.get(`/spelling/sessions/${session._id}`),
+                    api.get(`/spelling/sessions/${session._id}/passage`)
+                ]);
+                fullSession = {
+                    ...sessionResponse.data.data,
+                    practicePassage: passageResponse.data.data
+                };
+            }
+            if (activeSessionIdRef.current !== session._id) return;
+            setActiveSession(fullSession);
+            if (fullSession.status === 'in-progress') {
+                await loadCurrentItem(fullSession._id);
+            }
+            setPassage(fullSession.practicePassage || null);
+            setPassageContent(fullSession.practicePassage?.content || '');
+        } catch (error) {
+            if (activeSessionIdRef.current === session._id) {
+                activeSessionIdRef.current = null;
+                notify(error.response?.data?.message || 'Unable to load spelling session details.', 'error');
+            }
         }
     };
 
@@ -793,9 +822,15 @@ const SpellingTeacherPage = () => {
             <RaisedHandsPopup classId={classId} />
 
             <StudentSessionsDialog
+                key={sessionsStudent?._id || 'closed'}
                 student={sessionsStudent}
                 sessions={sessionsStudent ? (studentHistoryMap[sessionsStudent._id] || []) : []}
-                onClose={() => setSessionsStudent(null)}
+                loading={sessionsLoading}
+                error={sessionsError}
+                onClose={() => {
+                    setSessionsStudent(null);
+                    setSessionsError('');
+                }}
                 onOpenSession={openSessionReview}
             />
 
@@ -899,13 +934,14 @@ const SpellingTeacherPage = () => {
                     classStudents={classStudents}
                     overviewLoading={overviewLoading}
                     rowLevels={rowLevels}
+                    activeSessionMap={activeSessionMap}
                     studentHistoryMap={studentHistoryMap}
                     rowActionLoadingId={rowActionLoadingId}
                     savingRowId={savingRowId}
                     exportingRowId={exportingRowId}
                     onUpdateRowLevel={updateRowLevel}
                     onOpenSessionReview={openSessionReview}
-                    onViewStudentSessions={setSessionsStudent}
+                    onViewStudentSessions={loadStudentHistory}
                     onEndActiveSession={endRowActiveSession}
                     onStartStudentSession={startStudentSession}
                     onExportStudentReport={exportStudentReport}

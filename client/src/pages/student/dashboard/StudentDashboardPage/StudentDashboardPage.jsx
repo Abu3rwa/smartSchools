@@ -7,6 +7,7 @@ import StudentDashboardLoading from './components/StudentDashboardLoading';
 import RecentGradesCard from './components/RecentGradesCard';
 import PracticeProgressCard from './components/PracticeProgressCard';
 import UpcomingDueDatesCard from './components/UpcomingDueDatesCard';
+import RecentAssignmentsCard from './components/RecentAssignmentsCard';
 import MyTasksCard from './components/MyTasksCard';
 import { selectSchoolFeatures } from '../../../../store/slices/schoolFeaturesSlice';
 import useStudentDashboardData from './hooks/useStudentDashboardData';
@@ -87,6 +88,10 @@ const StudentDashboardPage = () => {
             ) : (
                 <div className="student-dashboard-grid">
                     <RecentGradesCard grades={grades} />
+                    <RecentAssignmentsCard
+                        practiceAssignments={assignments}
+                        classAssignments={classAssignments}
+                    />
                     
                     <PracticeProgressCard 
                         assignments={practiceAssignments} 

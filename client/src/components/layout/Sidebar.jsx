@@ -12,6 +12,8 @@ import {
   selectAppName,
 } from "../../store/slices/uiSlice";
 import { selectSchoolFeatures } from "../../store/slices/schoolFeaturesSlice";
+import { selectSchoolPageAccess } from "../../store/slices/schoolFeaturesSlice";
+import { getSchoolPageKeyForPath } from "../../constants/schoolPageAccess";
 import {
   fetchSubPendingCountThunk,
   selectPendingCount,
@@ -90,6 +92,7 @@ const Sidebar = () => {
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
   const schoolFeatures = useSelector(selectSchoolFeatures);
+  const schoolPageAccess = useSelector(selectSchoolPageAccess);
   const pendingSubCount = useSelector(selectPendingCount);
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const isRtl = i18n.dir() === "rtl";
@@ -817,6 +820,13 @@ const Sidebar = () => {
   ];
 
   const filteredNavItems = navItems.filter((item) => {
+    const pageKey = getSchoolPageKeyForPath(item.path);
+    if (["teacher", "student"].includes(user?.role)
+      && pageKey
+      && schoolPageAccess?.[user.role]?.[pageKey] === false) {
+      return false;
+    }
+
     if (item.liveLessons && import.meta.env.VITE_LIVE_LESSONS_ENABLED !== "true") {
       return false;
     }

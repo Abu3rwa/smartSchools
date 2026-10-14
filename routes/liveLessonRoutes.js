@@ -10,6 +10,7 @@ import {
   getLiveSession,
   getLiveSessionReplay,
   getLiveSessionReport,
+  getLiveLessonSettings,
   importLiveLessonCsv,
   joinLiveSessionById,
   joinLiveSession,
@@ -18,11 +19,14 @@ import {
   listLiveSessions,
   previewLiveLessonCsv,
   updateLiveLesson,
+  updateLiveLessonSettings,
 } from "../controllers/liveLessonController.js";
 
 const router = express.Router();
 router.use(protect, requireSchoolContext);
 
+router.get("/settings", authorize("teacher", "admin", "department_principal"), getLiveLessonSettings);
+router.patch("/settings", authorize("admin"), updateLiveLessonSettings);
 router.post("/lessons/preview", authorize("teacher", "admin", "department_principal"), previewLiveLessonCsv);
 router.post("/lessons/import", authorize("teacher", "admin", "department_principal"), importLiveLessonCsv);
 router.post("/lessons", authorize("teacher", "admin", "department_principal"), createLiveLesson);

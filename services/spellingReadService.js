@@ -13,14 +13,23 @@ export async function resolveSpellingStudentId({ schoolId, requestedStudentId, u
     return student?._id || null;
 }
 
-export async function listSpellingSessions({ schoolId, studentId, studentIds, limit = 50, viewerRole = 'student' }) {
-    const query = {
-        school: schoolId,
-        $or: [
-            { status: 'in-progress' },
-            { 'attempts.0': { $exists: true } }
-        ]
-    };
+export async function listSpellingSessions({
+    schoolId,
+    studentId,
+    studentIds,
+    limit = 50,
+    viewerRole = 'student',
+    activeOnly = false
+}) {
+    const query = activeOnly
+        ? { school: schoolId, status: 'in-progress' }
+        : {
+            school: schoolId,
+            $or: [
+                { status: 'in-progress' },
+                { 'attempts.0': { $exists: true } }
+            ]
+        };
     if (studentId) {
         query.student = studentId;
     } else if (Array.isArray(studentIds) && studentIds.length) {
@@ -30,7 +39,9 @@ export async function listSpellingSessions({ schoolId, studentId, studentIds, li
     const sessions = await SpellingSession.find(query)
         .sort({ startedAt: -1 })
         .limit(Math.min(Math.max(Number(limit) || 50, 1), maxLimit))
-        .select('student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts currentItem nextSequence curriculumGrade curriculumWeek emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError')
+        .select(activeOnly
+            ? 'student mode status startedAt mistakeCount currentItem nextSequence curriculumGrade curriculumWeek'
+            : 'student mode status startedAt completedAt completionReason retestDeadline correctCount mistakeCount attempts currentItem nextSequence curriculumGrade curriculumWeek emailNotification passageEmailAudience emailStatus emailSentAt emailAttempts emailError')
         .lean();
     if (viewerRole !== 'student') {
         const activeSessions = sessions.filter((session) => session.status === 'in-progress');
@@ -53,11 +64,17 @@ export async function listSpellingSessions({ schoolId, studentId, studentIds, li
             session.currentWordIsRetest = Boolean(retest);
         }
     }
-    const passages = await SpellingPassage.find({
+    const passageQuery = SpellingPassage.find({
         school: schoolId,
         session: { $in: sessions.map((session) => session._id) },
         ...(viewerRole === 'student' ? { status: { $in: ['approved', 'sent'] } } : {})
-    }).select('_id session style missedWords content status generatedAt sentAt supersedes createdAt').sort({ createdAt: 1 }).lean();
+    });
+    const passages = await passageQuery
+        .select(activeOnly
+            ? '_id session status sentAt createdAt'
+            : '_id session style missedWords content status generatedAt sentAt supersedes createdAt')
+        .sort({ createdAt: 1 })
+        .lean();
     const passagesBySession = new Map();
     passages.forEach((passage) => {
         const key = String(passage.session);

@@ -11,14 +11,12 @@ const badRequest = (message) => Object.assign(new Error(message), { statusCode: 
 const forbidden = (message) => Object.assign(new Error(message), { statusCode: 403 });
 const conflict = (message) => Object.assign(new Error(message), { statusCode: 409 });
 
-const uniqueMissedWords = (sessions) => {
+export const uniqueMissedWords = (session) => {
     const words = new Map();
-    for (const session of sessions) {
-        for (const attempt of session.attempts || []) {
-            const word = String(attempt.wordSnapshot || '').trim();
-            const key = word.toLocaleLowerCase();
-            if (!attempt.correct && word && !words.has(key)) words.set(key, word);
-        }
+    for (const attempt of session.attempts || []) {
+        const word = String(attempt.wordSnapshot || '').trim();
+        const key = word.toLocaleLowerCase();
+        if (!attempt.correct && !attempt.skipped && word && !words.has(key)) words.set(key, word);
     }
     return [...words.values()];
 };
@@ -76,12 +74,7 @@ export async function generateSpellingPassage({ schoolId, sessionId, userId, sty
     const existing = await SpellingPassage.findOne({ school: schoolId, session: sessionId }).sort({ createdAt: -1 });
     if (existing?.status === 'queued') throw conflict('A queued passage cannot be regenerated until delivery is cancelled');
     if (existing?.regenerationCount >= 3) throw badRequest('Maximum passage generation attempts reached');
-    const completedSessions = await SpellingSession.find({
-        school: schoolId,
-        student: session.student,
-        status: 'completed'
-    }).sort({ completedAt: 1, createdAt: 1 }).lean();
-    const missedWords = uniqueMissedWords(completedSessions);
+    const missedWords = uniqueMissedWords(session);
     if (!missedWords.length) throw badRequest('No missed words are available for practice');
     const prompt = `Create safe, age-appropriate KG-Grade 5 spelling practice as ${style === 'passage' ? 'a short connected set of sentences' : 'a list of short sentences'}. Return only JSON: {"content":"...","highlightedWords":[...]}.
 Every sentence MUST include at least one word from the missed-word list. Every missed word must appear correctly spelled at least once, and may appear in more than one sentence for repeated practice. Do not include a heading, introduction, instructions, or closing sentence that does not contain a missed word. Use natural sentences like: "I have a cute little pet dog." Keep it short, avoid mature or frightening themes, and make clear this is practice material, not a grade.

@@ -26,12 +26,14 @@ export const getStatusMeta = (assignment) => {
 
 export const orderAssignments = (assignments = []) => {
   return [...assignments].sort((a, b) => {
+    const assignedA = a?.assignedDate || a?.publishedAt || a?.createdAt;
+    const assignedB = b?.assignedDate || b?.publishedAt || b?.createdAt;
+    const assignedTimeA = assignedA ? new Date(assignedA).getTime() : 0;
+    const assignedTimeB = assignedB ? new Date(assignedB).getTime() : 0;
+    if (assignedTimeA !== assignedTimeB) return assignedTimeB - assignedTimeA;
+
     const dueA = a?.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
     const dueB = b?.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
-    if (dueA !== dueB) return dueA - dueB;
-
-    const assignedA = a?.assignedDate ? new Date(a.assignedDate).getTime() : 0;
-    const assignedB = b?.assignedDate ? new Date(b.assignedDate).getTime() : 0;
-    return assignedB - assignedA;
+    return dueA - dueB;
   });
 };

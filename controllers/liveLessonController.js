@@ -5,10 +5,12 @@ import LiveLesson from "../models/LiveLesson.js";
 import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
+import School from "../models/School.js";
 import Student from "../models/Student.js";
 import Teacher from "../models/Teacher.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { parseLiveLessonCsv } from "../services/liveLessonCsvService.js";
+import { assertLiveLessonHtmlSafe } from "../services/liveLessonHtmlSafety.js";
 import {
   appendLiveEvent,
   formatRoster,
@@ -58,6 +60,7 @@ const normalizeSlides = (slides) =>
     type: slide.type,
     title: String(slide.title || "").trim(),
     body: String(slide.body || "").trim(),
+    html: slide.type === "html" ? String(slide.html || "") : "",
     examples: Array.isArray(slide.examples) ? slide.examples.map((value) => String(value)) : [],
     imageUrl: String(slide.imageUrl || "").trim(),
     speakerNotes: String(slide.speakerNotes || "").trim(),
@@ -69,7 +72,7 @@ const createJoinCode = () =>
 
 const validId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-const validateLessonEdit = ({ title, description, slides }) => {
+const validateLessonEdit = ({ title, description, subject, grade, language, slides }) => {
   const errors = [];
   if (!String(title || "").trim() || String(title).trim().length > 200) {
     errors.push({ field: "title", message: "Lesson title is required and must be 200 characters or fewer." });
@@ -77,11 +80,14 @@ const validateLessonEdit = ({ title, description, slides }) => {
   if (String(description || "").length > 1000) {
     errors.push({ field: "description", message: "Description must be 1,000 characters or fewer." });
   }
+  for (const [field, value, max] of [["subject", subject, 120], ["grade", grade, 80], ["language", language, 20]]) {
+    if (String(value || "").length > max) errors.push({ field, message: `Must be ${max} characters or fewer.` });
+  }
   if (!Array.isArray(slides) || slides.length < 1 || slides.length > 200) {
     errors.push({ field: "slides", message: "Lessons must contain 1–200 slides." });
     return errors;
   }
-  const slideTypes = new Set(["opening", "goals", "content", "examples", "question", "activity", "exit-ticket"]);
+  const slideTypes = new Set(["opening", "goals", "content", "examples", "html", "question", "activity", "exit-ticket"]);
   slides.forEach((slide, index) => {
     const row = index + 1;
     if (!slideTypes.has(slide.type)) {
@@ -90,6 +96,7 @@ const validateLessonEdit = ({ title, description, slides }) => {
     for (const [field, value, max] of [
       ["title", slide.title, 200],
       ["body", slide.body, 5000],
+      ["html", slide.html, 100000],
       ["speaker notes", slide.speakerNotes, 2000],
     ]) {
       if (String(value || "").length > max) {
@@ -132,9 +139,43 @@ const validateLessonEdit = ({ title, description, slides }) => {
     } else if (slide.question) {
       errors.push({ row, field: "question", message: "Only question slides can include question data." });
     }
+    if (slide.type === "html") {
+      if (!String(slide.html || "").trim()) errors.push({ row, field: "html", message: "HTML slides need slide content." });
+      if (slide.question) errors.push({ row, field: "question", message: "HTML slides cannot include question data." });
+    } else if (slide.html) {
+      errors.push({ row, field: "html", message: "Only HTML slides can include HTML content." });
+    }
   });
   return errors;
 };
+
+const schoolHtmlReviewEnabled = async (schoolId) => {
+  const school = await School.findById(schoolId).select("settings.liveLessonHtmlReview.aiReviewEnabled").lean();
+  return school?.settings?.liveLessonHtmlReview?.aiReviewEnabled === true;
+};
+
+export const getLiveLessonSettings = asyncHandler(async (req, res) => {
+  return res.json({
+    success: true,
+    data: { aiHtmlReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId) },
+  });
+});
+
+export const updateLiveLessonSettings = asyncHandler(async (req, res) => {
+  if (typeof req.body?.aiHtmlReviewEnabled !== "boolean") {
+    return res.status(400).json({ success: false, message: "aiHtmlReviewEnabled must be true or false." });
+  }
+  const school = await School.findByIdAndUpdate(
+    req.schoolId,
+    { $set: { "settings.liveLessonHtmlReview.aiReviewEnabled": req.body.aiHtmlReviewEnabled } },
+    { new: true, runValidators: true },
+  ).select("settings.liveLessonHtmlReview.aiReviewEnabled");
+  if (!school) return res.status(404).json({ success: false, message: "School not found." });
+  return res.json({
+    success: true,
+    data: { aiHtmlReviewEnabled: school.settings?.liveLessonHtmlReview?.aiReviewEnabled === true },
+  });
+});
 
 export const importLiveLessonCsv = asyncHandler(async (req, res) => {
   const csv = typeof req.body === "string" ? req.body : req.body?.csv;
@@ -146,6 +187,10 @@ export const importLiveLessonCsv = asyncHandler(async (req, res) => {
       errors: result.errors,
     });
   }
+  await assertLiveLessonHtmlSafe({
+    slides: result.lesson.slides,
+    aiReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
+  });
   const lesson = await LiveLesson.create({
     school: req.schoolId,
     ownerId: req.user._id,
@@ -178,17 +223,24 @@ export const previewLiveLessonCsv = asyncHandler(async (req, res) => {
 });
 
 export const createLiveLesson = asyncHandler(async (req, res) => {
-  const { title, description, slides } = req.body || {};
-  const errors = validateLessonEdit({ title, description, slides });
+  const { title, description, subject, grade, language, slides } = req.body || {};
+  const errors = validateLessonEdit({ title, description, subject, grade, language, slides });
   if (errors.length) {
     return res.status(400).json({ success: false, message: "Lesson changes are invalid.", errors });
   }
+  await assertLiveLessonHtmlSafe({
+    slides,
+    aiReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
+  });
   const lesson = await LiveLesson.create({
     school: req.schoolId,
     ownerId: req.user._id,
     source: "csv",
     title: String(title).trim(),
     description: String(description || "").trim(),
+    subject: String(req.body.subject || "").trim(),
+    grade: String(req.body.grade || "").trim(),
+    language: String(req.body.language || "en").trim(),
     slides: normalizeSlides(slides),
   });
   return res.status(201).json({ success: true, data: { lesson } });
@@ -197,7 +249,7 @@ export const createLiveLesson = asyncHandler(async (req, res) => {
 export const listLiveLessons = asyncHandler(async (req, res) => {
   const lessons = await LiveLesson.find({ school: req.schoolId, ownerId: req.user._id })
     .sort({ updatedAt: -1 })
-    .select("title description slides.order slides.type createdAt updatedAt")
+    .select("title description subject grade language slides.order slides.type createdAt updatedAt")
     .lean();
   return res.json({ success: true, data: { lessons } });
 });
@@ -221,18 +273,28 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
     ownerId: req.user._id,
   });
   if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
-  const { title, description, slides } = req.body || {};
+  const { title, description, subject, grade, language, slides } = req.body || {};
   const next = {
     title: title === undefined ? lesson.title : title,
     description: description === undefined ? lesson.description : description,
+    subject: subject === undefined ? lesson.subject : subject,
+    grade: grade === undefined ? lesson.grade : grade,
+    language: language === undefined ? lesson.language : language,
     slides: slides === undefined ? lesson.slides : slides,
   };
   const errors = validateLessonEdit(next);
   if (errors.length) {
     return res.status(400).json({ success: false, message: "Lesson changes are invalid.", errors });
   }
+  await assertLiveLessonHtmlSafe({
+    slides: next.slides,
+    aiReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
+  });
   lesson.title = String(next.title).trim();
   lesson.description = String(next.description || "").trim();
+  lesson.subject = String(next.subject || "").trim();
+  lesson.grade = String(next.grade || "").trim();
+  lesson.language = String(next.language || "en").trim();
   if (slides !== undefined) lesson.slides = normalizeSlides(next.slides);
   await lesson.save();
   return res.json({ success: true, data: { lesson } });
@@ -240,13 +302,46 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
 
 export const deleteLiveLesson = asyncHandler(async (req, res) => {
   if (!validId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid lesson ID." });
-  const lesson = await LiveLesson.findOneAndDelete({
-    _id: req.params.id,
-    school: req.schoolId,
-    ownerId: req.user._id,
-  });
-  if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
-  return res.json({ success: true, message: "Lesson deleted." });
+  let sessionIds = [];
+  let lessonFound = false;
+  let liveSessionExists = false;
+  const transaction = await mongoose.startSession();
+  try {
+    await transaction.withTransaction(async () => {
+      sessionIds = [];
+      lessonFound = false;
+      liveSessionExists = false;
+      const lesson = await LiveLesson.findOne({
+        _id: req.params.id,
+        school: req.schoolId,
+        ownerId: req.user._id,
+      }).session(transaction);
+      if (!lesson) return;
+      lessonFound = true;
+      const sessions = await LiveSession.find({ school: req.schoolId, lessonId: lesson._id })
+        .select("_id status")
+        .session(transaction);
+      if (sessions.some((session) => session.status === "live")) {
+        liveSessionExists = true;
+        return;
+      }
+      sessionIds = sessions.map((session) => session._id);
+      if (sessionIds.length) {
+        await LiveResponse.deleteMany({ school: req.schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
+        await LiveSessionEvent.deleteMany({ school: req.schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
+        await LiveSession.deleteMany({ school: req.schoolId, _id: { $in: sessionIds } }, { session: transaction });
+      }
+      await lesson.deleteOne({ session: transaction });
+    });
+  } finally {
+    await transaction.endSession();
+  }
+  if (!lessonFound) return res.status(404).json({ success: false, message: "Lesson not found." });
+  if (liveSessionExists) {
+    return res.status(409).json({ success: false, message: "End all live sessions for this lesson before deleting it and its history." });
+  }
+  sessionIds.forEach((sessionId) => closeLiveSessionConnections(sessionId));
+  return res.json({ success: true, message: "Lesson and associated session history deleted." });
 });
 
 export const createLiveSession = asyncHandler(async (req, res) => {
@@ -279,6 +374,9 @@ export const createLiveSession = asyncHandler(async (req, res) => {
     lessonSnapshot: {
       title: lesson.title,
       description: lesson.description,
+      subject: lesson.subject || "",
+      grade: lesson.grade || "",
+      language: lesson.language || "en",
       slides: lesson.slides.map((slide) => slide.toObject()),
     },
     rosterSnapshot,
@@ -398,6 +496,9 @@ export const getLiveSession = asyncHandler(async (req, res) => {
     status: session.status,
     joinCode: isOwner ? session.joinCode : undefined,
     lessonTitle: session.lessonSnapshot.title,
+    lessonSubject: session.lessonSnapshot.subject || "",
+    lessonGrade: session.lessonSnapshot.grade || "",
+    lessonLanguage: session.lessonSnapshot.language || "en",
     classId: String(session.classId),
     currentSlideIndex: session.currentSlideIndex,
     totalSlides: session.lessonSnapshot.slides.length,

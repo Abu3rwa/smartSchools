@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { LIVE_LESSON_CSV_TEMPLATE as CLIENT_LIVE_LESSON_CSV_TEMPLATE } from "../client/src/pages/liveLessons/liveLessonCsvTemplate.js";
 import {
   LIVE_LESSON_CSV_TEMPLATE,
   parseLiveLessonCsv,
@@ -9,6 +10,11 @@ import {
   liveEventActorRole,
   safeSlide,
 } from "../services/liveLessonService.js";
+
+const csvRow = (cells) => cells.map((value) => {
+  const cell = String(value ?? "");
+  return /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+}).join(",");
 
 test("sample CSV imports a structured lesson with a graded question", () => {
   const result = parseLiveLessonCsv(LIVE_LESSON_CSV_TEMPLATE);
@@ -21,6 +27,58 @@ test("sample CSV imports a structured lesson with a graded question", () => {
   assert.equal(question.kind, "mcq");
   assert.equal(question.correctOptionId, "b");
   assert.equal(question.options[1].text, "Metaphor");
+});
+
+test("downloadable HTML CSV template passes the server importer", () => {
+  const result = parseLiveLessonCsv(CLIENT_LIVE_LESSON_CSV_TEMPLATE);
+  assert.equal(result.ok, true);
+  assert.equal(result.lesson.slides.length, 2);
+  assert.equal(result.lesson.slides[0].type, "html");
+  assert.equal(result.lesson.slides[1].question.kind, "mcq");
+});
+
+test("HTML slide CSV imports lesson metadata, animated HTML, and structured MCQ", () => {
+  const csv = [
+    csvRow(["lesson_id", "slide_order", "slide_type", "title", "subject", "grade", "language", "html", "question_type", "question_prompt", "option_a", "option_b", "option_c", "option_d", "correct_answer", "explanation", "speaker_notes"]),
+    csvRow(["L1", 0, "lesson", "Sentence Types", "English", "Grade 4", "en", ...Array(10).fill("")]),
+    csvRow(["L1", 1, "html", "Animated opener", "", "", "", "<style>@keyframes fade{from{opacity:0}to{opacity:1}}.a{animation:fade 1s}</style><h1 class='a'>Hello</h1>", ...Array(9).fill("")]),
+    csvRow(["L1", 2, "question", "Quick check", "", "", "", "", "mcq", "Which is complex?", "Simple", "Complex", "Compound", "", "B", "It has a dependent clause.", "Teacher note"]),
+  ].join("\n");
+  const result = parseLiveLessonCsv(csv);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.lesson.title, "Sentence Types");
+  assert.equal(result.lesson.subject, "English");
+  assert.equal(result.lesson.grade, "Grade 4");
+  assert.equal(result.lesson.language, "en");
+  assert.equal(result.lesson.slides[0].type, "html");
+  assert.match(result.lesson.slides[0].html, /@keyframes fade/);
+  assert.equal(result.lesson.slides[1].question.correctOptionId, "b");
+});
+
+test("HTML slide CSV requires a lesson row and consistent slide ordering and metadata", () => {
+  const csv = [
+    csvRow(["lesson_id", "slide_order", "slide_type", "title", "subject", "grade", "language", "html", "question_type", "question_prompt", "option_a", "option_b", "option_c", "option_d", "correct_answer", "explanation", "speaker_notes"]),
+    csvRow(["L1", 0, "lesson", "Sentence Types", "English", "Grade 4", "en", ...Array(10).fill("")]),
+    csvRow(["L1", 2, "html", "Animated opener", "", "", "", "<p>Hello</p>", ...Array(9).fill("")]),
+  ].join("\n");
+  const result = parseLiveLessonCsv(csv);
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.field === "slide_order"));
+});
+
+test("HTML slide CSV maps true/false answer letters to existing question option IDs", () => {
+  const csv = [
+    csvRow(["lesson_id", "slide_order", "slide_type", "title", "subject", "grade", "language", "html", "question_type", "question_prompt", "option_a", "option_b", "option_c", "option_d", "correct_answer", "explanation", "speaker_notes"]),
+    csvRow(["L2", 0, "lesson", "Facts", "Science", "Grade 2", "en", ...Array(10).fill("")]),
+    csvRow(["L2", 1, "question", "Check", "", "", "", "", "true_false", "Is the sun a star?", "True", "False", "", "", "A", "The sun is a star.", ""]),
+  ].join("\n");
+  const result = parseLiveLessonCsv(csv);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.lesson.slides[0].question.correctOptionId, "true");
+  assert.deepEqual(result.lesson.slides[0].question.options.map((option) => option.id), ["true", "false"]);
 });
 
 test("CSV parser accepts title aliases and quoted multiline content", () => {

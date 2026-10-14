@@ -13,6 +13,8 @@
 .live-fullscreen-toggle:hover { background: rgba(20,37,57,.88); }
 .live-presentation:fullscreen { display: flex; width: 100vw; height: 100vh; align-items: stretch; justify-content: stretch; overflow: auto; background: #142539; }
 .live-presentation:fullscreen .live-slide { width: 100%; height: 100%; min-height: 0; aspect-ratio: auto; justify-content: center; gap: clamp(.6rem, 2vh, 1.4rem); overflow-y: auto; padding: clamp(1.5rem, 5vw, 5rem); border-radius: 0; box-shadow: none; }
+.live-presentation:fullscreen .live-slide-html { box-sizing: border-box; justify-content: flex-start; gap: .55rem; }
+.live-presentation:fullscreen .live-slide-html .live-slide-content { flex: 1 1 auto; min-height: 0; margin: 0 auto; }
 .live-presentation:fullscreen .live-slide-question { justify-content: center; }
 .live-presentation:fullscreen .live-slide-content { flex: 0 1 auto; margin: auto; }
 .live-presentation:fullscreen .live-slide-question .live-slide-content { flex: 0 1 auto; }
@@ -316,6 +318,8 @@
   aspect-ratio: auto;
   justify-content: center;
 }
+.student-presentation-fullscreen .live-slide-html { box-sizing: border-box; justify-content: flex-start; gap: .55rem; }
+.student-presentation-fullscreen .live-slide-html .live-slide-content { flex: 1 1 auto; min-height: 0; margin: 0 auto; }
 .student-presentation-fullscreen .live-slide-question { min-height: max(620px, calc(100dvh - 105px)); }
 .student-presentation-fullscreen .live-slide-content { margin: auto; }
 

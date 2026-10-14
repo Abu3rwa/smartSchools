@@ -3,6 +3,7 @@ import { protect, authorize, authorizeWithPermission } from '../middleware/auth.
 import { requireSchoolContext, superAdminOnly } from '../middleware/tenantIsolation.js';
 import School from '../models/School.js';
 import Subscription from '../models/Subscription.js';
+import SchoolAdminPreviewAudit from '../models/SchoolAdminPreviewAudit.js';
 import UpgradeRequest from '../models/UpgradeRequest.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
@@ -37,6 +38,7 @@ import {
     normalizeStudentGroupingReportSettings,
     STUDENT_GROUPING_REPORT_SETTING_KEYS
 } from '../utils/studentGroupingReportSettings.js';
+import { getSchoolPageAccess, SCHOOL_PAGE_ACCESS_PAGES } from '../config/schoolPageAccess.js';
 import upload from '../middleware/upload.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import {
@@ -180,10 +182,76 @@ router.get('/me/features', requireSchoolContext, asyncHandler(async (req, res) =
             trialEndsAt: featureContext.subscription?.trialEndsAt || featureContext.school?.subscription?.trialEndsAt || null,
             currentPeriodEnd: featureContext.subscription?.currentPeriodEnd || featureContext.school?.subscription?.currentPeriodEnd || null,
             features: featureContext.features,
+            pageAccess: getSchoolPageAccess(featureContext.school?.settings),
             limits,
             usage,
             featureMetadata: buildFeatureMetadata(featureContext.features, featureContext.plan)
         }
+    });
+}));
+
+router.get('/me/page-access', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.userPageAccess');
+    if (!school) return res.status(404).json({ success: false, message: 'School not found' });
+
+    const audits = await SchoolAdminPreviewAudit.find({ school: req.schoolId })
+        .sort({ startedAt: -1 })
+        .limit(50)
+        .populate('admin', 'firstName lastName email')
+        .populate('targetUser', 'firstName lastName email role');
+
+    res.json({
+        success: true,
+        data: {
+            pages: SCHOOL_PAGE_ACCESS_PAGES,
+            pageAccess: getSchoolPageAccess(school.settings),
+            previewAudits: audits
+        }
+    });
+}));
+
+router.get('/me/page-access/current', requireSchoolContext, asyncHandler(async (req, res) => {
+    const school = await School.findById(req.schoolId).select('settings.userPageAccess');
+    if (!school) return res.status(404).json({ success: false, message: 'School not found' });
+    res.json({ success: true, data: { pageAccess: getSchoolPageAccess(school.settings) } });
+}));
+
+router.patch('/me/page-access', requireSchoolContext, authorize('admin'), asyncHandler(async (req, res) => {
+    const patch = req.body?.pageAccess;
+    const roles = ['teacher', 'student'];
+    const validPageKeys = new Set(SCHOOL_PAGE_ACCESS_PAGES.map(({ key }) => key));
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)
+        || Object.keys(patch).some((role) => !roles.includes(role))) {
+        return res.status(400).json({ success: false, message: 'Provide page availability for teacher and/or student roles.' });
+    }
+
+    const school = await School.findById(req.schoolId);
+    if (!school) return res.status(404).json({ success: false, message: 'School not found' });
+
+    const saved = school.settings?.userPageAccess || {};
+    const next = {
+        teacher: { ...(saved.teacher || {}) },
+        student: { ...(saved.student || {}) }
+    };
+
+    for (const role of roles) {
+        if (patch[role] === undefined) continue;
+        if (!patch[role] || typeof patch[role] !== 'object' || Array.isArray(patch[role])
+            || Object.keys(patch[role]).some((key) => !validPageKeys.has(key))
+            || Object.values(patch[role]).some((enabled) => typeof enabled !== 'boolean')) {
+            return res.status(400).json({ success: false, message: `Invalid ${role} page availability settings.` });
+        }
+        Object.assign(next[role], patch[role]);
+    }
+
+    school.settings.userPageAccess = next;
+    school.markModified('settings.userPageAccess');
+    await school.save();
+
+    res.json({
+        success: true,
+        message: 'Page availability updated for this school.',
+        data: { pageAccess: getSchoolPageAccess(school.settings) }
     });
 }));
 

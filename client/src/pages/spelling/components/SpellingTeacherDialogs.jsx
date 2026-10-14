@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, InputLabel, MenuItem, Select, Stack, Typography, Box } from '@mui/material';
 
 const getSessionDate = (session) => new Date(session.completedAt || session.startedAt || session.createdAt);
 const getMonthKey = (date) => (Number.isNaN(date.getTime()) ? '' : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
 
-export const StudentSessionsDialog = ({ student, sessions, onClose, onOpenSession }) => {
+export const StudentSessionsDialog = ({ student, sessions, loading = false, error = '', onClose, onOpenSession }) => {
     const [month, setMonth] = useState('');
-
-    useEffect(() => { setMonth(''); }, [student?._id]);
 
     const months = useMemo(() => {
         const keys = new Set((sessions || []).map((session) => getMonthKey(getSessionDate(session))).filter(Boolean));
@@ -30,6 +28,8 @@ export const StudentSessionsDialog = ({ student, sessions, onClose, onOpenSessio
             {student ? `${student.firstName} ${student.lastName}'s sessions` : 'Student sessions'}
         </DialogTitle>
         <DialogContent dividers>
+            {loading && <Typography color="text.secondary">Loading spelling sessions…</Typography>}
+            {!loading && error && <Typography color="error">{error}</Typography>}
             {months.length > 1 && (
                 <FormControl size="small" sx={{ minWidth: 200, mb: 2 }}>
                     <InputLabel>Month</InputLabel>
@@ -39,9 +39,9 @@ export const StudentSessionsDialog = ({ student, sessions, onClose, onOpenSessio
                     </Select>
                 </FormControl>
             )}
-            {!visibleSessions.length ? (
+            {!loading && !error && !visibleSessions.length ? (
                 <Typography color="text.secondary">No spelling sessions found.</Typography>
-            ) : (
+            ) : !loading && !error && (
                 <Stack divider={<Divider flexItem />}>
                     {visibleSessions.map((session) => {
                         const passageStatus = session.practicePassage?.status || 'not sent';

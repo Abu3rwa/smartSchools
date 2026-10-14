@@ -119,6 +119,12 @@ const schoolSchema = new mongoose.Schema({
                 default: true
             }
         },
+        liveLessonHtmlReview: {
+            aiReviewEnabled: {
+                type: Boolean,
+                default: false
+            }
+        },
         newsletter: {
             frequency: {
                 type: String,
@@ -581,6 +587,10 @@ const schoolSchema = new mongoose.Schema({
         },
         features: {
             ...schoolFeatureSchemaDefinition
+        },
+        userPageAccess: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
         }
     },
     // AI Report settings

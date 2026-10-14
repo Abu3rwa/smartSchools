@@ -128,6 +128,17 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
+        if (status === 423 && error.response?.data?.code === 'SCHOOL_PAGE_LOCKED') {
+            window.dispatchEvent(new CustomEvent('school-page-locked', {
+                detail: { page: error.response.data.page }
+            }));
+            return Promise.reject(error);
+        }
+
+        if (status === 401 && localStorage.getItem('supportPreview') === 'true') {
+            return Promise.reject(error);
+        }
+
         if (status === 401 && !requestUrl.includes('/auth/refresh') && !originalRequest._retry) {
             const refreshToken = localStorage.getItem('refreshToken');
             if (!refreshToken) {

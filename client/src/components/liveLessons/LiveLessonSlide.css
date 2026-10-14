@@ -192,3 +192,10 @@
   .live-slide-exit-ticket h1 { font-size: clamp(2.6rem, 12vw, 4.2rem); }
   .live-content-card { padding: 1rem; border-radius: 15px; }
 }
+
+.live-slide-html { box-sizing: border-box; justify-content: flex-start; gap: .55rem; padding: clamp(.8rem, 2vw, 1.5rem); }
+.live-slide-html-header { display: grid; flex: 0 0 auto; gap: .3rem; letter-spacing: normal; }
+.live-slide-html-meta { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.live-slide-html .live-slide-html-header h1 { margin: 0; font-size: clamp(1.15rem, 1.8vw, 1.6rem); line-height: 1.15; letter-spacing: -.02em; }
+.live-slide-html .live-slide-content { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; margin: 0 auto; }
+.live-html-slide-frame { display: block; width: 100%; min-height: 0; flex: 1 1 auto; border: 0; border-radius: 14px; background: #fff; }

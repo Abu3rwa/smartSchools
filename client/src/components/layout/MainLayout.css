@@ -65,6 +65,10 @@
     margin-inline-start: var(--sidebar-collapsed);
 }
 
+.student-layout .main-content {
+    margin-inline-start: 0;
+}
+
 .page-content {
     position: relative;
     flex: 1;

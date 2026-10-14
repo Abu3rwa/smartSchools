@@ -5,7 +5,7 @@ import { HiOutlineUserGroup } from 'react-icons/hi';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import TablePagination from '../../../../components/common/TablePagination';
-import { impersonateUser, selectCanImpersonate } from '../../../../store/slices/authSlice';
+import { impersonateUser, selectCanImpersonate, selectUser } from '../../../../store/slices/authSlice';
 
 const DEFAULT_PAGE_SIZE = 10;
 const ALL_FILTER = 'all';
@@ -38,6 +38,11 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const canImpersonate = useSelector(selectCanImpersonate);
+  const currentUser = useSelector(selectUser);
+  const isReadOnlyPreview = currentUser?.role === 'admin';
+  const canPreviewTarget = (user) => isReadOnlyPreview
+    ? IMPERSONATABLE_ROLES.has(String(user?.role || '').toLowerCase())
+    : canImpersonateTargetUser(user);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,16 +128,18 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
   }, [filteredUsers, safeCurrentPage, pageSize]);
 
   const handleImpersonate = async (user) => {
-    if (!canImpersonate || !canImpersonateTargetUser(user)) {
+    if (!canImpersonate || !canPreviewTarget(user)) {
       return;
     }
 
     const displayName = getUserDisplayName(user);
     const confirmed = window.confirm(
-      t('schoolSettings:confirm.impersonateUser', {
-        defaultValue: 'Are you sure you want to impersonate {{name}}?',
-        name: displayName
-      })
+      isReadOnlyPreview
+        ? `Start a 30-minute, read-only support preview of ${displayName} as ${user.role}? Changes will be blocked and the preview will be recorded in the audit log.`
+        : t('schoolSettings:confirm.impersonateUser', {
+          defaultValue: 'Are you sure you want to impersonate {{name}}?',
+          name: displayName
+        })
     );
 
     if (!confirmed) {
@@ -304,7 +311,7 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                       {paginatedUsers.map((user) => {
                         const assignedRoles = getAssignedRoles(user);
                         const isActive = user?.isActive !== false;
-                        const canImpersonateThisUser = canImpersonate && canImpersonateTargetUser(user);
+                        const canImpersonateThisUser = canImpersonate && canPreviewTarget(user);
                         return (
                           <tr key={user._id}>
                             <td>{user.firstName} {user.lastName}</td>
@@ -333,7 +340,7 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                                     className="btn btn-sm btn-secondary"
                                     onClick={() => handleImpersonate(user)}
                                   >
-                                    {t('schoolSettings:users.actions.impersonate', {
+                                    {isReadOnlyPreview ? 'Preview as' : t('schoolSettings:users.actions.impersonate', {
                                       defaultValue: 'Impersonate'
                                     })}
                                   </button>
@@ -353,7 +360,7 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                     {paginatedUsers.map((user) => {
                       const assignedRoles = getAssignedRoles(user);
                       const isActive = user?.isActive !== false;
-                      const canImpersonateThisUser = canImpersonate && canImpersonateTargetUser(user);
+                      const canImpersonateThisUser = canImpersonate && canPreviewTarget(user);
                       return (
                         <article className="users-mobile-card" key={`${user._id}-mobile`}>
                           <div className="users-mobile-card-header">
@@ -382,7 +389,7 @@ const UsersTab = ({ users, loading, onEdit, modal, showOpenFullPageAction = fals
                           <div className="users-mobile-actions">
                             {canImpersonateThisUser && (
                               <button className="btn btn-secondary" onClick={() => handleImpersonate(user)}>
-                                {t('schoolSettings:users.actions.impersonate', {
+                                {isReadOnlyPreview ? 'Preview as' : t('schoolSettings:users.actions.impersonate', {
                                   defaultValue: 'Impersonate'
                                 })}
                               </button>

@@ -149,6 +149,7 @@ const useSchoolSettings = () => {
   const user = useSelector(selectUser);
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
   const canManageUsers = user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_USERS);
+  const canManagePageAccess = user?.role === 'admin';
   const canManageSchoolSettings =
     user?.role === 'admin' || userPermissions.includes(PERMISSIONS.MANAGE_SCHOOL_SETTINGS);
   const canManageCommunicationSettings = user?.role === 'admin';
@@ -291,6 +292,7 @@ const useSchoolSettings = () => {
     const allowedTabs = [
       canManageSchoolSettings ? 'departments' : null,
       canManageUsers ? 'users' : null,
+      canManagePageAccess ? 'pageaccess' : null,
       canManageSchoolSettings ? 'lessonplancriteria' : null,
       canManageGradeScaling ? 'gradingscales' : null,
       canManageSchoolSettings ? 'branding' : null,
@@ -309,7 +311,7 @@ const useSchoolSettings = () => {
     if (!allowedTabs.includes(activeTab)) {
       setActiveTab(allowedTabs[0]);
     }
-  }, [activeTab, canManageCommunicationSettings, canManageGradeScaling, canManageSchoolSettings, canManageUsers]);
+  }, [activeTab, canManageCommunicationSettings, canManageGradeScaling, canManagePageAccess, canManageSchoolSettings, canManageUsers]);
 
   const fetchSchoolUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -1447,6 +1449,7 @@ const useSchoolSettings = () => {
   return {
     user,
     canManageUsers,
+    canManagePageAccess,
     canManageSchoolSettings,
     canManageCommunicationSettings,
     canManageGradeScaling,

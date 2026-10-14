@@ -7,7 +7,28 @@ const splitItems = (text) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-export default function LiveLessonSlide({ slide, index, total, hidden = false, children }) {
+const makeSlideDocument = (html, language, allowScripts) => {
+  const scriptPolicy = allowScripts ? "'unsafe-inline'" : "'none'";
+  const slideCsp = `default-src 'none'; script-src ${scriptPolicy}; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; navigate-to 'none'`;
+
+  const csp = `<meta http-equiv="Content-Security-Policy" content="${slideCsp}"><meta name="viewport" content="width=device-width, initial-scale=1">`;
+  const content = String(html || "");
+  const safeLanguage = String(language || "en").replace(/[^a-zA-Z0-9-]/g, "");
+  const direction = /^(ar|fa|he|ur)(?:-|$)/i.test(safeLanguage) ? "rtl" : "ltr";
+  if (/<html\b/i.test(content)) {
+    const localized = content.replace(/<html\b([^>]*)>/i, (tag, attributes) => {
+      const withLanguage = /\blang\s*=/.test(attributes) ? attributes : `${attributes} lang="${safeLanguage}"`;
+      const withDirection = /\bdir\s*=/.test(withLanguage) ? withLanguage : `${withLanguage} dir="${direction}"`;
+      return `<html${withDirection}>`;
+    });
+    return /<head\b[^>]*>/i.test(localized)
+      ? localized.replace(/<head\b[^>]*>/i, (head) => `${head}${csp}`)
+      : localized.replace(/<html\b[^>]*>/i, (htmlTag) => `${htmlTag}<head>${csp}</head>`);
+  }
+  return `<!doctype html><html lang="${safeLanguage}" dir="${direction}"><head>${csp}</head><body>${content}</body></html>`;
+};
+
+export default function LiveLessonSlide({ slide, index, total, hidden = false, children, language = "en", allowScripts = false }) {
   if (!slide) return <div className="live-slide live-slide-empty">Waiting for the teacher…</div>;
   if (hidden) {
     return (
@@ -16,6 +37,30 @@ export default function LiveLessonSlide({ slide, index, total, hidden = false, c
           <span className="live-slide-kicker">FOCUS MODE</span>
           <h2>Think it through</h2>
           <p>Your teacher hid the lesson content. The question is still available below.</p>
+        </div>
+        {children}
+      </article>
+    );
+  }
+
+  if (slide.type === "html") {
+    return (
+      <article className="live-slide live-slide-html">
+        <header className="live-slide-header live-slide-html-header">
+          <div className="live-slide-html-meta">
+            <span className="live-slide-kicker">LESSON SLIDE</span>
+            <span className="live-slide-count">{String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}</span>
+          </div>
+          {slide.title && <h1>{slide.title}</h1>}
+        </header>
+        <div className="live-slide-content live-html-slide-content">
+          <iframe
+            className="live-html-slide-frame"
+            title={slide.title || "Live lesson slide"}
+            sandbox="allow-scripts"
+            referrerPolicy="no-referrer"
+            srcDoc={makeSlideDocument(slide.html, language, allowScripts)}
+          />
         </div>
         {children}
       </article>

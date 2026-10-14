@@ -3,13 +3,14 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { HiOutlineArrowDownTray, HiOutlineArrowUpTray, HiOutlineCheck, HiOutlineClipboardDocument, HiOutlinePencilSquare, HiOutlinePlay, HiOutlinePlus, HiOutlinePresentationChartBar, HiOutlineTrash } from "react-icons/hi2";
 import api from "../../config/api";
+import { selectUser } from "../../store/slices/authSlice";
 import { fetchClasses, selectClasses } from "../../store/slices/classSlice";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
 import { LIVE_LESSON_CSV_TEMPLATE } from "./liveLessonCsvTemplate";
 import { LIVE_LESSON_AI_PROMPT } from "./liveLessonAiPrompt";
 import "./LiveLessonsPage.css";
 
-const emptyForm = { title: "", description: "", slides: [] };
+const emptyForm = { title: "", description: "", subject: "", grade: "", language: "en", slides: [] };
 
 const downloadTemplate = () => {
   const blob = new Blob([LIVE_LESSON_CSV_TEMPLATE], { type: "text/csv;charset=utf-8" });
@@ -25,6 +26,7 @@ const LiveLessonsPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const classes = useSelector(selectClasses);
+  const user = useSelector(selectUser);
   const [lessons, setLessons] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [tab, setTab] = useState("lessons");
@@ -42,6 +44,8 @@ const LiveLessonsPage = () => {
   const [selectedFile, setSelectedFile] = useState("");
   const [lessonClasses, setLessonClasses] = useState({});
   const [error, setError] = useState("");
+  const [aiHtmlReviewEnabled, setAiHtmlReviewEnabled] = useState(false);
+  const [savingHtmlReviewSetting, setSavingHtmlReviewSetting] = useState(false);
 
   const copyAiPrompt = async () => {
     try {
@@ -57,18 +61,33 @@ const LiveLessonsPage = () => {
     setLoading(true);
     setError("");
     try {
-      const [lessonResponse, sessionResponse] = await Promise.all([
+      const [lessonResponse, sessionResponse, settingsResponse] = await Promise.all([
         api.get("/live/lessons"),
         api.get("/live/sessions"),
+        api.get("/live/settings"),
       ]);
       setLessons(lessonResponse.data?.data?.lessons || []);
       setSessions(sessionResponse.data?.data?.sessions || []);
+      setAiHtmlReviewEnabled(settingsResponse.data?.data?.aiHtmlReviewEnabled === true);
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not load live lessons.");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const updateAiHtmlReviewSetting = async (enabled) => {
+    setSavingHtmlReviewSetting(true);
+    setError("");
+    try {
+      const response = await api.patch("/live/settings", { aiHtmlReviewEnabled: enabled });
+      setAiHtmlReviewEnabled(response.data?.data?.aiHtmlReviewEnabled === true);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Could not update the AI HTML safety review setting.");
+    } finally {
+      setSavingHtmlReviewSetting(false);
+    }
+  };
 
   useEffect(() => {
     dispatch(fetchClasses({ limit: 100 }));
@@ -121,6 +140,9 @@ const LiveLessonsPage = () => {
       setForm({
         title: lesson.title,
         description: lesson.description || "",
+        subject: lesson.subject || "",
+        grade: lesson.grade || "",
+        language: lesson.language || "en",
         slides: (lesson.slides || []).map((slide) => ({
           ...slide,
           examples: slide.examples || [],
@@ -270,6 +292,9 @@ const LiveLessonsPage = () => {
       const lessonData = {
         title: form.title,
         description: form.description,
+        subject: form.subject || "",
+        grade: form.grade || "",
+        language: form.language || "en",
         slides: form.slides,
       };
       if (editorMode === "edit") {
@@ -291,7 +316,7 @@ const LiveLessonsPage = () => {
   };
 
   const deleteLesson = async (lessonId) => {
-    if (!window.confirm("Delete this lesson? Existing session replays will be kept.")) return;
+    if (!window.confirm("Permanently delete this lesson and ALL associated session history, answers, reports, and timelines? This cannot be undone.")) return;
     try {
       await api.delete(`/live/lessons/${lessonId}`);
       await loadData();
@@ -348,6 +373,23 @@ const LiveLessonsPage = () => {
       </nav>
 
       {error && <div className="live-error-banner" role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
+      {user?.role === "admin" && (
+        <section className="live-safety-setting">
+          <div>
+            <strong>AI HTML safety review</strong>
+            <p>When enabled, AI reviews HTML and scripts before saving. When disabled, CSS animation still works but slides containing JavaScript are rejected. Approved scripts run in an isolated, network-restricted sandbox.</p>
+          </div>
+          <label>
+            <input
+              type="checkbox"
+              checked={aiHtmlReviewEnabled}
+              disabled={savingHtmlReviewSetting}
+              onChange={(event) => updateAiHtmlReviewSetting(event.target.checked)}
+            />
+            {savingHtmlReviewSetting ? "Saving…" : aiHtmlReviewEnabled ? "Enabled" : "Disabled"}
+          </label>
+        </section>
+      )}
       {loading ? (
         <div className="live-loading">Loading live lessons…</div>
       ) : tab === "lessons" ? (
@@ -379,6 +421,7 @@ const LiveLessonsPage = () => {
                     <span>{lesson.slides?.length || 0} slides</span>
                   </div>
                   <h2>{lesson.title}</h2>
+                  {(lesson.subject || lesson.grade) && <p>{[lesson.subject, lesson.grade].filter(Boolean).join(" · ")}</p>}
                   {lesson.description && <p>{lesson.description}</p>}
                   <div className="live-lesson-card-footer">
                     <select
@@ -472,6 +515,11 @@ const LiveLessonsPage = () => {
                 </div>
                 <label className="live-edit-field">Lesson title<input value={form.title} onChange={(event) => setForm((previous) => ({ ...previous, title: event.target.value }))} /></label>
                 <label className="live-edit-field">Description<textarea rows={2} value={form.description || ""} onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))} /></label>
+                <div className="live-lesson-metadata-fields">
+                  <label className="live-edit-field">Subject<input value={form.subject || ""} onChange={(event) => setForm((previous) => ({ ...previous, subject: event.target.value }))} /></label>
+                  <label className="live-edit-field">Grade<input value={form.grade || ""} onChange={(event) => setForm((previous) => ({ ...previous, grade: event.target.value }))} /></label>
+                  <label className="live-edit-field">Language<input value={form.language || "en"} onChange={(event) => setForm((previous) => ({ ...previous, language: event.target.value }))} /></label>
+                </div>
                 <div className="live-preview-slide-strip">
                   {form.slides.map((slide, index) => (
                     <button className={`live-preview-chip ${selectedSlideIndex === index ? "active" : ""}`} key={`${index}-${slide.title}`} onClick={() => setSelectedSlideIndex(index)}>
@@ -480,18 +528,22 @@ const LiveLessonsPage = () => {
                   ))}
                 </div>
                 <div className="live-preview-workspace">
-                  <LiveLessonSlide slide={activeSlide} index={0} total={form.slides.length} />
+                  <LiveLessonSlide slide={activeSlide} index={selectedSlideIndex} total={form.slides.length} language={form.language} />
                   {activeSlide && (
                     <div className="live-preview-editors">
                       {editorMode === "edit" && (
                         <label className="live-edit-field">Slide type
                           <select value={activeSlide.type} onChange={(event) => changeSlideType(selectedSlideIndex, event.target.value)}>
-                            {["opening", "goals", "content", "examples", "question", "activity", "exit-ticket"].map((type) => <option value={type} key={type}>{type.replace("-", " ")}</option>)}
+                            {["opening", "goals", "content", "examples", "html", "question", "activity", "exit-ticket"].map((type) => <option value={type} key={type}>{type.replace("-", " ")}</option>)}
                           </select>
                         </label>
                       )}
                       <label className="live-edit-field">Slide title<input value={activeSlide.title || ""} onChange={(event) => updateSlide(selectedSlideIndex, { title: event.target.value })} /></label>
-                      <label className="live-edit-field">Slide content<textarea rows={3} value={activeSlide.body || ""} onChange={(event) => updateSlide(selectedSlideIndex, { body: event.target.value })} /></label>
+                      {activeSlide.type === "html" ? (
+                        <label className="live-edit-field">Slide HTML<textarea rows={12} value={activeSlide.html || ""} onChange={(event) => updateSlide(selectedSlideIndex, { html: event.target.value })} /></label>
+                      ) : (
+                        <label className="live-edit-field">Slide content<textarea rows={3} value={activeSlide.body || ""} onChange={(event) => updateSlide(selectedSlideIndex, { body: event.target.value })} /></label>
+                      )}
                       {editorMode === "edit" && activeSlide.type === "examples" && (
                         <label className="live-edit-field">Examples (one per line)<textarea rows={3} value={(activeSlide.examples || []).join("\n")} onChange={(event) => updateSlide(selectedSlideIndex, { examples: event.target.value.split(/\r?\n/).filter((item) => item.trim()) })} /></label>
                       )}

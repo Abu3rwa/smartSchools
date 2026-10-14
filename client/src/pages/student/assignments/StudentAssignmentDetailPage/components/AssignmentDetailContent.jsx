@@ -1,8 +1,24 @@
 import { Link } from 'react-router-dom';
-import { HiOutlineArrowLeft, HiOutlineCalendar, HiOutlineDocumentText } from 'react-icons/hi';
+import {
+  HiOutlineArrowLeft,
+  HiOutlineCalendar,
+  HiOutlineDocumentText,
+  HiOutlineExternalLink,
+} from 'react-icons/hi';
 import { formatDateTime } from '../utils/studentAssignmentDetailPresentation';
 
+const getExternalUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+};
+
 const AssignmentDetailContent = ({ assignment, lessonPlans }) => {
+  const links = Array.isArray(assignment?.links) ? assignment.links : [];
+
   return (
     <div className="student-assignment-detail-page">
       <Link to="/portal/my-assignments" className="btn btn-ghost back-btn">
@@ -48,6 +64,31 @@ const AssignmentDetailContent = ({ assignment, lessonPlans }) => {
             <p className="muted">No instructions were provided for this assignment.</p>
           )}
         </section>
+
+        {links.length > 0 ? (
+          <section className="detail-section">
+            <h2>Assignment links</h2>
+            <ul className="assignment-link-list">
+              {links.map((link, index) => {
+                const url = getExternalUrl(link?.url);
+                const label = link?.title || link?.url || 'Assignment resource';
+
+                return (
+                  <li key={link?._id || `${link?.type}-${link?.refId}-${index}`}>
+                    {url ? (
+                      <a href={url} target="_blank" rel="noopener noreferrer">
+                        {label}
+                        <HiOutlineExternalLink size={16} aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <span className="assignment-link-label">{label}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : null}
 
         {lessonPlans.length > 0 ? (
           <section className="detail-section">

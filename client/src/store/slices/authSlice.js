@@ -97,34 +97,40 @@ export const googleLoginCallback = createAsyncThunk(
 
 export const impersonateUser = createAsyncThunk(
   'auth/impersonateUser',
-  async (userId, { rejectWithValue, dispatch }) => {
+  async (userId, { rejectWithValue, dispatch, getState }) => {
     try {
-      // 1. Store the current super_admin token
+      const isSchoolAdminPreview = getState().auth.user?.role === 'admin';
       const adminToken = localStorage.getItem('token');
       if (adminToken) {
         localStorage.setItem('adminToken', adminToken);
+        localStorage.setItem('adminUser', localStorage.getItem('user') || '');
+        localStorage.setItem('adminRefreshToken', localStorage.getItem('refreshToken') || '');
       }
 
-      // 2. Call the impersonation endpoint
       const response = await api.post('/auth/impersonate', { userId });
 
       if (response.data.success) {
-        const { user, token } = response.data.data;
+        const { user, token, readOnlyPreview } = response.data.data;
         
-        // 3. Set the new user and token in localStorage and state
         localStorage.removeItem('behavior_session_id');
         localStorage.setItem('token', token);
         localStorage.removeItem('refreshToken');
         localStorage.setItem('user', JSON.stringify(user));
+        if (isSchoolAdminPreview && readOnlyPreview) {
+          localStorage.setItem('supportPreview', 'true');
+        } else {
+          localStorage.removeItem('supportPreview');
+        }
         
-        // 4. Dispatch setCredentials to update the store immediately
         dispatch(setCredentials({ user, token }));
         
-        return { user, token };
+        return { user, token, readOnlyPreview: Boolean(readOnlyPreview) };
       }
     } catch (error) {
-      // If it fails, remove the stored adminToken
       localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+      localStorage.removeItem('adminRefreshToken');
+      localStorage.removeItem('supportPreview');
       return rejectWithValue(error.response?.data?.message || 'Impersonation failed');
     }
   }
@@ -133,6 +139,7 @@ export const impersonateUser = createAsyncThunk(
 export const stopImpersonation = createAsyncThunk(
   'auth/stopImpersonation',
   async (_, { rejectWithValue, dispatch }) => {
+    let auditFailure = null;
     try {
       const adminToken = localStorage.getItem('adminToken');
       if (!adminToken) {
@@ -141,13 +148,26 @@ export const stopImpersonation = createAsyncThunk(
         return;
       }
 
-      // 1. Restore the admin token
+      if (localStorage.getItem('supportPreview') === 'true') {
+        try {
+          await api.post('/auth/preview/end');
+        } catch (error) {
+          auditFailure = error.response?.data?.message || 'The preview ended locally, but its end time could not be recorded.';
+        }
+      }
+
       localStorage.removeItem('behavior_session_id');
       localStorage.setItem('token', adminToken);
-      localStorage.removeItem('refreshToken');
+      const adminRefreshToken = localStorage.getItem('adminRefreshToken');
+      if (adminRefreshToken) localStorage.setItem('refreshToken', adminRefreshToken);
+      else localStorage.removeItem('refreshToken');
+      const adminUser = localStorage.getItem('adminUser');
+      if (adminUser) localStorage.setItem('user', adminUser);
       localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+      localStorage.removeItem('adminRefreshToken');
+      localStorage.removeItem('supportPreview');
 
-      // 2. Fetch the admin's user data
       const response = await api.get('/auth/me', {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
@@ -156,6 +176,7 @@ export const stopImpersonation = createAsyncThunk(
         const { user } = response.data.data;
         localStorage.setItem('user', JSON.stringify(user));
         dispatch(setCredentials({ user, token: adminToken }));
+        if (auditFailure) return rejectWithValue(auditFailure);
         return { user, token: adminToken };
       }
     } catch {
@@ -236,6 +257,7 @@ const getInitialState = () => {
   const refreshToken = localStorage.getItem('refreshToken');
   const user = localStorage.getItem('user');
   const adminToken = localStorage.getItem('adminToken');
+  const isReadOnlyPreview = localStorage.getItem('supportPreview') === 'true';
   return {
     user: user ? JSON.parse(user) : null,
     teacherProfile: null,
@@ -243,6 +265,7 @@ const getInitialState = () => {
     refreshToken: refreshToken || null,
     isAuthenticated: !!token,
     isImpersonating: !!adminToken,
+    isReadOnlyPreview,
     loading: false,
     error: null
   };
@@ -257,6 +280,9 @@ const authSlice = createSlice({
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+      localStorage.removeItem('adminRefreshToken');
+      localStorage.removeItem('supportPreview');
       localStorage.removeItem('behavior_session_id');
       state.user = null;
       state.teacherProfile = null;
@@ -264,6 +290,7 @@ const authSlice = createSlice({
       state.refreshToken = null;
       state.isAuthenticated = false;
       state.isImpersonating = false;
+      state.isReadOnlyPreview = false;
       state.error = null;
     },
     clearError: (state) => {
@@ -275,6 +302,7 @@ const authSlice = createSlice({
       state.refreshToken = action.payload.refreshToken || state.refreshToken || null;
       state.isAuthenticated = true;
       state.isImpersonating = !!localStorage.getItem('adminToken');
+      state.isReadOnlyPreview = localStorage.getItem('supportPreview') === 'true';
     }
   },
   extraReducers: (builder) => {
@@ -348,6 +376,7 @@ const authSlice = createSlice({
       .addCase(impersonateUser.fulfilled, (state) => {
         state.loading = false;
         state.isImpersonating = true;
+        state.isReadOnlyPreview = localStorage.getItem('supportPreview') === 'true';
       })
       .addCase(impersonateUser.rejected, (state, action) => {
         state.loading = false;
@@ -360,6 +389,7 @@ const authSlice = createSlice({
       .addCase(stopImpersonation.fulfilled, (state) => {
         state.loading = false;
         state.isImpersonating = false;
+        state.isReadOnlyPreview = false;
       })
       .addCase(stopImpersonation.rejected, (state, action) => {
         state.loading = false;
@@ -411,6 +441,7 @@ export const selectAuth = (state) => state.auth;
 export const selectUser = (state) => state.auth.user;
 export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
 export const selectIsImpersonating = (state) => state.auth.isImpersonating;
+export const selectIsReadOnlySupportPreview = (state) => state.auth.isReadOnlyPreview;
 export const selectIsAdmin = (state) => state.auth.user?.role === 'admin';
 export const selectIsTeacher = (state) => state.auth.user?.role === 'teacher';
 export const selectCanEditClass = (state) =>

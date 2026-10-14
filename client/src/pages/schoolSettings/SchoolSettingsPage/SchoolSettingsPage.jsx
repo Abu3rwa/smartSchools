@@ -14,6 +14,7 @@ import GradebookConfigTab from './components/GradebookConfigTab';
 import StandardsGradebookTab from './components/StandardsGradebookTab';
 import StudentGroupingReportsTab from './components/StudentGroupingReportsTab';
 import NewsletterSettingsTab from './components/NewsletterSettingsTab';
+import PageAccessTab from './components/PageAccessTab';
 import { useTranslation } from 'react-i18next';
 import useSchoolSettings from './hooks/useSchoolSettings';
 import './SchoolSettingsPage.css';
@@ -23,6 +24,7 @@ const SchoolSettingsPage = () => {
 
   const {
     canManageUsers,
+    canManagePageAccess,
     canManageSchoolSettings,
     canManageCommunicationSettings,
     canManageGradeScaling,
@@ -138,6 +140,7 @@ const SchoolSettingsPage = () => {
             activeTab={activeTab}
             onTabChange={setActiveTab}
             canManageUsers={canManageUsers}
+            canManagePageAccess={canManagePageAccess}
             canManageSchoolSettings={canManageSchoolSettings}
             canManageCommunicationSettings={canManageCommunicationSettings}
             canManageGradeScaling={canManageGradeScaling}
@@ -189,6 +192,8 @@ const SchoolSettingsPage = () => {
               )}
             />
           )}
+
+          {activeTab === 'pageaccess' && canManagePageAccess && <PageAccessTab />}
 
           {activeTab === 'lessonplancriteria' && canManageSchoolSettings && <LessonPlanCriteriaTab />}
 

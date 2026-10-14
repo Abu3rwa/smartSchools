@@ -98,6 +98,7 @@
     grid-template-columns: 2fr 1fr;
     grid-template-areas:
       "schedule grades"
+      "schedule recent"
       "schedule practice"
       "schedule due"
       "schedule tasks";
@@ -106,6 +107,7 @@
 
   .schedule-card  { grid-area: schedule; }
   .grades-card    { grid-area: grades; }
+  .recent-assignments-card { grid-area: recent; }
   .practice-card  { grid-area: practice; }
   .due-card       { grid-area: due; }
   .tasks-card     { grid-area: tasks; }
@@ -117,12 +119,14 @@
     grid-template-columns: repeat(2, 1fr);
     grid-template-areas:
       "schedule schedule"
-      "grades   practice"
+      "grades   recent"
+      "practice practice"
       "due      tasks";
   }
 
   .schedule-card  { grid-area: schedule; }
   .grades-card    { grid-area: grades; }
+  .recent-assignments-card { grid-area: recent; }
   .practice-card  { grid-area: practice; }
   .due-card       { grid-area: due; }
   .tasks-card     { grid-area: tasks; }
@@ -538,6 +542,46 @@
   flex-shrink: 0;
   max-width: 40%;
   text-align: right;
+}
+
+.recent-assignments-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recent-assignment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.recent-assignment-item:last-child {
+  border-bottom: none;
+}
+
+.recent-assignment-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.recent-assignment-title,
+.recent-assignment-type {
+  display: block;
+}
+
+.recent-assignment-title {
+  color: var(--text-primary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.recent-assignment-type {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
 }
 
 .due-title {

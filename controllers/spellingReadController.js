@@ -16,8 +16,10 @@ const studentIdForRequest = (req) => resolveSpellingStudentId({
 export const listSessions = asyncHandler(async (req, res) => {
     let studentIds = null;
     let studentId = null;
+    const canViewStaffSessions = ['admin', 'department_principal', 'teacher'].includes(req.user?.role);
+    const activeOnly = canViewStaffSessions && req.query.activeOnly === 'true';
 
-    if (req.query.studentIds && ['admin', 'department_principal', 'teacher'].includes(req.user?.role)) {
+    if (req.query.studentIds && canViewStaffSessions) {
         const rawIds = Array.isArray(req.query.studentIds)
             ? req.query.studentIds
             : String(req.query.studentIds).split(',').map((s) => s.trim()).filter(Boolean);
@@ -35,7 +37,8 @@ export const listSessions = asyncHandler(async (req, res) => {
         studentId,
         studentIds,
         limit: req.query.limit || (studentIds ? 300 : 50),
-        viewerRole: req.user?.role
+        viewerRole: req.user?.role,
+        activeOnly
     });
     return res.json({ success: true, data: sessions });
 });

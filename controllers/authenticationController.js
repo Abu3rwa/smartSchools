@@ -4,6 +4,7 @@ import { google } from 'googleapis';
 import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
 import School from '../models/School.js';
+import SchoolAdminPreviewAudit from '../models/SchoolAdminPreviewAudit.js';
 import { uploadFile, deleteFile } from '../services/firebaseStorageService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import {
@@ -724,9 +725,8 @@ export const impersonateUser = asyncHandler(async (req, res) => {
         if (!adminSchoolId || !targetSchoolId || adminSchoolId.toString() !== targetSchoolId.toString()) {
             return res.status(403).json({ success: false, message: 'Cannot impersonate users from other schools' });
         }
-        // Admin cannot impersonate other admins or super_admin
-        if (['admin', 'super_admin'].includes(userToImpersonate.role)) {
-            return res.status(403).json({ success: false, message: 'Cannot impersonate admin-level users' });
+        if (!['teacher', 'student'].includes(userToImpersonate.role)) {
+            return res.status(403).json({ success: false, message: 'School admins may preview only teacher or student accounts' });
         }
     }
 
@@ -738,12 +738,35 @@ export const impersonateUser = asyncHandler(async (req, res) => {
         timestamp: new Date().toISOString()
     });
 
-    // Generate token for the target user
-    const token = generateAccessToken(userToImpersonate);
+    let token;
+    let previewAudit = null;
+    if (req.user.role === 'admin') {
+        const schoolId = userToImpersonate.school?._id || userToImpersonate.school;
+        const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+        previewAudit = await SchoolAdminPreviewAudit.create({
+            school: schoolId,
+            admin: req.user._id,
+            targetUser: userToImpersonate._id,
+            targetRole: userToImpersonate.role,
+            expiresAt,
+            ipAddress: req.ip || null
+        });
+        token = jwt.sign({
+            id: String(req.user._id),
+            schoolId: String(schoolId),
+            previewMode: 'school_admin_readonly',
+            previewUserId: String(userToImpersonate._id),
+            previewAuditId: String(previewAudit._id)
+        }, process.env.JWT_SECRET, { expiresIn: '30m' });
+    } else {
+        token = generateAccessToken(userToImpersonate);
+    }
 
     res.json({
         success: true,
-        message: `Successfully impersonating ${userToImpersonate.fullName}`,
+        message: req.user.role === 'admin'
+            ? `Started read-only support preview for ${userToImpersonate.fullName}`
+            : `Successfully impersonating ${userToImpersonate.fullName}`,
         data: {
             user: {
                 id: userToImpersonate._id,
@@ -754,12 +777,38 @@ export const impersonateUser = asyncHandler(async (req, res) => {
                 fullName: userToImpersonate.fullName,
                 role: userToImpersonate.role,
                 roles: userToImpersonate.roles?.length ? userToImpersonate.roles : [userToImpersonate.role],
+                permissions: userToImpersonate.permissions || [],
                 titles: userToImpersonate.titles || [],
                 school: userToImpersonate.school,
             },
-            token
+            token,
+            readOnlyPreview: req.user.role === 'admin',
+            previewAuditId: previewAudit?._id || null
         }
     });
+});
+
+export const endSchoolAdminPreview = asyncHandler(async (req, res) => {
+    if (!req.previewSession) {
+        return res.status(403).json({ success: false, message: 'This is not an active school-admin preview.' });
+    }
+
+    const audit = await SchoolAdminPreviewAudit.findOneAndUpdate(
+        {
+            _id: req.previewSession.auditId,
+            school: req.schoolId,
+            admin: req.previewSession.adminId,
+            targetUser: req.user._id,
+            endedAt: null
+        },
+        { $set: { endedAt: new Date() } },
+        { new: true }
+    );
+    if (!audit) {
+        return res.status(404).json({ success: false, message: 'Preview audit record was not found.' });
+    }
+
+    res.json({ success: true, message: 'Support preview ended.' });
 });
 
 /**

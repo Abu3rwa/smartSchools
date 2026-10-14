@@ -14,6 +14,7 @@ import {
     resetPassword,
     refresh,
     impersonateUser,
+    endSchoolAdminPreview,
     switchRole
 } from '../controllers/authenticationController.js';
 import { protect, authorize } from '../middleware/auth.js';
@@ -46,6 +47,7 @@ router.post('/reset-password', passwordResetLimiter, validateRequestSchema({ bod
 
 // Super Admin Impersonation
 router.post('/impersonate', protect, authorize('super_admin', 'admin'), impersonateUser);
+router.post('/preview/end', protect, endSchoolAdminPreview);
 
 // Role switching (multi-role users)
 router.post('/switch-role', protect, switchRole);

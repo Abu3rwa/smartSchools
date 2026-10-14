@@ -1,6 +1,13 @@
 .live-lessons-page { max-width: 1380px; margin: 0 auto; padding: 1.5rem clamp(1rem, 3vw, 2.75rem) 4rem; color: #1c2c3b; }
 .live-lessons-hero { display: flex; align-items: center; justify-content: space-between; min-height: 210px; padding: clamp(1.5rem, 4vw, 3.5rem); border-radius: 28px; color: #fff; background: radial-gradient(circle at 86% 8%, rgba(166, 224, 204, .2), transparent 26%), linear-gradient(115deg, #142e43, #1a7776); box-shadow: 0 20px 55px rgba(23, 58, 70, .14); }
 .live-lessons-hero-copy { max-width: 760px; }
+.live-safety-setting { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1rem 0; padding:1rem 1.2rem; border:1px solid #dce8e5; border-radius:14px; background:#f6faf8; }
+.live-safety-setting strong { color:#244b4b; }
+.live-safety-setting p { margin:.3rem 0 0; color:#637781; font-size:.86rem; line-height:1.45; }
+.live-safety-setting label { display:flex; flex-shrink:0; align-items:center; gap:.5rem; color:#415463; font-weight:700; }
+.live-safety-setting input { width:1.1rem; height:1.1rem; accent-color:#167b78; }
+.live-lesson-metadata-fields { display:grid; grid-template-columns:2fr 1fr 1fr; gap:.6rem; }
+.live-session-meta { color:rgba(255,255,255,.72); font-size:.86rem; }
 
 .live-eyebrow { display: inline-block; color: #5da5a3; font-size: .7rem; font-weight: 800; letter-spacing: .15em; }
 .live-lessons-hero .live-eyebrow { color: #a8e9d5; }
@@ -102,6 +109,8 @@
   .live-session-actions { justify-content: flex-start; }
   .live-preview-workspace { grid-template-columns: 1fr; }
   .live-preview-question-editor { grid-template-columns: 1fr; }
+  .live-lesson-metadata-fields { grid-template-columns:1fr; }
+  .live-safety-setting { align-items:flex-start; flex-direction:column; }
   .live-import-dialog { max-height: calc(100vh - 1rem); border-radius: 16px; }
   .live-import-toolbar { align-items: flex-start; flex-direction: column; }
 }

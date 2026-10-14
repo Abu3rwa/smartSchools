@@ -10,6 +10,7 @@ const SpellingStudentRosterTable = ({
     classStudents,
     overviewLoading,
     rowLevels,
+    activeSessionMap,
     studentHistoryMap,
     rowActionLoadingId,
     savingRowId,
@@ -41,7 +42,7 @@ const SpellingStudentRosterTable = ({
                         {classStudents.map((student) => {
                             const level = rowLevels[student._id] || { grade: '' };
                             const studentSessions = studentHistoryMap[student._id] || [];
-                            const rowActiveSession = studentSessions.find((session) => session.status === 'in-progress');
+                            const rowActiveSession = activeSessionMap[student._id] || null;
                             const skippedSession = studentSessions.find((session) =>
                                 session.mode === 'self-serve' && session.attempts?.some(isSkippedSpellingAttempt)
                             );
@@ -142,11 +143,9 @@ const SpellingStudentRosterTable = ({
                                                     <Button size="small" color="error" variant="outlined" onClick={() => onEndActiveSession(student)} disabled={rowBusy}>{t('endActiveSession')}</Button>
                                                 </>
                                                 : <Button size="small" variant="contained" onClick={() => onStartStudentSession(student)} disabled={rowBusy || !level.grade}>{t('startStudentSession')}</Button>}
-                                            {studentSessions.length > 0 && (
-                                                <Button size="small" variant="contained" onClick={() => onViewStudentSessions(student)} disabled={rowBusy}>
-                                                    View details
-                                                </Button>
-                                            )}
+                                            <Button size="small" variant="contained" onClick={() => onViewStudentSessions(student)} disabled={rowBusy}>
+                                                View details
+                                            </Button>
                                             <Tooltip title="More student actions">
                                                 <IconButton
                                                     size="small"

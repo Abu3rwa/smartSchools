@@ -29,6 +29,36 @@
   gap: var(--spacing-md);
 }
 
+.assignments-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.assignments-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.assignments-pagination-controls button {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.assignments-pagination-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .assignment-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -130,6 +160,11 @@
 }
 
 @media (max-width: 480px) {
+  .assignments-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .assignment-card {
     flex-direction: column;
   }

@@ -4,6 +4,8 @@ import { runInTenantContext } from './tenantIsolation.js';
 import logger from '../utils/logger.js';
 import { hasPermission, hasAnyPermission, hasAllPermissions } from '../config/permissions.js';
 import { isValidAcademicYear, resolveSchoolAcademicYear } from '../utils/academicYear.js';
+import SchoolAdminPreviewAudit from '../models/SchoolAdminPreviewAudit.js';
+import { getSchoolPageAccessForRole, getSchoolPageForApiPath } from '../config/schoolPageAccess.js';
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -25,8 +27,50 @@ export const protect = async (req, res, next) => {
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Get user from token with school populated (skip tenant filter - establishing context)
-        const user = await User.findById(decoded.id).populate('school').setOptions({ skipTenantFilter: true });
+        let user;
+        let previewAudit = null;
+        let previewAdmin = null;
+
+        if (decoded.previewMode === 'school_admin_readonly') {
+            const requestPath = String(req.originalUrl || req.path || '').split('?')[0];
+            const canEndPreview = req.method === 'POST' && requestPath === '/api/auth/preview/end';
+            if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !canEndPreview) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Support preview is read-only. Exit preview to make changes.',
+                    code: 'PREVIEW_READ_ONLY'
+                });
+            }
+
+            previewAdmin = await User.findById(decoded.id).populate('school').setOptions({ skipTenantFilter: true });
+            user = await User.findById(decoded.previewUserId).populate('school').setOptions({ skipTenantFilter: true });
+            if (!previewAdmin || previewAdmin.role !== 'admin' || !previewAdmin.isActive || !user || !user.isActive) {
+                return res.status(401).json({ success: false, message: 'Support preview is no longer valid' });
+            }
+
+            const adminSchoolId = previewAdmin.school?._id || previewAdmin.school;
+            const targetSchoolId = user.school?._id || user.school;
+            if (!adminSchoolId || String(adminSchoolId) !== String(targetSchoolId)
+                || String(adminSchoolId) !== String(decoded.schoolId)
+                || !['teacher', 'student'].includes(user.role)) {
+                return res.status(403).json({ success: false, message: 'Support preview scope is invalid' });
+            }
+
+            previewAudit = await SchoolAdminPreviewAudit.findOne({
+                _id: decoded.previewAuditId,
+                school: adminSchoolId,
+                admin: previewAdmin._id,
+                targetUser: user._id,
+                endedAt: null,
+                expiresAt: { $gt: new Date() }
+            }).setOptions({ skipTenantFilter: true });
+            if (!previewAudit) {
+                return res.status(401).json({ success: false, message: 'Support preview has expired or ended' });
+            }
+        } else {
+            // Get user from token with school populated (skip tenant filter - establishing context)
+            user = await User.findById(decoded.id).populate('school').setOptions({ skipTenantFilter: true });
+        }
 
         if (!user) {
             return res.status(401).json({
@@ -44,6 +88,10 @@ export const protect = async (req, res, next) => {
 
         // Attach user and school context to request
         req.user = user;
+        if (previewAudit) {
+            req.previewSession = { auditId: previewAudit._id, adminId: previewAdmin._id };
+            req.previewAdmin = previewAdmin;
+        }
         if (user.school) {
             req.schoolId = user.school._id;
             req.school = user.school;
@@ -73,6 +121,16 @@ export const protect = async (req, res, next) => {
 
             if (req.school?.settings) {
                 req.school.settings.currentAcademicYear = req.academicYear;
+            }
+
+            const pageKey = getSchoolPageForApiPath(req.originalUrl || req.path);
+            if (getSchoolPageAccessForRole(req.school.settings, user.role, pageKey) === false) {
+                return res.status(423).json({
+                    success: false,
+                    message: 'This page is temporarily unavailable because your school has locked it.',
+                    code: 'SCHOOL_PAGE_LOCKED',
+                    page: pageKey
+                });
             }
         }
 

@@ -10,6 +10,7 @@ import { selectCurrentAcademicYear } from '../../../../../store/slices/uiSlice';
 import { selectUser } from '../../../../../store/slices/authSlice';
 import api from '../../../../../config/api';
 import { MAX_RECENT_GRADES } from '../constants';
+import toast from 'react-hot-toast';
 
 const useStudentDashboardData = () => {
     const dispatch = useDispatch();
@@ -85,7 +86,7 @@ const useStudentDashboardData = () => {
 
         Promise.all([
             api.get('/grades/my-grades').catch(() => ({ data: { data: { grades: [] } } })),
-            api.get('/assignments/my').catch(() => ({ data: { data: { items: [] } } }))
+            api.get('/assignments/my')
         ])
             .then(([gradesResponse, assignmentResponse]) => {
                 if (cancelled) return;
@@ -99,6 +100,7 @@ const useStudentDashboardData = () => {
                 if (!cancelled) {
                     setGrades([]);
                     setClassAssignments([]);
+                    toast.error('Could not load student assignments');
                 }
             })
             .finally(() => {

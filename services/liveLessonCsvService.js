@@ -1,6 +1,12 @@
 const MAX_CSV_LENGTH = 2 * 1024 * 1024;
 const MAX_SLIDES = 200;
 const MAX_CELL_LENGTH = 5000;
+const MAX_HTML_LENGTH = 100000;
+const HTML_CSV_HEADERS = [
+  "lesson_id", "slide_order", "slide_type", "title", "subject", "grade", "language", "html",
+  "question_type", "question_prompt", "option_a", "option_b", "option_c", "option_d",
+  "correct_answer", "explanation", "speaker_notes",
+];
 
 const HEADER_ALIASES = {
   lessonTitle: ["lesson title", "lesson", "unit title", "deck title"],
@@ -67,6 +73,125 @@ const parseCsvRows = (csv) => {
   row.push(cell);
   if (row.some((value) => value.trim())) rows.push(row);
   return rows;
+};
+
+const parseHtmlSlideCsv = (rawHeaders, dataRows) => {
+  const errors = [];
+  if (rawHeaders.length !== HTML_CSV_HEADERS.length ||
+      rawHeaders.some((header, index) => normalizeHeader(header) !== normalizeHeader(HTML_CSV_HEADERS[index]))) {
+    return {
+      ok: false,
+      errors: [{ row: 1, field: "headers", message: `HTML slide CSV must use these 17 columns in order: ${HTML_CSV_HEADERS.join(", ")}.` }],
+    };
+  }
+  if (dataRows.length < 2 || dataRows.length > MAX_SLIDES + 1) {
+    return {
+      ok: false,
+      errors: [{ row: 1, field: "slides", message: `Include one lesson row and 1–${MAX_SLIDES} slide rows.` }],
+    };
+  }
+  if (dataRows[0].length !== HTML_CSV_HEADERS.length) {
+    errors.push({ row: 2, field: "columns", message: `The lesson row must contain exactly ${HTML_CSV_HEADERS.length} columns.` });
+  }
+
+  const values = (row) => HTML_CSV_HEADERS.map((_, index) => String(row[index] ?? "").trim());
+  const first = values(dataRows[0]);
+  const lessonId = first[0];
+  const lessonTitle = first[3];
+  if (first[1] !== "0" || first[2].toLowerCase() !== "lesson") {
+    errors.push({ row: 2, field: "lesson row", message: "The first data row must be the lesson row with slide_order 0 and slide_type lesson." });
+  }
+  if (!lessonId) errors.push({ row: 2, field: "lesson_id", message: "The lesson row needs a lesson_id." });
+  if (!lessonTitle || lessonTitle.length > 200) errors.push({ row: 2, field: "title", message: "The lesson title is required and must be 200 characters or fewer." });
+  for (const [index, field, max] of [[4, "subject", 120], [5, "grade", 80], [6, "language", 20]]) {
+    if (first[index].length > max) errors.push({ row: 2, field, message: `Must be ${max} characters or fewer.` });
+  }
+  if (first[7] || first.slice(8).some(Boolean)) {
+    errors.push({ row: 2, field: "lesson row", message: "The lesson row contains metadata only; slide and question fields must be empty." });
+  }
+
+  const slides = [];
+  const lessonMetadata = first.slice(4, 7);
+  for (let rowIndex = 1; rowIndex < dataRows.length; rowIndex += 1) {
+    const rowNumber = rowIndex + 2;
+    const row = values(dataRows[rowIndex]);
+    if (dataRows[rowIndex].length !== HTML_CSV_HEADERS.length) {
+      errors.push({ row: rowNumber, field: "columns", message: `Expected ${HTML_CSV_HEADERS.length} columns, found ${dataRows[rowIndex].length}.` });
+      continue;
+    }
+    if (!row[0] || row[0] !== lessonId) errors.push({ row: rowNumber, field: "lesson_id", message: "Every row must use the same non-empty lesson_id." });
+    for (let metadataIndex = 0; metadataIndex < lessonMetadata.length; metadataIndex += 1) {
+      if (row[metadataIndex + 4] && row[metadataIndex + 4] !== lessonMetadata[metadataIndex]) {
+        errors.push({ row: rowNumber, field: HTML_CSV_HEADERS[metadataIndex + 4], message: "Lesson metadata must match the lesson row." });
+      }
+    }
+
+    const order = Number(row[1]);
+    if (!Number.isInteger(order) || order !== rowIndex || order > MAX_SLIDES) {
+      errors.push({ row: rowNumber, field: "slide_order", message: `Slide order must be ${rowIndex} with no gaps.` });
+    }
+    const type = row[2].toLowerCase();
+    if (!["html", "question"].includes(type)) {
+      errors.push({ row: rowNumber, field: "slide_type", message: 'Slides must use slide_type "html" or "question".' });
+      continue;
+    }
+    const title = row[3];
+    if (!title || title.length > 200) errors.push({ row: rowNumber, field: "title", message: "Slide title is required and must be 200 characters or fewer." });
+    if (row[7].length > MAX_HTML_LENGTH) errors.push({ row: rowNumber, field: "html", message: `HTML must be ${MAX_HTML_LENGTH} characters or fewer per slide.` });
+    if (row[16].length > 2000) errors.push({ row: rowNumber, field: "speaker_notes", message: "Speaker notes must be 2,000 characters or fewer." });
+
+    const slide = { order: Math.max(0, order - 1), type, title, html: row[7], body: "", examples: [], imageUrl: "", speakerNotes: row[16] };
+    if (type === "html") {
+      if (!row[7]) errors.push({ row: rowNumber, field: "html", message: "HTML slides need slide content in the html column." });
+      if (row.slice(8, 16).some(Boolean)) errors.push({ row: rowNumber, field: "question", message: "Question fields must be empty on HTML slides." });
+    } else {
+      if (row[7]) errors.push({ row: rowNumber, field: "html", message: "Question slides use structured question columns; the html field must be empty." });
+      const options = row.slice(10, 14).map((text, optionIndex) => ({ id: String.fromCharCode(97 + optionIndex), text })).filter((option) => option.text);
+      const kind = row[8].toLowerCase();
+      const answer = row[14].trim();
+      const canonicalKind = ["true_false", "true/false", "tf", "true false"].includes(kind) ? "tf" : kind === "mcq" ? "mcq" : "";
+      if (!canonicalKind) errors.push({ row: rowNumber, field: "question_type", message: "Question type must be mcq or true_false." });
+      if (canonicalKind === "tf" && (options.length !== 2 || !/^(true|t|yes|y)$/i.test(options[0].text) || !/^(false|f|no|n)$/i.test(options[1].text))) {
+        errors.push({ row: rowNumber, field: "options", message: "True/false questions must use option_a=True and option_b=False." });
+      }
+      if (canonicalKind === "mcq" && (options.length < 2 || options.length > 4)) {
+        errors.push({ row: rowNumber, field: "options", message: "Multiple-choice questions need 2–4 answer options." });
+      }
+      if (row[9].length > 500) errors.push({ row: rowNumber, field: "question_prompt", message: "Question prompts must be 500 characters or fewer." });
+      if (row[15].length > 2000) errors.push({ row: rowNumber, field: "explanation", message: "Explanations must be 2,000 characters or fewer." });
+      if (options.some((option) => option.text.length > 300)) errors.push({ row: rowNumber, field: "options", message: "Each option must be 300 characters or fewer." });
+      const correctOptionId = answer.toLowerCase();
+      const validOptionIds = canonicalKind === "tf" ? ["a", "b"] : options.map((option) => option.id);
+      if (!validOptionIds.includes(correctOptionId)) errors.push({ row: rowNumber, field: "correct_answer", message: "Correct answer must be the letter of a populated option." });
+      if (!row[9]) errors.push({ row: rowNumber, field: "question_prompt", message: "Question slides need a question prompt." });
+      if (!row[15]) errors.push({ row: rowNumber, field: "explanation", message: "Question slides need an explanation." });
+      slide.question = {
+        kind: canonicalKind,
+        prompt: row[9],
+        options: options.map((option) => ({
+          ...option,
+          id: canonicalKind === "tf" ? (option.id === "a" ? "true" : "false") : option.id,
+        })),
+        correctOptionId: canonicalKind === "tf" ? (correctOptionId === "a" ? "true" : "false") : correctOptionId,
+        explanation: row[15],
+      };
+    }
+    slides.push(slide);
+  }
+
+  if (errors.length) return { ok: false, errors };
+  return {
+    ok: true,
+    lesson: {
+      title: lessonTitle,
+      description: "",
+      subject: lessonMetadata[0],
+      grade: lessonMetadata[1],
+      language: lessonMetadata[2] || "en",
+      slides,
+    },
+    matchedColumns: Object.fromEntries(HTML_CSV_HEADERS.map((header) => [header, header])),
+  };
 };
 
 const resolveHeaders = (headers) => {
@@ -218,6 +343,9 @@ export const parseLiveLessonCsv = (csv) => {
   }
 
   const [rawHeaders, ...dataRows] = rows;
+  if (normalizeHeader(rawHeaders[2]) === "slide type" && normalizeHeader(rawHeaders[7]) === "html") {
+    return parseHtmlSlideCsv(rawHeaders, dataRows);
+  }
   const headers = resolveHeaders(rawHeaders);
   const errors = headers.errors.map((message) => ({ row: 1, field: "headers", message }));
   if (headers.result.title === undefined && headers.result.body === undefined) {

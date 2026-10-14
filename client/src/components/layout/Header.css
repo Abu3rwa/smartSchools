@@ -20,6 +20,10 @@
     inset-inline-start: var(--sidebar-collapsed);
 }
 
+.student-layout .header {
+    inset-inline-start: 0;
+}
+
 .header-left {
     display: flex;
     align-items: center;

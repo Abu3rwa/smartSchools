@@ -155,6 +155,7 @@ const LiveLessonSessionPage = () => {
   if (!session) return <div className="live-session-page"><div className="live-loading">Opening lesson session…</div></div>;
 
   const isTeacher = role === "teacher";
+  const sessionDate = session.startedAt || session.createdAt;
   return (
     <main className={`live-session-page ${isTeacher ? "teacher-view" : "student-view"} ${!isTeacher && state?.studentsFullscreen ? "student-presentation-fullscreen" : ""}`}>
       <header className="live-session-topbar">
@@ -162,6 +163,7 @@ const LiveLessonSessionPage = () => {
         <div className="live-session-heading">
           <span className="live-eyebrow">{isTeacher ? "TEACHER CONSOLE" : "LIVE CLASSROOM"}</span>
           <h1>{session.lessonTitle}</h1>
+          {(session.lessonSubject || session.lessonGrade || sessionDate) && <span className="live-session-meta">{[session.lessonSubject, session.lessonGrade, sessionDate && new Date(sessionDate).toLocaleDateString()].filter(Boolean).join(" · ")}</span>}
         </div>
         <span className={`live-connection-pill ${connection}`}>{connection === "connected" ? "Connected" : connection}</span>
       </header>
@@ -174,7 +176,7 @@ const LiveLessonSessionPage = () => {
           )}
           {isTeacher && sessionStatus === "waiting" && (
             <div className="live-teacher-prestart">
-              <LiveLessonSlide slide={slide || session.state?.slide} index={currentIndex} total={totalSlides} />
+              <LiveLessonSlide slide={slide || session.state?.slide} index={currentIndex} total={totalSlides} language={session.lessonLanguage} allowScripts />
               <button className="live-session-primary" disabled={connection !== "connected"} onClick={() => act("session:start")}><HiOutlinePlay /> Start lesson for students</button>
             </div>
           )}
@@ -189,7 +191,7 @@ const LiveLessonSessionPage = () => {
               >
                 {isFullscreen ? <HiOutlineArrowsPointingIn /> : <HiOutlineArrowsPointingOut />}
               </button>
-              <LiveLessonSlide slide={slide} index={currentIndex} total={totalSlides} hidden={!isTeacher && state?.slideHidden}>
+              <LiveLessonSlide slide={slide} index={currentIndex} total={totalSlides} language={session.lessonLanguage} allowScripts hidden={!isTeacher && state?.slideHidden}>
                 {slide?.question && (
                   <section className="live-question-card">
                     <div className="live-question-topline">

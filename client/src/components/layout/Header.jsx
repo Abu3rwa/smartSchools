@@ -37,6 +37,7 @@ const Header = () => {
     const location = useLocation();
     const { t, i18n } = useTranslation(['layout.header', 'layout.sidebar', 'common']);
     const user = useSelector(selectUser);
+    const isStudent = user?.role === 'student';
     const schoolFeatures = useSelector(selectSchoolFeatures);
     const theme = useSelector(selectTheme);
     const language = useSelector(selectLanguage);
@@ -111,7 +112,17 @@ const Header = () => {
             <ImpersonationBanner />
             <header className={`header${isImpersonating ? ' header-impersonating' : ''}`}>
             <div className="header-left">
-                {!isDesktop && (
+                {isStudent && location.pathname !== '/portal/dashboard' && (
+                    <button
+                        className="header-btn student-home-btn"
+                        onClick={() => navigate('/portal/dashboard')}
+                        aria-label={t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}
+                        title={t('layout.sidebar:items.dashboard', { defaultValue: 'Home' })}
+                    >
+                        <HiOutlineHome size={20} />
+                    </button>
+                )}
+                {!isDesktop && !isStudent && (
                     <button
                         className="header-btn hamburger-btn"
                         onClick={handleMenuClick}
@@ -125,7 +136,7 @@ const Header = () => {
             </div>
 
             <div className="header-right">
-                {isDesktop && (
+                {isDesktop && !isStudent && (
                     <>
                         <div className="header-shortcuts">
                             {selectedShortcuts.length === 0 ? (
