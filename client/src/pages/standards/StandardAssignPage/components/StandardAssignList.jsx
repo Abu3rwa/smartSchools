@@ -231,6 +231,15 @@ const StandardAssignList = ({
                                                     </div>
                                                 </div>
                                                 <div className="assign-row-menu__actions">
+                                                    {(isAdmin || isTeacher) && (
+                                                        <button
+                                                            className="assign-row-menu__btn"
+                                                            onClick={() => { setOpenMenuId(null); onViewAssessmentGradebook(assignment._id); }}
+                                                            role="menuitem"
+                                                        >
+                                                            <HiOutlineBookOpen size={16} /> {t('standardAssign:actions.sbGradebook')}
+                                                        </button>
+                                                    )}
                                                     <button
                                                         className="assign-row-menu__btn"
                                                         onClick={() => { setOpenMenuId(null); onViewProgress(assignment._id); }}
@@ -294,15 +303,6 @@ const StandardAssignList = ({
                                                             {poolActionLoadingId === assignment._id
                                                                 ? t('standardAssign:actions.publishing')
                                                                 : t('standardAssign:actions.publishPool')}
-                                                        </button>
-                                                    )}
-                                                    {isAssessment && (
-                                                        <button
-                                                            className="assign-row-menu__btn"
-                                                            onClick={() => { setOpenMenuId(null); onViewAssessmentGradebook(assignment._id); }}
-                                                            role="menuitem"
-                                                        >
-                                                            <HiOutlineEye size={16} /> {t('standardAssign:actions.sbGradebook')}
                                                         </button>
                                                     )}
                                                     {isOwner && (

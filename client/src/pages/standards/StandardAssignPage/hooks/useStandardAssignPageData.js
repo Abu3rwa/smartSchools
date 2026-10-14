@@ -548,7 +548,7 @@ const useStandardAssignPageData = (options = {}) => {
         setAssessmentStandardAverageData(null);
         setAssessmentStandardAverageError('');
         try {
-            const response = await api.get(`/practice/assessment/${assignmentId}/gradebook`);
+            const response = await api.get(`/practice/assignment/${assignmentId}/gradebook`);
             const payload = response.data.data || null;
             setAssessmentGradebookData(payload);
 
@@ -559,7 +559,12 @@ const useStandardAssignPageData = (options = {}) => {
             const standardId = getEntityId(
                 payload?.assignment?.standard?._id || payload?.assignment?.standard
             );
-            await loadAssessmentStandardAverage({ classId, subjectId, standardId });
+            if (payload?.assignment?.practiceConfig?.sessionType === 'assessment') {
+                await loadAssessmentStandardAverage({ classId, subjectId, standardId });
+            } else {
+                setAssessmentStandardAverageData(null);
+                setAssessmentStandardAverageError('');
+            }
         } catch (error) {
             setAssessmentGradebookError(
                 error?.response?.data?.message || t('standardAssign:error.unableToLoadSbGradebook')

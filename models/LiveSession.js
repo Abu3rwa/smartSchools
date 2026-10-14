@@ -17,6 +17,7 @@ const liveSessionSchema = new Schema(
     teacherId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     joinCode: { type: String, required: true, unique: true, uppercase: true, minlength: 6, maxlength: 6 },
     status: { type: String, enum: ["waiting", "live", "ended"], default: "waiting", index: true },
+    paused: { type: Boolean, default: false },
     currentSlideIndex: { type: Number, default: 0, min: 0 },
     slideHidden: { type: Boolean, default: false },
     studentsFullscreen: { type: Boolean, default: false },

@@ -54,6 +54,9 @@
 .live-answer-option small { margin-left: auto; color: #75848a; font-size: .69rem; }
 .live-answer-option.selected { border-color: #388a86; background: #eef8f5; }
 .live-answer-locked,.live-ended-banner { margin-top: .75rem; padding: .7rem .8rem; border-radius: 9px; color: #655726; background: #fff8df; font-size: .83rem; }
+.live-paused-banner { display: flex; align-items: center; justify-content: center; gap: .55rem; margin-top: .75rem; padding: .8rem 1rem; border: 1px solid #e6c879; border-radius: 11px; color: #634d16; background: #fff5d8; text-align: center; }
+.live-paused-banner span { color: #796833; font-size: .85rem; }
+.live-presentation .live-paused-banner { position: absolute; z-index: 2; top: 50%; left: 50%; width: min(440px, calc(100% - 2rem)); margin: 0; transform: translate(-50%, -50%); box-shadow: 0 12px 40px rgba(22,36,47,.22); }
 .live-student-result { margin-top: .6rem; font-weight: 800; }
 .live-student-result.correct { color: #23804e; }
 .live-student-result.incorrect { color: #a04f47; }

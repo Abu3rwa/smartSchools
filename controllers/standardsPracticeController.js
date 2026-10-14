@@ -2751,8 +2751,8 @@ export const getMyAssessmentResults = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Get Standards-Based assessment gradebook (separate from regular gradebook)
- * @route   GET /api/practice/assessment/:assignmentId/gradebook
+ * @desc    Get Standards-Based gradebook for an assessment or practice assignment
+ * @route   GET /api/practice/assignment/:assignmentId/gradebook
  * @access  Private (Admin, Teacher)
  */
 export const getAssessmentGradebook = asyncHandler(async (req, res) => {
@@ -2782,12 +2782,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
   }
 
   const practiceConfig = getAssignmentPracticeConfig(assignment);
-  if (practiceConfig.sessionType !== "assessment") {
-    return res.status(400).json({
-      success: false,
-      message: "This assignment is not an assessment",
-    });
-  }
+  const isAssessment = practiceConfig.sessionType === "assessment";
 
   let students;
   const assignmentStudents = Array.isArray(assignment.students)
@@ -2807,20 +2802,85 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
     }).select("firstName lastName studentId");
   }
 
-  const entries = await StandardsGradebookEntry.find({
-    school: req.schoolId,
-    assignment: assignment._id,
-  })
-    .select(
-      "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester metadata effectiveScore manualScore isManualEntry"
-    )
-    .lean();
-  const entryByStudent = new Map(
-    entries.map((entry) => [entry.student.toString(), entry])
-  );
+  let entryByStudent = new Map();
+  let practiceAttemptsByStudent = new Map();
+  if (isAssessment) {
+    const entries = await StandardsGradebookEntry.find({
+      school: req.schoolId,
+      assignment: assignment._id,
+    })
+      .select(
+        "student status totalAnswered correctCount score maxScore percentage submittedAt releasedAt academicYear semester metadata effectiveScore manualScore isManualEntry"
+      )
+      .lean();
+    entryByStudent = new Map(
+      entries.map((entry) => [entry.student.toString(), entry])
+    );
+  } else {
+    const attempts = await PracticeAttempt.find({
+      school: req.schoolId,
+      assignment: assignment._id,
+      student: { $in: students.map((student) => student._id) },
+      status: { $in: ["answered", "pending_review"] },
+    })
+      .select("student isCorrect teacherOverride status")
+      .lean();
+    practiceAttemptsByStudent = new Map();
+    attempts.forEach((attempt) => {
+      const studentId = attempt.student.toString();
+      const totals = practiceAttemptsByStudent.get(studentId) || {
+        totalAnswered: 0,
+        correctCount: 0,
+        pendingReviewCount: 0,
+      };
+      if (attempt.status === "pending_review") {
+        totals.pendingReviewCount += 1;
+        practiceAttemptsByStudent.set(studentId, totals);
+        return;
+      }
+      totals.totalAnswered += 1;
+      const isCorrect = attempt.teacherOverride?.isCorrect != null
+        ? attempt.teacherOverride.isCorrect
+        : attempt.isCorrect;
+      if (isCorrect === true) totals.correctCount += 1;
+      practiceAttemptsByStudent.set(studentId, totals);
+    });
+  }
 
   const rows = await Promise.all(
     students.map(async (student) => {
+      if (!isAssessment) {
+        const attemptTotals = practiceAttemptsByStudent.get(student._id.toString()) || {
+          totalAnswered: 0,
+          correctCount: 0,
+          pendingReviewCount: 0,
+        };
+        const percentage = attemptTotals.totalAnswered > 0
+          ? Number(
+              ((attemptTotals.correctCount / attemptTotals.totalAnswered) * 100).toFixed(2)
+            )
+          : null;
+        return {
+          student: student.toObject(),
+          status: attemptTotals.totalAnswered > 0 || attemptTotals.pendingReviewCount > 0
+            ? "in_progress"
+            : "not_started",
+          totalAnswered: attemptTotals.totalAnswered,
+          correctCount: attemptTotals.correctCount,
+          pendingReviewCount: attemptTotals.pendingReviewCount,
+          score: attemptTotals.correctCount,
+          maxScore: attemptTotals.totalAnswered,
+          percentage,
+          scale4: null,
+          isManualEntry: false,
+          submittedAt: null,
+          releasedAt: null,
+          academicYear: assignment.academicYear || null,
+          semester: assignment.semester || null,
+          tabSwitchCount: 0,
+        };
+      }
+
       const existing = entryByStudent.get(student._id.toString());
       if (existing) {
         const scale4 = existing.isManualEntry && existing.manualScore != null
@@ -2905,6 +2965,7 @@ export const getAssessmentGradebook = asyncHandler(async (req, res) => {
         class: assignment.class,
         subject: assignment.subject,
         assessmentConfig: getAssessmentConfig(assignment),
+        practiceConfig: { sessionType: practiceConfig.sessionType },
         academicYear: assignment.academicYear || assignment.class?.academicYear || null,
         semester: assignment.semester || null,
       },
@@ -4268,8 +4329,8 @@ export const overrideAttemptGrading = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Get detailed attempt list for a student in an assessment (teacher view)
- * @route   GET /api/practice/attempts/student/:studentId/assessment/:assignmentId
+ * @desc    Get detailed attempt list for a student in an assignment (teacher view)
+ * @route   GET /api/practice/attempts/student/:studentId/assignment/:assignmentId
  * @access  Private (Admin, Teacher, Department Principal)
  */
 export const getStudentAssessmentAttempts = asyncHandler(async (req, res) => {

@@ -11,6 +11,7 @@
 .live-report-table-wrap th { color: #6d7e87; background: #f8faf9; font-size: .73rem; text-transform: uppercase; white-space: nowrap; }
 .live-report-table-wrap td:first-child { min-width: 210px; }
 .live-replay-player>.live-slide { min-height: 390px; }
+.live-replay-paused { margin-top: .75rem; padding: .7rem .85rem; border: 1px solid #e6c879; border-radius: 9px; color: #634d16; background: #fff5d8; font-size: .83rem; text-align: center; }
 .live-replay-topline { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .live-replay-topline h2 { margin: 0 0 .2rem; }
 .live-replay-topline span { color: #7d8b92; font-size: .8rem; }

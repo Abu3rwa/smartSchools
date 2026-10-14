@@ -88,7 +88,7 @@ const StandardAssignProgressModal = ({
                                     const correctCount = Number(
                                         isAssessmentMode
                                             ? (assessmentProgress?.correctCount ?? mastery.correctCount ?? 0)
-                                            : (mastery.correctCount ?? 0)
+                                            : (mastery.lifetimeStats?.correctCount ?? mastery.correctCount ?? 0)
                                     );
                                     const computedPercentage = answeredCount > 0
                                         ? Math.round((correctCount / answeredCount) * 100)

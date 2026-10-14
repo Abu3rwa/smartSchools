@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { HiOutlineArrowLeft, HiOutlineArrowRight, HiOutlineArrowsPointingIn, HiOutlineArrowsPointingOut, HiOutlineEye, HiOutlineEyeSlash, HiOutlinePlay, HiOutlineStop } from "react-icons/hi2";
+import { HiOutlineArrowLeft, HiOutlineArrowRight, HiOutlineArrowsPointingIn, HiOutlineArrowsPointingOut, HiOutlineEye, HiOutlineEyeSlash, HiOutlinePause, HiOutlinePlay, HiOutlineStop } from "react-icons/hi2";
 import api from "../../config/api";
 import { selectUser } from "../../store/slices/authSlice";
 import { useSelector } from "react-redux";
@@ -39,6 +39,7 @@ const LiveLessonSessionPage = () => {
   const state = socketState || session?.state;
   const slide = state?.slide;
   const sessionStatus = state?.status || session?.status;
+  const isPaused = Boolean(state?.paused ?? session?.paused);
   const currentIndex = state?.currentSlideIndex ?? session?.currentSlideIndex ?? 0;
   const totalSlides = state?.totalSlides ?? session?.totalSlides ?? 0;
   const selectedAnswer = state?.myAnswer?.selectedOptionId || localAnswer;
@@ -88,7 +89,7 @@ const LiveLessonSessionPage = () => {
 
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         const nextIndex = currentIndex + (event.key === "ArrowRight" ? 1 : -1);
-        if (connection !== "connected" || nextIndex < 0 || nextIndex >= totalSlides) return;
+        if (connection !== "connected" || isPaused || nextIndex < 0 || nextIndex >= totalSlides) return;
         event.preventDefault();
         void act("slide:change", { index: nextIndex });
         return;
@@ -96,12 +97,13 @@ const LiveLessonSessionPage = () => {
 
       const key = event.key.toLowerCase();
       if (key === "f" && event.shiftKey) {
-        if (connection !== "connected") return;
+        if (connection !== "connected" || isPaused) return;
         event.preventDefault();
         void act("students:fullscreen", { enabled: !state?.studentsFullscreen });
         return;
       }
       if (event.shiftKey || connection !== "connected") return;
+      if (isPaused && key !== "f") return;
       if (key === "f") {
         event.preventDefault();
         void toggleFullscreen();
@@ -130,6 +132,7 @@ const LiveLessonSessionPage = () => {
     role,
     sessionStatus,
     slide?.question,
+    isPaused,
     state?.questionOpen,
     state?.slideHidden,
     state?.studentsFullscreen,
@@ -138,7 +141,7 @@ const LiveLessonSessionPage = () => {
   ]);
 
   const submitAnswer = async (optionId) => {
-    if (submitting || selectedAnswer || !slide?._id) return;
+    if (submitting || selectedAnswer || !slide?._id || isPaused) return;
     setSubmitting(true);
     setActionError("");
     try {
@@ -206,7 +209,7 @@ const LiveLessonSessionPage = () => {
                           <button
                             key={option.id}
                             className={`live-answer-option ${selected ? "selected" : ""}`}
-                            disabled={isTeacher || role !== "student" || !state?.questionOpen || Boolean(selectedAnswer) || submitting}
+                            disabled={isTeacher || role !== "student" || isPaused || !state?.questionOpen || Boolean(selectedAnswer) || submitting}
                             onClick={() => submitAnswer(option.id)}
                           >
                             <span>{option.id.toUpperCase()}</span>{option.text}
@@ -224,28 +227,49 @@ const LiveLessonSessionPage = () => {
                   </section>
                 )}
               </LiveLessonSlide>
+              {!isTeacher && isPaused && (
+                <div className="live-paused-banner" role="status">
+                  <strong>Lesson paused</strong>
+                  <span>Your teacher will resume the lesson shortly.</span>
+                </div>
+              )}
+            </div>
+          )}
+          {isTeacher && isPaused && (
+            <div className="live-paused-banner" role="status">
+              <strong>Lesson paused</strong>
+              <span>Students cannot answer or navigate slides until you resume.</span>
             </div>
           )}
           {sessionStatus === "ended" && <div className="live-ended-banner">This live lesson has ended. Your teacher can now review the session.</div>}
           {isTeacher && sessionStatus !== "ended" && sessionStatus !== "waiting" && (
             <div className="live-teacher-controls">
               <div className="live-slide-controls">
-                <button className="live-session-secondary" disabled={connection !== "connected" || currentIndex <= 0} onClick={() => act("slide:change", { index: currentIndex - 1 })}><HiOutlineArrowLeft /> Previous</button>
+                <button className="live-session-secondary" disabled={connection !== "connected" || isPaused || currentIndex <= 0} onClick={() => act("slide:change", { index: currentIndex - 1 })}><HiOutlineArrowLeft /> Previous</button>
                 <span>Slide {Math.min(currentIndex + 1, totalSlides)} of {totalSlides}</span>
-                <button className="live-session-secondary" disabled={connection !== "connected" || currentIndex >= totalSlides - 1} onClick={() => act("slide:change", { index: currentIndex + 1 })}>Next <HiOutlineArrowRight /></button>
+                <button className="live-session-secondary" disabled={connection !== "connected" || isPaused || currentIndex >= totalSlides - 1} onClick={() => act("slide:change", { index: currentIndex + 1 })}>Next <HiOutlineArrowRight /></button>
                 <span className="live-keyboard-hint" aria-label="Keyboard shortcuts">← → slides · O open · C close · R release · H hide · F fullscreen</span>
               </div>
               {slide?.question && (
                 <div className="live-question-controls">
                   {!state?.questionOpen ? (
-                    <button className="live-session-primary" title="Open question (O)" onClick={() => act("question:open")} disabled={connection !== "connected" || revealed}>Open question <kbd>O</kbd></button>
+                    <button className="live-session-primary" title="Open question (O)" onClick={() => act("question:open")} disabled={connection !== "connected" || isPaused || revealed}>Open question <kbd>O</kbd></button>
                   ) : (
-                    <button className="live-session-secondary" title="Close question (C)" onClick={() => act("question:close")} disabled={connection !== "connected"}>Close question <kbd>C</kbd></button>
+                    <button className="live-session-secondary" title="Close question (C)" onClick={() => act("question:close")} disabled={connection !== "connected" || isPaused}>Close question <kbd>C</kbd></button>
                   )}
-                  <button className="live-session-secondary" title="Release answers (R)" onClick={() => act("results:reveal")} disabled={connection !== "connected" || revealed}>Release answers <kbd>R</kbd></button>
+                  <button className="live-session-secondary" title="Release answers (R)" onClick={() => act("results:reveal")} disabled={connection !== "connected" || isPaused || revealed}>Release answers <kbd>R</kbd></button>
                 </div>
               )}
               <div className="live-session-end">
+                {!endConfirm && (
+                  <button
+                    className="live-session-secondary"
+                    disabled={connection !== "connected"}
+                    onClick={() => act(isPaused ? "session:resume" : "session:pause")}
+                  >
+                    {isPaused ? <><HiOutlinePlay /> Resume lesson</> : <><HiOutlinePause /> Pause lesson</>}
+                  </button>
+                )}
                 {!endConfirm ? (
                   <button className="live-session-danger" onClick={() => setEndConfirm(true)}><HiOutlineStop /> End session</button>
                 ) : (
@@ -261,13 +285,13 @@ const LiveLessonSessionPage = () => {
             {sessionStatus !== "waiting" && (
               <div className="live-control-card">
                 <h2>Student view</h2>
-                <p>Hide lesson content or expand the presentation across students’ app windows. Use Shift+F again to restore their normal view.</p>
-                <button className="live-session-secondary full-width" title="Toggle student slide visibility (H)" disabled={connection !== "connected"} onClick={() => act("slide:hide", { hidden: !state?.slideHidden })}>
+                <p>Hide lesson content or expand the presentation across students’ app windows. Shift+F does not enter browser fullscreen; each student can use the fullscreen button on their slide. Use Shift+F again to restore their normal view.</p>
+                <button className="live-session-secondary full-width" title="Toggle student slide visibility (H)" disabled={connection !== "connected" || isPaused} onClick={() => act("slide:hide", { hidden: !state?.slideHidden })}>
                   {state?.slideHidden ? <><HiOutlineEye /> Show slide</> : <><HiOutlineEyeSlash /> Hide slide</>}
                   <kbd>H</kbd>
                 </button>
-                <button className="live-session-secondary full-width" disabled={connection !== "connected"} onClick={() => act("students:fullscreen", { enabled: !state?.studentsFullscreen })}>
-                  {state?.studentsFullscreen ? <><HiOutlineArrowsPointingIn /> Exit students fullscreen</> : <><HiOutlineArrowsPointingOut /> Fullscreen for students</>}
+                <button className="live-session-secondary full-width" disabled={connection !== "connected" || isPaused} onClick={() => act("students:fullscreen", { enabled: !state?.studentsFullscreen })}>
+                  {state?.studentsFullscreen ? <><HiOutlineArrowsPointingIn /> Restore student view</> : <><HiOutlineArrowsPointingOut /> Expand student view</>}
                   <kbd>Shift+F</kbd>
                 </button>
               </div>

@@ -227,6 +227,7 @@ const handleAction = async (socket, message) => {
     const slide = session.lessonSnapshot.slides[session.currentSlideIndex];
     if (
       session.status !== "live" ||
+      session.paused ||
       !session.questionOpen ||
       !slide?.question ||
       String(slide._id) !== String(data.slideId)
@@ -278,12 +279,35 @@ const handleAction = async (socket, message) => {
   if (String(session.teacherId) !== userId) {
     return fail(socket, requestId, "FORBIDDEN", "Only the session teacher can control it.");
   }
+  if (
+    session.paused &&
+    !["session:resume", "session:pause", "session:end"].includes(action)
+  ) {
+    return fail(socket, requestId, "SESSION_PAUSED", "Resume the lesson before controlling it.");
+  }
   if (action === "session:start") {
     if (session.status !== "waiting") return fail(socket, requestId, "BAD_STATE", "Only a waiting session can start.");
     session.status = "live";
+    session.paused = false;
     session.startedAt = new Date();
     await session.save();
     await appendLiveEvent(session, "session:started", { role: "teacher", userId: socket.__liveUserId });
+  } else if (action === "session:pause" || action === "session:resume") {
+    if (session.status !== "live") {
+      return fail(socket, requestId, "BAD_STATE", "Only a live session can be paused or resumed.");
+    }
+    const paused = action === "session:pause";
+    if (Boolean(session.paused) === paused) {
+      return fail(socket, requestId, "BAD_STATE", paused ? "The session is already paused." : "The session is not paused.");
+    }
+    session.paused = paused;
+    if (paused && session.questionOpen) session.questionOpen = false;
+    await session.save();
+    await appendLiveEvent(
+      session,
+      paused ? "session:paused" : "session:resumed",
+      { role: "teacher", userId: socket.__liveUserId },
+    );
   } else if (action === "slide:change") {
     const index = Number(data.index);
     if (!Number.isInteger(index) || index < 0 || index >= session.lessonSnapshot.slides.length) {
@@ -341,6 +365,7 @@ const handleAction = async (socket, message) => {
   } else if (action === "session:end") {
     if (session.status === "waiting") return fail(socket, requestId, "BAD_STATE", "Start the session before ending it.");
     session.status = "ended";
+    session.paused = false;
     session.endedAt = new Date();
     session.questionOpen = false;
     session.studentsFullscreen = false;

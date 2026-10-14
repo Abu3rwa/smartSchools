@@ -46,6 +46,7 @@ router.post('/integrity-event', authorize('student'), logIntegrityEvent);
 // Teacher/Admin routes - view student progress
 router.get('/student/:studentId/progress', authorize('admin', 'teacher'), getStudentProgress);
 router.get('/assignment/:assignmentId/progress', authorize('admin', 'teacher'), getAssignmentProgress);
+router.get('/assignment/:assignmentId/gradebook', authorize('admin', 'teacher'), getAssessmentGradebook);
 router.get('/assessment/:assignmentId/gradebook', authorize('admin', 'teacher'), getAssessmentGradebook);
 router.get('/assessment/standard-average', authorize('admin', 'teacher'), getStandardAverageGradebook);
 router.get('/sb-gradebook', authorize('admin', 'teacher', 'department_principal'), getSBGradebook);
@@ -54,6 +55,7 @@ router.put('/sb-gradebook/manual-score', authorize('admin', 'teacher'), updateMa
 router.put('/sb-gradebook/manual-scores/bulk', authorize('admin', 'teacher'), updateBulkManualScores);
 router.put('/attempts/:attemptId/override', authorize('admin', 'teacher', 'department_principal'), overrideAttemptGrading);
 router.get('/attempts/student/:studentId/assessment/:assignmentId', authorize('admin', 'teacher', 'department_principal'), getStudentAssessmentAttempts);
+router.get('/attempts/student/:studentId/assignment/:assignmentId', authorize('admin', 'teacher', 'department_principal'), getStudentAssessmentAttempts);
 router.post('/assessment/:assignmentId/release', authorize('admin', 'teacher'), releaseAssessmentResults);
 router.get('/integrity/assignment/:assignmentId', authorize('admin', 'teacher'), getIntegrityByAssignment);
 router.get('/integrity/student/:studentId', authorize('admin', 'teacher'), getIntegrityByStudent);

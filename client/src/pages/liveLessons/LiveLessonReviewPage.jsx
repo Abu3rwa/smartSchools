@@ -51,6 +51,7 @@ const LiveLessonReviewPage = ({ mode }) => {
     let currentSlideIndex = 0;
     let slideHidden = false;
     let questionOpen = false;
+    let paused = false;
     const revealed = new Set();
     const answers = [];
     let presenceEvents = [];
@@ -65,6 +66,11 @@ const LiveLessonReviewPage = ({ mode }) => {
         questionOpen = true;
       } else if (event.type === "question:closed") {
         questionOpen = false;
+      } else if (event.type === "session:paused") {
+        paused = true;
+        questionOpen = false;
+      } else if (event.type === "session:resumed") {
+        paused = false;
       } else if (event.type === "results:revealed") {
         revealed.add(String(event.payload?.slideId));
         questionOpen = false;
@@ -79,6 +85,7 @@ const LiveLessonReviewPage = ({ mode }) => {
       currentSlideIndex,
       slideHidden,
       questionOpen,
+      paused,
       slide: slide && revealed.has(String(slide._id)) ? slide : slide,
       revealed: Boolean(slide && revealed.has(String(slide._id))),
       answers: answers.filter((event) =>
@@ -132,6 +139,7 @@ const LiveLessonReviewPage = ({ mode }) => {
               </section>
             )}
           </LiveLessonSlide>
+          {replayState?.paused && <div className="live-replay-paused">The live session was paused at this point.</div>}
           {replayState?.slide?.question && (
             <>
               <div className="live-replay-answer-log"><strong>Answers recorded on this question</strong>
