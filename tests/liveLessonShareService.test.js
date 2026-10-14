@@ -61,6 +61,7 @@ test("shared lesson and invitation schemas enforce independent-copy provenance a
   assert.ok(LiveLesson.schema.path("originLessonId"));
   assert.ok(LiveLesson.schema.path("originOwnerId"));
   assert.ok(LiveLesson.schema.path("originShareInvitationId"));
+  assert.equal(LiveLesson.schema.path("isDone").defaultValue, false);
   const provenanceIndex = LiveLesson.schema.indexes().find(([keys]) => keys.originShareInvitationId === 1);
   assert.equal(provenanceIndex[1].unique, true);
   assert.equal(provenanceIndex[1].partialFilterExpression.originShareInvitationId.$type, "objectId");

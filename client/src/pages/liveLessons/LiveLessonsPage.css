@@ -415,6 +415,20 @@
   font-size: 0.76rem;
   font-weight: 700;
 }
+.live-list-filters .live-checkbox-filter {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 38px;
+  color: #415463;
+  font-size: 0.84rem;
+}
+.live-checkbox-filter input,
+.live-list-table input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #167b78;
+}
 .live-list-filters select,
 .live-list-pagination select,
 .live-list-table select {
@@ -438,7 +452,7 @@
 }
 .live-list-table {
   width: 100%;
-  min-width: 920px;
+  min-width: 1080px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -463,6 +477,16 @@
 .live-list-table td {
   color: #475a66;
   font-size: 0.86rem;
+}
+.live-lesson-done-pill {
+  display: inline-block;
+  padding: 0.25rem 0.55rem;
+  border-radius: 99px;
+  color: #176650;
+  background: #ddf5e9;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 .live-list-table td strong,
 .live-list-table td small {
@@ -634,6 +658,23 @@
   border-radius: 10px;
   color: #8a3434;
   background: #fff3f2;
+}
+.live-success-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid #c7e8d5;
+  border-radius: 10px;
+  color: #176650;
+  background: #effaf3;
+}
+.live-success-banner button {
+  border: 0;
+  color: inherit;
+  background: none;
+  cursor: pointer;
 }
 .live-error-banner button {
   border: 0;
@@ -922,6 +963,9 @@
   }
   .live-list-filters label {
     flex: 1 1 40%;
+  }
+  .live-list-filters .live-checkbox-filter {
+    flex: 1 1 100%;
   }
   .live-list-filters select {
     width: 100%;

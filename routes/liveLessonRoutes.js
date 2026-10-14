@@ -5,6 +5,7 @@ import {
   createLiveSession,
   createLiveLesson,
   createLiveSessionGradebookEntries,
+  deleteFinishedLiveSessions,
   endLiveSession,
   deleteLiveSession,
   deleteLiveLesson,
@@ -21,12 +22,14 @@ import {
   listLiveLessons,
   listLiveSessions,
   previewLiveLessonCsv,
+  setLiveLessonDone,
   updateLiveLesson,
   updateLiveLessonSettings,
 } from "../controllers/liveLessonController.js";
 import {
   acceptLiveLessonShare,
   createLiveLessonShare,
+  createLiveLessonShares,
   declineLiveLessonShare,
   listIncomingLiveLessonShares,
   listLiveLessonShareTeachers,
@@ -38,6 +41,7 @@ const router = express.Router();
 router.use(protect, requireSchoolContext);
 
 router.post("/lessons/:lessonId/shares", authorize("teacher", "admin"), createLiveLessonShare);
+router.post("/shares/bulk", authorize("teacher", "admin"), createLiveLessonShares);
 router.get("/shares/teachers", authorize("teacher", "admin"), listLiveLessonShareTeachers);
 router.get("/shares/incoming", authorize("teacher", "admin"), listIncomingLiveLessonShares);
 router.get("/shares/outgoing", authorize("teacher", "admin"), listOutgoingLiveLessonShares);
@@ -56,6 +60,7 @@ router
   .get(authorize("teacher", "admin", "department_principal"), getLiveLesson)
   .put(authorize("teacher", "admin", "department_principal"), updateLiveLesson)
   .delete(authorize("teacher", "admin", "department_principal"), deleteLiveLesson);
+router.patch("/lessons/:id/done", authorize("teacher", "admin", "department_principal"), setLiveLessonDone);
 
 router.post("/sessions", authorize("teacher", "admin", "department_principal"), createLiveSession);
 router.get("/sessions", authorize("teacher", "admin", "department_principal"), listLiveSessions);
@@ -63,6 +68,7 @@ router.post("/sessions/:id/end", authorize("teacher", "admin", "department_princ
 router.get("/sessions/available", authorize("student"), listAvailableLiveSessions);
 router.post("/sessions/:id/join", authorize("student"), joinLiveSessionById);
 router.post("/sessions/join", authorize("student"), joinLiveSession);
+router.delete("/sessions/finished", authorize("teacher", "admin", "department_principal"), deleteFinishedLiveSessions);
 router.delete("/sessions/:id", authorize("teacher", "admin", "department_principal"), deleteLiveSession);
 router.get("/sessions/:id/replay", authorize("teacher", "admin", "department_principal"), getLiveSessionReplay);
 router.get("/sessions/:id/report", authorize("teacher", "admin", "department_principal"), getLiveSessionReport);

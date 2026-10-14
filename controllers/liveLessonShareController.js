@@ -28,6 +28,39 @@ export const createLiveLessonShare = asyncHandler(async (req, res) => {
   }
 });
 
+export const createLiveLessonShares = asyncHandler(async (req, res) => {
+  const lessonIds = req.body?.lessonIds;
+  if (!Array.isArray(lessonIds) || lessonIds.length < 1 || lessonIds.length > 100 ||
+    lessonIds.some((id) => typeof id !== "string") || new Set(lessonIds).size !== lessonIds.length) {
+    return res.status(400).json({
+      success: false,
+      message: "Choose between 1 and 100 unique lessons to share.",
+    });
+  }
+
+  const results = await Promise.all(lessonIds.map(async (lessonId) => {
+    try {
+      const invitation = await createShareInvitation({
+        schoolId: req.schoolId,
+        senderId: req.user._id,
+        sourceLessonId: lessonId,
+        recipientId: req.body?.recipientId,
+      });
+      return { lessonId, invitation };
+    } catch (error) {
+      if (!(error instanceof LiveLessonShareError)) throw error;
+      return { lessonId, error: error.message };
+    }
+  }));
+  const invitations = results.filter((result) => result.invitation).map((result) => result.invitation);
+  const failures = results.filter((result) => result.error).map(({ lessonId, error }) => ({ lessonId, message: error }));
+  return res.json({
+    success: true,
+    data: { invitations, failures },
+    message: `${invitations.length} lesson${invitations.length === 1 ? "" : "s"} shared; ${failures.length} could not be shared.`,
+  });
+});
+
 export const listIncomingLiveLessonShares = asyncHandler(async (req, res) => {
   try {
     const invitations = await listIncomingShareInvitations({

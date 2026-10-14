@@ -265,7 +265,7 @@ export const createLiveLesson = asyncHandler(async (req, res) => {
 export const listLiveLessons = asyncHandler(async (req, res) => {
   const lessons = await LiveLesson.find({ school: req.schoolId, ownerId: req.user._id })
     .sort({ updatedAt: -1 })
-    .select("title description subject grade language slides.order slides.type createdAt updatedAt")
+    .select("title description subject grade language isDone slides.order slides.type createdAt updatedAt")
     .lean();
   return res.json({ success: true, data: { lessons } });
 });
@@ -313,6 +313,20 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
   lesson.language = String(next.language || "en").trim();
   if (slides !== undefined) lesson.slides = normalizeSlides(next.slides);
   await lesson.save();
+  return res.json({ success: true, data: { lesson } });
+});
+
+export const setLiveLessonDone = asyncHandler(async (req, res) => {
+  if (!validId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid lesson ID." });
+  if (typeof req.body?.isDone !== "boolean") {
+    return res.status(400).json({ success: false, message: "isDone must be true or false." });
+  }
+  const lesson = await LiveLesson.findOneAndUpdate(
+    { _id: req.params.id, school: req.schoolId, ownerId: req.user._id },
+    { $set: { isDone: req.body.isDone } },
+    { new: true, runValidators: true },
+  ).select("_id isDone");
+  if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
   return res.json({ success: true, data: { lesson } });
 });
 
@@ -1183,4 +1197,55 @@ export const deleteLiveSession = asyncHandler(async (req, res) => {
   await session.deleteOne();
   closeLiveSessionConnections(session._id);
   return res.json({ success: true, message: "Session history deleted." });
+});
+
+export const deleteFinishedLiveSessions = asyncHandler(async (req, res) => {
+  const transaction = await mongoose.startSession();
+  let deletedSessionIds = [];
+  let skippedGradebookCount = 0;
+  try {
+    await transaction.withTransaction(async () => {
+      deletedSessionIds = [];
+      skippedGradebookCount = 0;
+      const finishedSessions = await LiveSession.find({
+        school: req.schoolId,
+        teacherId: req.user._id,
+        status: "ended",
+      }).select("_id").session(transaction);
+      const sessionIds = finishedSessions.map((session) => session._id);
+      if (!sessionIds.length) return;
+
+      const linkedSessionIds = await Grade.distinct("liveSession", {
+        school: req.schoolId,
+        liveSession: { $in: sessionIds },
+      }).session(transaction);
+      const linkedIds = new Set(linkedSessionIds.map(String));
+      deletedSessionIds = sessionIds.filter((id) => !linkedIds.has(String(id)));
+      skippedGradebookCount = linkedIds.size;
+      if (!deletedSessionIds.length) return;
+
+      await LiveResponse.deleteMany(
+        { school: req.schoolId, sessionId: { $in: deletedSessionIds } },
+        { session: transaction },
+      );
+      await LiveSessionEvent.deleteMany(
+        { school: req.schoolId, sessionId: { $in: deletedSessionIds } },
+        { session: transaction },
+      );
+      await LiveSession.deleteMany(
+        { school: req.schoolId, _id: { $in: deletedSessionIds }, status: "ended" },
+        { session: transaction },
+      );
+    });
+  } finally {
+    await transaction.endSession();
+  }
+  deletedSessionIds.forEach((sessionId) => closeLiveSessionConnections(sessionId));
+  return res.json({
+    success: true,
+    data: {
+      deletedCount: deletedSessionIds.length,
+      skippedGradebookCount,
+    },
+  });
 });

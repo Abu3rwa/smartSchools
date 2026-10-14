@@ -50,6 +50,7 @@ const liveLessonSchema = new Schema(
     subject: { type: String, trim: true, maxlength: 120, default: "" },
     grade: { type: String, trim: true, maxlength: 80, default: "" },
     language: { type: String, trim: true, maxlength: 20, default: "en" },
+    isDone: { type: Boolean, default: false },
     source: { type: String, enum: ["csv"], default: "csv" },
     originLessonId: { type: Schema.Types.ObjectId, ref: "LiveLesson", default: null },
     originOwnerId: { type: Schema.Types.ObjectId, ref: "User", default: null },

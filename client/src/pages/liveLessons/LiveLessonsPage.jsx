@@ -12,7 +12,7 @@ import { LIVE_LESSON_AI_PROMPT } from "./liveLessonAiPrompt";
 import "./LiveLessonsPage.css";
 
 const emptyForm = { title: "", description: "", subject: "", grade: "", language: "en", slides: [] };
-const defaultListState = { classId: "", subject: "", page: 1, pageSize: 25 };
+const defaultListState = { classId: "", subject: "", page: 1, pageSize: 25, showDone: false };
 
 const normalizeListState = (saved = {}) => {
   const preferences = saved && typeof saved === "object" ? saved : {};
@@ -21,6 +21,7 @@ const normalizeListState = (saved = {}) => {
     subject: typeof preferences.subject === "string" ? preferences.subject : "",
     page: Number.isInteger(Number(preferences.page)) && Number(preferences.page) > 0 ? Number(preferences.page) : 1,
     pageSize: [10, 25, 50].includes(Number(preferences.pageSize)) ? Number(preferences.pageSize) : 25,
+    showDone: preferences.showDone === true,
   };
 };
 
@@ -78,11 +79,14 @@ const LiveLessonsPage = () => {
   const [teachers, setTeachers] = useState([]);
   const [incomingShares, setIncomingShares] = useState([]);
   const [outgoingShares, setOutgoingShares] = useState([]);
-  const [shareLesson, setShareLesson] = useState(null);
+  const [shareLessons, setShareLessons] = useState([]);
   const [shareRecipient, setShareRecipient] = useState("");
   const [shareSaving, setShareSaving] = useState(false);
+  const [selectedLessonIds, setSelectedLessonIds] = useState([]);
   const [endingSessionId, setEndingSessionId] = useState("");
+  const [deletingFinishedSessions, setDeletingFinishedSessions] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [aiHtmlReviewEnabled, setAiHtmlReviewEnabled] = useState(false);
   const [savingHtmlReviewSetting, setSavingHtmlReviewSetting] = useState(false);
   const [lessonListState, setLessonListState] = useState(defaultListState);
@@ -468,6 +472,7 @@ const LiveLessonsPage = () => {
     if (!window.confirm("Permanently delete this lesson and ALL associated session history, answers, reports, and timelines? This cannot be undone.")) return;
     try {
       await api.delete(`/live/lessons/${lessonId}`);
+      setSelectedLessonIds((current) => current.filter((id) => String(id) !== String(lessonId)));
       await loadData();
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not delete lesson.");
@@ -475,16 +480,28 @@ const LiveLessonsPage = () => {
   };
 
   const shareLessonWithTeacher = async () => {
-    if (!shareLesson || !shareRecipient) return;
+    if (!shareLessons.length || !shareRecipient) return;
     setShareSaving(true);
     setError("");
+    setNotice("");
     try {
-      await api.post(`/live/lessons/${shareLesson._id}/shares`, { recipientId: shareRecipient });
-      setShareLesson(null);
+      const response = await api.post("/live/shares/bulk", {
+        lessonIds: shareLessons.map((lesson) => lesson._id),
+        recipientId: shareRecipient,
+      });
+      const { invitations = [], failures = [] } = response.data?.data || {};
+      const sharedIds = new Set(invitations.map((invitation) => String(invitation.sourceLessonId)));
+      const lessonTitles = new Map(shareLessons.map((lesson) => [String(lesson._id), lesson.title]));
+      setSelectedLessonIds((current) => current.filter((id) => !sharedIds.has(String(id))));
+      const failureDetails = failures
+        .map(({ lessonId, message }) => `${lessonTitles.get(String(lessonId)) || lessonId}: ${message}`)
+        .join("; ");
+      setNotice(`${invitations.length} lesson${invitations.length === 1 ? "" : "s"} shared with ${getTeacherName(teachers.find((teacher) => String(teacher._id) === shareRecipient))}.${failureDetails ? ` Could not share: ${failureDetails}. Failed lessons remain selected.` : ""}`);
+      setShareLessons([]);
       setShareRecipient("");
       await loadShares();
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Could not share this lesson.");
+      setError(requestError.response?.data?.message || "Could not share these lessons.");
     } finally {
       setShareSaving(false);
     }
@@ -533,6 +550,38 @@ const LiveLessonsPage = () => {
     }
   };
 
+  const deleteFinishedSessions = async () => {
+    if (!window.confirm("Permanently delete all of your finished live-session histories? Reports, replays, answers, and timelines will be removed. Sessions linked to gradebook entries will be kept.")) return;
+    setDeletingFinishedSessions(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await api.delete("/live/sessions/finished");
+      const { deletedCount = 0, skippedGradebookCount = 0 } = response.data?.data || {};
+      setNotice(`${deletedCount} finished session${deletedCount === 1 ? "" : "s"} deleted.${skippedGradebookCount ? ` ${skippedGradebookCount} linked to gradebook entries were kept.` : ""}`);
+      await loadSessions();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Could not delete finished session histories.");
+    } finally {
+      setDeletingFinishedSessions(false);
+    }
+  };
+
+  const setLessonDone = async (lesson) => {
+    setError("");
+    setNotice("");
+    try {
+      const isDone = !lesson.isDone;
+      await api.patch(`/live/lessons/${lesson._id}/done`, { isDone });
+      setLessons((current) => current.map((item) => (
+        String(item._id) === String(lesson._id) ? { ...item, isDone } : item
+      )));
+      setNotice(`“${lesson.title}” marked as ${isDone ? "done" : "not done"}.`);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Could not update lesson status.");
+    }
+  };
+
   const endSession = async (session) => {
     const title = session.lessonSnapshot?.title || "this live lesson";
     if (!window.confirm(`End "${title}" now? Students will be returned to the completed session.`)) return;
@@ -577,6 +626,7 @@ const LiveLessonsPage = () => {
     new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime() ||
     String(left.title || "").localeCompare(String(right.title || ""))
   )).filter((lesson) => (
+    (lessonListState.showDone || !lesson.isDone) &&
     (!lessonListState.subject || lesson.subject === lessonListState.subject)
     && (!lessonListState.classId || !selectedLessonClassSubjectIds.length || selectedLessonClassSubjects.includes(lesson.subject))
   ));
@@ -603,6 +653,7 @@ const LiveLessonsPage = () => {
       </nav>
 
       {error && <div className="live-error-banner" role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
+      {notice && <div className="live-success-banner" role="status">{notice}<button onClick={() => setNotice("")}>Dismiss</button></div>}
       {user?.role === "admin" && (
         <section className="live-safety-setting">
           <div>
@@ -625,12 +676,23 @@ const LiveLessonsPage = () => {
       ) : tab === "lessons" ? (
         <>
           <div className="live-lessons-actions">
-            <p>Import a CSV lesson, preview every slide, and launch it with a class. To share a lesson, choose <strong>Share</strong> in its row, select a teacher, and send the invitation; they can accept it into their own lesson library.</p>
+            <p>Import a CSV lesson, preview every slide, and launch it with a class. Select one or more lessons to share them with another teacher at once, or mark lessons done and hide or show them with the filter.</p>
             <div className="live-session-actions">
               <button className="live-text-button" onClick={copyAiPrompt}>
                 {promptCopied ? <HiOutlineCheck /> : <HiOutlineClipboardDocument />}
                 {promptCopied ? "Copied to clipboard" : "Copy AI prompt + sample"}
               </button>
+              {["teacher", "admin"].includes(user?.role) && selectedLessonIds.length > 0 && (
+                <button
+                  className="live-secondary-button"
+                  onClick={() => {
+                    setShareLessons(lessons.filter((lesson) => selectedLessonIds.includes(String(lesson._id))));
+                    setShareRecipient("");
+                  }}
+                >
+                  <HiOutlineShare /> Share selected ({selectedLessonIds.length})
+                </button>
+              )}
               <button className="live-primary-button" onClick={openImportEditor}><HiOutlineArrowUpTray /> Import CSV lesson</button>
             </div>
           </div>
@@ -696,14 +758,54 @@ const LiveLessonsPage = () => {
                     {lessonSubjects.map((subject) => <option key={subject._id} value={subject.name}>{subject.name}</option>)}
                   </select>
                 </label>
+                <label className="live-checkbox-filter">
+                  <input
+                    type="checkbox"
+                    checked={lessonListState.showDone}
+                    onChange={(event) => updateLessonList({ showDone: event.target.checked, page: 1 })}
+                  />
+                  Show done lessons
+                </label>
                 <button className="live-text-button" onClick={() => updateLessonList({ ...defaultListState })}>Clear filters</button>
               </div>
               <div className="live-list-table-wrap">
                 <table className="live-list-table">
-                  <thead><tr><th>Lesson</th><th>Subject</th><th>Slides</th><th>Updated</th><th>Launch class</th><th>Actions</th></tr></thead>
+                  <thead><tr>
+                    <th>
+                      {["teacher", "admin"].includes(user?.role) && (
+                        <input
+                          type="checkbox"
+                          aria-label="Select all lessons on this page"
+                          checked={visibleLessons.length > 0 && visibleLessons.every((lesson) => selectedLessonIds.includes(String(lesson._id)))}
+                          onChange={(event) => setSelectedLessonIds((current) => {
+                            const visibleIds = new Set(visibleLessons.map((lesson) => String(lesson._id)));
+                            return event.target.checked
+                              ? [...new Set([...current, ...visibleIds])]
+                              : current.filter((id) => !visibleIds.has(String(id)));
+                          })}
+                        />
+                      )}
+                    </th>
+                    <th>Lesson</th><th>Status</th><th>Subject</th><th>Slides</th><th>Updated</th><th>Launch class</th><th>Actions</th>
+                  </tr></thead>
                   <tbody>{visibleLessons.map((lesson) => (
                     <tr key={lesson._id}>
+                      <td>
+                        {["teacher", "admin"].includes(user?.role) && (
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${lesson.title} to share`}
+                            checked={selectedLessonIds.includes(String(lesson._id))}
+                            onChange={(event) => setSelectedLessonIds((current) => (
+                              event.target.checked
+                                ? [...new Set([...current, String(lesson._id)])]
+                                : current.filter((id) => String(id) !== String(lesson._id))
+                            ))}
+                          />
+                        )}
+                      </td>
                       <td><strong>{lesson.title}</strong>{lesson.description && <small>{lesson.description}</small>}</td>
+                      <td>{lesson.isDone ? <span className="live-lesson-done-pill">Done</span> : "—"}</td>
                       <td>{lesson.subject || "—"}</td>
                       <td>{lesson.slides?.length || 0}</td>
                       <td>{lesson.updatedAt ? new Date(lesson.updatedAt).toLocaleDateString() : "—"}</td>
@@ -716,7 +818,8 @@ const LiveLessonsPage = () => {
                       <td className="live-list-row-actions">
                         <button className="live-primary-button" onClick={() => startSession(lesson._id)} disabled={!(lessonClasses[lesson._id] || lessonListState.classId)}><HiOutlinePlay /> Start</button>
                         <button className="live-secondary-button" onClick={() => openLessonEditor(lesson._id)}><HiOutlinePencilSquare /> Edit</button>
-                        {["teacher", "admin"].includes(user?.role) && <button className="live-secondary-button" onClick={() => { setShareLesson(lesson); setShareRecipient(""); }}><HiOutlineShare /> Share</button>}
+                        {["teacher", "admin"].includes(user?.role) && <button className="live-secondary-button" onClick={() => { setShareLessons([lesson]); setShareRecipient(""); }}><HiOutlineShare /> Share</button>}
+                        <button className="live-secondary-button" onClick={() => setLessonDone(lesson)}><HiOutlineCheck /> {lesson.isDone ? "Mark not done" : "Mark done"}</button>
                         <button className="live-delete-session" onClick={() => deleteLesson(lesson._id)}><HiOutlineTrash /> Delete</button>
                       </td>
                     </tr>
@@ -755,6 +858,15 @@ const LiveLessonsPage = () => {
               </select>
             </label>
             <button className="live-text-button" onClick={() => updateSessionList({ ...defaultListState })}>Clear filters</button>
+            {["teacher", "admin"].includes(user?.role) && (
+              <button
+                className="live-delete-session"
+                onClick={deleteFinishedSessions}
+                disabled={deletingFinishedSessions}
+              >
+                <HiOutlineTrash /> {deletingFinishedSessions ? "Deleting finished sessions…" : "Delete all finished sessions"}
+              </button>
+            )}
           </div>
           <div className="live-list-table-wrap">
             <table className="live-list-table">
@@ -801,14 +913,14 @@ const LiveLessonsPage = () => {
         </>
       )}
 
-      {shareLesson && (
-        <div className="live-import-overlay" role="presentation" onClick={() => setShareLesson(null)}>
+      {shareLessons.length > 0 && (
+        <div className="live-import-overlay" role="presentation" onClick={() => setShareLessons([])}>
           <section className="live-share-dialog" role="dialog" aria-modal="true" aria-labelledby="live-share-title" onClick={(event) => event.stopPropagation()}>
             <header>
-              <div><span className="live-eyebrow">TEACHER-TO-TEACHER</span><h2 id="live-share-title">Share “{shareLesson.title}”</h2></div>
-              <button className="live-dialog-close" onClick={() => setShareLesson(null)} aria-label="Close share dialog">×</button>
+              <div><span className="live-eyebrow">TEACHER-TO-TEACHER</span><h2 id="live-share-title">Share {shareLessons.length === 1 ? `“${shareLessons[0].title}”` : `${shareLessons.length} lessons`}</h2></div>
+              <button className="live-dialog-close" onClick={() => setShareLessons([])} aria-label="Close share dialog">×</button>
             </header>
-            <p>The recipient can accept a copy of this lesson. Your lesson and session history stay separate.</p>
+            <p>The recipient can accept a copy of each lesson. Your lessons and session histories stay separate.</p>
             <label className="live-edit-field">Teacher
               <select value={shareRecipient} onChange={(event) => setShareRecipient(event.target.value)}>
                 <option value="">Choose a teacher…</option>
@@ -817,8 +929,8 @@ const LiveLessonsPage = () => {
             </label>
             {!shareableTeachers.length && <p className="live-list-empty">No other active teachers are available to share with.</p>}
             <footer>
-              <button className="live-secondary-button" onClick={() => setShareLesson(null)}>Cancel</button>
-              <button className="live-primary-button" disabled={!shareRecipient || shareSaving} onClick={shareLessonWithTeacher}>{shareSaving ? "Sending…" : "Send invitation"}</button>
+              <button className="live-secondary-button" onClick={() => setShareLessons([])}>Cancel</button>
+              <button className="live-primary-button" disabled={!shareRecipient || shareSaving} onClick={shareLessonWithTeacher}>{shareSaving ? "Sending…" : `Send ${shareLessons.length === 1 ? "invitation" : `${shareLessons.length} invitations`}`}</button>
             </footer>
           </section>
         </div>
