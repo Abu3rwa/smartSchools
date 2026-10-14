@@ -241,27 +241,78 @@ const LiveLessonReviewPage = ({ mode }) => {
           <section className="live-review-card live-report-class-section">
             <div className="live-report-heading">
               <div>
-                <h2>{report.session.status === "live" ? `Live session report: ${report.session.title}` : `Class report: ${report.session.title}`}</h2>
-                <p>{report.session.class?.name || "Class"} · {report.session.subject || "Subject not set"} · {report.session.startedAt ? new Date(report.session.startedAt).toLocaleString() : "Not started"}</p>
+                <span className="live-report-kicker">{report.session.status === "live" ? "SESSION IN PROGRESS" : "SESSION REPORT"}</span>
+                <h2>{report.session.title}</h2>
+                <p className="live-report-context">
+                  <span>{report.session.class?.name || "Class"}</span>
+                  <span>{report.session.subject || "Subject not set"}</span>
+                  <span>{report.session.startedAt ? new Date(report.session.startedAt).toLocaleString() : "Not started"}</span>
+                </p>
                 {report.session.status === "live" && <small>In progress · updates every 10 seconds · unanswered counts may change</small>}
               </div>
               <button className="live-session-secondary no-print" onClick={() => printReport(false)}><HiOutlinePrinter /> Print class report</button>
             </div>
             <div className="live-report-summary">
-              <span><strong>{report.summary?.rosterCount || 0}</strong> students</span>
-              <span><strong>{report.summary?.joinedCount || 0}</strong> joined</span>
-              <span><strong>{report.summary?.questionCount || 0}</strong> questions</span>
-              <span><strong>{report.summary?.submittedAnswers || 0}</strong> answers submitted</span>
+              <div><strong>{report.summary?.rosterCount || 0}</strong><span>Students</span></div>
+              <div><strong>{report.summary?.joinedCount || 0}</strong><span>Joined</span></div>
+              <div><strong>{report.summary?.questionCount || 0}</strong><span>Questions</span></div>
+              <div><strong>{report.summary?.submittedAnswers || 0}</strong><span>Answers submitted</span></div>
             </div>
           </section>
-          <section className="live-review-card live-report-class-section"><h2>Question results</h2>
+          <section className="live-review-card live-report-class-section">
+            <div className="live-report-section-heading">
+              <div><h2>Question results</h2><p>See how the class responded to each check for understanding.</p></div>
+              <span className="live-report-count">{(report.perQuestion || []).length} questions</span>
+            </div>
             {(report.perQuestion || []).length ? (
-              <div className="live-report-table-wrap"><table><thead><tr><th>Question</th><th>Answered</th><th>Correct</th><th>Wrong</th><th>Unanswered</th><th>Correct %</th></tr></thead><tbody>
-                {report.perQuestion.map((question) => <tr key={question.slideId}><td>{question.title && <strong>{question.title}: </strong>}{question.prompt}<ul className="live-report-option-counts">{question.options.map((option) => <li key={option.id}>{option.text}{option.correct ? " (correct)" : ""}: {question.perOption?.[option.id] || 0}</li>)}</ul></td><td>{question.answered}</td><td>{question.correct}</td><td>{question.wrong}</td><td>{question.closed ? question.unanswered : question.opened ? "In progress" : "Not opened"}</td><td>{question.percentCorrect}%</td></tr>)}
-              </tbody></table></div>
+              <div className="live-report-question-grid">
+                {report.perQuestion.map((question, index) => (
+                  <article className="live-question-result" key={question.slideId}>
+                    <div className="live-question-result-heading">
+                      <span className="live-question-number">Question {index + 1}</span>
+                      <span className={`live-question-state ${question.closed ? "closed" : question.opened ? "opened" : ""}`}>
+                        {question.closed ? "Closed" : question.opened ? question.pending ? "In progress" : "Answered" : "Not opened"}
+                      </span>
+                    </div>
+                    {question.title && <span className="live-question-title">{question.title}</span>}
+                    <h3>{question.prompt}</h3>
+                    <div className="live-question-metrics">
+                      <div><strong>{question.answered}</strong><span>Answered</span></div>
+                      <div><strong>{question.correct}</strong><span>Correct</span></div>
+                      <div><strong>{question.wrong}</strong><span>Incorrect</span></div>
+                      <div><strong>{question.closed ? question.unanswered : question.opened ? question.pending : "—"}</strong><span>{question.closed ? "Unanswered" : question.opened ? "Pending" : "Remaining"}</span></div>
+                    </div>
+                    {question.answered > 0 && (
+                      <div className="live-question-accuracy" aria-label={`${question.percentCorrect}% answered correctly`}>
+                        <span style={{ width: `${question.percentCorrect}%` }} />
+                      </div>
+                    )}
+                    <div className="live-question-options">
+                      {question.options.map((option) => {
+                        const count = question.perOption?.[option.id] || 0;
+                        const percentage = question.answered ? Math.round((count / question.answered) * 100) : 0;
+                        return (
+                          <div className={`live-question-option${option.correct ? " correct" : ""}`} key={option.id}>
+                            <div><span>{option.text}{option.correct && <b>Correct answer</b>}</span><strong>{count}</strong></div>
+                            <span className="live-option-bar"><i style={{ width: `${percentage}%` }} /></span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="live-question-result-footer">
+                      <span>{question.answered ? `${question.percentCorrect}% correct` : "No answers yet"}</span>
+                      <span>{question.answered} of {report.summary?.rosterCount || 0} responses</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
             ) : <p>No question slides were included.</p>}
           </section>
-          <section className="live-review-card live-report-class-section"><h2>Student participation</h2>
+          <section className="live-review-card live-report-class-section">
+            <div className="live-report-section-heading">
+              <div><h2>Student participation</h2><p>Select a student to view their individual answers below.</p></div>
+              <span className="live-report-count">{(report.perStudent || []).length} students</span>
+            </div>
             <div className="live-report-table-wrap"><table><thead><tr><th>Student</th><th>Answered</th><th>Correct</th><th>Wrong</th><th>Score</th><th>Away</th></tr></thead><tbody>
               {(report.perStudent || []).map((student) => <tr key={student.studentId} className="live-report-student-row" data-student-id={student.studentId}><td><button className="live-report-student-link no-print" onClick={() => setReportStudentId(student.studentId)}>{student.name}</button><span className="print-only">{student.name}</span></td><td>{student.answered}</td><td>{student.correct}</td><td>{student.wrong}</td><td>{student.scorePercent}%</td><td>{student.totalAwaySeconds}s</td></tr>)}
             </tbody></table></div>
@@ -269,7 +320,8 @@ const LiveLessonReviewPage = ({ mode }) => {
           <section className="live-review-card live-report-student-section">
             <div className="live-report-heading">
               <div>
-                <h2>Student answers</h2>
+                <h2>Individual student report</h2>
+                <p>Review submitted answers and response times for one student.</p>
                 <label className="no-print">Student
                   <select value={selectedReportStudent?.studentId || ""} onChange={(event) => setReportStudentId(event.target.value)}>
                     {(report.perStudent || []).map((student) => <option key={student.studentId} value={student.studentId}>{student.name}</option>)}
@@ -281,7 +333,14 @@ const LiveLessonReviewPage = ({ mode }) => {
             {selectedReportStudent ? (
               <>
                 <h3 className="print-student-name">{selectedReportStudent.name}</h3>
-                <p>{selectedReportStudent.joined ? `Joined ${selectedReportStudent.joinedAt ? new Date(selectedReportStudent.joinedAt).toLocaleTimeString() : ""}` : "Did not join"} · {selectedReportStudent.answered} answered · {selectedReportStudent.correct} correct · {selectedReportStudent.wrong} incorrect · {selectedReportStudent.coveragePercent}% coverage · {selectedReportStudent.totalAwaySeconds}s away</p>
+                <div className="live-student-report-summary">
+                  <span>{selectedReportStudent.joined ? `Joined ${selectedReportStudent.joinedAt ? new Date(selectedReportStudent.joinedAt).toLocaleTimeString() : ""}` : "Did not join"}</span>
+                  <span><strong>{selectedReportStudent.answered}</strong> answered</span>
+                  <span><strong>{selectedReportStudent.correct}</strong> correct</span>
+                  <span><strong>{selectedReportStudent.wrong}</strong> incorrect</span>
+                  <span><strong>{selectedReportStudent.coveragePercent}%</strong> coverage</span>
+                  <span><strong>{selectedReportStudent.totalAwaySeconds}s</strong> away</span>
+                </div>
                 <div className="live-report-table-wrap">
                   <table><thead><tr><th>#</th><th>Question</th><th>Student answer</th><th>Correct answer</th><th>Result</th><th>Submitted</th><th>Response time</th></tr></thead>
                     <tbody>{selectedReportStudent.answerDetails.map((answer) => <tr key={answer.slideId}>
@@ -295,23 +354,28 @@ const LiveLessonReviewPage = ({ mode }) => {
                     </tr>)}</tbody>
                   </table>
                 </div>
-                <h3>Lesson tab visibility events</h3>
-                <p className="live-report-caveat">These are browser visibility signals only. They do not establish why a student left the lesson tab or indicate misconduct.</p>
-                {selectedReportStudent.presenceEvents.filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible").length ? (
-                  <ul className="live-report-presence-list">
-                    {selectedReportStudent.presenceEvents
-                      .filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible")
-                      .map((event, index) => <li key={`${event.at}-${index}`}>{event.reason === "visibility_hidden" ? "Lesson tab became hidden" : "Lesson tab became visible"} · {new Date(event.at).toLocaleString()}</li>)}
-                  </ul>
-                ) : <p>No lesson tab visibility events were recorded.</p>}
+                <details className="live-report-presence-details">
+                  <summary>Lesson tab visibility events <span>{selectedReportStudent.presenceEvents.filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible").length}</span></summary>
+                  <p className="live-report-caveat">These are browser visibility signals only. They do not establish why a student left the lesson tab or indicate misconduct.</p>
+                  {selectedReportStudent.presenceEvents.filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible").length ? (
+                    <ul className="live-report-presence-list">
+                      {selectedReportStudent.presenceEvents
+                        .filter((event) => event.reason === "visibility_hidden" || event.reason === "visibility_visible")
+                        .map((event, index) => <li key={`${event.at}-${index}`}>{event.reason === "visibility_hidden" ? "Lesson tab became hidden" : "Lesson tab became visible"} · {new Date(event.at).toLocaleString()}</li>)}
+                    </ul>
+                  ) : <p>No lesson tab visibility events were recorded.</p>}
+                </details>
               </>
             ) : <p>No students were included in this session roster.</p>}
           </section>
           <section className="live-review-card live-report-class-section">
-            <h2>Class answer detail</h2>
+            <div className="live-report-section-heading">
+              <div><h2>All student answers</h2><p>Expanded details for the full class. Open a student to review their responses.</p></div>
+              <span className="live-report-count">{(report.perStudent || []).length} students</span>
+            </div>
             {(report.perStudent || []).map((student) => (
-              <details className="live-report-answer-group" key={student.studentId} open>
-                <summary>{student.name} · {student.answered}/{report.summary?.questionCount || 0} answered · {student.correct} correct</summary>
+              <details className="live-report-answer-group" key={student.studentId}>
+                <summary><span>{student.name}</span><small>{student.answered}/{report.summary?.questionCount || 0} answered · {student.correct} correct · {student.scorePercent}%</small></summary>
                 <div className="live-report-table-wrap"><table><thead><tr><th>#</th><th>Question</th><th>Student answer</th><th>Correct answer</th><th>Result</th><th>Submitted</th></tr></thead><tbody>
                   {student.answerDetails.map((answer) => <tr key={answer.slideId}><td>{answer.questionNumber}</td><td>{answer.prompt}</td><td>{answer.selectedAnswer || "—"}</td><td>{answer.correctAnswer}</td><td>{answer.status === "answered" ? answer.isCorrect ? "Correct" : "Incorrect" : answer.status.replace(/_/g, " ")}</td><td>{answer.submittedAt ? new Date(answer.submittedAt).toLocaleTimeString() : "—"}</td></tr>)}
                 </tbody></table></div>

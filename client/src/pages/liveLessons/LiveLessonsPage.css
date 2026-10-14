@@ -59,7 +59,7 @@
 }
 .live-lesson-metadata-fields {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 2fr 1fr 1fr;
   gap: 0.6rem;
 }
 .live-session-meta {
@@ -430,6 +430,7 @@
   accent-color: #167b78;
 }
 .live-list-filters select,
+.live-list-filters input,
 .live-list-pagination select,
 .live-list-table select {
   min-height: 38px;
@@ -439,6 +440,24 @@
   color: #344858;
   background: #fff;
   font: inherit;
+}
+.live-list-filters input[type="search"] {
+  width: min(290px, 60vw);
+}
+.live-list-filters input[type="date"] {
+  min-width: 145px;
+}
+.live-list-filters input:focus,
+.live-list-filters select:focus {
+  outline: 2px solid rgba(57, 152, 150, 0.3);
+  border-color: #399896;
+}
+.live-list-filters input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  min-height: auto;
+  padding: 0;
+  accent-color: #167b78;
 }
 .live-list-filters .live-text-button {
   margin-left: auto;
@@ -452,7 +471,7 @@
 }
 .live-list-table {
   width: 100%;
-  min-width: 1080px;
+  min-width: 1180px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -968,6 +987,10 @@
     flex: 1 1 100%;
   }
   .live-list-filters select {
+    width: 100%;
+  }
+  .live-list-filters input[type="search"],
+  .live-list-filters input[type="date"] {
     width: 100%;
   }
   .live-list-filters .live-text-button {

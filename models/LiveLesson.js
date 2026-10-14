@@ -45,6 +45,8 @@ const liveLessonSchema = new Schema(
   {
     school: { type: Schema.Types.ObjectId, ref: "School", required: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    classId: { type: Schema.Types.ObjectId, ref: "Class", default: null, index: true },
+    subjectId: { type: Schema.Types.ObjectId, ref: "Subject", default: null },
     title: { type: String, required: true, trim: true, maxlength: 200 },
     description: { type: String, trim: true, maxlength: 1000, default: "" },
     subject: { type: String, trim: true, maxlength: 120, default: "" },

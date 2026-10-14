@@ -52,6 +52,22 @@
   color: #805b13;
   background: #fff1cc;
 }
+.live-timer-pill {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid #c8e8da;
+  border-radius: 999px;
+  color: #17654b;
+  background: #e8f8ef;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.live-timer-pill.expired {
+  border-color: #f0d2bd;
+  color: #914b24;
+  background: #fff0e5;
+}
 .live-session-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 350px);

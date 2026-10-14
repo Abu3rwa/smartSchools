@@ -13,6 +13,7 @@ import logger from "../utils/logger.js";
 import {
   appendLiveEvent,
   formatRoster,
+  listClassStudents,
   getSessionStudents,
   getStateForUser,
   isStudentEnrolled,
@@ -295,6 +296,15 @@ const handleAction = async (socket, message) => {
   }
   if (action === "session:start") {
     if (session.status !== "waiting") return fail(socket, requestId, "BAD_STATE", "Only a waiting session can start.");
+    if (session.scheduledAt) {
+      session.rosterSnapshot = (await listClassStudents(session.classId))
+        .map((student) => ({
+          studentId: String(student.user?._id || ""),
+          name: `${student.firstName} ${student.lastName}`.trim(),
+        }))
+        .filter((student) => student.studentId);
+      session.rosterCapturedAt = new Date();
+    }
     session.status = "live";
     session.paused = false;
     session.startedAt = new Date();

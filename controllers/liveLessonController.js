@@ -22,7 +22,10 @@ import {
   isStudentEnrolled,
   listClassStudents,
 } from "../services/liveLessonService.js";
-import { closeLiveSessionConnections } from "../realtime/liveLessonsGateway.js";
+import {
+  broadcastLiveSessionState,
+  closeLiveSessionConnections,
+} from "../realtime/liveLessonsGateway.js";
 import { resolveSemesterForDate } from "../services/gradebookConfigService.js";
 import { calculateLiveSessionMark } from "../services/liveSessionGradebookService.js";
 import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
@@ -87,6 +90,24 @@ const createJoinCode = () =>
   Array.from({ length: 6 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[randomInt(32)]).join("");
 
 const validId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+const resolveLessonAssignment = async (req, classId, subjectId) => {
+  if (!classId && !subjectId) return { classId: null, subjectId: null, subject: "" };
+  if (!validId(classId) || !validId(subjectId)) {
+    return { error: "Choose both an assigned class and one of that class’s subjects." };
+  }
+  const classDoc = await findTeacherClass(req, classId);
+  if (!classDoc) return { error: "You are not assigned to the selected class." };
+  const hasSubject = (classDoc.subjects || []).some(
+    (entry) => String(entry.subject?._id || entry.subject) === String(subjectId),
+  );
+  if (!hasSubject) return { error: "Choose a subject assigned to the selected class." };
+  const subject = await Subject.findOne({ _id: subjectId, school: req.schoolId })
+    .select("_id name")
+    .lean();
+  if (!subject) return { error: "The selected class subject was not found." };
+  return { classId: classDoc._id, subjectId: subject._id, subject: subject.name };
+};
 
 const validateLessonEdit = ({ title, description, subject, grade, language, slides }) => {
   const errors = [];
@@ -203,6 +224,11 @@ export const importLiveLessonCsv = asyncHandler(async (req, res) => {
       errors: result.errors,
     });
   }
+  const assignment = await resolveLessonAssignment(req, req.body?.classId, req.body?.subjectId);
+  if (assignment.error) return res.status(400).json({ success: false, message: assignment.error });
+  if (!assignment.classId) {
+    return res.status(400).json({ success: false, message: "Assign the lesson to a class and one of its subjects before importing it." });
+  }
   await assertLiveLessonHtmlSafe({
     slides: result.lesson.slides,
     aiReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
@@ -211,6 +237,9 @@ export const importLiveLessonCsv = asyncHandler(async (req, res) => {
     school: req.schoolId,
     ownerId: req.user._id,
     ...result.lesson,
+    classId: assignment.classId,
+    subjectId: assignment.subjectId,
+    subject: assignment.subject || result.lesson.subject,
     slides: normalizeSlides(result.lesson.slides),
   });
   return res.status(201).json({
@@ -239,10 +268,15 @@ export const previewLiveLessonCsv = asyncHandler(async (req, res) => {
 });
 
 export const createLiveLesson = asyncHandler(async (req, res) => {
-  const { title, description, subject, grade, language, slides } = req.body || {};
+  const { title, description, subject, grade, language, slides, classId, subjectId } = req.body || {};
   const errors = validateLessonEdit({ title, description, subject, grade, language, slides });
   if (errors.length) {
     return res.status(400).json({ success: false, message: "Lesson changes are invalid.", errors });
+  }
+  const assignment = await resolveLessonAssignment(req, classId, subjectId);
+  if (assignment.error) return res.status(400).json({ success: false, message: assignment.error });
+  if (!assignment.classId) {
+    return res.status(400).json({ success: false, message: "Assign the lesson to a class and one of its subjects before saving it." });
   }
   await assertLiveLessonHtmlSafe({
     slides,
@@ -251,10 +285,12 @@ export const createLiveLesson = asyncHandler(async (req, res) => {
   const lesson = await LiveLesson.create({
     school: req.schoolId,
     ownerId: req.user._id,
+    classId: assignment.classId,
+    subjectId: assignment.subjectId,
     source: "csv",
     title: String(title).trim(),
     description: String(description || "").trim(),
-    subject: String(req.body.subject || "").trim(),
+    subject: assignment.subject || String(req.body.subject || "").trim(),
     grade: String(req.body.grade || "").trim(),
     language: String(req.body.language || "en").trim(),
     slides: normalizeSlides(slides),
@@ -265,7 +301,9 @@ export const createLiveLesson = asyncHandler(async (req, res) => {
 export const listLiveLessons = asyncHandler(async (req, res) => {
   const lessons = await LiveLesson.find({ school: req.schoolId, ownerId: req.user._id })
     .sort({ updatedAt: -1 })
-    .select("title description subject grade language isDone slides.order slides.type createdAt updatedAt")
+    .select("title description subject subjectId classId grade language isDone slides.order slides.type createdAt updatedAt")
+    .populate("classId", "name")
+    .populate("subjectId", "name")
     .lean();
   return res.json({ success: true, data: { lessons } });
 });
@@ -290,10 +328,18 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
   });
   if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found." });
   const { title, description, subject, grade, language, slides } = req.body || {};
+  const nextClassId = req.body?.classId === undefined
+    ? lesson.classId
+    : req.body.classId || null;
+  const nextSubjectId = req.body?.subjectId === undefined
+    ? lesson.subjectId
+    : req.body.subjectId || null;
+  const assignment = await resolveLessonAssignment(req, nextClassId, nextSubjectId);
+  if (assignment.error) return res.status(400).json({ success: false, message: assignment.error });
   const next = {
     title: title === undefined ? lesson.title : title,
     description: description === undefined ? lesson.description : description,
-    subject: subject === undefined ? lesson.subject : subject,
+    subject: assignment.classId ? assignment.subject : subject === undefined ? lesson.subject : subject,
     grade: grade === undefined ? lesson.grade : grade,
     language: language === undefined ? lesson.language : language,
     slides: slides === undefined ? lesson.slides : slides,
@@ -307,6 +353,8 @@ export const updateLiveLesson = asyncHandler(async (req, res) => {
     aiReviewEnabled: await schoolHtmlReviewEnabled(req.schoolId),
   });
   lesson.title = String(next.title).trim();
+  lesson.classId = assignment.classId;
+  lesson.subjectId = assignment.subjectId;
   lesson.description = String(next.description || "").trim();
   lesson.subject = String(next.subject || "").trim();
   lesson.grade = String(next.grade || "").trim();
@@ -384,9 +432,19 @@ export const deleteLiveLesson = asyncHandler(async (req, res) => {
 });
 
 export const createLiveSession = asyncHandler(async (req, res) => {
-  const { lessonId, classId } = req.body || {};
+  const { lessonId, classId, scheduledAt, timerDurationMinutes = 0 } = req.body || {};
   if (!validId(lessonId) || !validId(classId)) {
     return res.status(400).json({ success: false, message: "Choose a valid lesson and class." });
+  }
+  if (!Number.isInteger(timerDurationMinutes) || timerDurationMinutes < 0 || timerDurationMinutes > 240) {
+    return res.status(400).json({ success: false, message: "Timer duration must be between 0 and 240 whole minutes." });
+  }
+  let scheduleDate;
+  if (scheduledAt !== undefined && scheduledAt !== null && scheduledAt !== "") {
+    scheduleDate = new Date(scheduledAt);
+    if (Number.isNaN(scheduleDate.getTime()) || scheduleDate <= new Date()) {
+      return res.status(400).json({ success: false, message: "Choose a scheduled time in the future." });
+    }
   }
   const [lesson, classDoc] = await Promise.all([
     LiveLesson.findOne({ _id: lessonId, school: req.schoolId, ownerId: req.user._id }),
@@ -394,12 +452,23 @@ export const createLiveSession = asyncHandler(async (req, res) => {
   ]);
   if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found or not owned by you." });
   if (!classDoc) return res.status(403).json({ success: false, message: "You are not assigned to that class." });
+  if (lesson.classId && String(lesson.classId) !== String(classDoc._id)) {
+    return res.status(400).json({ success: false, message: "This lesson is assigned to a different class." });
+  }
   await classDoc.populate("subjects.subject", "name");
   const normalizedLessonSubject = String(lesson.subject || "").trim().toLowerCase();
+  const assignedSubjectIds = [...new Set((classDoc.subjects || [])
+    .map((assignment) => String(assignment.subject?._id || assignment.subject))
+    .filter(Boolean))];
   const matchingSubjectIds = [...new Set((classDoc.subjects || [])
     .filter((assignment) => assignment.subject?.name?.trim().toLowerCase() === normalizedLessonSubject)
     .map((assignment) => String(assignment.subject._id)))];
-  const canonicalSubjectId = matchingSubjectIds.length === 1 ? matchingSubjectIds[0] : null;
+  if (lesson.subjectId && !assignedSubjectIds.includes(String(lesson.subjectId))) {
+    return res.status(400).json({ success: false, message: "This lesson’s assigned subject is not available for the selected class." });
+  }
+  const canonicalSubjectId = lesson.subjectId
+    ? String(lesson.subjectId)
+    : matchingSubjectIds.length === 1 ? matchingSubjectIds[0] : null;
   const rosterSnapshot = (await listClassStudents(classDoc._id)).map((student) => ({
     studentId: String(student.user?._id || ""),
     name: `${student.firstName} ${student.lastName}`.trim(),
@@ -429,6 +498,8 @@ export const createLiveSession = asyncHandler(async (req, res) => {
     rosterCapturedAt: new Date(),
     classId: classDoc._id,
     teacherId: req.user._id,
+    ...(scheduleDate ? { scheduledAt: scheduleDate } : {}),
+    timerDurationMinutes,
     joinCode,
   });
   await appendLiveEvent(session, "session:created", { role: req.user.role, userId: req.user._id });
@@ -441,6 +512,8 @@ export const createLiveSession = asyncHandler(async (req, res) => {
         joinCode: session.joinCode,
         classId: session.classId,
         lessonTitle: lesson.title,
+        scheduledAt: session.scheduledAt,
+        timerDurationMinutes: session.timerDurationMinutes,
       },
     },
   });
@@ -449,6 +522,32 @@ export const createLiveSession = asyncHandler(async (req, res) => {
 export const listLiveSessions = asyncHandler(async (req, res) => {
   const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
   const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 25));
+  const search = String(req.query.search || "").trim();
+  if (search.length > 100) {
+    return res.status(400).json({ success: false, message: "Session search must be 100 characters or fewer." });
+  }
+  const requestedStatus = String(req.query.status || "");
+  if (requestedStatus && !["waiting", "live", "ended"].includes(requestedStatus)) {
+    return res.status(400).json({ success: false, message: "Invalid session status filter." });
+  }
+  const isDateOnly = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const dateFrom = req.query.dateFrom && isDateOnly(req.query.dateFrom)
+    ? new Date(`${req.query.dateFrom}T00:00:00.000Z`)
+    : null;
+  const dateTo = req.query.dateTo && isDateOnly(req.query.dateTo)
+    ? new Date(`${req.query.dateTo}T23:59:59.999Z`)
+    : null;
+  if ((dateFrom && Number.isNaN(dateFrom.getTime())) || (dateTo && Number.isNaN(dateTo.getTime()))) {
+    return res.status(400).json({ success: false, message: "Enter valid session history dates." });
+  }
+  if ((req.query.dateFrom && !dateFrom) || (req.query.dateTo && !dateTo) ||
+    (dateFrom && dateFrom.toISOString().slice(0, 10) !== req.query.dateFrom) ||
+    (dateTo && dateTo.toISOString().slice(0, 10) !== req.query.dateTo)) {
+    return res.status(400).json({ success: false, message: "Enter valid session history dates." });
+  }
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    return res.status(400).json({ success: false, message: "The start date must not be after the end date." });
+  }
   const filter = { school: req.schoolId };
   if (req.user.role === "teacher") {
     const teacher = await Teacher.findOne({ user: req.user._id, school: req.schoolId })
@@ -518,12 +617,49 @@ export const listLiveSessions = asyncHandler(async (req, res) => {
       filter["lessonSnapshot.subject"] = requestedSubject;
     }
   }
+  if (requestedStatus) filter.status = requestedStatus;
+  if (dateFrom || dateTo) {
+    const dateBoundary = {
+      ...(dateFrom ? { $gte: dateFrom } : {}),
+      ...(dateTo ? { $lte: dateTo } : {}),
+    };
+    filter.$and = [
+      ...(filter.$and || []),
+      {
+        $or: [
+          { status: "waiting", scheduledAt: dateBoundary },
+          { status: "waiting", scheduledAt: { $exists: false }, createdAt: dateBoundary },
+          { status: { $in: ["live", "ended"] }, startedAt: dateBoundary },
+          { status: { $in: ["live", "ended"] }, startedAt: { $exists: false }, createdAt: dateBoundary },
+        ],
+      },
+    ];
+  }
+  if (search) {
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const searchConditions = [
+      { "lessonSnapshot.title": { $regex: escapedSearch, $options: "i" } },
+      { "lessonSnapshot.subject": { $regex: escapedSearch, $options: "i" } },
+      { joinCode: { $regex: escapedSearch, $options: "i" } },
+    ];
+    const accessibleClassFilter = filter.classId;
+    const accessibleClassIds = accessibleClassFilter
+      ? accessibleClassFilter.$in || [accessibleClassFilter]
+      : undefined;
+    const matchingClasses = await Class.find({
+      school: req.schoolId,
+      ...(accessibleClassIds ? { _id: { $in: accessibleClassIds } } : {}),
+      name: { $regex: escapedSearch, $options: "i" },
+    }).distinct("_id");
+    if (matchingClasses.length) searchConditions.push({ classId: { $in: matchingClasses } });
+    filter.$and = [...(filter.$and || []), { $or: searchConditions }];
+  }
   const [sessions, total] = await Promise.all([
     LiveSession.find(filter)
     .sort({ createdAt: -1, _id: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
-    .select("lessonSnapshot.title lessonSnapshot.subject lessonSnapshot.subjectId classId teacherId status joinCode currentSlideIndex createdAt startedAt endedAt")
+    .select("lessonSnapshot.title lessonSnapshot.subject lessonSnapshot.subjectId classId teacherId status joinCode currentSlideIndex createdAt scheduledAt timerDurationMinutes startedAt endedAt")
     .populate("classId", "name grade section")
     .lean(),
     LiveSession.countDocuments(filter),
@@ -671,6 +807,8 @@ export const getLiveSession = asyncHandler(async (req, res) => {
     lessonGrade: session.lessonSnapshot.grade || "",
     lessonLanguage: session.lessonSnapshot.language || "en",
     classId: String(session.classId),
+    scheduledAt: session.scheduledAt,
+    timerDurationMinutes: session.timerDurationMinutes || 0,
     timeZone: await getSchoolTimeZone(req.schoolId),
     currentSlideIndex: session.currentSlideIndex,
     totalSlides: session.lessonSnapshot.slides.length,

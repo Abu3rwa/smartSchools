@@ -86,6 +86,8 @@ export const getStateForUser = async (session, user) => {
   const state = {
     sessionId: String(session._id),
     status: session.status,
+    startedAt: session.startedAt || null,
+    timerDurationMinutes: session.timerDurationMinutes || 0,
     paused: Boolean(session.paused),
     currentSlideIndex: session.currentSlideIndex,
     totalSlides: slides.length,

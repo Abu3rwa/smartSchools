@@ -11,8 +11,18 @@ import { LIVE_LESSON_CSV_TEMPLATE } from "./liveLessonCsvTemplate";
 import { LIVE_LESSON_AI_PROMPT } from "./liveLessonAiPrompt";
 import "./LiveLessonsPage.css";
 
-const emptyForm = { title: "", description: "", subject: "", grade: "", language: "en", slides: [] };
-const defaultListState = { classId: "", subject: "", page: 1, pageSize: 25, showDone: false };
+const emptyForm = { title: "", description: "", subject: "", classId: "", subjectId: "", grade: "", language: "en", slides: [] };
+const defaultListState = {
+  classId: "",
+  subject: "",
+  page: 1,
+  pageSize: 25,
+  showDone: false,
+  search: "",
+  dateFrom: "",
+  dateTo: "",
+  status: "",
+};
 
 const normalizeListState = (saved = {}) => {
   const preferences = saved && typeof saved === "object" ? saved : {};
@@ -22,7 +32,16 @@ const normalizeListState = (saved = {}) => {
     page: Number.isInteger(Number(preferences.page)) && Number(preferences.page) > 0 ? Number(preferences.page) : 1,
     pageSize: [10, 25, 50].includes(Number(preferences.pageSize)) ? Number(preferences.pageSize) : 25,
     showDone: preferences.showDone === true,
+    search: typeof preferences.search === "string" ? preferences.search : "",
+    dateFrom: typeof preferences.dateFrom === "string" ? preferences.dateFrom : "",
+    dateTo: typeof preferences.dateTo === "string" ? preferences.dateTo : "",
+    status: ["waiting", "live", "ended"].includes(preferences.status) ? preferences.status : "",
   };
+};
+
+const localDateTimeValue = (date) => {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
 };
 
 const readListPreferences = (key) => {
@@ -53,6 +72,12 @@ const formatSessionDuration = (session) => {
   const minutes = Math.max(0, Math.floor((end - new Date(session.startedAt).getTime()) / 60000));
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 };
+
+const getSessionDisplayDate = (session) => (
+  session.scheduledAt && session.status === "waiting"
+    ? session.scheduledAt
+    : session.startedAt || session.createdAt
+);
 
 const LiveLessonsPage = () => {
   const dispatch = useDispatch();
@@ -85,6 +110,8 @@ const LiveLessonsPage = () => {
   const [selectedLessonIds, setSelectedLessonIds] = useState([]);
   const [endingSessionId, setEndingSessionId] = useState("");
   const [deletingFinishedSessions, setDeletingFinishedSessions] = useState(false);
+  const [sessionDraft, setSessionDraft] = useState(null);
+  const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [aiHtmlReviewEnabled, setAiHtmlReviewEnabled] = useState(false);
@@ -132,6 +159,10 @@ const LiveLessonsPage = () => {
           limit: sessionListState.pageSize,
           ...(sessionListState.classId ? { classId: sessionListState.classId } : {}),
           ...(sessionListState.subject ? { subject: sessionListState.subject } : {}),
+          ...(sessionListState.search ? { search: sessionListState.search } : {}),
+          ...(sessionListState.dateFrom ? { dateFrom: sessionListState.dateFrom } : {}),
+          ...(sessionListState.dateTo ? { dateTo: sessionListState.dateTo } : {}),
+          ...(sessionListState.status ? { status: sessionListState.status } : {}),
         },
       });
       setSessions(response.data?.data?.sessions || []);
@@ -219,7 +250,10 @@ const LiveLessonsPage = () => {
         subjects.some((entry) => assignedIds.includes(String(entry._id)) &&
           (String(entry._id) === state.subject || entry.name === state.subject))
       );
-      const subject = validSubject(state.subject, isSession) && assignedSubjectMatches ? state.subject : "";
+      const resolvedSubject = subjects.find((entry) => entry.name === state.subject);
+      const subject = validSubject(state.subject, isSession) && assignedSubjectMatches
+        ? resolvedSubject?._id ? String(resolvedSubject._id) : state.subject
+        : "";
       if (classId === state.classId && subject === state.subject) return state;
       return { ...state, classId, subject, page: 1 };
     };
@@ -264,7 +298,7 @@ const LiveLessonsPage = () => {
       const response = await api.post("/live/lessons/preview", csv, {
         headers: { "Content-Type": "text/csv" },
       });
-      setForm(response.data.data.lesson);
+      setForm({ ...response.data.data.lesson, classId: "", subjectId: "" });
       setSelectedSlideIndex(0);
       setMatchedColumns(response.data.data.matchedColumns || {});
       setFileName(file.name);
@@ -294,6 +328,8 @@ const LiveLessonsPage = () => {
         title: lesson.title,
         description: lesson.description || "",
         subject: lesson.subject || "",
+        classId: String(lesson.classId?._id || lesson.classId || ""),
+        subjectId: String(lesson.subjectId?._id || lesson.subjectId || ""),
         grade: lesson.grade || "",
         language: lesson.language || "en",
         slides: (lesson.slides || []).map((slide) => ({
@@ -446,6 +482,8 @@ const LiveLessonsPage = () => {
         title: form.title,
         description: form.description,
         subject: form.subject || "",
+        classId: form.classId || null,
+        subjectId: form.subjectId || null,
         grade: form.grade || "",
         language: form.language || "en",
         slides: form.slides,
@@ -525,17 +563,53 @@ const LiveLessonsPage = () => {
     }
   };
 
-  const startSession = async (lessonId) => {
-    const classId = lessonClasses[lessonId] || lessonListState.classId;
+  const openSessionDialog = (lesson, scheduled) => {
+    const assignedClassId = lesson.classId?._id || lesson.classId;
+    const classId = assignedClassId || lessonClasses[lesson._id] || lessonListState.classId;
     if (!classId) {
       setError("Choose a class before starting a live lesson.");
       return;
     }
+    setError("");
+    setSessionDraft({
+      lesson,
+      classId: String(classId),
+      assignedClass: Boolean(assignedClassId),
+      scheduled,
+      scheduledAt: scheduled ? localDateTimeValue(new Date(Date.now() + 60 * 60 * 1000)) : "",
+      timerDurationMinutes: 45,
+    });
+  };
+
+  const createSession = async () => {
+    if (!sessionDraft?.classId) return;
+    const scheduleDate = sessionDraft.scheduled ? new Date(sessionDraft.scheduledAt) : null;
+    if (sessionDraft.scheduled && (!sessionDraft.scheduledAt || Number.isNaN(scheduleDate.getTime()) || scheduleDate <= new Date())) {
+      setError("Choose a scheduled time in the future.");
+      return;
+    }
+    setCreatingSession(true);
     try {
-      const response = await api.post("/live/sessions", { lessonId, classId });
-      navigate(`/portal/live-lessons/sessions/${response.data.data.session._id}`);
+      const response = await api.post("/live/sessions", {
+        lessonId: sessionDraft.lesson._id,
+        classId: sessionDraft.classId,
+        timerDurationMinutes: Number(sessionDraft.timerDurationMinutes),
+        ...(sessionDraft.scheduled ? { scheduledAt: scheduleDate.toISOString() } : {}),
+      });
+      const sessionId = response.data.data.session._id;
+      const isScheduled = sessionDraft.scheduled;
+      setSessionDraft(null);
+      if (isScheduled) {
+        setSessionListState({ ...defaultListState, status: "waiting" });
+        setTab("sessions");
+        setNotice(`“${response.data.data.session.lessonTitle}” is scheduled. Open the waiting session and start it when the class is ready.`);
+      } else {
+        navigate(`/portal/live-lessons/sessions/${sessionId}`);
+      }
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Could not start the lesson session.");
+      setError(requestError.response?.data?.message || "Could not create the lesson session.");
+    } finally {
+      setCreatingSession(false);
     }
   };
 
@@ -614,21 +688,14 @@ const LiveLessonsPage = () => {
   };
   const lessonSubjects = listSubjectsForClass(lessonListState.classId);
   const sessionSubjects = listSubjectsForClass(sessionListState.classId);
-  const selectedLessonClass = lessonListState.classId ? classesById.get(String(lessonListState.classId)) : null;
-  const selectedLessonClassSubjectIds = (selectedLessonClass?.subjects || [])
-    .map((entry) => entry.subject?._id || entry.subject)
-    .filter(Boolean)
-    .map(String);
-  const selectedLessonClassSubjects = subjects
-    .filter((subject) => selectedLessonClassSubjectIds.includes(String(subject._id)))
-    .map((subject) => subject.name);
+  const editorSubjects = listSubjectsForClass(form.classId);
   const filteredLessons = [...lessons].sort((left, right) => (
     new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime() ||
     String(left.title || "").localeCompare(String(right.title || ""))
   )).filter((lesson) => (
     (lessonListState.showDone || !lesson.isDone) &&
-    (!lessonListState.subject || lesson.subject === lessonListState.subject)
-    && (!lessonListState.classId || !selectedLessonClassSubjectIds.length || selectedLessonClassSubjects.includes(lesson.subject))
+    (!lessonListState.subject || String(lesson.subjectId?._id || lesson.subjectId || "") === lessonListState.subject)
+    && (!lessonListState.classId || String(lesson.classId?._id || lesson.classId || "") === lessonListState.classId)
   ));
   const lessonPages = Math.max(1, Math.ceil(filteredLessons.length / lessonListState.pageSize));
   const lessonPage = Math.min(lessonListState.page, lessonPages);
@@ -746,7 +813,7 @@ const LiveLessonsPage = () => {
           ) : (
             <>
               <div className="live-list-filters">
-                <label>Target class
+                <label>Assigned class
                   <select value={lessonListState.classId} onChange={(event) => updateLessonList({ classId: event.target.value, subject: "", page: 1 })}>
                     <option value="">All classes</option>
                     {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
@@ -755,7 +822,7 @@ const LiveLessonsPage = () => {
                 <label>Subject
                   <select value={lessonListState.subject} onChange={(event) => updateLessonList({ subject: event.target.value, page: 1 })}>
                     <option value="">All subjects</option>
-                    {lessonSubjects.map((subject) => <option key={subject._id} value={subject.name}>{subject.name}</option>)}
+                    {lessonSubjects.map((subject) => <option key={subject._id} value={subject._id}>{subject.name}</option>)}
                   </select>
                 </label>
                 <label className="live-checkbox-filter">
@@ -786,7 +853,7 @@ const LiveLessonsPage = () => {
                         />
                       )}
                     </th>
-                    <th>Lesson</th><th>Status</th><th>Subject</th><th>Slides</th><th>Updated</th><th>Launch class</th><th>Actions</th>
+                    <th>Lesson</th><th>Status</th><th>Subject</th><th>Slides</th><th>Updated</th><th>Assigned class</th><th>Actions</th>
                   </tr></thead>
                   <tbody>{visibleLessons.map((lesson) => (
                     <tr key={lesson._id}>
@@ -806,17 +873,22 @@ const LiveLessonsPage = () => {
                       </td>
                       <td><strong>{lesson.title}</strong>{lesson.description && <small>{lesson.description}</small>}</td>
                       <td>{lesson.isDone ? <span className="live-lesson-done-pill">Done</span> : "—"}</td>
-                      <td>{lesson.subject || "—"}</td>
+                      <td>{lesson.subjectId?.name || lesson.subject || "—"}{!lesson.classId && <small>Not linked to a class</small>}</td>
                       <td>{lesson.slides?.length || 0}</td>
                       <td>{lesson.updatedAt ? new Date(lesson.updatedAt).toLocaleDateString() : "—"}</td>
                       <td>
-                        <select aria-label={`Launch class for ${lesson.title}`} value={lessonClasses[lesson._id] || lessonListState.classId || ""} onChange={(event) => setLessonClasses((previous) => ({ ...previous, [lesson._id]: event.target.value }))}>
-                          <option value="">Choose class…</option>
-                          {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
-                        </select>
+                        {lesson.classId ? (
+                          <span>{lesson.classId?.name || classesById.get(String(lesson.classId?._id || lesson.classId))?.name || "Assigned class"}</span>
+                        ) : (
+                          <select aria-label={`Launch class for ${lesson.title}`} value={lessonClasses[lesson._id] || lessonListState.classId || ""} onChange={(event) => setLessonClasses((previous) => ({ ...previous, [lesson._id]: event.target.value }))}>
+                            <option value="">Choose class…</option>
+                            {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
+                          </select>
+                        )}
                       </td>
                       <td className="live-list-row-actions">
-                        <button className="live-primary-button" onClick={() => startSession(lesson._id)} disabled={!(lessonClasses[lesson._id] || lessonListState.classId)}><HiOutlinePlay /> Start</button>
+                        <button className="live-primary-button" onClick={() => openSessionDialog(lesson, false)} disabled={!((lesson.classId?._id || lesson.classId) || lessonClasses[lesson._id] || lessonListState.classId)}><HiOutlinePlay /> Start</button>
+                        <button className="live-secondary-button" onClick={() => openSessionDialog(lesson, true)} disabled={!((lesson.classId?._id || lesson.classId) || lessonClasses[lesson._id] || lessonListState.classId)}>Schedule</button>
                         <button className="live-secondary-button" onClick={() => openLessonEditor(lesson._id)}><HiOutlinePencilSquare /> Edit</button>
                         {["teacher", "admin"].includes(user?.role) && <button className="live-secondary-button" onClick={() => { setShareLessons([lesson]); setShareRecipient(""); }}><HiOutlineShare /> Share</button>}
                         <button className="live-secondary-button" onClick={() => setLessonDone(lesson)}><HiOutlineCheck /> {lesson.isDone ? "Mark not done" : "Mark done"}</button>
@@ -844,6 +916,14 @@ const LiveLessonsPage = () => {
       ) : (
         <>
           <div className="live-list-filters">
+            <label>Search sessions
+              <input
+                type="search"
+                value={sessionListState.search}
+                placeholder="Lesson, class, subject, or code"
+                onChange={(event) => updateSessionList({ search: event.target.value, page: 1 })}
+              />
+            </label>
             <label>Class
               <select value={sessionListState.classId} onChange={(event) => updateSessionList({ classId: event.target.value, subject: "", page: 1 })}>
                 <option value="">All classes</option>
@@ -856,6 +936,20 @@ const LiveLessonsPage = () => {
                 <option value="__unknown__">Unknown / not set</option>
                 {sessionSubjects.map((subject) => <option key={subject._id} value={subject._id}>{subject.name}</option>)}
               </select>
+            </label>
+            <label>Status
+              <select value={sessionListState.status} onChange={(event) => updateSessionList({ status: event.target.value, page: 1 })}>
+                <option value="">All statuses</option>
+                <option value="waiting">Waiting</option>
+                <option value="live">Live</option>
+                <option value="ended">Ended</option>
+              </select>
+            </label>
+            <label>From date
+              <input type="date" value={sessionListState.dateFrom} onChange={(event) => updateSessionList({ dateFrom: event.target.value, page: 1 })} />
+            </label>
+            <label>To date
+              <input type="date" value={sessionListState.dateTo} onChange={(event) => updateSessionList({ dateTo: event.target.value, page: 1 })} />
             </label>
             <button className="live-text-button" onClick={() => updateSessionList({ ...defaultListState })}>Clear filters</button>
             {["teacher", "admin"].includes(user?.role) && (
@@ -870,17 +964,23 @@ const LiveLessonsPage = () => {
           </div>
           <div className="live-list-table-wrap">
             <table className="live-list-table">
-              <thead><tr><th>Session</th><th>Class</th><th>Subject</th><th>Date</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Session</th><th>Class</th><th>Subject</th><th>Date</th><th>Duration</th><th>Timer</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>{sessions.map((session) => (
                 <tr key={session._id}>
                   <td><strong>{session.lessonSnapshot?.title || "Live lesson"}</strong></td>
                   <td>{classesById.get(String(session.classId?._id || session.classId))?.name || session.classId?.name || "Class"}</td>
                   <td>{session.lessonSnapshot?.subject || "Unknown / not set"}</td>
-                  <td>{session.createdAt ? new Date(session.createdAt).toLocaleString() : "—"}</td>
+                  <td>{getSessionDisplayDate(session) ? new Date(getSessionDisplayDate(session)).toLocaleString() : "—"}</td>
                   <td>{formatSessionDuration(session)}</td>
+                  <td>
+                    {session.timerDurationMinutes > 0 ? `${session.timerDurationMinutes} min` : "—"}
+                    {session.scheduledAt && session.status === "waiting" && (
+                      <small>Scheduled {new Date(session.scheduledAt).toLocaleString()}</small>
+                    )}
+                  </td>
                   <td><span className={`live-status-pill ${session.status}`}>{session.status}</span></td>
                   <td className="live-list-row-actions">
-                    {session.status !== "ended" && <button className="live-secondary-button" onClick={() => navigate(`/portal/live-lessons/sessions/${session._id}`)}>Open session</button>}
+                    {session.status !== "ended" && <button className="live-secondary-button" onClick={() => navigate(`/portal/live-lessons/sessions/${session._id}`)}>{session.status === "waiting" ? "Open / start" : "Open session"}</button>}
                     {session.status === "live" && String(session.teacherId) === String(user?._id || user?.id) && (
                       <button
                         className="live-delete-session"
@@ -911,6 +1011,57 @@ const LiveLessonsPage = () => {
             <button disabled={!sessionPagination.pages || sessionListState.page >= sessionPagination.pages} onClick={() => updateSessionList({ page: sessionListState.page + 1 })}>Next</button>
           </div>
         </>
+      )}
+
+      {sessionDraft && (
+        <div className="live-import-overlay" role="presentation" onClick={() => !creatingSession && setSessionDraft(null)}>
+          <section className="live-share-dialog" role="dialog" aria-modal="true" aria-labelledby="live-session-create-title" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <span className="live-eyebrow">{sessionDraft.scheduled ? "SCHEDULE CLASS" : "START CLASS"}</span>
+                <h2 id="live-session-create-title">{sessionDraft.lesson.title}</h2>
+              </div>
+              <button className="live-dialog-close" onClick={() => setSessionDraft(null)} aria-label="Close session setup" disabled={creatingSession}>×</button>
+            </header>
+            <label className="live-edit-field">Class
+              <select value={sessionDraft.classId} disabled={sessionDraft.assignedClass} onChange={(event) => setSessionDraft((current) => ({ ...current, classId: event.target.value }))}>
+                {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
+              </select>
+            </label>
+            {sessionDraft.scheduled && (
+              <label className="live-edit-field">Scheduled date and time
+                <input
+                  type="datetime-local"
+                  min={localDateTimeValue(new Date())}
+                  value={sessionDraft.scheduledAt}
+                  onChange={(event) => setSessionDraft((current) => ({ ...current, scheduledAt: event.target.value }))}
+                  required
+                />
+              </label>
+            )}
+            <label className="live-edit-field">Class timer (minutes)
+              <input
+                type="number"
+                min="0"
+                max="240"
+                step="1"
+                value={sessionDraft.timerDurationMinutes}
+                onChange={(event) => setSessionDraft((current) => ({ ...current, timerDurationMinutes: event.target.value }))}
+              />
+              <span>Starts when you start the class. Use 0 for no timer. The timer will notify you at zero but will not end the session.</span>
+            </label>
+            <footer>
+              <button className="live-secondary-button" onClick={() => setSessionDraft(null)} disabled={creatingSession}>Cancel</button>
+              <button
+                className="live-primary-button"
+                onClick={createSession}
+                disabled={creatingSession || !sessionDraft.classId || !/^\d+$/.test(String(sessionDraft.timerDurationMinutes)) || Number(sessionDraft.timerDurationMinutes) > 240}
+              >
+                {creatingSession ? "Creating…" : sessionDraft.scheduled ? "Schedule session" : "Create session"}
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
 
       {shareLessons.length > 0 && (
@@ -981,7 +1132,32 @@ const LiveLessonsPage = () => {
                 <label className="live-edit-field">Lesson title<input value={form.title} onChange={(event) => setForm((previous) => ({ ...previous, title: event.target.value }))} /></label>
                 <label className="live-edit-field">Description<textarea rows={2} value={form.description || ""} onChange={(event) => setForm((previous) => ({ ...previous, description: event.target.value }))} /></label>
                 <div className="live-lesson-metadata-fields">
-                  <label className="live-edit-field">Subject<input value={form.subject || ""} onChange={(event) => setForm((previous) => ({ ...previous, subject: event.target.value }))} /></label>
+                  <label className="live-edit-field">Assigned class
+                    <select
+                      value={form.classId}
+                      onChange={(event) => setForm((previous) => ({ ...previous, classId: event.target.value, subjectId: "", subject: "" }))}
+                    >
+                      <option value="">Choose a class…</option>
+                      {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="live-edit-field">Class subject
+                    <select
+                      value={form.subjectId}
+                      disabled={!form.classId}
+                      onChange={(event) => {
+                        const selectedSubject = editorSubjects.find((item) => String(item._id) === event.target.value);
+                        setForm((previous) => ({
+                          ...previous,
+                          subjectId: event.target.value,
+                          subject: selectedSubject?.name || "",
+                        }));
+                      }}
+                    >
+                      <option value="">{form.classId ? "Choose a subject…" : "Choose a class first"}</option>
+                      {editorSubjects.map((subject) => <option key={subject._id} value={subject._id}>{subject.name}</option>)}
+                    </select>
+                  </label>
                   <label className="live-edit-field">Grade<input value={form.grade || ""} onChange={(event) => setForm((previous) => ({ ...previous, grade: event.target.value }))} /></label>
                   <label className="live-edit-field">Language<input value={form.language || "en"} onChange={(event) => setForm((previous) => ({ ...previous, language: event.target.value }))} /></label>
                 </div>
@@ -1054,7 +1230,7 @@ const LiveLessonsPage = () => {
             )}
             <footer className="live-import-footer">
               <button className="live-secondary-button" onClick={closeEditor} disabled={saving}>Cancel</button>
-              <button className="live-primary-button" onClick={saveImportedLesson} disabled={saving || (editorMode === "create" && !selectedFile) || form.slides.length === 0 || !form.title.trim()}>{saving ? "Saving…" : editorMode === "edit" ? "Update lesson" : "Save lesson"}</button>
+              <button className="live-primary-button" onClick={saveImportedLesson} disabled={saving || (editorMode === "create" && (!selectedFile || !form.classId || !form.subjectId)) || form.slides.length === 0 || !form.title.trim()}>{saving ? "Saving…" : editorMode === "edit" ? "Update lesson" : "Save lesson"}</button>
             </footer>
           </section>
         </div>

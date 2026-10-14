@@ -25,6 +25,8 @@ const LivePresentationToolbar = ({
   connection,
   observer,
   isFullscreen,
+  timerText,
+  timerExpired,
   onBack,
   onToggleFullscreen,
 }) => (
@@ -53,6 +55,15 @@ const LivePresentationToolbar = ({
           ? "Connected"
           : connection}
     </span>
+    {timerText && (
+      <span
+        className={`live-timer-pill${timerExpired ? " expired" : ""}`}
+        role={timerExpired ? "status" : undefined}
+        aria-label={timerExpired ? "Class timer is finished" : `Class timer ${timerText} remaining`}
+      >
+        {timerExpired ? "Time is up" : timerText}
+      </span>
+    )}
     <button
       className="live-fullscreen-toggle"
       type="button"
@@ -93,6 +104,7 @@ const LiveLessonSessionPage = () => {
   const [localAnswer, setLocalAnswer] = useState("");
   const [endConfirm, setEndConfirm] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [timerNow, setTimerNow] = useState(Date.now());
   const presentationRef = useRef(null);
 
   useEffect(() => {
@@ -129,7 +141,19 @@ const LiveLessonSessionPage = () => {
     ? roster
     : state?.roster || session?.roster || [];
   const revealed = Boolean(state?.revealed);
-  const sessionDate = session?.startedAt || session?.createdAt;
+  const timerDurationMinutes = Number(state?.timerDurationMinutes ?? session?.timerDurationMinutes ?? 0);
+  const timerStartedAt = state?.startedAt || session?.startedAt;
+  const timerEndAt = timerStartedAt && timerDurationMinutes > 0
+    ? new Date(timerStartedAt).getTime() + timerDurationMinutes * 60_000
+    : 0;
+  const timerSecondsRemaining = timerEndAt
+    ? Math.max(0, Math.ceil((timerEndAt - timerNow) / 1000))
+    : null;
+  const timerExpired = timerSecondsRemaining === 0;
+  const timerText = timerSecondsRemaining === null
+    ? ""
+    : `${String(Math.floor(timerSecondsRemaining / 60)).padStart(2, "0")}:${String(timerSecondsRemaining % 60).padStart(2, "0")}`;
+  const sessionDate = session?.startedAt || session?.scheduledAt || session?.createdAt;
   const formattedSessionDate = sessionDate
     ? new Intl.DateTimeFormat(undefined, {
         month: "short",
@@ -145,6 +169,17 @@ const LiveLessonSessionPage = () => {
   useEffect(() => {
     setLocalAnswer("");
   }, [slide?._id]);
+
+  useEffect(() => {
+    if (sessionStatus !== "live" || !timerEndAt) return undefined;
+    setTimerNow(Date.now());
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setTimerNow(now);
+      if (now >= timerEndAt) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [sessionStatus, timerEndAt]);
 
   useEffect(() => {
     const syncFullscreen = () => {
@@ -358,6 +393,8 @@ const LiveLessonSessionPage = () => {
                   connection={connection}
                   observer={isObserver}
                   isFullscreen={isFullscreen}
+                  timerText={sessionStatus === "live" ? timerText : ""}
+                  timerExpired={timerExpired && isTeacher}
                   onBack={() => navigate("/portal/live-lessons")}
                   onToggleFullscreen={toggleFullscreen}
                 />
@@ -388,6 +425,8 @@ const LiveLessonSessionPage = () => {
                 connection={connection}
                 observer={isObserver}
                 isFullscreen={isFullscreen}
+                timerText={sessionStatus === "live" ? timerText : ""}
+                timerExpired={timerExpired && isTeacher}
                 onBack={() => navigate("/portal/live-lessons")}
                 onToggleFullscreen={toggleFullscreen}
               />

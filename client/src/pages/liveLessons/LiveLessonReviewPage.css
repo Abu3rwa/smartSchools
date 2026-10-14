@@ -46,6 +46,75 @@
 .live-gradebook-status { color: #64747d; font-size: .84rem; }
 .live-grade-mark-input { width: 80px; padding: .4rem; border: 1px solid #dfe6e8; border-radius: 7px; font: inherit; }
 .print-only,.print-student-name { display: none; }
+.live-review-page { max-width: 1440px; padding-top: 1.5rem; background: #f5f8f7; }
+.live-review-header { position: sticky; z-index: 5; top: 0; padding: .8rem 0; background: rgba(245, 248, 247, .94); backdrop-filter: blur(12px); }
+.live-review-header h1 { max-width: min(76vw, 1000px); color: #183746; font-size: clamp(1.15rem, 2vw, 1.65rem); line-height: 1.3; }
+.live-report-layout { gap: 1.15rem; }
+.live-review-card { border-color: #e2e9e8; border-radius: 20px; box-shadow: 0 12px 34px rgba(31, 61, 70, .045); }
+.live-review-card h2 { color: #203b49; font-size: 1.18rem; letter-spacing: -.015em; }
+.live-report-heading { align-items: center; }
+.live-report-heading > div { min-width: 0; }
+.live-report-heading > button { flex: 0 0 auto; }
+.live-report-kicker { display: inline-block; margin-bottom: .35rem; color: #17807a; font-size: .67rem; font-weight: 850; letter-spacing: .14em; }
+.live-report-class-section:first-child { padding: clamp(1.25rem, 3vw, 2rem); background: linear-gradient(135deg, #fff 45%, #f1faf6); }
+.live-report-class-section:first-child .live-report-heading h2 { margin: 0 0 .4rem; font-size: clamp(1.4rem, 3vw, 2rem); line-height: 1.2; }
+.live-report-context { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin: 0 0 .8rem !important; }
+.live-report-context span { position: relative; color: #677b83; }
+.live-report-context span + span::before { position: absolute; left: -.68rem; color: #b2c0c0; content: "·"; }
+.live-report-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin-top: 1.4rem; }
+.live-report-summary > div { display: flex; min-height: 92px; flex-direction: column; justify-content: center; gap: .25rem; padding: .85rem 1rem; border: 1px solid #e5eeea; border-radius: 14px; background: rgba(255, 255, 255, .82); }
+.live-report-summary strong { color: #1d706c; font-size: 1.7rem; font-variant-numeric: tabular-nums; line-height: 1; }
+.live-report-summary span { color: #73838a; font-size: .76rem; font-weight: 650; }
+.live-report-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.live-report-section-heading h2 { margin: 0 0 .28rem; }
+.live-report-section-heading p,.live-report-student-section .live-report-heading p { margin: 0; color: #77868c; font-size: .82rem; line-height: 1.45; }
+.live-report-count { flex: 0 0 auto; padding: .35rem .65rem; border: 1px solid #dcebe6; border-radius: 99px; color: #28716a; background: #f0f8f5; font-size: .72rem; font-weight: 750; }
+.live-report-question-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
+.live-question-result { min-width: 0; padding: 1rem 1.05rem; border: 1px solid #e5ebeb; border-radius: 15px; background: #fff; }
+.live-question-result-heading { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .65rem; }
+.live-question-number { color: #168078; font-size: .68rem; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+.live-question-state { padding: .24rem .5rem; border-radius: 99px; color: #78858b; background: #f0f3f3; font-size: .65rem; font-weight: 750; text-transform: uppercase; }
+.live-question-state.opened { color: #805d1d; background: #fff4d9; }
+.live-question-state.closed { color: #24704f; background: #e8f6ed; }
+.live-question-title { display: block; margin-bottom: .2rem; color: #7b8b91; font-size: .75rem; font-weight: 700; }
+.live-question-result h3 { margin: 0 0 .9rem; color: #263e4a; font-size: .97rem; line-height: 1.45; }
+.live-question-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .4rem; margin-bottom: .85rem; }
+.live-question-metrics > div { display: flex; flex-direction: column; gap: .15rem; padding: .45rem .5rem; border-radius: 9px; background: #f6f9f8; }
+.live-question-metrics strong { color: #2a424e; font-size: .95rem; font-variant-numeric: tabular-nums; }
+.live-question-metrics span { color: #819096; font-size: .62rem; font-weight: 650; }
+.live-question-accuracy { height: 5px; margin: -.15rem 0 .8rem; overflow: hidden; border-radius: 99px; background: #f0eeee; }
+.live-question-accuracy > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #39a888, #177c73); }
+.live-question-options { display: grid; gap: .55rem; }
+.live-question-option > div { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; color: #586c74; font-size: .76rem; line-height: 1.4; }
+.live-question-option > div > span { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.live-question-option > div > span b { padding: .12rem .35rem; border-radius: 5px; color: #28704f; background: #eaf7ef; font-size: .58rem; font-weight: 750; }
+.live-question-option > div > strong { color: #435a62; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.live-option-bar { display: block; height: 4px; margin-top: .27rem; overflow: hidden; border-radius: 99px; background: #edf1f0; }
+.live-option-bar i { display: block; height: 100%; border-radius: inherit; background: #a8c5bf; }
+.live-question-option.correct .live-option-bar i { background: #36a27f; }
+.live-question-result-footer { display: flex; justify-content: space-between; gap: .5rem; margin-top: .8rem; padding-top: .7rem; border-top: 1px solid #eef1f0; color: #879499; font-size: .68rem; }
+.live-report-table-wrap table { min-width: 620px; }
+.live-report-table-wrap th,.live-report-table-wrap td { padding: .78rem .75rem; }
+.live-report-table-wrap tbody tr:hover { background: #f8fbfa; }
+.live-report-student-row td:first-child { min-width: 170px; }
+.live-report-student-link { color: #136e69; }
+.live-report-student-section .live-report-heading { margin-bottom: 1rem; }
+.live-report-student-section .live-report-heading h2 { margin: 0 0 .3rem; }
+.live-report-student-section .live-report-heading label { margin-top: .8rem; }
+.live-report-student-section .live-report-heading select { min-width: 220px; border-radius: 9px; }
+.live-student-report-summary { display: flex; flex-wrap: wrap; gap: .5rem; margin: .8rem 0 1rem; }
+.live-student-report-summary > span { padding: .4rem .6rem; border: 1px solid #e7eceb; border-radius: 8px; color: #64777f; background: #f8faf9; font-size: .72rem; }
+.live-student-report-summary strong { color: #2d5558; }
+.live-report-presence-details { margin-top: 1rem; padding: .8rem .9rem; border: 1px solid #e6ebea; border-radius: 11px; background: #fafcfb; }
+.live-report-presence-details summary { display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: #52676f; font-size: .8rem; font-weight: 750; cursor: pointer; }
+.live-report-presence-details summary span { padding: .15rem .4rem; border-radius: 99px; color: #64777f; background: #edf2f1; font-size: .68rem; }
+.live-report-presence-details .live-report-caveat { margin: .6rem 0; }
+.live-report-answer-group { margin: .65rem 0; padding: 0; overflow: hidden; border: 1px solid #e5ebeb; border-radius: 12px; background: #fff; }
+.live-report-answer-group summary { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .85rem 1rem; color: #304953; cursor: pointer; list-style-position: inside; }
+.live-report-answer-group summary small { color: #76858b; font-size: .74rem; font-weight: 500; }
+.live-report-answer-group[open] summary { border-bottom: 1px solid #edf1f0; background: #f8fbfa; }
+.live-report-answer-group .live-report-table-wrap { padding: 0 .75rem .65rem; }
+.live-report-answer-group .live-report-table-wrap table { min-width: 580px; }
 
 @media print {
   @page { margin: 12mm; }
@@ -68,6 +137,21 @@
 }
 
 @media(max-width:700px) {
+  .live-review-page { padding: .75rem .65rem 2rem; }
+  .live-review-header { position: static; align-items: flex-start; gap: .65rem; }
+  .live-review-header .live-session-back { flex: 0 0 auto; padding: 0 .55rem; }
+  .live-report-heading { align-items: flex-start; flex-direction: column; }
+  .live-report-heading > button { align-self: flex-start; }
+  .live-report-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-top: 1rem; }
+  .live-report-summary > div { min-height: 76px; padding: .7rem; }
+  .live-report-summary strong { font-size: 1.4rem; }
+  .live-report-question-grid { grid-template-columns: 1fr; }
+  .live-report-section-heading { align-items: flex-start; }
+  .live-question-metrics { gap: .3rem; }
+  .live-question-metrics > div { padding: .4rem; }
+  .live-question-metrics span { font-size: .58rem; }
+  .live-report-answer-group summary { align-items: flex-start; flex-direction: column; gap: .3rem; }
+  .live-report-student-section .live-report-heading select { min-width: 0; max-width: 65vw; }
   .live-replay-topline { align-items: flex-start; flex-direction: column; }
   .live-replay-topline label { width: 100%; justify-content: space-between; }
   .live-replay-topline select { max-width: 65%; }
@@ -75,4 +159,18 @@
   .live-replay-controls input { flex-basis: 100%; order: 3; }
   .live-report-table-wrap th,.live-report-table-wrap td { padding: .65rem .45rem; }
   .live-gradebook-controls { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .live-review-page { background: #fff; }
+  .live-review-header { position: static; padding: 0; background: #fff; }
+  .live-report-class-section:first-child { background: #fff; }
+  .live-report-summary { grid-template-columns: repeat(4, 1fr); }
+  .live-report-summary > div { min-height: 0; padding: 6px; border: 1px solid #bbb; }
+  .live-report-summary strong { color: #111; font-size: 14pt; }
+  .live-report-question-grid { grid-template-columns: repeat(2, 1fr); }
+  .live-question-result { padding: 8px; box-shadow: none; break-inside: avoid; }
+  .live-question-metrics > div,.live-report-answer-group[open] summary { background: #fff; }
+  .live-report-count,.live-question-state,.live-question-number { color: #111; background: #fff; }
+  .live-report-answer-group:not([open]) > *:not(summary) { display: none !important; }
 }
