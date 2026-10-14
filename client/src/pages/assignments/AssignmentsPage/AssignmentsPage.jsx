@@ -19,7 +19,10 @@ import ClassworkBehaviorModal from '../../../components/grades/ClassworkBehavior
 import useAssignmentsPageState from './hooks/useAssignmentsPageState';
 import useGoogleClassroom from './hooks/useGoogleClassroom';
 import { isClassworkAssignment } from '../../../components/grades/classworkBehaviorUtils';
-import { normalizeGradeStudentsFromClassStudents } from './utils/assignmentPresentation';
+import {
+    normalizeGradeStudentsFromClassStudents,
+    sortGradeStudentsByName
+} from './utils/assignmentPresentation';
 import './AssignmentsPage.css';
 
 const AssignmentsPage = () => {
@@ -319,7 +322,7 @@ const AssignmentsPage = () => {
             });
 
             setGradeRows(nextRows);
-            setGradeStudents(nextStudents);
+            setGradeStudents(sortGradeStudentsByName(nextStudents));
         } catch (error) {
             toast.error(error.response?.data?.message || t('assignments:toasts.loadGradesFailed'));
         }

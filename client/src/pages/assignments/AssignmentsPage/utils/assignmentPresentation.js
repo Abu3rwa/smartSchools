@@ -32,14 +32,22 @@ export const getAvailableSubjects = ({ userRole, selectedClass, myClasses, class
     return classDoc.subjects.map((item) => item.subject).filter(Boolean);
 };
 
+export const sortGradeStudentsByName = (students = []) => {
+    return [...students].sort((a, b) => {
+        const firstNameOrder = (a.firstName || '').localeCompare(b.firstName || '', undefined, { sensitivity: 'base' });
+        if (firstNameOrder !== 0) return firstNameOrder;
+        return (a.lastName || '').localeCompare(b.lastName || '', undefined, { sensitivity: 'base' });
+    });
+};
+
 export const normalizeGradeStudentsFromClassStudents = (classStudents = []) => {
-    return classStudents.map((student) => ({
+    return sortGradeStudentsByName(classStudents.map((student) => ({
         id: student._id,
         studentId: student.studentId || '',
         firstName: student.firstName || '',
         lastName: student.lastName || '',
         fullName: `${student.firstName || ''} ${student.lastName || ''}`.trim()
-    }));
+    })));
 };
 
 export const formatAssignmentDueDate = (dueDate) => {
