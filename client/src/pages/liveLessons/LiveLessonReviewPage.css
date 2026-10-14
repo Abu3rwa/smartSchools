@@ -25,6 +25,47 @@
 .live-replay-event-list span,.live-replay-answer-log span { padding: .34rem .5rem; border-radius: 7px; color: #59707b; background: #f0f5f4; font-size: .75rem; }
 .live-replay-answer-log span { color: #355b4a; background: #eaf6ef; }
 .live-review-page .live-error-banner,.live-review-page .live-loading { max-width: 100%; }
+.live-report-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.live-report-heading p { margin: -.45rem 0 .45rem; color: #6d7e87; font-size: .85rem; }
+.live-report-heading small { color: #8a6c24; }
+.live-report-heading label { display: flex; align-items: center; gap: .5rem; color: #6e7c85; font-size: .8rem; }
+.live-report-heading select { max-width: 250px; padding: .55rem; border: 1px solid #dfe6e8; border-radius: 9px; }
+.live-report-summary { display: flex; flex-wrap: wrap; gap: 1.5rem; color: #64747d; font-size: .83rem; }
+.live-report-summary strong { color: #213546; }
+.live-report-student-link { padding: 0; border: 0; color: #176d6a; background: transparent; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.live-report-answer-group { margin: .75rem 0; border-top: 1px solid #e7eded; padding-top: .75rem; }
+.live-report-answer-group summary { cursor: pointer; font-weight: 700; }
+.live-report-caveat { margin: -.45rem 0 .7rem; color: #75838d; font-size: .78rem; line-height: 1.45; }
+.live-report-presence-list { margin: .4rem 0 1rem; padding-left: 1.2rem; color: #64747d; font-size: .8rem; line-height: 1.6; }
+.live-report-option-counts { margin: .45rem 0 0; padding-left: 1.1rem; color: #70808a; font-size: .74rem; line-height: 1.5; }
+.live-session-gradebook > .live-report-heading { margin-bottom: .7rem; }
+.live-gradebook-controls { display: grid; grid-template-columns: minmax(190px, 1.5fr) minmax(130px, .7fr) minmax(220px, 1fr); gap: .8rem; margin: .9rem 0; }
+.live-gradebook-controls label { display: flex; flex-direction: column; gap: .35rem; color: #64747d; font-size: .78rem; font-weight: 700; }
+.live-gradebook-controls select,.live-gradebook-controls input { min-height: 40px; padding: .55rem .65rem; border: 1px solid #dfe6e8; border-radius: 9px; color: #354b59; background: #fff; font: inherit; }
+.live-gradebook-caveat { margin: .5rem 0 .9rem; color: #7a6a43; font-size: .78rem; line-height: 1.5; }
+.live-gradebook-status { color: #64747d; font-size: .84rem; }
+.live-grade-mark-input { width: 80px; padding: .4rem; border: 1px solid #dfe6e8; border-radius: 7px; font: inherit; }
+.print-only,.print-student-name { display: none; }
+
+@media print {
+  @page { margin: 12mm; }
+  body { color: #111; background: #fff; }
+  .live-review-page { max-width: none; min-height: auto; padding: 0; color: #111; }
+  .live-review-header,.no-print { display: none !important; }
+  .live-report-layout { display: block; }
+  .live-review-card { margin: 0 0 12px; padding: 8px 0; border: 0; border-radius: 0; box-shadow: none; break-inside: auto; }
+  .live-review-card h2 { font-size: 14pt; }
+  .live-report-table-wrap { overflow: visible; }
+  .live-report-table-wrap table { width: 100%; table-layout: auto; }
+  .live-report-table-wrap thead { display: table-header-group; }
+  .live-report-table-wrap tr { break-inside: avoid; }
+  .live-report-table-wrap th,.live-report-table-wrap td { padding: 5px 4px; border: 1px solid #bbb; color: #111; font-size: 8pt; white-space: normal; }
+  .live-report-table-wrap th { background: #eee !important; }
+  .print-student-only .live-report-class-section { display: none !important; }
+  .print-only,.print-student-only .print-student-name { display: inline; }
+  .print-student-only .live-report-student-section { display: block; }
+  details:not([open]) > *:not(summary) { display: block !important; }
+}
 
 @media(max-width:700px) {
   .live-replay-topline { align-items: flex-start; flex-direction: column; }
@@ -33,4 +74,5 @@
   .live-replay-controls { flex-wrap: wrap; }
   .live-replay-controls input { flex-basis: 100%; order: 3; }
   .live-report-table-wrap th,.live-report-table-wrap td { padding: .65rem .45rem; }
+  .live-gradebook-controls { grid-template-columns: 1fr; }
 }

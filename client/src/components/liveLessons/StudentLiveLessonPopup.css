@@ -1,0 +1,29 @@
+.student-live-popup-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.student-live-popup-icon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.8rem;
+  color: #176c71;
+  background: #e2f4ed;
+}
+
+.student-live-popup-error {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #edcaca;
+  border-radius: 0.6rem;
+  color: #8a3434;
+  background: #fff3f2;
+}
+
+.student-live-popup-actions {
+  padding: 0.75rem 1.5rem 1.25rem;
+}

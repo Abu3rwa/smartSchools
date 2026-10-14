@@ -13,6 +13,7 @@ import Header from './Header';
 import SubscriptionExpiredWall from '../SubscriptionExpiredWall';
 import SubscriptionExpiredBanner from '../SubscriptionExpiredBanner';
 import SchoolPageAccessGate from '../SchoolPageAccessGate';
+import StudentLiveLessonPopup from '../liveLessons/StudentLiveLessonPopup';
 import './MainLayout.css';
 
 const MainLayout = () => {
@@ -90,6 +91,10 @@ const MainLayout = () => {
                     </main>
                 </div>
             </div>
+            {isStudent &&
+                import.meta.env.VITE_LIVE_LESSONS_ENABLED === 'true' && (
+                    <StudentLiveLessonPopup />
+                )}
             {shouldShowWall && <SubscriptionExpiredWall />}
         </div>
     );

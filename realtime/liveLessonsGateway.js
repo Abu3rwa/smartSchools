@@ -3,6 +3,8 @@ import process from "node:process";
 import { clearInterval, clearTimeout, setInterval, setTimeout } from "node:timers";
 import { URL } from "node:url";
 import { WebSocketServer } from "ws";
+import Class from "../models/Class.js";
+import Teacher from "../models/Teacher.js";
 import User from "../models/User.js";
 import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
@@ -125,13 +127,15 @@ const broadcastState = async (session) => {
 const fail = (socket, requestId, code, message) =>
   send(socket, { type: "ack", requestId, ok: false, error: { code, message } });
 
-const persistPresence = async (session, socket, action) => {
+const persistPresence = async (session, socket, action, reason) => {
   const now = new Date();
+  const payload = { studentId: String(socket.__liveUserId) };
+  if (reason) payload.reason = reason;
   await appendLiveEvent(
     session,
     action === "away" ? "presence:away" : "presence:back",
     { role: "student", userId: socket.__liveUserId },
-    { studentId: String(socket.__liveUserId) },
+    payload,
     now,
   );
   socket.__liveAway = action === "away";
@@ -217,7 +221,11 @@ const handleAction = async (socket, message) => {
   }
   if (action === "presence:away" || action === "presence:back") {
     if (isTeacher) return fail(socket, requestId, "FORBIDDEN", "Only students report presence.");
-    await persistPresence(session, socket, action.endsWith("away") ? "away" : "back");
+    const expectedReason = action.endsWith("away") ? "visibility_hidden" : "visibility_visible";
+    if (data.reason && data.reason !== expectedReason) {
+      return fail(socket, requestId, "VALIDATION", "Invalid presence event reason.");
+    }
+    await persistPresence(session, socket, action.endsWith("away") ? "away" : "back", data.reason);
     return send(socket, { type: "ack", requestId, ok: true });
   }
   if (!isTeacher) {
@@ -399,10 +407,44 @@ const handleAction = async (socket, message) => {
 const authenticate = async (token) => {
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
   const user = await User.findById(decoded.id)
-    .select("_id role school isActive")
+    .select("_id role school department isActive")
     .setOptions({ skipTenantFilter: true });
   if (!user || !user.isActive || !user.school) return null;
   return user;
+};
+
+const canObserveSession = async (user, session) => {
+  if (user.role === "admin") {
+    return Boolean(await Class.exists({
+      _id: session.classId,
+      school: session.school,
+      isActive: { $ne: false },
+    }));
+  }
+  if (user.role === "department_principal" || user.role === "teacher") {
+    const classFilter = {
+      _id: session.classId,
+      school: session.school,
+      isActive: { $ne: false },
+    };
+    if (user.role === "department_principal") {
+      const departmentId = user.department?._id || user.department;
+      if (departmentId) classFilter.department = departmentId;
+      return Boolean(await Class.exists(classFilter));
+    }
+    const teacher = await Teacher.findOne({
+      user: user._id,
+      school: session.school,
+      isActive: true,
+    }).select("_id").lean();
+    if (!teacher) return false;
+    classFilter.$or = [
+      { classTeacher: teacher._id },
+      { "subjects.teacher": teacher._id },
+    ];
+    return Boolean(await Class.exists(classFilter));
+  }
+  return false;
 };
 
 export const initLiveLessonsGateway = (httpServer) => {
@@ -468,8 +510,11 @@ export const initLiveLessonsGateway = (httpServer) => {
             if (!(await isStudentEnrolled(session.classId, socket.__liveUserId))) {
               return fail(socket, message.requestId, "FORBIDDEN", "You are not enrolled in this class.");
             }
-          } else if (String(session.teacherId) !== socket.__liveUserId) {
-            return fail(socket, message.requestId, "FORBIDDEN", "Only the session teacher can join the teacher console.");
+          } else if (
+            String(session.teacherId) !== socket.__liveUserId &&
+            !(await canObserveSession(socket.__liveUser, session))
+          ) {
+            return fail(socket, message.requestId, "FORBIDDEN", "You are not authorized to view this class session.");
           }
           socket.__liveSessionId = String(session._id);
           const sockets = sessionSockets.get(sessionKey(session._id)) || new Set();
@@ -611,4 +656,9 @@ export const closeLiveSessionConnections = (sessionId) => {
     }
   }
   studentStatuses.delete(key);
+};
+
+export const broadcastLiveSessionState = async (session) => {
+  broadcast(session._id, { type: "session:ended" });
+  await broadcastState(session);
 };

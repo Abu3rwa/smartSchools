@@ -126,23 +126,18 @@ export default function useLiveLessonSocket(sessionId, role) {
       socketRef.current.send(JSON.stringify({
         type: "action",
         action: away ? "presence:away" : "presence:back",
+        data: { reason: away ? "visibility_hidden" : "visibility_visible" },
         requestId,
       }));
     };
     const onVisibility = () => emitPresence(document.visibilityState === "hidden");
-    const onBlur = () => emitPresence(true);
-    const onFocus = () => emitPresence(false);
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", onFocus);
 
     return () => {
       disposed = true;
       window.clearTimeout(reconnectTimer);
       window.clearInterval(heartbeatTimer);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", onFocus);
       socket?.close();
       for (const pending of pendingRequests.values()) {
         window.clearTimeout(pending.timeout);

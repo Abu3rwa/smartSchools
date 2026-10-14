@@ -51,12 +51,19 @@ const liveLessonSchema = new Schema(
     grade: { type: String, trim: true, maxlength: 80, default: "" },
     language: { type: String, trim: true, maxlength: 20, default: "en" },
     source: { type: String, enum: ["csv"], default: "csv" },
+    originLessonId: { type: Schema.Types.ObjectId, ref: "LiveLesson", default: null },
+    originOwnerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    originShareInvitationId: { type: Schema.Types.ObjectId, ref: "LiveLessonShareInvitation", default: undefined },
     slides: { type: [slideSchema], required: true, validate: [(slides) => slides.length > 0 && slides.length <= 200, "Lessons need 1–200 slides"] },
   },
   { timestamps: true },
 );
 
 liveLessonSchema.index({ school: 1, ownerId: 1, updatedAt: -1 });
+liveLessonSchema.index(
+  { originShareInvitationId: 1 },
+  { unique: true, partialFilterExpression: { originShareInvitationId: { $type: "objectId" } } },
+);
 liveLessonSchema.plugin(tenantIsolationPlugin);
 
 export default mongoose.models.LiveLesson || mongoose.model("LiveLesson", liveLessonSchema);

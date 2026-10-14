@@ -1,16 +1,40 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { HiOutlineArrowDownTray, HiOutlineArrowUpTray, HiOutlineCheck, HiOutlineClipboardDocument, HiOutlinePencilSquare, HiOutlinePlay, HiOutlinePlus, HiOutlinePresentationChartBar, HiOutlineTrash } from "react-icons/hi2";
+import { HiOutlineArrowDownTray, HiOutlineArrowUpTray, HiOutlineCheck, HiOutlineClipboardDocument, HiOutlinePencilSquare, HiOutlinePlay, HiOutlinePlus, HiOutlinePresentationChartBar, HiOutlineShare, HiOutlineStop, HiOutlineTrash } from "react-icons/hi2";
 import api from "../../config/api";
 import { selectUser } from "../../store/slices/authSlice";
 import { fetchClasses, selectClasses } from "../../store/slices/classSlice";
+import { fetchSubjects, selectSubjects } from "../../store/slices/subjectSlice";
 import LiveLessonSlide from "../../components/liveLessons/LiveLessonSlide";
 import { LIVE_LESSON_CSV_TEMPLATE } from "./liveLessonCsvTemplate";
 import { LIVE_LESSON_AI_PROMPT } from "./liveLessonAiPrompt";
 import "./LiveLessonsPage.css";
 
 const emptyForm = { title: "", description: "", subject: "", grade: "", language: "en", slides: [] };
+const defaultListState = { classId: "", subject: "", page: 1, pageSize: 25 };
+
+const normalizeListState = (saved = {}) => {
+  const preferences = saved && typeof saved === "object" ? saved : {};
+  return {
+    classId: typeof preferences.classId === "string" ? preferences.classId : "",
+    subject: typeof preferences.subject === "string" ? preferences.subject : "",
+    page: Number.isInteger(Number(preferences.page)) && Number(preferences.page) > 0 ? Number(preferences.page) : 1,
+    pageSize: [10, 25, 50].includes(Number(preferences.pageSize)) ? Number(preferences.pageSize) : 25,
+  };
+};
+
+const readListPreferences = (key) => {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(key) || "{}");
+    return {
+      lessons: normalizeListState(saved.lessons),
+      sessions: normalizeListState(saved.sessions),
+    };
+  } catch {
+    return { lessons: defaultListState, sessions: defaultListState };
+  }
+};
 
 const downloadTemplate = () => {
   const blob = new Blob([LIVE_LESSON_CSV_TEMPLATE], { type: "text/csv;charset=utf-8" });
@@ -22,10 +46,18 @@ const downloadTemplate = () => {
   URL.revokeObjectURL(url);
 };
 
+const formatSessionDuration = (session) => {
+  if (!session.startedAt) return "—";
+  const end = session.endedAt ? new Date(session.endedAt).getTime() : Date.now();
+  const minutes = Math.max(0, Math.floor((end - new Date(session.startedAt).getTime()) / 60000));
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+};
+
 const LiveLessonsPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const classes = useSelector(selectClasses);
+  const subjects = useSelector(selectSubjects);
   const user = useSelector(selectUser);
   const [lessons, setLessons] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -43,9 +75,23 @@ const LiveLessonsPage = () => {
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
   const [selectedFile, setSelectedFile] = useState("");
   const [lessonClasses, setLessonClasses] = useState({});
+  const [teachers, setTeachers] = useState([]);
+  const [incomingShares, setIncomingShares] = useState([]);
+  const [outgoingShares, setOutgoingShares] = useState([]);
+  const [shareLesson, setShareLesson] = useState(null);
+  const [shareRecipient, setShareRecipient] = useState("");
+  const [shareSaving, setShareSaving] = useState(false);
+  const [endingSessionId, setEndingSessionId] = useState("");
   const [error, setError] = useState("");
   const [aiHtmlReviewEnabled, setAiHtmlReviewEnabled] = useState(false);
   const [savingHtmlReviewSetting, setSavingHtmlReviewSetting] = useState(false);
+  const [lessonListState, setLessonListState] = useState(defaultListState);
+  const [sessionListState, setSessionListState] = useState(defaultListState);
+  const [sessionPagination, setSessionPagination] = useState({ page: 1, limit: 25, total: 0, pages: 0 });
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const [classesLoaded, setClassesLoaded] = useState(false);
+  const [subjectsLoaded, setSubjectsLoaded] = useState(false);
+  const preferencesKey = `liveLessonLists:${user?.school?._id || user?.schoolId || "school"}:${user?._id || user?.id || "user"}`;
 
   const copyAiPrompt = async () => {
     try {
@@ -61,13 +107,11 @@ const LiveLessonsPage = () => {
     setLoading(true);
     setError("");
     try {
-      const [lessonResponse, sessionResponse, settingsResponse] = await Promise.all([
+      const [lessonResponse, settingsResponse] = await Promise.all([
         api.get("/live/lessons"),
-        api.get("/live/sessions"),
         api.get("/live/settings"),
       ]);
       setLessons(lessonResponse.data?.data?.lessons || []);
-      setSessions(sessionResponse.data?.data?.sessions || []);
       setAiHtmlReviewEnabled(settingsResponse.data?.data?.aiHtmlReviewEnabled === true);
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not load live lessons.");
@@ -75,6 +119,40 @@ const LiveLessonsPage = () => {
       setLoading(false);
     }
   }, []);
+
+  const loadSessions = useCallback(async () => {
+    try {
+      const response = await api.get("/live/sessions", {
+        params: {
+          page: sessionListState.page,
+          limit: sessionListState.pageSize,
+          ...(sessionListState.classId ? { classId: sessionListState.classId } : {}),
+          ...(sessionListState.subject ? { subject: sessionListState.subject } : {}),
+        },
+      });
+      setSessions(response.data?.data?.sessions || []);
+      setSessionPagination(response.data?.data?.pagination || { page: 1, limit: sessionListState.pageSize, total: 0, pages: 0 });
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Could not load session history.");
+    }
+  }, [sessionListState]);
+
+  useEffect(() => {
+    setPreferencesLoaded(false);
+    const saved = readListPreferences(preferencesKey);
+    setLessonListState(saved.lessons);
+    setSessionListState(saved.sessions);
+    setPreferencesLoaded(true);
+  }, [preferencesKey]);
+
+  useEffect(() => {
+    if (preferencesLoaded) {
+      window.localStorage.setItem(preferencesKey, JSON.stringify({
+        lessons: lessonListState,
+        sessions: sessionListState,
+      }));
+    }
+  }, [lessonListState, sessionListState, preferencesKey, preferencesLoaded]);
 
   const updateAiHtmlReviewSetting = async (enabled) => {
     setSavingHtmlReviewSetting(true);
@@ -90,9 +168,80 @@ const LiveLessonsPage = () => {
   };
 
   useEffect(() => {
-    dispatch(fetchClasses({ limit: 100 }));
+    let active = true;
+    dispatch(fetchClasses({ limit: "all" })).unwrap()
+      .then(() => { if (active) setClassesLoaded(true); })
+      .catch((requestError) => { if (active) setError(requestError || "Could not load your classes."); });
+    dispatch(fetchSubjects({ limit: "all" })).unwrap()
+      .then(() => { if (active) setSubjectsLoaded(true); })
+      .catch((requestError) => { if (active) setError(requestError || "Could not load subjects."); });
     loadData();
+    return () => { active = false; };
   }, [dispatch, loadData]);
+
+  const loadShares = useCallback(async () => {
+    if (!["teacher", "admin"].includes(user?.role)) return;
+    try {
+      const [incomingResponse, outgoingResponse] = await Promise.all([
+        api.get("/live/shares/incoming"),
+        api.get("/live/shares/outgoing"),
+      ]);
+      setIncomingShares(incomingResponse.data?.data?.invitations || []);
+      setOutgoingShares(outgoingResponse.data?.data?.invitations || []);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Could not load lesson-sharing invitations.");
+    }
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (preferencesLoaded && classesLoaded && subjectsLoaded) loadSessions();
+  }, [loadSessions, preferencesLoaded, classesLoaded, subjectsLoaded]);
+
+  useEffect(() => {
+    if (!preferencesLoaded || !classesLoaded || !subjectsLoaded) return;
+    const knownClassIds = new Set(classes.map((classItem) => String(classItem._id)));
+    const validSubject = (value, isSession) => !value || (isSession && value === "__unknown__") || subjects.some(
+      (subject) => String(subject._id) === value || subject.name === value,
+    );
+    const sanitize = (state, isSession) => {
+      const classId = state.classId && knownClassIds.has(state.classId) ? state.classId : "";
+      const selectedClass = classId ? classes.find((classItem) => String(classItem._id) === classId) : null;
+      const assignedIds = (selectedClass?.subjects || [])
+        .map((entry) => entry.subject?._id || entry.subject)
+        .filter(Boolean)
+        .map(String);
+      const assignedSubjectMatches = !classId || (
+        assignedIds.length > 0 &&
+        subjects.some((entry) => assignedIds.includes(String(entry._id)) &&
+          (String(entry._id) === state.subject || entry.name === state.subject))
+      );
+      const subject = validSubject(state.subject, isSession) && assignedSubjectMatches ? state.subject : "";
+      if (classId === state.classId && subject === state.subject) return state;
+      return { ...state, classId, subject, page: 1 };
+    };
+    setLessonListState((current) => sanitize(current, false));
+    setSessionListState((current) => sanitize(current, true));
+  }, [preferencesLoaded, classesLoaded, subjectsLoaded, classes, subjects]);
+
+  useEffect(() => {
+    if (sessionPagination.pages > 0 && sessionListState.page > sessionPagination.pages) {
+      setSessionListState((current) => ({ ...current, page: sessionPagination.pages }));
+    }
+  }, [sessionListState.page, sessionPagination.pages]);
+
+  useEffect(() => {
+    if (!["teacher", "admin"].includes(user?.role)) return;
+    let active = true;
+    api.get("/live/shares/teachers")
+      .then((response) => {
+        if (active) setTeachers(response.data?.data?.teachers || []);
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.response?.data?.message || "Could not load your teacher directory.");
+      });
+    loadShares();
+    return () => { active = false; };
+  }, [loadShares, user?.role]);
 
   const handleSelectFile = async (event) => {
     const file = event.target.files?.[0];
@@ -325,8 +474,42 @@ const LiveLessonsPage = () => {
     }
   };
 
+  const shareLessonWithTeacher = async () => {
+    if (!shareLesson || !shareRecipient) return;
+    setShareSaving(true);
+    setError("");
+    try {
+      await api.post(`/live/lessons/${shareLesson._id}/shares`, { recipientId: shareRecipient });
+      setShareLesson(null);
+      setShareRecipient("");
+      await loadShares();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Could not share this lesson.");
+    } finally {
+      setShareSaving(false);
+    }
+  };
+
+  const respondToShare = async (invitationId, action) => {
+    try {
+      await api.post(`/live/shares/${invitationId}/${action}`);
+      await Promise.all([loadShares(), loadData()]);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || `Could not ${action} this lesson invitation.`);
+    }
+  };
+
+  const revokeShare = async (invitationId) => {
+    try {
+      await api.delete(`/live/shares/${invitationId}`);
+      await loadShares();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Could not revoke this lesson invitation.");
+    }
+  };
+
   const startSession = async (lessonId) => {
-    const classId = lessonClasses[lessonId];
+    const classId = lessonClasses[lessonId] || lessonListState.classId;
     if (!classId) {
       setError("Choose a class before starting a live lesson.");
       return;
@@ -344,9 +527,24 @@ const LiveLessonsPage = () => {
     if (!window.confirm(`Permanently delete the session history for "${title}"? Its report, replay, answers, and timeline will be removed. The lesson itself will not be deleted.`)) return;
     try {
       await api.delete(`/live/sessions/${session._id}`);
-      await loadData();
+      await Promise.all([loadData(), loadSessions()]);
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Could not delete this session history.");
+    }
+  };
+
+  const endSession = async (session) => {
+    const title = session.lessonSnapshot?.title || "this live lesson";
+    if (!window.confirm(`End "${title}" now? Students will be returned to the completed session.`)) return;
+    setEndingSessionId(String(session._id));
+    setError("");
+    try {
+      await api.post(`/live/sessions/${session._id}/end`);
+      await loadSessions();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Could not end this live session.");
+    } finally {
+      setEndingSessionId("");
     }
   };
 
@@ -355,21 +553,53 @@ const LiveLessonsPage = () => {
     () => new Map(classes.map((classItem) => [String(classItem._id), classItem])),
     [classes],
   );
+  const listSubjectsForClass = (classId) => {
+    if (!classId) return subjects;
+    const selectedClass = classesById.get(String(classId));
+    const assignedIds = (selectedClass?.subjects || [])
+      .map((entry) => entry.subject?._id || entry.subject)
+      .filter(Boolean)
+      .map(String);
+    if (!assignedIds.length) return [];
+    return subjects.filter((subject) => assignedIds.includes(String(subject._id)));
+  };
+  const lessonSubjects = listSubjectsForClass(lessonListState.classId);
+  const sessionSubjects = listSubjectsForClass(sessionListState.classId);
+  const selectedLessonClass = lessonListState.classId ? classesById.get(String(lessonListState.classId)) : null;
+  const selectedLessonClassSubjectIds = (selectedLessonClass?.subjects || [])
+    .map((entry) => entry.subject?._id || entry.subject)
+    .filter(Boolean)
+    .map(String);
+  const selectedLessonClassSubjects = subjects
+    .filter((subject) => selectedLessonClassSubjectIds.includes(String(subject._id)))
+    .map((subject) => subject.name);
+  const filteredLessons = [...lessons].sort((left, right) => (
+    new Date(right.updatedAt || 0).getTime() - new Date(left.updatedAt || 0).getTime() ||
+    String(left.title || "").localeCompare(String(right.title || ""))
+  )).filter((lesson) => (
+    (!lessonListState.subject || lesson.subject === lessonListState.subject)
+    && (!lessonListState.classId || !selectedLessonClassSubjectIds.length || selectedLessonClassSubjects.includes(lesson.subject))
+  ));
+  const lessonPages = Math.max(1, Math.ceil(filteredLessons.length / lessonListState.pageSize));
+  const lessonPage = Math.min(lessonListState.page, lessonPages);
+  const visibleLessons = filteredLessons.slice(
+    (lessonPage - 1) * lessonListState.pageSize,
+    lessonPage * lessonListState.pageSize,
+  );
+  const updateLessonList = (changes) => setLessonListState((current) => ({ ...current, ...changes }));
+  const updateSessionList = (changes) => setSessionListState((current) => ({ ...current, ...changes }));
+  const showRange = (page, pageSize, count) => count
+    ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, count)} of ${count}`
+    : "0 of 0";
+  const getTeacherName = (teacher) => [teacher?.firstName, teacher?.lastName].filter(Boolean).join(" ") || teacher?.name || teacher?.email || "Teacher";
+  const shareableTeachers = teachers;
 
   return (
     <div className="live-lessons-page">
-      <header className="live-lessons-hero">
-        <div className="live-lessons-hero-copy">
-          <span className="live-eyebrow">TEACH TOGETHER</span>
-          <h1>Live lessons</h1>
-          <p>Bring your lesson slides to the class screen, ask questions, and see student responses as they happen.</p>
-        </div>
-        <div className="live-lessons-hero-mark"><HiOutlinePresentationChartBar size={42} /></div>
-      </header>
 
       <nav className="live-lessons-tabs" aria-label="Live lesson sections">
         <button className={tab === "lessons" ? "active" : ""} onClick={() => setTab("lessons")}>My lessons <span>{lessons.length}</span></button>
-        <button className={tab === "sessions" ? "active" : ""} onClick={() => setTab("sessions")}>Session history <span>{sessions.length}</span></button>
+        <button className={tab === "sessions" ? "active" : ""} onClick={() => setTab("sessions")}>Session history <span>{sessionPagination.total}</span></button>
       </nav>
 
       {error && <div className="live-error-banner" role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
@@ -395,7 +625,7 @@ const LiveLessonsPage = () => {
       ) : tab === "lessons" ? (
         <>
           <div className="live-lessons-actions">
-            <p>Import a CSV lesson, preview every slide, and launch it with a class.</p>
+            <p>Import a CSV lesson, preview every slide, and launch it with a class. To share a lesson, choose <strong>Share</strong> in its row, select a teacher, and send the invitation; they can accept it into their own lesson library.</p>
             <div className="live-session-actions">
               <button className="live-text-button" onClick={copyAiPrompt}>
                 {promptCopied ? <HiOutlineCheck /> : <HiOutlineClipboardDocument />}
@@ -404,6 +634,45 @@ const LiveLessonsPage = () => {
               <button className="live-primary-button" onClick={openImportEditor}><HiOutlineArrowUpTray /> Import CSV lesson</button>
             </div>
           </div>
+          {["teacher", "admin"].includes(user?.role) && (incomingShares.length > 0 || outgoingShares.length > 0) && (
+            <section className="live-share-invitations" aria-label="Lesson sharing invitations">
+              {incomingShares.length > 0 && (
+                <div>
+                  <h2>Lessons shared with you</h2>
+                  <ul>
+                    {incomingShares.map((invitation) => (
+                      <li key={invitation._id}>
+                        <div>
+                          <strong>{invitation.lesson?.title || "Shared lesson"}</strong>
+                          <span>From {[invitation.sender?.firstName, invitation.sender?.lastName].filter(Boolean).join(" ") || "a teacher"}{invitation.lesson?.subject ? ` · ${invitation.lesson.subject}` : ""}</span>
+                        </div>
+                        <div className="live-share-actions">
+                          <button className="live-primary-button" onClick={() => respondToShare(invitation._id, "accept")}>Accept and add</button>
+                          <button className="live-secondary-button" onClick={() => respondToShare(invitation._id, "decline")}>Decline</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {outgoingShares.length > 0 && (
+                <div>
+                  <h2>Pending shares</h2>
+                  <ul>
+                    {outgoingShares.map((invitation) => (
+                      <li key={invitation._id}>
+                        <div>
+                          <strong>{invitation.lesson?.title || "Shared lesson"}</strong>
+                          <span>Shared with {getTeacherName(invitation.recipient)}</span>
+                        </div>
+                        <button className="live-delete-session" onClick={() => revokeShare(invitation._id)}>Revoke</button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
           {lessons.length === 0 ? (
             <div className="live-empty-state">
               <div className="live-empty-icon"><HiOutlinePresentationChartBar size={32} /></div>
@@ -413,61 +682,145 @@ const LiveLessonsPage = () => {
               <button className="live-text-button" onClick={downloadTemplate}><HiOutlineArrowDownTray /> Download the sample lesson CSV</button>
             </div>
           ) : (
-            <div className="live-lesson-grid">
-              {lessons.map((lesson) => (
-                <article className="live-lesson-card" key={lesson._id}>
-                  <div className="live-lesson-card-top">
-                    <span className="live-lesson-tag">CSV LESSON</span>
-                    <span>{lesson.slides?.length || 0} slides</span>
-                  </div>
-                  <h2>{lesson.title}</h2>
-                  {(lesson.subject || lesson.grade) && <p>{[lesson.subject, lesson.grade].filter(Boolean).join(" · ")}</p>}
-                  {lesson.description && <p>{lesson.description}</p>}
-                  <div className="live-lesson-card-footer">
-                    <select
-                      aria-label={`Class for ${lesson.title}`}
-                      value={lessonClasses[lesson._id] || ""}
-                      onChange={(event) => setLessonClasses((previous) => ({ ...previous, [lesson._id]: event.target.value }))}
-                    >
-                      <option value="">Choose class…</option>
-                      {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
-                    </select>
-                    <button className="live-primary-button" onClick={() => startSession(lesson._id)}><HiOutlinePlay /> Start</button>
-                  </div>
-                  <div className="live-lesson-management">
-                    <button className="live-edit-lesson" onClick={() => openLessonEditor(lesson._id)}><HiOutlinePencilSquare /> Edit lesson</button>
-                    <button className="live-delete-lesson" onClick={() => deleteLesson(lesson._id)}><HiOutlineTrash /> Delete lesson</button>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <>
+              <div className="live-list-filters">
+                <label>Target class
+                  <select value={lessonListState.classId} onChange={(event) => updateLessonList({ classId: event.target.value, subject: "", page: 1 })}>
+                    <option value="">All classes</option>
+                    {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
+                  </select>
+                </label>
+                <label>Subject
+                  <select value={lessonListState.subject} onChange={(event) => updateLessonList({ subject: event.target.value, page: 1 })}>
+                    <option value="">All subjects</option>
+                    {lessonSubjects.map((subject) => <option key={subject._id} value={subject.name}>{subject.name}</option>)}
+                  </select>
+                </label>
+                <button className="live-text-button" onClick={() => updateLessonList({ ...defaultListState })}>Clear filters</button>
+              </div>
+              <div className="live-list-table-wrap">
+                <table className="live-list-table">
+                  <thead><tr><th>Lesson</th><th>Subject</th><th>Slides</th><th>Updated</th><th>Launch class</th><th>Actions</th></tr></thead>
+                  <tbody>{visibleLessons.map((lesson) => (
+                    <tr key={lesson._id}>
+                      <td><strong>{lesson.title}</strong>{lesson.description && <small>{lesson.description}</small>}</td>
+                      <td>{lesson.subject || "—"}</td>
+                      <td>{lesson.slides?.length || 0}</td>
+                      <td>{lesson.updatedAt ? new Date(lesson.updatedAt).toLocaleDateString() : "—"}</td>
+                      <td>
+                        <select aria-label={`Launch class for ${lesson.title}`} value={lessonClasses[lesson._id] || lessonListState.classId || ""} onChange={(event) => setLessonClasses((previous) => ({ ...previous, [lesson._id]: event.target.value }))}>
+                          <option value="">Choose class…</option>
+                          {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
+                        </select>
+                      </td>
+                      <td className="live-list-row-actions">
+                        <button className="live-primary-button" onClick={() => startSession(lesson._id)} disabled={!(lessonClasses[lesson._id] || lessonListState.classId)}><HiOutlinePlay /> Start</button>
+                        <button className="live-secondary-button" onClick={() => openLessonEditor(lesson._id)}><HiOutlinePencilSquare /> Edit</button>
+                        {["teacher", "admin"].includes(user?.role) && <button className="live-secondary-button" onClick={() => { setShareLesson(lesson); setShareRecipient(""); }}><HiOutlineShare /> Share</button>}
+                        <button className="live-delete-session" onClick={() => deleteLesson(lesson._id)}><HiOutlineTrash /> Delete</button>
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                {!visibleLessons.length && <p className="live-list-empty">No lessons match these filters.</p>}
+              </div>
+              <div className="live-list-pagination">
+                <span>Showing {showRange(lessonPage, lessonListState.pageSize, filteredLessons.length)}</span>
+                <label>Rows
+                  <select value={lessonListState.pageSize} onChange={(event) => updateLessonList({ pageSize: Number(event.target.value), page: 1 })}>
+                    {[10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}
+                  </select>
+                </label>
+                <button disabled={lessonPage <= 1} onClick={() => updateLessonList({ page: lessonPage - 1 })}>Previous</button>
+                <span>Page {lessonPage} of {lessonPages}</span>
+                <button disabled={lessonPage >= lessonPages} onClick={() => updateLessonList({ page: lessonPage + 1 })}>Next</button>
+              </div>
+            </>
           )}
         </>
       ) : (
-        <div className="live-session-list">
-          {sessions.length === 0 && <div className="live-empty-state"><h2>No sessions yet</h2><p>Start a live lesson to see sessions and reports here.</p></div>}
-          {sessions.map((session) => (
-            <article className="live-session-row" key={session._id}>
-              <div>
-                <span className={`live-status-pill ${session.status}`}>{session.status}</span>
-                <h3>{session.lessonSnapshot?.title || "Live lesson"}</h3>
-                <p>{classesById.get(String(session.classId?._id || session.classId))?.name || session.classId?.name || "Class"} · {new Date(session.createdAt).toLocaleString()}</p>
-              </div>
-              <div className="live-session-actions">
-                {session.status !== "ended" && <button className="live-secondary-button" onClick={() => navigate(`/portal/live-lessons/sessions/${session._id}`)}>Open session</button>}
-                <button className="live-secondary-button" onClick={() => navigate(`/portal/live-lessons/sessions/${session._id}/report`)}>Report</button>
-                <button className="live-secondary-button" onClick={() => navigate(`/portal/live-lessons/sessions/${session._id}/replay`)}>Replay</button>
-                <button
-                  className="live-delete-session"
-                  onClick={() => deleteSession(session)}
-                  disabled={session.status === "live"}
-                  title={session.status === "live" ? "End the live session before deleting its history." : "Delete this session history"}
-                >
-                  <HiOutlineTrash /> Delete history
-                </button>
-              </div>
-            </article>
-          ))}
+        <>
+          <div className="live-list-filters">
+            <label>Class
+              <select value={sessionListState.classId} onChange={(event) => updateSessionList({ classId: event.target.value, subject: "", page: 1 })}>
+                <option value="">All classes</option>
+                {classes.map((classItem) => <option key={classItem._id} value={classItem._id}>{classItem.name}</option>)}
+              </select>
+            </label>
+            <label>Subject
+              <select value={sessionListState.subject} onChange={(event) => updateSessionList({ subject: event.target.value, page: 1 })}>
+                <option value="">All subjects</option>
+                <option value="__unknown__">Unknown / not set</option>
+                {sessionSubjects.map((subject) => <option key={subject._id} value={subject._id}>{subject.name}</option>)}
+              </select>
+            </label>
+            <button className="live-text-button" onClick={() => updateSessionList({ ...defaultListState })}>Clear filters</button>
+          </div>
+          <div className="live-list-table-wrap">
+            <table className="live-list-table">
+              <thead><tr><th>Session</th><th>Class</th><th>Subject</th><th>Date</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>{sessions.map((session) => (
+                <tr key={session._id}>
+                  <td><strong>{session.lessonSnapshot?.title || "Live lesson"}</strong></td>
+                  <td>{classesById.get(String(session.classId?._id || session.classId))?.name || session.classId?.name || "Class"}</td>
+                  <td>{session.lessonSnapshot?.subject || "Unknown / not set"}</td>
+                  <td>{session.createdAt ? new Date(session.createdAt).toLocaleString() : "—"}</td>
+                  <td>{formatSessionDuration(session)}</td>
+                  <td><span className={`live-status-pill ${session.status}`}>{session.status}</span></td>
+                  <td className="live-list-row-actions">
+                    {session.status !== "ended" && <button className="live-secondary-button" onClick={() => navigate(`/portal/live-lessons/sessions/${session._id}`)}>Open session</button>}
+                    {session.status === "live" && String(session.teacherId) === String(user?._id || user?.id) && (
+                      <button
+                        className="live-delete-session"
+                        onClick={() => endSession(session)}
+                        disabled={Boolean(endingSessionId)}
+                      >
+                        <HiOutlineStop /> {endingSessionId === String(session._id) ? "Ending…" : "End session"}
+                      </button>
+                    )}
+                    <button className="live-secondary-button" onClick={() => navigate(`/portal/live-lessons/sessions/${session._id}/report`)}>Report</button>
+                    <button className="live-secondary-button" onClick={() => navigate(`/portal/live-lessons/sessions/${session._id}/replay`)}>Replay</button>
+                    <button className="live-delete-session" onClick={() => deleteSession(session)} disabled={session.status === "live"} title={session.status === "live" ? "End the live session before deleting its history." : "Delete this session history"}><HiOutlineTrash /> Delete</button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+            {!sessions.length && <p className="live-list-empty">{sessionPagination.total ? "No sessions match these filters." : "No sessions yet. Start a live lesson to see sessions and reports here."}</p>}
+          </div>
+          <div className="live-list-pagination">
+            <span>Showing {showRange(sessionPagination.page || sessionListState.page, sessionListState.pageSize, sessionPagination.total)}</span>
+            <label>Rows
+              <select value={sessionListState.pageSize} onChange={(event) => updateSessionList({ pageSize: Number(event.target.value), page: 1 })}>
+                {[10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
+            <button disabled={sessionListState.page <= 1} onClick={() => updateSessionList({ page: sessionListState.page - 1 })}>Previous</button>
+            <span>Page {sessionPagination.pages ? sessionListState.page : 0} of {sessionPagination.pages || 0}</span>
+            <button disabled={!sessionPagination.pages || sessionListState.page >= sessionPagination.pages} onClick={() => updateSessionList({ page: sessionListState.page + 1 })}>Next</button>
+          </div>
+        </>
+      )}
+
+      {shareLesson && (
+        <div className="live-import-overlay" role="presentation" onClick={() => setShareLesson(null)}>
+          <section className="live-share-dialog" role="dialog" aria-modal="true" aria-labelledby="live-share-title" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <div><span className="live-eyebrow">TEACHER-TO-TEACHER</span><h2 id="live-share-title">Share “{shareLesson.title}”</h2></div>
+              <button className="live-dialog-close" onClick={() => setShareLesson(null)} aria-label="Close share dialog">×</button>
+            </header>
+            <p>The recipient can accept a copy of this lesson. Your lesson and session history stay separate.</p>
+            <label className="live-edit-field">Teacher
+              <select value={shareRecipient} onChange={(event) => setShareRecipient(event.target.value)}>
+                <option value="">Choose a teacher…</option>
+                {shareableTeachers.map((teacher) => <option key={teacher._id} value={teacher._id}>{getTeacherName(teacher)}</option>)}
+              </select>
+            </label>
+            {!shareableTeachers.length && <p className="live-list-empty">No other active teachers are available to share with.</p>}
+            <footer>
+              <button className="live-secondary-button" onClick={() => setShareLesson(null)}>Cancel</button>
+              <button className="live-primary-button" disabled={!shareRecipient || shareSaving} onClick={shareLessonWithTeacher}>{shareSaving ? "Sending…" : "Send invitation"}</button>
+            </footer>
+          </section>
         </div>
       )}
 

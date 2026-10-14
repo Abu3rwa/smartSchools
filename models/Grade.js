@@ -123,9 +123,29 @@ const gradeSchema = new mongoose.Schema({
         ref: 'HomeworkSubmission',
         default: null
     },
+    liveSession: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'LiveSession',
+        default: null,
+        index: true
+    },
+    liveSessionVisibilityIncidents: {
+        type: Number,
+        min: 0,
+        default: null
+    },
+    liveSessionVisibilityDeductionPerIncident: {
+        type: Number,
+        enum: [0, 0.5, 1, null],
+        default: null
+    },
+    liveSessionMarksAdjusted: {
+        type: Boolean,
+        default: null
+    },
     gradingSource: {
         type: String,
-        enum: ['manual', 'homework_submission'],
+        enum: ['manual', 'homework_submission', 'live_session'],
         default: 'manual'
     },
     // Phase 1: Gradebook Enhancement — optional fields (backward-compatible)
@@ -168,6 +188,10 @@ gradeSchema.index({ gradeType: 1 });
 gradeSchema.index({ school: 1, lessonPlanIds: 1 });
 gradeSchema.index({ school: 1, assessmentGroupId: 1 });
 gradeSchema.index({ school: 1, homeworkAssignment: 1, student: 1 });
+gradeSchema.index(
+    { school: 1, liveSession: 1, student: 1 },
+    { unique: true, partialFilterExpression: { liveSession: { $type: 'objectId' } } }
+);
 
 // Student grade feed pagination and sorting (school-scoped by tenant isolation).
 gradeSchema.index({ school: 1, student: 1, academicYear: 1, date: -1 });

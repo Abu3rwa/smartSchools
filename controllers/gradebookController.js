@@ -1651,7 +1651,7 @@ export const updateGrade = asyncHandler(async (req, res) => {
     }
 
     if (!existingGrade && lessonPlanIds !== undefined) {
-        existingGrade = await Grade.findById(req.params.id).select('school class subject');
+        existingGrade = await Grade.findById(req.params.id).select('school class subject liveSession');
         if (!existingGrade) {
             return res.status(404).json({
                 success: false,
@@ -1679,9 +1679,16 @@ export const updateGrade = asyncHandler(async (req, res) => {
 
     // Snapshot previous values for audit trail
     if (!existingGrade) {
-        existingGrade = await Grade.findById(req.params.id).select('marks maxMarks remarks student subject class school');
+        existingGrade = await Grade.findById(req.params.id).select('marks maxMarks remarks student subject class school liveSession');
     }
     const prevSnapshot = existingGrade ? { marks: existingGrade.marks, maxMarks: existingGrade.maxMarks, remarks: existingGrade.remarks } : null;
+    if (
+        existingGrade?.liveSession &&
+        ((marks !== undefined && Number(marks) !== Number(existingGrade.marks)) ||
+            (maxMarks !== undefined && Number(maxMarks) !== Number(existingGrade.maxMarks)))
+    ) {
+        updatePayload.liveSessionMarksAdjusted = true;
+    }
 
     const grade = await gradeService.updateGrade(req.params.id, updatePayload);
 
@@ -2232,6 +2239,13 @@ export const batchSaveGrades = asyncHandler(async (req, res) => {
         .select('_id maxMarks category date')
         .lean();
     const columnMap = new Map(columns.map((column) => [column._id.toString(), column]));
+    const existingGradeIds = [...new Set(entries.map((entry) => entry._id).filter(Boolean))];
+    const existingGrades = existingGradeIds.length
+        ? await Grade.find({ _id: { $in: existingGradeIds }, school: req.schoolId })
+            .select('_id liveSession marks maxMarks')
+            .lean()
+        : [];
+    const existingGradesById = new Map(existingGrades.map((grade) => [String(grade._id), grade]));
 
     for (const entry of entries) {
         const resolvedStudentId = entry.studentId || entry.student;
@@ -2255,6 +2269,11 @@ export const batchSaveGrades = asyncHandler(async (req, res) => {
             }
 
             // Update existing grade
+            const existingGrade = existingGradesById.get(String(entry._id));
+            const sessionGradeAdjusted = existingGrade?.liveSession && (
+                Number(entry.marks) !== Number(existingGrade.marks) ||
+                (entry.maxMarks !== undefined && Number(entry.maxMarks) !== Number(existingGrade.maxMarks))
+            );
             bulkOps.push({
                 updateOne: {
                     filter: { _id: entry._id, school: req.schoolId },
@@ -2263,7 +2282,8 @@ export const batchSaveGrades = asyncHandler(async (req, res) => {
                             marks: entry.marks,
                             ...(entry.maxMarks !== undefined && { maxMarks: entry.maxMarks }),
                             ...(entry.remarks !== undefined && { remarks: entry.remarks }),
-                            ...(entry.publicComment !== undefined && { publicComment: entry.publicComment })
+                            ...(entry.publicComment !== undefined && { publicComment: entry.publicComment }),
+                            ...(sessionGradeAdjusted && { liveSessionMarksAdjusted: true })
                         }
                     }
                 }

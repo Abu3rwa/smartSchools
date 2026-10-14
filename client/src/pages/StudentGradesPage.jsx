@@ -851,7 +851,16 @@ const StudentGradesPage = () => {
                                                                         onChange={(e) => setEditForm((prev) => ({ ...prev, remarks: e.target.value }))}
                                                                         placeholder={t('studentGrades:table.optionalRemarks')}
                                                                     />
-                                                                ) : (g.remarks || t('studentGrades:common.dash'))}
+                                                                ) : (
+                                                                    <>
+                                                                        {g.liveSession && canViewLessonPlans && (
+                                                                            <Link className="live-session-grade-link" to={`/portal/live-lessons/sessions/${g.liveSession}/report`}>
+                                                                                View live session answers
+                                                                            </Link>
+                                                                        )}
+                                                                        {g.remarks || t('studentGrades:common.dash')}
+                                                                    </>
+                                                                )}
                                                             </td>
                                                             {canEditGrades && (
                                                                 <td>

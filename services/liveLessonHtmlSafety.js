@@ -1,6 +1,6 @@
 import aiService from "./aiservice.js";
 
-const MAX_AI_REVIEW_BATCH_CHARACTERS = 200000;
+const MAX_AI_REVIEW_BATCH_CHARACTERS = 100000;
 const forbiddenMarkup = [
   { pattern: /<\s*(?:iframe|object|embed|form|base|link)\b/i, reason: "Embedded frames, objects, forms, base tags, and external stylesheets are not allowed." },
   { pattern: /<\s*meta\b[^>]*http-equiv\s*=\s*(['"]?)\s*refresh/i, reason: "Automatic navigation is not allowed." },

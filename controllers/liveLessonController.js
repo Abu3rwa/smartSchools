@@ -1,12 +1,15 @@
 import { randomInt } from "node:crypto";
 import mongoose from "mongoose";
 import Class from "../models/Class.js";
+import Grade from "../models/Grade.js";
+import GradebookColumn from "../models/GradebookColumn.js";
 import LiveLesson from "../models/LiveLesson.js";
 import LiveResponse from "../models/LiveResponse.js";
 import LiveSession from "../models/LiveSession.js";
 import LiveSessionEvent from "../models/LiveSessionEvent.js";
 import School from "../models/School.js";
 import Student from "../models/Student.js";
+import Subject from "../models/Subject.js";
 import Teacher from "../models/Teacher.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { parseLiveLessonCsv } from "../services/liveLessonCsvService.js";
@@ -20,6 +23,11 @@ import {
   listClassStudents,
 } from "../services/liveLessonService.js";
 import { closeLiveSessionConnections } from "../realtime/liveLessonsGateway.js";
+import { resolveSemesterForDate } from "../services/gradebookConfigService.js";
+import { calculateLiveSessionMark } from "../services/liveSessionGradebookService.js";
+import { resolveRequestedAcademicYear } from "../utils/academicYear.js";
+import { getSchoolTimeZone } from "../helpers/attendanceEligibility.js";
+import { getTeacherClassIds, getTeacherSubjectIds } from "../helpers/teacherScoping.js";
 
 const findOwnedSession = async (req, res) => {
   if (!validId(req.params.id)) {
@@ -35,8 +43,12 @@ const findOwnedSession = async (req, res) => {
     return null;
   }
   const ownsSession = String(session.teacherId) === String(req.user._id);
-  if (!ownsSession) {
-    res.status(403).json({ success: false, message: "Only the session teacher can access this." });
+  if (!ownsSession && !["admin", "department_principal"].includes(req.user.role)) {
+    res.status(403).json({ success: false, message: "Only authorized school staff can access this session." });
+    return null;
+  }
+  if (!ownsSession && !(await findTeacherClass(req, session.classId))) {
+    res.status(403).json({ success: false, message: "You are not authorized to access this class session." });
     return null;
   }
   return session;
@@ -44,6 +56,10 @@ const findOwnedSession = async (req, res) => {
 
 const findTeacherClass = async (req, classId) => {
   const query = { _id: classId, school: req.schoolId, isActive: { $ne: false } };
+  if (req.user.role === "department_principal") {
+    const departmentId = req.departmentId || req.user.department?._id || req.user.department;
+    if (departmentId) query.department = departmentId;
+  }
   if (req.user.role === "teacher") {
     const teacher = await Teacher.findOne({ user: req.user._id, school: req.schoolId })
       .select("_id")
@@ -305,6 +321,7 @@ export const deleteLiveLesson = asyncHandler(async (req, res) => {
   let sessionIds = [];
   let lessonFound = false;
   let liveSessionExists = false;
+  let sessionGradesExist = false;
   const transaction = await mongoose.startSession();
   try {
     await transaction.withTransaction(async () => {
@@ -327,6 +344,11 @@ export const deleteLiveLesson = asyncHandler(async (req, res) => {
       }
       sessionIds = sessions.map((session) => session._id);
       if (sessionIds.length) {
+        sessionGradesExist = Boolean(await Grade.exists({
+          school: req.schoolId,
+          liveSession: { $in: sessionIds },
+        }).session(transaction));
+        if (sessionGradesExist) return;
         await LiveResponse.deleteMany({ school: req.schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
         await LiveSessionEvent.deleteMany({ school: req.schoolId, sessionId: { $in: sessionIds } }, { session: transaction });
         await LiveSession.deleteMany({ school: req.schoolId, _id: { $in: sessionIds } }, { session: transaction });
@@ -339,6 +361,9 @@ export const deleteLiveLesson = asyncHandler(async (req, res) => {
   if (!lessonFound) return res.status(404).json({ success: false, message: "Lesson not found." });
   if (liveSessionExists) {
     return res.status(409).json({ success: false, message: "End all live sessions for this lesson before deleting it and its history." });
+  }
+  if (sessionGradesExist) {
+    return res.status(409).json({ success: false, message: "This lesson has session history linked to gradebook entries. Remove those gradebook entries first, or keep the lesson and session history." });
   }
   sessionIds.forEach((sessionId) => closeLiveSessionConnections(sessionId));
   return res.json({ success: true, message: "Lesson and associated session history deleted." });
@@ -355,6 +380,12 @@ export const createLiveSession = asyncHandler(async (req, res) => {
   ]);
   if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found or not owned by you." });
   if (!classDoc) return res.status(403).json({ success: false, message: "You are not assigned to that class." });
+  await classDoc.populate("subjects.subject", "name");
+  const normalizedLessonSubject = String(lesson.subject || "").trim().toLowerCase();
+  const matchingSubjectIds = [...new Set((classDoc.subjects || [])
+    .filter((assignment) => assignment.subject?.name?.trim().toLowerCase() === normalizedLessonSubject)
+    .map((assignment) => String(assignment.subject._id)))];
+  const canonicalSubjectId = matchingSubjectIds.length === 1 ? matchingSubjectIds[0] : null;
   const rosterSnapshot = (await listClassStudents(classDoc._id)).map((student) => ({
     studentId: String(student.user?._id || ""),
     name: `${student.firstName} ${student.lastName}`.trim(),
@@ -375,6 +406,7 @@ export const createLiveSession = asyncHandler(async (req, res) => {
       title: lesson.title,
       description: lesson.description,
       subject: lesson.subject || "",
+      subjectId: canonicalSubjectId,
       grade: lesson.grade || "",
       language: lesson.language || "en",
       slides: lesson.slides.map((slide) => slide.toObject()),
@@ -401,12 +433,131 @@ export const createLiveSession = asyncHandler(async (req, res) => {
 });
 
 export const listLiveSessions = asyncHandler(async (req, res) => {
-  const sessions = await LiveSession.find({ school: req.schoolId, teacherId: req.user._id })
-    .sort({ createdAt: -1 })
-    .select("lessonSnapshot.title classId status joinCode currentSlideIndex createdAt startedAt endedAt")
+  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 25));
+  const filter = { school: req.schoolId };
+  if (req.user.role === "teacher") {
+    const teacher = await Teacher.findOne({ user: req.user._id, school: req.schoolId })
+      .select("_id")
+      .lean();
+    if (!teacher) {
+      return res.status(403).json({ success: false, message: "Teacher profile not found." });
+    }
+    const assignedClassIds = await getTeacherClassIds(teacher._id);
+    filter.classId = {
+      $in: await Class.find({
+        _id: { $in: assignedClassIds },
+        school: req.schoolId,
+        isActive: { $ne: false },
+      }).distinct("_id"),
+    };
+  }
+  if (req.user.role === "department_principal") {
+    if (!req.departmentId) {
+      return res.status(403).json({ success: false, message: "Department scope is required to view live sessions." });
+    }
+    filter.classId = { $in: await Class.find({
+      school: req.schoolId,
+      department: req.departmentId,
+    }).distinct("_id") };
+  }
+  if (req.query.classId) {
+    if (!validId(req.query.classId)) {
+      return res.status(400).json({ success: false, message: "Invalid class filter." });
+    }
+    const authorizedClass = await findTeacherClass(req, req.query.classId);
+    if (!authorizedClass) {
+      return res.status(403).json({ success: false, message: "You are not assigned to that class." });
+    }
+    if (req.user.role === "department_principal" && !filter.classId.$in.some((id) => String(id) === String(authorizedClass._id))) {
+      return res.status(403).json({ success: false, message: "You are not assigned to that class." });
+    }
+    filter.classId = authorizedClass._id;
+  }
+  if (req.query.subject === "__unknown__") {
+    filter["lessonSnapshot.subjectId"] = { $in: ["", null] };
+  } else if (req.query.subject) {
+    const requestedSubject = String(req.query.subject).trim();
+    if (req.user.role === "teacher") {
+      const teacher = await Teacher.findOne({ user: req.user._id, school: req.schoolId })
+        .select("_id")
+        .lean();
+      const assignedSubjectIds = teacher ? await getTeacherSubjectIds(teacher._id) : [];
+      const requestedSubjectId = validId(requestedSubject)
+        ? requestedSubject
+        : String((await Subject.findOne({
+            school: req.schoolId,
+            name: requestedSubject,
+          }).select("_id").lean())?._id || "");
+      if (!assignedSubjectIds.some((id) => String(id) === requestedSubjectId)) {
+        return res.status(403).json({ success: false, message: "You are not assigned to that subject." });
+      }
+    }
+    if (validId(requestedSubject)) {
+      const subject = await Subject.findOne({ _id: requestedSubject, school: req.schoolId }).select("name").lean();
+      if (!subject) return res.status(400).json({ success: false, message: "Invalid subject filter." });
+      filter.$or = [
+        { "lessonSnapshot.subjectId": requestedSubject },
+        { "lessonSnapshot.subjectId": { $in: ["", null] }, "lessonSnapshot.subject": subject.name },
+      ];
+    } else {
+      filter["lessonSnapshot.subject"] = requestedSubject;
+    }
+  }
+  const [sessions, total] = await Promise.all([
+    LiveSession.find(filter)
+    .sort({ createdAt: -1, _id: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .select("lessonSnapshot.title lessonSnapshot.subject lessonSnapshot.subjectId classId teacherId status joinCode currentSlideIndex createdAt startedAt endedAt")
     .populate("classId", "name grade section")
-    .lean();
-  return res.json({ success: true, data: { sessions } });
+    .lean(),
+    LiveSession.countDocuments(filter),
+  ]);
+  return res.json({
+    success: true,
+    data: { sessions, pagination: { page, limit, total, pages: Math.ceil(total / limit) } },
+  });
+});
+
+export const endLiveSession = asyncHandler(async (req, res) => {
+  const session = await findOwnedSession(req, res);
+  if (!session) return;
+  if (String(session.teacherId) !== String(req.user._id)) {
+    return res.status(403).json({ success: false, message: "Only the session owner can end this live lesson." });
+  }
+  if (session.status !== "live") {
+    return res.status(409).json({ success: false, message: "Only a live session can be ended." });
+  }
+
+  const endedSession = await LiveSession.findOneAndUpdate(
+    {
+      _id: session._id,
+      school: req.schoolId,
+      teacherId: req.user._id,
+      status: "live",
+    },
+    {
+      $set: {
+        status: "ended",
+        paused: false,
+        endedAt: new Date(),
+        questionOpen: false,
+        studentsFullscreen: false,
+      },
+    },
+    { new: true },
+  );
+  if (!endedSession) {
+    return res.status(409).json({ success: false, message: "This session has already ended." });
+  }
+
+  await appendLiveEvent(endedSession, "session:ended", {
+    role: req.user.role,
+    userId: req.user._id,
+  });
+  await broadcastLiveSessionState(endedSession);
+  return res.json({ success: true, data: { session: endedSession } });
 });
 
 export const listAvailableLiveSessions = asyncHandler(async (req, res) => {
@@ -489,10 +640,16 @@ export const getLiveSession = asyncHandler(async (req, res) => {
   if (!session) return res.status(404).json({ success: false, message: "Live session not found." });
   const isOwner = String(session.teacherId) === String(req.user._id);
   const isStudent = req.user.role === "student" && await isStudentEnrolled(session.classId, req.user._id);
-  if (!isOwner && !isStudent) return res.status(403).json({ success: false, message: "You are not a participant in this session." });
+  const isAuthorizedStaff = !isStudent &&
+    ["teacher", "admin", "department_principal"].includes(req.user.role) &&
+    Boolean(await findTeacherClass(req, session.classId));
+  if (!isOwner && !isStudent && !isAuthorizedStaff) {
+    return res.status(403).json({ success: false, message: "You are not authorized to view this session." });
+  }
   const state = await getStateForUser(session, req.user);
   const payload = {
     _id: String(session._id),
+    isOwner,
     status: session.status,
     joinCode: isOwner ? session.joinCode : undefined,
     lessonTitle: session.lessonSnapshot.title,
@@ -500,13 +657,15 @@ export const getLiveSession = asyncHandler(async (req, res) => {
     lessonGrade: session.lessonSnapshot.grade || "",
     lessonLanguage: session.lessonSnapshot.language || "en",
     classId: String(session.classId),
+    timeZone: await getSchoolTimeZone(req.schoolId),
     currentSlideIndex: session.currentSlideIndex,
     totalSlides: session.lessonSnapshot.slides.length,
+    createdAt: session.createdAt,
     startedAt: session.startedAt,
     endedAt: session.endedAt,
     state,
   };
-  if (isOwner) payload.roster = formatRoster(await getSessionStudents(session));
+  if (isAuthorizedStaff || isOwner) payload.roster = formatRoster(await getSessionStudents(session));
   return res.json({ success: true, data: { session: payload } });
 });
 
@@ -557,21 +716,51 @@ const awayDurationForStudent = (events, studentId, endAt) => {
 export const getLiveSessionReport = asyncHandler(async (req, res) => {
   const session = await findOwnedSession(req, res);
   if (!session) return;
-  const [students, responses, events] = await Promise.all([
+  const [students, responses, events, classDoc] = await Promise.all([
     getSessionStudents(session),
     LiveResponse.find({ sessionId: session._id, school: req.schoolId }).lean(),
     LiveSessionEvent.find({ sessionId: session._id, school: req.schoolId }).sort({ seq: 1 }).lean(),
+    Class.findOne({ _id: session.classId, school: req.schoolId }).select("name grade section academicYear").lean(),
   ]);
   const questionSlides = session.lessonSnapshot.slides.filter((slide) => slide.question);
+  const responseByStudentSlide = new Map(
+    responses.map((response) => [`${String(response.studentId)}:${response.slideId}`, response]),
+  );
+  const questionStateBySlide = new Map();
+  for (const event of events) {
+    if (event.payload?.slideId && ["question:opened", "question:closed", "results:revealed"].includes(event.type)) {
+      questionStateBySlide.set(String(event.payload.slideId), event.type === "question:opened" ? "open" : "closed");
+    }
+  }
+  const currentSlide = session.lessonSnapshot.slides[session.currentSlideIndex];
+  const currentQuestionIsOpen = Boolean(session.status === "live" && session.questionOpen && currentSlide?.question);
+  const presentedQuestionCount = questionSlides.filter((slide) => (
+    questionStateBySlide.has(String(slide._id)) ||
+    (currentQuestionIsOpen && String(currentSlide._id) === String(slide._id))
+  )).length;
   const perQuestion = questionSlides.map((slide) => {
     const answers = responses.filter((response) => response.slideId === String(slide._id));
+    const state = questionStateBySlide.get(String(slide._id));
+    const isCurrentOpenQuestion = currentQuestionIsOpen && String(currentSlide._id) === String(slide._id);
+    const isOpen = session.status === "live" && (state === "open" || (state === undefined && isCurrentOpenQuestion));
+    const opened = state !== undefined || isCurrentOpenQuestion;
+    const closed = state === "closed" || (session.status === "ended" && state === "open");
     return {
       slideId: String(slide._id),
+      title: slide.title || "",
       prompt: slide.question.prompt,
+      options: slide.question.options.map((option) => ({
+        id: option.id,
+        text: option.text,
+        correct: option.id === slide.question.correctOptionId,
+      })),
       answered: answers.length,
       correct: answers.filter((answer) => answer.isCorrect).length,
       wrong: answers.filter((answer) => !answer.isCorrect).length,
-      unanswered: Math.max(0, students.length - answers.length),
+      unanswered: closed ? Math.max(0, students.length - answers.length) : null,
+      pending: isOpen ? Math.max(0, students.length - answers.length) : 0,
+      opened,
+      closed,
       percentCorrect: answers.length
         ? Math.round((answers.filter((answer) => answer.isCorrect).length / answers.length) * 100)
         : 0,
@@ -588,27 +777,385 @@ export const getLiveSessionReport = asyncHandler(async (req, res) => {
   const perStudent = students.map((student) => {
     const studentId = String(student.studentId);
     const answers = responses.filter((response) => String(response.studentId) === studentId);
-    const joinedEvent = events.find((event) => event.type === "presence:joined" && String(event.actor?.userId) === studentId);
+    const studentEvents = events.filter((event) =>
+      String(event.actor?.userId || event.payload?.studentId || "") === studentId,
+    );
+    const joinedEvent = studentEvents.find((event) => event.type === "presence:joined");
     const correct = answers.filter((answer) => answer.isCorrect).length;
+    const answerDetails = questionSlides.map((slide, index) => {
+      const response = responseByStudentSlide.get(`${studentId}:${String(slide._id)}`);
+      const option = (optionId) => slide.question.options.find((item) => item.id === optionId);
+      const state = questionStateBySlide.get(String(slide._id));
+      const isCurrentOpenQuestion = currentQuestionIsOpen && String(currentSlide._id) === String(slide._id);
+      const isOpen = session.status === "live" && (state === "open" || (state === undefined && isCurrentOpenQuestion));
+      const closed = state === "closed" || (session.status === "ended" && state === "open");
+      return {
+        slideId: String(slide._id),
+        questionNumber: index + 1,
+        title: slide.title || "",
+        prompt: slide.question.prompt,
+        selectedOptionId: response?.selectedOptionId || null,
+        selectedAnswer: response ? option(response.selectedOptionId)?.text || "" : "",
+        correctOptionId: slide.question.correctOptionId,
+        correctAnswer: option(slide.question.correctOptionId)?.text || "",
+        isCorrect: response ? response.isCorrect : null,
+        submittedAt: response?.submittedAt || null,
+        latencyMs: response?.latencyMs ?? null,
+        status: response
+          ? "answered"
+          : !joinedEvent
+            ? "not_present"
+            : closed
+              ? "unanswered"
+              : isOpen
+                ? "pending"
+                : "not_opened",
+      };
+    });
     return {
       studentId,
       name: student.name,
+      joined: Boolean(joinedEvent),
+      joinedAt: joinedEvent?.at || null,
       answered: answers.length,
       correct,
       wrong: answers.length - correct,
-      unanswered: Math.max(0, questionSlides.length - answers.length),
-      scorePercent: questionSlides.length ? Math.round((correct / questionSlides.length) * 100) : 0,
+      unanswered: answerDetails.filter((answer) => answer.status === "unanswered").length,
+      pending: answerDetails.filter((answer) => answer.status === "pending").length,
+      coveragePercent: presentedQuestionCount ? Math.round((answers.length / presentedQuestionCount) * 100) : 0,
+      scorePercent: presentedQuestionCount ? Math.round((correct / presentedQuestionCount) * 100) : 0,
       totalAwaySeconds: awayDurationForStudent(events, studentId, endedAt),
-      joinedAt: joinedEvent?.at || null,
+      answerDetails,
+      presenceEvents: studentEvents
+        .filter((event) => event.type.startsWith("presence:"))
+        .map((event) => ({ type: event.type, at: event.at, reason: event.payload?.reason || null })),
     };
   });
+  const startedAt = session.startedAt || null;
+  const reportEndedAt = session.endedAt || null;
   return res.json({
     success: true,
     data: {
-      session: { id: String(session._id), title: session.lessonSnapshot.title, status: session.status },
+      session: {
+        id: String(session._id),
+        title: session.lessonSnapshot.title,
+        status: session.status,
+        class: classDoc,
+        subject: session.lessonSnapshot.subject || "",
+        subjectId: session.lessonSnapshot.subjectId || null,
+        startedAt,
+        endedAt: reportEndedAt,
+        durationMs: startedAt
+          ? Math.max(0, ((reportEndedAt || new Date()).getTime() - new Date(startedAt).getTime()))
+          : 0,
+        updatedAt: new Date(),
+        questionOpen: Boolean(session.questionOpen),
+      },
+      summary: {
+        rosterCount: students.length,
+        joinedCount: perStudent.filter((student) => student.joined).length,
+        questionCount: questionSlides.length,
+        presentedQuestionCount,
+        submittedAnswers: responses.length,
+      },
       perQuestion,
       perStudent,
     },
+  });
+});
+
+const getSessionGradeContext = async (req, session) => {
+  const classDoc = await findTeacherClass(req, session.classId);
+  if (!classDoc) return null;
+  await classDoc.populate("subjects.subject", "name code dailyMaxMarks");
+
+  let teacherProfile = null;
+  if (req.user.role === "teacher") {
+    teacherProfile = await Teacher.findOne({
+      user: req.user._id,
+      school: req.schoolId,
+      isActive: true,
+    }).select("_id");
+    if (!teacherProfile) return null;
+  }
+
+  const isClassTeacher = teacherProfile && String(classDoc.classTeacher) === String(teacherProfile._id);
+  const subjectMap = new Map();
+  for (const assignment of classDoc.subjects || []) {
+    const subject = assignment.subject;
+    if (!subject?._id) continue;
+    if (teacherProfile && !isClassTeacher && String(assignment.teacher) !== String(teacherProfile._id)) continue;
+    subjectMap.set(String(subject._id), {
+      _id: String(subject._id),
+      name: subject.name,
+      code: subject.code || "",
+      dailyMaxMarks: subject.dailyMaxMarks || 10,
+    });
+  }
+  return { classDoc, subjects: [...subjectMap.values()] };
+};
+
+const buildSessionGradePreview = async ({ req, session, context, subjectId, maxMarks, behaviorDeduction }) => {
+  if (session.status !== "ended") {
+    return { statusCode: 409, message: "End the live session before adding it to the gradebook." };
+  }
+  if (!validId(subjectId) || !context.subjects.some((subject) => subject._id === String(subjectId))) {
+    return { statusCode: 400, message: "Choose a subject assigned to this class." };
+  }
+  if (session.lessonSnapshot.subjectId && String(session.lessonSnapshot.subjectId) !== String(subjectId)) {
+    return { statusCode: 400, message: "Choose the session's recorded class subject." };
+  }
+  const subject = await Subject.findOne({ _id: subjectId, school: req.schoolId }).select("_id name dailyMaxMarks").lean();
+  if (!subject) return { statusCode: 400, message: "The selected class subject was not found." };
+
+  const resolvedMaxMarks = Number(maxMarks ?? subject.dailyMaxMarks ?? 10);
+  if (!Number.isFinite(resolvedMaxMarks) || resolvedMaxMarks < 1 || resolvedMaxMarks > 1000) {
+    return { statusCode: 400, message: "Maximum marks must be between 1 and 1000." };
+  }
+  const resolvedDeduction = Number(behaviorDeduction ?? 0);
+  if (![0, 0.5, 1].includes(resolvedDeduction)) {
+    return { statusCode: 400, message: "Choose no behavior deduction, 0.5, or 1 point per hidden-tab event." };
+  }
+
+  const linkedGradeCount = await Grade.countDocuments({ school: req.schoolId, liveSession: session._id });
+  const roster = await getSessionStudents(session);
+  const rosterUserIds = [...new Set(roster.map((student) => String(student.studentId)).filter(validId))];
+  if (!rosterUserIds.length) {
+    return { statusCode: 409, message: "No students are available in the saved session roster." };
+  }
+  if (rosterUserIds.length !== roster.length) {
+    return { statusCode: 409, message: "The saved session roster contains an invalid student account and cannot be graded." };
+  }
+  const [studentProfiles, responses, events] = await Promise.all([
+    Student.find({ school: req.schoolId, user: { $in: rosterUserIds }, status: "active" })
+      .select("_id user firstName lastName")
+      .lean(),
+    LiveResponse.find({ sessionId: session._id, school: req.schoolId }).lean(),
+    LiveSessionEvent.find({ sessionId: session._id, school: req.schoolId }).sort({ seq: 1 }).lean(),
+  ]);
+  const profilesByUserId = new Map(studentProfiles.map((student) => [String(student.user), student]));
+  if (rosterUserIds.some((id) => !profilesByUserId.has(id))) {
+    return { statusCode: 409, message: "One or more students in the session roster no longer have an active student profile; no grades were added." };
+  }
+
+  const presentedSlideIds = new Set(
+    events.filter((event) => event.type === "question:opened" && event.payload?.slideId)
+      .map((event) => String(event.payload.slideId)),
+  );
+  for (const response of responses) presentedSlideIds.add(String(response.slideId));
+  const questionSlides = (session.lessonSnapshot.slides || []).filter((slide) => (
+    slide.question && presentedSlideIds.has(String(slide._id))
+  ));
+  if (!questionSlides.length) {
+    return { statusCode: 400, message: "This lesson has no answerable questions to convert into classwork grades." };
+  }
+  const responseByStudentSlide = new Map(
+    responses.map((response) => [`${String(response.studentId)}:${response.slideId}`, response]),
+  );
+  const visibilityIncidents = new Map();
+  for (const event of events) {
+    if (event.type !== "presence:away" || event.payload?.reason !== "visibility_hidden") continue;
+    if (session.startedAt && new Date(event.at).getTime() < new Date(session.startedAt).getTime()) continue;
+    if (session.endedAt && new Date(event.at).getTime() > new Date(session.endedAt).getTime()) continue;
+    const studentId = String(event.actor?.userId || event.payload?.studentId || "");
+    visibilityIncidents.set(studentId, (visibilityIncidents.get(studentId) || 0) + 1);
+  }
+  const students = roster.map((rosterStudent) => {
+    const userId = String(rosterStudent.studentId);
+    const student = profilesByUserId.get(userId);
+    const correct = questionSlides.filter((slide) => (
+      responseByStudentSlide.get(`${userId}:${String(slide._id)}`)?.isCorrect === true
+    )).length;
+    const incidents = visibilityIncidents.get(userId) || 0;
+    const score = calculateLiveSessionMark({
+      correctAnswers: correct,
+      questionCount: questionSlides.length,
+      maxMarks: resolvedMaxMarks,
+      visibilityIncidents: incidents,
+      deductionPerIncident: resolvedDeduction,
+    });
+    return {
+      studentId: String(student._id),
+      userId,
+      name: `${student.firstName || ""} ${student.lastName || ""}`.trim() || rosterStudent.name,
+      correct,
+      questionCount: questionSlides.length,
+      answered: questionSlides.filter((slide) => responseByStudentSlide.has(`${userId}:${String(slide._id)}`)).length,
+      baseMarks: score.baseMarks,
+      visibilityIncidents: incidents,
+      behaviorDeduction: score.behaviorDeduction,
+      marks: score.marks,
+    };
+  });
+  return {
+    subject: { _id: String(subject._id), name: subject.name },
+    maxMarks: resolvedMaxMarks,
+    behaviorDeductionPerIncident: resolvedDeduction,
+    linkedGradeCount,
+    students,
+    sessionDate: session.startedAt || session.createdAt,
+    academicYear: context.classDoc.academicYear,
+    semester: await resolveSemesterForDate(req.schoolId, session.startedAt || session.createdAt) || 1,
+  };
+};
+
+export const getLiveSessionGradebookPreview = asyncHandler(async (req, res) => {
+  const session = await findOwnedSession(req, res);
+  if (!session) return;
+  const context = await getSessionGradeContext(req, session);
+  if (!context) {
+    return res.status(403).json({ success: false, message: "You are not authorized to add this class to the gradebook." });
+  }
+  const baseData = {
+    session: {
+      id: String(session._id),
+      title: session.lessonSnapshot.title,
+      status: session.status,
+      class: { id: String(session.classId), name: context.classDoc.name },
+      subject: session.lessonSnapshot.subject || "",
+    },
+    subjects: context.subjects,
+  };
+  if (!req.query.subjectId) {
+    return res.json({ success: true, data: { ...baseData, preview: null } });
+  }
+  const preview = await buildSessionGradePreview({
+    req,
+    session,
+    context,
+    subjectId: req.query.subjectId,
+    maxMarks: req.query.maxMarks,
+    behaviorDeduction: req.query.behaviorDeduction,
+  });
+  if (preview.statusCode) {
+    return res.status(preview.statusCode).json({ success: false, message: preview.message });
+  }
+  return res.json({ success: true, data: { ...baseData, preview } });
+});
+
+export const createLiveSessionGradebookEntries = asyncHandler(async (req, res) => {
+  const session = await findOwnedSession(req, res);
+  if (!session) return;
+  const context = await getSessionGradeContext(req, session);
+  if (!context) {
+    return res.status(403).json({ success: false, message: "You are not authorized to add this class to the gradebook." });
+  }
+  const preview = await buildSessionGradePreview({
+    req,
+    session,
+    context,
+    subjectId: req.body?.subjectId,
+    maxMarks: req.body?.maxMarks,
+    behaviorDeduction: req.body?.behaviorDeductionPerIncident,
+  });
+  if (preview.statusCode) {
+    return res.status(preview.statusCode).json({ success: false, message: preview.message });
+  }
+  if (preview.linkedGradeCount) {
+    return res.status(409).json({ success: false, message: "Gradebook entries already exist for this live session. They were not changed." });
+  }
+  if (!Array.isArray(req.body?.students) || req.body.students.length !== preview.students.length) {
+    return res.status(400).json({ success: false, message: "Submit one reviewed grade for each student in the session roster." });
+  }
+  const entriesByStudent = new Map();
+  for (const entry of req.body.students) {
+    const studentId = String(entry?.studentId || "");
+    const marks = Number(entry?.marks);
+    if (
+      !studentId ||
+      entriesByStudent.has(studentId) ||
+      (typeof entry?.marks === "string" && !entry.marks.trim()) ||
+      !Number.isFinite(marks) ||
+      marks < 0 ||
+      marks > preview.maxMarks
+    ) {
+      return res.status(400).json({ success: false, message: "Each student grade must be unique and between zero and the maximum marks." });
+    }
+    entriesByStudent.set(studentId, marks);
+  }
+  if (preview.students.some((student) => !entriesByStudent.has(student.studentId))) {
+    return res.status(400).json({ success: false, message: "The submitted grades do not match the session roster." });
+  }
+  const gradeDate = new Date(preview.sessionDate);
+  const title = `Live lesson: ${String(session.lessonSnapshot.title || "Session").slice(0, 180)}`;
+  const academicYear = preview.academicYear || resolveRequestedAcademicYear(undefined, req.school);
+  const assessmentGroupId = `live-${session._id}`;
+  const transaction = await mongoose.startSession();
+  let savedGrades = [];
+  let alreadyLinked = false;
+  try {
+    await transaction.withTransaction(async () => {
+      const existingCount = await Grade.countDocuments({
+        school: req.schoolId,
+        liveSession: session._id,
+      }).session(transaction);
+      if (existingCount) {
+        alreadyLinked = true;
+        return;
+      }
+      const lastColumn = await GradebookColumn.find({
+        school: req.schoolId,
+        class: session.classId,
+        subject: preview.subject._id,
+        academicYear,
+        semester: preview.semester,
+      }).select("sortOrder").sort({ sortOrder: -1 }).limit(1).session(transaction).lean();
+      const [column] = await GradebookColumn.create([{
+        school: req.schoolId,
+        class: session.classId,
+        subject: preview.subject._id,
+        academicYear,
+        semester: preview.semester,
+        name: title,
+        category: "classwork",
+        date: gradeDate,
+        maxMarks: preview.maxMarks,
+        sortOrder: (lastColumn[0]?.sortOrder || 0) + 1,
+        assessmentGroupId,
+        createdBy: req.user._id,
+      }], { session: transaction });
+      const gradeDocuments = preview.students.map((student) => ({
+        school: req.schoolId,
+        student: student.studentId,
+        subject: preview.subject._id,
+        class: session.classId,
+        teacher: req.user._id,
+        academicYear,
+        gradeType: "daily",
+        category: "classwork",
+        gradingSource: "live_session",
+        date: gradeDate,
+        month: gradeDate.getUTCMonth() + 1,
+        semester: preview.semester,
+        marks: entriesByStudent.get(student.studentId),
+        maxMarks: preview.maxMarks,
+        title,
+        remarks: "Classwork based on live session answers.",
+        notes: `Session answers: ${student.correct}/${student.questionCount} correct; ${student.answered} answered.`,
+        liveSession: session._id,
+        liveSessionVisibilityIncidents: student.visibilityIncidents,
+        liveSessionVisibilityDeductionPerIncident: preview.behaviorDeductionPerIncident,
+        liveSessionMarksAdjusted: Math.abs(entriesByStudent.get(student.studentId) - student.marks) > 0.001,
+        columnId: column._id,
+        assessmentGroupId,
+      }));
+      savedGrades = await Grade.insertMany(gradeDocuments, { session: transaction, ordered: true });
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ success: false, message: "Gradebook entries already exist for this live session. They were not changed." });
+    }
+    throw error;
+  } finally {
+    await transaction.endSession();
+  }
+  if (alreadyLinked) {
+      return res.status(409).json({ success: false, message: "Gradebook entries already exist for this live session. They were not changed." });
+  }
+  return res.status(201).json({
+    success: true,
+    message: `${savedGrades.length} live lesson grades added.`,
+    data: { count: savedGrades.length, sessionId: String(session._id) },
   });
 });
 
@@ -619,6 +1166,13 @@ export const deleteLiveSession = asyncHandler(async (req, res) => {
     return res.status(409).json({
       success: false,
       message: "End the live session before deleting it from history.",
+    });
+  }
+  const linkedGradesExist = await Grade.exists({ school: req.schoolId, liveSession: session._id });
+  if (linkedGradesExist) {
+    return res.status(409).json({
+      success: false,
+      message: "This session is linked to gradebook entries. Keep the session report so those grades remain traceable.",
     });
   }
 

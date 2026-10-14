@@ -260,6 +260,19 @@
     background: var(--bg-secondary, #eef2ff);
 }
 
+.live-session-grade-link {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--primary, #4f46e5);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.live-session-grade-link:hover {
+    text-decoration: underline;
+}
+
 .linked-lessons-more {
     font-size: 0.75rem;
     color: var(--text-muted, #666);
