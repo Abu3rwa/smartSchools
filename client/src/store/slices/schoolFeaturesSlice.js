@@ -14,18 +14,6 @@ export const fetchSchoolFeatures = createAsyncThunk(
     }
 );
 
-export const fetchSchoolPageAccess = createAsyncThunk(
-    'schoolFeatures/fetchSchoolPageAccess',
-    async (_, { rejectWithValue }) => {
-        try {
-            const response = await api.get('/schools/me/page-access/current');
-            return response.data.data.pageAccess;
-        } catch (error) {
-            return rejectWithValue(error.response?.data?.message || 'Failed to fetch school page access');
-        }
-    }
-);
-
 const initialState = {
     plan: null,
     planName: null,
@@ -37,7 +25,6 @@ const initialState = {
     featureMetadata: {},
     limits: null,
     usage: null,
-    pageAccessError: null,
     loading: false,
     error: null
 };
@@ -66,7 +53,6 @@ const schoolFeaturesSlice = createSlice({
                 state.currentPeriodEnd = action.payload.currentPeriodEnd || null;
                 state.features = action.payload.features || {};
                 state.pageAccess = action.payload.pageAccess || null;
-                state.pageAccessError = null;
                 state.featureMetadata = action.payload.featureMetadata || {};
                 state.limits = action.payload.limits || null;
                 state.usage = action.payload.usage || null;
@@ -74,13 +60,6 @@ const schoolFeaturesSlice = createSlice({
             .addCase(fetchSchoolFeatures.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload || 'Failed to fetch school features';
-            })
-            .addCase(fetchSchoolPageAccess.fulfilled, (state, action) => {
-                state.pageAccess = action.payload;
-                state.pageAccessError = null;
-            })
-            .addCase(fetchSchoolPageAccess.rejected, (state, action) => {
-                state.pageAccessError = action.payload || 'Failed to fetch school page access';
             })
             .addCase(logout, () => initialState);
     }
@@ -96,7 +75,6 @@ export const selectSubscriptionTrialEndsAt = (state) => state.schoolFeatures.tri
 export const selectSubscriptionCurrentPeriodEnd = (state) => state.schoolFeatures.currentPeriodEnd;
 export const selectSchoolFeatures = (state) => state.schoolFeatures.features || {};
 export const selectSchoolPageAccess = (state) => state.schoolFeatures.pageAccess;
-export const selectSchoolPageAccessError = (state) => state.schoolFeatures.pageAccessError;
 export const selectFeatureMetadataMap = (state) => state.schoolFeatures.featureMetadata || {};
 export const selectFeatureMetadata = (state, featureKey) =>
     state.schoolFeatures.featureMetadata?.[featureKey] || null;
