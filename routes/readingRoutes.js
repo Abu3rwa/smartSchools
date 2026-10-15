@@ -16,6 +16,8 @@ import {
   createAssignment,
   myAssignments,
   getTeacherAssignments,
+  importReadingCsv,
+  updateReadingSharing,
 } from '../controllers/readingController.js';
 
 const router = express.Router();
@@ -26,7 +28,9 @@ router.use(requireFeature('readingAssistant'));
 
 // Teacher/Admin: upload and manage texts
 router.post('/upload-text', authorize('teacher', 'admin'), aiFeatureRateLimiter, uploadText);
+router.post('/import-csv', authorize('teacher', 'admin'), importReadingCsv);
 router.get('/texts', authorize('teacher', 'admin'), getTexts);
+router.patch('/texts/:textId/sharing', authorize('teacher', 'admin'), updateReadingSharing);
 router.get('/texts/:textId', authorize('teacher', 'admin'), getTextById);
 
 // Teacher/Admin: assign text to class or students

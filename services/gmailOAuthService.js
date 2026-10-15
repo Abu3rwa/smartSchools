@@ -1,8 +1,11 @@
 import { google } from 'googleapis';
 import User from '../models/User.js';
+import GmailAppSentMessage from '../models/GmailAppSentMessage.js';
 import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
 import { getPlatformBranding } from './platformBrandingService.js';
+
+export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
 class GmailOAuthService {
     constructor() {
@@ -31,7 +34,7 @@ class GmailOAuthService {
      * @param {string} state - State to pass through (userId or 'login')
      * @returns {string} Authorization URL
      */
-    getAuthUrl(state = 'login') {
+    getAuthUrl(state = 'login', { includeModifyScope = false } = {}) {
         if (!this.oauth2Client) {
             throw new Error('Google OAuth not configured');
         }
@@ -41,6 +44,7 @@ class GmailOAuthService {
             'https://www.googleapis.com/auth/userinfo.email',
             'https://www.googleapis.com/auth/userinfo.profile'
         ];
+        if (includeModifyScope) scopes.push(GMAIL_MODIFY_SCOPE);
 
         // Use the Google login callback for login flow
         const redirectUri = state === 'login'
@@ -57,6 +61,7 @@ class GmailOAuthService {
         return oauth2Client.generateAuthUrl({
             access_type: 'offline',
             scope: scopes,
+            include_granted_scopes: true,
             prompt: 'consent', // Force consent to always get refresh token
             state: state
         });
@@ -282,11 +287,7 @@ class GmailOAuthService {
             });
 
             const result = await this.sendViaGmailApi(oauth2Client, from, to, mailOptions);
-            return {
-                messageId: result.data.id,
-                threadId: result.data.threadId,
-                raw: result.data
-            };
+            return this.toSendResult(result, userId, user.gmailTokens.email);
         } catch (error) {
             logger.error('Send attempt 1 failed:', error.message);
 
@@ -317,15 +318,86 @@ class GmailOAuthService {
                 });
 
                 const result = await this.sendViaGmailApi(oauth2Client, from, to, mailOptions);
-                return {
-                    messageId: result.data.id,
-                    threadId: result.data.threadId,
-                    raw: result.data
-                };
+                return this.toSendResult(result, userId, user.gmailTokens.email);
             }
 
             throw error;
         }
+    }
+
+    async toSendResult(result, userId, accountEmail) {
+        const sendResult = {
+            messageId: result.data.id,
+            threadId: result.data.threadId,
+            raw: result.data
+        };
+        try {
+            if (accountEmail && sendResult.messageId) {
+                await GmailAppSentMessage.updateOne(
+                    { user: userId, messageId: sendResult.messageId },
+                    {
+                        $setOnInsert: {
+                            user: userId,
+                            accountEmail,
+                            messageId: sendResult.messageId,
+                            threadId: sendResult.threadId || '',
+                            sentAt: new Date()
+                        }
+                    },
+                    { upsert: true }
+                );
+            } else if (sendResult.messageId) {
+                logger.error('Unable to index Gmail message for app-only cleanup because the sending account was unavailable', {
+                    userId: String(userId),
+                    messageId: sendResult.messageId
+                });
+            }
+        } catch (error) {
+            logger.error('Failed to index Gmail message for app-only cleanup', {
+                userId: String(userId),
+                messageId: sendResult.messageId,
+                error: error.message
+            });
+        }
+        return sendResult;
+    }
+
+    async getAuthorizedGmailClient(userId, { requireModify = false } = {}) {
+        let user;
+        try {
+            user = await this.refreshTokenIfNeeded(userId, false);
+        } catch (error) {
+            const reason = error?.response?.data?.error || error?.message || '';
+            if (/invalid_grant/i.test(reason)) {
+                error.statusCode = 401;
+                error.code = 'GMAIL_REAUTH_REQUIRED';
+                error.message = 'Gmail access expired or was revoked. Reconnect the Gmail account to continue.';
+            }
+            throw error;
+        }
+        if (
+            requireModify &&
+            !user.gmailTokens?.grantedScopes?.includes(GMAIL_MODIFY_SCOPE)
+        ) {
+            const error = new Error('Gmail cleanup permission is required. Reconnect Gmail and allow mailbox management.');
+            error.code = 'GMAIL_MODIFY_SCOPE_REQUIRED';
+            throw error;
+        }
+
+        const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET,
+            process.env.GOOGLE_LOGIN_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback'
+        );
+        oauth2Client.setCredentials({
+            access_token: user.gmailTokens.accessToken,
+            refresh_token: user.gmailTokens.refreshToken
+        });
+
+        return {
+            gmail: google.gmail({ version: 'v1', auth: oauth2Client }),
+            accountEmail: user.gmailTokens.email
+        };
     }
 
     /**
@@ -354,7 +426,8 @@ class GmailOAuthService {
             return {
                 connected: false,
                 email: null,
-                expiresAt: null
+                expiresAt: null,
+                grantedScopes: []
             };
         }
 
@@ -362,7 +435,8 @@ class GmailOAuthService {
             connected: true,
             email: user.gmailTokens.email,
             expiresAt: user.gmailTokens.expiryDate,
-            needsRefresh: user.gmailTokenNeedsRefresh()
+            needsRefresh: user.gmailTokenNeedsRefresh(),
+            grantedScopes: user.gmailTokens.grantedScopes || []
         };
     }
 

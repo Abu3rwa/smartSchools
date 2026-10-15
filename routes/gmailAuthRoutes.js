@@ -16,9 +16,11 @@ const signStatePayload = (encodedPayload) => {
     return crypto.createHmac('sha256', OAUTH_STATE_SECRET).update(encodedPayload).digest('base64url');
 };
 
-const buildSignedState = (userId) => {
+const buildSignedState = (userId, returnTo = 'settings', cleanupAccess = false) => {
     const payload = {
         userId,
+        returnTo: returnTo === 'notifications' ? 'notifications' : 'settings',
+        cleanupAccess,
         nonce: crypto.randomBytes(16).toString('hex'),
         exp: Date.now() + OAUTH_STATE_TTL_MS
     };
@@ -65,8 +67,10 @@ const parseSignedState = (state) => {
  */
 router.get('/url', protect, async (req, res) => {
     try {
-        const state = buildSignedState(req.user._id.toString());
-        const authUrl = gmailOAuthService.getAuthUrl(state);
+        const cleanupAccess = req.query.cleanup === 'true';
+        const returnTo = req.query.returnTo === 'notifications' ? 'notifications' : 'settings';
+        const state = buildSignedState(req.user._id.toString(), returnTo, cleanupAccess);
+        const authUrl = gmailOAuthService.getAuthUrl(state, { includeModifyScope: cleanupAccess });
 
         res.json({
             success: true,
@@ -87,33 +91,48 @@ router.get('/url', protect, async (req, res) => {
  * @access  Public (state contains user ID)
  */
 router.get('/callback', async (req, res) => {
+    let redirectPath = '/settings';
+    let cleanupAccess = false;
     try {
         const { code, state, error } = req.query;
+        const parsedState = parseSignedState(state);
+        redirectPath = parsedState?.returnTo === 'notifications' ? '/portal/notifications' : '/settings';
+        cleanupAccess = Boolean(parsedState?.cleanupAccess);
 
         if (error) {
-            return res.redirect(`${process.env.CLIENT_URL}/settings?gmail_error=${encodeURIComponent(error)}`);
+            const queryKey = parsedState?.cleanupAccess ? 'gmail_cleanup_error' : 'gmail_error';
+            return res.redirect(`${process.env.CLIENT_URL}${redirectPath}?${queryKey}=${encodeURIComponent(error)}`);
         }
 
         if (!code || !state) {
-            return res.redirect(`${process.env.CLIENT_URL}/settings?gmail_error=missing_parameters`);
+            const queryKey = cleanupAccess ? 'gmail_cleanup_error' : 'gmail_error';
+            const query = cleanupAccess ? `?tab=gmail-cleanup&${queryKey}=missing_parameters` : `?${queryKey}=missing_parameters`;
+            return res.redirect(`${process.env.CLIENT_URL}${redirectPath}${query}`);
         }
 
-        const parsedState = parseSignedState(state);
         if (!parsedState?.userId) {
             return res.redirect(`${process.env.CLIENT_URL}/settings?gmail_error=invalid_state`);
         }
 
         // Exchange code for tokens
-        const tokens = await gmailOAuthService.exchangeCodeForTokens(code);
+        const tokens = await gmailOAuthService.exchangeCodeForTokens(code, false);
+        const grantedScopes = String(tokens.scope || '').split(/\s+/);
+        if (parsedState.cleanupAccess && !grantedScopes.includes('https://www.googleapis.com/auth/gmail.modify')) {
+            return res.redirect(`${process.env.CLIENT_URL}${redirectPath}?tab=gmail-cleanup&gmail_cleanup_error=missing_scope`);
+        }
 
         // Store tokens for user
         await gmailOAuthService.storeTokens(parsedState.userId, tokens);
 
         // Redirect back to client with success
-        res.redirect(`${process.env.CLIENT_URL}/settings?gmail_connected=true`);
+        const queryKey = parsedState.cleanupAccess ? 'gmail_cleanup_connected' : 'gmail_connected';
+        const query = parsedState.cleanupAccess ? `?tab=gmail-cleanup&${queryKey}=true` : `?${queryKey}=true`;
+        res.redirect(`${process.env.CLIENT_URL}${redirectPath}${query}`);
     } catch (error) {
         logger.error('Gmail OAuth callback error:', error);
-        res.redirect(`${process.env.CLIENT_URL}/settings?gmail_error=${encodeURIComponent(error.message)}`);
+        const queryKey = cleanupAccess ? 'gmail_cleanup_error' : 'gmail_error';
+        const query = cleanupAccess ? `?tab=gmail-cleanup&${queryKey}=` : `?${queryKey}=`;
+        res.redirect(`${process.env.CLIENT_URL}${redirectPath}${query}${encodeURIComponent(error.message)}`);
     }
 });
 

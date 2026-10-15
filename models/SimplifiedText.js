@@ -4,6 +4,8 @@ import { tenantIsolationPlugin } from '../middleware/tenantIsolation.js';
 const simplifiedTextSchema = new mongoose.Schema(
   {
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    isShared: { type: Boolean, default: false },
     title: { type: String, trim: true, required: true },
     originalText: { type: String, required: true },
     sourceDocument: { type: String, trim: true },
@@ -17,6 +19,7 @@ const simplifiedTextSchema = new mongoose.Schema(
       {
         question: { type: String, trim: true, required: true },
         prompt: { type: String, trim: true },
+        type: { type: String, enum: ["short_answer"], default: "short_answer" },
         order: { type: Number, default: 0 },
       },
     ],
@@ -24,8 +27,9 @@ const simplifiedTextSchema = new mongoose.Schema(
     comprehensionQuestions: [
       {
         question: { type: String, trim: true, required: true },
+        type: { type: String, enum: ["multiple_choice", "true_false"], default: "multiple_choice" },
         options: [{ type: String, trim: true }],
-        correctIndex: { type: Number, required: true },
+        correctIndex: { type: Number, min: 0 },
         order: { type: Number, default: 0 },
       },
     ],

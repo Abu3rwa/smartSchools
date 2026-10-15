@@ -421,6 +421,8 @@ export async function uploadText(schoolId, payload, options = {}) {
 
   const doc = {
     school: schoolId,
+    createdBy: usageTracking?.userId,
+    isShared: payload.isShared === true,
     title: title.trim(),
     originalText: originalText.trim(),
     sourceDocument: sourceDocument?.trim(),
@@ -622,6 +624,28 @@ export async function updateProgress(
   assignmentId = null,
   academicYear = null
 ) {
+  let assignment;
+  if (assignmentId) {
+    const assignmentQuery = {
+      _id: assignmentId,
+      school: schoolId,
+      students: studentId,
+      isActive: true,
+    };
+    if (academicYear) {
+      assignmentQuery.academicYear = academicYear;
+    }
+    assignment = await ReadingAssignment.findOne(assignmentQuery).select("_id text");
+    if (!assignment) {
+      const error = new Error("Assignment not found for current academic year");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (String(assignment.text) !== String(textId)) {
+      throw Object.assign(new Error("Assignment does not match this reading."), { statusCode: 400 });
+    }
+  }
+
   const accuracy = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
 
   const profile = await StudentReadingProfile.findOneAndUpdate(
@@ -639,22 +663,6 @@ export async function updateProgress(
   );
 
   if (assignmentId) {
-    const assignmentQuery = {
-      _id: assignmentId,
-      school: schoolId,
-      students: studentId,
-      isActive: true,
-    };
-    if (academicYear) {
-      assignmentQuery.academicYear = academicYear;
-    }
-    const assignment = await ReadingAssignment.findOne(assignmentQuery).select("_id text");
-    if (!assignment) {
-      const error = new Error("Assignment not found for current academic year");
-      error.statusCode = 404;
-      throw error;
-    }
-
     await ReadingCompletion.findOneAndUpdate(
       { school: schoolId, student: studentId, assignment: assignmentId },
       {
@@ -755,13 +763,13 @@ export async function createAssignment(
   payload,
   assignedByUserId,
   academicYear = null,
-  schoolStartMonth = null
+  schoolStartMonth = null,
+  isAdmin = false
 ) {
   const { textId, classId, studentIds, dueDate, instructions } = payload;
 
   if (!textId) throw new Error("textId is required");
-  const text = await SimplifiedText.findById(textId);
-  if (!text) throw new Error("Text not found");
+  const text = await getTextById(textId, schoolId, assignedByUserId, isAdmin);
 
   let students = [];
   if (studentIds?.length) {
@@ -862,22 +870,130 @@ export async function getAssignmentsForStudent(studentId, schoolId, academicYear
  */
 export async function getTexts(schoolId, filters = {}) {
   const query = { school: schoolId };
+  if (filters.userId && !filters.isAdmin) {
+    query.$or = [
+      { createdBy: filters.userId },
+      { isShared: true },
+      { createdBy: null },
+    ];
+  }
   if (filters.subjectArea) query.subjectArea = filters.subjectArea;
   const list = await SimplifiedText.find(query)
     .select(
-      "title subjectArea originalComplexity topicTags createdAt simplifiedVersions.targetLevel"
+      "title subjectArea originalComplexity topicTags createdAt simplifiedVersions.targetLevel createdBy isShared"
     )
+    .populate("createdBy", "firstName lastName")
     .sort({ createdAt: -1 })
     .lean();
   return list;
 }
 
+export async function createReadingFromCsv(schoolId, userId, payload) {
+  const title = String(payload?.title || "").trim();
+  const originalText = String(payload?.originalText || "").replace(/^(?:\r\n|\r|\n)+|(?:\r\n|\r|\n)+$/g, "");
+  if (!title || title.length > 200 || !originalText.trim() || originalText.length > 200000) {
+    throw Object.assign(new Error("A title (up to 200 characters) and passage (up to 200,000 characters) are required."), { statusCode: 400 });
+  }
+
+  const questions = Array.isArray(payload.questions) ? payload.questions : [];
+  if (questions.length > 30) {
+    throw Object.assign(new Error("A reading can include no more than 30 questions."), { statusCode: 400 });
+  }
+
+  const comprehensionQuestions = [];
+  const criticalThinkingQuestions = [];
+  for (const [index, item] of questions.entries()) {
+    const question = String(item?.question || "").trim();
+    const type = String(item?.type || "").trim();
+    if (!question || question.length > 2000) {
+      throw Object.assign(new Error(`Question ${index + 1} must contain up to 2,000 characters.`), { statusCode: 400 });
+    }
+    const order = Number.isInteger(Number(item.order)) && Number(item.order) > 0
+      ? Number(item.order)
+      : index + 1;
+    if (type === "short_answer") {
+      criticalThinkingQuestions.push({
+        question,
+        prompt: String(item.prompt || "").trim().slice(0, 2000),
+        type,
+        order,
+      });
+      continue;
+    }
+
+    let options;
+    let correctIndex = Number(item.correctIndex);
+    if (type === "true_false") {
+      if (![true, false, "true", "false"].includes(item.correctAnswer)) {
+        throw Object.assign(new Error(`True/false question ${index + 1} must identify True or False as the correct answer.`), { statusCode: 400 });
+      }
+      options = ["True", "False"];
+      correctIndex = item.correctAnswer === true || item.correctAnswer === "true" ? 0 : 1;
+    } else if (type === "multiple_choice") {
+      options = Array.isArray(item.options)
+        ? item.options.map((option) => String(option || "").trim())
+        : [];
+      if (options.length < 2 || options.length > 6 || options.some((option) => !option || option.length > 500)) {
+        throw Object.assign(new Error(`Multiple-choice question ${index + 1} must have 2 to 6 non-empty options (up to 500 characters each).`), { statusCode: 400 });
+      }
+      if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= options.length) {
+        throw Object.assign(new Error(`Multiple-choice question ${index + 1} must identify a valid correct option.`), { statusCode: 400 });
+      }
+    } else {
+      throw Object.assign(new Error(`Question ${index + 1} has an unsupported question type.`), { statusCode: 400 });
+    }
+    comprehensionQuestions.push({ question, type, options, correctIndex, order });
+  }
+
+  const doc = await SimplifiedText.create({
+    school: schoolId,
+    createdBy: userId,
+    isShared: payload.isShared === true,
+    title,
+    originalText,
+    sourceDocument: String(payload.sourceDocument || "").trim().slice(0, 200),
+    subjectArea: String(payload.subjectArea || "").trim().slice(0, 100),
+    topicTags: Array.isArray(payload.topicTags)
+      ? [...new Set(payload.topicTags.map((tag) => String(tag || "").trim()).filter(Boolean))].slice(0, 20)
+      : [],
+    language: String(payload.language || "en").trim().toLowerCase().slice(0, 20),
+    requestedLanguages: [String(payload.language || "en").trim().toLowerCase().slice(0, 20)],
+    originalComplexity: computeReadability(originalText),
+    simplifiedVersions: [],
+    criticalThinkingQuestions,
+    comprehensionQuestions,
+  });
+  return doc;
+}
+
 /**
  * Get single text by id (for teacher).
  */
-export async function getTextById(textId, schoolId) {
-  const text = await SimplifiedText.findOne({ _id: textId, school: schoolId });
+export async function getTextById(textId, schoolId, userId, isAdmin = false) {
+  const query = { _id: textId, school: schoolId };
+  if (userId && !isAdmin) {
+    query.$or = [
+      { createdBy: userId },
+      { isShared: true },
+      { createdBy: null },
+    ];
+  }
+  const text = await SimplifiedText.findOne(query);
   if (!text) throw new Error("Text not found");
+  return text;
+}
+
+export async function updateTextSharing(textId, schoolId, userId, isAdmin, isShared) {
+  if (typeof isShared !== "boolean") {
+    throw Object.assign(new Error("isShared must be true or false."), { statusCode: 400 });
+  }
+  const text = await SimplifiedText.findOne({ _id: textId, school: schoolId });
+  if (!text) throw Object.assign(new Error("Text not found"), { statusCode: 404 });
+  if (!isAdmin && String(text.createdBy || "") !== String(userId)) {
+    throw Object.assign(new Error("Only the reading owner or a school admin can change sharing."), { statusCode: 403 });
+  }
+  text.isShared = isShared;
+  await text.save();
   return text;
 }
 

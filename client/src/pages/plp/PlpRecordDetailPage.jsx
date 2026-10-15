@@ -1,13 +1,13 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
     fetchPlpRecord, updatePlpRecord, deletePlpRecord, submitPlpRecord, unlockPlpRecord,
     fetchPlpCycles, selectPlpCycles,
     fetchPlpEvidence, createPlpEvidence, updatePlpEvidence, deletePlpEvidence,
-    fetchPlpGoals, createPlpGoal, updatePlpGoal, deletePlpGoal,
+    fetchPlpGoals, createPlpGoal, updatePlpGoal, reviewPlpGoal, deletePlpGoal,
     fetchPlpActivities, createPlpActivity, updatePlpActivity, deletePlpActivity,
-    fetchPlpTasks, createPlpTask, updatePlpTask, deletePlpTask, reviewPlpTask,
+    fetchPlpTasks, createPlpTask, updatePlpTask, deletePlpTask, reviewPlpTask, retryPlpTaskNotification,
     fetchPlpRecordInteractions, addSupervisorNote,
     selectSelectedPlpRecord, selectPlpEvidence, selectPlpLoading, selectPlpError, clearPlpError,
     selectPlpGoals, selectPlpActivities, selectPlpTasks, selectPlpInteractions,
@@ -15,6 +15,9 @@ import {
 import { selectUser } from '../../store/slices/authSlice';
 import toast from 'react-hot-toast';
 import api from '../../config/api';
+import PlpCopyGoalModal from './PlpCopyGoalModal';
+import PlpProgressEmailPanel from './PlpProgressEmailPanel';
+import { formatPlpDate } from './plpDateUtils';
 import './PLP.css';
 
 const EVIDENCE_TYPES = ['observation', 'incident', 'positive_example', 'reflection'];
@@ -67,6 +70,7 @@ function ActivityGroups({ activities, canWrite, onEdit, onDelete, onAssign }) {
 export default function PlpRecordDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const dispatch = useDispatch();
     const user = useSelector(selectUser);
     const record = useSelector(selectSelectedPlpRecord);
@@ -86,7 +90,7 @@ export default function PlpRecordDetailPage() {
     const [showEvidenceForm, setShowEvidenceForm] = useState(false);
     const [evForm, setEvForm] = useState({ type: 'observation', note: '', taggedTraits: [], traitId: '' });
     const [showGoalForm, setShowGoalForm] = useState(false);
-    const [goalForm, setGoalForm] = useState({ goalType: 'character', title: '', description: '', successCriteria: '', targetDate: '' });
+    const [goalForm, setGoalForm] = useState({ goalType: 'character', title: '', description: '', successCriteria: '', targetDate: '', checkInDate: '', milestonesText: '' });
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [taskForm, setTaskForm] = useState({ title: '', instructions: '', dueDate: '' });
     const [selectedActivityId, setSelectedActivityId] = useState('');
@@ -101,7 +105,12 @@ export default function PlpRecordDetailPage() {
     const [editingEvidenceId, setEditingEvidenceId] = useState('');
     const [editEvidenceNote, setEditEvidenceNote] = useState('');
     const [taskFeedbackDrafts, setTaskFeedbackDrafts] = useState({});
+    const [copyingGoal, setCopyingGoal] = useState(null);
+    const [reviewingGoalId, setReviewingGoalId] = useState('');
+    const [goalReviewDraft, setGoalReviewDraft] = useState({ outcome: 'continue', reviewNote: '', checkInDate: '' });
     const activeGoalType = activeTab === 'academic' ? 'academic' : 'character';
+    const reviewGoalId = searchParams.get('goalId');
+    const reviewTaskId = searchParams.get('taskId');
     const visibleGoals = useMemo(
         () => goals.filter((goal) => goal.goalType === activeGoalType),
         [goals, activeGoalType]
@@ -132,16 +141,35 @@ export default function PlpRecordDetailPage() {
     }, [visibleGoals, selectedGoalId]);
 
     useEffect(() => {
+        if (!reviewGoalId) return;
+        const goal = goals.find((item) => String(item._id) === reviewGoalId);
+        if (!goal) return;
+        setActiveTab(goal.goalType === 'academic' ? 'academic' : 'character');
+        setSelectedGoalId(goal._id);
+        setReviewingGoalId(goal._id);
+        setGoalReviewDraft({
+            outcome: 'continue',
+            reviewNote: '',
+            checkInDate: goal.checkInDate ? new Date(goal.checkInDate).toISOString().slice(0, 10) : '',
+        });
+    }, [goals, reviewGoalId]);
+
+    useEffect(() => {
         if (selectedGoalId) {
             dispatch(fetchPlpTasks(selectedGoalId));
         }
     }, [dispatch, selectedGoalId]);
 
     useEffect(() => {
+        if (!reviewTaskId || !tasks.some((task) => String(task._id) === reviewTaskId)) return;
+        document.getElementById(`plp-task-${reviewTaskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, [reviewTaskId, tasks]);
+
+    useEffect(() => {
         if (error) { toast.error(error); dispatch(clearPlpError()); }
     }, [error, dispatch]);
 
-    const loadTraitScoreSuggestions = async () => {
+    const loadTraitScoreSuggestions = useCallback(async () => {
         setLoadingTraitSuggestions(true);
         try {
             const response = await api.get(`/plp/records/${id}/trait-score-suggestions`);
@@ -161,13 +189,22 @@ export default function PlpRecordDetailPage() {
         } finally {
             setLoadingTraitSuggestions(false);
         }
+    }, [id]);
+
+    const openGoalReview = (goal) => {
+        setReviewingGoalId(reviewingGoalId === goal._id ? '' : goal._id);
+        setGoalReviewDraft({
+            outcome: 'continue',
+            reviewNote: '',
+            checkInDate: goal.checkInDate ? new Date(goal.checkInDate).toISOString().slice(0, 10) : '',
+        });
     };
 
     useEffect(() => {
         if (record?._id) {
             loadTraitScoreSuggestions();
         }
-    }, [record?._id, id]);
+    }, [record?._id, loadTraitScoreSuggestions]);
 
     const groupedTraitSuggestions = useMemo(() => {
         return traitSuggestionRows.reduce((acc, row) => {
@@ -329,10 +366,12 @@ export default function PlpRecordDetailPage() {
             ...goalForm,
             goalType: activeGoalType,
             targetDate: goalForm.targetDate || null,
+            checkInDate: goalForm.checkInDate || null,
+            milestones: goalForm.milestonesText.split('\n').map((title) => title.trim()).filter(Boolean).map((title) => ({ title })),
         };
         const r = await dispatch(createPlpGoal({ recordId: id, data: payload }));
         if (!r.error) {
-            setGoalForm({ goalType: activeGoalType, title: '', description: '', successCriteria: '', targetDate: '' });
+            setGoalForm({ goalType: activeGoalType, title: '', description: '', successCriteria: '', targetDate: '', checkInDate: '', milestonesText: '' });
             setShowGoalForm(false);
             dispatch(fetchPlpGoals(id));
             toast.success('Goal created');
@@ -355,6 +394,36 @@ export default function PlpRecordDetailPage() {
             toast.success('Goal progress note saved');
         } else {
             toast.error(r.payload || 'Failed to save goal progress note');
+        }
+    };
+
+    const updateGoalMilestone = async (goal, milestoneIndex, status) => {
+        const milestones = goal.milestones.map((milestone, index) => (
+            index === milestoneIndex ? { ...milestone, status } : milestone
+        ));
+        const r = await dispatch(updatePlpGoal({ goalId: goal._id, data: { milestones } }));
+        if (!r.error) {
+            dispatch(fetchPlpGoals(id));
+            toast.success('Milestone updated');
+        } else {
+            toast.error(r.payload || 'Failed to update milestone');
+        }
+    };
+
+    const submitGoalReview = async (goalId) => {
+        const r = await dispatch(reviewPlpGoal({ goalId, data: goalReviewDraft }));
+        if (!r.error) {
+            setReviewingGoalId('');
+            setGoalReviewDraft({ outcome: 'continue', reviewNote: '', checkInDate: '' });
+            setSearchParams((params) => {
+                params.delete('goalId');
+                return params;
+            }, { replace: true });
+            dispatch(fetchPlpGoals(id));
+            dispatch(fetchPlpRecordInteractions(id));
+            toast.success('Goal review saved');
+        } else {
+            toast.error(r.payload || 'Failed to save goal review');
         }
     };
 
@@ -434,7 +503,11 @@ export default function PlpRecordDetailPage() {
             setSelectedActivityId('');
             dispatch(fetchPlpTasks(selectedGoalId));
             dispatch(fetchPlpRecordInteractions(id));
-            toast.success('Task assigned');
+            if (r.payload?.notificationWarning) {
+                toast.error(`Task assigned, but the student notification failed: ${r.payload.notificationWarning}`);
+            } else {
+                toast.success('Task assigned');
+            }
         }
     };
 
@@ -490,10 +563,24 @@ export default function PlpRecordDetailPage() {
         if (!r.error) {
             dispatch(fetchPlpTasks(selectedGoalId));
             dispatch(fetchPlpRecordInteractions(id));
-            toast.success('Task reviewed');
+            if (r.payload?.notificationWarning) {
+                toast.error(`Task reviewed, but the student notification failed: ${r.payload.notificationWarning}`);
+            } else {
+                toast.success('Task reviewed');
+            }
         } else {
             toast.error(r.payload || 'Failed to review task');
         }
+    };
+
+    const retryTaskNotificationHandler = async (taskId) => {
+        const result = await dispatch(retryPlpTaskNotification(taskId));
+        if (result.error) {
+            toast.error(result.payload || 'Failed to retry notification');
+            return;
+        }
+        await dispatch(fetchPlpTasks(selectedGoalId));
+        toast.success('Student notification queued');
     };
 
     const submitSupervisorNote = async () => {
@@ -741,6 +828,14 @@ export default function PlpRecordDetailPage() {
                             <label>Target Date</label>
                             <input type="date" value={goalForm.targetDate} onChange={(e) => setGoalForm({ ...goalForm, targetDate: e.target.value })} />
                         </div>
+                        <div className="plp-form-group">
+                            <label>Check-in Date</label>
+                            <input type="date" value={goalForm.checkInDate} onChange={(e) => setGoalForm({ ...goalForm, checkInDate: e.target.value })} />
+                        </div>
+                        <div className="plp-form-group">
+                            <label>Milestones (one per line, up to 10)</label>
+                            <textarea value={goalForm.milestonesText} onChange={(e) => setGoalForm({ ...goalForm, milestonesText: e.target.value })} />
+                        </div>
                         <button className="btn btn-primary btn-sm" onClick={createGoalHandler}>Create Goal</button>
                     </div>
                 )}
@@ -752,6 +847,29 @@ export default function PlpRecordDetailPage() {
                                 <div>
                                     <strong>{goal.title}</strong>
                                     <div className="plp-evidence-meta">{goal.goalType} · status: {goal.status}</div>
+                                    {goal.checkInDate && <div className="plp-evidence-meta">Check-in: {formatPlpDate(goal.checkInDate)}</div>}
+                                    {goal.milestones?.length > 0 && (
+                                        <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                                            {goal.milestones.map((milestone, index) => (
+                                                <li key={`${milestone.title}-${index}`}>
+                                                    {milestone.title} · {canWrite ? (
+                                                        <select
+                                                            aria-label={`Status for milestone ${milestone.title}`}
+                                                            value={milestone.status}
+                                                            onChange={(event) => updateGoalMilestone(goal, index, event.target.value)}
+                                                        >
+                                                            <option value="pending">pending</option>
+                                                            <option value="achieved">achieved</option>
+                                                            <option value="adjusted">adjusted</option>
+                                                        </select>
+                                                    ) : milestone.status}
+                                                    {milestone.targetDate && ` · due ${formatPlpDate(milestone.targetDate)}`}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                    {goal.reviewOutcome && <div className="plp-evidence-meta">Last review: {goal.reviewOutcome}{goal.lastReviewedAt ? ` · ${new Date(goal.lastReviewedAt).toLocaleDateString()}` : ''}</div>}
+                                    {goal.reviewNote && <p style={{ margin: '5px 0 0' }}>Review note: {goal.reviewNote}</p>}
                                 </div>
                                 {canWrite && (
                                     <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
@@ -761,10 +879,41 @@ export default function PlpRecordDetailPage() {
                                             <option value="carried_forward">carried_forward</option>
                                             <option value="archived">archived</option>
                                         </select>
+                                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCopyingGoal(goal)} disabled={record.status !== 'in_progress'}>
+                                            Copy plan
+                                        </button>
+                                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => openGoalReview(goal)}>
+                                            Review
+                                        </button>
                                         <button className="btn btn-secondary btn-sm" onClick={() => removeGoal(goal)}>Delete</button>
                                     </div>
                                 )}
                             </div>
+                            {canWrite && reviewingGoalId === goal._id && (
+                                <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                                    <label>
+                                        Review outcome
+                                        <select value={goalReviewDraft.outcome} onChange={(event) => setGoalReviewDraft({ ...goalReviewDraft, outcome: event.target.value })}>
+                                            <option value="continue">Continue</option>
+                                            <option value="revise">Revise</option>
+                                            <option value="complete">Complete</option>
+                                        </select>
+                                    </label>
+                                    <label>
+                                        Internal teacher review note
+                                        <textarea value={goalReviewDraft.reviewNote} onChange={(event) => setGoalReviewDraft({ ...goalReviewDraft, reviewNote: event.target.value })} maxLength={2000} />
+                                    </label>
+                                    <label>
+                                        Next check-in date
+                                        <input
+                                            type="date"
+                                            value={goalReviewDraft.checkInDate}
+                                            onChange={(event) => setGoalReviewDraft({ ...goalReviewDraft, checkInDate: event.target.value })}
+                                        />
+                                    </label>
+                                    <div><button type="button" className="btn btn-primary btn-sm" onClick={() => submitGoalReview(goal._id)}>Save Review</button></div>
+                                </div>
+                            )}
                             {canWrite && (
                                 <div style={{ marginTop: 10 }}>
                                     <label className="plp-form-group" style={{ display: 'block', marginBottom: 6 }}>
@@ -817,18 +966,33 @@ export default function PlpRecordDetailPage() {
 
                 <div style={{ display: 'grid', gap: 10 }}>
                     {tasks.map((task) => (
-                        <div key={task._id} className="plp-evidence-item">
+                        <div
+                            key={task._id}
+                            id={`plp-task-${task._id}`}
+                            className="plp-evidence-item"
+                            style={String(task._id) === reviewTaskId ? { border: '2px solid var(--primary-color, #3867d6)' } : undefined}
+                        >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                                 <div>
                                     <strong>{task.title}</strong>
                                     <div className="plp-evidence-meta">
                                         status: {task.status}
-                                        {task.dueDate ? ` · due ${new Date(task.dueDate).toLocaleDateString()}` : ''}
+                                        {task.dueDate ? ` · due ${formatPlpDate(task.dueDate)}` : ''}
                                     </div>
                                     {task.instructions && <p style={{ margin: '4px 0 0' }}>{task.instructions}</p>}
                                     {task.studentCompletionNote && <p style={{ margin: '6px 0 0' }}><strong>Student note:</strong> {task.studentCompletionNote}</p>}
                                     {task.studentComment && <p style={{ margin: '4px 0 0' }}><strong>Student comment:</strong> {task.studentComment}</p>}
                                     {task.teacherFeedback && <p style={{ margin: '4px 0 0' }}><strong>Teacher feedback:</strong> {task.teacherFeedback}</p>}
+                                    {canWrite && task.notificationStatus === 'failed' && (
+                                        <div role="status" style={{ marginTop: 8 }}>
+                                            <p style={{ margin: '0 0 6px', color: 'var(--danger, #b42318)' }}>
+                                                Student notification failed: {task.notificationError || 'Delivery could not be queued.'}
+                                            </p>
+                                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => retryTaskNotificationHandler(task._id)}>
+                                                Retry notification
+                                            </button>
+                                        </div>
+                                    )}
                                     {canWrite && (
                                         <label className="plp-form-group" style={{ display: 'block', marginTop: 8, marginBottom: 0 }}>
                                             <span>Teacher comment</span>
@@ -1005,6 +1169,14 @@ export default function PlpRecordDetailPage() {
             </div>
                 </>
             )}
+            {copyingGoal && canWrite && (
+                <PlpCopyGoalModal
+                    goal={copyingGoal}
+                    onClose={() => setCopyingGoal(null)}
+                    onCopied={() => dispatch(fetchPlpGoals(id))}
+                />
+            )}
+            {canWrite && record && <PlpProgressEmailPanel recordId={record._id} />}
         </div>
     );
 }

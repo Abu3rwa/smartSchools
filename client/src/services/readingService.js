@@ -3,12 +3,14 @@ import api from '../config/api.js';
 export const readingService = {
   // Teacher: upload text
   uploadText: (body) => api.post('/reading/upload-text', body),
+  importCsv: (body) => api.post('/reading/import-csv', body),
 
   // Teacher: list texts
   getTexts: (params) => api.get('/reading/texts', { params }),
 
   // Teacher: get single text
   getTextById: (textId) => api.get(`/reading/texts/${textId}`),
+  updateTextSharing: (textId, isShared) => api.patch(`/reading/texts/${textId}/sharing`, { isShared }),
 
   // Teacher: create assignment
   createAssignment: (body) => api.post('/reading/assign', body),
@@ -20,7 +22,9 @@ export const readingService = {
   getMyAssignments: () => api.get('/reading/assignments'),
 
   // Student: get simplified text
-  getSimplified: (textId) => api.get(`/reading/simplify/${textId}`),
+  getSimplified: (textId, assignmentId) => api.get(`/reading/simplify/${textId}`, {
+    params: { assignmentId },
+  }),
 
   // Teacher: get simplified for a student
   getSimplifiedForStudent: (textId, studentId) =>

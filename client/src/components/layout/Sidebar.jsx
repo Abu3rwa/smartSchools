@@ -77,7 +77,8 @@ import {
   HiOutlineUserGroup,
   HiOutlineBriefcase,
   HiOutlineSparkles as HiOutlinePLP,
-} from "react-icons/hi2";import "./Sidebar.css";
+} from "react-icons/hi2";
+import "./Sidebar.css";
 
 const Sidebar = () => {
   const dispatch = useDispatch();
@@ -483,7 +484,10 @@ const Sidebar = () => {
       icon: HiOutlineDocumentChartBar,
       labelKey: "sbrReports",
       roles: ["admin", "teacher", "parent"],
-      permissions: [PERMISSIONS.GENERATE_SBR_REPORTS, PERMISSIONS.VIEW_SBR_REPORTS],
+      permissions: [
+        PERMISSIONS.GENERATE_SBR_REPORTS,
+        PERMISSIONS.VIEW_SBR_REPORTS,
+      ],
       section: "assessment",
     },
     {
@@ -542,7 +546,7 @@ const Sidebar = () => {
       labelKey: "subRequests",
       roles: ["admin", "department_principal", "teacher"],
       section: "operations",
-      badgeCount: isTeacher ? (pendingSubCount?.count || 0) : 0,
+      badgeCount: isTeacher ? pendingSubCount?.count || 0 : 0,
     },
     {
       path: "/portal/behavior",
@@ -566,14 +570,14 @@ const Sidebar = () => {
       roles: ["teacher"],
       section: "teaching",
     },
-    // {
-    //   path: "/portal/reading/texts",
-    //   icon: HiOutlineRectangleStack,
-    //   labelKey: "reading",
-    //   roles: ["admin", "teacher"],
-    //   feature: "readingAssistant",
-    //   section: "teaching",
-    // },
+    {
+      path: "/portal/reading/texts",
+      icon: HiOutlineRectangleStack,
+      labelKey: "reading",
+      roles: ["admin", "teacher"],
+      feature: "readingAssistant",
+      section: "teaching",
+    },
     {
       path: "/portal/school-settings",
       icon: HiOutlineBuildingOffice,
@@ -655,14 +659,14 @@ const Sidebar = () => {
     //   feature: "academicIntelligence",
     //   section: "insights",
     // },
-    // {
-    //   path: "/portal/reading",
-    //   icon: HiOutlineRectangleStack,
-    //   labelKey: "reading",
-    //   roles: ["student"],
-    //   feature: "readingAssistant",
-    //   section: "teaching",
-    // },
+    {
+      path: "/portal/reading",
+      icon: HiOutlineRectangleStack,
+      labelKey: "reading",
+      roles: ["student"],
+      feature: "readingAssistant",
+      section: "teaching",
+    },
     // {
     //   path: "/portal/revision",
     //   icon: HiOutlineArrowPath,
@@ -676,7 +680,11 @@ const Sidebar = () => {
       icon: HiOutlineBanknotes,
       labelKey: "financeDashboard",
       roles: ["admin", "department_principal"],
-      permissions: [PERMISSIONS.VIEW_FEE_STRUCTURES, PERMISSIONS.VIEW_INVOICES, PERMISSIONS.VIEW_FINANCE_REPORTS],
+      permissions: [
+        PERMISSIONS.VIEW_FEE_STRUCTURES,
+        PERMISSIONS.VIEW_INVOICES,
+        PERMISSIONS.VIEW_FINANCE_REPORTS,
+      ],
       section: "finance",
       end: true,
     },
@@ -685,7 +693,10 @@ const Sidebar = () => {
       icon: HiOutlineCalculator,
       labelKey: "feeStructures",
       roles: ["admin"],
-      permissions: [PERMISSIONS.MANAGE_FEE_STRUCTURES, PERMISSIONS.VIEW_FEE_STRUCTURES],
+      permissions: [
+        PERMISSIONS.MANAGE_FEE_STRUCTURES,
+        PERMISSIONS.VIEW_FEE_STRUCTURES,
+      ],
       section: "finance",
     },
     {
@@ -813,7 +824,7 @@ const Sidebar = () => {
     {
       path: "/portal/settings",
       icon: HiOutlineCog6Tooth,
-       roles: ["admin", "teacher", "department_principal",],
+      roles: ["admin", "teacher", "department_principal"],
       labelKey: "settings",
       section: "account",
     },
@@ -821,13 +832,18 @@ const Sidebar = () => {
 
   const filteredNavItems = navItems.filter((item) => {
     const pageKey = getSchoolPageKeyForPath(item.path);
-    if (["teacher", "student"].includes(user?.role)
-      && pageKey
-      && schoolPageAccess?.[user.role]?.[pageKey] === false) {
+    if (
+      ["teacher", "student"].includes(user?.role) &&
+      pageKey &&
+      schoolPageAccess?.[user.role]?.[pageKey] === false
+    ) {
       return false;
     }
 
-    if (item.liveLessons && import.meta.env.VITE_LIVE_LESSONS_ENABLED !== "true") {
+    if (
+      item.liveLessons &&
+      import.meta.env.VITE_LIVE_LESSONS_ENABLED !== "true"
+    ) {
       return false;
     }
     if ((item.section || "overview") === "finance") {
@@ -911,7 +927,8 @@ const Sidebar = () => {
               <div className="sidebar-section-divider" />
             )}
             {items.map((item) => {
-              const isLocked = item.feature && schoolFeatures?.[item.feature] === false;
+              const isLocked =
+                item.feature && schoolFeatures?.[item.feature] === false;
               return (
                 <NavLink
                   key={item.path}
@@ -923,10 +940,15 @@ const Sidebar = () => {
                 >
                   <item.icon className="nav-icon" size={20} />
                   {sidebarOpen && (
-                    <span className="nav-label">{t(`layout.sidebar:items.${item.labelKey}`)}</span>
+                    <span className="nav-label">
+                      {t(`layout.sidebar:items.${item.labelKey}`)}
+                    </span>
                   )}
                   {isLocked && sidebarOpen && (
-                    <HiOutlineLockClosed className="nav-feature-lock" size={14} />
+                    <HiOutlineLockClosed
+                      className="nav-feature-lock"
+                      size={14}
+                    />
                   )}
                   {/* {isLocked && sidebarOpen && (
                     <span className="nav-badge nav-badge-upgrade">
@@ -934,7 +956,10 @@ const Sidebar = () => {
                     </span>
                   )} */}
                   {isLocked && !sidebarOpen && (
-                    <span className="nav-lock-dot" aria-label={t("layout.sidebar:actions.featureLocked")}>
+                    <span
+                      className="nav-lock-dot"
+                      aria-label={t("layout.sidebar:actions.featureLocked")}
+                    >
                       <HiOutlineLockClosed size={10} />
                     </span>
                   )}

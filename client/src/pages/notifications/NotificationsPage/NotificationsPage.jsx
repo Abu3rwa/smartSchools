@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
+    Alert,
     Box,
+    Button,
     Chip,
+    CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     InputAdornment,
     MenuItem,
     Paper,
@@ -29,7 +36,8 @@ import {
     HiOutlineBell,
     HiOutlinePaperAirplane,
     HiOutlineArrowRight,
-    HiOutlineSearch
+    HiOutlineSearch,
+    HiOutlineTrash
 } from 'react-icons/hi';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -45,6 +53,7 @@ import './NotificationsPage.css';
 
 const NotificationsPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { t } = useTranslation(['notifications']);
     const theme = useTheme();
     const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
@@ -53,7 +62,9 @@ const NotificationsPage = () => {
     const academicYear = useSelector(selectCurrentAcademicYear);
     const isAdmin = user?.role === 'admin';
 
-    const [activeTab, setActiveTab] = useState('history');
+    const [activeTab, setActiveTab] = useState(() =>
+        new URLSearchParams(location.search).get('tab') === 'gmail-cleanup' ? 'cleanup' : 'history'
+    );
     const [quickSending, setQuickSending] = useState(false);
     const [quickResult, setQuickResult] = useState(null);
     const [selectedNotification, setSelectedNotification] = useState(null);
@@ -65,6 +76,16 @@ const NotificationsPage = () => {
         enabled: true,
         delayMinutes: 60
     });
+    const [gmailCleanupStatus, setGmailCleanupStatus] = useState(null);
+    const [gmailCleanupStatusLoading, setGmailCleanupStatusLoading] = useState(false);
+    const [gmailCleanupSource, setGmailCleanupSource] = useState('all_sent');
+    const [gmailCleanupPeriod, setGmailCleanupPeriod] = useState('this_month');
+    const [gmailCleanupPreview, setGmailCleanupPreview] = useState(null);
+    const [gmailCleanupPreviewLoading, setGmailCleanupPreviewLoading] = useState(false);
+    const [gmailCleanupMoving, setGmailCleanupMoving] = useState(false);
+    const [gmailCleanupDialogOpen, setGmailCleanupDialogOpen] = useState(false);
+    const [gmailCleanupConfirmation, setGmailCleanupConfirmation] = useState('');
+    const [gmailCleanupResult, setGmailCleanupResult] = useState(null);
 
     const {
         loading,
@@ -112,6 +133,39 @@ const NotificationsPage = () => {
             isMounted = false;
         };
     }, [activeTab, isAdmin, t]);
+
+    useEffect(() => {
+        if (activeTab !== 'cleanup') return;
+        let isMounted = true;
+        setGmailCleanupStatusLoading(true);
+        notificationService.getGmailCleanupStatus()
+            .then((status) => {
+                if (isMounted) setGmailCleanupStatus(status);
+            })
+            .catch((error) => {
+                if (isMounted) {
+                    toast.error(error.response?.data?.message || t('notifications:gmailCleanup.statusFailed'));
+                }
+            })
+            .finally(() => {
+                if (isMounted) setGmailCleanupStatusLoading(false);
+            });
+        return () => {
+            isMounted = false;
+        };
+    }, [activeTab, t]);
+
+    useEffect(() => {
+        const query = new URLSearchParams(location.search);
+        const error = query.get('gmail_cleanup_error');
+        if (error) {
+            toast.error(error === 'missing_scope'
+                ? t('notifications:gmailCleanup.permissionMissing')
+                : t('notifications:gmailCleanup.connectionFailed', { error }));
+        } else if (query.get('gmail_cleanup_connected') === 'true') {
+            toast.success(t('notifications:gmailCleanup.connected'));
+        }
+    }, [location.search, t]);
 
     const getStatusIcon = (status) => {
         switch (status) {
@@ -165,6 +219,90 @@ const NotificationsPage = () => {
         } finally {
             setQuickSending(false);
         }
+    };
+
+    const handleGmailConnect = async () => {
+        try {
+            const authUrl = await notificationService.getGmailAuthorizationUrl();
+            window.location.assign(authUrl);
+        } catch (error) {
+            toast.error(error.response?.data?.message || t('notifications:gmailCleanup.connectionFailed'));
+        }
+    };
+
+    const handleGmailCleanupPreview = async () => {
+        setGmailCleanupPreviewLoading(true);
+        setGmailCleanupPreview(null);
+        setGmailCleanupResult(null);
+        try {
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+            const preview = await notificationService.previewGmailCleanup({
+                source: gmailCleanupSource,
+                period: gmailCleanupPeriod,
+                timeZone
+            });
+            setGmailCleanupPreview(preview);
+        } catch (error) {
+            if (error.response?.status === 401) {
+                setGmailCleanupStatus((status) => ({
+                    ...status,
+                    connected: false,
+                    canManageMailbox: false
+                }));
+            }
+            toast.error(error.response?.data?.message || t('notifications:gmailCleanup.previewFailed'));
+        } finally {
+            setGmailCleanupPreviewLoading(false);
+        }
+    };
+
+    const handleGmailCleanupTrash = async () => {
+        if (!gmailCleanupPreview || gmailCleanupConfirmation !== 'TRASH') return;
+        setGmailCleanupMoving(true);
+        try {
+            const result = await notificationService.trashGmailSentMessages(
+                gmailCleanupPreview.previewToken,
+                gmailCleanupConfirmation
+            );
+            setGmailCleanupResult(result);
+            setGmailCleanupPreview(null);
+            setGmailCleanupDialogOpen(false);
+            setGmailCleanupConfirmation('');
+            if (result.failedCount > 0) {
+                toast.error(t('notifications:gmailCleanup.trashPartial', {
+                    trashed: result.trashedCount,
+                    failed: result.failedCount
+                }));
+            } else {
+                toast.success(t('notifications:gmailCleanup.trashComplete', { count: result.trashedCount }));
+            }
+        } catch (error) {
+            if (error.response?.status === 409) setGmailCleanupPreview(null);
+            if (error.response?.status === 401) {
+                setGmailCleanupStatus((status) => ({
+                    ...status,
+                    connected: false,
+                    canManageMailbox: false
+                }));
+            }
+            toast.error(error.response?.data?.message || t('notifications:gmailCleanup.trashFailed'));
+        } finally {
+            setGmailCleanupMoving(false);
+        }
+    };
+
+    const getCleanupConfirmationWindow = (preview) => {
+        if (!preview) return '';
+        if (!preview.startAt || !preview.endAt) {
+            return t('notifications:gmailCleanup.allTimeWindow', {
+                previewedAt: format(new Date(preview.previewedAt), 'PPpp'),
+                timeZone: preview.timeZone
+            });
+        }
+        return t('notifications:gmailCleanup.previewRange', {
+            start: format(new Date(preview.startAt), 'PPpp'),
+            end: format(new Date(preview.endAt), 'PPpp')
+        });
     };
 
     return (
@@ -262,6 +400,13 @@ const NotificationsPage = () => {
                     onClick={() => setActiveTab('stats')}
                 >
                     {t('notifications:tabs.statistics')}
+                </button>
+                <button
+                    className={`tab ${activeTab === 'cleanup' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('cleanup')}
+                >
+                    <HiOutlineTrash size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                    {t('notifications:tabs.gmailCleanup')}
                 </button>
                 {isAdmin && (
                     <button
@@ -427,6 +572,193 @@ const NotificationsPage = () => {
                 </div>
             )}
 
+            {activeTab === 'cleanup' && (
+                <Paper
+                    variant="outlined"
+                    sx={{
+                        p: { xs: 2, md: 3 },
+                        borderColor: 'var(--border-color)',
+                        background: 'var(--bg-card)'
+                    }}
+                >
+                    <Stack spacing={2.5}>
+                        <Box>
+                            <h2 style={{ margin: 0 }}>{t('notifications:gmailCleanup.title')}</h2>
+                            <p className="text-muted" style={{ margin: '6px 0 0' }}>
+                                {t('notifications:gmailCleanup.subtitle')}
+                            </p>
+                        </Box>
+
+                        <Alert severity="warning">
+                            {t('notifications:gmailCleanup.trashWarning')}
+                        </Alert>
+
+                        {gmailCleanupStatusLoading ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <CircularProgress size={18} />
+                                <span>{t('notifications:gmailCleanup.checkingConnection')}</span>
+                            </Box>
+                        ) : gmailCleanupStatus?.connected ? (
+                            <Alert severity={gmailCleanupStatus.canManageMailbox ? 'success' : 'info'}>
+                                {gmailCleanupStatus.canManageMailbox
+                                    ? t('notifications:gmailCleanup.accountReady', { email: gmailCleanupStatus.email })
+                                    : t('notifications:gmailCleanup.permissionRequired', { email: gmailCleanupStatus.email })}
+                            </Alert>
+                        ) : (
+                            <Alert severity="info">{t('notifications:gmailCleanup.accountNotConnected')}</Alert>
+                        )}
+
+                        {(!gmailCleanupStatus?.connected || !gmailCleanupStatus?.canManageMailbox) && !gmailCleanupStatusLoading && (
+                            <Box>
+                                <Button variant="outlined" onClick={handleGmailConnect}>
+                                    {gmailCleanupStatus?.connected
+                                        ? t('notifications:gmailCleanup.grantPermission')
+                                        : t('notifications:gmailCleanup.connectAccount')}
+                                </Button>
+                            </Box>
+                        )}
+
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                disabled={gmailCleanupPreviewLoading || gmailCleanupMoving}
+                                label={t('notifications:gmailCleanup.sourceLabel')}
+                                value={gmailCleanupSource}
+                                onChange={(event) => {
+                                    setGmailCleanupSource(event.target.value);
+                                    setGmailCleanupPreview(null);
+                                    setGmailCleanupResult(null);
+                                }}
+                            >
+                                <MenuItem value="all_sent">{t('notifications:gmailCleanup.sourceAll')}</MenuItem>
+                                <MenuItem value="app_sent">{t('notifications:gmailCleanup.sourceApp')}</MenuItem>
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                disabled={gmailCleanupPreviewLoading || gmailCleanupMoving}
+                                label={t('notifications:gmailCleanup.periodLabel')}
+                                value={gmailCleanupPeriod}
+                                onChange={(event) => {
+                                    setGmailCleanupPeriod(event.target.value);
+                                    setGmailCleanupPreview(null);
+                                    setGmailCleanupResult(null);
+                                }}
+                            >
+                                <MenuItem value="today">{t('notifications:gmailCleanup.today')}</MenuItem>
+                                <MenuItem value="this_week">{t('notifications:gmailCleanup.thisWeek')}</MenuItem>
+                                <MenuItem value="this_month">{t('notifications:gmailCleanup.thisMonth')}</MenuItem>
+                                <MenuItem value="all_time">{t('notifications:gmailCleanup.allTime')}</MenuItem>
+                            </TextField>
+                        </Stack>
+
+                        {gmailCleanupSource === 'app_sent' && (
+                            <Alert severity="info">{t('notifications:gmailCleanup.appOnlyCoverage')}</Alert>
+                        )}
+
+                        <Box>
+                            <Button
+                                variant="contained"
+                                onClick={handleGmailCleanupPreview}
+                                disabled={
+                                    gmailCleanupPreviewLoading ||
+                                    gmailCleanupMoving ||
+                                    !gmailCleanupStatus?.connected ||
+                                    !gmailCleanupStatus?.canManageMailbox
+                                }
+                                startIcon={
+                                    gmailCleanupPreviewLoading
+                                        ? <CircularProgress size={16} color="inherit" />
+                                        : <HiOutlineSearch />
+                                }
+                            >
+                                {gmailCleanupPreviewLoading
+                                    ? t('notifications:gmailCleanup.previewLoading')
+                                    : t('notifications:gmailCleanup.previewAction')}
+                            </Button>
+                        </Box>
+
+                        {gmailCleanupPreview && (
+                            <Paper
+                                variant="outlined"
+                                sx={{
+                                    p: 2,
+                                    borderColor: 'var(--border-color)',
+                                    background: 'var(--bg-secondary, var(--bg-card))'
+                                }}
+                            >
+                                <Stack spacing={1.5}>
+                                    <Box>
+                                        <strong>{t('notifications:gmailCleanup.previewCount', { count: gmailCleanupPreview.count })}</strong>
+                                        <Box sx={{ color: 'var(--text-muted)', fontSize: '0.9rem', mt: 0.5 }}>
+                                            {t('notifications:gmailCleanup.previewAccount', { email: gmailCleanupPreview.accountEmail })}
+                                        </Box>
+                                        <Box sx={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                            {t('notifications:gmailCleanup.previewTimezone', { timeZone: gmailCleanupPreview.timeZone })}
+                                        </Box>
+                                        {gmailCleanupPreview.startAt && gmailCleanupPreview.endAt && (
+                                            <Box sx={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                                {t('notifications:gmailCleanup.previewRange', {
+                                                    start: format(new Date(gmailCleanupPreview.startAt), 'PPpp'),
+                                                    end: format(new Date(gmailCleanupPreview.endAt), 'PPpp')
+                                                })}
+                                            </Box>
+                                        )}
+                                        {!gmailCleanupPreview.startAt && (
+                                            <Box sx={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                                {t('notifications:gmailCleanup.allTimeWindow', {
+                                                    previewedAt: format(new Date(gmailCleanupPreview.previewedAt), 'PPpp'),
+                                                    timeZone: gmailCleanupPreview.timeZone
+                                                })}
+                                            </Box>
+                                        )}
+                                    </Box>
+                                    {gmailCleanupPreview.sample.length > 0 && (
+                                        <Box>
+                                            <Box sx={{ fontWeight: 600, mb: 0.5 }}>
+                                                {t('notifications:gmailCleanup.sampleTitle')}
+                                            </Box>
+                                            {gmailCleanupPreview.sample.map((item, index) => (
+                                                <Box
+                                                    key={`${item.date || 'message'}-${index}`}
+                                                    sx={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}
+                                                >
+                                                    {item.subject}{item.date ? ` · ${format(new Date(item.date), 'PPp')}` : ''}
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    )}
+                                    <Box>
+                                        <Button
+                                            color="error"
+                                            variant="contained"
+                                            startIcon={<HiOutlineTrash />}
+                                            disabled={gmailCleanupPreview.count === 0 || gmailCleanupMoving}
+                                            onClick={() => setGmailCleanupDialogOpen(true)}
+                                        >
+                                            {t('notifications:gmailCleanup.trashButton')}
+                                        </Button>
+                                    </Box>
+                                </Stack>
+                            </Paper>
+                        )}
+
+                        {gmailCleanupResult && (
+                            <Alert severity={gmailCleanupResult.failedCount > 0 || !gmailCleanupResult.auditRecorded ? 'warning' : 'success'}>
+                                {gmailCleanupResult.failedCount > 0
+                                    ? t('notifications:gmailCleanup.trashPartial', {
+                                        trashed: gmailCleanupResult.trashedCount,
+                                        failed: gmailCleanupResult.failedCount
+                                    })
+                                    : t('notifications:gmailCleanup.trashComplete', { count: gmailCleanupResult.trashedCount })}
+                                {!gmailCleanupResult.auditRecorded && ` ${t('notifications:gmailCleanup.auditWarning')}`}
+                            </Alert>
+                        )}
+                    </Stack>
+                </Paper>
+            )}
+
             {/* Stats Tab */}
             {activeTab === 'stats' && (
                 <div className="stats-grid">
@@ -537,6 +869,71 @@ const NotificationsPage = () => {
                 getTypeLabel={getTypeLabel}
                 getStatusLabel={getStatusLabel}
             />
+
+            <Dialog
+                open={gmailCleanupDialogOpen}
+                onClose={() => {
+                    if (!gmailCleanupMoving) {
+                        setGmailCleanupDialogOpen(false);
+                        setGmailCleanupConfirmation('');
+                    }
+                }}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>{t('notifications:gmailCleanup.confirmTrashTitle')}</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{ pt: 1 }}>
+                        <Alert severity="warning">{t('notifications:gmailCleanup.trashWarning')}</Alert>
+                        <Box>
+                            {t('notifications:gmailCleanup.confirmTrashDetails', {
+                                count: gmailCleanupPreview?.count || 0,
+                                email: gmailCleanupPreview?.accountEmail || '',
+                                source: t(gmailCleanupPreview?.source === 'all_sent'
+                                    ? 'notifications:gmailCleanup.sourceAll'
+                                    : 'notifications:gmailCleanup.sourceApp'),
+                                period: t(`notifications:gmailCleanup.${{
+                                    today: 'today',
+                                    this_week: 'thisWeek',
+                                    this_month: 'thisMonth',
+                                    all_time: 'allTime'
+                                }[gmailCleanupPreview?.period]}`),
+                                window: getCleanupConfirmationWindow(gmailCleanupPreview)
+                            })}
+                        </Box>
+                        <TextField
+                            autoFocus
+                            label={t('notifications:gmailCleanup.confirmTrashInputLabel')}
+                            value={gmailCleanupConfirmation}
+                            onChange={(event) => setGmailCleanupConfirmation(event.target.value)}
+                            helperText={t('notifications:gmailCleanup.confirmTrashInputHelp')}
+                            autoComplete="off"
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button
+                        onClick={() => {
+                            setGmailCleanupDialogOpen(false);
+                            setGmailCleanupConfirmation('');
+                        }}
+                        disabled={gmailCleanupMoving}
+                    >
+                        {t('notifications:gmailCleanup.cancel')}
+                    </Button>
+                    <Button
+                        color="error"
+                        variant="contained"
+                        onClick={handleGmailCleanupTrash}
+                        disabled={gmailCleanupMoving || gmailCleanupConfirmation !== 'TRASH'}
+                        startIcon={gmailCleanupMoving ? <CircularProgress size={16} color="inherit" /> : <HiOutlineTrash />}
+                    >
+                        {gmailCleanupMoving
+                            ? t('notifications:gmailCleanup.movingToTrash')
+                            : t('notifications:gmailCleanup.confirmTrash')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
         </div>
     );

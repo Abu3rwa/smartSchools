@@ -5,12 +5,14 @@ import {
     fetchPlpRecords, createPlpRecord, initializePlpRoundRecords, deletePlpRecord,
     fetchPlpTraits,
     fetchPlpCycles, selectPlpCycles,
-    selectPlpRecords, selectPlpLoading, selectPlpError, clearPlpError, selectPlpTraits,
+    selectPlpRecords, selectPlpRecordsPagination, selectPlpLoading, selectPlpError, clearPlpError, selectPlpTraits,
 } from '../../store/slices/plpSlice';
 import { selectCurrentAcademicYear } from '../../store/slices/uiSlice';
 import { selectUser } from '../../store/slices/authSlice';
 import toast from 'react-hot-toast';
 import api from '../../config/api';
+import PlpPagination from './PlpPagination';
+import { formatPlpDate } from './plpDateUtils';
 import './PLP.css';
 
 const MONTHS = [
@@ -21,6 +23,7 @@ const MONTHS = [
 export default function PlpTeacherClassboardPage() {
     const dispatch = useDispatch();
     const records = useSelector(selectPlpRecords);
+    const recordsPagination = useSelector(selectPlpRecordsPagination);
     const loading = useSelector(selectPlpLoading);
     const error = useSelector(selectPlpError);
     const academicYear = useSelector(selectCurrentAcademicYear);
@@ -29,6 +32,7 @@ export default function PlpTeacherClassboardPage() {
     const cycles = useSelector(selectPlpCycles);
 
     const [selectedCycleId, setSelectedCycleId] = useState('');
+    const [recordsPage, setRecordsPage] = useState(1);
     const [creating, setCreating] = useState(false);
     const [initializingRound, setInitializingRound] = useState(false);
     const [classes, setClasses] = useState([]);
@@ -39,6 +43,8 @@ export default function PlpTeacherClassboardPage() {
     const [observationSubmitting, setObservationSubmitting] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [needsReviewQueue, setNeedsReviewQueue] = useState([]);
+    const [goalReviewQueue, setGoalReviewQueue] = useState([]);
+    const [taskReviewQueue, setTaskReviewQueue] = useState([]);
     const [leaderboardFilterTrait, setLeaderboardFilterTrait] = useState('all');
     const [leaderboardRows, setLeaderboardRows] = useState([]);
     const [leaderboardLoading, setLeaderboardLoading] = useState(false);
@@ -46,6 +52,7 @@ export default function PlpTeacherClassboardPage() {
     const [leaderboardSelectedTrait, setLeaderboardSelectedTrait] = useState(null);
     const [exportTraitId, setExportTraitId] = useState('');
     const [exporting, setExporting] = useState(false);
+    const [exportingRound, setExportingRound] = useState(false);
     const recognitionRef = useRef(null);
     const [observationForm, setObservationForm] = useState({
         classId: '',
@@ -58,15 +65,23 @@ export default function PlpTeacherClassboardPage() {
     const [confirmedTraitId, setConfirmedTraitId] = useState('');
 
     useEffect(() => {
-        dispatch(fetchPlpRecords(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear }));
-    }, [dispatch, academicYear, selectedCycleId]);
+        dispatch(fetchPlpRecords({
+            ...(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear }),
+            page: recordsPage,
+            limit: 30,
+        }));
+    }, [dispatch, academicYear, selectedCycleId, recordsPage]);
+
+    useEffect(() => {
+        setRecordsPage(1);
+    }, [academicYear, selectedCycleId]);
 
     useEffect(() => {
         dispatch(fetchPlpTraits());
         dispatch(fetchPlpCycles({ academicYear }));
     }, [dispatch, academicYear]);
 
-    const loadNeedsReviewQueue = async () => {
+    const loadNeedsReviewQueue = useCallback(async () => {
         if (!['teacher', 'admin'].includes(user?.role)) return;
         try {
             const response = await api.get('/plp/observations/needs-review', { params: { limit: 8 } });
@@ -74,9 +89,41 @@ export default function PlpTeacherClassboardPage() {
         } catch (_error) {
             setNeedsReviewQueue([]);
         }
-    };
+    }, [user?.role]);
 
-    const loadLeaderboard = async () => {
+    const loadGoalReviewQueue = useCallback(async () => {
+        if (!['teacher', 'admin'].includes(user?.role)) return;
+        try {
+            const response = await api.get('/plp/goals/review-queue', {
+                params: {
+                    academicYear,
+                    ...(selectedCycleId ? { cycleId: selectedCycleId } : {}),
+                },
+            });
+            setGoalReviewQueue(response?.data?.data || []);
+        } catch (requestError) {
+            setGoalReviewQueue([]);
+            toast.error(requestError.response?.data?.message || 'Failed to load the PLP goal review queue');
+        }
+    }, [academicYear, selectedCycleId, user?.role]);
+
+    const loadTaskReviewQueue = useCallback(async () => {
+        if (!['teacher', 'admin'].includes(user?.role)) return;
+        try {
+            const response = await api.get('/plp/tasks/review-queue', {
+                params: {
+                    academicYear,
+                    ...(selectedCycleId ? { cycleId: selectedCycleId } : {}),
+                },
+            });
+            setTaskReviewQueue(response?.data?.data || []);
+        } catch (requestError) {
+            setTaskReviewQueue([]);
+            toast.error(requestError.response?.data?.message || 'Failed to load the PLP task review queue');
+        }
+    }, [academicYear, selectedCycleId, user?.role]);
+
+    const loadLeaderboard = useCallback(async () => {
         if (!['teacher', 'admin', 'department_principal'].includes(user?.role)) {
             setLeaderboardRows([]);
             return;
@@ -102,7 +149,7 @@ export default function PlpTeacherClassboardPage() {
         } finally {
             setLeaderboardLoading(false);
         }
-    };
+    }, [academicYear, leaderboardFilterTrait, selectedCycleId, user?.role]);
 
     const exportObservationsCsv = async () => {
         if (!exportTraitId) {
@@ -148,15 +195,51 @@ export default function PlpTeacherClassboardPage() {
         }
     };
 
+    const exportRoundReports = async () => {
+        if (!selectedCycleId) {
+            toast.error('Select a PLP round before exporting reports');
+            return;
+        }
+        setExportingRound(true);
+        try {
+            const response = await api.get('/plp/records/export-round', {
+                params: { academicYear, cycleId: selectedCycleId },
+                responseType: 'blob',
+            });
+            const blob = new Blob([response.data], { type: 'application/zip' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `plp-${academicYear}-${selectedCycleId}-reports.zip`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success('PLP round reports downloaded');
+        } catch (requestError) {
+            let message = 'Failed to export PLP round reports';
+            try {
+                const responseData = requestError?.response?.data;
+                const responseText = typeof responseData?.text === 'function' ? await responseData.text() : '';
+                if (responseText) message = JSON.parse(responseText).message || message;
+            } catch (_parseError) {
+                // Keep the default message if the response is not a JSON error.
+            }
+            toast.error(message);
+        } finally {
+            setExportingRound(false);
+        }
+    };
+
     useEffect(() => {
         const loadClasses = async () => {
             try {
                 const response = await api.get('/classes', { params: { academicYear, limit: 200 } });
                 const nextClasses = response?.data?.data?.classes || [];
                 setClasses(nextClasses);
-                if (!form.classId && nextClasses.length > 0) {
-                    setForm((prev) => ({ ...prev, classId: nextClasses[0]._id }));
-                }
+                setForm((prev) => nextClasses.some((item) => item._id === prev.classId)
+                    ? prev
+                    : ({ ...prev, classId: nextClasses[0]?._id || '' }));
             } catch (_error) {
                 setClasses([]);
             }
@@ -211,11 +294,19 @@ export default function PlpTeacherClassboardPage() {
 
     useEffect(() => {
         loadNeedsReviewQueue();
-    }, [user?.role]);
+    }, [loadNeedsReviewQueue]);
+
+    useEffect(() => {
+        loadGoalReviewQueue();
+    }, [loadGoalReviewQueue]);
+
+    useEffect(() => {
+        loadTaskReviewQueue();
+    }, [loadTaskReviewQueue]);
 
     useEffect(() => {
         loadLeaderboard();
-    }, [user?.role, academicYear, selectedCycleId, leaderboardFilterTrait]);
+    }, [loadLeaderboard]);
 
     const handleDeleteRecord = async (record) => {
         if (record.status === 'locked') {
@@ -261,7 +352,7 @@ export default function PlpTeacherClassboardPage() {
                 } else {
                     toast.success('PLP record created');
                 }
-                dispatch(fetchPlpRecords(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear }));
+                dispatch(fetchPlpRecords({ ...(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear }), page: recordsPage, limit: 30 }));
             } else {
                 toast.error(result.payload || 'Failed to create PLP record');
             }
@@ -288,7 +379,7 @@ export default function PlpTeacherClassboardPage() {
             }));
             if (!result.error) {
                 toast.success(`${result.payload.created} records initialized; ${result.payload.skipped} already existed`);
-                dispatch(fetchPlpRecords({ academicYear, cycleId: selectedCycleId }));
+                dispatch(fetchPlpRecords({ academicYear, cycleId: selectedCycleId, page: recordsPage, limit: 30 }));
             } else {
                 toast.error(result.payload || 'Failed to initialize Round records');
             }
@@ -416,7 +507,7 @@ export default function PlpTeacherClassboardPage() {
             if (result?.data?.success) {
                 toast.success('Observation saved');
                 await Promise.all([
-                    dispatch(fetchPlpRecords(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear })),
+                    dispatch(fetchPlpRecords({ ...(selectedCycleId ? { academicYear, cycleId: selectedCycleId } : { academicYear }), page: recordsPage, limit: 30 })),
                     loadNeedsReviewQueue(),
                     loadLeaderboard(),
                 ]);
@@ -560,7 +651,12 @@ export default function PlpTeacherClassboardPage() {
                         </select>
                     </div>
                     {['teacher', 'admin'].includes(user?.role) && (
-                        <button className="btn btn-primary btn-sm" onClick={openObservationModal}>Log Observation</button>
+                        <>
+                            <button className="btn btn-secondary btn-sm" onClick={exportRoundReports} disabled={!selectedCycleId || exportingRound}>
+                                {exportingRound ? 'Exporting...' : 'Export round reports'}
+                            </button>
+                            <button className="btn btn-primary btn-sm" onClick={openObservationModal}>Log Observation</button>
+                        </>
                     )}
                 </div>
             </div>
@@ -700,6 +796,7 @@ export default function PlpTeacherClassboardPage() {
                     </div>
                 </div>
             )}
+            <PlpPagination pagination={recordsPagination} onPageChange={setRecordsPage} />
 
             <div className="plp-section">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -805,6 +902,62 @@ export default function PlpTeacherClassboardPage() {
                                     {item?.plpRecord?.class?.name || 'Class'} · {item?.type?.replace('_', ' ')}
                                 </div>
                                 <p style={{ margin: '6px 0 0' }}>{item.note}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {goalReviewQueue.length > 0 && (
+                <div className="plp-section">
+                    <h2>Goals Due for Review</h2>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        {goalReviewQueue.map((item) => (
+                            <div key={item.goalId} className="plp-evidence-item">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <div>
+                                        <strong>{item.student?.firstName} {item.student?.lastName} · {item.title}</strong>
+                                        <div className="plp-evidence-meta">
+                                            {item.class?.name || 'Class'} · {item.goalType}
+                                            {item.checkInDate && ` · check-in ${formatPlpDate(item.checkInDate)}`}
+                                            {!item.checkInDate && item.targetDate && ` · target ${formatPlpDate(item.targetDate)}`}
+                                        </div>
+                                    </div>
+                                    <Link
+                                        className="btn btn-secondary btn-sm"
+                                        to={`/portal/plp/records/${item.recordId}?goalId=${item.goalId}`}
+                                    >
+                                        Review goal
+                                    </Link>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {taskReviewQueue.length > 0 && (
+                <div className="plp-section">
+                    <h2>Student Tasks Awaiting Review</h2>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                        {taskReviewQueue.map((item) => (
+                            <div key={item.taskId} className="plp-evidence-item">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <div>
+                                        <strong>{item.student?.firstName} {item.student?.lastName} · {item.title}</strong>
+                                        <div className="plp-evidence-meta">
+                                            {item.class?.name || 'Class'} · Goal: {item.goalTitle || 'PLP goal'}
+                                            {item.submittedAt && ` · submitted ${new Date(item.submittedAt).toLocaleDateString()}`}
+                                        </div>
+                                        {item.studentCompletionNote && <p style={{ margin: '6px 0 0' }}>{item.studentCompletionNote}</p>}
+                                    </div>
+                                    <Link
+                                        className="btn btn-secondary btn-sm"
+                                        to={`/portal/plp/records/${item.recordId}?goalId=${item.goalId}&taskId=${item.taskId}`}
+                                    >
+                                        Review task
+                                    </Link>
+                                </div>
                             </div>
                         ))}
                     </div>

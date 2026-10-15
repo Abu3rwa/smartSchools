@@ -1,6 +1,8 @@
 import { asyncHandler } from "../middleware/errorHandler.js";
 import * as readingAssistantService from "../services/readingAssistantService.js";
 import Student from "../models/Student.js";
+import SimplifiedText from "../models/SimplifiedText.js";
+import ReadingAssignment from "../models/ReadingAssignment.js";
 import { resolveAcademicYearForRequest } from "../helpers/academicYearScope.js";
 
 /**
@@ -65,8 +67,30 @@ export const getTexts = asyncHandler(async (req, res) => {
   const { subjectArea } = req.query;
   const list = await readingAssistantService.getTexts(req.schoolId, {
     subjectArea,
+    userId: req.user._id,
+    isAdmin: req.user.role === "admin",
   });
   res.status(200).json({ success: true, data: list });
+});
+
+export const importReadingCsv = asyncHandler(async (req, res) => {
+  const text = await readingAssistantService.createReadingFromCsv(
+    req.schoolId,
+    req.user._id,
+    req.body
+  );
+  res.status(201).json({ success: true, message: "Reading imported successfully", data: text });
+});
+
+export const updateReadingSharing = asyncHandler(async (req, res) => {
+  const text = await readingAssistantService.updateTextSharing(
+    req.params.textId,
+    req.schoolId,
+    req.user._id,
+    req.user.role === "admin",
+    req.body?.isShared
+  );
+  res.status(200).json({ success: true, data: text });
 });
 
 /**
@@ -76,7 +100,12 @@ export const getTexts = asyncHandler(async (req, res) => {
  */
 export const getTextById = asyncHandler(async (req, res) => {
   const { textId } = req.params;
-  const text = await readingAssistantService.getTextById(textId, req.schoolId);
+  const text = await readingAssistantService.getTextById(
+    textId,
+    req.schoolId,
+    req.user._id,
+    req.user.role === "admin"
+  );
   res.status(200).json({ success: true, data: text });
 });
 
@@ -106,6 +135,10 @@ export const getSimplifiedForCurrentStudent = asyncHandler(async (req, res) => {
     effectiveAcademicYear,
     { requireAssignment: true }
   );
+  result.text.comprehensionQuestions = (result.text.comprehensionQuestions || []).map((question) => {
+    const { correctIndex, ...studentQuestion } = question;
+    return studentQuestion;
+  });
   res.status(200).json({ success: true, data: result });
 });
 
@@ -230,19 +263,52 @@ export const updateProgress = asyncHandler(async (req, res) => {
     });
   }
 
-  const { textId, correctCount, totalCount, assignmentId } = req.body;
-  if (!textId || correctCount === undefined || totalCount === undefined) {
+  const { textId, answers, assignmentId } = req.body;
+  if (!textId || !assignmentId || !answers || typeof answers !== "object" || Array.isArray(answers)) {
     return res.status(400).json({
       success: false,
-      message: "textId, correctCount, and totalCount are required",
+      message: "textId, assignmentId, and answer selections are required",
     });
+  }
+
+  const text = await SimplifiedText.findOne({ _id: textId, school: req.schoolId })
+    .select("comprehensionQuestions")
+    .lean();
+  if (!text) return res.status(404).json({ success: false, message: "Reading not found" });
+  const assignment = await ReadingAssignment.findOne({
+    _id: assignmentId,
+    school: req.schoolId,
+    text: textId,
+    students: student._id,
+    isActive: true,
+    ...(effectiveAcademicYear ? { academicYear: effectiveAcademicYear } : {}),
+  }).select("_id");
+  if (!assignment) {
+    return res.status(404).json({ success: false, message: "Active reading assignment not found" });
+  }
+
+  const questions = (text.comprehensionQuestions || []).filter((question) =>
+    ["multiple_choice", "true_false"].includes(question.type || "multiple_choice")
+  );
+  const expectedIds = new Set(questions.map((question) => String(question._id)));
+  const providedIds = Object.keys(answers);
+  if (providedIds.length !== expectedIds.size || providedIds.some((id) => !expectedIds.has(id))) {
+    return res.status(400).json({ success: false, message: "Answer every objective question before submitting." });
+  }
+  let correctCount = 0;
+  for (const question of questions) {
+    const selectedIndex = Number(answers[String(question._id)]);
+    if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= question.options.length) {
+      return res.status(400).json({ success: false, message: "One or more answer selections are invalid." });
+    }
+    if (selectedIndex === question.correctIndex) correctCount += 1;
   }
 
   const profile = await readingAssistantService.updateProgress(
     student._id,
     textId,
-    Number(correctCount),
-    Number(totalCount),
+    correctCount,
+    questions.length,
     req.schoolId,
     assignmentId || null,
     effectiveAcademicYear
@@ -332,7 +398,8 @@ export const createAssignment = asyncHandler(async (req, res) => {
     { textId, classId, studentIds, dueDate, instructions },
     req.user._id,
     effectiveAcademicYear,
-    schoolStartMonth
+    schoolStartMonth,
+    req.user.role === "admin"
   );
   res.status(201).json({
     success: true,

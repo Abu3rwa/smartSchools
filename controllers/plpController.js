@@ -20,6 +20,9 @@ import mongoose from 'mongoose';
 import { AlignmentType, BorderStyle, Document, Footer, Header, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType, PageNumber, TableLayoutType } from 'docx';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import plpAiService from '../services/plpAiService.js';
+import { writePlpAudit } from '../services/plpAuditService.js';
+import { buildPlpPaginationMetadata, getPlpPagination } from '../services/plpPaginationService.js';
+import { buildPlpRoundZip } from '../services/plpRoundExportService.js';
 import logger from '../utils/logger.js';
 
 const THEME_TRAITS = {
@@ -388,7 +391,7 @@ const refreshAwardCandidatesForMonth = async ({ schoolId, academicYear, month, c
 };
 
 const audit = (school, actor, action, targetType, targetId, meta) =>
-    PlpAuditLog.create({ school, actor, action, targetType, targetId, meta }).catch(() => {});
+    writePlpAudit({ school, actor, action, targetType, targetId, meta });
 
 const HOMEROOM_SUBJECT_MATCHERS = ['homeroom', 'home room', 'advisory', 'advisor', 'hmrm'];
 
@@ -646,7 +649,7 @@ export const createMonthConfig = asyncHandler(async (req, res) => {
         month: config.month,
         configOverride: config.toObject(),
     });
-    audit(req.user.school, req.user._id, 'config_created', 'PlpMonthConfig', config._id, { month });
+    await audit(req.user.school, req.user._id, 'config_created', 'PlpMonthConfig', config._id, { month });
     res.status(201).json({ success: true, data: config });
 });
 
@@ -696,7 +699,7 @@ export const publishMonthConfig = asyncHandler(async (req, res) => {
         month: config.month,
         configOverride: config.toObject(),
     });
-    audit(req.user.school, req.user._id, 'config_published', 'PlpMonthConfig', config._id, {});
+    await audit(req.user.school, req.user._id, 'config_published', 'PlpMonthConfig', config._id, {});
     res.json({ success: true, data: config });
 });
 
@@ -713,15 +716,15 @@ export const closeMonthConfig = asyncHandler(async (req, res) => {
         { school: req.user.school, academicYear: config.academicYear, month: config.month, status: 'submitted' },
         { status: 'locked' }
     );
-    audit(req.user.school, req.user._id, 'config_closed', 'PlpMonthConfig', config._id, {});
+    await audit(req.user.school, req.user._id, 'config_closed', 'PlpMonthConfig', config._id, {});
     res.json({ success: true, data: config });
 });
 
 // ─── Student Records ────────────────────────────────────────────────────────────
 
-export const getRecords = asyncHandler(async (req, res) => {
-    const { academicYear, month, cycleId, classId, teacherId } = req.query;
-    const filter = { school: req.user.school };
+const buildAccessibleRecordsFilter = async ({ user, query }) => {
+    const { academicYear, month, cycleId, classId, teacherId } = query;
+    const filter = { school: user.school };
     if (academicYear) filter.academicYear = academicYear;
     if (cycleId && mongoose.isValidObjectId(cycleId)) {
         filter.cycle = cycleId;
@@ -730,37 +733,37 @@ export const getRecords = asyncHandler(async (req, res) => {
     }
     if (classId) filter.class = classId;
 
-    const isAdmin = ['admin', 'department_principal'].includes(req.user.role);
-    const isSupervisor = req.user.role === 'department_principal';
+    const isAdmin = ['admin', 'department_principal'].includes(user.role);
+    const isSupervisor = user.role === 'department_principal';
 
     if (!isAdmin) {
         if (isSupervisor) {
             const assignments = await PlpSupervisorAssignment.find({
-                school: req.user.school,
-                supervisor: req.user._id,
+                school: user.school,
+                supervisor: user._id,
                 active: true,
             }).select('teacher');
             const teacherIds = assignments.map((a) => a.teacher);
             if (teacherId && !teacherIds.some((t) => t.toString() === teacherId)) {
-                return res.json({ success: true, data: [] });
+                return null;
             }
             filter.teacher = teacherId ? teacherId : { $in: teacherIds };
         } else {
-            const allowedClassIds = await getTeacherHomeroomClassIds(req.user.school, req.user._id, academicYear || null);
+            const allowedClassIds = await getTeacherHomeroomClassIds(user.school, user._id, academicYear || null);
             if (classId) {
                 if (!allowedClassIds.includes(String(classId))) {
-                    return res.json({ success: true, data: [] });
+                    return null;
                 }
                 filter.class = classId;
             } else if (allowedClassIds.length === 0) {
                 // No recognized homeroom classes; still surface records this teacher personally created.
-                filter.teacher = req.user._id;
+                filter.teacher = user._id;
             } else {
                 // Include records the teacher authored even if the record's class is no longer
                 // in their current homeroom scope (e.g. student/class reassignment since creation).
                 filter.$or = [
                     { class: { $in: allowedClassIds } },
-                    { teacher: req.user._id },
+                    { teacher: user._id },
                 ];
             }
         }
@@ -768,13 +771,22 @@ export const getRecords = asyncHandler(async (req, res) => {
         filter.teacher = teacherId;
     }
 
-    const records = await PlpStudentRecord.find(filter)
+    return filter;
+};
+
+export const getRecords = asyncHandler(async (req, res) => {
+    const filter = await buildAccessibleRecordsFilter({ user: req.user, query: req.query });
+    const { page, limit, skip } = getPlpPagination(req.query);
+    const total = filter ? await PlpStudentRecord.countDocuments(filter) : 0;
+    const records = filter ? await PlpStudentRecord.find(filter)
         .populate('student', 'firstName lastName studentId')
         .populate('teacher', 'firstName lastName')
         .populate('focusTrait', 'name code themeCode')
         .populate('cycle', 'title cycleCode startDate endDate status spotlightTraits')
         .populate('class', 'name grade')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1, _id: 1 })
+        .skip(skip)
+        .limit(limit) : [];
 
     const recordIds = records.map((record) => record._id);
     const observedTraitSet = recordIds.length > 0
@@ -792,7 +804,60 @@ export const getRecords = asyncHandler(async (req, res) => {
         observedTraitIds: observedTraitMap.get(String(record._id)) || [],
     }));
 
-    res.json({ success: true, data: enrichedRecords });
+    res.json({
+        success: true,
+        data: enrichedRecords,
+        pagination: buildPlpPaginationMetadata({ page, limit, total }),
+    });
+});
+
+export const exportRoundReports = asyncHandler(async (req, res) => {
+    const { academicYear, cycleId, month } = req.query;
+    if (!academicYear || (!cycleId && !month)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Select an academic year and a PLP round or month before exporting',
+        });
+    }
+    if (cycleId && !mongoose.isValidObjectId(cycleId)) {
+        return res.status(400).json({ success: false, message: 'Invalid PLP round' });
+    }
+
+    const filter = await buildAccessibleRecordsFilter({ user: req.user, query: req.query });
+    if (!filter) {
+        return res.status(403).json({ success: false, message: 'You do not have access to this PLP scope' });
+    }
+    const records = await PlpStudentRecord.find(filter)
+        .populate('student', 'firstName lastName studentId')
+        .populate('class', 'name grade')
+        .populate('cycle', 'title cycleCode')
+        .limit(201)
+        .lean();
+    records.sort((a, b) =>
+        String(a.student?.lastName || '').localeCompare(String(b.student?.lastName || ''))
+        || String(a.student?.firstName || '').localeCompare(String(b.student?.firstName || ''))
+        || String(a._id).localeCompare(String(b._id))
+    );
+    if (records.length > 200) {
+        return res.status(413).json({
+            success: false,
+            message: 'This export contains more than 200 records. Choose a class to export a smaller group.',
+        });
+    }
+    if (!records.length) {
+        return res.status(404).json({ success: false, message: 'No PLP records were found for this round' });
+    }
+
+    const recordIds = records.map((record) => record._id);
+    const [goals, tasks] = await Promise.all([
+        PlpGoal.find({ school: req.user.school, plpRecord: { $in: recordIds } }).lean(),
+        PlpTask.find({ school: req.user.school, plpRecord: { $in: recordIds } }).lean(),
+    ]);
+    const archive = await buildPlpRoundZip({ records, goals, tasks });
+    const roundLabel = String(records[0].cycle?.cycleCode || month).replace(/[^a-z0-9_-]/gi, '-');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="plp-${academicYear}-${roundLabel}-reports.zip"`);
+    res.send(archive);
 });
 
 export const getLeaderboard = asyncHandler(async (req, res) => {
@@ -1390,7 +1455,7 @@ export const createRecord = asyncHandler(async (req, res) => {
         }
         throw createError;
     }
-    audit(req.user.school, req.user._id, 'record_created', 'PlpStudentRecord', record._id, { classId, studentId });
+    await audit(req.user.school, req.user._id, 'record_created', 'PlpStudentRecord', record._id, { classId, studentId });
     res.status(201).json({ success: true, data: record });
 });
 
@@ -1567,7 +1632,7 @@ export const deleteRecord = asyncHandler(async (req, res) => {
     ]);
     await PlpGoal.deleteMany({ school: req.user.school, plpRecord: record._id });
     await PlpStudentRecord.deleteOne({ _id: record._id, school: req.user.school });
-    audit(req.user.school, req.user._id, 'record_deleted', 'PlpStudentRecord', record._id, {});
+    await audit(req.user.school, req.user._id, 'record_deleted', 'PlpStudentRecord', record._id, {});
     res.json({ success: true, data: { id: record._id } });
 });
 
@@ -1589,7 +1654,7 @@ export const submitRecord = asyncHandler(async (req, res) => {
     record.submittedAt = new Date();
     record.awardCandidate = eligible;
     await record.save();
-    audit(req.user.school, req.user._id, 'record_submitted', 'PlpStudentRecord', record._id, {});
+    await audit(req.user.school, req.user._id, 'record_submitted', 'PlpStudentRecord', record._id, {});
     res.json({ success: true, data: record });
 });
 
@@ -1609,7 +1674,7 @@ export const unlockRecord = asyncHandler(async (req, res) => {
     }
     record.status = record.submittedAt ? 'submitted' : 'in_progress';
     await record.save();
-    audit(req.user.school, req.user._id, 'record_unlocked', 'PlpStudentRecord', record._id, { reason });
+    await audit(req.user.school, req.user._id, 'record_unlocked', 'PlpStudentRecord', record._id, { reason });
     res.json({ success: true, data: record });
 });
 
@@ -1939,7 +2004,7 @@ export const createEvidence = asyncHandler(async (req, res) => {
         aiRationale: aiRationale || null,
         reviewStatus: reviewStatus || 'confirmed',
     });
-    audit(req.user.school, req.user._id, 'evidence_created', 'PlpEvidence', evidence._id, { recordId: id, type: evidence.type });
+    await audit(req.user.school, req.user._id, 'evidence_created', 'PlpEvidence', evidence._id, { recordId: id, type: evidence.type });
 
     const newCount = (record.evidenceCount || 0) + 1;
     const config = await PlpMonthConfig.findOne({
@@ -2295,7 +2360,7 @@ export const updateEvidence = asyncHandler(async (req, res) => {
         await record.save();
     }
 
-    audit(req.user.school, req.user._id, 'evidence_updated', 'PlpEvidence', evidence._id, { recordId: String(record._id) });
+    await audit(req.user.school, req.user._id, 'evidence_updated', 'PlpEvidence', evidence._id, { recordId: String(record._id) });
 
     const populated = await PlpEvidence.findById(evidence._id)
         .populate('teacher', 'firstName lastName')
@@ -2345,7 +2410,7 @@ export const deleteEvidence = asyncHandler(async (req, res) => {
         await record.save();
     }
     await evidence.deleteOne();
-    audit(req.user.school, req.user._id, 'evidence_deleted', 'PlpEvidence', id, { recordId: record?._id });
+    await audit(req.user.school, req.user._id, 'evidence_deleted', 'PlpEvidence', id, { recordId: record?._id });
     res.json({ success: true, message: 'Evidence deleted' });
 });
 
@@ -2398,7 +2463,7 @@ export const addSupervisorNote = asyncHandler(async (req, res) => {
         note,
     });
 
-    audit(req.user.school, req.user._id, 'supervisor_note_added', 'PlpStudentRecord', record._id, {});
+    await audit(req.user.school, req.user._id, 'supervisor_note_added', 'PlpStudentRecord', record._id, {});
     res.status(201).json({ success: true, data: interaction });
 });
 
@@ -2509,7 +2574,7 @@ export const setAwardDecision = asyncHandler(async (req, res) => {
         .populate('focusTrait', 'name code themeCode')
         .lean();
 
-    audit(req.user.school, req.user._id, 'award_decision', 'PlpStudentRecord', record._id, { decision, reason });
+    await audit(req.user.school, req.user._id, 'award_decision', 'PlpStudentRecord', record._id, { decision, reason });
     res.json({ success: true, data: responseRecord });
 });
 
@@ -2561,7 +2626,7 @@ export const createSupervisorAssignment = asyncHandler(async (req, res) => {
         supervisor: supervisorId,
         teacher: teacherId,
     });
-    audit(req.user.school, req.user._id, 'supervisor_assignment_created', 'PlpSupervisorAssignment', assignment._id, { supervisorId, teacherId });
+    await audit(req.user.school, req.user._id, 'supervisor_assignment_created', 'PlpSupervisorAssignment', assignment._id, { supervisorId, teacherId });
     res.status(201).json({ success: true, data: assignment });
 });
 
@@ -2635,7 +2700,7 @@ export const createTrait = asyncHandler(async (req, res) => {
         displayOrder: Number(displayOrder) || 0,
         createdBy: req.user._id,
     });
-    audit(req.user.school, req.user._id, 'trait_created', 'PlpTraitConfig', trait._id, { code: trait.code });
+    await audit(req.user.school, req.user._id, 'trait_created', 'PlpTraitConfig', trait._id, { code: trait.code });
     res.status(201).json({ success: true, data: trait });
 });
 
@@ -2670,7 +2735,7 @@ export const updateTrait = asyncHandler(async (req, res) => {
     trait.displayOrder = displayOrder !== undefined ? Number(displayOrder) : trait.displayOrder;
     trait.updatedBy = req.user._id;
     await trait.save();
-    audit(req.user.school, req.user._id, 'trait_updated', 'PlpTraitConfig', trait._id, { code: trait.code });
+    await audit(req.user.school, req.user._id, 'trait_updated', 'PlpTraitConfig', trait._id, { code: trait.code });
     res.json({ success: true, data: trait });
 });
 
@@ -2682,7 +2747,7 @@ export const setTraitActive = asyncHandler(async (req, res) => {
     trait.isActive = Boolean(isActive);
     trait.updatedBy = req.user._id;
     await trait.save();
-    audit(req.user.school, req.user._id, isActive ? 'trait_activated' : 'trait_deactivated', 'PlpTraitConfig', trait._id, {});
+    await audit(req.user.school, req.user._id, isActive ? 'trait_activated' : 'trait_deactivated', 'PlpTraitConfig', trait._id, {});
     res.json({ success: true, data: trait });
 });
 
@@ -2719,7 +2784,7 @@ export const createSelCompetency = asyncHandler(async (req, res) => {
         active: active !== undefined ? Boolean(active) : true,
         createdBy: req.user._id,
     });
-    audit(req.user.school, req.user._id, 'sel_competency_created', 'SelCompetency', item._id, { code: item.code });
+    await audit(req.user.school, req.user._id, 'sel_competency_created', 'SelCompetency', item._id, { code: item.code });
     res.status(201).json({ success: true, data: item });
 });
 
@@ -2731,7 +2796,7 @@ export const updateSelCompetency = asyncHandler(async (req, res) => {
         { new: true, runValidators: true }
     );
     if (!item) return res.status(404).json({ success: false, message: 'SEL competency not found' });
-    audit(req.user.school, req.user._id, 'sel_competency_updated', 'SelCompetency', item._id, { code: item.code });
+    await audit(req.user.school, req.user._id, 'sel_competency_updated', 'SelCompetency', item._id, { code: item.code });
     res.json({ success: true, data: item });
 });
 
@@ -2770,7 +2835,7 @@ export const createCharacterTheme = asyncHandler(async (req, res) => {
         active: active !== undefined ? Boolean(active) : true,
         createdBy: req.user._id,
     });
-    audit(req.user.school, req.user._id, 'character_theme_created', 'CharacterTheme', item._id, { code: item.code });
+    await audit(req.user.school, req.user._id, 'character_theme_created', 'CharacterTheme', item._id, { code: item.code });
     res.status(201).json({ success: true, data: item });
 });
 
@@ -2782,7 +2847,7 @@ export const updateCharacterTheme = asyncHandler(async (req, res) => {
         { new: true, runValidators: true }
     );
     if (!item) return res.status(404).json({ success: false, message: 'Character theme not found' });
-    audit(req.user.school, req.user._id, 'character_theme_updated', 'CharacterTheme', item._id, { code: item.code });
+    await audit(req.user.school, req.user._id, 'character_theme_updated', 'CharacterTheme', item._id, { code: item.code });
     res.json({ success: true, data: item });
 });
 

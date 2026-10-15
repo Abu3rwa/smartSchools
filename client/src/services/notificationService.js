@@ -37,6 +37,31 @@ const notificationService = {
         return response.data;
     },
 
+    getGmailCleanupStatus: async () => {
+        const response = await api.get('/notifications/gmail-cleanup/status');
+        return response.data.data;
+    },
+
+    getGmailAuthorizationUrl: async () => {
+        const response = await api.get('/auth/gmail/url', {
+            params: { cleanup: 'true', returnTo: 'notifications' }
+        });
+        return response.data.authUrl;
+    },
+
+    previewGmailCleanup: async (payload) => {
+        const response = await api.post('/notifications/gmail-cleanup/preview', payload);
+        return response.data.data;
+    },
+
+    trashGmailSentMessages: async (previewToken, confirmation) => {
+        const response = await api.post('/notifications/gmail-cleanup/trash', {
+            previewToken,
+            confirmation
+        });
+        return response.data.data;
+    },
+
     // Get single notification
     getNotification: async (id) => {
         const response = await api.get(`/notifications/${id}`);

@@ -267,6 +267,10 @@ const userSchema = new mongoose.Schema({
             get: decryptSecret,
             set: encryptSecret
         },
+        grantedScopes: {
+            type: [String],
+            default: []
+        },
         expiryDate: Date,
         isActive: {
             type: Boolean,
@@ -393,10 +397,16 @@ userSchema.methods.gmailTokenNeedsRefresh = function () {
 
 // Update Gmail tokens
 userSchema.methods.updateGmailTokens = async function (tokens, email) {
+    const grantedScopes = String(tokens.scope || '')
+        .split(/\s+/)
+        .filter(Boolean);
     this.gmailTokens = {
         email: email || this.gmailTokens?.email,
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || this.gmailTokens?.refreshToken,
+        grantedScopes: grantedScopes.length > 0
+            ? grantedScopes
+            : this.gmailTokens?.grantedScopes || [],
         expiryDate: new Date(tokens.expiry_date),
         isActive: true
     };
@@ -409,6 +419,7 @@ userSchema.methods.clearGmailTokens = async function () {
         email: null,
         accessToken: null,
         refreshToken: null,
+        grantedScopes: [],
         expiryDate: null,
         isActive: false
     };

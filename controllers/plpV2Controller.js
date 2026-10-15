@@ -1,4 +1,8 @@
+import mongoose from 'mongoose';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { withTransaction } from '../utils/withTransaction.js';
+import { buildPlpPaginationMetadata, getPlpPagination } from '../services/plpPaginationService.js';
+import { toPlpHistoryItem, toStudentVisibleGoal, toStudentVisibleTask } from '../services/plpPrivacyService.js';
 import PlpCycle from '../models/PlpCycle.js';
 import PlpStudentRecord from '../models/PlpStudentRecord.js';
 import PlpGoal from '../models/PlpGoal.js';
@@ -7,22 +11,156 @@ import PlpActivity from '../models/PlpActivity.js';
 import PlpEvidence from '../models/PlpEvidence.js';
 import PlpTraitConfig from '../models/PlpTraitConfig.js';
 import PlpInteraction from '../models/PlpInteraction.js';
-import PlpSupervisorAssignment from '../models/PlpSupervisorAssignment.js';
-import PlpAuditLog from '../models/PlpAuditLog.js';
+import PlpEmailConsent from '../models/PlpEmailConsent.js';
+import PlpEmailDelivery from '../models/PlpEmailDelivery.js';
 import Notification from '../models/Notification.js';
 import { NOTIFICATION_TYPES } from '../constants/notificationTypes.js';
 import Student from '../models/Student.js';
-import Teacher from '../models/Teacher.js';
 import Subject from '../models/Subject.js';
-import Class from '../models/Class.js';
+import { writePlpAudit } from '../services/plpAuditService.js';
+import Standard from '../models/Standard.js';
+import {
+    buildCopiedGoal,
+    buildCopiedTask,
+    isCompatibleDestinationRecord,
+    normalizeDestinationRecordIds,
+} from '../services/plpGoalCopyService.js';
+import logger from '../utils/logger.js';
+import {
+    assertRecordAccess,
+    assertTeacherRecordWriteAccess,
+    getStudentProfileFromUser,
+    getTeacherHomeroomClassIds,
+} from '../services/plpAccessService.js';
+import { normalizeGoalMilestones, parseOptionalPlpDate } from '../services/plpGoalProgressService.js';
+import {
+    buildPlpEmailRecipientCandidates,
+    buildPlpProgressEmail,
+    getPlpEmailDeliveryAttempt,
+} from '../services/plpProgressEmailService.js';
+import { sendTransactionalEmail } from '../services/transactionalEmailService.js';
 
 const audit = (school, actor, action, targetType, targetId, meta) =>
-    PlpAuditLog.create({ school, actor, action, targetType, targetId, meta }).catch(() => {});
+    writePlpAudit({ school, actor, action, targetType, targetId, meta });
 
-const notifyStudentForTask = async ({ schoolId, task, type, subject, message, actorId }) => {
-    const student = await Student.findOne({ school: schoolId, _id: task.student }).select('_id user email studentEmail').lean();
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const plpContactEmailFields = [
+    'studentEmail',
+    'email',
+    'parentInfo.fatherEmail',
+    'parentInfo.motherEmail',
+    'parentInfo.guardianEmail',
+];
+
+const resolveAuthenticatedPlpEmailContact = async (req, studentId) => {
+    const email = String(req.user.email || '').trim().toLowerCase();
+    const resolvedStudentId = studentId || (
+        req.user.role === 'student'
+            ? (await getStudentProfileFromUser(req.user))?._id
+            : null
+    );
+    if (!email || !resolvedStudentId) {
+        throw Object.assign(new Error('Student and authenticated account email are required'), { statusCode: 400 });
+    }
+    if (!mongoose.isValidObjectId(resolvedStudentId)) {
+        throw Object.assign(new Error('Invalid student ID'), { statusCode: 400 });
+    }
+    const query = { _id: resolvedStudentId, school: req.user.school };
+    if (req.user.role === 'student') {
+        query.user = req.user._id;
+        query.status = 'active';
+    } else if (req.user.role === 'parent') {
+        const escapedEmail = escapeRegex(email);
+        query.$or = [
+            { 'parentInfo.fatherEmail': new RegExp(`^${escapedEmail}$`, 'i') },
+            { 'parentInfo.motherEmail': new RegExp(`^${escapedEmail}$`, 'i') },
+            { 'parentInfo.guardianEmail': new RegExp(`^${escapedEmail}$`, 'i') },
+        ];
+    } else {
+        throw Object.assign(new Error('Only students and linked parents can manage PLP email preferences'), { statusCode: 403 });
+    }
+    const student = await Student.findOne(query)
+        .select('_id school user firstName lastName email studentEmail parentInfo')
+        .lean();
+    if (!student) {
+        throw Object.assign(new Error('Student not found or not linked to this account'), { statusCode: 404 });
+    }
+    const matchingContact = plpContactEmailFields.some((field) => {
+        const value = field.split('.').reduce((current, key) => current?.[key], student);
+        return String(value || '').trim().toLowerCase() === email;
+    });
+    const linkedStudentAccount = req.user.role === 'student'
+        && String(student.user) === String(req.user._id);
+    if (!matchingContact && !linkedStudentAccount) {
+        throw Object.assign(new Error('This account email is not a listed contact for the student'), { statusCode: 403 });
+    }
+    const recipientType = req.user.role === 'student'
+        ? 'student'
+        : (['father', 'mother', 'guardian'].find((type) =>
+            String(student.parentInfo?.[`${type}Email`] || '').trim().toLowerCase() === email
+        ) || 'guardian');
+    return { student, email, recipientType };
+};
+
+const loadProgressEmailContext = async (req, recordId) => {
+    if (!mongoose.isValidObjectId(recordId)) {
+        throw Object.assign(new Error('PLP record not found'), { statusCode: 404 });
+    }
+    const record = await PlpStudentRecord.findOne({ _id: recordId, school: req.user.school })
+        .populate('student', 'firstName lastName studentId email studentEmail parentInfo user')
+        .populate('student.user', 'email')
+        .populate('cycle', 'title')
+        .lean();
+    if (!record) throw Object.assign(new Error('PLP record not found'), { statusCode: 404 });
+    await assertTeacherRecordWriteAccess(req.user, record);
+    const [goals, tasks, consents] = await Promise.all([
+        PlpGoal.find({ school: req.user.school, plpRecord: record._id }).sort({ createdAt: 1 }).lean(),
+        PlpTask.find({ school: req.user.school, plpRecord: record._id }).sort({ createdAt: 1 }).lean(),
+        PlpEmailConsent.find({ school: req.user.school, student: record.student._id }).lean(),
+    ]);
+    const recipients = buildPlpEmailRecipientCandidates(record.student, consents);
+    return {
+        record,
+        student: record.student,
+        goals,
+        tasks,
+        recipients,
+        email: buildPlpProgressEmail({ student: record.student, record, goals, tasks }),
+    };
+};
+
+const buildTeacherReviewQueueRecordFilter = async (req, statuses = ['in_progress']) => {
+    const academicYear = String(req.query.academicYear || '').trim();
+    if (!academicYear || academicYear.length > 20) {
+        throw Object.assign(new Error('A valid academicYear is required'), { statusCode: 400 });
+    }
+    const filter = { school: req.user.school, status: { $in: statuses }, academicYear };
+    if (req.query.cycleId) {
+        if (!mongoose.isValidObjectId(req.query.cycleId)) {
+            throw Object.assign(new Error('Invalid cycleId'), { statusCode: 400 });
+        }
+        filter.cycle = req.query.cycleId;
+    }
+    if (req.user.role === 'teacher') {
+        const classIds = await getTeacherHomeroomClassIds(req.user.school, req.user._id, academicYear);
+        filter.class = { $in: classIds };
+    } else if (req.user.role !== 'admin') {
+        throw Object.assign(new Error('Only teachers and admins can view PLP review queues'), { statusCode: 403 });
+    }
+    return filter;
+};
+
+const notifyStudentForTask = async ({ schoolId, task, type, subject, message, actorId, eventKey }) => {
+    const student = await Student.findOne({ school: schoolId, _id: task.student })
+        .select('_id user email studentEmail')
+        .lean();
+    if (!student?.user) return { status: 'skipped', reason: 'Student portal account is not linked' };
     const recipientEmail = student?.email || student?.studentEmail || 'internal-notification@system.local';
-    if (!student?.user) return;
+    if (eventKey && await Notification.exists({
+        school: schoolId,
+        recipient: student.user,
+        'metadata.eventKey': eventKey,
+    })) return { status: 'queued' };
     await Notification.create({
         school: schoolId,
         recipient: student.user,
@@ -32,17 +170,41 @@ const notifyStudentForTask = async ({ schoolId, task, type, subject, message, ac
         subject,
         message,
         channels: ['push'],
-        metadata: { source: 'plp_task', taskId: task._id, plpRecordId: task.plpRecord },
+        metadata: { source: 'plp_task', taskId: task._id, plpRecordId: task.plpRecord, eventKey },
         createdBy: actorId,
-    }).catch(() => {});
+    });
+    return { status: 'queued' };
 };
 
-const HOMEROOM_SUBJECT_MATCHERS = ['homeroom', 'home room', 'advisory', 'advisor', 'hmrm'];
-
-const isHomeroomSubject = (subject) => {
-    const name = String(subject?.name || '').toLowerCase();
-    const code = String(subject?.code || '').toLowerCase();
-    return HOMEROOM_SUBJECT_MATCHERS.some((term) => name.includes(term) || code.includes(term));
+const queueTaskNotification = async ({ schoolId, task, type, subject, message, actorId, eventKey }) => {
+    const stableEventKey = eventKey || task.notificationEventKey || `${task._id}:${type}:${Date.now()}`;
+    task.notificationEventKey = stableEventKey;
+    try {
+        const result = await notifyStudentForTask({
+            schoolId,
+            task,
+            type,
+            subject,
+            message,
+            actorId,
+            eventKey: stableEventKey,
+        });
+        task.notificationStatus = result.status;
+        task.notificationError = result.reason || '';
+        task.notifiedAt = result.status === 'queued' ? new Date() : null;
+        await task.save();
+        return result;
+    } catch (error) {
+        logger.error('PLP task notification could not be queued', {
+            taskId: String(task._id),
+            error: error.message,
+        });
+        task.notificationStatus = 'failed';
+        task.notificationError = 'Notification could not be queued. Retry is available.';
+        task.notifiedAt = null;
+        await task.save();
+        return { status: 'failed', reason: task.notificationError };
+    }
 };
 
 const countWords = (text = '') => {
@@ -128,100 +290,6 @@ export const buildTaskDraftSuggestions = ({ goalType, linkedSubjectId, studentNa
         { title: 'Review one current goal and identify the next small step', instructions: 'Write a short plan for how the student will make progress this week.', reason: 'Used as a fallback because no prior goal data was available.' },
         { title: 'Check progress against the success criteria', instructions: 'List one success indicator and one action the student will take next.', reason: 'Supports accountability and measurable growth.' },
     ];
-};
-
-const getTeacherHomeroomClassIds = async (schoolId, teacherUserId, academicYear = null) => {
-    const teacherProfile = await Teacher.findOne({ school: schoolId, user: teacherUserId, isActive: true })
-        .select('_id')
-        .lean();
-    if (!teacherProfile) return [];
-
-    const subjects = await Subject.find({ school: schoolId, isActive: true })
-        .select('_id name code')
-        .lean();
-    const homeroomSubjectIds = subjects.filter(isHomeroomSubject).map((s) => s._id.toString());
-    if (homeroomSubjectIds.length === 0) return [];
-
-    const classQuery = {
-        school: schoolId,
-        isActive: true,
-        $or: [
-            { classTeacher: teacherProfile._id },
-            {
-                subjects: {
-                    $elemMatch: {
-                        teacher: teacherProfile._id,
-                        subject: { $in: homeroomSubjectIds }
-                    }
-                }
-            }
-        ]
-    };
-    if (academicYear) classQuery.academicYear = academicYear;
-
-    const classes = await Class.find(classQuery).select('_id').lean();
-    return classes.map((row) => row._id.toString());
-};
-
-const assertRecordAccess = async (user, record) => {
-    if (user.role === 'admin') return;
-
-    if (user.role === 'teacher') {
-        const normalizedClassId = String(record?.class?._id || record?.class || '');
-        if (!normalizedClassId) {
-            throw Object.assign(new Error('PLP class context is missing'), { statusCode: 400 });
-        }
-        const allowedClassIds = await getTeacherHomeroomClassIds(user.school, user._id, record.academicYear || null);
-        if (!allowedClassIds.includes(normalizedClassId)) {
-            throw Object.assign(new Error('PLP access is limited to your homeroom students'), { statusCode: 403 });
-        }
-        return;
-    }
-
-    if (user.role === 'department_principal') {
-        const assignment = await PlpSupervisorAssignment.findOne({
-            school: user.school,
-            supervisor: user._id,
-            teacher: record.teacher,
-            active: true,
-        }).lean();
-        if (assignment) return;
-    }
-
-    if (user.role === 'student') {
-        const studentProfile = await Student.findOne({
-            school: user.school,
-            user: user._id,
-            _id: record.student,
-            status: 'active',
-        }).select('_id').lean();
-        if (studentProfile) return;
-    }
-
-    throw Object.assign(new Error('Not authorized'), { statusCode: 403 });
-};
-
-const assertTeacherRecordWriteAccess = async (user, record) => {
-    if (user.role !== 'teacher' && user.role !== 'admin') {
-        throw Object.assign(new Error('Only teacher/admin can edit goals and tasks'), { statusCode: 403 });
-    }
-
-    if (user.role === 'admin') return;
-
-    const normalizedClassId = String(record?.class?._id || record?.class || '');
-    const allowedClassIds = await getTeacherHomeroomClassIds(user.school, user._id, record.academicYear || null);
-    const inHomeroomScope = normalizedClassId ? allowedClassIds.includes(normalizedClassId) : false;
-    if (!inHomeroomScope) {
-        throw Object.assign(new Error('PLP write access is limited to your homeroom students'), { statusCode: 403 });
-    }
-};
-
-const getStudentProfileFromUser = async (user) => {
-    return Student.findOne({
-        school: user.school,
-        user: user._id,
-        status: 'active',
-    }).select('_id firstName lastName currentClass academicYear').lean();
 };
 
 // ─── Cycles ────────────────────────────────────────────────────────────────────
@@ -349,7 +417,7 @@ export const deleteCycle = asyncHandler(async (req, res) => {
         return res.status(400).json({ success: false, message: 'This Round has student records and cannot be deleted' });
     }
     await cycle.deleteOne();
-    audit(req.user.school, req.user._id, 'cycle_deleted', 'PlpCycle', id, { cycleCode: cycle.cycleCode });
+    await audit(req.user.school, req.user._id, 'cycle_deleted', 'PlpCycle', id, { cycleCode: cycle.cycleCode });
     res.json({ success: true, data: { _id: id } });
 });
 
@@ -369,6 +437,241 @@ export const getRecordGoals = asyncHandler(async (req, res) => {
         .sort({ createdAt: -1 });
 
     res.json({ success: true, data: goals });
+});
+
+export const getGoalCopyDestinations = asyncHandler(async (req, res) => {
+    const goal = await PlpGoal.findOne({ _id: req.params.goalId, school: req.user.school })
+        .select('_id plpRecord')
+        .lean();
+    if (!goal) return res.status(404).json({ success: false, message: 'Goal not found' });
+
+    const sourceRecord = await PlpStudentRecord.findOne({ _id: goal.plpRecord, school: req.user.school })
+        .select('_id school teacher class academicYear cycle month status')
+        .lean();
+    if (!sourceRecord) return res.status(404).json({ success: false, message: 'Record not found' });
+    if (sourceRecord.status !== 'in_progress') {
+        return res.status(400).json({ success: false, message: 'Goals can only be copied from an in-progress record' });
+    }
+    await assertTeacherRecordWriteAccess(req.user, sourceRecord);
+
+    const samePeriod = sourceRecord.cycle
+        ? { cycle: sourceRecord.cycle }
+        : { cycle: null, month: sourceRecord.month };
+    const records = await PlpStudentRecord.find({
+        school: req.user.school,
+        academicYear: sourceRecord.academicYear,
+        class: sourceRecord.class,
+        ...samePeriod,
+        status: 'in_progress',
+        _id: { $ne: sourceRecord._id },
+        student: { $ne: sourceRecord.student },
+    })
+        .populate('student', 'firstName lastName studentId')
+        .populate('cycle', 'title cycleCode')
+        .sort({ 'student.firstName': 1, 'student.lastName': 1 })
+        .lean();
+    const eligibleRecords = [];
+    for (const record of records) {
+        try {
+            await assertTeacherRecordWriteAccess(req.user, record);
+            eligibleRecords.push(record);
+        } catch (error) {
+            if (error.statusCode !== 403) throw error;
+        }
+    }
+
+    res.json({
+        success: true,
+        data: eligibleRecords.map((record) => ({
+            _id: record._id,
+            student: record.student,
+            class: record.class,
+            academicYear: record.academicYear,
+            cycle: record.cycle,
+            month: record.month,
+        })),
+    });
+});
+
+export const copyGoalToRecords = asyncHandler(async (req, res) => {
+    const destinationRecordIds = normalizeDestinationRecordIds(req.body.destinationRecordIds);
+    const copyOperationId = String(req.body.copyOperationId || '').trim();
+    const copyDueDates = req.body.copyDueDates === true;
+
+    if (!destinationRecordIds.length || destinationRecordIds.length > 25) {
+        return res.status(400).json({ success: false, message: 'Choose between 1 and 25 destination records' });
+    }
+    if (!/^[A-Za-z0-9-]{8,100}$/.test(copyOperationId)) {
+        return res.status(400).json({ success: false, message: 'A valid copy operation ID is required' });
+    }
+    if (!destinationRecordIds.every((id) => mongoose.isValidObjectId(id))) {
+        return res.status(400).json({ success: false, message: 'One or more destination record IDs are invalid' });
+    }
+
+    const sourceGoal = await PlpGoal.findOne({ _id: req.params.goalId, school: req.user.school }).lean();
+    if (!sourceGoal) return res.status(404).json({ success: false, message: 'Goal not found' });
+    const sourceRecord = await PlpStudentRecord.findOne({ _id: sourceGoal.plpRecord, school: req.user.school })
+        .select('_id school teacher class academicYear cycle month student status')
+        .lean();
+    if (!sourceRecord) return res.status(404).json({ success: false, message: 'Source record not found' });
+    if (sourceRecord.status !== 'in_progress') {
+        return res.status(400).json({ success: false, message: 'Goals can only be copied from an in-progress record' });
+    }
+    await assertTeacherRecordWriteAccess(req.user, sourceRecord);
+
+    const destinationRecords = await PlpStudentRecord.find({
+        school: req.user.school,
+        _id: { $in: destinationRecordIds },
+    }).select('_id school teacher class academicYear cycle month student status').lean();
+    if (destinationRecords.length !== destinationRecordIds.length) {
+        return res.status(400).json({ success: false, message: 'One or more destination records are unavailable' });
+    }
+
+    for (const destination of destinationRecords) {
+        await assertTeacherRecordWriteAccess(req.user, destination);
+        if (!isCompatibleDestinationRecord(sourceRecord, destination)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Destinations must be different students in the same class, academic year, and round, with an in-progress record',
+            });
+        }
+    }
+
+    if (sourceGoal.linkedSubjectId) {
+        const subjectExists = await Subject.exists({
+            _id: sourceGoal.linkedSubjectId,
+            school: req.user.school,
+            isActive: true,
+        });
+        if (!subjectExists) {
+            return res.status(400).json({ success: false, message: 'The linked subject is no longer active in this school' });
+        }
+    }
+    const [traitCount, standardCount] = await Promise.all([
+        sourceGoal.linkedTraitCodes?.length
+            ? PlpTraitConfig.countDocuments({
+                school: req.user.school,
+                code: { $in: sourceGoal.linkedTraitCodes },
+                isActive: true,
+            })
+            : 0,
+        sourceGoal.linkedStandardIds?.length
+            ? Standard.countDocuments({
+                school: req.user.school,
+                _id: { $in: sourceGoal.linkedStandardIds },
+            })
+            : 0,
+    ]);
+    if (traitCount !== new Set(sourceGoal.linkedTraitCodes || []).size) {
+        return res.status(400).json({ success: false, message: 'One or more linked traits are inactive or unavailable' });
+    }
+    if (standardCount !== new Set((sourceGoal.linkedStandardIds || []).map(String)).size) {
+        return res.status(400).json({ success: false, message: 'One or more linked standards are unavailable in this school' });
+    }
+
+    const sourceTasks = await PlpTask.find({ school: req.user.school, plpGoal: sourceGoal._id })
+        .sort({ createdAt: 1 })
+        .lean();
+    const outcomes = [];
+    for (const destinationRecord of destinationRecords) {
+        const result = await withTransaction(async (session) => {
+            const existingGoal = await PlpGoal.findOne({
+                school: req.user.school,
+                plpRecord: destinationRecord._id,
+                copyOperationId,
+            }).session(session).select('_id').lean();
+            if (existingGoal) {
+                const existingTasks = await PlpTask.find({
+                    school: req.user.school,
+                    plpGoal: existingGoal._id,
+                }).session(session).select('_id').lean();
+                return {
+                    goalId: existingGoal._id,
+                    taskIds: existingTasks.map((task) => task._id),
+                    alreadyCopied: true,
+                };
+            }
+
+            const [copiedGoal] = await PlpGoal.create([
+                buildCopiedGoal({
+                    sourceGoal,
+                    destinationRecordId: destinationRecord._id,
+                    copyDueDates,
+                    copyOperationId,
+                    actorId: req.user._id,
+                }),
+            ], { session });
+            const copiedTasks = sourceTasks.length
+                ? await PlpTask.create(sourceTasks.map((task) => buildCopiedTask({
+                    sourceTask: task,
+                    destinationRecord,
+                    goalId: copiedGoal._id,
+                    actorId: req.user._id,
+                    copyDueDates,
+                })), { session })
+                : [];
+            const actorRole = req.user.role === 'admin' ? 'admin' : 'teacher';
+            await PlpInteraction.create([{
+                school: req.user.school,
+                plpRecord: destinationRecord._id,
+                plpGoal: copiedGoal._id,
+                actorRole,
+                actor: req.user._id,
+                actionType: 'status_change',
+                visibility: 'internal',
+                payload: { to: 'active', copiedFromGoalId: sourceGoal._id },
+            }], { session });
+            await writePlpAudit({
+                school: req.user.school,
+                actor: req.user._id,
+                action: 'goal_plan_copied',
+                targetType: 'PlpGoal',
+                targetId: copiedGoal._id,
+                meta: {
+                    sourceGoalId: sourceGoal._id,
+                    sourceRecordId: sourceRecord._id,
+                    destinationRecordId: destinationRecord._id,
+                    destinationStudentId: destinationRecord.student,
+                    copiedTaskIds: copiedTasks.map((task) => task._id),
+                    copyDueDates,
+                },
+                session,
+            });
+            return {
+                goalId: copiedGoal._id,
+                taskIds: copiedTasks.map((task) => task._id),
+                alreadyCopied: false,
+                copiedTasks,
+            };
+        });
+
+        const warnings = [];
+        if (!result.alreadyCopied) {
+            for (const task of result.copiedTasks) {
+                const notificationResult = await queueTaskNotification({
+                    schoolId: req.user.school,
+                    task,
+                    type: NOTIFICATION_TYPES.PLP_TASK_ASSIGNED,
+                    subject: 'New PLP task assigned',
+                    message: `A new task "${task.title}" has been assigned to you.`,
+                    actorId: req.user._id,
+                });
+                if (notificationResult.status === 'failed') {
+                    warnings.push({ taskId: task._id, message: notificationResult.reason });
+                }
+            }
+        }
+        outcomes.push({
+            recordId: destinationRecord._id,
+            studentId: destinationRecord.student,
+            goalId: result.goalId,
+            taskIds: result.taskIds,
+            alreadyCopied: result.alreadyCopied,
+            notificationWarnings: warnings,
+        });
+    }
+
+    res.status(201).json({ success: true, data: outcomes });
 });
 
 export const createGoal = asyncHandler(async (req, res) => {
@@ -393,6 +696,8 @@ export const createGoal = asyncHandler(async (req, res) => {
         baselineNote,
         successCriteria,
         targetDate,
+        checkInDate,
+        milestones,
         aiSuggested,
     } = req.body;
 
@@ -411,7 +716,9 @@ export const createGoal = asyncHandler(async (req, res) => {
         linkedStandardIds: Array.isArray(linkedStandardIds) ? linkedStandardIds : [],
         baselineNote: baselineNote || '',
         successCriteria: successCriteria || '',
-        targetDate: targetDate || null,
+        targetDate: parseOptionalPlpDate(targetDate, 'Target date'),
+        checkInDate: parseOptionalPlpDate(checkInDate, 'Check-in date'),
+        milestones: normalizeGoalMilestones(milestones || []),
         aiSuggested: Boolean(aiSuggested),
         createdBy: req.user._id,
     });
@@ -455,13 +762,23 @@ export const updateGoal = asyncHandler(async (req, res) => {
     const previousStatus = goal.status;
     const allowedUpdates = [
         'goalType', 'title', 'description', 'linkedTraitCodes', 'linkedSubjectId', 'linkedStandardIds',
-        'baselineNote', 'successCriteria', 'teacherProgressNote', 'targetDate', 'status', 'aiSuggested'
+        'baselineNote', 'successCriteria', 'teacherProgressNote', 'targetDate', 'checkInDate',
+        'milestones', 'status', 'aiSuggested'
     ];
 
     for (const key of allowedUpdates) {
         if (typeof req.body[key] !== 'undefined') {
             goal[key] = req.body[key];
         }
+    }
+    if (typeof req.body.targetDate !== 'undefined') {
+        goal.targetDate = parseOptionalPlpDate(req.body.targetDate, 'Target date');
+    }
+    if (typeof req.body.checkInDate !== 'undefined') {
+        goal.checkInDate = parseOptionalPlpDate(req.body.checkInDate, 'Check-in date');
+    }
+    if (typeof req.body.milestones !== 'undefined') {
+        goal.milestones = normalizeGoalMilestones(req.body.milestones);
     }
     goal.updatedBy = req.user._id;
     await goal.save();
@@ -481,6 +798,313 @@ export const updateGoal = asyncHandler(async (req, res) => {
 
     const populated = await PlpGoal.findById(goal._id).populate('linkedSubjectId', 'name code');
     res.json({ success: true, data: populated });
+});
+
+export const reviewGoalByTeacher = asyncHandler(async (req, res) => {
+    const { outcome, reviewNote } = req.body;
+    if (!['continue', 'revise', 'complete'].includes(outcome)) {
+        return res.status(400).json({ success: false, message: 'Choose continue, revise, or complete' });
+    }
+    if (String(reviewNote || '').length > 2000) {
+        return res.status(400).json({ success: false, message: 'Review note cannot exceed 2000 characters' });
+    }
+    const goal = await PlpGoal.findOne({ _id: req.params.goalId, school: req.user.school });
+    if (!goal) return res.status(404).json({ success: false, message: 'Goal not found' });
+
+    const record = await PlpStudentRecord.findOne({ _id: goal.plpRecord, school: req.user.school })
+        .select('_id school teacher class academicYear student status');
+    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    if (record.status !== 'in_progress') {
+        return res.status(400).json({ success: false, message: 'Only in-progress records can be reviewed' });
+    }
+    await assertTeacherRecordWriteAccess(req.user, record);
+
+    const previousStatus = goal.status;
+    goal.status = outcome === 'complete' ? 'completed' : 'active';
+    goal.reviewOutcome = outcome;
+    goal.reviewNote = String(reviewNote || '').trim();
+    goal.lastReviewedAt = new Date();
+    if (typeof req.body.checkInDate !== 'undefined') {
+        goal.checkInDate = parseOptionalPlpDate(req.body.checkInDate, 'Check-in date');
+    }
+    goal.updatedBy = req.user._id;
+    await goal.save();
+    await PlpInteraction.create({
+        school: req.user.school,
+        plpRecord: record._id,
+        plpGoal: goal._id,
+        actorRole: req.user.role === 'admin' ? 'admin' : 'teacher',
+        actor: req.user._id,
+        actionType: 'status_change',
+        visibility: 'student_visible',
+        payload: { from: previousStatus, to: goal.status, reviewOutcome: outcome },
+    });
+    await audit(req.user.school, req.user._id, 'goal_reviewed', 'PlpGoal', goal._id, {
+        plpRecordId: record._id,
+        outcome,
+    });
+    const populated = await PlpGoal.findById(goal._id).populate('linkedSubjectId', 'name code');
+    res.json({ success: true, data: populated });
+});
+
+export const getPlpEmailConsent = asyncHandler(async (req, res) => {
+    const { student } = await resolveAuthenticatedPlpEmailContact(req, req.query.studentId);
+    const recipientEmail = String(req.user.email).trim().toLowerCase();
+    const consent = await PlpEmailConsent.findOne({
+        school: req.user.school,
+        student: student._id,
+        recipientEmail,
+    }).select('optedIn optedInAt revokedAt recipientType').lean();
+    res.json({
+        success: true,
+        data: {
+            studentId: student._id,
+            recipientEmail,
+            optedIn: Boolean(consent?.optedIn),
+            optedInAt: consent?.optedInAt || null,
+            recipientType: consent?.recipientType || null,
+        },
+    });
+});
+
+export const updatePlpEmailConsent = asyncHandler(async (req, res) => {
+    if (typeof req.body.optedIn !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'optedIn must be true or false' });
+    }
+    const { student, email, recipientType } = await resolveAuthenticatedPlpEmailContact(req, req.body.studentId);
+    const consent = await PlpEmailConsent.findOneAndUpdate(
+        { school: req.user.school, student: student._id, recipientEmail: email },
+        {
+            $set: {
+                recipientType,
+                user: req.user._id,
+                optedIn: req.body.optedIn,
+                optedInAt: req.body.optedIn ? new Date() : null,
+                revokedAt: req.body.optedIn ? null : new Date(),
+            },
+        },
+        { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    ).select('optedIn optedInAt recipientType').lean();
+    await audit(req.user.school, req.user._id, 'plp_email_consent_updated', 'Student', student._id, {
+        optedIn: consent.optedIn,
+        recipientType,
+    });
+    res.json({ success: true, data: consent });
+});
+
+export const getPlpProgressEmailPreview = asyncHandler(async (req, res) => {
+    const context = await loadProgressEmailContext(req, req.params.recordId);
+    res.json({
+        success: true,
+        data: {
+            subject: context.email.subject,
+            text: context.email.text,
+            html: context.email.html,
+            recipients: context.recipients,
+            message: context.recipients.length
+                ? ''
+                : 'No student or family email contacts are available. Contacts who explicitly opted out are excluded.',
+        },
+    });
+});
+
+export const getPlpGoalReviewQueue = asyncHandler(async (req, res) => {
+    const filter = await buildTeacherReviewQueueRecordFilter(req);
+    const records = await PlpStudentRecord.find(filter)
+        .select('_id student class academicYear cycle')
+        .populate('student', 'firstName lastName studentId')
+        .populate('class', 'name grade section')
+        .populate('cycle', 'title')
+        .limit(5000)
+        .lean();
+    if (!records.length) return res.json({ success: true, data: [] });
+
+    const now = new Date();
+    const dueConditions = [
+        {
+            checkInDate: { $lte: now },
+            $or: [
+                { lastReviewedAt: null },
+                { $expr: { $lt: ['$lastReviewedAt', '$checkInDate'] } },
+            ],
+        },
+        {
+            checkInDate: null,
+            targetDate: { $lte: now },
+            $or: [
+                { lastReviewedAt: null },
+                { $expr: { $lt: ['$lastReviewedAt', '$targetDate'] } },
+            ],
+        },
+    ];
+    const goals = await PlpGoal.find({
+        school: req.user.school,
+        plpRecord: { $in: records.map((record) => record._id) },
+        status: 'active',
+        $or: dueConditions,
+    })
+        .select('_id plpRecord title goalType checkInDate targetDate lastReviewedAt')
+        .sort({ checkInDate: 1, targetDate: 1, createdAt: 1 })
+        .limit(100)
+        .lean();
+    const recordsById = new Map(records.map((record) => [String(record._id), record]));
+    res.json({
+        success: true,
+        data: goals.map((goal) => {
+            const record = recordsById.get(String(goal.plpRecord));
+            return {
+                goalId: goal._id,
+                title: goal.title,
+                goalType: goal.goalType,
+                checkInDate: goal.checkInDate || null,
+                targetDate: goal.targetDate || null,
+                lastReviewedAt: goal.lastReviewedAt || null,
+                recordId: record._id,
+                student: record.student,
+                class: record.class,
+                cycle: record.cycle,
+            };
+        }),
+    });
+});
+
+export const getPlpTaskReviewQueue = asyncHandler(async (req, res) => {
+    const filter = await buildTeacherReviewQueueRecordFilter(req, ['in_progress', 'submitted']);
+    const records = await PlpStudentRecord.find(filter)
+        .select('_id student class cycle')
+        .populate('student', 'firstName lastName studentId')
+        .populate('class', 'name grade section')
+        .populate('cycle', 'title')
+        .limit(5000)
+        .lean();
+    if (!records.length) return res.json({ success: true, data: [] });
+    const tasks = await PlpTask.find({
+        school: req.user.school,
+        plpRecord: { $in: records.map((record) => record._id) },
+        status: 'submitted_by_student',
+    })
+        .select('_id plpRecord plpGoal title studentCompletionNote studentComment updatedAt')
+        .populate('plpGoal', 'title goalType')
+        .sort({ updatedAt: 1 })
+        .limit(100)
+        .lean();
+    const recordsById = new Map(records.map((record) => [String(record._id), record]));
+    res.json({
+        success: true,
+        data: tasks.map((task) => {
+            const record = recordsById.get(String(task.plpRecord));
+            return {
+                taskId: task._id,
+                goalId: task.plpGoal?._id,
+                goalTitle: task.plpGoal?.title || '',
+                goalType: task.plpGoal?.goalType || '',
+                title: task.title,
+                studentCompletionNote: task.studentCompletionNote || '',
+                studentComment: task.studentComment || '',
+                submittedAt: task.updatedAt,
+                recordId: record._id,
+                student: record.student,
+                class: record.class,
+                cycle: record.cycle,
+            };
+        }),
+    });
+});
+
+export const sendPlpProgressEmail = asyncHandler(async (req, res) => {
+    const requestedEmails = req.body.recipientEmails;
+    if (!Array.isArray(requestedEmails) || requestedEmails.length < 1 || requestedEmails.length > 10) {
+        return res.status(400).json({ success: false, message: 'Select between 1 and 10 student or family contacts' });
+    }
+    if (typeof req.body.resend !== 'undefined' && typeof req.body.resend !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'resend must be true or false' });
+    }
+
+    const context = await loadProgressEmailContext(req, req.params.recordId);
+    const recipientsByEmail = new Map(context.recipients.map((recipient) => [recipient.email, recipient]));
+    const emails = [...new Set(requestedEmails.map((email) => String(email || '').trim().toLowerCase()))];
+    if (emails.length !== requestedEmails.length || emails.some((email) => !recipientsByEmail.has(email))) {
+        return res.status(400).json({ success: false, message: 'Every selected address must be a current student or family contact who has not opted out' });
+    }
+
+    const results = [];
+    for (const recipientEmail of emails) {
+        const recipient = recipientsByEmail.get(recipientEmail);
+        const previous = await PlpEmailDelivery.findOne({
+            school: req.user.school,
+            plpRecord: context.record._id,
+            recipientEmail,
+        }).sort({ attempt: -1 }).lean();
+        const decision = getPlpEmailDeliveryAttempt(previous, { resend: req.body.resend === true });
+        if (decision.blocked) {
+            const message = decision.reason === 'duplicate_blocked'
+                ? 'This update was already sent. Confirm resend to send another copy.'
+                : 'A send attempt is already in progress.';
+            results.push({ email: recipientEmail, status: decision.reason, message });
+            continue;
+        }
+        const attempt = decision.attempt;
+        if (previous?.status === 'sending') {
+            await PlpEmailDelivery.updateOne({ _id: previous._id, status: 'sending' }, {
+                $set: { status: 'failed', error: 'Previous send attempt timed out.' },
+            });
+        }
+
+        let delivery;
+        try {
+            delivery = await PlpEmailDelivery.create({
+                school: req.user.school,
+                plpRecord: context.record._id,
+                student: context.student._id,
+                recipientEmail,
+                recipientType: recipient.type,
+                sentBy: req.user._id,
+                attempt,
+                status: 'sending',
+            });
+        } catch (error) {
+            if (error.code === 11000) {
+                results.push({ email: recipientEmail, status: 'sending', message: 'A send attempt is already in progress.' });
+                continue;
+            }
+            throw error;
+        }
+
+        let transport;
+        try {
+            transport = await sendTransactionalEmail({
+                to: recipientEmail,
+                ...context.email,
+                schoolId: req.user.school,
+                preferredUserId: req.user._id,
+            });
+        } catch (error) {
+            await PlpEmailDelivery.updateOne({ _id: delivery._id }, {
+                $set: { status: 'failed', error: String(error.message || 'Email delivery failed').slice(0, 1000) },
+            });
+            logger.error('PLP progress email delivery failed', {
+                recordId: String(context.record._id),
+                error: error.message,
+            });
+            results.push({ email: recipientEmail, status: 'failed', message: 'Email delivery failed. Review the sender configuration and retry.' });
+            continue;
+        }
+        await PlpEmailDelivery.updateOne({ _id: delivery._id }, {
+            $set: {
+                status: 'sent',
+                messageId: transport.messageId || '',
+                deliveredAt: new Date(),
+                error: '',
+            },
+        });
+        await audit(req.user.school, req.user._id, 'plp_progress_email_sent', 'PlpStudentRecord', context.record._id, {
+            recipientType: recipient.type,
+            attempt,
+        });
+        results.push({ email: recipientEmail, status: 'sent' });
+    }
+    const allSent = results.every((result) => result.status === 'sent');
+    res.status(allSent ? 200 : 207).json({ success: allSent, data: results });
 });
 
 export const deleteGoal = asyncHandler(async (req, res) => {
@@ -506,7 +1130,7 @@ export const deleteGoal = asyncHandler(async (req, res) => {
 
     await PlpInteraction.deleteMany({ school: req.user.school, plpGoal: goal._id });
     await goal.deleteOne();
-    audit(req.user.school, req.user._id, 'goal_deleted', 'PlpGoal', goalId, { plpRecordId: record._id });
+    await audit(req.user.school, req.user._id, 'goal_deleted', 'PlpGoal', goalId, { plpRecordId: record._id });
     res.json({ success: true, data: { _id: goalId } });
 });
 
@@ -707,7 +1331,7 @@ export const createTask = asyncHandler(async (req, res) => {
         instructions: instructions || '',
         dueDate: dueDate || null,
         completionEvidenceLinks: Array.isArray(completionEvidenceLinks) ? completionEvidenceLinks : [],
-        notifiedAt: new Date(),
+        notificationStatus: 'pending',
         createdBy: req.user._id,
     });
 
@@ -723,7 +1347,7 @@ export const createTask = asyncHandler(async (req, res) => {
         payload: { from: null, to: task.status, title: task.title },
     });
 
-    await notifyStudentForTask({
+    const notification = await queueTaskNotification({
         schoolId: req.user.school,
         task,
         type: NOTIFICATION_TYPES.PLP_TASK_ASSIGNED,
@@ -736,7 +1360,11 @@ export const createTask = asyncHandler(async (req, res) => {
         .populate('student', 'firstName lastName studentId')
         .populate('assignedByTeacher', 'firstName lastName');
 
-    res.status(201).json({ success: true, data: populated });
+    res.status(201).json({
+        success: true,
+        data: populated,
+        notificationWarning: notification.status === 'failed' ? notification.reason : null,
+    });
 });
 
 export const updateTask = asyncHandler(async (req, res) => {
@@ -806,6 +1434,36 @@ export const updateTask = asyncHandler(async (req, res) => {
     res.json({ success: true, data: populated });
 });
 
+export const retryTaskNotification = asyncHandler(async (req, res) => {
+    const task = await PlpTask.findOne({ _id: req.params.taskId, school: req.user.school });
+    if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
+    if (task.notificationStatus !== 'failed') {
+        return res.status(409).json({ success: false, message: 'Only failed task notifications can be retried' });
+    }
+
+    const record = await PlpStudentRecord.findOne({ _id: task.plpRecord, school: req.user.school })
+        .select('_id school teacher class academicYear student status');
+    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    await assertTeacherRecordWriteAccess(req.user, record);
+
+    const isAssignment = task.status === 'assigned';
+    const result = await queueTaskNotification({
+        schoolId: req.user.school,
+        task,
+        type: isAssignment ? NOTIFICATION_TYPES.PLP_TASK_ASSIGNED : NOTIFICATION_TYPES.PLP_TASK_REVIEWED,
+        subject: isAssignment ? 'New PLP task assigned' : 'Your PLP task was reviewed',
+        message: isAssignment
+            ? `A new task "${task.title}" has been assigned to you.`
+            : `Your task "${task.title}" was marked as ${task.status.replace('_', ' ')}.`,
+        actorId: req.user._id,
+        eventKey: task.notificationEventKey,
+    });
+    if (result.status === 'failed') {
+        return res.status(502).json({ success: false, message: result.reason });
+    }
+    res.json({ success: true, data: { taskId: task._id, notificationStatus: result.status } });
+});
+
 export const deleteTask = asyncHandler(async (req, res) => {
     const { taskId } = req.params;
     const task = await PlpTask.findOne({ _id: taskId, school: req.user.school });
@@ -827,9 +1485,31 @@ export const deleteTask = asyncHandler(async (req, res) => {
 
     await PlpInteraction.deleteMany({ school: req.user.school, plpTask: task._id });
     await task.deleteOne();
-    audit(req.user.school, req.user._id, 'task_deleted', 'PlpTask', taskId, { plpRecordId: record._id });
+    await audit(req.user.school, req.user._id, 'task_deleted', 'PlpTask', taskId, { plpRecordId: record._id });
     res.json({ success: true, data: { _id: taskId } });
 });
+
+const buildMyStudentRecordData = async ({ schoolId, studentProfile, record }) => {
+    const [evidence, goals, tasks] = await Promise.all([
+        PlpEvidence.find({
+            school: schoolId,
+            plpRecord: record._id,
+            type: { $in: ['observation', 'positive_example', 'reflection'] },
+            reviewStatus: { $in: ['confirmed', null] },
+        }).populate('traitId', 'name code themeCode').sort({ createdAt: -1 }).lean(),
+        PlpGoal.find({ school: schoolId, plpRecord: record._id }).sort({ createdAt: -1 }).lean(),
+        PlpTask.find({ school: schoolId, student: studentProfile._id, plpRecord: record._id })
+            .populate('assignedByTeacher', 'firstName lastName')
+            .sort({ dueDate: 1, createdAt: -1 })
+            .lean(),
+    ]);
+    return {
+        record,
+        evidence,
+        goals: goals.map(toStudentVisibleGoal),
+        tasks: tasks.map(toStudentVisibleTask),
+    };
+};
 
 export const getMyStudentRecord = asyncHandler(async (req, res) => {
     if (req.user.role !== 'student') {
@@ -853,21 +1533,76 @@ export const getMyStudentRecord = asyncHandler(async (req, res) => {
         return res.json({ success: true, data: null });
     }
 
-    // Incident evidence is internal-only and never exposed to the student.
-    const [evidence, goals, tasks] = await Promise.all([
-        PlpEvidence.find({
-            school: req.user.school,
-            plpRecord: record._id,
-            type: { $in: ['observation', 'positive_example', 'reflection'] },
-        }).populate('traitId', 'name code themeCode').sort({ createdAt: -1 }).lean(),
-        PlpGoal.find({ school: req.user.school, plpRecord: record._id }).sort({ createdAt: -1 }).lean(),
-        PlpTask.find({ school: req.user.school, student: studentProfile._id, plpRecord: record._id })
-            .populate('assignedByTeacher', 'firstName lastName')
-            .sort({ dueDate: 1, createdAt: -1 })
+    const data = await buildMyStudentRecordData({ schoolId: req.user.school, studentProfile, record });
+    res.json({ success: true, data });
+});
+
+export const getMyStudentRecordHistory = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'student') {
+        return res.status(403).json({ success: false, message: 'Only students can access this route' });
+    }
+    const studentProfile = await getStudentProfileFromUser(req.user);
+    if (!studentProfile) {
+        return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const { page, limit, skip } = getPlpPagination(req.query);
+    const visibleCycleIds = await PlpCycle.find({
+        school: req.user.school,
+        status: { $in: ['published', 'closed'] },
+    }).distinct('_id');
+    const filter = {
+        school: req.user.school,
+        student: studentProfile._id,
+        $or: [
+            { cycle: null },
+            { cycle: { $in: visibleCycleIds } },
+        ],
+    };
+    const [pageRecords, total] = await Promise.all([
+        PlpStudentRecord.find(filter)
+            .populate('cycle', 'title cycleCode status')
+            .sort({ academicYear: -1, updatedAt: -1, _id: 1 })
+            .skip(skip)
+            .limit(limit)
             .lean(),
+        PlpStudentRecord.countDocuments(filter),
     ]);
 
-    res.json({ success: true, data: { record, evidence, goals, tasks } });
+    res.json({
+        success: true,
+        data: pageRecords.map(toPlpHistoryItem),
+        pagination: buildPlpPaginationMetadata({ page, limit, total }),
+    });
+});
+
+export const getMyStudentRecordById = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'student') {
+        return res.status(403).json({ success: false, message: 'Only students can access this route' });
+    }
+    if (!mongoose.isValidObjectId(req.params.recordId)) {
+        return res.status(404).json({ success: false, message: 'PLP record not found' });
+    }
+    const studentProfile = await getStudentProfileFromUser(req.user);
+    if (!studentProfile) {
+        return res.status(404).json({ success: false, message: 'Student profile not found' });
+    }
+
+    const record = await PlpStudentRecord.findOne({
+        _id: req.params.recordId,
+        school: req.user.school,
+        student: studentProfile._id,
+    })
+        .populate('teacher', 'firstName lastName')
+        .populate('focusTrait', 'name code themeCode')
+        .populate('cycle', 'title cycleCode startDate endDate status')
+        .populate('class', 'name grade')
+        .lean();
+    if (!record || (record.cycle && !['published', 'closed'].includes(record.cycle.status))) {
+        return res.status(404).json({ success: false, message: 'PLP record not found' });
+    }
+    const data = await buildMyStudentRecordData({ schoolId: req.user.school, studentProfile, record });
+    res.json({ success: true, data });
 });
 
 export const getMyStudentTasks = asyncHandler(async (req, res) => {
@@ -881,11 +1616,12 @@ export const getMyStudentTasks = asyncHandler(async (req, res) => {
     }
 
     const tasks = await PlpTask.find({ school: req.user.school, student: studentProfile._id })
-        .populate('plpGoal', 'title goalType status targetDate')
+        .populate('plpGoal', 'title goalType status targetDate checkInDate')
         .populate('assignedByTeacher', 'firstName lastName')
-        .sort({ dueDate: 1, createdAt: -1 });
+        .sort({ dueDate: 1, createdAt: -1 })
+        .lean();
 
-    res.json({ success: true, data: tasks });
+    res.json({ success: true, data: tasks.map(toStudentVisibleTask) });
 });
 
 export const submitTaskByStudent = asyncHandler(async (req, res) => {
@@ -999,13 +1735,14 @@ export const reviewTaskByTeacher = asyncHandler(async (req, res) => {
     }
 
     if (previousStatus !== task.status) {
-        await notifyStudentForTask({
+        await queueTaskNotification({
             schoolId: req.user.school,
             task,
             type: NOTIFICATION_TYPES.PLP_TASK_REVIEWED,
             subject: 'Your PLP task was reviewed',
             message: `Your task "${task.title}" was marked as ${task.status.replace('_', ' ')}.`,
             actorId: req.user._id,
+            eventKey: `review:${task._id}:${task.updatedAt?.getTime() || Date.now()}`,
         });
     }
 
@@ -1014,5 +1751,11 @@ export const reviewTaskByTeacher = asyncHandler(async (req, res) => {
         .populate('assignedByTeacher', 'firstName lastName')
         .populate('plpGoal', 'title goalType');
 
-    res.json({ success: true, data: populated });
+    res.json({
+        success: true,
+        data: populated,
+        notificationWarning: task.notificationStatus === 'failed'
+            ? task.notificationError
+            : null,
+    });
 });

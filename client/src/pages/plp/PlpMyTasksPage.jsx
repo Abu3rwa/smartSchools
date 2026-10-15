@@ -9,6 +9,7 @@ import {
     clearPlpError,
 } from '../../store/slices/plpSlice';
 import toast from 'react-hot-toast';
+import { formatPlpDate, getPlpDateKey } from './plpDateUtils';
 import './PLP.css';
 
 const MAX_WORDS = 100;
@@ -24,9 +25,7 @@ const countWords = (text = '') => {
 
 const formatDate = (value) => {
     if (!value) return 'No due date';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'No due date';
-    return date.toLocaleDateString();
+    return formatPlpDate(value) || 'No due date';
 };
 
 const statusLabel = (status) => String(status || 'assigned').replaceAll('_', ' ');
@@ -58,6 +57,27 @@ export default function PlpMyTasksPage() {
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
     }, [tasks]);
+
+    const taskGroups = useMemo(() => {
+        const today = new Date();
+        const todayKey = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+        const groups = [
+            { title: 'Overdue', tasks: [] },
+            { title: 'To do', tasks: [] },
+            { title: 'Submitted or completed', tasks: [] },
+        ];
+        sortedTasks.forEach((task) => {
+            const dueDateKey = getPlpDateKey(task.dueDate);
+            if (SUBMITTABLE_STATUSES.includes(task.status) && dueDateKey !== null && dueDateKey < todayKey) {
+                groups[0].tasks.push(task);
+            } else if (SUBMITTABLE_STATUSES.includes(task.status)) {
+                groups[1].tasks.push(task);
+            } else {
+                groups[2].tasks.push(task);
+            }
+        });
+        return groups;
+    }, [sortedTasks]);
 
     const setDraftField = (taskId, key, value) => {
         setDrafts((prev) => ({
@@ -119,8 +139,11 @@ export default function PlpMyTasksPage() {
                 <div className="plp-empty">No PLP tasks assigned yet.</div>
             )}
 
-            <div style={{ display: 'grid', gap: 14 }}>
-                {sortedTasks.map((task) => {
+            <div style={{ display: 'grid', gap: 18 }}>
+                {taskGroups.map(({ title, tasks: groupTasks }) => groupTasks.length > 0 && (
+                    <section key={title} style={{ display: 'grid', gap: 10 }}>
+                        <h2 style={{ margin: 0 }}>{title}</h2>
+                        {groupTasks.map((task) => {
                     const draft = drafts[task._id] || {};
                     const canSubmit = SUBMITTABLE_STATUSES.includes(task.status);
                     const noteWords = countWords(draft.studentCompletionNote || '');
@@ -141,7 +164,7 @@ export default function PlpMyTasksPage() {
                                 <div style={{ textAlign: 'right' }}>
                                     <span className={`plp-badge plp-badge-${task.status}`}>{statusLabel(task.status)}</span>
                                     <div className="plp-evidence-meta" style={{ marginTop: 6 }}>
-                                        Due: {formatDate(task.dueDate)}
+                                        {title === 'Overdue' ? 'Overdue · ' : ''}Due: {formatDate(task.dueDate)}
                                     </div>
                                 </div>
                             </div>
@@ -194,7 +217,9 @@ export default function PlpMyTasksPage() {
                             </div>
                         </div>
                     );
-                })}
+                        })}
+                    </section>
+                ))}
             </div>
         </div>
     );

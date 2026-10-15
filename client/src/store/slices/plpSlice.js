@@ -175,6 +175,13 @@ export const updatePlpGoal = createAsyncThunk('plp/updateGoal', async ({ goalId,
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to update goal'); }
 });
 
+export const reviewPlpGoal = createAsyncThunk('plp/reviewGoal', async ({ goalId, data }, { rejectWithValue }) => {
+    try {
+        const res = await api.post(`/plp/goals/${goalId}/review`, data);
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to review goal'); }
+});
+
 export const deletePlpGoal = createAsyncThunk('plp/deleteGoal', async (goalId, { rejectWithValue }) => {
     try {
         await api.delete(`/plp/goals/${goalId}`);
@@ -229,7 +236,12 @@ export const createPlpTask = createAsyncThunk('plp/createTask', async ({ goalId,
                 suggestions: Array.isArray(payload?.suggestions) ? payload.suggestions : [],
             };
         }
-        return { goalId, task: payload, suggestions: [] };
+        return {
+            goalId,
+            task: payload,
+            suggestions: [],
+            notificationWarning: res.data.notificationWarning || null,
+        };
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to create task'); }
 });
 
@@ -261,6 +273,23 @@ export const fetchMyPlpRecord = createAsyncThunk('plp/fetchMyRecord', async (_, 
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to fetch my PLP record'); }
 });
 
+export const fetchMyPlpRecordHistory = createAsyncThunk('plp/fetchMyRecordHistory', async (params = {}, { rejectWithValue }) => {
+    try {
+        const res = await api.get('/plp/students/me/records', { params });
+        return {
+            records: res.data.data || [],
+            pagination: res.data.pagination || { page: 1, limit: 50, total: 0, pages: 0 },
+        };
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to fetch PLP history'); }
+});
+
+export const fetchMyPlpRecordById = createAsyncThunk('plp/fetchMyRecordById', async (recordId, { rejectWithValue }) => {
+    try {
+        const res = await api.get(`/plp/students/me/records/${recordId}`);
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to fetch PLP record'); }
+});
+
 export const submitMyPlpTask = createAsyncThunk('plp/submitMyTask', async ({ taskId, data }, { rejectWithValue }) => {
     try {
         const res = await api.post(`/plp/tasks/${taskId}/student-submit`, data);
@@ -271,15 +300,25 @@ export const submitMyPlpTask = createAsyncThunk('plp/submitMyTask', async ({ tas
 export const reviewPlpTask = createAsyncThunk('plp/reviewTask', async ({ taskId, data }, { rejectWithValue }) => {
     try {
         const res = await api.post(`/plp/tasks/${taskId}/teacher-review`, data);
-        return res.data.data;
+        return { ...res.data.data, notificationWarning: res.data.notificationWarning };
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to review task'); }
+});
+
+export const retryPlpTaskNotification = createAsyncThunk('plp/retryTaskNotification', async (taskId, { rejectWithValue }) => {
+    try {
+        const res = await api.post(`/plp/tasks/${taskId}/notifications/retry`);
+        return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to retry task notification'); }
 });
 
 // ─── Records ─────────────────────────────────────────────────────────────────
 export const fetchPlpRecords = createAsyncThunk('plp/fetchRecords', async (params = {}, { rejectWithValue }) => {
     try {
         const res = await api.get('/plp/records', { params });
-        return res.data.data;
+        return {
+            records: Array.isArray(res.data.data) ? res.data.data : [],
+            pagination: res.data.pagination || { page: 1, limit: 50, total: res.data.data?.length || 0, pages: 1 },
+        };
     } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to fetch records'); }
 });
 
@@ -434,6 +473,7 @@ const plpSlice = createSlice({
     initialState: {
         configs: [],
         records: [],
+        recordsPagination: { page: 1, limit: 50, total: 0, pages: 0 },
         selectedRecord: null,
         evidence: {},
         studentEvidence: null,
@@ -447,6 +487,8 @@ const plpSlice = createSlice({
         taskDraftsByGoal: {},
         myStudentTasks: [],
         myRecord: null,
+        myRecordHistory: [],
+        myRecordHistoryPagination: { page: 1, limit: 50, total: 0, pages: 0 },
         selCompetencies: [],
         characterThemes: [],
         interactions: {},
@@ -487,7 +529,11 @@ const plpSlice = createSlice({
             })
 
             .addCase(fetchPlpRecords.pending, pending)
-            .addCase(fetchPlpRecords.fulfilled, (state, action) => { state.loading = false; state.records = action.payload; })
+            .addCase(fetchPlpRecords.fulfilled, (state, action) => {
+                state.loading = false;
+                state.records = action.payload.records;
+                state.recordsPagination = action.payload.pagination;
+            })
             .addCase(fetchPlpRecords.rejected, failed)
 
             .addCase(fetchPlpRecord.fulfilled, (state, action) => { state.selectedRecord = action.payload; })
@@ -665,6 +711,13 @@ const plpSlice = createSlice({
             .addCase(fetchMyPlpRecord.fulfilled, (state, action) => {
                 state.myRecord = action.payload;
             })
+            .addCase(fetchMyPlpRecordHistory.fulfilled, (state, action) => {
+                state.myRecordHistory = action.payload.records;
+                state.myRecordHistoryPagination = action.payload.pagination;
+            })
+            .addCase(fetchMyPlpRecordById.fulfilled, (state, action) => {
+                state.myRecord = action.payload;
+            })
             .addCase(submitMyPlpTask.fulfilled, (state, action) => {
                 const nextTask = action.payload;
                 state.myStudentTasks = state.myStudentTasks.map((task) => (
@@ -729,6 +782,7 @@ export const { clearPlpError, clearPlpTraitError, clearSelectedRecord } = plpSli
 
 export const selectPlpConfigs = (s) => s.plp.configs;
 export const selectPlpRecords = (s) => s.plp.records;
+export const selectPlpRecordsPagination = (s) => s.plp.recordsPagination;
 export const selectSelectedPlpRecord = (s) => s.plp.selectedRecord;
 export const selectPlpEvidence = (recordId) => (s) => s.plp.evidence[recordId] || [];
 export const selectPlpStudentEvidence = (s) => s.plp.studentEvidence;
@@ -745,6 +799,8 @@ export const selectPlpTasks = (goalId) => (s) => s.plp.tasksByGoal[goalId] || []
 export const selectPlpTaskDrafts = (goalId) => (s) => s.plp.taskDraftsByGoal[goalId] || [];
 export const selectMyPlpStudentTasks = (s) => s.plp.myStudentTasks;
 export const selectMyPlpRecord = (s) => s.plp.myRecord;
+export const selectMyPlpRecordHistory = (s) => s.plp.myRecordHistory;
+export const selectMyPlpRecordHistoryPagination = (s) => s.plp.myRecordHistoryPagination;
 export const selectPlpLoading = (s) => s.plp.loading;
 export const selectPlpError = (s) => s.plp.error;
 export const selectPlpTraits = (s) => s.plp.traits;

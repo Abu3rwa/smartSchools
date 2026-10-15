@@ -16,6 +16,12 @@ import { protect, authorize } from '../middleware/auth.js';
 import { requireFeature } from '../middleware/featureGate.js';
 import { requireSchoolContext } from '../middleware/tenantIsolation.js';
 import { validate, validationRules } from '../middleware/validator.js';
+import { emailSendRateLimiter } from '../middleware/rateLimiters.js';
+import {
+    getGmailCleanupStatus,
+    previewGmailSentCleanup,
+    trashGmailSentMessages
+} from '../controllers/gmailSentCleanupController.js';
 
 const router = express.Router();
 
@@ -32,6 +38,10 @@ router.post('/gradebook-summary/:studentId', authorize('teacher', 'admin'), send
 router.post('/monthly-report/:studentId', authorize('teacher', 'admin'), sendMonthlyReport);
 router.post('/send-ai-report/:studentId', authorize('teacher', 'admin'), requireFeature('academicIntelligence'), sendAIReport);
 
+// Gmail mailbox cleanup affects only the authenticated user's connected account.
+router.get('/gmail-cleanup/status', getGmailCleanupStatus);
+router.post('/gmail-cleanup/preview', emailSendRateLimiter, previewGmailSentCleanup);
+router.post('/gmail-cleanup/trash', emailSendRateLimiter, trashGmailSentMessages);
 
 // Get notifications
 router.get('/', getNotificationHistory);

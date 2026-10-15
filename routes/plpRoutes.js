@@ -5,7 +5,7 @@ import { authorize } from '../middleware/auth.js';
 import {
     getMonthConfigs, getMonthConfig, createMonthConfig, updateMonthConfig,
     publishMonthConfig, closeMonthConfig,
-    getRecords, getLeaderboard, getRecord, exportRecordDocx, createRecord, initializeRoundRecords, updateRecord, deleteRecord, submitRecord, unlockRecord,
+    getRecords, getLeaderboard, getRecord, exportRecordDocx, exportRoundReports, createRecord, initializeRoundRecords, updateRecord, deleteRecord, submitRecord, unlockRecord,
     getEvidence, getStudentEvidence, exportObservationsByTrait, getTraitScoreSuggestions, createEvidence, updateEvidence, deleteEvidence,
     classifyObservationDraft, createQuickObservation, getNeedsReviewObservations,
     getRecordInteractions, addSupervisorNote,
@@ -20,10 +20,15 @@ import {
 } from '../controllers/plpController.js';
 import {
     getCycles, createCycle, updateCycle, publishCycle, closeCycle, deleteCycle,
-    getRecordGoals, createGoal, updateGoal, deleteGoal,
+    getRecordGoals, createGoal, updateGoal, deleteGoal, reviewGoalByTeacher,
+    getPlpEmailConsent, updatePlpEmailConsent,
+    getPlpProgressEmailPreview, sendPlpProgressEmail, getPlpGoalReviewQueue, getPlpTaskReviewQueue,
+    getGoalCopyDestinations, copyGoalToRecords,
     getGoalTasks, createTask, updateTask, deleteTask,
+    retryTaskNotification,
     getRecordActivities, createActivity, updateActivity, deleteActivity,
     getMyStudentTasks, submitTaskByStudent, reviewTaskByTeacher, getMyStudentRecord,
+    getMyStudentRecordHistory, getMyStudentRecordById,
 } from '../controllers/plpV2Controller.js';
 
 const router = express.Router();
@@ -44,6 +49,7 @@ router.route('/records')
     .get(authorize('admin', 'teacher', 'department_principal'), getRecords)
     .post(authorize('teacher', 'admin'), createRecord);
 router.post('/records/initialize-round', authorize('teacher', 'admin'), initializeRoundRecords);
+router.get('/records/export-round', authorize('admin', 'teacher', 'department_principal'), exportRoundReports);
 router.get('/leaderboard', authorize('admin', 'teacher', 'department_principal'), getLeaderboard);
 router.route('/records/:id')
     .get(authorize('admin', 'teacher', 'department_principal'), getRecord)
@@ -117,7 +123,16 @@ router.delete('/cycles/:id', authorize('admin'), deleteCycle);
 router.get('/records/:id/goals', authorize('admin', 'teacher', 'department_principal'), getRecordGoals);
 router.post('/records/:id/goals', authorize('teacher', 'admin'), createGoal);
 router.put('/goals/:goalId', authorize('teacher', 'admin'), updateGoal);
+router.post('/goals/:goalId/review', authorize('teacher', 'admin'), reviewGoalByTeacher);
+router.get('/goals/review-queue', authorize('teacher', 'admin'), getPlpGoalReviewQueue);
+router.get('/tasks/review-queue', authorize('teacher', 'admin'), getPlpTaskReviewQueue);
+router.get('/email-consent', authorize('student', 'parent'), getPlpEmailConsent);
+router.put('/email-consent', authorize('student', 'parent'), updatePlpEmailConsent);
+router.get('/records/:recordId/progress-email-preview', authorize('teacher', 'admin'), getPlpProgressEmailPreview);
+router.post('/records/:recordId/progress-email', authorize('teacher', 'admin'), sendPlpProgressEmail);
 router.delete('/goals/:goalId', authorize('teacher', 'admin'), deleteGoal);
+router.get('/goals/:goalId/copy-destinations', authorize('teacher', 'admin'), getGoalCopyDestinations);
+router.post('/goals/:goalId/copy', authorize('teacher', 'admin'), copyGoalToRecords);
 
 // ─── PLP Activities ─────────────────────────────────────────────────────────
 router.get('/records/:id/activities', authorize('admin', 'teacher', 'department_principal'), getRecordActivities);
@@ -130,7 +145,10 @@ router.get('/goals/:goalId/tasks', authorize('admin', 'teacher', 'department_pri
 router.post('/goals/:goalId/tasks', authorize('teacher', 'admin'), createTask);
 router.put('/tasks/:taskId', authorize('teacher', 'admin'), updateTask);
 router.delete('/tasks/:taskId', authorize('teacher', 'admin'), deleteTask);
+router.post('/tasks/:taskId/notifications/retry', authorize('teacher', 'admin'), retryTaskNotification);
 router.get('/students/me/tasks', authorize('student'), getMyStudentTasks);
+router.get('/students/me/records', authorize('student'), getMyStudentRecordHistory);
+router.get('/students/me/records/:recordId', authorize('student'), getMyStudentRecordById);
 router.get('/students/me/record', authorize('student'), getMyStudentRecord);
 router.post('/tasks/:taskId/student-submit', authorize('student'), submitTaskByStudent);
 router.post('/tasks/:taskId/teacher-review', authorize('teacher', 'admin'), reviewTaskByTeacher);

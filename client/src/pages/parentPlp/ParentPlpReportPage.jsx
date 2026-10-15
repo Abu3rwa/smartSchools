@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../../config/api';
+import PlpEmailConsentControl from '../plp/PlpEmailConsentControl';
 import './ParentPlpReportPage.css';
 
 const ParentPlpReportPage = () => {
@@ -28,7 +29,12 @@ const ParentPlpReportPage = () => {
 
     if (loading) return <div className="parent-plp-report report-state">Loading report...</div>;
     if (error) return <div className="parent-plp-report report-state report-error">{error}</div>;
-    if (!report) return <div className="parent-plp-report report-state">No report available.</div>;
+    if (!report) return (
+        <main className="parent-plp-report">
+            <div className="report-state">No report available.</div>
+            <PlpEmailConsentControl studentId={childId} />
+        </main>
+    );
 
     const student = report.student || {};
     const hasAcademic = report.academicEffort?.length > 0;
@@ -88,6 +94,7 @@ const ParentPlpReportPage = () => {
             )}
 
             {!report.characterGoals?.length && !hasAcademic && !hasSupport && <p className="empty-copy report-section">There are no additional goals or support notes for this reporting period.</p>}
+            <PlpEmailConsentControl studentId={childId} />
             <footer className="report-footer">Prepared for the student and family.</footer>
         </main>
     );
