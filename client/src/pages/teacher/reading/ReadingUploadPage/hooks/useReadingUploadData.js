@@ -26,6 +26,7 @@ export function useReadingUploadData() {
   const [topicTagsStr, setTopicTagsStr] = useState("");
   const [classId, setClassId] = useState("");
   const [generateVersions, setGenerateVersions] = useState(true);
+  const [isShared, setIsShared] = useState(false);
   const [aiPrimaryLanguage, setAiPrimaryLanguage] = useState("en");
   const [aiSecondaryLanguage, setAiSecondaryLanguage] = useState("");
 
@@ -56,12 +57,13 @@ export function useReadingUploadData() {
     dispatch(
       uploadText({
         title: title.trim(),
-        originalText: originalText.trim(),
+        originalText,
         sourceDocument: sourceDocument.trim() || undefined,
         subjectArea: subjectArea.trim() || undefined,
         topicTags: topicTags.length ? topicTags : undefined,
         classId: classId || undefined,
         generateVersions,
+        isShared,
         requestedLanguages: normalizedRequestedLanguages,
         primaryLanguage: aiPrimaryLanguage || "en",
         secondaryLanguage: aiSecondaryLanguage || "",
@@ -89,6 +91,8 @@ export function useReadingUploadData() {
     setClassId,
     generateVersions,
     setGenerateVersions,
+    isShared,
+    setIsShared,
     aiPrimaryLanguage,
     setAiPrimaryLanguage,
     aiSecondaryLanguage,

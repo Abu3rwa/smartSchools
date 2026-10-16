@@ -4,6 +4,7 @@ import GmailAppSentMessage from '../models/GmailAppSentMessage.js';
 import nodemailer from 'nodemailer';
 import logger from '../utils/logger.js';
 import { getPlatformBranding } from './platformBrandingService.js';
+import { GOOGLE_SUITE_SCOPES } from '../config/googleSuiteOAuthScopes.js';
 
 export const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
 
@@ -34,17 +35,18 @@ class GmailOAuthService {
      * @param {string} state - State to pass through (userId or 'login')
      * @returns {string} Authorization URL
      */
-    getAuthUrl(state = 'login', { includeModifyScope = false } = {}) {
+    getAuthUrl(state = 'login') {
         if (!this.oauth2Client) {
             throw new Error('Google OAuth not configured');
         }
 
-        const scopes = [
-            'https://www.googleapis.com/auth/gmail.send',
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ];
-        if (includeModifyScope) scopes.push(GMAIL_MODIFY_SCOPE);
+        const scopes = state === 'login'
+            ? [
+                'https://www.googleapis.com/auth/gmail.send',
+                'https://www.googleapis.com/auth/userinfo.email',
+                'https://www.googleapis.com/auth/userinfo.profile'
+            ]
+            : GOOGLE_SUITE_SCOPES;
 
         // Use the Google login callback for login flow
         const redirectUri = state === 'login'
@@ -187,7 +189,7 @@ class GmailOAuthService {
             const isInvalidGrant = error?.response?.data?.error === 'invalid_grant'
                 || String(error?.message || '').includes('invalid_grant');
             if (isInvalidGrant) {
-                await user.clearGmailTokens();
+                await user.clearGoogleSuiteTokens();
                 logger.warn(`Cleared revoked Gmail tokens for user ${user._id}`);
             }
             throw error;
@@ -458,8 +460,8 @@ class GmailOAuthService {
                 logger.warn('Could not revoke token with Google:', error.message);
             }
 
-            // Clear tokens from user
-            await user.clearGmailTokens();
+            // The shared Google grant includes Classroom and Forms permissions as well.
+            await user.clearGoogleSuiteTokens();
         }
     }
 }

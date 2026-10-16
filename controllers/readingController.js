@@ -3,6 +3,7 @@ import * as readingAssistantService from "../services/readingAssistantService.js
 import Student from "../models/Student.js";
 import SimplifiedText from "../models/SimplifiedText.js";
 import ReadingAssignment from "../models/ReadingAssignment.js";
+import ReadingCompletion from "../models/ReadingCompletion.js";
 import { resolveAcademicYearForRequest } from "../helpers/academicYearScope.js";
 
 /**
@@ -24,6 +25,7 @@ export const uploadText = asyncHandler(async (req, res) => {
     primaryLanguage,
     secondaryLanguage,
     language,
+    isShared,
   } = req.body;
 
   if (!title || !originalText) {
@@ -35,7 +37,7 @@ export const uploadText = asyncHandler(async (req, res) => {
 
   const text = await readingAssistantService.uploadText(
     req.schoolId,
-    { title, originalText, sourceDocument, subjectArea, topicTags, classId },
+    { title, originalText, sourceDocument, subjectArea, topicTags, classId, isShared },
     {
       generateVersions: generateVersions !== false,
       targetLevels,
@@ -93,6 +95,27 @@ export const updateReadingSharing = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: text });
 });
 
+export const updateReading = asyncHandler(async (req, res) => {
+  const text = await readingAssistantService.updateReading(
+    req.params.textId,
+    req.schoolId,
+    req.user._id,
+    req.user.role === "admin",
+    req.body
+  );
+  res.status(200).json({ success: true, message: "Reading updated successfully", data: text });
+});
+
+export const deleteReading = asyncHandler(async (req, res) => {
+  const data = await readingAssistantService.archiveReading(
+    req.params.textId,
+    req.schoolId,
+    req.user._id,
+    req.user.role === "admin"
+  );
+  res.status(200).json({ success: true, message: "Reading deleted from the library", data });
+});
+
 /**
  * @desc    Get single text by id (teacher)
  * @route   GET /api/reading/texts/:textId
@@ -133,12 +156,24 @@ export const getSimplifiedForCurrentStudent = asyncHandler(async (req, res) => {
     student._id,
     req.schoolId,
     effectiveAcademicYear,
-    { requireAssignment: true }
+    { requireAssignment: true, assignmentId: req.query.assignmentId || null }
   );
-  result.text.comprehensionQuestions = (result.text.comprehensionQuestions || []).map((question) => {
-    const { correctIndex, ...studentQuestion } = question;
+  const completion = await ReadingCompletion.findOne({
+    school: req.schoolId,
+    student: student._id,
+    assignment: result.assignmentId,
+  }).select("responses completedAt").lean();
+  result.savedAnswers = Object.fromEntries(
+    (completion?.responses || []).map(({ questionId, answer }) => [questionId, answer])
+  );
+  result.completed = Boolean(completion?.completedAt);
+  const safeQuestions = (result.text.comprehensionQuestions || []).map((question) => {
+    const studentQuestion = { ...question };
+    delete studentQuestion.correctIndex;
     return studentQuestion;
   });
+  result.text.comprehensionQuestions = safeQuestions;
+  result.comprehensionQuestions = safeQuestions;
   res.status(200).json({ success: true, data: result });
 });
 
@@ -263,8 +298,9 @@ export const updateProgress = asyncHandler(async (req, res) => {
     });
   }
 
-  const { textId, answers, assignmentId } = req.body;
-  if (!textId || !assignmentId || !answers || typeof answers !== "object" || Array.isArray(answers)) {
+  const { textId, answers, shortAnswers = {}, assignmentId } = req.body;
+  if (!textId || !assignmentId || !answers || typeof answers !== "object" || Array.isArray(answers)
+    || !shortAnswers || typeof shortAnswers !== "object" || Array.isArray(shortAnswers)) {
     return res.status(400).json({
       success: false,
       message: "textId, assignmentId, and answer selections are required",
@@ -272,7 +308,7 @@ export const updateProgress = asyncHandler(async (req, res) => {
   }
 
   const text = await SimplifiedText.findOne({ _id: textId, school: req.schoolId })
-    .select("comprehensionQuestions")
+    .select("comprehensionQuestions criticalThinkingQuestions")
     .lean();
   if (!text) return res.status(404).json({ success: false, message: "Reading not found" });
   const assignment = await ReadingAssignment.findOne({
@@ -297,11 +333,22 @@ export const updateProgress = asyncHandler(async (req, res) => {
   }
   let correctCount = 0;
   for (const question of questions) {
-    const selectedIndex = Number(answers[String(question._id)]);
+    const answer = answers[String(question._id)];
+    if (!["number", "string"].includes(typeof answer) || String(answer).trim() === "") {
+      return res.status(400).json({ success: false, message: "One or more answer selections are invalid." });
+    }
+    const selectedIndex = Number(answer);
     if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= question.options.length) {
       return res.status(400).json({ success: false, message: "One or more answer selections are invalid." });
     }
     if (selectedIndex === question.correctIndex) correctCount += 1;
+  }
+  const shortQuestions = new Set(
+    (text.criticalThinkingQuestions || []).map((question) => String(question._id))
+  );
+  if (Object.keys(shortAnswers).some((id) => !shortQuestions.has(id))
+    || Object.values(shortAnswers).some((answer) => typeof answer !== "string" || answer.length > 10000)) {
+    return res.status(400).json({ success: false, message: "One or more short answers are invalid." });
   }
 
   const profile = await readingAssistantService.updateProgress(
@@ -311,12 +358,16 @@ export const updateProgress = asyncHandler(async (req, res) => {
     questions.length,
     req.schoolId,
     assignmentId || null,
-    effectiveAcademicYear
+    effectiveAcademicYear,
+    { ...shortAnswers, ...answers }
   );
   res.status(200).json({
     success: true,
     message: "Progress updated",
-    data: profile,
+    data: {
+      ...(typeof profile.toObject === "function" ? profile.toObject() : profile),
+      score: { correctCount, totalCount: questions.length },
+    },
   });
 });
 

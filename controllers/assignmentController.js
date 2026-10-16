@@ -21,7 +21,13 @@ import { syncObjectivesForGrade } from '../jobs/academicExcellenceSyncJob.js';
 import { generateAssignmentReminder } from '../helpers/assignmentReminderAi.js';
 import logger from '../utils/logger.js';
 import AssignmentClassroomLink from '../models/AssignmentClassroomLink.js';
+import GoogleFormSubmission from '../models/GoogleFormSubmission.js';
 import { syncAssignmentToClassroom } from '../services/classroomPublishService.js';
+import {
+    createGoogleQuiz,
+    validateGoogleFormQuestions
+} from '../services/googleFormsAssignmentService.js';
+import { isGoogleFormsEnabledForSchool } from '../config/googleFormsConfig.js';
 
 const toId = (value) => (value == null ? '' : String(value));
 
@@ -105,6 +111,7 @@ const gradeTypeCategoryFromAssignmentKey = (key = '') => {
         case 'classwork':
             return { gradeType: 'classwork', category: 'classwork' };
         case 'quiz':
+        case 'google_form':
             return { gradeType: 'quiz', category: 'quiz' };
         case 'project':
             return { gradeType: 'project', category: 'project' };
@@ -119,7 +126,7 @@ const gradeTypeCategoryFromAssignmentKey = (key = '') => {
     }
 };
 
-const mapAssignmentSummary = (assignment) => {
+const mapAssignmentSummary = (assignment, { includeAnswerKey = false, submission = null } = {}) => {
     const linkedLessonPlans = Array.isArray(assignment.lessonPlanIds)
         ? assignment.lessonPlanIds
             .map((lesson) => {
@@ -183,6 +190,25 @@ const mapAssignmentSummary = (assignment) => {
         notifyOnAssign: assignment.notifyOnAssign !== false,
         notifyAudience: parseNotifyAudience(assignment.notifyAudience, 'both'),
         notifyOnGrade: assignment.notifyOnGrade !== false,
+        googleForm: assignment.assignmentTypeKey === 'google_form' && assignment.metadata?.googleForm
+            ? {
+                responderUri: assignment.metadata.googleForm.responderUri || '',
+                questions: (assignment.metadata.googleForm.questions || []).map((question) => ({
+                    questionId: question.questionId || '',
+                    itemId: question.itemId || '',
+                    title: question.title || '',
+                    type: question.type,
+                    points: Number(question.points || 0),
+                    ...(includeAnswerKey ? {
+                        options: question.options || [],
+                        correctAnswer: question.correctAnswer || ''
+                    } : {})
+                })),
+                submission: submission
+                    ? { status: submission.status, submittedAt: submission.submittedAt }
+                    : null
+            }
+            : null,
         publishedAt: assignment.publishedAt || null,
         academicYear: assignment.academicYear || '',
         class: assignment.class
@@ -491,7 +517,7 @@ export const getAssignments = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         data: {
-            items: rows.map(mapAssignmentSummary),
+            items: rows.map((row) => mapAssignmentSummary(row, { includeAnswerKey: true })),
             pagination: {
                 page,
                 limit,
@@ -574,12 +600,27 @@ export const getMyAssignmentsForStudent = asyncHandler(async (req, res) => {
             .sort({ 'practiceConfig.availability.endAt': 1, createdAt: -1 })
             .lean()
     ]);
+    const googleFormAssignmentIds = rows
+        .filter((row) => row.assignmentTypeKey === 'google_form')
+        .map((row) => row._id);
+    const googleFormSubmissions = googleFormAssignmentIds.length > 0
+        ? await GoogleFormSubmission.find({
+            school: req.schoolId,
+            student: student._id,
+            assignment: { $in: googleFormAssignmentIds }
+        }).select('assignment status submittedAt').lean()
+        : [];
+    const submissionByAssignment = new Map(
+        googleFormSubmissions.map((submission) => [toId(submission.assignment), submission])
+    );
 
     res.json({
         success: true,
         data: {
             items: [
-                ...rows.map(mapAssignmentSummary),
+                ...rows.map((row) => mapAssignmentSummary(row, {
+                    submission: submissionByAssignment.get(toId(row._id)) || null
+                })),
                 ...grammarTests.map(mapGrammarTestSummary)
             ]
         }
@@ -636,6 +677,26 @@ export const createAssignment = asyncHandler(async (req, res) => {
         });
     }
 
+    let metadata = body.metadata ?? null;
+    if (typeof metadata === 'string') {
+        try {
+            metadata = JSON.parse(metadata);
+        } catch {
+            return res.status(400).json({ success: false, message: 'metadata must be valid JSON.' });
+        }
+    }
+    if (type.key === 'google_form') {
+        if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+            return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
+        }
+        try {
+            const questions = validateGoogleFormQuestions(metadata?.googleForm?.questions);
+            metadata = { googleForm: { questions } };
+        } catch (error) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+    }
+
     let teacherId = toId(body.teacherId);
     if (req.user.role === 'teacher') {
         const teacher = await resolveTeacherProfile(req);
@@ -675,6 +736,11 @@ export const createAssignment = asyncHandler(async (req, res) => {
     }
 
     const requestedStudentIds = toArray(body.studentIds);
+    if (type.key === 'google_form'
+        && ['selected_students', 'selected'].includes(String(body.scope || '').trim().toLowerCase())
+        && requestedStudentIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Select at least one student for this Google Form quiz.' });
+    }
     const scope = normalizeScope(body.scope, requestedStudentIds);
     const validSelectedStudentIds = scope === 'selected_students'
         ? await Student.find({
@@ -719,7 +785,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
         instructions: String(body.instructions || '').trim(),
         assignedDate: parseDate(body.assignedDate, new Date()),
         dueDate,
-        status: publishNow ? 'published' : 'draft',
+        status: publishNow && type.key !== 'google_form' ? 'published' : 'draft',
         scope,
         studentIds: scope === 'selected_students' ? validSelectedStudentIds : [],
         lessonPlanIds: normalizedLessonPlanIds ?? [],
@@ -736,10 +802,44 @@ export const createAssignment = asyncHandler(async (req, res) => {
         notifyOnGrade: body.notifyOnGrade === undefined
             ? type.defaults?.notifyOnGrade !== false
             : parseBoolean(body.notifyOnGrade, true),
-        publishedAt: publishNow ? new Date() : null,
-        publishedBy: publishNow ? req.user._id : null,
-        metadata: body.metadata ?? null
+        publishedAt: publishNow && type.key !== 'google_form' ? new Date() : null,
+        publishedBy: publishNow && type.key !== 'google_form' ? req.user._id : null,
+        metadata
     });
+
+    if (publishNow && type.key === 'google_form') {
+        try {
+            const form = await createGoogleQuiz({
+                assignment,
+                actorId: req.user._id,
+                schoolId: req.schoolId,
+                questions: metadata.googleForm.questions
+            });
+            assignment.metadata = { googleForm: { ...metadata.googleForm, ...form } };
+            assignment.status = 'published';
+            assignment.publishedAt = new Date();
+            assignment.publishedBy = req.user._id;
+            await assignment.save();
+        } catch (error) {
+            logger.error('Google Form quiz creation failed', {
+                assignmentId: String(assignment._id),
+                code: error?.code,
+                message: error?.message
+            });
+            const status = error?.code === 'INVALID_QUIZ'
+                ? 400
+                : ['NOT_CONNECTED', 'MISSING_SCOPES', 'AUTH_REVOKED'].includes(error?.code) ? 403 : 502;
+            return res.status(status).json({
+                success: false,
+                message: error?.code === 'INVALID_QUIZ'
+                    ? error.message
+                    : error?.code === 'NOT_CONNECTED'
+                        ? 'Connect Google Forms before publishing this assignment.'
+                        : 'The assignment was saved as a draft, but Google Form creation failed. Check the Google Forms connection and configuration, then publish the draft.',
+                code: error?.code || 'GOOGLE_FORMS_CREATE_FAILED'
+            });
+        }
+    }
 
     if (publishNow && assignment.notifyOnAssign !== false) {
         const students = await resolveTargetStudentsForAssignment(assignment);
@@ -774,7 +874,7 @@ export const createAssignment = asyncHandler(async (req, res) => {
 
     res.status(201).json({
         success: true,
-        data: { assignment: mapAssignmentSummary(populated), ...(classroom ? { classroom } : {}) }
+        data: { assignment: mapAssignmentSummary(populated, { includeAnswerKey: true }), ...(classroom ? { classroom } : {}) }
     });
 });
 
@@ -785,6 +885,39 @@ export const publishAssignment = asyncHandler(async (req, res) => {
     if (!canAccess) return res.status(403).json({ success: false, message: 'Not authorized to publish this assignment' });
     if (assignment.status === 'archived') {
         return res.status(400).json({ success: false, message: 'Archived assignments cannot be published' });
+    }
+
+    if (assignment.assignmentTypeKey === 'google_form' && !assignment.metadata?.googleForm?.formId) {
+        try {
+            if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+                return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
+            }
+            const form = await createGoogleQuiz({
+                assignment,
+                actorId: req.user._id,
+                schoolId: req.schoolId,
+                questions: assignment.metadata?.googleForm?.questions
+            });
+            assignment.metadata = { ...(assignment.metadata || {}), googleForm: { ...assignment.metadata?.googleForm, ...form } };
+        } catch (error) {
+            logger.error('Google Form quiz publish failed', {
+                assignmentId: String(assignment._id),
+                code: error?.code,
+                message: error?.message
+            });
+            const status = error?.code === 'INVALID_QUIZ'
+                ? 400
+                : ['NOT_CONNECTED', 'MISSING_SCOPES', 'AUTH_REVOKED'].includes(error?.code) ? 403 : 502;
+            return res.status(status).json({
+                success: false,
+                message: error?.code === 'INVALID_QUIZ'
+                    ? error.message
+                    : error?.code === 'NOT_CONNECTED'
+                        ? 'Connect Google Forms before publishing this assignment.'
+                        : 'Google Form creation failed. The assignment remains a draft.',
+                code: error?.code || 'GOOGLE_FORMS_CREATE_FAILED'
+            });
+        }
     }
 
     assignment.status = 'published';
@@ -817,7 +950,7 @@ export const publishAssignment = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { assignment: mapAssignmentSummary(assignment), ...(classroom ? { classroom } : {}) }
+        data: { assignment: mapAssignmentSummary(assignment, { includeAnswerKey: true }), ...(classroom ? { classroom } : {}) }
     });
 });
 
@@ -1134,6 +1267,36 @@ export const updateAssignment = asyncHandler(async (req, res) => {
             });
         }
     }
+    const nextTypeKey = type?.key || assignment.assignmentTypeKey;
+    let metadata = assignment.metadata;
+    if (body.metadata !== undefined) {
+        metadata = body.metadata;
+        if (typeof metadata === 'string') {
+            try {
+                metadata = JSON.parse(metadata);
+            } catch {
+                return res.status(400).json({ success: false, message: 'metadata must be valid JSON.' });
+            }
+        }
+    }
+    if (nextTypeKey === 'google_form') {
+        if (!isGoogleFormsEnabledForSchool(req.schoolId)) {
+            return res.status(403).json({ success: false, message: 'Google Forms is not enabled for this school.' });
+        }
+        if (assignment.metadata?.googleForm?.formId && body.metadata !== undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Questions cannot be changed after the Google Form is created. Create a new draft to change the quiz.'
+            });
+        }
+        try {
+            if (!assignment.metadata?.googleForm?.formId) {
+                metadata = { googleForm: { questions: validateGoogleFormQuestions(metadata?.googleForm?.questions) } };
+            }
+        } catch (error) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+    }
 
     const assignedDate = body.assignedDate === undefined
         ? assignment.assignedDate
@@ -1151,6 +1314,12 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     const requestedStudentIds = toArray(body.studentIds,
         Array.isArray(assignment.studentIds) ? assignment.studentIds : []
     );
+    if (nextTypeKey === 'google_form'
+        && body.scope !== undefined
+        && ['selected_students', 'selected'].includes(String(body.scope).trim().toLowerCase())
+        && requestedStudentIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Select at least one student for this Google Form quiz.' });
+    }
     const scope = body.scope === undefined
         ? normalizeScope(assignment.scope, requestedStudentIds)
         : normalizeScope(body.scope, requestedStudentIds);
@@ -1220,8 +1389,38 @@ export const updateAssignment = asyncHandler(async (req, res) => {
     assignment.notifyOnGrade = body.notifyOnGrade === undefined
         ? assignment.notifyOnGrade
         : parseBoolean(body.notifyOnGrade, assignment.notifyOnGrade);
+    assignment.metadata = metadata;
+
+    if (status === 'published' && nextTypeKey === 'google_form' && !assignment.metadata?.googleForm?.formId) {
+        try {
+            const form = await createGoogleQuiz({
+                assignment,
+                actorId: req.user._id,
+                schoolId: req.schoolId,
+                questions: assignment.metadata?.googleForm?.questions
+            });
+            assignment.metadata = { ...assignment.metadata, googleForm: { ...assignment.metadata.googleForm, ...form } };
+        } catch (error) {
+            logger.error('Google Form quiz update/publish failed', {
+                assignmentId: String(assignment._id),
+                code: error?.code,
+                message: error?.message
+            });
+            const failureStatus = error?.code === 'INVALID_QUIZ'
+                ? 400
+                : ['NOT_CONNECTED', 'MISSING_SCOPES', 'AUTH_REVOKED'].includes(error?.code) ? 403 : 502;
+            return res.status(failureStatus).json({
+                success: false,
+                message: error?.code === 'INVALID_QUIZ'
+                    ? error.message
+                    : error?.code === 'NOT_CONNECTED'
+                        ? 'Connect Google Forms before publishing this assignment.'
+                        : 'Google Form creation failed. The assignment remains unchanged.',
+                code: error?.code || 'GOOGLE_FORMS_CREATE_FAILED'
+            });
+        }
+    }
     assignment.status = status;
-    assignment.metadata = body.metadata === undefined ? assignment.metadata : body.metadata;
 
     // Update links if provided
     if (body.links !== undefined) {
@@ -1278,7 +1477,7 @@ export const updateAssignment = asyncHandler(async (req, res) => {
 
     res.json({
         success: true,
-        data: { assignment: mapAssignmentSummary(populated), ...(classroom ? { classroom } : {}) }
+        data: { assignment: mapAssignmentSummary(populated, { includeAnswerKey: true }), ...(classroom ? { classroom } : {}) }
     });
 });
 
@@ -1293,6 +1492,7 @@ export const deleteAssignment = asyncHandler(async (req, res) => {
         school: req.schoolId,
         assignment: assignment._id
     });
+    await GoogleFormSubmission.deleteMany({ school: req.schoolId, assignment: assignment._id });
 
     // Clean up attachment files from storage
     await deleteAttachmentFiles(assignment.attachments);

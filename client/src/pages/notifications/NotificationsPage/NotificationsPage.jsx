@@ -91,8 +91,8 @@ const NotificationsPage = () => {
         loading,
         notificationTypes,
         filteredNotifications,
-        totalSent,
-        deliveredCount,
+        totalNotifications,
+        sentCount,
         failedCount,
         pendingCount,
         refetchHistory
@@ -329,8 +329,8 @@ const NotificationsPage = () => {
                 }}
             >
                 {[
-                    { label: t('notifications:stats.totalSent'), value: totalSent, icon: <HiOutlineMail size={20} /> },
-                    { label: t('notifications:stats.delivered'), value: deliveredCount, icon: <HiOutlineCheckCircle size={20} />, tone: 'success' },
+                    { label: t('notifications:stats.totalNotifications'), value: totalNotifications, icon: <HiOutlineMail size={20} /> },
+                    { label: t('notifications:stats.sent'), value: sentCount, icon: <HiOutlineCheckCircle size={20} />, tone: 'success' },
                     { label: t('notifications:stats.pending'), value: pendingCount, icon: <HiOutlineClock size={20} />, tone: 'warning' },
                     { label: t('notifications:stats.failed'), value: failedCount, icon: <HiOutlineXCircle size={20} />, tone: 'error' }
                 ].map((item) => (
@@ -765,15 +765,15 @@ const NotificationsPage = () => {
                     <div className="stat-card">
                         <HiOutlineMail size={32} />
                         <div>
-                            <span className="stat-value">{totalSent}</span>
-                            <span className="stat-label">{t('notifications:stats.totalSent')}</span>
+                            <span className="stat-value">{totalNotifications}</span>
+                            <span className="stat-label">{t('notifications:stats.totalNotifications')}</span>
                         </div>
                     </div>
                     <div className="stat-card">
                         <HiOutlineCheckCircle size={32} />
                         <div>
-                            <span className="stat-value">{deliveredCount}</span>
-                            <span className="stat-label">{t('notifications:stats.delivered')}</span>
+                            <span className="stat-value">{sentCount}</span>
+                            <span className="stat-label">{t('notifications:stats.sent')}</span>
                         </div>
                     </div>
                     <div className="stat-card">

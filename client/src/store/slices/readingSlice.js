@@ -82,9 +82,9 @@ export const fetchMyAssignments = createAsyncThunk(
 // Get simplified content (student or teacher for student)
 export const fetchSimplified = createAsyncThunk(
   'reading/fetchSimplified',
-  async (textId, { rejectWithValue }) => {
+  async ({ textId, assignmentId }, { rejectWithValue }) => {
     try {
-      const res = await readingService.getSimplified(textId);
+      const res = await readingService.getSimplified(textId, assignmentId);
       return res.data.data;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to load text');

@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import gmailOAuthService from '../services/gmailOAuthService.js';
+import googleClassroomOAuthService from '../services/googleClassroomOAuthService.js';
 import { getPlatformBranding } from '../services/platformBrandingService.js';
 import { protect } from '../middleware/auth.js';
 import logger from '../utils/logger.js';
@@ -121,8 +122,8 @@ router.get('/callback', async (req, res) => {
             return res.redirect(`${process.env.CLIENT_URL}${redirectPath}?tab=gmail-cleanup&gmail_cleanup_error=missing_scope`);
         }
 
-        // Store tokens for user
-        await gmailOAuthService.storeTokens(parsedState.userId, tokens);
+        // The shared OAuth grant supplies Gmail, Classroom, and Forms permissions.
+        await googleClassroomOAuthService.storeTokens(parsedState.userId, tokens);
 
         // Redirect back to client with success
         const queryKey = parsedState.cleanupAccess ? 'gmail_cleanup_connected' : 'gmail_connected';

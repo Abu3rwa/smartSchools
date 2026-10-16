@@ -13,7 +13,8 @@ const AssignmentsTable = ({
     onSendReminder,
     sendingReminder,
     publishingAssignment,
-    classroom
+    classroom,
+    onOpenGoogleFormResults
 }) => {
     const { t } = useTranslation(['assignments']);
     const classroomLinks = classroom?.enabled ? classroom.links || {} : {};
@@ -107,6 +108,18 @@ const AssignmentsTable = ({
                                         {(assignment.status === 'published' || assignment.status === 'closed') && canCreateAssignments && (
                                             <button type="button" className="btn btn-primary btn-sm" onClick={() => onOpenGradePanel(assignment)}>
                                                 {t('assignments:actions.grade')}
+                                            </button>
+                                        )}
+                                        {assignment.assignmentType?.key === 'google_form'
+                                            && assignment.status !== 'draft'
+                                            && canCreateAssignments
+                                            && onOpenGoogleFormResults && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline btn-sm"
+                                                onClick={() => onOpenGoogleFormResults(assignment)}
+                                            >
+                                                {t('assignments:googleForms.responses')}
                                             </button>
                                         )}
                                         {assignment.status === 'published' && canCreateAssignments && onSendReminder && (

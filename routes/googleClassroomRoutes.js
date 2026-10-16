@@ -23,10 +23,10 @@ router.use(requireSchoolContext);
 
 // Reachable even when the feature is off so the client can learn that it is disabled.
 router.get('/status', authorize('teacher', 'admin', 'department_principal'), getClassroomStatus);
+router.get('/auth/url', authorize(...classroomManagerRoles), getClassroomAuthUrl);
 
 router.use(requireClassroomEnabled);
 
-router.get('/auth/url', authorize(...classroomManagerRoles), getClassroomAuthUrl);
 router.delete('/auth/disconnect', authorize(...classroomManagerRoles), disconnectClassroom);
 
 router.get('/courses', authorize(...classroomManagerRoles), listClassroomCourses);

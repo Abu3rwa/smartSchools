@@ -7,6 +7,7 @@ import Teacher from '../models/Teacher.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { isTeacherAuthorizedForClassSubject } from '../helpers/teacherScoping.js';
 import { isClassroomEnabledForSchool } from '../config/classroomConfig.js';
+import { isGoogleFormsEnabledForSchool } from '../config/googleFormsConfig.js';
 import { buildSignedState } from '../utils/classroomOAuthState.js';
 import classroomOAuthService from '../services/googleClassroomOAuthService.js';
 import { listTeacherCourses } from '../services/googleClassroomService.js';
@@ -77,8 +78,22 @@ export const getClassroomStatus = asyncHandler(async (req, res) => {
 });
 
 export const getClassroomAuthUrl = asyncHandler(async (req, res) => {
-    if (!(await requireClassroomTeacher(req, res))) return;
-    const authUrl = classroomOAuthService.getAuthUrl(buildSignedState(toId(req.user._id)));
+    if (!CLASSROOM_ROLES.has(req.user?.role)) {
+        return res.status(403).json({ success: false, message: 'Not authorized to connect Google services.' });
+    }
+    const returnTo = req.query.returnTo === 'notifications' ? 'notifications' : 'assignments';
+    if (returnTo !== 'notifications'
+        && !isClassroomEnabledForSchool(req.schoolId)
+        && !isGoogleFormsEnabledForSchool(req.schoolId)) {
+        return res.status(403).json({ success: false, message: 'Google services are not enabled for this school.' });
+    }
+    if (req.user.role === 'teacher' && !(await resolveClassroomTeacher(req))) {
+        return res.status(403).json({
+            success: false,
+            message: 'A teacher profile assigned to this school is required to connect Google services.'
+        });
+    }
+    const authUrl = classroomOAuthService.getAuthUrl(buildSignedState(toId(req.user._id), returnTo));
     return res.json({ success: true, authUrl });
 });
 

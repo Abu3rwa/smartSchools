@@ -90,17 +90,56 @@
   font-size: 1.05rem;
   line-height: 1.7;
   color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.reading-text-section {
+  margin: 0 0 var(--spacing-xl);
+}
+
+.reading-text-section > h2 {
+  margin: 0 0 var(--spacing-sm);
+  color: var(--text-primary);
+  font-size: 1.15rem;
+}
+
+.vocab-audio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-md);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.vocab-audio audio {
+  width: min(100%, 420px);
 }
 
 .reading-text .vocab-word {
-  border-bottom: 1px dotted var(--primary-400);
+  display: inline;
+  font: inherit;
+  border: 0;
+  background: #ffec99;
+  border-bottom: 2px solid #b7791f;
+  border-radius: 2px;
   cursor: pointer;
-  padding: 0 1px;
+  padding: 0 2px;
+  color: #312400;
+}
+
+.vocab-audio {
+  margin-top: var(--spacing-sm);
 }
 
 .reading-text .vocab-word:hover {
-  background: var(--primary-100);
+  background: #ffe066;
   border-radius: 2px;
+}
+
+.reading-text .vocab-word:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
 }
 
 .reading-section {

@@ -43,8 +43,8 @@ const notificationService = {
     },
 
     getGmailAuthorizationUrl: async () => {
-        const response = await api.get('/auth/gmail/url', {
-            params: { cleanup: 'true', returnTo: 'notifications' }
+        const response = await api.get('/google-classroom/auth/url', {
+            params: { returnTo: 'notifications' }
         });
         return response.data.authUrl;
     },

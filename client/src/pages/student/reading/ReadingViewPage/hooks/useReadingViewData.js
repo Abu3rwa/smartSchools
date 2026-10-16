@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchSimplified,
@@ -24,7 +24,8 @@ export function useReadingViewData() {
   const { t } = useTranslation(['reading']);
   const { textId } = useParams();
   const location = useLocation();
-  const assignmentId = location.state?.assignmentId;
+  const [searchParams] = useSearchParams();
+  const routeAssignmentId = location.state?.assignmentId || searchParams.get('assignmentId');
 
   const dispatch = useDispatch();
   const content = useSelector(selectSimplifiedContent);
@@ -38,17 +39,30 @@ export function useReadingViewData() {
   const [progressSubmitting, setProgressSubmitting] = useState(false);
 
   useEffect(() => {
-    if (textId) dispatch(fetchSimplified(textId));
-    return () => dispatch(clearSimplifiedContent());
-  }, [dispatch, textId]);
+    let active = true;
+    if (textId) {
+      dispatch(fetchSimplified({ textId, assignmentId: routeAssignmentId })).then((action) => {
+        if (active && fetchSimplified.fulfilled.match(action)) {
+          setCtAnswers(action.payload.savedAnswers || {});
+          setQuizAnswers(action.payload.savedAnswers || {});
+          setQuizSubmitted(Boolean(action.payload.completed));
+        }
+      });
+    }
+    return () => {
+      active = false;
+      dispatch(clearSimplifiedContent());
+    };
+  }, [dispatch, textId, routeAssignmentId]);
 
   useEffect(() => {
     if (error) toast.error(error);
   }, [error]);
 
   const vocabulary = content?.vocabularySubstitutions || [];
-  const criticalThinkingQuestions = content?.criticalThinkingQuestions || [];
-  const comprehensionQuestions = content?.comprehensionQuestions || [];
+  const assignmentId = routeAssignmentId || content?.assignmentId;
+  const criticalThinkingQuestions = useMemo(() => content?.criticalThinkingQuestions || [], [content]);
+  const comprehensionQuestions = useMemo(() => content?.comprehensionQuestions || [], [content]);
 
   const handleGetFeedback = useCallback(
     (index, question) => {
@@ -78,39 +92,47 @@ export function useReadingViewData() {
           toast.error(message);
         });
     },
-    [content, ctAnswers]
+    [content, ctAnswers, t]
   );
 
   const handleQuizSubmit = useCallback(() => {
-    if (comprehensionQuestions.length === 0) {
-      return;
-    }
-    let correct = 0;
-    comprehensionQuestions.forEach((q, i) => {
-      if (Number(quizAnswers[i]) === q.correctIndex) correct++;
-    });
+    const answers = Object.fromEntries(
+      comprehensionQuestions.map((question) => [
+        String(question._id),
+        String(quizAnswers[String(question._id)] ?? ''),
+      ])
+    );
+    const shortAnswers = Object.fromEntries(
+      criticalThinkingQuestions.map((question) => [
+        String(question._id),
+        String(ctAnswers[String(question._id)] || ''),
+      ]).filter(([, answer]) => answer.trim())
+    );
     setProgressSubmitting(true);
     dispatch(
       updateProgress({
         textId: content?.text?._id,
-        correctCount: correct,
-        totalCount: comprehensionQuestions.length,
-        assignmentId: assignmentId || undefined,
+        answers,
+        shortAnswers,
+        assignmentId,
       })
     )
       .then((result) => {
         if (result.type === 'reading/updateProgress/fulfilled') {
           setQuizSubmitted(true);
-          toast.success(t('reading:view.toasts.score', {
-            correct,
-            total: comprehensionQuestions.length
-          }));
+          const score = result.payload?.score;
+          toast.success(score?.totalCount
+            ? t('reading:view.toasts.score', {
+              correct: score.correctCount,
+              total: score.totalCount
+            })
+            : t('reading:view.answersSaved'));
         } else if (result.type === 'reading/updateProgress/rejected') {
           toast.error(result.payload || t('reading:view.toasts.saveFailed'));
         }
       })
       .finally(() => setProgressSubmitting(false));
-  }, [content, comprehensionQuestions, quizAnswers, assignmentId, dispatch, t]);
+  }, [content, comprehensionQuestions, criticalThinkingQuestions, quizAnswers, ctAnswers, assignmentId, dispatch, t]);
 
   return {
     fetchSimplified,

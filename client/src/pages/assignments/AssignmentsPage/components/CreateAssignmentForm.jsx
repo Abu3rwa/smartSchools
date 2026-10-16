@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import LessonPlanLinkSelector from '../../../../components/grades/LessonPlanLinkSelector';
 import LinkEditor from './LinkEditor';
 import AttachmentEditor from './AttachmentEditor';
+import GoogleFormQuestionEditor from './GoogleFormQuestionEditor';
 import { buildAssignmentCsvTemplate, parseAssignmentCsv } from '../utils/assignmentCsvImport';
 
 const CreateAssignmentForm = ({
@@ -13,18 +14,23 @@ const CreateAssignmentForm = ({
     form,
     setForm,
     assignmentTypes,
+    classStudents = [],
     selectedClass,
     selectedSubject,
     isEditing,
     onCancelEdit,
+    onClose,
     onSubmit,
     classroom,
-    existingClassroomLink
+    existingClassroomLink,
+    googleFormPublished
 }) => {
     const { t } = useTranslation(['assignments']);
     const csvInputRef = useRef(null);
     const [importingCsv, setImportingCsv] = useState(false);
     if (!open) return null;
+    const selectedType = assignmentTypes.find((item) => String(item.id) === String(form.assignmentTypeId));
+    const isGoogleForm = selectedType?.key === 'google_form';
 
     const handleCsvImport = async (event) => {
         const file = event.target.files?.[0];
@@ -88,39 +94,46 @@ const CreateAssignmentForm = ({
                     <HiOutlinePlus />
                     {isEditing ? t('assignments:form.editTitle') : t('assignments:form.createTitle')}
                 </h3>
+                {!isEditing && (
+                    <button type="button" className="btn btn-outline btn-sm" onClick={onClose} disabled={submitting}>
+                        {t('assignments:actions.cancelCreate')}
+                    </button>
+                )}
             </div>
 
             {!isEditing && (
-                <div className="assignment-csv-import">
-                    <div>
-                        <strong>{t('assignments:import.title')}</strong>
-                        <p>{t('assignments:import.description')}</p>
-                        <p>{t('assignments:import.templateHelp')}</p>
+                <details className="assignment-csv-import">
+                    <summary>{t('assignments:import.title')}</summary>
+                    <div className="assignment-csv-import__content">
+                        <div>
+                            <p>{t('assignments:import.description')}</p>
+                            <p>{t('assignments:import.templateHelp')}</p>
+                        </div>
+                        <div className="assignment-csv-import__actions">
+                            <button type="button" className="btn btn-outline" onClick={downloadTemplate} disabled={submitting || importingCsv}>
+                                <HiOutlineDownload />
+                                {t('assignments:import.downloadTemplate')}
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => csvInputRef.current?.click()}
+                                disabled={!selectedClass || !selectedSubject || submitting || importingCsv}
+                            >
+                                <HiOutlineUpload />
+                                {importingCsv ? t('assignments:import.importing') : t('assignments:import.chooseFile')}
+                            </button>
+                            <input
+                                ref={csvInputRef}
+                                type="file"
+                                accept=".csv,text/csv"
+                                hidden
+                                aria-label={t('assignments:import.chooseFile')}
+                                onChange={handleCsvImport}
+                            />
+                        </div>
                     </div>
-                    <div className="assignment-csv-import__actions">
-                        <button type="button" className="btn btn-outline" onClick={downloadTemplate} disabled={submitting || importingCsv}>
-                            <HiOutlineDownload />
-                            {t('assignments:import.downloadTemplate')}
-                        </button>
-                        <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => csvInputRef.current?.click()}
-                            disabled={!selectedClass || !selectedSubject || submitting || importingCsv}
-                        >
-                            <HiOutlineUpload />
-                            {importingCsv ? t('assignments:import.importing') : t('assignments:import.chooseFile')}
-                        </button>
-                        <input
-                            ref={csvInputRef}
-                            type="file"
-                            accept=".csv,text/csv"
-                            hidden
-                            aria-label={t('assignments:import.chooseFile')}
-                            onChange={handleCsvImport}
-                        />
-                    </div>
-                </div>
+                </details>
             )}
 
             <div className="create-grid">
@@ -203,6 +216,68 @@ const CreateAssignmentForm = ({
                     />
                 </div>
             </div>
+
+            {isGoogleForm && (
+                <>
+                    <div className="google-form-assignment-scope">
+                        <h4>{t('assignments:googleForms.assignmentScope')}</h4>
+                        <label>
+                            <input
+                                type="radio"
+                                name="google-form-scope"
+                                value="class"
+                                checked={form.scope !== 'selected_students'}
+                                disabled={submitting || googleFormPublished}
+                                onChange={() => setForm((prev) => ({ ...prev, scope: 'class', studentIds: [] }))}
+                            />
+                            {t('assignments:googleForms.assignToClass')}
+                        </label>
+                        <label>
+                            <input
+                                type="radio"
+                                name="google-form-scope"
+                                value="selected_students"
+                                checked={form.scope === 'selected_students'}
+                                disabled={submitting || googleFormPublished}
+                                onChange={() => setForm((prev) => ({ ...prev, scope: 'selected_students' }))}
+                            />
+                            {t('assignments:googleForms.assignToSelected')}
+                        </label>
+                        {form.scope === 'selected_students' && (
+                            <div className="google-form-assignment-scope__students">
+                                {classStudents
+                                    .filter((student) => String(student.currentClass || '') === String(selectedClass))
+                                    .map((student) => {
+                                        const id = String(student._id || student.id);
+                                        const checked = (form.studentIds || []).some((value) => String(value) === id);
+                                        return (
+                                            <label key={id}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    disabled={submitting || googleFormPublished}
+                                                    onChange={(event) => setForm((prev) => ({
+                                                        ...prev,
+                                                        studentIds: event.target.checked
+                                                            ? [...new Set([...(prev.studentIds || []).map(String), id])]
+                                                            : (prev.studentIds || []).filter((value) => String(value) !== id)
+                                                    }))}
+                                                />
+                                                {student.firstName} {student.lastName} ({student.studentId})
+                                            </label>
+                                        );
+                                    })}
+                                {classStudents.length === 0 && <p className="text-muted">{t('assignments:googleForms.noStudents')}</p>}
+                            </div>
+                        )}
+                    </div>
+                    <GoogleFormQuestionEditor
+                        questions={form.googleFormQuestions || []}
+                        onChange={(googleFormQuestions) => setForm((prev) => ({ ...prev, googleFormQuestions }))}
+                        disabled={submitting || googleFormPublished}
+                    />
+                </>
+            )}
 
             <div className="create-options">
                 <label><input type="checkbox" checked={form.publishNow} onChange={(event) => setForm((prev) => ({ ...prev, publishNow: event.target.checked }))} /> {t('assignments:form.publishNow')}</label>

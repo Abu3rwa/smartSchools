@@ -6,14 +6,31 @@ const simplifiedTextSchema = new mongoose.Schema(
     school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     isShared: { type: Boolean, default: false },
+    isArchived: { type: Boolean, default: false },
     title: { type: String, trim: true, required: true },
     originalText: { type: String, required: true },
+    sections: [
+      {
+        _id: false,
+        order: { type: Number, required: true, min: 1, max: 100 },
+        title: { type: String, trim: true, maxlength: 200, default: "" },
+        text: { type: String, required: true, maxlength: 50000 },
+        audioUrl: { type: String, trim: true, maxlength: 1000, default: "" },
+      },
+    ],
     sourceDocument: { type: String, trim: true },
     originalComplexity: { type: Number },
     language: { type: String, trim: true, lowercase: true },
     requestedLanguages: [{ type: String, trim: true, lowercase: true }],
     subjectArea: { type: String, trim: true },
     topicTags: [{ type: String, trim: true }],
+    vocabularySubstitutions: [
+      {
+        original: { type: String, trim: true },
+        simple: { type: String, trim: true },
+        definition: { type: String, trim: true },
+      },
+    ],
     // Critical thinking questions (important for deep comprehension)
     criticalThinkingQuestions: [
       {

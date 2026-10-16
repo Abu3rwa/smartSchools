@@ -2,10 +2,18 @@
     padding: 24px;
     display: flex;
     flex-direction: column;
+    gap: 20px;
+}
+
+.assignments-page__header {
+    align-items: center;
     gap: 16px;
 }
 
-.assignments-page .filters-grid,
+.assignments-page .filters-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
 .assignments-page .create-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -17,16 +25,26 @@
 }
 
 .assignment-csv-import {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
     margin: 0 24px 16px;
     padding: 12px 16px;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     background: var(--bg-secondary);
+}
+
+.assignment-csv-import summary,
+.assignment-integrations summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.assignment-csv-import__content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 8px;
 }
 
 .assignment-csv-import p {
@@ -39,6 +57,33 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.assignments-page .create-form > .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.assignment-integrations {
+    padding: 14px 18px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-primary);
+}
+
+.assignment-integrations > p {
+    margin: 8px 0 12px;
+}
+
+.assignment-integrations > .card {
+    margin-top: 12px;
+}
+
+.assignment-integrations > .google-forms-panel,
+.assignment-integrations > .classroom-panel {
+    box-shadow: none;
 }
 
 .assignments-page .form-group {
@@ -98,6 +143,96 @@
     border-color: var(--danger-btn-bg);
 }
 
+.assignments-page .google-forms-panel__connection,
+.assignments-page .google-form-results-panel .card-header > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.assignments-page .google-form-assignment-scope,
+.assignments-page .google-form-question-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.assignments-page .google-form-assignment-scope > label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.assignments-page .google-form-assignment-scope__students {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+    max-height: 240px;
+    overflow: auto;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.assignments-page .google-form-assignment-scope__students label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.assignments-page .google-form-question-editor > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.assignments-page .google-form-question-editor h4,
+.assignments-page .google-form-question-editor p {
+    margin: 0;
+}
+
+.assignments-page .google-form-question {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.assignments-page .google-form-question > label,
+.assignments-page .google-form-question__settings label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.assignments-page .google-form-question__settings {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.assignments-page .google-form-results-panel .card-header {
+    gap: 12px;
+}
+
+.assignments-page .google-form-results-panel details ul {
+    padding-inline-start: 20px;
+}
+
+.assignments-page .google-form-results-panel details li {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 8px 0;
+}
+
 .assignments-page .status-badge {
     display: inline-flex;
     align-items: center;
@@ -139,16 +274,28 @@
         padding: 16px;
     }
 
-    .assignments-page .filters-grid,
     .assignments-page .create-grid {
         grid-template-columns: 1fr 1fr;
     }
 }
 
 @media (max-width: 640px) {
+    .assignments-page__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .assignments-page__header > button {
+        width: 100%;
+    }
+
     .assignments-page .filters-grid,
     .assignments-page .create-grid {
         grid-template-columns: 1fr;
+    }
+
+    .assignment-csv-import {
+        margin-inline: 12px;
     }
 }
 

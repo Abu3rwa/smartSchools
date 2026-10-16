@@ -2,13 +2,19 @@ import { google } from 'googleapis';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import {
-    CLASSROOM_EMAIL_SCOPE,
     CLASSROOM_SCOPES,
     getClassroomRedirectUri
 } from '../config/classroomConfig.js';
+import { GOOGLE_SUITE_SCOPES } from '../config/googleSuiteOAuthScopes.js';
 import { ClassroomSyncError } from './classroomErrors.js';
 
-const TOKEN_SELECT = '+googleClassroomTokens.accessToken +googleClassroomTokens.refreshToken';
+const TOKEN_SELECT = [
+    '+googleClassroomTokens.accessToken',
+    '+googleClassroomTokens.refreshToken',
+    '+googleFormsTokens.accessToken',
+    '+googleFormsTokens.refreshToken',
+    '+googleFormsTokens.oauthClientId'
+].join(' ');
 
 const createOAuthClient = () => {
     const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -31,7 +37,8 @@ class GoogleClassroomOAuthService {
     getAuthUrl(state) {
         return createOAuthClient().generateAuthUrl({
             access_type: 'offline',
-            scope: [...CLASSROOM_SCOPES, CLASSROOM_EMAIL_SCOPE],
+            scope: GOOGLE_SUITE_SCOPES,
+            include_granted_scopes: true,
             prompt: 'consent',
             state
         });
@@ -44,23 +51,32 @@ class GoogleClassroomOAuthService {
 
     async storeTokens(userId, tokens) {
         const grantedScopes = parseGrantedScopes(tokens.scope);
-        const missing = missingRequiredScopes(grantedScopes);
+        const missing = GOOGLE_SUITE_SCOPES.filter((scope) => !grantedScopes.includes(scope));
         if (missing.length > 0) {
-            // Teachers can untick individual permissions on Google's consent screen.
             throw new ClassroomSyncError(
                 'MISSING_SCOPES',
-                'Google Classroom permissions were not fully granted. Please reconnect and allow all requested access.'
+                'Google Classroom, Google Forms, and Gmail permissions were not fully granted. Reconnect and allow all requested access.'
             );
         }
 
         const user = await User.findById(userId).select(TOKEN_SELECT);
         if (!user) throw new ClassroomSyncError('USER_NOT_FOUND', 'User not found');
+        if (user.hasGoogleFormsConnected()
+            && user.googleFormsTokens.oauthClientId !== process.env.GOOGLE_CLIENT_ID
+            && !tokens.refresh_token) {
+            throw new ClassroomSyncError(
+                'MISSING_REFRESH_TOKEN',
+                'Google did not return a refresh token for the shared services connection. Disconnect the old Google Forms account and reconnect.'
+            );
+        }
 
         const client = createOAuthClient();
         client.setCredentials({ access_token: tokens.access_token });
         const { data } = await google.oauth2({ version: 'v2', auth: client }).userinfo.get();
 
         await user.updateGoogleClassroomTokens(tokens, data?.email, grantedScopes);
+        await user.updateGoogleFormsTokens(tokens, data?.email, grantedScopes, process.env.GOOGLE_CLIENT_ID);
+        await user.updateGmailTokens(tokens, data?.email);
         return user;
     }
 
@@ -88,11 +104,10 @@ class GoogleClassroomOAuthService {
             } catch (error) {
                 const reason = error?.response?.data?.error || error?.message || '';
                 if (/invalid_grant/i.test(reason)) {
-                    // Consent was revoked or expired; require the teacher to reconnect.
-                    await user.clearGoogleClassroomTokens();
+                    await user.clearGoogleSuiteTokens();
                     throw new ClassroomSyncError(
                         'AUTH_REVOKED',
-                        'Google Classroom access was revoked or expired. Please reconnect your account.'
+                        'Google service access was revoked or expired. Please reconnect your account.'
                     );
                 }
                 logger.error('Google Classroom token refresh failed', { userId: String(userId), reason });
@@ -127,16 +142,24 @@ class GoogleClassroomOAuthService {
 
     async revokeTokens(userId) {
         const user = await User.findById(userId).select(TOKEN_SELECT);
-        if (!user || !user.hasGoogleClassroomConnected()) return;
+        if (!user || !(
+            user.hasGoogleClassroomConnected()
+            || user.hasGoogleFormsConnected()
+            || user.hasGmailConnected()
+        )) return;
 
         try {
             const client = createOAuthClient();
-            client.setCredentials({ access_token: user.googleClassroomTokens.accessToken });
+            client.setCredentials({
+                access_token: user.googleClassroomTokens?.accessToken
+                    || user.googleFormsTokens?.accessToken
+                    || user.gmailTokens?.accessToken
+            });
             await client.revokeCredentials();
         } catch (error) {
-            logger.warn('Could not revoke Google Classroom token with Google', { message: error?.message });
+            logger.warn('Could not revoke Google services token with Google', { message: error?.message });
         }
-        await user.clearGoogleClassroomTokens();
+        await user.clearGoogleSuiteTokens();
     }
 }
 

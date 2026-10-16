@@ -21,6 +21,8 @@ export default function ReadingUploadPage() {
     setClassId,
     generateVersions,
     setGenerateVersions,
+    isShared,
+    setIsShared,
     aiPrimaryLanguage,
     setAiPrimaryLanguage,
     aiSecondaryLanguage,
@@ -171,6 +173,16 @@ export default function ReadingUploadPage() {
           <label htmlFor="generateVersions">
             {t("reading:upload.fields.generateVersions")}
           </label>
+        </div>
+
+        <div className="form-group checkbox-group">
+          <input
+            id="shareWithSchool"
+            type="checkbox"
+            checked={isShared}
+            onChange={(e) => setIsShared(e.target.checked)}
+          />
+          <label htmlFor="shareWithSchool">{t("reading:upload.fields.shareWithSchool")}</label>
         </div>
 
         <div className="form-actions">

@@ -74,6 +74,7 @@
 .reading-card-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   margin-top: var(--spacing-md);
   padding-top: var(--spacing-sm);
@@ -168,8 +169,195 @@
   border-top: 1px solid var(--border-color);
 }
 
+.reading-editor-overlay {
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+.reading-editor-modal {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  width: min(900px, 100%);
+  max-height: calc(100vh - 2 * var(--spacing-md));
+  overflow-y: auto;
+}
+
+.reading-editor-modal h2 {
+  margin: 0 0 var(--spacing-lg);
+}
+
+.reading-editor-notice {
+  margin: calc(-1 * var(--spacing-sm)) 0 var(--spacing-md);
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.reading-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-md);
+}
+
+.reading-editor-modal label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.reading-editor-modal input:not([type="checkbox"]),
+.reading-editor-modal select,
+.reading-editor-modal textarea {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.reading-editor-modal textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.reading-editor-wide {
+  grid-column: 1 / -1;
+}
+
+.reading-editor-modal .reading-editor-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.reading-editor-group {
+  margin-top: var(--spacing-lg);
+}
+
+.reading-editor-group-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.reading-editor-group-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.reading-editor-item {
+  display: grid;
+  gap: var(--spacing-sm);
+  margin: 0 0 var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.reading-editor-item legend {
+  padding: 0 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.reading-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.reading-card-actions .btn-danger {
+  color: var(--accent-red, #b42318);
+}
+
 @media (max-width: 600px) {
   .reading-texts-list-page .page-header-row {
     flex-direction: column;
   }
+  .reading-editor-grid {
+    grid-template-columns: 1fr;
+  }
+  .reading-editor-wide {
+    grid-column: auto;
+  }
+}
+.reading-csv-import {
+  display: grid;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+}
+
+.reading-csv-import h2 {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.reading-csv-import p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.reading-csv-import-actions,
+.reading-csv-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.reading-csv-file-label {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.reading-csv-file-label input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.reading-csv-file-name,
+.reading-csv-preview span {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.reading-csv-preview {
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.reading-csv-preview label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reading-csv-preview button {
+  margin-left: auto;
+}
+
+.reading-csv-error {
+  color: var(--accent-red, #b42318) !important;
+}
+
+.reading-csv-help {
+  font-size: 0.8rem;
+  line-height: 1.5;
 }

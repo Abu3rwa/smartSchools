@@ -21,6 +21,12 @@ const DEFAULT_ASSIGNMENT_TYPES = [
         defaults: { maxMarks: 20, allowLateSubmission: false, notifyOnAssign: false, notifyOnGrade: true }
     },
     {
+        key: 'google_form',
+        name: 'Google Form quiz',
+        sortOrder: 35,
+        defaults: { maxMarks: 20, allowLateSubmission: false, notifyOnAssign: true, notifyOnGrade: true }
+    },
+    {
         key: 'test',
         name: 'Test',
         sortOrder: 40,

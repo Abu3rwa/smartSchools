@@ -1,10 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { HiOutlineArrowLeft, HiOutlineLightBulb, HiOutlineQuestionMarkCircle } from 'react-icons/hi';
 import { selectCurrentAcademicYear } from '../../../../store/slices/uiSlice';
 import { useReadingViewData } from './hooks/useReadingViewData';
+import { findVocabularyMatches } from './vocabularyHighlight.js';
+import { planAudio, playChain } from '../../../../utils/vocabAudio.js';
+import { readStoredVoice } from '../../../../utils/voicePlayback.js';
 import './ReadingViewPage.css';
 
 const ReadingViewPage = () => {
@@ -32,34 +35,50 @@ const ReadingViewPage = () => {
   const [vocabPopup, setVocabPopup] = useState(null);
   const [showCriticalThinking, setShowCriticalThinking] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
+  const vocabularyPlayback = useRef(null);
 
-  const vocabMap = useMemo(() => {
-    const m = new Map();
-    vocabulary.forEach((v) => {
-      if (v.original) m.set(v.original.toLowerCase(), v);
-      if (v.simple && v.simple !== v.original) m.set(v.simple.toLowerCase(), v);
+  useEffect(() => () => {
+    vocabularyPlayback.current?.cancel();
+  }, []);
+
+  const openVocabulary = (item, term) => {
+    vocabularyPlayback.current?.cancel();
+    vocabularyPlayback.current = playChain({
+      urls: planAudio(item?.audio, readStoredVoice()),
+      text: item?.original || term,
     });
-    return m;
-  }, [vocabulary]);
+    setVocabPopup(item);
+  };
+
+  const closeVocabulary = () => {
+    vocabularyPlayback.current?.cancel();
+    vocabularyPlayback.current = null;
+    setVocabPopup(null);
+  };
 
   const wrapTextWithVocabulary = (text) => {
-    if (!text || vocabMap.size === 0) return text;
-    const words = text.split(/(\s+)/);
-    return words.map((word, i) => {
-      const key = word.replace(/[^\w']/g, '').toLowerCase();
-      const def = key ? vocabMap.get(key) : null;
-      if (!def) return <span key={`t-${i}`}>{word}</span>;
-      return (
-        <span
-          key={`v-${i}-${key}`}
+    const matches = findVocabularyMatches(text, vocabulary);
+    if (!matches.length) return text;
+    const result = [];
+    let cursor = 0;
+    matches.forEach(({ start, end, term, vocabulary: definition }) => {
+      if (start > cursor) result.push(text.slice(cursor, start));
+      result.push(
+        <button
+          type="button"
+          key={`v-${start}-${term}`}
           className="vocab-word"
-          title={def.definition || def.simple}
-          onClick={() => setVocabPopup(def)}
+          title={definition?.definition || definition?.simple}
+          aria-label={`${term}: ${definition?.definition || definition?.simple || ''}`}
+          onClick={() => openVocabulary(definition, term)}
         >
-          {word}
-        </span>
+          {term}
+        </button>
       );
+      cursor = end;
     });
+    if (cursor < text.length) result.push(text.slice(cursor));
+    return result;
   };
 
   if (loading && !content) {
@@ -89,6 +108,9 @@ const ReadingViewPage = () => {
   }
 
   const bodyText = content.simplifiedContent || content.text?.originalText || '';
+  const readingSections = (content.text?.sections?.length
+    ? [...content.text.sections].sort((a, b) => a.order - b.order)
+    : [{ order: 1, title: '', text: bodyText }]);
   const hasQuiz = comprehensionQuestions.length > 0;
 
   return (
@@ -116,9 +138,12 @@ const ReadingViewPage = () => {
         <p className="reading-instruction">
           {t('reading:view.vocabInstructionPrefix')} <span className="vocab-hint">{t('reading:view.vocabInstructionHighlighted')}</span> {t('reading:view.vocabInstructionSuffix')}
         </p>
-        <div className="reading-text">
-          {wrapTextWithVocabulary(bodyText)}
-        </div>
+        {readingSections.map((section) => (
+          <article className="reading-text-section" key={section.order}>
+            {section.title && <h2>{section.title}</h2>}
+            <div className="reading-text">{wrapTextWithVocabulary(section.text)}</div>
+          </article>
+        ))}
       </section>
 
       {criticalThinkingQuestions.length > 0 && (
@@ -148,27 +173,27 @@ const ReadingViewPage = () => {
                       <textarea
                         id={`ct-answer-${i}`}
                         className="ct-answer-input"
-                        value={ctAnswers[i] || ''}
+                        value={ctAnswers[String(q._id)] || ''}
                         onChange={(e) =>
-                          setCtAnswers((prev) => ({ ...prev, [i]: e.target.value }))
+                          setCtAnswers((prev) => ({ ...prev, [String(q._id)]: e.target.value }))
                         }
                         placeholder={t('reading:view.answerPlaceholder')}
                         rows={4}
-                        disabled={ctFeedback[i]?.loading}
+                        disabled={quizSubmitted || ctFeedback[String(q._id)]?.loading}
                       />
                       <button
                         type="button"
                         className="btn btn-primary btn-sm"
-                        onClick={() => handleGetFeedback(i, q.question)}
-                        disabled={ctFeedback[i]?.loading || !(ctAnswers[i] || '').trim()}
+                        onClick={() => handleGetFeedback(String(q._id), q.question)}
+                        disabled={quizSubmitted || ctFeedback[String(q._id)]?.loading || !(ctAnswers[String(q._id)] || '').trim()}
                       >
-                        {ctFeedback[i]?.loading ? t('reading:view.evaluating') : t('reading:view.getFeedback')}
+                        {ctFeedback[String(q._id)]?.loading ? t('reading:view.evaluating') : t('reading:view.getFeedback')}
                       </button>
                     </div>
-                    {ctFeedback[i]?.feedback && !ctFeedback[i]?.loading && (
+                    {ctFeedback[String(q._id)]?.feedback && !ctFeedback[String(q._id)]?.loading && (
                       <div className="ct-feedback">
                         <span className="ct-feedback-label">{t('reading:view.feedback')}:</span>
-                        <p className="ct-feedback-text">{ctFeedback[i].feedback}</p>
+                        <p className="ct-feedback-text">{ctFeedback[String(q._id)].feedback}</p>
                       </div>
                     )}
                   </li>
@@ -205,11 +230,11 @@ const ReadingViewPage = () => {
                                   <input
                                     type="radio"
                                     name={`q-${i}`}
-                                    checked={quizAnswers[i] === String(j)}
+                                    checked={quizAnswers[String(q._id)] === String(j)}
                                     onChange={() =>
                                       setQuizAnswers((prev) => ({
                                         ...prev,
-                                        [i]: String(j),
+                                        [String(q._id)]: String(j),
                                       }))
                                     }
                                   />
@@ -227,27 +252,58 @@ const ReadingViewPage = () => {
                     onClick={handleQuizSubmit}
                     disabled={
                       progressSubmitting ||
-                      Object.keys(quizAnswers).length < comprehensionQuestions.length
+                      comprehensionQuestions.some((question) => (
+                        !['0', '1', '2', '3', '4', '5'].includes(
+                          String(quizAnswers[String(question._id)] ?? '')
+                        )
+                      ))
                     }
                   >
                     {progressSubmitting ? t('reading:common.submitting') : t('reading:view.submitAnswers')}
                   </button>
                 </>
               ) : (
-                <p className="quiz-done">{t('reading:view.answersSaved')}</p>
+                <>
+                  <ol className="quiz-questions">
+                    {[...comprehensionQuestions]
+                      .sort((a, b) => (a.order || 0) - (b.order || 0))
+                      .map((question) => (
+                        <li key={question._id} className="quiz-item">
+                          <span className="quiz-q">{question.question}</span>
+                          <p className="quiz-saved-answer">
+                            {t('reading:view.yourAnswer')}: {question.options?.[Number(quizAnswers[String(question._id)])] || '—'}
+                          </p>
+                        </li>
+                      ))}
+                  </ol>
+                  <p className="quiz-done">{t('reading:view.answersSaved')}</p>
+                </>
               )}
             </div>
           )}
         </section>
       )}
 
+      {!hasQuiz && !quizSubmitted && (
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={handleQuizSubmit}
+          disabled={progressSubmitting}
+        >
+          {progressSubmitting ? t('reading:common.submitting') : t('reading:view.markComplete')}
+        </button>
+      )}
+
+      {!hasQuiz && quizSubmitted && <p className="quiz-done">{t('reading:view.answersSaved')}</p>}
+
       {vocabPopup && (
         <div
           className="vocab-overlay"
-          onClick={() => setVocabPopup(null)}
+          onClick={closeVocabulary}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => e.key === 'Escape' && setVocabPopup(null)}
+          onKeyDown={(e) => e.key === 'Escape' && closeVocabulary()}
         >
           <div
             className="vocab-popup"
@@ -259,13 +315,31 @@ const ReadingViewPage = () => {
                 <span className="vocab-simple"> → {vocabPopup.simple}</span>
               )}
             </div>
-            {vocabPopup.definition && (
-              <p className="vocab-popup-def">{vocabPopup.definition}</p>
+            {(vocabPopup.meaning || vocabPopup.definition) && (
+              <p className="vocab-popup-def">{vocabPopup.meaning || vocabPopup.definition}</p>
             )}
+            {vocabPopup.arabicMeaning && vocabPopup.arabicMeaning !== (vocabPopup.meaning || vocabPopup.definition) && (
+              <p className="vocab-popup-def" lang="ar" dir="rtl">{vocabPopup.arabicMeaning}</p>
+            )}
+            {Object.entries(vocabPopup.audio?.dictionaries || {}).flatMap(([dictionary, recording]) => (
+              ['us', 'uk', ...(recording.examples ? ['examples'] : [])]
+                .filter((kind) => recording[kind])
+                .map((kind) => {
+                  const urls = kind === 'examples' ? recording.examples : [recording[kind]];
+                  return urls.map((url, index) => (
+                    <div className="vocab-audio" key={`${dictionary}-${kind}-${index}`}>
+                      <span>{`${dictionary} ${kind === 'examples' ? t('reading:view.exampleAudio') : kind.toUpperCase()}`}</span>
+                      <audio controls preload="none" src={url} aria-label={`${vocabPopup.original} ${dictionary} ${kind}`}>
+                        {t('reading:view.audioUnsupported')}
+                      </audio>
+                    </div>
+                  ));
+                })
+            ))}
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              onClick={() => setVocabPopup(null)}
+              onClick={closeVocabulary}
             >
               {t('reading:common.close')}
             </button>

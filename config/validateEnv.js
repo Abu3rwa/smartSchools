@@ -1,4 +1,5 @@
 import logger from '../utils/logger.js';
+import { parseBooleanEnv } from './booleanEnv.js';
 
 const requiredEnvVars = [
   'MONGODB_URI',
@@ -19,6 +20,10 @@ const optionalEnvVars = [
   'GOOGLE_CLASSROOM_ENABLED',
   'GOOGLE_CLASSROOM_REDIRECT_URI',
   'GOOGLE_CLASSROOM_SCHOOL_IDS',
+  'GOOGLE_FORMS_ENABLED',
+  'GOOGLE_FORMS_REDIRECT_URI',
+  'GOOGLE_FORMS_SCHOOL_IDS',
+  'GOOGLE_FORMS_OAUTH_STATE_SECRET',
   'ALLOW_LOCAL_SERVICE_ACCOUNT',
   'RUN_NEWSLETTER_ISSUE_SCHEDULER',
   'RUN_SUBSTITUTION_EXPIRY_JOB'
@@ -81,8 +86,8 @@ export function validateEnvironment() {
   }
 
   if (String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production') {
-    const allowLocalServiceAccount = String(process.env.ALLOW_LOCAL_SERVICE_ACCOUNT || '').trim().toLowerCase();
-    if (allowLocalServiceAccount === 'true') {
+    const allowLocalServiceAccount = parseBooleanEnv(process.env.ALLOW_LOCAL_SERVICE_ACCOUNT);
+    if (allowLocalServiceAccount) {
       warnings.push('ALLOW_LOCAL_SERVICE_ACCOUNT should be false/empty in production');
     }
 
@@ -104,7 +109,7 @@ export function validateEnvironment() {
     }
 
     // The Classroom callback must be exact, public and HTTPS, or Google will reject the sign-in.
-    if (String(process.env.GOOGLE_CLASSROOM_ENABLED || '').trim().toLowerCase() === 'true') {
+    if (parseBooleanEnv(process.env.GOOGLE_CLASSROOM_ENABLED)) {
       const classroomUri = String(process.env.GOOGLE_CLASSROOM_REDIRECT_URI || '').trim();
       if (!classroomUri) {
         logger.error('GOOGLE_CLASSROOM_REDIRECT_URI is required in production when GOOGLE_CLASSROOM_ENABLED=true');
@@ -117,6 +122,22 @@ export function validateEnvironment() {
       // Without a key, secretCrypto stores tokens as plain text.
       if (!process.env.APP_SECRET_ENCRYPTION_KEY && !process.env.ENCRYPTION_KEY) {
         logger.error('APP_SECRET_ENCRYPTION_KEY is required in production when GOOGLE_CLASSROOM_ENABLED=true');
+        process.exit(1);
+      }
+    }
+
+    if (parseBooleanEnv(process.env.GOOGLE_FORMS_ENABLED)) {
+      const sharedUri = String(process.env.GOOGLE_CLASSROOM_REDIRECT_URI || '').trim();
+      if (!sharedUri) {
+        logger.error('GOOGLE_CLASSROOM_REDIRECT_URI is required in production for the shared Google services connection when GOOGLE_FORMS_ENABLED=true');
+        process.exit(1);
+      }
+      if (!/^https:\/\//i.test(sharedUri) || /localhost|127\.0\.0\.1/i.test(sharedUri)) {
+        logger.error('GOOGLE_CLASSROOM_REDIRECT_URI must be a public https URL in production for the shared Google services connection');
+        process.exit(1);
+      }
+      if (!process.env.APP_SECRET_ENCRYPTION_KEY && !process.env.ENCRYPTION_KEY) {
+        logger.error('APP_SECRET_ENCRYPTION_KEY is required in production when GOOGLE_FORMS_ENABLED=true');
         process.exit(1);
       }
     }

@@ -21,7 +21,10 @@ export const DEFAULT_ASSIGNMENT_FORM = {
     links: [],
     attachmentFiles: [],
     existingAttachments: [],
-    removeAttachmentIds: []
+    removeAttachmentIds: [],
+    googleFormQuestions: [],
+    scope: 'class',
+    studentIds: []
 };
 
 export const createDefaultAssignmentForm = () => ({
@@ -29,5 +32,8 @@ export const createDefaultAssignmentForm = () => ({
     links: [],
     attachmentFiles: [],
     existingAttachments: [],
-    removeAttachmentIds: []
+    removeAttachmentIds: [],
+    googleFormQuestions: [],
+    scope: 'class',
+    studentIds: []
 });

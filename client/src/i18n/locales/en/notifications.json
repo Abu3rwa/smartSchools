@@ -4,8 +4,8 @@
     "subtitle": "Send grade updates and reports to parents"
   },
   "stats": {
-    "totalSent": "Total Sent",
-    "delivered": "Delivered",
+    "totalNotifications": "Total Notifications",
+    "sent": "Sent",
     "pending": "Pending",
     "failed": "Failed"
   },
@@ -58,10 +58,10 @@
     "trashWarning": "Messages moved to Trash can usually be recovered for 30 days, after which Gmail automatically deletes them. Review the message count and account carefully before continuing.",
     "checkingConnection": "Checking Gmail connection...",
     "accountReady": "Gmail mailbox ready: {{email}}",
-    "permissionRequired": "Connected as {{email}}. Grant the additional Gmail mailbox-management permission to continue.",
-    "accountNotConnected": "Connect your Gmail account to preview and clean up sent messages.",
-    "connectAccount": "Connect Gmail",
-    "grantPermission": "Grant Gmail cleanup permission",
+    "permissionRequired": "Connected as {{email}}. Reconnect Google services and allow the Gmail mailbox-management permission to continue.",
+    "accountNotConnected": "Connect Google services to preview and clean up sent mail. The connection also requests Classroom and Forms permissions.",
+    "connectAccount": "Connect Google services",
+    "grantPermission": "Grant Google services permissions",
     "statusFailed": "Could not check Gmail connection",
     "connectionFailed": "Could not connect Gmail. {{error}}",
     "connected": "Gmail cleanup permission granted.",

@@ -1,7 +1,7 @@
 {
   "header": {
     "title": "Assignments",
-    "subtitle": "Assignment-first workflow for all new grades"
+    "subtitle": "Create, publish, and track class assignments in one place."
   },
   "filters": {
     "class": "Class",
@@ -40,6 +40,7 @@
     "edit": "Edit",
     "delete": "Delete",
     "cancelEdit": "Cancel Edit",
+    "cancelCreate": "Close",
     "saveChanges": "Save Changes",
     "createAssignment": "Create Assignment"
   },
@@ -71,6 +72,10 @@
     "assignmentTypeNotFound": "The assignment type in the CSV was not found. Use an assignment type name or ID.",
     "failed": "Unable to import assignment CSV.",
     "templateHelp": "One assignment per file. Use links_json for multiple links."
+  },
+  "integrations": {
+    "title": "Optional integrations",
+    "help": "Google Classroom and Google Forms connections and settings."
   },
   "audience": {
     "both": "Students & Parents",
@@ -107,8 +112,8 @@
       "statusNetworkError": "Could not reach the backend to check Google Classroom. Start the local backend and try again.",
       "statusHttpError": "The backend could not check Google Classroom (HTTP {{status}}). Verify the API connection and backend configuration.",
       "retryStatus": "Check again",
-      "notConnected": "Connect your Google account to post assignments to Google Classroom.",
-      "connect": "Connect Google Classroom",
+      "notConnected": "Connect Google services to post assignments to Google Classroom.",
+      "connect": "Connect Google services",
       "connectedAs": "Connected as {{email}}",
       "disconnect": "Disconnect",
       "selectClass": "Choose an app class above to connect all of its subjects to Classroom courses.",
@@ -149,12 +154,89 @@
     },
     "errors": {
       "connectFailed": "Could not connect Google Classroom. Please try again.",
-      "missingScopes": "Google Classroom was not connected because some permissions were not allowed. Please try again and allow all requested access.",
+      "missingScopes": "Google services were not connected because some Classroom, Forms, or Gmail permissions were not allowed. Please reconnect and allow all requested access.",
       "notAvailable": "Google Classroom is not available for your account.",
       "disconnectFailed": "Could not disconnect Google Classroom.",
       "coursesFailed": "Could not load your Classroom courses.",
       "mappingFailed": "Could not update the Classroom course.",
       "postFailed": "Could not post to Google Classroom."
+    }
+  },
+  "googleForms": {
+    "title": "Google Forms",
+    "refresh": "Refresh",
+    "notConfigured": "Google Forms is enabled, but OAuth credentials or token encryption are not configured on the server.",
+    "connectedAs": "Connected as {{email}}",
+    "notConnected": "Connect Google services to create and read Google Forms quizzes.",
+    "connect": "Connect Google services",
+    "disconnect": "Disconnect Google services",
+    "sharedAccessNotice": "This shared connection requests access for Google Classroom, Google Forms, Gmail sending, and Gmail sent-mail cleanup. Gmail cleanup can move matching sent messages to Trash. Disconnecting revokes access to all of these services.",
+    "verifiedEmailNotice": "Quiz forms collect each respondent's verified Google-account email. Students must use the account registered on their student record.",
+    "assignmentScope": "Assign quiz to",
+    "assignToClass": "Everyone in this class",
+    "assignToSelected": "Selected students only",
+    "noStudents": "No students are available for this class.",
+    "selectStudents": "Select at least one student for this quiz.",
+    "questionsTitle": "Quiz questions",
+    "questionsHelp": "Add multiple-choice, true/false, or short-answer questions. Short answers are saved for teacher review and are not auto-scored.",
+    "csv": {
+      "downloadTemplate": "Download question CSV template",
+      "import": "Import questions from CSV",
+      "importing": "Importing questions...",
+      "replaceConfirm": "Importing this CSV will replace the questions currently entered. Continue?",
+      "imported": "Imported {{count}} questions. Review them before publishing.",
+      "invalidFile": "Choose a .csv file.",
+      "fileTooLarge": "The CSV file must be 1 MB or smaller.",
+      "failed": "Could not import questions from this CSV."
+    },
+    "addQuestion": "Add question",
+    "questionNumber": "Question {{number}}",
+    "prompt": "Question",
+    "questionType": "Question type",
+    "multipleChoice": "Multiple choice",
+    "trueFalse": "True / false",
+    "shortAnswer": "Short answer",
+    "points": "Points",
+    "correctAnswer": "Correct answer",
+    "selectCorrectAnswer": "Select the correct answer",
+    "options": "Answer options (one per line)",
+    "optionsHelp": "Enter one option on each line",
+    "shortAnswerHelp": "Students' responses will be available in the teacher response panel for manual review and grading.",
+    "removeQuestion": "Remove question",
+    "responses": "Responses",
+    "resultsTitle": "Google Forms responses — {{title}}",
+    "sync": "Sync responses",
+    "syncing": "Syncing…",
+    "syncSummary": "Synced {{imported}} responses; {{unmatched}} could not be matched to an assigned student; updated {{grades}} grades.",
+    "loadingResults": "Loading responses…",
+    "noResponses": "No matched responses yet. Sync again after students submit.",
+    "student": "Student",
+    "submittedAt": "Submitted",
+    "score": "Score",
+    "answers": "Answers",
+    "viewAnswers": "View answers",
+    "late": "late",
+    "manualReview": "Manual review",
+    "studentTitle": "Google Forms quiz",
+    "studentDescription": "Complete the quiz using the Google account associated with your student account.",
+    "openQuiz": "Open quiz",
+    "studentSubmitted": "Your response has been recorded.",
+    "studentAwaitingSync": "After you submit, your teacher will sync the response here.",
+    "errors": {
+      "status": "Could not check Google Forms status.",
+      "connect": "Could not connect Google Forms. Please try again.",
+      "disconnect": "Could not disconnect Google Forms.",
+      "sync": "Could not sync Google Forms responses.",
+      "consent_denied": "Google Forms access was not granted.",
+      "missing_parameters": "Google did not return the required connection details.",
+      "invalid_state": "The Google Forms connection expired or could not be verified. Try again.",
+      "not_available": "Google Forms is not available for this account.",
+      "missing_scopes": "Some requested Google Forms permissions were not allowed. Reconnect and allow all requested access.",
+      "oauth_failed": "Could not connect Google Forms. Check the server configuration and try again."
+    },
+    "toasts": {
+      "connected": "Google Forms connected.",
+      "disconnected": "Google Forms disconnected."
     }
   },
   "common": {

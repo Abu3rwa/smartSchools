@@ -17,6 +17,8 @@ import {
   myAssignments,
   getTeacherAssignments,
   importReadingCsv,
+  updateReading,
+  deleteReading,
   updateReadingSharing,
 } from '../controllers/readingController.js';
 
@@ -30,6 +32,8 @@ router.use(requireFeature('readingAssistant'));
 router.post('/upload-text', authorize('teacher', 'admin'), aiFeatureRateLimiter, uploadText);
 router.post('/import-csv', authorize('teacher', 'admin'), importReadingCsv);
 router.get('/texts', authorize('teacher', 'admin'), getTexts);
+router.patch('/texts/:textId', authorize('teacher', 'admin'), express.json(), updateReading);
+router.delete('/texts/:textId', authorize('teacher', 'admin'), deleteReading);
 router.patch('/texts/:textId/sharing', authorize('teacher', 'admin'), updateReadingSharing);
 router.get('/texts/:textId', authorize('teacher', 'admin'), getTextById);
 

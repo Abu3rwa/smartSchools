@@ -4,8 +4,8 @@
     "subtitle": "أرسل تحديثات الدرجات والتقارير إلى أولياء الأمور"
   },
   "stats": {
-    "totalSent": "إجمالي المرسل",
-    "delivered": "تم التسليم",
+    "totalNotifications": "إجمالي الإشعارات",
+    "sent": "تم الإرسال",
     "pending": "قيد الانتظار",
     "failed": "فشل"
   },
@@ -58,10 +58,10 @@
     "trashWarning": "يمكن عادةً استعادة الرسائل المنقولة إلى المهملات لمدة 30 يومًا، ثم يحذفها Gmail تلقائيًا. راجع عدد الرسائل والحساب بعناية قبل المتابعة.",
     "checkingConnection": "جارٍ التحقق من اتصال Gmail...",
     "accountReady": "حساب Gmail جاهز: {{email}}",
-    "permissionRequired": "متصل بالحساب {{email}}. امنح إذن إدارة صندوق بريد Gmail الإضافي للمتابعة.",
-    "accountNotConnected": "اربط حساب Gmail لمعاينة الرسائل المرسلة وتنظيفها.",
-    "connectAccount": "ربط Gmail",
-    "grantPermission": "منح إذن تنظيف Gmail",
+    "permissionRequired": "متصل بالحساب {{email}}. أعد ربط خدمات Google واسمح بإذن إدارة صندوق بريد Gmail للمتابعة.",
+    "accountNotConnected": "اربط خدمات Google لمعاينة البريد المرسل وتنظيفه. يتضمن الاتصال أيضًا أذونات Classroom ونماذج Google.",
+    "connectAccount": "ربط خدمات Google",
+    "grantPermission": "منح أذونات خدمات Google",
     "statusFailed": "تعذر التحقق من اتصال Gmail",
     "connectionFailed": "تعذر ربط Gmail. {{error}}",
     "connected": "تم منح إذن تنظيف Gmail.",

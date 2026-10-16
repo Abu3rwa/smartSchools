@@ -1,3 +1,5 @@
+import { parseBooleanEnv } from './booleanEnv.js';
+
 export const CLASSROOM_SCOPES = Object.freeze([
     'https://www.googleapis.com/auth/classroom.courses.readonly',
     'https://www.googleapis.com/auth/classroom.coursework.students'
@@ -18,7 +20,7 @@ const parseAllowList = () =>
         .filter(Boolean);
 
 export const isClassroomEnabled = () =>
-    String(process.env.GOOGLE_CLASSROOM_ENABLED || '').trim().toLowerCase() === 'true';
+    parseBooleanEnv(process.env.GOOGLE_CLASSROOM_ENABLED);
 
 // When GOOGLE_CLASSROOM_SCHOOL_IDS is set, only those schools may use the integration (pilot rollout).
 export const isClassroomEnabledForSchool = (schoolId) => {

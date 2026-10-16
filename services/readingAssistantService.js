@@ -11,6 +11,9 @@ import ReadingAssignment from "../models/ReadingAssignment.js";
 import ReadingCompletion from "../models/ReadingCompletion.js";
 import Student from "../models/Student.js";
 import Class from "../models/Class.js";
+import VocabWord from "../models/VocabWord.js";
+import VocabWordSource from "../models/VocabWordSource.js";
+import WordAudio from "../models/WordAudio.js";
 import { getAcademicYearDateRange } from "../utils/academicYear.js";
 import {
   getLanguageLabel,
@@ -424,7 +427,7 @@ export async function uploadText(schoolId, payload, options = {}) {
     createdBy: usageTracking?.userId,
     isShared: payload.isShared === true,
     title: title.trim(),
-    originalText: originalText.trim(),
+    originalText: String(originalText).replace(/^(?:\r\n|\r|\n)+|(?:\r\n|\r|\n)+$/g, ""),
     sourceDocument: sourceDocument?.trim(),
     originalComplexity,
     subjectArea: subjectArea || "",
@@ -498,7 +501,7 @@ export async function getSimplifiedForStudent(
   academicYear = null,
   options = {}
 ) {
-  const { requireAssignment = false } = options;
+  const { requireAssignment = false, assignmentId = null } = options;
 
   const text = await SimplifiedText.findOne({ _id: textId, school: schoolId });
   if (!text) throw new Error("Text not found");
@@ -513,12 +516,14 @@ export async function getSimplifiedForStudent(
     if (academicYear) {
       assignmentQuery.academicYear = academicYear;
     }
-    const hasAssignment = await ReadingAssignment.exists(assignmentQuery);
-    if (!hasAssignment) {
+    if (assignmentId) assignmentQuery._id = assignmentId;
+    const assignment = await ReadingAssignment.findOne(assignmentQuery).select("_id").lean();
+    if (!assignment) {
       const error = new Error("No active assignment found for this reading");
       error.statusCode = 403;
       throw error;
     }
+    options.assignmentId = assignment._id;
   }
 
   let targetLevel = 8;
@@ -530,15 +535,111 @@ export async function getSimplifiedForStudent(
     targetLevel = profile.currentReadingLevel;
   }
 
+  const attachVocabularyAudio = async (items, passageText) => {
+    const lessonVocabulary = Array.isArray(items) ? items : [];
+    const passageTerms = new Set(
+      (String(passageText || "").match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) || [])
+        .map((word) => word.normalize("NFKC").toLocaleLowerCase().trim())
+        .filter(Boolean)
+    );
+    const terms = [...new Set([
+      ...passageTerms,
+      ...lessonVocabulary.flatMap((item) => [item.original, item.simple])
+        .map((word) => String(word || "").normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim())
+        .filter(Boolean),
+    ])];
+    const vocabularyWords = [];
+    for (let index = 0; index < terms.length; index += 1000) {
+      vocabularyWords.push(...await VocabWord.find({
+        school: schoolId,
+        normalizedWord: { $in: terms.slice(index, index + 1000) },
+      }).select("_id word normalizedWord meaning arabicMeaning form baseWord").lean());
+    }
+    const mergedVocabulary = new Map();
+    for (const word of vocabularyWords) {
+      const key = String(word.normalizedWord || word.word).normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim();
+      if (!key) continue;
+      mergedVocabulary.set(key, {
+        original: word.word,
+        simple: "",
+        definition: word.meaning || "",
+        meaning: word.meaning || "",
+        arabicMeaning: word.arabicMeaning || "",
+        form: word.form || "",
+        baseWord: word.baseWord || "",
+      });
+    }
+    for (const item of lessonVocabulary) {
+      const key = String(item.original || "").normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim();
+      if (key && !mergedVocabulary.has(key)) mergedVocabulary.set(key, item);
+    }
+    const substitutions = [...mergedVocabulary.values()];
+    if (!terms.length) return substitutions;
+    const audioTerms = [...new Set([
+      ...vocabularyWords.map((word) => word.normalizedWord),
+      ...lessonVocabulary.flatMap((item) => [item.original, item.simple]),
+    ].map((word) => String(word || "").normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim()).filter(Boolean))];
+
+    const [sources, dictionaryAudio] = await Promise.all([
+      vocabularyWords.length
+        ? VocabWordSource.find({ school: schoolId, word: { $in: vocabularyWords.map((word) => word._id) } })
+          .select("word source audioUsUrl audioUkUrl exampleAudioUrl").lean()
+        : [],
+      WordAudio.find({ word: { $in: audioTerms } })
+        .select("word longmanUS longmanUK oxfordUS oxfordUK websterUS examples.longman examples.oxford examples.webster").lean(),
+    ]);
+
+    const byVocabularyId = new Map(vocabularyWords.map((word) => [String(word._id), word.normalizedWord]));
+    const audioByTerm = new Map();
+    const addAudio = (term, dictionary, audio) => {
+      if (!term || !audio || Object.keys(audio).length === 0) return;
+      const entry = audioByTerm.get(term) || {};
+      entry[dictionary] = { ...audio, ...(entry[dictionary] || {}) };
+      audioByTerm.set(term, entry);
+    };
+    for (const source of sources) {
+      const term = byVocabularyId.get(String(source.word));
+      addAudio(term, source.source, {
+        ...(source.audioUsUrl ? { us: source.audioUsUrl } : {}),
+        ...(source.audioUkUrl ? { uk: source.audioUkUrl } : {}),
+        ...(source.exampleAudioUrl ? { examples: [source.exampleAudioUrl] } : {}),
+      });
+    }
+    for (const doc of dictionaryAudio) {
+      const fields = {
+        longman: { us: doc.longmanUS, uk: doc.longmanUK, examples: doc.examples?.longman },
+        oxford: { us: doc.oxfordUS, uk: doc.oxfordUK, examples: doc.examples?.oxford },
+        webster: { us: doc.websterUS, examples: doc.examples?.webster },
+      };
+      for (const [dictionary, audio] of Object.entries(fields)) {
+        addAudio(doc.word, dictionary, {
+          ...(audio.us ? { us: audio.us } : {}),
+          ...(audio.uk ? { uk: audio.uk } : {}),
+          ...(audio.examples?.length ? { examples: audio.examples } : {}),
+        });
+      }
+    }
+    return substitutions.map((item) => {
+      const original = String(item.original || "").normalize("NFKC").trim().toLocaleLowerCase();
+      const simple = String(item.simple || "").normalize("NFKC").trim().toLocaleLowerCase();
+      const dictionaries = audioByTerm.get(original) || audioByTerm.get(simple);
+      return dictionaries ? { ...item, audio: { dictionaries } } : item;
+    });
+  };
+
   const versions = text.simplifiedVersions || [];
   if (versions.length === 0) {
     return {
       text: text.toObject(),
       simplifiedContent: text.originalText,
-      vocabularySubstitutions: [],
+      vocabularySubstitutions: await attachVocabularyAudio(
+        text.vocabularySubstitutions || [],
+        text.sections?.length ? text.sections.map((section) => section.text).join("\n\n") : text.originalText
+      ),
       targetLevel: text.originalComplexity || targetLevel,
       criticalThinkingQuestions: text.criticalThinkingQuestions || [],
       comprehensionQuestions: text.comprehensionQuestions || [],
+      assignmentId: options.assignmentId || undefined,
     };
   }
 
@@ -548,15 +649,35 @@ export async function getSimplifiedForStudent(
       Math.abs(b.targetLevel - targetLevel)
   );
   const best = sorted[0];
+  const vocabularyByOriginal = new Map();
+  for (const item of [
+    ...(text.vocabularySubstitutions || []),
+    ...(best.vocabularySubstitutions || []),
+  ]) {
+    const normalizedOriginal = String(item.original || "")
+      .normalize("NFKC")
+      .toLocaleLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+    if (normalizedOriginal && !vocabularyByOriginal.has(normalizedOriginal)) {
+      vocabularyByOriginal.set(normalizedOriginal, item);
+    }
+  }
 
   return {
     text: text.toObject(),
     simplifiedContent: best.simplifiedText,
-    vocabularySubstitutions: best.vocabularySubstitutions || [],
+    vocabularySubstitutions: await attachVocabularyAudio(
+      [...vocabularyByOriginal.values()],
+      text.sections?.length
+        ? text.sections.map((section) => section.text).join("\n\n")
+        : best.simplifiedText
+    ),
     targetLevel: best.targetLevel,
     availableLevels: versions.map((v) => v.targetLevel),
     criticalThinkingQuestions: text.criticalThinkingQuestions || [],
     comprehensionQuestions: text.comprehensionQuestions || [],
+    assignmentId: options.assignmentId || undefined,
   };
 }
 
@@ -622,7 +743,8 @@ export async function updateProgress(
   totalCount,
   schoolId,
   assignmentId = null,
-  academicYear = null
+  academicYear = null,
+  shortAnswers = {}
 ) {
   let assignment;
   if (assignmentId) {
@@ -646,21 +768,25 @@ export async function updateProgress(
     }
   }
 
-  const accuracy = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
-
-  const profile = await StudentReadingProfile.findOneAndUpdate(
-    { school: schoolId, student: studentId },
-    {
-      $set: { comprehensionAccuracy: accuracy },
-      $push: {
-        progressHistory: {
-          $each: [{ assessedAt: new Date(), level: null, accuracy }],
-          $slice: -50,
+  let profile;
+  if (totalCount > 0) {
+    const accuracy = (correctCount / totalCount) * 100;
+    profile = await StudentReadingProfile.findOneAndUpdate(
+      { school: schoolId, student: studentId },
+      {
+        $set: { comprehensionAccuracy: accuracy },
+        $push: {
+          progressHistory: {
+            $each: [{ assessedAt: new Date(), level: null, accuracy }],
+            $slice: -50,
+          },
         },
       },
-    },
-    { upsert: true, new: true }
-  );
+      { upsert: true, new: true }
+    );
+  } else {
+    profile = await StudentReadingProfile.findOne({ school: schoolId, student: studentId });
+  }
 
   if (assignmentId) {
     await ReadingCompletion.findOneAndUpdate(
@@ -672,13 +798,14 @@ export async function updateProgress(
         text: textId,
         correctCount,
         totalCount,
+        responses: Object.entries(shortAnswers).map(([questionId, answer]) => ({ questionId, answer })),
         completedAt: new Date(),
       },
       { upsert: true }
     );
   }
 
-  return profile;
+  return profile || { currentReadingLevel: null, comprehensionAccuracy: null, progressHistory: [] };
 }
 
 /**
@@ -769,7 +896,7 @@ export async function createAssignment(
   const { textId, classId, studentIds, dueDate, instructions } = payload;
 
   if (!textId) throw new Error("textId is required");
-  const text = await getTextById(textId, schoolId, assignedByUserId, isAdmin);
+  await getTextById(textId, schoolId, assignedByUserId, isAdmin);
 
   let students = [];
   if (studentIds?.length) {
@@ -869,7 +996,7 @@ export async function getAssignmentsForStudent(studentId, schoolId, academicYear
  * List all texts (for teacher admin).
  */
 export async function getTexts(schoolId, filters = {}) {
-  const query = { school: schoolId };
+  const query = { school: schoolId, isArchived: { $ne: true } };
   if (filters.userId && !filters.isAdmin) {
     query.$or = [
       { createdBy: filters.userId },
@@ -888,12 +1015,90 @@ export async function getTexts(schoolId, filters = {}) {
   return list;
 }
 
-export async function createReadingFromCsv(schoolId, userId, payload) {
+function buildReadingPayload(payload = {}) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw Object.assign(new Error("Reading details must be an object."), { statusCode: 400 });
+  }
   const title = String(payload?.title || "").trim();
-  const originalText = String(payload?.originalText || "").replace(/^(?:\r\n|\r|\n)+|(?:\r\n|\r|\n)+$/g, "");
+  const providedOriginalText = String(payload?.originalText || "").replace(/^(?:\r\n|\r|\n)+|(?:\r\n|\r|\n)+$/g, "");
+  if (payload.sections !== undefined && !Array.isArray(payload.sections)) {
+    throw Object.assign(new Error("sections must be a list."), { statusCode: 400 });
+  }
+  const sections = (payload.sections || []).map((section, index) => {
+    const order = Number(section?.order);
+    const sectionTitle = String(section?.title || "").trim();
+    const text = String(section?.text || "").replace(/^(?:\r\n|\r|\n)+|(?:\r\n|\r|\n)+$/g, "");
+    const audioUrl = String(section?.audioUrl || "").trim();
+    if (!Number.isInteger(order) || order !== index + 1 || order > 100) {
+      throw Object.assign(new Error("Section orders must start at 1 and have no gaps."), { statusCode: 400 });
+    }
+    if (!text.trim() || text.length > 50000 || sectionTitle.length > 200) {
+      throw Object.assign(new Error(`Section ${index + 1} needs text (up to 50,000 characters) and a title up to 200 characters.`), { statusCode: 400 });
+    }
+    if (audioUrl) {
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(audioUrl);
+      } catch {
+        throw Object.assign(new Error(`Section ${index + 1} audio URL must be a valid HTTPS URL.`), { statusCode: 400 });
+      }
+      if (parsedUrl.protocol !== "https:" || parsedUrl.username || parsedUrl.password || audioUrl.length > 1000) {
+        throw Object.assign(new Error(`Section ${index + 1} audio URL must be a valid HTTPS URL of 1,000 characters or fewer.`), { statusCode: 400 });
+      }
+    }
+    return { order, title: sectionTitle, text, audioUrl };
+  });
+  if (sections.length > 100) {
+    throw Object.assign(new Error("A reading can include no more than 100 sections."), { statusCode: 400 });
+  }
+  const originalText = sections.length
+    ? sections.map((section) => section.text).join("\n\n")
+    : providedOriginalText;
   if (!title || title.length > 200 || !originalText.trim() || originalText.length > 200000) {
     throw Object.assign(new Error("A title (up to 200 characters) and passage (up to 200,000 characters) are required."), { statusCode: 400 });
   }
+  if (sections.length && providedOriginalText && providedOriginalText !== originalText) {
+    throw Object.assign(new Error("originalText must match the ordered section text."), { statusCode: 400 });
+  }
+  if (payload.questions !== undefined && !Array.isArray(payload.questions)) {
+    throw Object.assign(new Error("questions must be a list."), { statusCode: 400 });
+  }
+  if (payload.isShared !== undefined && typeof payload.isShared !== "boolean") {
+    throw Object.assign(new Error("isShared must be true or false."), { statusCode: 400 });
+  }
+  if (payload.topicTags !== undefined && !Array.isArray(payload.topicTags)) {
+    throw Object.assign(new Error("topicTags must be a list."), { statusCode: 400 });
+  }
+  if (payload.vocabularySubstitutions !== undefined && !Array.isArray(payload.vocabularySubstitutions)) {
+    throw Object.assign(new Error("vocabularySubstitutions must be a list."), { statusCode: 400 });
+  }
+  if (Array.isArray(payload.vocabularySubstitutions) && payload.vocabularySubstitutions.length > 30) {
+    throw Object.assign(new Error("A reading can include no more than 30 vocabulary words."), { statusCode: 400 });
+  }
+  if (Array.isArray(payload.topicTags) && payload.topicTags.length > 20) {
+    throw Object.assign(new Error("A reading can include no more than 20 topic tags."), { statusCode: 400 });
+  }
+  const sourceDocument = String(payload.sourceDocument || "").trim();
+  const subjectArea = String(payload.subjectArea || "").trim();
+  const language = String(payload.language || "en").trim().toLowerCase();
+  if (sourceDocument.length > 200 || subjectArea.length > 100 || language.length > 20) {
+    throw Object.assign(new Error("Source document, subject, or language exceeds the allowed length."), { statusCode: 400 });
+  }
+  const vocabularySubstitutions = (payload.vocabularySubstitutions || []).map((item, index) => {
+    const original = String(item?.original || "").trim();
+    const simple = String(item?.simple || "").trim();
+    const definition = String(item?.definition || "").trim();
+    if (!original || original.length > 200 || !definition || definition.length > 1000 || simple.length > 200) {
+      throw Object.assign(new Error(`Vocabulary item ${index + 1} must include a word or phrase (up to 200 characters) and a definition.`), { statusCode: 400 });
+    }
+    const normalizedTerm = original.normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ");
+    const escapedTerm = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+    const termPattern = new RegExp(`(^|[^\\p{L}\\p{N}])${escapedTerm}(?=$|[^\\p{L}\\p{N}])`, "u");
+    if (!termPattern.test(originalText.normalize("NFKC").toLocaleLowerCase())) {
+      throw Object.assign(new Error(`Vocabulary word "${original}" was not found in the passage.`), { statusCode: 400 });
+    }
+    return { original, simple, definition };
+  });
 
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
   if (questions.length > 30) {
@@ -908,13 +1113,19 @@ export async function createReadingFromCsv(schoolId, userId, payload) {
     if (!question || question.length > 2000) {
       throw Object.assign(new Error(`Question ${index + 1} must contain up to 2,000 characters.`), { statusCode: 400 });
     }
-    const order = Number.isInteger(Number(item.order)) && Number(item.order) > 0
-      ? Number(item.order)
-      : index + 1;
+    const rawOrder = item.order == null ? "" : String(item.order).trim();
+    const order = rawOrder ? Number(rawOrder) : index + 1;
+    if (!Number.isInteger(order) || order < 1) {
+      throw Object.assign(new Error(`Question ${index + 1} must have a positive whole-number order.`), { statusCode: 400 });
+    }
     if (type === "short_answer") {
+      const prompt = String(item.prompt || "").trim();
+      if (prompt.length > 2000) {
+        throw Object.assign(new Error(`Short-answer prompt ${index + 1} cannot exceed 2,000 characters.`), { statusCode: 400 });
+      }
       criticalThinkingQuestions.push({
         question,
-        prompt: String(item.prompt || "").trim().slice(0, 2000),
+        prompt,
         type,
         order,
       });
@@ -945,32 +1156,40 @@ export async function createReadingFromCsv(schoolId, userId, payload) {
     comprehensionQuestions.push({ question, type, options, correctIndex, order });
   }
 
-  const doc = await SimplifiedText.create({
-    school: schoolId,
-    createdBy: userId,
+  return {
     isShared: payload.isShared === true,
     title,
     originalText,
-    sourceDocument: String(payload.sourceDocument || "").trim().slice(0, 200),
-    subjectArea: String(payload.subjectArea || "").trim().slice(0, 100),
+    sections,
+    sourceDocument,
+    subjectArea,
     topicTags: Array.isArray(payload.topicTags)
       ? [...new Set(payload.topicTags.map((tag) => String(tag || "").trim()).filter(Boolean))].slice(0, 20)
       : [],
-    language: String(payload.language || "en").trim().toLowerCase().slice(0, 20),
-    requestedLanguages: [String(payload.language || "en").trim().toLowerCase().slice(0, 20)],
+    vocabularySubstitutions,
+    language,
+    requestedLanguages: [language],
     originalComplexity: computeReadability(originalText),
     simplifiedVersions: [],
     criticalThinkingQuestions,
     comprehensionQuestions,
+  };
+}
+
+export async function createReadingFromCsv(schoolId, userId, payload) {
+  const document = buildReadingPayload(payload);
+  return SimplifiedText.create({
+    ...document,
+    school: schoolId,
+    createdBy: userId,
   });
-  return doc;
 }
 
 /**
  * Get single text by id (for teacher).
  */
 export async function getTextById(textId, schoolId, userId, isAdmin = false) {
-  const query = { _id: textId, school: schoolId };
+  const query = { _id: textId, school: schoolId, isArchived: { $ne: true } };
   if (userId && !isAdmin) {
     query.$or = [
       { createdBy: userId },
@@ -983,11 +1202,48 @@ export async function getTextById(textId, schoolId, userId, isAdmin = false) {
   return text;
 }
 
+export async function updateReading(textId, schoolId, userId, isAdmin, payload) {
+  const reading = await SimplifiedText.findOne({
+    _id: textId,
+    school: schoolId,
+    isArchived: { $ne: true },
+  });
+  if (!reading) throw Object.assign(new Error("Reading not found"), { statusCode: 404 });
+  if (!isAdmin && String(reading.createdBy || "") !== String(userId)) {
+    throw Object.assign(new Error("Only the reading owner or a school admin can edit this reading."), { statusCode: 403 });
+  }
+  const document = buildReadingPayload(payload);
+  if (document.originalText === reading.originalText) {
+    document.simplifiedVersions = reading.simplifiedVersions;
+    if (document.language === reading.language) {
+      document.requestedLanguages = reading.requestedLanguages;
+    }
+  }
+  Object.assign(reading, document);
+  await reading.save();
+  return reading;
+}
+
+export async function archiveReading(textId, schoolId, userId, isAdmin) {
+  const reading = await SimplifiedText.findOne({
+    _id: textId,
+    school: schoolId,
+    isArchived: { $ne: true },
+  });
+  if (!reading) throw Object.assign(new Error("Reading not found"), { statusCode: 404 });
+  if (!isAdmin && String(reading.createdBy || "") !== String(userId)) {
+    throw Object.assign(new Error("Only the reading owner or a school admin can delete this reading."), { statusCode: 403 });
+  }
+  reading.isArchived = true;
+  await reading.save();
+  return { _id: reading._id, isArchived: true };
+}
+
 export async function updateTextSharing(textId, schoolId, userId, isAdmin, isShared) {
   if (typeof isShared !== "boolean") {
     throw Object.assign(new Error("isShared must be true or false."), { statusCode: 400 });
   }
-  const text = await SimplifiedText.findOne({ _id: textId, school: schoolId });
+  const text = await SimplifiedText.findOne({ _id: textId, school: schoolId, isArchived: { $ne: true } });
   if (!text) throw Object.assign(new Error("Text not found"), { statusCode: 404 });
   if (!isAdmin && String(text.createdBy || "") !== String(userId)) {
     throw Object.assign(new Error("Only the reading owner or a school admin can change sharing."), { statusCode: 403 });

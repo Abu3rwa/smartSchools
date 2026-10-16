@@ -56,6 +56,11 @@ const useGoogleClassroom = ({ user, selectedClass, selectedSubject, academicYear
         refreshStatus();
     }, [refreshStatus]);
 
+    useEffect(() => {
+        window.addEventListener('google-suite-disconnected', refreshStatus);
+        return () => window.removeEventListener('google-suite-disconnected', refreshStatus);
+    }, [refreshStatus]);
+
     // Result of the Google consent redirect, delivered as query parameters.
     useEffect(() => {
         const connected = searchParams.get('classroom_connected');

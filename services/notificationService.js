@@ -3016,10 +3016,29 @@ ${isArabic ? 'مع خالص التحية،' : 'Best regards,'}
       .skip((page - 1) * limit)
       .limit(limit);
 
-    const total = await Notification.countDocuments(query);
+    const successfulStatuses = ['sent', 'delivered', 'read'];
+    const countForStatuses = (statuses) => {
+      if (query.status) {
+        return statuses.includes(query.status)
+          ? Notification.countDocuments(query)
+          : Promise.resolve(0);
+      }
+      return Notification.countDocuments({
+        ...query,
+        status: { $in: statuses }
+      });
+    };
+
+    const [total, sent, pending, failed] = await Promise.all([
+      Notification.countDocuments(query),
+      countForStatuses(successfulStatuses),
+      countForStatuses(['pending']),
+      countForStatuses(['failed'])
+    ]);
 
     return {
       notifications,
+      statusCounts: { total, sent, pending, failed },
       pagination: {
         page,
         limit,

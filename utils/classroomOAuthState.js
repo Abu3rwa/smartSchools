@@ -11,10 +11,13 @@ const getSecret = () => {
 const sign = (encodedPayload) =>
     crypto.createHmac('sha256', getSecret()).update(encodedPayload).digest('base64url');
 
-export const buildSignedState = (userId, now = Date.now()) => {
+export const buildSignedState = (userId, returnToOrNow = 'assignments', issuedAt = Date.now()) => {
+    const returnTo = typeof returnToOrNow === 'string' ? returnToOrNow : 'assignments';
+    const now = typeof returnToOrNow === 'number' ? returnToOrNow : issuedAt;
     const payload = {
         userId,
         purpose: 'google-classroom',
+        returnTo: returnTo === 'notifications' ? 'notifications' : 'assignments',
         nonce: crypto.randomBytes(16).toString('hex'),
         exp: now + OAUTH_STATE_TTL_MS
     };

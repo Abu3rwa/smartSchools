@@ -329,6 +329,15 @@ const userSchema = new mongoose.Schema({
             default: false
         }
     },
+    googleFormsTokens: {
+        email: { type: String, lowercase: true, trim: true },
+        accessToken: { type: String, get: decryptSecret, set: encryptSecret, select: false },
+        refreshToken: { type: String, get: decryptSecret, set: encryptSecret, select: false },
+        scopes: { type: [String], default: [] },
+        oauthClientId: { type: String, select: false },
+        expiryDate: Date,
+        isActive: { type: Boolean, default: false }
+    },
     uiPreferences: {
         headerShortcuts: {
             type: [String],
@@ -494,6 +503,74 @@ userSchema.methods.clearGoogleClassroomTokens = async function () {
         accessToken: null,
         refreshToken: null,
         scopes: [],
+        expiryDate: null,
+        isActive: false
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.hasGoogleFormsConnected = function () {
+    return Boolean(this.googleFormsTokens?.isActive && this.googleFormsTokens?.refreshToken);
+};
+
+userSchema.methods.googleFormsTokenNeedsRefresh = function () {
+    if (!this.googleFormsTokens?.expiryDate) return true;
+    return new Date() >= new Date(this.googleFormsTokens.expiryDate.getTime() - 5 * 60 * 1000);
+};
+
+userSchema.methods.updateGoogleFormsTokens = async function (tokens, email, scopes, oauthClientId) {
+    const existingClientId = this.googleFormsTokens?.oauthClientId;
+    const mayReuseRefreshToken = !oauthClientId || oauthClientId === existingClientId;
+    this.googleFormsTokens = {
+        email: email || this.googleFormsTokens?.email,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || (
+            mayReuseRefreshToken ? this.googleFormsTokens?.refreshToken : null
+        ),
+        scopes: Array.isArray(scopes) ? scopes : (this.googleFormsTokens?.scopes || []),
+        oauthClientId: oauthClientId || this.googleFormsTokens?.oauthClientId,
+        expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : this.googleFormsTokens?.expiryDate,
+        isActive: true
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.clearGoogleFormsTokens = async function () {
+    this.googleFormsTokens = {
+        email: null,
+        accessToken: null,
+        refreshToken: null,
+        scopes: [],
+        oauthClientId: null,
+        expiryDate: null,
+        isActive: false
+    };
+    return this.save({ validateBeforeSave: false });
+};
+
+userSchema.methods.clearGoogleSuiteTokens = async function () {
+    this.gmailTokens = {
+        email: null,
+        accessToken: null,
+        refreshToken: null,
+        grantedScopes: [],
+        expiryDate: null,
+        isActive: false
+    };
+    this.googleClassroomTokens = {
+        email: null,
+        accessToken: null,
+        refreshToken: null,
+        scopes: [],
+        expiryDate: null,
+        isActive: false
+    };
+    this.googleFormsTokens = {
+        email: null,
+        accessToken: null,
+        refreshToken: null,
+        scopes: [],
+        oauthClientId: null,
         expiryDate: null,
         isActive: false
     };

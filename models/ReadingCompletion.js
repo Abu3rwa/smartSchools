@@ -9,6 +9,10 @@ const readingCompletionSchema = new mongoose.Schema(
     text: { type: mongoose.Schema.Types.ObjectId, ref: 'SimplifiedText', required: true },
     correctCount: { type: Number, required: true },
     totalCount: { type: Number, required: true },
+    responses: [{
+      questionId: { type: String, required: true },
+      answer: { type: String, maxlength: 10000 },
+    }],
     completedAt: { type: Date, default: Date.now },
   },
   { timestamps: true }

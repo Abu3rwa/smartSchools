@@ -8,13 +8,14 @@ const googleClassroomService = {
         return response.data;
     },
 
-    getAuthUrl: async () => {
-        const response = await api.get(`${BASE}/auth/url`);
+    getAuthUrl: async (params = {}) => {
+        const response = await api.get(`${BASE}/auth/url`, { params });
         return response.data;
     },
 
     disconnect: async () => {
         const response = await api.delete(`${BASE}/auth/disconnect`);
+        window.dispatchEvent(new Event('google-suite-disconnected'));
         return response.data;
     },
 

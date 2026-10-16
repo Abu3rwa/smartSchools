@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchNotificationHistory,
   selectNotifications,
+  selectNotificationStatusCounts,
   selectNotificationsLoading,
 } from '../../../../store/slices/notificationSlice';
 import { getStatusCategory } from '../utils/notificationPresentation';
@@ -10,6 +11,7 @@ import { getStatusCategory } from '../utils/notificationPresentation';
 export default function useNotificationsData({ academicYear, searchTerm, statusFilter, typeFilter }) {
   const dispatch = useDispatch();
   const notifications = useSelector(selectNotifications);
+  const statusCounts = useSelector(selectNotificationStatusCounts);
   const loading = useSelector(selectNotificationsLoading);
 
   useEffect(() => {
@@ -52,20 +54,15 @@ export default function useNotificationsData({ academicYear, searchTerm, statusF
     [notifications, normalizedSearch, statusFilter, typeFilter]
   );
 
-  const totalSent = notifications.length;
-  const deliveredCount = notifications.filter((n) => n.status === 'sent').length;
-  const failedCount = notifications.filter((n) => n.status === 'failed').length;
-  const pendingCount = notifications.filter((n) => getStatusCategory(n.status) === 'pending').length;
-
   return {
     notifications,
     loading,
     notificationTypes,
     filteredNotifications,
-    totalSent,
-    deliveredCount,
-    failedCount,
-    pendingCount,
+    totalNotifications: statusCounts.total,
+    sentCount: statusCounts.sent,
+    failedCount: statusCounts.failed,
+    pendingCount: statusCounts.pending,
     refetchHistory,
   };
 }

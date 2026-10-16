@@ -15,9 +15,12 @@ import CreateAssignmentForm from './components/CreateAssignmentForm';
 import AssignmentsTable from './components/AssignmentsTable';
 import AssignmentGradePanel from './components/AssignmentGradePanel';
 import ClassroomPanel from './components/ClassroomPanel';
+import GoogleFormsPanel from './components/GoogleFormsPanel';
+import GoogleFormResultsPanel from './components/GoogleFormResultsPanel';
 import ClassworkBehaviorModal from '../../../components/grades/ClassworkBehaviorModal';
 import useAssignmentsPageState from './hooks/useAssignmentsPageState';
 import useGoogleClassroom from './hooks/useGoogleClassroom';
+import googleFormsService from '../../../services/googleFormsService';
 import { isClassworkAssignment } from '../../../components/grades/classworkBehaviorUtils';
 import {
     normalizeGradeStudentsFromClassStudents,
@@ -35,6 +38,9 @@ const AssignmentsPage = () => {
     const academicYear = useSelector(selectCurrentAcademicYear);
     const user = useSelector(selectUser);
     const [behaviorStudent, setBehaviorStudent] = useState(null);
+    const [googleFormResults, setGoogleFormResults] = useState(null);
+    const [loadingGoogleFormResults, setLoadingGoogleFormResults] = useState(false);
+    const [createFormOpen, setCreateFormOpen] = useState(false);
 
     const {
         assignmentTypes,
@@ -76,6 +82,13 @@ const AssignmentsPage = () => {
         academicYear,
         assignments
     });
+    const selectedType = assignmentTypes.find((item) => String(item.id) === String(form.assignmentTypeId));
+
+    useEffect(() => {
+        if (selectedType?.key === 'google_form' && selectedClass) {
+            dispatch(fetchStudentsByClass(selectedClass));
+        }
+    }, [dispatch, selectedClass, selectedType?.key]);
 
     const fetchAssignmentTypes = async () => {
         try {
@@ -148,6 +161,12 @@ const AssignmentsPage = () => {
             toast.error(t('assignments:toasts.typeTitleRequired'));
             return;
         }
+        if (selectedType?.key === 'google_form'
+            && form.scope === 'selected_students'
+            && (!Array.isArray(form.studentIds) || form.studentIds.length === 0)) {
+            toast.error(t('assignments:googleForms.selectStudents'));
+            return;
+        }
 
         const existingClassroomLink = editingAssignment?.id ? classroom.links[editingAssignment.id] : null;
         const postToClassroom = classroom.ready && Boolean(form.classroomPublish) && !existingClassroomLink;
@@ -180,6 +199,17 @@ const AssignmentsPage = () => {
                 notifyOnAssign: form.notifyOnAssign,
                 notifyAudience: form.notifyAudience || 'both',
                 notifyOnGrade: form.notifyOnGrade,
+                scope: selectedType?.key === 'google_form'
+                    ? form.scope || 'class'
+                    : editingAssignment?.scope || 'class',
+                studentIds: selectedType?.key === 'google_form' && form.scope === 'selected_students'
+                    ? form.studentIds || []
+                    : (selectedType?.key !== 'google_form' && editingAssignment?.scope === 'selected_students'
+                        ? editingAssignment.studentIds || []
+                        : []),
+                ...(selectedType?.key === 'google_form' && !editingAssignment?.googleForm?.responderUri
+                    ? { metadata: { googleForm: { questions: form.googleFormQuestions || [] } } }
+                    : {}),
                 academicYear,
                 removeAttachmentIds: Array.isArray(form.removeAttachmentIds) && form.removeAttachmentIds.length > 0
                     ? form.removeAttachmentIds
@@ -200,6 +230,7 @@ const AssignmentsPage = () => {
 
             setEditingAssignment(null);
             resetForm();
+            setCreateFormOpen(false);
             await fetchAssignments();
         } catch (error) {
             toast.error(
@@ -212,6 +243,7 @@ const AssignmentsPage = () => {
     };
 
     const onEditAssignment = (assignment) => {
+        setCreateFormOpen(true);
         setEditingAssignment(assignment);
         setForm((prev) => ({
             ...prev,
@@ -233,13 +265,25 @@ const AssignmentsPage = () => {
             classroomPublish: false,
             notifyOnAssign: assignment.notifyOnAssign !== false,
             notifyAudience: assignment.notifyAudience || 'both',
-            notifyOnGrade: assignment.notifyOnGrade !== false
+            notifyOnGrade: assignment.notifyOnGrade !== false,
+            googleFormQuestions: Array.isArray(assignment.googleForm?.questions)
+                ? assignment.googleForm.questions
+                : [],
+            scope: assignment.scope || 'class',
+            studentIds: Array.isArray(assignment.studentIds) ? assignment.studentIds : []
         }));
     };
 
     const onCancelEdit = () => {
         setEditingAssignment(null);
         resetForm();
+        setCreateFormOpen(false);
+    };
+
+    const onStartCreateAssignment = () => {
+        setEditingAssignment(null);
+        resetForm();
+        setCreateFormOpen(true);
     };
 
     const onDeleteAssignment = async (assignment) => {
@@ -296,6 +340,26 @@ const AssignmentsPage = () => {
             toast.error(error.response?.data?.message || 'Failed to send reminder');
         } finally {
             setSendingReminder(null);
+        }
+    };
+
+    const openGoogleFormResults = async (assignment) => {
+        setGoogleFormResults({ assignment, items: [] });
+        setLoadingGoogleFormResults(true);
+        try {
+            const sync = await googleFormsService.syncResponses(assignment.id);
+            const syncCounts = sync?.data || {};
+            toast.success(t('assignments:googleForms.syncSummary', {
+                imported: syncCounts.imported || 0,
+                unmatched: syncCounts.unmatched || 0,
+                grades: syncCounts.updatedGrades || 0
+            }));
+            const response = await googleFormsService.getResponses(assignment.id);
+            setGoogleFormResults({ assignment, items: response?.data?.items || [] });
+        } catch (error) {
+            toast.error(error.response?.data?.message || t('assignments:googleForms.errors.sync'));
+        } finally {
+            setLoadingGoogleFormResults(false);
         }
     };
 
@@ -391,11 +455,19 @@ const AssignmentsPage = () => {
 
     return (
         <div className="assignments-page">
-            <AssignmentsHeader />
+            <AssignmentsHeader
+                canCreateAssignments={canCreateAssignments}
+                onCreateAssignment={onStartCreateAssignment}
+            />
 
             <AssignmentsFilters
                 selectedClass={selectedClass}
-                onClassChange={setSelectedClass}
+                onClassChange={(classId) => {
+                    if (classId !== selectedClass) {
+                        setForm((prev) => ({ ...prev, scope: 'class', studentIds: [] }));
+                    }
+                    setSelectedClass(classId);
+                }}
                 selectedSubject={selectedSubject}
                 onSubjectChange={setSelectedSubject}
                 selectedStatus={selectedStatus}
@@ -404,25 +476,22 @@ const AssignmentsPage = () => {
                 availableSubjects={availableSubjects}
             />
 
-            <ClassroomPanel
-                classroom={classroom}
-                selectedClass={selectedClass}
-                availableSubjects={availableSubjects}
-            />
-
             <CreateAssignmentForm
-                open={canCreateAssignments}
+                open={canCreateAssignments && createFormOpen}
                 submitting={submitting}
                 form={form}
                 setForm={setForm}
                 assignmentTypes={assignmentTypes}
+                classStudents={classStudents}
                 selectedClass={selectedClass}
                 selectedSubject={selectedSubject}
                 isEditing={Boolean(editingAssignment)}
                 onCancelEdit={onCancelEdit}
+                onClose={onCancelEdit}
                 onSubmit={onCreateAssignment}
                 classroom={classroom}
                 existingClassroomLink={editingAssignment?.id ? classroom.links[editingAssignment.id] : null}
+                googleFormPublished={Boolean(editingAssignment?.googleForm?.responderUri)}
             />
 
             <AssignmentsTable
@@ -437,6 +506,27 @@ const AssignmentsPage = () => {
                 sendingReminder={sendingReminder}
                 publishingAssignment={publishingAssignment}
                 classroom={classroom}
+                onOpenGoogleFormResults={openGoogleFormResults}
+            />
+
+            {canCreateAssignments && (
+                <details className="assignment-integrations">
+                    <summary>{t('assignments:integrations.title')}</summary>
+                    <p className="text-muted">{t('assignments:integrations.help')}</p>
+                    <ClassroomPanel
+                        classroom={classroom}
+                        selectedClass={selectedClass}
+                        availableSubjects={availableSubjects}
+                    />
+                    <GoogleFormsPanel user={user} />
+                </details>
+            )}
+
+            <GoogleFormResultsPanel
+                results={googleFormResults}
+                loading={loadingGoogleFormResults}
+                onClose={() => setGoogleFormResults(null)}
+                onSync={openGoogleFormResults}
             />
 
             <AssignmentGradePanel

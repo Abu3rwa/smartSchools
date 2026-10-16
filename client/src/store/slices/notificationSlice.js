@@ -110,6 +110,7 @@ const notificationSlice = createSlice({
     initialState: {
         notifications: [],
         pagination: null,
+        statusCounts: { total: 0, sent: 0, pending: 0, failed: 0 },
         sending: false,
         loading: false,
         error: null,
@@ -214,6 +215,14 @@ const notificationSlice = createSlice({
                 state.loading = false;
                 state.notifications = action.payload.notifications;
                 state.pagination = action.payload.pagination;
+                state.statusCounts = action.payload.statusCounts || {
+                    total: action.payload.pagination?.total || 0,
+                    sent: action.payload.notifications.filter((notification) =>
+                        ['sent', 'delivered', 'read'].includes(notification.status)
+                    ).length,
+                    pending: action.payload.notifications.filter((notification) => notification.status === 'pending').length,
+                    failed: action.payload.notifications.filter((notification) => notification.status === 'failed').length
+                };
             })
             .addCase(fetchNotificationHistory.rejected, (state, action) => {
                 state.loading = false;
@@ -225,6 +234,7 @@ const notificationSlice = createSlice({
 export const { clearError, clearLastSent } = notificationSlice.actions;
 
 export const selectNotifications = (state) => state.notifications.notifications;
+export const selectNotificationStatusCounts = (state) => state.notifications.statusCounts;
 export const selectNotificationSending = (state) => state.notifications.sending;
 export const selectNotificationsLoading = (state) => state.notifications.loading;
 

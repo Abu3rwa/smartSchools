@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   HiOutlineArrowLeft,
   HiOutlineCalendar,
@@ -17,7 +18,13 @@ const getExternalUrl = (value) => {
 };
 
 const AssignmentDetailContent = ({ assignment, lessonPlans }) => {
+  const { t } = useTranslation(['assignments']);
   const links = Array.isArray(assignment?.links) ? assignment.links : [];
+  const parsedGoogleFormUrl = getExternalUrl(assignment?.googleForm?.responderUri);
+  const googleFormUrl = parsedGoogleFormUrl && new URL(parsedGoogleFormUrl).hostname === 'docs.google.com'
+    && new URL(parsedGoogleFormUrl).pathname.startsWith('/forms/')
+    ? parsedGoogleFormUrl
+    : null;
 
   return (
     <div className="student-assignment-detail-page">
@@ -87,6 +94,20 @@ const AssignmentDetailContent = ({ assignment, lessonPlans }) => {
                 );
               })}
             </ul>
+          </section>
+        ) : null}
+
+        {googleFormUrl ? (
+          <section className="detail-section google-form-student-action">
+            <h2>{t('assignments:googleForms.studentTitle')}</h2>
+            <p>{t('assignments:googleForms.studentDescription')}</p>
+            {assignment.googleForm.submission
+              ? <p role="status">{t('assignments:googleForms.studentSubmitted')}</p>
+              : <p role="status">{t('assignments:googleForms.studentAwaitingSync')}</p>}
+            <a className="btn btn-primary" href={googleFormUrl} target="_blank" rel="noopener noreferrer">
+              {t('assignments:googleForms.openQuiz')}
+              <HiOutlineExternalLink size={16} aria-hidden="true" />
+            </a>
           </section>
         ) : null}
 

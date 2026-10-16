@@ -1,5 +1,5 @@
 export const getStatusCategory = (status) => {
-  if (status === 'sent') return 'sent';
+  if (['sent', 'delivered', 'read'].includes(status)) return 'sent';
   if (status === 'failed') return 'failed';
   return 'pending';
 };

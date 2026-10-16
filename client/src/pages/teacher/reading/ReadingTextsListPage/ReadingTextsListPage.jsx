@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   HiOutlineArrowLeft,
   HiOutlineDocumentAdd,
@@ -5,12 +6,24 @@ import {
   HiOutlineBookOpen,
 } from "react-icons/hi";
 import { useTranslation } from "react-i18next";
+import { useDispatch, useSelector } from "react-redux";
+import { selectUser } from "../../../../store/slices/authSlice.js";
 import { useReadingTextsListData } from "./hooks/useReadingTextsListData.js";
+import { fetchTexts } from "../../../../store/slices/readingSlice.js";
+import readingService from "../../../../services/readingService.js";
+import ReadingCsvImportPanel from "./ReadingCsvImportPanel.jsx";
+import ReadingEditorModal from "./ReadingEditorModal.jsx";
+import toast from "react-hot-toast";
 import "./ReadingTextsListPage.css";
 
 export default function ReadingTextsListPage() {
   const { t } = useTranslation(["reading"]);
+  const dispatch = useDispatch();
+  const user = useSelector(selectUser);
   const data = useReadingTextsListData();
+  const [editingReading, setEditingReading] = useState(null);
+  const [editorLoading, setEditorLoading] = useState(false);
+  const [editorSaving, setEditorSaving] = useState(false);
   const {
     texts,
     classes,
@@ -31,6 +44,49 @@ export default function ReadingTextsListPage() {
     onBack,
     onUpload,
   } = data;
+  const handleSharingChange = async (text) => {
+    try {
+      await readingService.updateTextSharing(text._id, !text.isShared);
+      await dispatch(fetchTexts());
+      toast.success(text.isShared ? t("reading:texts.shareDisabled") : t("reading:texts.shareEnabled"));
+    } catch (error) {
+      toast.error(error.response?.data?.message || t("reading:texts.sharingFailed"));
+    }
+  };
+  const canManage = (text) => user?.role === "admin"
+    || String(text.createdBy?._id || text.createdBy || "") === String(user?._id || "");
+  const handleEdit = async (text) => {
+    setEditorLoading(true);
+    try {
+      const response = await readingService.getTextById(text._id);
+      setEditingReading(response.data?.data);
+    } catch (error) {
+      toast.error(error.response?.data?.message || t("reading:texts.editFailed"));
+    } finally {
+      setEditorLoading(false);
+    }
+  };
+  const handleSave = async (payload) => {
+    setEditorSaving(true);
+    try {
+      await readingService.updateText(editingReading._id, payload);
+      setEditingReading(null);
+      await dispatch(fetchTexts());
+      toast.success(t("reading:texts.editSuccess"));
+    } finally {
+      setEditorSaving(false);
+    }
+  };
+  const handleDelete = async (text) => {
+    if (!window.confirm(t("reading:texts.deleteConfirm", { title: text.title }))) return;
+    try {
+      await readingService.deleteText(text._id);
+      await dispatch(fetchTexts());
+      toast.success(t("reading:texts.deleteSuccess"));
+    } catch (error) {
+      toast.error(error.response?.data?.message || t("reading:texts.deleteFailed"));
+    }
+  };
 
   return (
     <div className="reading-texts-list-page">
@@ -52,6 +108,8 @@ export default function ReadingTextsListPage() {
         </button>
       </div>
 
+      <ReadingCsvImportPanel onImported={() => dispatch(fetchTexts())} />
+
       {loading && texts.length === 0 ? (
         <div className="loading-container">
           <div className="spinner" />
@@ -71,6 +129,7 @@ export default function ReadingTextsListPage() {
             <article key={text._id} className="reading-card">
               <div className="reading-card-body">
                 <h3 className="reading-card-title">{text.title}</h3>
+                {text.isShared && <span className="reading-card-meta">{t("reading:texts.sharedWithSchool")}</span>}
                 {text.subjectArea && (
                   <span className="reading-card-meta">{text.subjectArea}</span>
                 )}
@@ -85,6 +144,32 @@ export default function ReadingTextsListPage() {
                   </span>
                 )}
                 <div className="reading-card-actions">
+                  {canManage(text) && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleEdit(text)}
+                        disabled={editorLoading}
+                      >
+                        {t("reading:texts.editReading")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDelete(text)}
+                      >
+                        {t("reading:texts.deleteReading")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleSharingChange(text)}
+                      >
+                        {text.isShared ? t("reading:texts.stopSharing") : t("reading:texts.shareReading")}
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -167,6 +252,15 @@ export default function ReadingTextsListPage() {
             </form>
           </div>
         </div>
+      )}
+      {editingReading && (
+        <ReadingEditorModal
+          key={editingReading._id}
+          reading={editingReading}
+          saving={editorSaving}
+          onClose={() => setEditingReading(null)}
+          onSave={handleSave}
+        />
       )}
     </div>
   );

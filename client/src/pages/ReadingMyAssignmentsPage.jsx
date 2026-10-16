@@ -81,25 +81,24 @@ const ReadingMyAssignmentsPage = () => {
                 )}
               </div>
               <div className="card-footer">
-                {a.completed ? (
+                {a.completed && (
                   <span className="completed-badge">
                     <HiOutlineCheck size={18} />
                     Completed
                   </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() =>
-                      navigate(`/portal/reading/view/${a.text?._id}`, {
-                        state: { assignmentId: a._id },
-                      })
-                    }
-                  >
-                    Read
-                    <HiOutlineArrowRight size={16} />
-                  </button>
                 )}
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() =>
+                    navigate(`/portal/reading/view/${a.text?._id}?assignmentId=${encodeURIComponent(a._id)}`, {
+                      state: { assignmentId: a._id },
+                    })
+                  }
+                >
+                  {a.completed ? 'Review' : 'Read'}
+                  <HiOutlineArrowRight size={16} />
+                </button>
               </div>
             </article>
           ))}

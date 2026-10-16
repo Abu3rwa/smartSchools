@@ -12,6 +12,12 @@ test('a freshly signed state round-trips the user id', () => {
     assert.equal(parseSignedState(state).userId, 'user-123');
 });
 
+test('the signed state restricts the return destination to a known portal page', () => {
+    const state = buildSignedState('user-123', 'notifications');
+    assert.equal(parseSignedState(state).returnTo, 'notifications');
+    assert.equal(parseSignedState(buildSignedState('user-123', 'https://example.com')).returnTo, 'assignments');
+});
+
 test('a tampered payload or signature is rejected', () => {
     const state = buildSignedState('user-123');
     const [payload, signature] = state.split('.');

@@ -10,6 +10,8 @@ export const readingService = {
 
   // Teacher: get single text
   getTextById: (textId) => api.get(`/reading/texts/${textId}`),
+  updateText: (textId, body) => api.patch(`/reading/texts/${textId}`, body),
+  deleteText: (textId) => api.delete(`/reading/texts/${textId}`),
   updateTextSharing: (textId, isShared) => api.patch(`/reading/texts/${textId}/sharing`, { isShared }),
 
   // Teacher: create assignment

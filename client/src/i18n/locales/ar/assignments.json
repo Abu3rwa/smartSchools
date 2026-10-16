@@ -1,7 +1,7 @@
 {
   "header": {
     "title": "الواجبات",
-    "subtitle": "سير عمل يعتمد على الواجبات لكل الدرجات الجديدة"
+    "subtitle": "أنشئ واجبات الصف وانشرها وتابعها من مكان واحد."
   },
   "filters": {
     "class": "الصف",
@@ -40,6 +40,7 @@
     "edit": "تعديل",
     "delete": "حذف",
     "cancelEdit": "إلغاء التعديل",
+    "cancelCreate": "إغلاق",
     "saveChanges": "حفظ التغييرات",
     "createAssignment": "إنشاء واجب"
   },
@@ -71,6 +72,10 @@
     "assignmentTypeNotFound": "نوع الواجب في CSV غير موجود. استخدم اسم نوع واجب أو معرّفه.",
     "failed": "تعذر استيراد CSV للواجب.",
     "templateHelp": "واجب واحد في كل ملف. استخدم links_json لإضافة عدة روابط."
+  },
+  "integrations": {
+    "title": "التكاملات الاختيارية",
+    "help": "إعدادات واتصالات Google Classroom وGoogle Forms."
   },
   "audience": {
     "both": "الطلاب وأولياء الأمور",
@@ -107,8 +112,8 @@
       "statusNetworkError": "تعذر الوصول إلى الخادم للتحقق من Google Classroom. شغّل الخادم المحلي وحاول مرة أخرى.",
       "statusHttpError": "تعذر على الخادم التحقق من Google Classroom (HTTP {{status}}). تحقق من اتصال API وإعدادات الخادم.",
       "retryStatus": "تحقق مرة أخرى",
-      "notConnected": "اربط حساب Google الخاص بك لنشر الواجبات في Google Classroom.",
-      "connect": "ربط Google Classroom",
+      "notConnected": "اربط خدمات Google لنشر الواجبات في Google Classroom.",
+      "connect": "ربط خدمات Google",
       "connectedAs": "متصل بالحساب {{email}}",
       "disconnect": "فصل الربط",
       "selectClass": "اختر صفًا من التطبيق لربط جميع مواده بمقررات Classroom.",
@@ -149,12 +154,89 @@
     },
     "errors": {
       "connectFailed": "تعذر ربط Google Classroom. يرجى المحاولة مرة أخرى.",
-      "missingScopes": "لم يتم ربط Google Classroom لأن بعض الأذونات لم تتم الموافقة عليها. يرجى المحاولة مرة أخرى والموافقة على جميع الأذونات المطلوبة.",
+      "missingScopes": "لم يتم ربط خدمات Google لأن بعض أذونات Classroom أو نماذج Google أو Gmail لم تتم الموافقة عليها. أعد الربط ووافق على جميع الأذونات المطلوبة.",
       "notAvailable": "Google Classroom غير متاح لحسابك.",
       "disconnectFailed": "تعذر فصل Google Classroom.",
       "coursesFailed": "تعذر تحميل مقررات Classroom الخاصة بك.",
       "mappingFailed": "تعذر تحديث مقرر Classroom.",
       "postFailed": "تعذر النشر في Google Classroom."
+    }
+  },
+  "googleForms": {
+    "title": "نماذج Google",
+    "refresh": "تحديث",
+    "notConfigured": "تم تفعيل نماذج Google، لكن بيانات OAuth أو تشفير الرموز غير مهيأة على الخادم.",
+    "connectedAs": "متصل بالحساب {{email}}",
+    "notConnected": "اربط خدمات Google لإنشاء اختبارات نماذج Google وقراءة نتائجها.",
+    "connect": "ربط خدمات Google",
+    "disconnect": "فصل خدمات Google",
+    "sharedAccessNotice": "يطلب هذا الاتصال الموحد صلاحيات Google Classroom ونماذج Google وإرسال Gmail وتنظيف الرسائل المرسلة في Gmail. قد ينقل التنظيف الرسائل المطابقة إلى المهملات. يؤدي فصل الاتصال إلى إلغاء الوصول إلى جميع هذه الخدمات.",
+    "verifiedEmailNotice": "تجمع الاختبارات البريد الإلكتروني الموثق لحساب Google لكل مستجيب. يجب أن يستخدم الطالب الحساب المسجل في ملفه.",
+    "assignmentScope": "إسناد الاختبار إلى",
+    "assignToClass": "جميع طلاب الصف",
+    "assignToSelected": "طلاب محددون فقط",
+    "noStudents": "لا يوجد طلاب متاحون لهذا الصف.",
+    "selectStudents": "اختر طالبًا واحدًا على الأقل لهذا الاختبار.",
+    "questionsTitle": "أسئلة الاختبار",
+    "questionsHelp": "أضف أسئلة اختيار من متعدد أو صح/خطأ أو إجابة قصيرة. تُحفظ الإجابات القصيرة لمراجعة المعلم ولا تُصحح تلقائيًا.",
+    "csv": {
+      "downloadTemplate": "تنزيل نموذج CSV للأسئلة",
+      "import": "استيراد الأسئلة من CSV",
+      "importing": "جارٍ استيراد الأسئلة...",
+      "replaceConfirm": "سيؤدي استيراد ملف CSV إلى استبدال الأسئلة الحالية. هل تريد المتابعة؟",
+      "imported": "تم استيراد {{count}} سؤالًا. راجعها قبل النشر.",
+      "invalidFile": "اختر ملفًا بامتداد ‎.csv.",
+      "fileTooLarge": "يجب ألا يتجاوز حجم ملف CSV ميغابايت واحدًا.",
+      "failed": "تعذر استيراد الأسئلة من ملف CSV."
+    },
+    "addQuestion": "إضافة سؤال",
+    "questionNumber": "السؤال {{number}}",
+    "prompt": "السؤال",
+    "questionType": "نوع السؤال",
+    "multipleChoice": "اختيار من متعدد",
+    "trueFalse": "صح أو خطأ",
+    "shortAnswer": "إجابة قصيرة",
+    "points": "الدرجات",
+    "correctAnswer": "الإجابة الصحيحة",
+    "selectCorrectAnswer": "اختر الإجابة الصحيحة",
+    "options": "خيارات الإجابة (خيار واحد في كل سطر)",
+    "optionsHelp": "اكتب خيارًا واحدًا في كل سطر",
+    "shortAnswerHelp": "ستظهر إجابات الطلاب في لوحة ردود المعلم للمراجعة والتصحيح اليدوي.",
+    "removeQuestion": "حذف السؤال",
+    "responses": "الردود",
+    "resultsTitle": "ردود نماذج Google — {{title}}",
+    "sync": "مزامنة الردود",
+    "syncing": "جارٍ المزامنة…",
+    "syncSummary": "تمت مزامنة {{imported}} ردًا؛ تعذر ربط {{unmatched}} بطالب مسند إليه؛ تم تحديث {{grades}} درجة.",
+    "loadingResults": "جارٍ تحميل الردود…",
+    "noResponses": "لا توجد ردود مطابقة بعد. أعد المزامنة بعد إرسال الطلاب.",
+    "student": "الطالب",
+    "submittedAt": "تاريخ الإرسال",
+    "score": "الدرجة",
+    "answers": "الإجابات",
+    "viewAnswers": "عرض الإجابات",
+    "late": "متأخر",
+    "manualReview": "مراجعة يدوية",
+    "studentTitle": "اختبار نماذج Google",
+    "studentDescription": "أكمل الاختبار باستخدام حساب Google المرتبط بحسابك كطالب.",
+    "openQuiz": "فتح الاختبار",
+    "studentSubmitted": "تم تسجيل إجابتك.",
+    "studentAwaitingSync": "بعد الإرسال، سيزامن معلمك الإجابة لتظهر هنا.",
+    "errors": {
+      "status": "تعذر التحقق من حالة نماذج Google.",
+      "connect": "تعذر ربط نماذج Google. يرجى المحاولة مرة أخرى.",
+      "disconnect": "تعذر فصل نماذج Google.",
+      "sync": "تعذرت مزامنة ردود نماذج Google.",
+      "consent_denied": "لم يتم منح صلاحية الوصول إلى نماذج Google.",
+      "missing_parameters": "لم تُرجع Google بيانات الاتصال المطلوبة.",
+      "invalid_state": "انتهت صلاحية اتصال نماذج Google أو تعذر التحقق منه. حاول مرة أخرى.",
+      "not_available": "نماذج Google غير متاحة لهذا الحساب.",
+      "missing_scopes": "لم تتم الموافقة على بعض أذونات نماذج Google المطلوبة. أعد الربط ووافق على جميع الأذونات.",
+      "oauth_failed": "تعذر ربط نماذج Google. تحقق من إعدادات الخادم وحاول مرة أخرى."
+    },
+    "toasts": {
+      "connected": "تم ربط نماذج Google.",
+      "disconnected": "تم فصل نماذج Google."
     }
   },
   "common": {
